@@ -20,13 +20,15 @@ export default async function PropertiesPage() {
 
   const props = properties || []
 
+  type UnitRow = { id: string; status: string; is_archived: boolean }
+
   const totalUnits = props.reduce((sum, p) => {
-    const active = ((p.units as unknown[]) || []).filter((u: { is_archived: boolean; status: string }) => !u.is_archived)
+    const active = ((p.units as unknown as UnitRow[]) || []).filter((u) => !u.is_archived)
     return sum + active.length
   }, 0)
 
   const occupiedUnits = props.reduce((sum, p) => {
-    const occupied = ((p.units as unknown[]) || []).filter((u: { is_archived: boolean; status: string }) => u.status === "occupied" && !u.is_archived)
+    const occupied = ((p.units as unknown as UnitRow[]) || []).filter((u) => u.status === "occupied" && !u.is_archived)
     return sum + occupied.length
   }, 0)
 
