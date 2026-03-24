@@ -33,6 +33,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# docuseal data
+docuseal_data/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
