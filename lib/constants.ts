@@ -35,6 +35,45 @@ export type UserRole = (typeof USER_ROLES)[number]
 export const LEASE_TYPES = ["residential", "commercial"] as const
 export type LeaseType = (typeof LEASE_TYPES)[number]
 
+export const SA_PROVINCES = [
+  "Western Cape",
+  "Eastern Cape",
+  "Northern Cape",
+  "North West",
+  "Free State",
+  "KwaZulu-Natal",
+  "Gauteng",
+  "Limpopo",
+  "Mpumalanga",
+] as const
+
+export const UNIT_FEATURES = [
+  "Pool",
+  "Garden",
+  "Solar",
+  "Borehole",
+  "Alarm",
+  "Garage",
+  "Carport",
+  "Fibre",
+  "DSTV",
+  "Pet-friendly",
+  "Wheelchair-accessible",
+] as const
+
+export const DOCUMENT_TYPES = [
+  { value: "title_deed", label: "Title Deed" },
+  { value: "compliance_certificate", label: "Compliance Certificate" },
+  { value: "insurance", label: "Insurance" },
+  { value: "rates_clearance", label: "Rates Clearance" },
+  { value: "levy_schedule", label: "Levy Schedule" },
+  { value: "plans", label: "Plans" },
+  { value: "electrical_coc", label: "Electrical COC" },
+  { value: "gas_coc", label: "Gas COC" },
+  { value: "beetle_coc", label: "Beetle COC" },
+  { value: "other", label: "Other" },
+] as const
+
 // Currency formatting (South African Rand)
 export function formatZAR(cents: number, showCents = false): string {
   const rands = cents / 100
