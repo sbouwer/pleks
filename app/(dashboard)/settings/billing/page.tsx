@@ -1,7 +1,6 @@
 "use client"
 
 import { useTier } from "@/hooks/useTier"
-import { useOrg } from "@/hooks/useOrg"
 import { TIER_PRICING, TIER_LIMITS, formatZAR } from "@/lib/constants"
 import { TIER_FEATURES } from "@/lib/tier/gates"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,7 +10,6 @@ import { StatusBadge } from "@/components/shared/StatusBadge"
 
 export default function BillingPage() {
   const { tier, status, periodEnd } = useTier()
-  const { orgId } = useOrg()
 
   const pricing = TIER_PRICING[tier]
   const limits = TIER_LIMITS[tier]

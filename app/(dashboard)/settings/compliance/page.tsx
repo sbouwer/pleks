@@ -5,7 +5,6 @@ import { createClient } from "@/lib/supabase/client"
 import { useOrg } from "@/hooks/useOrg"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { StatusBadge } from "@/components/shared/StatusBadge"
 import { Check, AlertTriangle } from "lucide-react"
 
 const SCOPE_LABELS: Record<string, string> = {

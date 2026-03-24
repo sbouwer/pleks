@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import {
@@ -36,7 +37,7 @@ export function Sidebar() {
     <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:border-r border-border bg-sidebar h-full">
       <div className="p-6">
         <Link href="/dashboard" className="flex items-center gap-2">
-          <img src="/logo.svg" alt="Pleks" className="h-7" />
+          <Image src="/logo.svg" alt="Pleks" width={100} height={28} />
         </Link>
       </div>
 

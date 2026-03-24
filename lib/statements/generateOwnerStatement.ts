@@ -2,7 +2,6 @@
 
 import { createServiceClient } from "@/lib/supabase/server"
 import { calculateManagementFee } from "@/lib/finance/managementFee"
-import { startOfMonth, endOfMonth, subMonths } from "date-fns"
 
 export async function generateOwnerStatement(
   propertyId: string,
@@ -42,8 +41,8 @@ export async function generateOwnerStatement(
     : { data: [] }
 
   const incomeLines = (invoices || []).map((inv) => {
-    const tenant = (inv.leases as any)?.tenants
-    const unit = inv.units as any
+    const tenant = (inv.leases as Record<string, unknown>)?.tenants as Record<string, string> | undefined
+    const unit = inv.units as Record<string, string> | null
     const tenantName = tenant?.tenant_type === "company"
       ? tenant.company_name
       : `${tenant?.first_name || ""} ${tenant?.last_name || ""}`.trim()
@@ -72,7 +71,7 @@ export async function generateOwnerStatement(
 
   const expenseLines = (expenses || []).map((exp) => ({
     description: exp.statement_line_description || exp.description,
-    contractor: (exp.contractors as any)?.name || "—",
+    contractor: (exp.contractors as Record<string, string> | null)?.name || "—",
     invoice_ref: exp.invoice_number || "—",
     amount_cents: exp.amount_incl_vat_cents,
   }))

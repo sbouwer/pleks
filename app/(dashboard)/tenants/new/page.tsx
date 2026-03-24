@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,7 +20,6 @@ import { toast } from "sonner"
 type Step = 1 | 2 | 3 | 4
 
 export default function NewTenantPage() {
-  const router = useRouter()
   const [step, setStep] = useState<Step>(1)
   const [tenantType, setTenantType] = useState<"individual" | "company">("individual")
   const [loading, setLoading] = useState(false)
