@@ -1,9 +1,6 @@
 import { generatePayFastSignature } from "./signature"
+import { PAYFAST_CONFIG } from "./config"
 import { TIER_PRICING, type Tier } from "@/lib/constants"
-
-const PAYFAST_URL = process.env.NEXT_PUBLIC_PAYFAST_SANDBOX === "true"
-  ? "https://sandbox.payfast.co.za/eng/process"
-  : "https://www.payfast.co.za/eng/process"
 
 interface SubscriptionFormData {
   orgId: string
@@ -20,8 +17,8 @@ export function buildSubscriptionForm({ orgId, tier, billingCycle }: Subscriptio
   const cycleLabel = billingCycle === "annual" ? "Annual" : "Monthly"
 
   const data: Record<string, string> = {
-    merchant_id: process.env.PAYFAST_MERCHANT_ID!,
-    merchant_key: process.env.PAYFAST_MERCHANT_KEY!,
+    merchant_id: PAYFAST_CONFIG.merchantId,
+    merchant_key: PAYFAST_CONFIG.merchantKey,
     return_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?onboarding=complete`,
     cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/onboarding/team`,
     notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/payfast/subscription`,
@@ -37,10 +34,10 @@ export function buildSubscriptionForm({ orgId, tier, billingCycle }: Subscriptio
     custom_str3: billingCycle,
   }
 
-  const signature = generatePayFastSignature(data, process.env.PAYFAST_PASSPHRASE)
+  const signature = generatePayFastSignature(data, PAYFAST_CONFIG.passphrase)
   data.signature = signature
 
-  return { url: PAYFAST_URL, data }
+  return { url: PAYFAST_CONFIG.processUrl, data }
 }
 
 interface ApplicationFeeFormData {
@@ -59,8 +56,8 @@ export function buildApplicationFeeForm({
   unitName,
 }: ApplicationFeeFormData) {
   const data: Record<string, string> = {
-    merchant_id: process.env.PAYFAST_MERCHANT_ID!,
-    merchant_key: process.env.PAYFAST_MERCHANT_KEY!,
+    merchant_id: PAYFAST_CONFIG.merchantId,
+    merchant_key: PAYFAST_CONFIG.merchantKey,
     return_url: `${process.env.NEXT_PUBLIC_APP_URL}/apply/${listingId}/status`,
     cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/apply/${listingId}`,
     notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/payfast/application`,
@@ -72,8 +69,8 @@ export function buildApplicationFeeForm({
     custom_str3: orgId,
   }
 
-  const signature = generatePayFastSignature(data, process.env.PAYFAST_PASSPHRASE)
+  const signature = generatePayFastSignature(data, PAYFAST_CONFIG.passphrase)
   data.signature = signature
 
-  return { url: PAYFAST_URL, data }
+  return { url: PAYFAST_CONFIG.processUrl, data }
 }

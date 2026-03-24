@@ -1,7 +1,5 @@
 import { generatePayFastSignature } from "./signature"
-
-const PAYFAST_VALIDATE_URL = "https://www.payfast.co.za/eng/query/validate"
-const PAYFAST_SANDBOX_VALIDATE_URL = "https://sandbox.payfast.co.za/eng/query/validate"
+import { PAYFAST_CONFIG } from "./config"
 
 export async function validatePayFastITN(
   params: Record<string, string>,
@@ -13,19 +11,15 @@ export async function validatePayFastITN(
   }
 
   // 2. Verify signature
-  const passphrase = process.env.PAYFAST_PASSPHRASE
-  const expectedSignature = generatePayFastSignature(params, passphrase)
+  const expectedSignature = generatePayFastSignature(params, PAYFAST_CONFIG.passphrase)
 
   if (expectedSignature !== params.signature) {
     return { valid: false, error: "Signature mismatch" }
   }
 
   // 3. Server-to-server validation
-  const isSandbox = process.env.NEXT_PUBLIC_PAYFAST_SANDBOX === "true"
-  const validateUrl = isSandbox ? PAYFAST_SANDBOX_VALIDATE_URL : PAYFAST_VALIDATE_URL
-
   try {
-    const response = await fetch(validateUrl, {
+    const response = await fetch(PAYFAST_CONFIG.validateUrl, {
       method: "POST",
       body: rawBody,
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -37,7 +31,7 @@ export async function validatePayFastITN(
     }
   } catch {
     // In sandbox, validation endpoint may not always respond
-    if (!isSandbox) {
+    if (!PAYFAST_CONFIG.isSandbox) {
       return { valid: false, error: "PayFast validation request failed" }
     }
   }
