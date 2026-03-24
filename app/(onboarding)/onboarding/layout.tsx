@@ -1,16 +1,58 @@
+"use client"
+
+import { usePathname } from "next/navigation"
+import { cn } from "@/lib/utils"
+
+const steps = [
+  { path: "/onboarding", label: "Organisation" },
+  { path: "/onboarding/receivables", label: "Portfolio" },
+  { path: "/onboarding/trust", label: "Compliance" },
+  { path: "/onboarding/team", label: "Plan & Team" },
+]
+
 export default function OnboardingLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode
-}) {
+}>) {
+  const pathname = usePathname()
+  const currentStep = steps.findIndex((s) => s.path === pathname)
+
   return (
-    <div className="flex items-center justify-center min-h-screen px-4">
-      <div className="w-full max-w-lg">
-        <div className="text-center mb-8">
-          <h1 className="font-heading text-3xl text-brand">Pleks</h1>
-          <p className="text-muted-foreground text-sm mt-1">Set up your organisation</p>
+    <div className="min-h-screen flex flex-col">
+      {/* Progress bar */}
+      <div className="border-b border-border bg-surface">
+        <div className="max-w-2xl mx-auto px-4 py-4">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="font-heading text-xl text-brand">Pleks</span>
+            <span className="text-xs text-muted-foreground">Setup</span>
+          </div>
+          <div className="flex gap-2">
+            {steps.map((step, i) => (
+              <div key={step.path} className="flex-1">
+                <div
+                  className={cn(
+                    "h-1 rounded-full transition-colors",
+                    i <= currentStep ? "bg-brand" : "bg-border"
+                  )}
+                />
+                <p
+                  className={cn(
+                    "text-xs mt-1",
+                    i <= currentStep ? "text-foreground" : "text-muted-foreground"
+                  )}
+                >
+                  {step.label}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
-        {children}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 flex items-start justify-center px-4 py-8">
+        <div className="w-full max-w-xl">{children}</div>
       </div>
     </div>
   )

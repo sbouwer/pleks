@@ -47,7 +47,7 @@ export function Topbar({ onMenuClick }: TopbarProps) {
         </Button>
         {org && (
           <span className="text-sm font-medium text-muted-foreground">
-            {org.name}
+            {(org as Record<string, unknown>).name as string}
           </span>
         )}
       </div>
