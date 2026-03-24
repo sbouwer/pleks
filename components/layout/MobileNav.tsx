@@ -47,8 +47,8 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="left" className="w-64 bg-sidebar p-0">
         <SheetHeader className="p-6">
-          <SheetTitle className="font-heading text-2xl font-bold text-brand">
-            Pleks
+          <SheetTitle>
+            <img src="/logo.svg" alt="Pleks" className="h-7" />
           </SheetTitle>
         </SheetHeader>
         <nav className="px-3 space-y-1">

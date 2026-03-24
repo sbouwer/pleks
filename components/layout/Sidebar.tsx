@@ -36,7 +36,7 @@ export function Sidebar() {
     <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:border-r border-border bg-sidebar h-full">
       <div className="p-6">
         <Link href="/dashboard" className="flex items-center gap-2">
-          <span className="font-heading text-2xl font-bold text-brand">Pleks</span>
+          <img src="/logo.svg" alt="Pleks" className="h-7" />
         </Link>
       </div>
 

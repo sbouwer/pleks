@@ -4,9 +4,7 @@ import { Button } from "@/components/ui/button"
 export default function HomePage() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen px-4">
-      <h1 className="font-heading text-5xl md:text-7xl mb-4 text-center">
-        <span className="text-brand">Pleks</span>
-      </h1>
+      <img src="/logo.svg" alt="Pleks" className="h-16 md:h-20 mb-4" />
       <p className="text-muted-foreground text-lg md:text-xl max-w-2xl text-center mb-8">
         South African property management, built from the ground up.
         Smarter inspections, automated collections, legal-grade compliance.
