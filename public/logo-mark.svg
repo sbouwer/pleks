@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 34 56" role="img" aria-label="Pleks">
+  <title>Pleks mark</title>
+  <!-- Amber mark for dark backgrounds -->
+  <rect x="0"  y="0"  width="12" height="56" fill="#E8A838"/>
+  <rect x="12" y="0"  width="22" height="11" fill="#E8A838"/>
+  <rect x="24" y="0"  width="10" height="37" fill="#E8A838"/>
+  <rect x="12" y="26" width="22" height="11" fill="#E8A838"/>
+</svg>
