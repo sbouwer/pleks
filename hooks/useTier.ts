@@ -1,35 +1,41 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { createClient } from "@/lib/supabase/client"
 import { useOrg } from "./useOrg"
-import type { Tier } from "@/lib/constants"
+import { type Tier } from "@/lib/constants"
+import { hasFeature } from "@/lib/tier/gates"
 
 export function useTier() {
-  const { org } = useOrg()
-  const [tier, setTier] = useState<Tier>("owner")
-  const [loading, setLoading] = useState(true)
+  const { orgId } = useOrg()
+  const supabase = createClient()
 
-  useEffect(() => {
-    if (!org) {
-      setTier("owner")
-      setLoading(false)
-      return
-    }
+  const { data, isLoading } = useQuery({
+    queryKey: ["subscription", orgId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("subscriptions")
+        .select("tier, status, current_period_end")
+        .eq("org_id", orgId!)
+        .eq("status", "active")
+        .limit(1)
+        .single()
+      return data
+    },
+    enabled: !!orgId,
+  })
 
-    const supabase = createClient()
-    supabase
-      .from("subscriptions")
-      .select("tier")
-      .eq("org_id", org.id)
-      .eq("status", "active")
-      .limit(1)
-      .single()
-      .then(({ data }) => {
-        setTier((data?.tier as Tier) || "owner")
-        setLoading(false)
-      })
-  }, [org])
+  const tier = (data?.tier as Tier) ?? "owner"
 
-  return { tier, loading }
+  return {
+    tier,
+    loading: isLoading,
+    isOwner: tier === "owner",
+    isSteward: tier === "steward",
+    isPortfolio: tier === "portfolio",
+    isFirm: tier === "firm",
+    can: (feature: string) => hasFeature(tier, feature),
+    status: data?.status ?? "active",
+    periodEnd: data?.current_period_end ?? null,
+  }
 }

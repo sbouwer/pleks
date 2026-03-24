@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { Instrument_Serif, DM_Sans } from "next/font/google"
 import { Toaster } from "sonner"
 import { ThemeProvider } from "next-themes"
+import { QueryProvider } from "@/components/providers/QueryProvider"
 import "./globals.css"
 
 const instrumentSerif = Instrument_Serif({
@@ -44,7 +45,9 @@ export default function RootLayout({
           enableSystem={false}
           disableTransitionOnChange
         >
-          {children}
+          <QueryProvider>
+            {children}
+          </QueryProvider>
           <Toaster richColors position="top-right" />
         </ThemeProvider>
       </body>
