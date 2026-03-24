@@ -3,12 +3,13 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { Users, CreditCard, Shield, Building2 } from "lucide-react"
+import { Users, CreditCard, Shield, Wrench } from "lucide-react"
 
 const settingsNav = [
   { href: "/settings/team", label: "Team", icon: Users },
   { href: "/settings/billing", label: "Billing", icon: CreditCard },
   { href: "/settings/compliance", label: "Compliance", icon: Shield },
+  { href: "/settings/contractors", label: "Contractors", icon: Wrench },
 ]
 
 export default function SettingsPage() {
