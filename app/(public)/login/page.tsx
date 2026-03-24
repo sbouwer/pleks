@@ -102,7 +102,7 @@ function LoginContent() {
       <div className="flex items-center justify-center min-h-screen px-4">
         <Card className="w-full max-w-sm">
           <CardHeader className="text-center">
-            <CardTitle className="font-heading text-3xl text-brand">Pleks</CardTitle>
+            <CardTitle><img src="/logo.svg" alt="Pleks" className="h-8 mx-auto" /></CardTitle>
             <CardDescription>Check your email for a login link.</CardDescription>
           </CardHeader>
           <CardContent className="text-center">
@@ -125,7 +125,7 @@ function LoginContent() {
     <div className="flex items-center justify-center min-h-screen px-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <CardTitle className="font-heading text-3xl text-brand">Pleks</CardTitle>
+          <CardTitle><img src="/logo.svg" alt="Pleks" className="h-8 mx-auto" /></CardTitle>
           <CardDescription>Sign in to your account</CardDescription>
         </CardHeader>
         <CardContent>

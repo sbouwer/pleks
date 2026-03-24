@@ -14,13 +14,13 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setLoading(true)
 
     const supabase = createClient()
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: `${globalThis.location.origin}/reset-password`,
     })
 
     if (error) {
@@ -35,7 +35,7 @@ export default function ForgotPasswordPage() {
     <div className="flex items-center justify-center min-h-screen px-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <CardTitle className="font-heading text-2xl">Reset Password</CardTitle>
+          <CardTitle><img src="/logo.svg" alt="Pleks" className="h-8 mx-auto mb-2" /></CardTitle>
           <CardDescription>
             {sent ? "Check your email for a reset link." : "Enter your email to receive a reset link."}
           </CardDescription>

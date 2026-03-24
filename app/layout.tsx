@@ -25,6 +25,9 @@ export const metadata: Metadata = {
   },
   description:
     "South African property management platform. Smarter inspections, automated collections, legal-grade compliance.",
+  icons: {
+    icon: "/favicon.svg",
+  },
 }
 
 export default function RootLayout({
