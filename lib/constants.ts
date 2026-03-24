@@ -20,6 +20,11 @@ export const TIER_PRICING = {
 
 export const OVERAGE_RATE_CENTS = 3500
 
+// Application screening fees (D-003 REVISED)
+export const APPLICATION_FEE_CENTS = 39900 // R399 Stage 2 single
+export const JOINT_APPLICATION_FEE_CENTS = 74900 // R749 Stage 2 joint
+export const INCOME_AFFORDABILITY_THRESHOLD = 0.3 // 30% of gross income
+
 export const ORG_TYPES = ["agency", "landlord", "sole_prop"] as const
 export type OrgType = (typeof ORG_TYPES)[number]
 

@@ -49,9 +49,9 @@ export default async function InvitePage({
   const isJoint = application?.is_joint === true
   const fee = isJoint ? JOINT_APPLICATION_FEE_CENTS : APPLICATION_FEE_CENTS
 
-  // Days remaining
-  const now = Date.now()
-  const msRemaining = expiresAt.getTime() - now
+  // Days remaining — computed server-side
+  const currentTime = new Date()
+  const msRemaining = expiresAt.getTime() - currentTime.getTime()
   const daysRemaining = Math.max(0, Math.ceil(msRemaining / (1000 * 60 * 60 * 24)))
 
   return (
