@@ -52,7 +52,8 @@ export default async function InspectionDetailPage({
   const isResidential = inspection.lease_type === "residential"
   const disputeOpen = inspection.dispute_window_open && inspection.dispute_window_closes_at
   const disputeCloses = disputeOpen ? new Date(inspection.dispute_window_closes_at) : null
-  const disputeDaysLeft = disputeCloses ? Math.max(0, Math.ceil((disputeCloses.getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : 0
+  const now = new Date()
+  const disputeDaysLeft = disputeCloses ? Math.max(0, Math.ceil((disputeCloses.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))) : 0
 
   return (
     <div>

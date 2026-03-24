@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { Pencil } from "lucide-react"
-import { formatZAR, UNIT_FEATURES } from "@/lib/constants"
+import { formatZAR } from "@/lib/constants"
 import { UnitStatusActions } from "./UnitStatusActions"
 
 export default async function UnitDetailPage({

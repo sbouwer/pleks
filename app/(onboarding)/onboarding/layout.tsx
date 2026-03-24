@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
+import Image from "next/image"
 
 const steps = [
   { path: "/onboarding", label: "Organisation" },
@@ -24,7 +25,7 @@ export default function OnboardingLayout({
       <div className="border-b border-border bg-surface">
         <div className="max-w-2xl mx-auto px-4 py-4">
           <div className="flex items-center gap-2 mb-3">
-            <img src="/logo.svg" alt="Pleks" className="h-6" />
+            <Image src="/logo.svg" alt="Pleks" width={86} height={24} />
             <span className="text-xs text-muted-foreground">Setup</span>
           </div>
           <div className="flex gap-2">

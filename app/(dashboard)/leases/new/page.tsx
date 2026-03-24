@@ -4,7 +4,6 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -33,8 +32,8 @@ export default function NewLeasePage() {
   const [propertyId, setPropertyId] = useState("")
   const [tenantId, setTenantId] = useState("")
   const [leaseType, setLeaseType] = useState("residential")
-  const [cpaApplies, setCpaApplies] = useState(true)
-  const [tenantIsJuristic, setTenantIsJuristic] = useState(false)
+  const [cpaApplies] = useState(true)
+  const [tenantIsJuristic] = useState(false)
 
   // Step 2
   const [startDate, setStartDate] = useState("")
@@ -46,7 +45,7 @@ export default function NewLeasePage() {
   const [rent, setRent] = useState("")
   const [paymentDueDay, setPaymentDueDay] = useState("1")
   const [escalationPercent, setEscalationPercent] = useState("10")
-  const [escalationType, setEscalationType] = useState("fixed")
+  const [escalationType] = useState("fixed")
   const [depositAmount, setDepositAmount] = useState("")
   const [depositInterestTo, setDepositInterestTo] = useState("tenant")
 

@@ -1,4 +1,4 @@
-import { TIER_LIMITS, OVERAGE_RATE_CENTS, type Tier } from "@/lib/constants"
+import { TIER_LIMITS, type Tier } from "@/lib/constants"
 import { type SupabaseClient } from "@supabase/supabase-js"
 
 const OVERAGE_GRACE_BAND = 5

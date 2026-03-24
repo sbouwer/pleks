@@ -7,6 +7,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import {
@@ -48,7 +49,7 @@ export function MobileNav({ open, onOpenChange }: MobileNavProps) {
       <SheetContent side="left" className="w-64 bg-sidebar p-0">
         <SheetHeader className="p-6">
           <SheetTitle>
-            <img src="/logo.svg" alt="Pleks" className="h-7" />
+            <Image src="/logo.svg" alt="Pleks" width={100} height={28} />
           </SheetTitle>
         </SheetHeader>
         <nav className="px-3 space-y-1">

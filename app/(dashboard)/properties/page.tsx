@@ -21,12 +21,12 @@ export default async function PropertiesPage() {
   const props = properties || []
 
   const totalUnits = props.reduce((sum, p) => {
-    const active = ((p.units as unknown[]) || []).filter((u: any) => !u.is_archived)
+    const active = ((p.units as unknown[]) || []).filter((u: { is_archived: boolean; status: string }) => !u.is_archived)
     return sum + active.length
   }, 0)
 
   const occupiedUnits = props.reduce((sum, p) => {
-    const occupied = ((p.units as unknown[]) || []).filter((u: any) => u.status === "occupied" && !u.is_archived)
+    const occupied = ((p.units as unknown[]) || []).filter((u: { is_archived: boolean; status: string }) => u.status === "occupied" && !u.is_archived)
     return sum + occupied.length
   }, 0)
 

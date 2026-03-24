@@ -3,7 +3,7 @@ import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Pencil, Phone, Mail, MessageSquare } from "lucide-react"
+import { Pencil, Phone, Mail } from "lucide-react"
 import { maskIdNumber } from "@/lib/crypto/idNumber"
 import { CommunicationFeed } from "./CommunicationFeed"
 
