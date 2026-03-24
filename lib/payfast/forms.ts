@@ -61,7 +61,7 @@ export function buildApplicationFeeForm({
     return_url: `${process.env.NEXT_PUBLIC_APP_URL}/apply/${listingId}/status`,
     cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/apply/${listingId}`,
     notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/payfast/application`,
-    amount: "199.00",
+    amount: "399.00",
     item_name: `Application Fee — ${propertyName} ${unitName}`,
     item_description: "Tenant application screening fee",
     custom_str1: applicationId,
