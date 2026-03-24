@@ -1,0 +1,11 @@
+version: '3'
+services:
+  docuseal:
+    image: docuseal/docuseal:latest
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./docuseal_data:/data
+    environment:
+      - FORCE_SSL=false
+      - SECRET_KEY_BASE=pleks_docuseal_secret_key_base_change_in_production_64chars_minimum
