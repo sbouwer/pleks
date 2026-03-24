@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 224 56" role="img" aria-label="Pleks">
+  <title>Pleks</title>
+  <!-- Mark: geometric P — dark navy for light backgrounds -->
+  <rect x="0"  y="0"  width="12" height="56" fill="#1C2840"/>
+  <rect x="12" y="0"  width="22" height="11" fill="#1C2840"/>
+  <rect x="24" y="0"  width="10" height="37" fill="#1C2840"/>
+  <rect x="12" y="26" width="22" height="11" fill="#1C2840"/>
+  <!-- Wordmark: use on light/white backgrounds -->
+  <text x="54" y="28"
+    font-family="'Instrument Serif', Georgia, 'Times New Roman', serif"
+    font-size="40"
+    font-weight="400"
+    fill="#1C2840"
+    letter-spacing="2.5"
+    dominant-baseline="central">pleks</text>
+</svg>
