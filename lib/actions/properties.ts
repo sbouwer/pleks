@@ -46,6 +46,22 @@ export async function createProperty(formData: FormData) {
     return { error: error?.message || "Failed to create property" }
   }
 
+  // Auto-create default building (transparent for single-building properties)
+  const propertyType = formData.get("type") as string || "residential"
+  const buildingType = propertyType === "residential" ? "residential"
+    : propertyType === "commercial" ? "commercial"
+    : "mixed_use"
+
+  await supabase.from("buildings").insert({
+    org_id: orgId,
+    property_id: property.id,
+    name: formData.get("name") as string,
+    building_type: buildingType,
+    is_primary: true,
+    is_visible_in_ui: false,
+    created_by: user.id,
+  })
+
   await supabase.from("audit_log").insert({
     org_id: orgId,
     table_name: "properties",
