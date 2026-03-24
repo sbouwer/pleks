@@ -17,25 +17,45 @@ export async function POST(req: Request) {
   }
 
   const applicationId = params.custom_str1
-  const orgId = params.custom_str3
-
   if (!applicationId) {
     return NextResponse.json({ error: "Missing application_id" }, { status: 400 })
   }
 
   const supabase = await createServiceClient()
 
-  // Update application payment status (table created in BUILD_16)
-  // For now, log the event
-  await supabase.from("audit_log").insert({
-    org_id: orgId || "00000000-0000-0000-0000-000000000000",
-    table_name: "applications",
-    record_id: applicationId,
-    action: "UPDATE",
-    new_values: { payment_status: "paid", payfast_payment_id: params.pf_payment_id },
-  })
+  // Update application: fee paid, trigger screening
+  await supabase.from("applications").update({
+    fee_status: "paid",
+    fee_paid_at: new Date().toISOString(),
+    payfast_payment_id: params.pf_payment_id || params.m_payment_id,
+    stage2_status: "payment_received",
+  }).eq("id", applicationId)
 
-  // TODO: Trigger screening pipeline
+  // Mark screening in progress
+  await supabase.from("applications").update({
+    stage2_status: "screening_in_progress",
+    searchworx_check_status: "pending",
+  }).eq("id", applicationId)
+
+  // Audit log
+  const { data: app } = await supabase
+    .from("applications")
+    .select("org_id")
+    .eq("id", applicationId)
+    .single()
+
+  if (app) {
+    await supabase.from("audit_log").insert({
+      org_id: app.org_id,
+      table_name: "applications",
+      record_id: applicationId,
+      action: "UPDATE",
+      new_values: {
+        fee_status: "paid",
+        stage2_status: "screening_in_progress",
+      },
+    })
+  }
 
   return NextResponse.json({ ok: true })
 }
