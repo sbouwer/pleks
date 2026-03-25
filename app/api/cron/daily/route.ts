@@ -5,6 +5,7 @@ import { GET as arrearsSequence } from "../arrears-sequence/route"
 import { GET as scheduledReports } from "../scheduled-reports/route"
 import { GET as debicheckCollection } from "../debicheck-collection/route"
 import { GET as ownerStatementGen } from "../owner-statement-gen/route"
+import { GET as depositInterest } from "../deposit-interest/route"
 
 // Single daily cron — runs all jobs sequentially at 05:00 UTC (07:00 SAST)
 // Vercel free tier only allows 1 cron job
@@ -53,7 +54,13 @@ export async function GET(req: NextRequest) {
     results.scheduled_reports = res.ok ? "ok" : "failed"
   } catch { results.scheduled_reports = "error" }
 
-  // 6. Owner statement generation (2nd of month only)
+  // 6. Deposit interest accrual (daily — residential deposits)
+  try {
+    const res = await depositInterest(cronReq)
+    results.deposit_interest = res.ok ? "ok" : "failed"
+  } catch { results.deposit_interest = "error" }
+
+  // 7. Owner statement generation (2nd of month only)
   if (dayOfMonth === 2) {
     try {
       const res = await ownerStatementGen(cronReq)
