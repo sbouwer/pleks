@@ -13,7 +13,7 @@ export default function PublicLayout({
       <PublicNav />
       <main className="flex-1">{children}</main>
       <footer className="border-t border-border/40 bg-surface">
-        <div className="max-w-6xl mx-auto px-4 pt-12 pb-8">
+        <div className="max-w-6xl mx-auto px-4 pt-12 pb-12">
           <div className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr_1fr_1fr] gap-10 mb-10">
             {/* Brand */}
             <div className="space-y-4">
