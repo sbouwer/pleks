@@ -6,6 +6,7 @@ import { Wallet, CalendarCheck, ShieldCheck, ArrowRight, ArrowDown } from "lucid
 import { formatZAR, FOUNDING_AGENT_PRICE_CENTS } from "@/lib/constants"
 import { FeatureExplorer } from "@/components/marketing/FeatureExplorer"
 import { CostComparison } from "@/components/marketing/CostComparison"
+import { ProductPreview } from "@/components/marketing/ProductPreview"
 
 export const metadata = {
   title: "Pleks — SA Property Management, Built Right",
@@ -224,6 +225,9 @@ export default function HomePage() {
 
         </div>
       </section>
+
+      {/* ─── SECTION 3.5: Product Preview ─── */}
+      <ProductPreview />
 
       {/* ─── SECTION 4: Feature Explorer (with dot grid) ─── */}
       <div
