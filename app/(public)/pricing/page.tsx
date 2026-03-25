@@ -141,7 +141,7 @@ export default function PricingPage() {
             <div key={tier.name} className="group relative pt-4">
               {tier.popular && (
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 z-10">
-                  <span className="inline-block bg-brand text-primary-foreground text-xs font-semibold px-3 py-1 rounded-full">
+                  <span className="inline-block bg-brand text-primary-foreground text-xs font-semibold px-3 py-1 rounded-full shadow-[0_2px_12px_rgba(var(--brand-rgb),0.5)]">
                     Most popular
                   </span>
                 </div>
@@ -150,7 +150,7 @@ export default function PricingPage() {
                 className={[
                   "h-full flex flex-col transition-all duration-200",
                   tier.popular
-                    ? "border-brand ring-1 ring-brand/40 -translate-y-1 shadow-[0_4px_24px_rgba(var(--brand-rgb),0.12)] hover:-translate-y-2 hover:shadow-[0_8px_32px_rgba(var(--brand-rgb),0.20)]"
+                    ? "border-brand border-2 ring-2 ring-brand/30 -translate-y-2 shadow-[0_0_0_1px_rgba(var(--brand-rgb),0.15),0_8px_32px_rgba(var(--brand-rgb),0.25)] hover:-translate-y-3 hover:shadow-[0_0_0_1px_rgba(var(--brand-rgb),0.25),0_12px_40px_rgba(var(--brand-rgb),0.35)]"
                     : "hover:border-brand/60 hover:-translate-y-1 hover:shadow-[0_0_0_1px_rgba(var(--brand-rgb),0.2)]",
                 ].join(" ")}
               >

@@ -19,31 +19,92 @@ export const metadata = {
     "Built by someone who has placed tenants, chased arrears, inspected units, and sat in Tribunal. Then rebuilt the software to fix what was broken.",
 }
 
+function FitScoreSVG() {
+  return (
+    <svg viewBox="0 0 400 320" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-auto">
+      {/* Card container */}
+      <rect x="20" y="40" width="280" height="240" rx="12" stroke="var(--brand)" strokeOpacity={0.25} strokeWidth={1} />
+
+      {/* Column headers */}
+      <line x1="40" y1="65" x2="100" y2="65" stroke="var(--brand)" strokeOpacity={0.15} strokeWidth={2} />
+      <line x1="180" y1="65" x2="220" y2="65" stroke="var(--brand)" strokeOpacity={0.15} strokeWidth={2} />
+      <line x1="240" y1="65" x2="270" y2="65" stroke="var(--brand)" strokeOpacity={0.15} strokeWidth={2} />
+      <line x1="40" y1="75" x2="280" y2="75" stroke="var(--brand)" strokeOpacity={0.08} strokeWidth={0.5} />
+
+      {/* Row 1 */}
+      <circle cx="50" cy="100" r="10" stroke="var(--brand)" strokeOpacity={0.4} strokeWidth={1} />
+      <line x1="68" y1="97" x2="130" y2="97" stroke="var(--brand)" strokeOpacity={0.3} strokeWidth={2} />
+      <line x1="68" y1="105" x2="110" y2="105" stroke="var(--brand)" strokeOpacity={0.15} strokeWidth={1.5} />
+      <rect x="180" y="93" width="90" height="6" rx="3" stroke="var(--brand)" strokeOpacity={0.1} strokeWidth={0.5} />
+      <rect x="180" y="93" width="77" height="6" rx="3" fill="var(--brand)" fillOpacity={0.3} />
+
+      {/* Row 2 */}
+      <circle cx="50" cy="145" r="10" stroke="var(--brand)" strokeOpacity={0.5} strokeWidth={1} />
+      <line x1="68" y1="142" x2="140" y2="142" stroke="var(--brand)" strokeOpacity={0.3} strokeWidth={2} />
+      <line x1="68" y1="150" x2="105" y2="150" stroke="var(--brand)" strokeOpacity={0.15} strokeWidth={1.5} />
+      <rect x="180" y="138" width="90" height="6" rx="3" stroke="var(--brand)" strokeOpacity={0.1} strokeWidth={0.5} />
+      <rect x="180" y="138" width="56" height="6" rx="3" fill="var(--brand)" fillOpacity={0.4} />
+
+      {/* Row 3 */}
+      <circle cx="50" cy="190" r="10" stroke="var(--brand)" strokeOpacity={0.7} strokeWidth={1} />
+      <line x1="68" y1="187" x2="125" y2="187" stroke="var(--brand)" strokeOpacity={0.3} strokeWidth={2} />
+      <line x1="68" y1="195" x2="115" y2="195" stroke="var(--brand)" strokeOpacity={0.15} strokeWidth={1.5} />
+      <rect x="180" y="183" width="90" height="6" rx="3" stroke="var(--brand)" strokeOpacity={0.1} strokeWidth={0.5} />
+      <rect x="180" y="183" width="82" height="6" rx="3" fill="var(--brand)" fillOpacity={0.5} />
+
+      {/* Row 4 */}
+      <circle cx="50" cy="235" r="10" stroke="var(--brand)" strokeOpacity={0.35} strokeWidth={1} />
+      <line x1="68" y1="232" x2="135" y2="232" stroke="var(--brand)" strokeOpacity={0.3} strokeWidth={2} />
+      <line x1="68" y1="240" x2="100" y2="240" stroke="var(--brand)" strokeOpacity={0.15} strokeWidth={1.5} />
+      <rect x="180" y="228" width="90" height="6" rx="3" stroke="var(--brand)" strokeOpacity={0.1} strokeWidth={0.5} />
+      <rect x="180" y="228" width="40" height="6" rx="3" fill="var(--brand)" fillOpacity={0.25} />
+
+      {/* FitScore ring — foreground */}
+      <circle cx="330" cy="90" r="55" stroke="var(--brand)" strokeOpacity={0.1} strokeWidth={4} />
+      <circle cx="330" cy="90" r="55" stroke="var(--brand)" strokeOpacity={0.9} strokeWidth={4}
+        strokeDasharray="280 66" strokeLinecap="round" transform="rotate(-90 330 90)" />
+      <line x1="315" y1="85" x2="345" y2="85" stroke="var(--brand)" strokeOpacity={0.7} strokeWidth={2.5} />
+      <line x1="322" y1="95" x2="338" y2="95" stroke="var(--brand)" strokeOpacity={0.4} strokeWidth={1.5} />
+
+      {/* Small badge below ring */}
+      <rect x="305" y="160" width="50" height="20" rx="6" stroke="var(--brand)" strokeOpacity={0.3} strokeWidth={0.8} />
+      <line x1="315" y1="170" x2="345" y2="170" stroke="var(--brand)" strokeOpacity={0.25} strokeWidth={1.5} />
+    </svg>
+  )
+}
+
 export default function ForAgentsPage() {
   return (
     <div>
       {/* ─── Hero ─── */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-brand/5 via-transparent to-transparent pointer-events-none" />
-        <div className="max-w-5xl mx-auto px-4 pt-24 pb-20 md:pt-36 md:pb-28">
-          <Badge className="bg-brand/20 text-brand border-brand/30 mb-6">
-            For property agents
-          </Badge>
-          <h1 className="font-heading text-5xl md:text-7xl leading-[1.05] tracking-tight mb-6">
-            The property management platform
-            <br />
-            <span className="text-brand">your stack has been missing.</span>
-          </h1>
-          <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mb-10 leading-relaxed">
-            Built by someone who has placed tenants, chased arrears, inspected units, set up body corporates, and sat in Tribunal. Then rebuilt it all for the way it should work. Credit checks are paid by applicants. Not you.
-          </p>
-          <Button
-            size="lg"
-            className="text-base h-13 px-8"
-            render={<Link href="/login" />}
-          >
-            Start 14-day trial <ArrowRight className="ml-2 size-4" />
-          </Button>
+        <div className="max-w-6xl mx-auto px-4 pt-24 pb-20 md:pt-36 md:pb-28">
+          <div className="md:grid md:grid-cols-[1fr_40%] md:items-center md:gap-8">
+            <div>
+              <Badge className="bg-brand/20 text-brand border-brand/30 mb-6">
+                For property agents
+              </Badge>
+              <h1 className="font-heading text-4xl md:text-6xl leading-[1.05] tracking-tight mb-6">
+                The property management platform
+                <br />
+                <span className="text-brand">your stack has been missing.</span>
+              </h1>
+              <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mb-10 leading-relaxed">
+                Built by someone who has placed tenants, chased arrears, inspected units, set up body corporates, and sat in Tribunal. Then rebuilt it all for the way it should work. Credit checks are paid by applicants. Not you.
+              </p>
+              <Button
+                size="lg"
+                className="text-base h-13 px-8"
+                render={<Link href="/login" />}
+              >
+                Start 14-day trial <ArrowRight className="ml-2 size-4" />
+              </Button>
+            </div>
+            <div className="hidden md:block" style={{ maskImage: "linear-gradient(to right, black 60%, transparent 100%)" }}>
+              <FitScoreSVG />
+            </div>
+          </div>
         </div>
       </section>
 
