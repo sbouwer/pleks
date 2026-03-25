@@ -165,11 +165,9 @@ export default function PricingPage() {
                     <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
                       Includes
                     </p>
-                    {tier.base && (
-                      <p className="text-sm font-semibold text-foreground mt-0.5">
-                        {tier.base}
-                      </p>
-                    )}
+                    <p className="text-sm font-semibold text-foreground mt-0.5">
+                      {tier.base ?? "\u00A0"}
+                    </p>
                   </div>
 
                   {/* Extra features */}
