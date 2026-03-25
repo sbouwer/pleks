@@ -141,19 +141,20 @@ export function FeatureExplorer() {
         </div>
       </div>
 
-      {/* Desktop: sidebar + content */}
-      <div className="hidden md:grid md:grid-cols-[240px_1fr] gap-8">
+      {/* Desktop: heading full width, then sidebar + content aligned */}
+      <div className="hidden md:block">
+        <div className="mb-8">
+          <h2 className="font-heading text-3xl leading-tight mb-2">
+            Everything in one place
+          </h2>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            No more juggling five platforms and a spreadsheet.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-[240px_1fr] gap-8">
         {/* Sidebar */}
         <nav className="space-y-1">
-          <div className="pb-6 mb-2">
-            <h2 className="font-heading text-2xl leading-tight mb-2">
-              Everything<br />in one place
-            </h2>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              No more juggling five platforms and a spreadsheet.
-            </p>
-          </div>
-
           {CATEGORIES.map((cat) => {
             const Icon = cat.icon
             const isActive = cat.key === activeKey
@@ -187,6 +188,7 @@ export function FeatureExplorer() {
             ))}
           </ul>
         </div>
+      </div>
       </div>
 
       {/* Mobile: content for active category */}
