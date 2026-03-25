@@ -39,7 +39,7 @@ export default function PublicLayout({
                   { label: "Pricing", href: "/pricing" },
                   { label: "For Agents", href: "/for-agents" },
                   { label: "For Landlords", href: "/for-landlords" },
-                  { label: "Migrate from TPN", href: "/migrate" },
+                  { label: "Switch to Pleks", href: "/migrate" },
                   { label: "Early access", href: "/early-access" },
                 ].map((item) => (
                   <li key={item.href}>
