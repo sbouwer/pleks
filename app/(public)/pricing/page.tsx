@@ -1,6 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Check, ArrowRight } from "lucide-react"
 import Link from "next/link"
 
@@ -47,7 +46,7 @@ const tiers = [
     name: "Portfolio",
     price: "R 999",
     period: "/month",
-    units: "30 units",
+    units: "50 units",
     users: "5 users",
     popular: true,
     base: "Everything in Steward",
@@ -136,19 +135,26 @@ export default function PricingPage() {
         {/* Tier cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-20">
           {tiers.map((tier) => (
-            <div key={tier.name} className="relative pt-3">
+            <div key={tier.name} className="group relative pt-4 cursor-pointer">
               {tier.popular && (
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 z-10">
-                  <Badge className="bg-brand text-primary-foreground px-3 py-1 text-xs font-semibold">
+                  <span className="inline-block bg-brand text-primary-foreground text-xs font-semibold px-3 py-1 rounded-full">
                     Most popular
-                  </Badge>
+                  </span>
                 </div>
               )}
               <Card
-                className={`h-full flex flex-col ${tier.popular ? "border-brand ring-1 ring-brand/30" : ""}`}
+                className={[
+                  "h-full flex flex-col transition-all duration-200",
+                  tier.popular
+                    ? "border-brand ring-1 ring-brand/40 -translate-y-1 shadow-[0_4px_24px_rgba(var(--brand-rgb),0.12)] hover:-translate-y-2 hover:shadow-[0_8px_32px_rgba(var(--brand-rgb),0.20)]"
+                    : "hover:border-brand/60 hover:-translate-y-1 hover:shadow-[0_0_0_1px_rgba(var(--brand-rgb),0.2)]",
+                ].join(" ")}
               >
                 <CardHeader>
-                  <CardTitle className="font-heading text-xl">{tier.name}</CardTitle>
+                  <CardTitle className="font-heading text-xl group-hover:text-brand transition-colors duration-200">
+                    {tier.name}
+                  </CardTitle>
                   <div className="mt-2">
                     <span className="font-heading text-3xl">{tier.price}</span>
                     {tier.period && (
@@ -161,11 +167,11 @@ export default function PricingPage() {
                 </CardHeader>
                 <CardContent className="flex flex-col flex-1">
                   {/* Base tier reference */}
-                  <div className="mb-3 pb-3 border-b border-border/40">
-                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                  <div className="mb-4 pb-4 border-b border-border/40">
+                    <p className="text-[11px] uppercase tracking-widest text-muted-foreground font-medium mb-1">
                       Includes
                     </p>
-                    <p className="text-sm font-semibold text-foreground mt-0.5">
+                    <p className="text-sm font-semibold">
                       {tier.base ?? "\u00A0"}
                     </p>
                   </div>
@@ -181,7 +187,7 @@ export default function PricingPage() {
                   </ul>
 
                   <Button
-                    className="w-full mt-auto"
+                    className="w-full mt-auto transition-transform duration-200 group-hover:scale-[1.02]"
                     variant={tier.variant}
                     render={<Link href={tier.href} />}
                   >

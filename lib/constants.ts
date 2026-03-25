@@ -7,7 +7,7 @@ export type Tier = keyof typeof TIER_ORDER
 export const TIER_LIMITS = {
   owner: { units: 1, users: 1 },
   steward: { units: 20, users: 2 },
-  portfolio: { units: 30, users: 5 },
+  portfolio: { units: 50, users: 5 },
   firm: { units: null, users: null },
 } as const
 

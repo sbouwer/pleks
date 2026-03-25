@@ -67,6 +67,7 @@
   --brand: oklch(0.75 0.14 65);
   --brand-hover: oklch(0.82 0.12 70);
   --brand-dim: oklch(0.22 0.04 65);
+  --brand-rgb: 232, 168, 56;
 
   /* Surfaces (dark mode default) */
   --background: oklch(0.16 0.01 260);
