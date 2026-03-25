@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { triageMaintenanceRequest } from "@/lib/ai/maintenanceTriage"
+import { hasFeature } from "@/lib/tier/gates"
+import { getOrgTier } from "@/lib/tier/getOrgTier"
 
 export async function createMaintenanceRequest(formData: FormData) {
   const supabase = await createClient()
@@ -27,8 +29,11 @@ export async function createMaintenanceRequest(formData: FormData) {
   const tenantId = formData.get("tenant_id") as string || null
   const leaseId = formData.get("lease_id") as string || null
 
-  // AI triage
-  const triage = await triageMaintenanceRequest(title, description)
+  // AI triage — only for Steward+ (Owner tier gets manual defaults, zero API cost)
+  const tier = await getOrgTier(orgId)
+  const triage = hasFeature(tier, "ai_maintenance_triage")
+    ? await triageMaintenanceRequest(title, description)
+    : { category: "other", urgency: "routine", urgency_reason: "Manual — upgrade for AI triage", suggested_action: "" }
 
   // Generate work order number
   const year = new Date().getFullYear()
