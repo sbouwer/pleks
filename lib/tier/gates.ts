@@ -2,11 +2,11 @@ import { TIER_ORDER, type Tier } from "@/lib/constants"
 
 const TIER_FEATURES_OWNER = [
   "lease_create",
-  "lease_sign",
+  "lease_sign", // create + download PDF for manual signing (no DocuSeal API)
   "tenant_portal",
-  "maintenance_log",
+  "maintenance_log", // manual category + urgency (no AI triage)
   "basic_invoicing",
-  "inspection_basic",
+  "inspection_basic", // manual assessment (no AI)
 ] as const
 
 const TIER_FEATURES_STEWARD = [
@@ -15,7 +15,10 @@ const TIER_FEATURES_STEWARD = [
   "owner_statements",
   "inspection_unlimited",
   "reports_basic",
-  "ai_maintenance_triage",
+  "ai_maintenance_triage", // Haiku — auto category + urgency
+  "ai_inspection", // Sonnet — wear & tear assessment
+  "docuseal_signing", // DocuSeal API — embedded digital signing ($0.20/doc)
+  "sms_notifications", // Africa's Talking SMS (R0.20/SMS)
   "fitscore_paypercheck",
 ] as const
 
@@ -23,7 +26,7 @@ const TIER_FEATURES_PORTFOLIO = [
   ...TIER_FEATURES_STEWARD,
   "debicheck",
   "arrears_automation",
-  "ai_full",
+  "ai_full", // Sonnet — bank statements, FitScore, lease drafting, etc.
   "fitscore_included",
   "lightstone_avm",
   "application_pipeline",
@@ -39,7 +42,7 @@ const TIER_FEATURES_FIRM = [
   "sectional_title",
   "fitscore_unlimited",
   "eaab_tools",
-  "opus_ai",
+  "opus_ai", // Opus — tribunal submissions, legal docs
   "contractor_portal",
   "custom_templates",
 ] as const

@@ -18,6 +18,10 @@ const featureLabels: Record<string, string> = {
   municipal_bills: "Municipal Bill Extraction",
   lease_automation: "Lease Automation",
   fitscore_included: "FitScore Screening",
+  docuseal_signing: "Digital Lease Signing",
+  sms_notifications: "SMS Notifications",
+  ai_maintenance_triage: "AI Maintenance Triage",
+  ai_inspection: "AI Inspection Assessment",
 }
 
 export function UpgradeCTA({ feature }: Readonly<{ feature: string }>) {

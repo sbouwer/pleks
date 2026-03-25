@@ -30,6 +30,27 @@ export async function generateDeductionJustification(deductionItemId: string) {
 
   if (!item || item.classification !== "tenant_damage") return
 
+  // Tier gate — AI justification requires Steward+ (ai_inspection feature)
+  const { data: leaseForTier } = await supabase
+    .from("leases")
+    .select("org_id")
+    .eq("id", item.lease_id)
+    .single()
+
+  if (leaseForTier) {
+    const { hasFeature } = await import("@/lib/tier/gates")
+    const { getOrgTier } = await import("@/lib/tier/getOrgTier")
+    const tier = await getOrgTier(leaseForTier.org_id)
+    if (!hasFeature(tier, "ai_inspection")) {
+      await supabase.from("deposit_deduction_items").update({
+        ai_justification: "AI justification available on Steward tier and above.",
+        ai_justification_at: new Date().toISOString(),
+        ai_model: "skipped",
+      }).eq("id", deductionItemId)
+      return
+    }
+  }
+
   if (!process.env.ANTHROPIC_API_KEY) {
     await supabase.from("deposit_deduction_items").update({
       ai_justification: "AI justification unavailable — Anthropic API key not configured.",

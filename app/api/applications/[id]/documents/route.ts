@@ -3,6 +3,8 @@ import { createServiceClient } from "@/lib/supabase/server"
 import Anthropic from "@anthropic-ai/sdk"
 import { INCOME_EXTRACTION_PROMPT } from "@/lib/screening/bankStatementExtraction"
 import { calculatePreScreenScore, getPreScreenIndicator } from "@/lib/screening/preScreenScore"
+import { hasFeature } from "@/lib/tier/gates"
+import { getOrgTier } from "@/lib/tier/getOrgTier"
 
 export async function POST(
   req: Request,
@@ -38,8 +40,9 @@ export async function POST(
 
   let extractedIncome: number | null = null
 
-  // Extract bank statement with Sonnet if available
-  if (bankStatementPath && process.env.ANTHROPIC_API_KEY) {
+  // Extract bank statement with Sonnet — only for Portfolio+ (ai_full)
+  const tier = await getOrgTier(application.org_id)
+  if (bankStatementPath && process.env.ANTHROPIC_API_KEY && hasFeature(tier, "ai_full")) {
     try {
       const { data: fileData } = await supabase.storage
         .from("application-docs")
