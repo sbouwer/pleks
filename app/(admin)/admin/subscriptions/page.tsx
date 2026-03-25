@@ -10,7 +10,7 @@ export default async function AdminSubscriptionsPage() {
   const supabase = await createServiceClient()
 
   // Expiring trials (within 7 days)
-  const sevenDays = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+  const sevenDays = new Date(new Date().getTime() + 7 * 24 * 60 * 60 * 1000)
   const { data: expiringTrials } = await supabase
     .from("subscriptions")
     .select("org_id, tier, status, trial_ends_at, founding_agent, amount_cents, period_end, organisations(name)")
@@ -54,7 +54,7 @@ export default async function AdminSubscriptionsPage() {
                 {(expiringTrials ?? []).map((t) => {
                   const org = t.organisations as unknown as { name: string } | null
                   const days = Math.ceil(
-                    (new Date(t.trial_ends_at!).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+                    (new Date(t.trial_ends_at!).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
                   )
                   return (
                     <tr key={t.org_id} className="border-b border-amber-200/50 bg-amber-50/50">
