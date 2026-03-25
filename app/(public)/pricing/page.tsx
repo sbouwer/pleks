@@ -91,7 +91,7 @@ const FAQ = [
   },
   {
     q: "Is the credit check fee charged to me?",
-    a: "No. Stage 2 screening (R399) is paid by the applicant, not the agent. You get the FitScore data as part of your subscription.",
+    a: "No. Stage 2 screening is paid by the applicant, not the agent. You get the FitScore data as part of your subscription.",
   },
   {
     q: "Can I cancel anytime?",

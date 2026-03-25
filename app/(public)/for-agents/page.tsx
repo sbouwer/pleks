@@ -78,11 +78,11 @@ export default function ForAgentsPage() {
             <Card className="border-l-4 border-l-brand bg-surface">
               <CardContent className="pt-6 space-y-3">
                 <Badge className="bg-brand/20 text-brand border-brand/30">
-                  Stage 2 — R399
+                  Stage 2 — Paid by applicant
                 </Badge>
                 <h3 className="font-heading text-xl">Full credit check</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">
-                  Shortlisted applicants pay R399 for their own credit check.
+                  Shortlisted applicants pay for their own credit check.
                   You receive a full FitScore — credit history, income ratio,
                   rental history, employment verification, judgements, and
                   defaults.
