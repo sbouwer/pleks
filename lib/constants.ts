@@ -6,7 +6,7 @@ export type Tier = keyof typeof TIER_ORDER
 
 export const TIER_LIMITS = {
   owner: { units: 1, users: 1 },
-  steward: { units: 10, users: 2 },
+  steward: { units: 20, users: 2 },
   portfolio: { units: 30, users: 5 },
   firm: { units: null, users: null },
 } as const
@@ -19,6 +19,10 @@ export const TIER_PRICING = {
 } as const
 
 export const OVERAGE_RATE_CENTS = 3500
+
+// Founding agent pricing (first 10 clients — 24-month lock)
+export const FOUNDING_AGENT_PRICE_CENTS = 29900 // R299/month
+export const FOUNDING_AGENT_DURATION_MONTHS = 24
 
 // Application screening fees (D-003 REVISED)
 export const APPLICATION_FEE_CENTS = 39900 // R399 Stage 2 single
