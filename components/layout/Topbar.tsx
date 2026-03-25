@@ -1,6 +1,6 @@
 "use client"
 
-import { Bell, Menu } from "lucide-react"
+import { Menu, ExternalLink, LogOut, UserCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -17,16 +17,27 @@ import { useRouter } from "next/navigation"
 
 interface TopbarProps {
   readonly onMenuClick?: () => void
+  readonly settingsHref?: string
+  readonly visitSiteHref?: string
+  readonly visitSiteLabel?: string
 }
 
-export function Topbar({ onMenuClick }: TopbarProps) {
+export function Topbar({
+  onMenuClick,
+  settingsHref = "/settings",
+  visitSiteHref = "/",
+  visitSiteLabel = "Visit Site",
+}: TopbarProps) {
   const { user } = useUser()
   const { org } = useOrg()
   const router = useRouter()
 
-  const initials = user?.email
-    ? user.email.substring(0, 2).toUpperCase()
-    : "?"
+  const fullName = user?.user_metadata?.full_name as string | undefined
+  const initials = fullName
+    ? fullName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)
+    : user?.email
+      ? user.email.substring(0, 2).toUpperCase()
+      : "?"
 
   async function handleSignOut() {
     const supabase = createClient()
@@ -35,7 +46,8 @@ export function Topbar({ onMenuClick }: TopbarProps) {
   }
 
   return (
-    <header className="flex items-center justify-between h-14 px-4 border-b border-border bg-surface">
+    <header className="flex items-center justify-between h-16 px-4 lg:px-6 border-b border-border bg-card">
+      {/* Left: mobile menu + org name */}
       <div className="flex items-center gap-3">
         <Button
           variant="ghost"
@@ -46,34 +58,44 @@ export function Topbar({ onMenuClick }: TopbarProps) {
           <Menu className="h-5 w-5" />
         </Button>
         {org && (
-          <span className="text-sm font-medium text-muted-foreground">
+          <span className="text-sm font-medium text-muted-foreground hidden sm:inline">
             {(org as Record<string, unknown>).name as string}
           </span>
         )}
       </div>
 
+      {/* Right: visit site + profile */}
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon">
-          <Bell className="h-4 w-4" />
+        <Button
+          size="sm"
+          className="hidden sm:inline-flex bg-brand text-primary-foreground hover:bg-brand-hover"
+          render={<a href={visitSiteHref} target="_blank" rel="noopener noreferrer" />}
+        >
+          <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+          {visitSiteLabel}
         </Button>
 
         <DropdownMenu>
           <DropdownMenuTrigger className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <Avatar className="h-8 w-8">
-              <AvatarFallback className="bg-brand text-brand-dim text-xs font-medium">
+              <AvatarFallback className="bg-brand/10 text-brand text-xs font-semibold">
                 {initials}
               </AvatarFallback>
             </Avatar>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem className="text-xs text-muted-foreground">
-              {user?.email}
-            </DropdownMenuItem>
+          <DropdownMenuContent align="end" className="w-48">
+            <div className="px-2 py-1.5">
+              {fullName && <p className="text-sm font-medium">{fullName}</p>}
+              <p className="text-xs text-muted-foreground">{user?.email}</p>
+            </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push("/settings")}>
+            <DropdownMenuItem onClick={() => router.push(settingsHref)}>
+              <UserCircle className="mr-2 h-4 w-4" />
               Settings
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleSignOut}>
+              <LogOut className="mr-2 h-4 w-4" />
               Sign out
             </DropdownMenuItem>
           </DropdownMenuContent>
