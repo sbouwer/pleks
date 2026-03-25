@@ -10,9 +10,11 @@ interface DashboardBannersProps {
   readonly isTrialing?: boolean
   readonly trialDaysLeft?: number | null
   readonly trialTier?: string | null
+  readonly isFoundingAgent?: boolean
+  readonly foundingPriceCents?: number | null
 }
 
-export function DashboardBanners({ showTrustBanner, isTrialing, trialDaysLeft, trialTier }: DashboardBannersProps) {
+export function DashboardBanners({ showTrustBanner, isTrialing, trialDaysLeft, trialTier, isFoundingAgent, foundingPriceCents }: DashboardBannersProps) {
   return (
     <>
       {/* Trial banner */}
@@ -58,6 +60,11 @@ export function DashboardBanners({ showTrustBanner, isTrialing, trialDaysLeft, t
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {trialDaysLeft} days remaining. No credit card required.
+                    {isFoundingAgent && foundingPriceCents && (
+                      <span className="block mt-0.5 text-amber-600 dark:text-amber-400">
+                        Founding price: R{(foundingPriceCents / 100).toLocaleString()}/month for 24 months.
+                      </span>
+                    )}
                   </p>
                 </>
               )}

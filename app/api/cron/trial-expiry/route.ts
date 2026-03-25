@@ -81,5 +81,39 @@ export async function GET(req: NextRequest) {
     warned++
   }
 
-  return Response.json({ ok: true, expired, warned })
+  // 3. Founding agent expiry warning (month 23 — ~35 days before expiry)
+  let foundingWarned = 0
+  const thirtyFiveDaysFromNow = new Date(now.getTime() + 35 * 24 * 60 * 60 * 1000)
+  const { data: expiringFounders } = await supabase
+    .from("organisations")
+    .select("id, name, founding_agent_expires_at")
+    .eq("founding_agent", true)
+    .gte("founding_agent_expires_at", now.toISOString())
+    .lte("founding_agent_expires_at", thirtyFiveDaysFromNow.toISOString())
+
+  for (const org of expiringFounders ?? []) {
+    // Check if warning already sent
+    const { data: priorFoundingSend } = await supabase
+      .from("communication_log")
+      .select("id")
+      .eq("org_id", org.id)
+      .eq("subject", "founding_expiry_warning")
+      .limit(1)
+
+    if (priorFoundingSend && priorFoundingSend.length > 0) continue
+
+    await supabase.from("communication_log").insert({
+      org_id: org.id,
+      channel: "email",
+      direction: "outbound",
+      subject: "founding_expiry_warning",
+      body: `Founding agent pricing ending soon for ${org.name}. Expires: ${org.founding_agent_expires_at}`,
+      status: "sent",
+    })
+
+    // TODO: Send founding_expiry_warning email via Resend
+    foundingWarned++
+  }
+
+  return Response.json({ ok: true, expired, warned, founding_warned: foundingWarned })
 }

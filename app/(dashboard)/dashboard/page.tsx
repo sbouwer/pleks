@@ -28,7 +28,7 @@ export default async function DashboardPage() {
   // Get org
   const { data: membership } = await supabase
     .from("user_orgs")
-    .select("org_id, organisations(has_trust_account, has_deposit_account, management_scope)")
+    .select("org_id, organisations(has_trust_account, has_deposit_account, management_scope, founding_agent, founding_agent_price_cents)")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
@@ -103,6 +103,8 @@ export default async function DashboardPage() {
         isTrialing={isTrialing}
         trialDaysLeft={trialDaysLeft}
         trialTier={sub?.trial_tier}
+        isFoundingAgent={!!org?.founding_agent}
+        foundingPriceCents={org?.founding_agent_price_cents as number | null}
       />
 
       {/* Welcome checklist for new users */}
