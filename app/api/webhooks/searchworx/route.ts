@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { calculateFullFitScore } from "@/lib/screening/fitScore"
+import { sendCreditReportToApplicant } from "@/lib/screening/sendCreditReport"
 
 export async function POST(req: Request) {
   const body = await req.json()
@@ -76,6 +77,9 @@ export async function POST(req: Request) {
     action: "UPDATE",
     new_values: { fitscore: total, searchworx_check_status: "complete" },
   })
+
+  // Send credit report to applicant
+  await sendCreditReportToApplicant(applicationId)
 
   return NextResponse.json({ ok: true })
 }

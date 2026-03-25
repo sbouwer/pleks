@@ -4,7 +4,9 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { formatZAR, APPLICATION_FEE_CENTS, JOINT_APPLICATION_FEE_CENTS } from "@/lib/constants"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { MapPin, Clock, CheckCircle2 } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { MapPin, Clock, CheckCircle2, RefreshCw } from "lucide-react"
+import { getRecentCompletedCheck } from "@/lib/screening/checkRecentReport"
 
 export default async function InvitePage({
   params,
@@ -53,6 +55,13 @@ export default async function InvitePage({
   const currentTime = new Date()
   const msRemaining = expiresAt.getTime() - currentTime.getTime()
   const daysRemaining = Math.max(0, Math.ceil(msRemaining / (1000 * 60 * 60 * 24)))
+
+  // Check for recent completed screening (30-day reuse)
+  const recentCheck = application?.applicant_email
+    ? await getRecentCompletedCheck(application.applicant_email)
+    : null
+  // Don't offer reuse of the same application
+  const canReuse = recentCheck && recentCheck.application_id !== application?.id
 
   return (
     <div className="space-y-6">
@@ -117,13 +126,40 @@ export default async function InvitePage({
         </CardContent>
       </Card>
 
+      {/* Recent check reuse option */}
+      {canReuse && (
+        <Card className="border-brand/30 bg-brand-dim/20">
+          <CardContent className="pt-5 space-y-3">
+            <div className="flex items-center gap-2">
+              <RefreshCw className="size-4 text-brand" />
+              <Badge className="bg-brand/20 text-brand border-brand/30 text-xs">Recent check available</Badge>
+            </div>
+            <p className="text-sm">
+              You had a credit check done on{" "}
+              {new Date(recentCheck.checked_at).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })}
+              {recentCheck.property_address && <> for <strong>{recentCheck.property_address}</strong></>}.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Instead of running a new check, you can share those results with this landlord — at no additional cost.
+            </p>
+            <Button
+              className="w-full"
+              variant="outline"
+              render={<Link href={`/apply/invite/${token}/consent?reuse=${recentCheck.application_id}`} />}
+            >
+              Share my existing report — Free
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Actions */}
       <Button
         className="w-full h-12 text-base font-semibold"
         size="lg"
         render={<Link href={`/apply/invite/${token}/consent`} />}
       >
-        Proceed to consent and payment
+        {canReuse ? "Run a new check instead" : "Proceed to consent and payment"}
       </Button>
 
       <div className="text-center">

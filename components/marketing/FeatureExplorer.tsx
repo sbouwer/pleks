@@ -22,7 +22,7 @@ const CATEGORIES: Category[] = [
     features: [
       "FitScore (credit, income ratio, rental history, employment)",
       "Free Stage 1 pre-screen for every applicant",
-      "Applicant pays R399 for Stage 2 — not you",
+      "Applicant pays for Stage 2 screening — not you",
       "Joint applications and co-applicants",
       "Foreign national screening with visa expiry check",
       "Motivation letters and additional document upload",

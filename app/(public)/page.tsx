@@ -122,7 +122,7 @@ export default function HomePage() {
               <Wallet className="size-8 text-brand" />
               <h3 className="font-heading text-xl">The credit check problem</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Tired of paying R310 per credit check? With Pleks, applicants pay R399 for their own screening.
+                Tired of paying R310 per credit check? With Pleks, applicants pay for their own screening.
                 You get the FitScore. You never pay for a check.
               </p>
             </CardContent>
@@ -194,11 +194,11 @@ export default function HomePage() {
               </div>
               <h3 className="font-heading text-xl mb-3 group-hover:text-brand transition-colors">Shortlist and verify</h3>
               <p className="text-sm text-muted-foreground leading-relaxed mb-5">
-                Shortlisted applicants pay R399 for their credit check. You get a full FitScore — credit, income ratio, rental history, employment, judgements.
+                Shortlisted applicants pay for their own credit check. You get a full FitScore — credit, income ratio, rental history, employment, judgements.
               </p>
               <div className="flex items-center gap-2 text-xs text-brand font-medium">
                 <div className="w-1.5 h-1.5 rounded-full bg-brand" />
-                R399 paid by the applicant — never by you
+                Paid by the applicant — never by you
               </div>
             </div>
 
