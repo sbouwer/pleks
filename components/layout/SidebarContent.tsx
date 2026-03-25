@@ -59,7 +59,7 @@ export function SidebarContent({
         ) : (
           <>
             <Link href={homeHref} className="flex items-center gap-2">
-              <Image src="/logo.svg" alt="Pleks" width={90} height={26} priority />
+              <Image src="/logo.svg" alt="Pleks" width={90} height={26} className="h-auto" priority />
               {badge && (
                 <span className="text-[10px] text-muted-foreground bg-surface-elevated px-1.5 py-0.5 rounded">
                   {badge}

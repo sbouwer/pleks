@@ -35,7 +35,7 @@ export default function ResetPasswordPage() {
     <div className="flex items-center justify-center min-h-screen px-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <CardTitle><Image src="/logo.svg" alt="Pleks" width={114} height={32} className="mx-auto mb-2" /></CardTitle>
+          <CardTitle><Image src="/logo.svg" alt="Pleks" width={114} height={32} className="h-auto mx-auto mb-2" /></CardTitle>
           <CardDescription>Enter your new password below.</CardDescription>
         </CardHeader>
         <CardContent>
