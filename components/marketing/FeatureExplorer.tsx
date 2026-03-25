@@ -111,39 +111,49 @@ export function FeatureExplorer() {
   const active = CATEGORIES.find((c) => c.key === activeKey) ?? CATEGORIES[0]
 
   return (
-    <section className="max-w-6xl mx-auto px-4 py-16 md:py-24">
-      <h2 className="font-heading text-3xl md:text-4xl mb-3 text-center">Everything in one place</h2>
-      <p className="text-muted-foreground text-center mb-12">
-        No more juggling five platforms and a spreadsheet.
-      </p>
-
-      {/* Mobile: horizontal scrolling pills */}
-      <div className="flex gap-2 overflow-x-auto pb-4 mb-6 md:hidden scrollbar-none">
-        {CATEGORIES.map((cat) => {
-          const Icon = cat.icon
-          const isActive = cat.key === activeKey
-          return (
-            <button
-              key={cat.key}
-              onClick={() => setActiveKey(cat.key)}
-              className={cn(
-                "flex items-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-colors shrink-0",
-                isActive
-                  ? "bg-brand/15 text-brand"
-                  : "bg-surface text-muted-foreground hover:bg-surface-elevated"
-              )}
-            >
-              <Icon className="size-4" />
-              {cat.label}
-            </button>
-          )
-        })}
+    <section className="max-w-6xl mx-auto px-4 py-12 md:py-16">
+      {/* Mobile: heading + horizontal scrolling pills */}
+      <div className="md:hidden mb-6">
+        <h2 className="font-heading text-2xl leading-tight mb-2">Everything in one place</h2>
+        <p className="text-xs text-muted-foreground leading-relaxed mb-4">
+          No more juggling five platforms and a spreadsheet.
+        </p>
+        <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-none">
+          {CATEGORIES.map((cat) => {
+            const Icon = cat.icon
+            const isActive = cat.key === activeKey
+            return (
+              <button
+                key={cat.key}
+                onClick={() => setActiveKey(cat.key)}
+                className={cn(
+                  "flex items-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-colors shrink-0",
+                  isActive
+                    ? "bg-brand/15 text-brand"
+                    : "bg-surface text-muted-foreground hover:bg-surface-elevated"
+                )}
+              >
+                <Icon className="size-4" />
+                {cat.label}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* Desktop: sidebar + content */}
       <div className="hidden md:grid md:grid-cols-[240px_1fr] gap-8">
         {/* Sidebar */}
         <nav className="space-y-1">
+          <div className="pb-6 mb-2">
+            <h2 className="font-heading text-2xl leading-tight mb-2">
+              Everything<br />in one place
+            </h2>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              No more juggling five platforms and a spreadsheet.
+            </p>
+          </div>
+
           {CATEGORIES.map((cat) => {
             const Icon = cat.icon
             const isActive = cat.key === activeKey
@@ -166,10 +176,9 @@ export function FeatureExplorer() {
         </nav>
 
         {/* Content */}
-        <div key={active.key} className="animate-in fade-in-0 slide-in-from-right-2 duration-200">
-          <h3 className="font-heading text-2xl mb-2">{active.label}</h3>
-          <p className="text-muted-foreground leading-relaxed mb-8 max-w-xl">{active.desc}</p>
-          <ul className="space-y-3">
+        <div key={active.key} className="animate-in fade-in-0 slide-in-from-right-2 duration-200 border-t-2 border-brand pt-4">
+          <p className="text-base leading-relaxed mb-8 max-w-xl text-foreground/80">{active.desc}</p>
+          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
             {active.features.map((f) => (
               <li key={f} className="flex items-start gap-3 text-sm">
                 <Check className="size-4 text-brand mt-0.5 shrink-0" />
@@ -183,8 +192,7 @@ export function FeatureExplorer() {
       {/* Mobile: content for active category */}
       <div className="md:hidden">
         <div key={active.key} className="animate-in fade-in-0 duration-200">
-          <h3 className="font-heading text-xl mb-2">{active.label}</h3>
-          <p className="text-sm text-muted-foreground leading-relaxed mb-6">{active.desc}</p>
+          <p className="text-sm text-foreground/80 leading-relaxed mb-6">{active.desc}</p>
           <ul className="space-y-3">
             {active.features.map((f) => (
               <li key={f} className="flex items-start gap-3 text-sm">
