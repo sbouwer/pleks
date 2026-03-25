@@ -22,21 +22,22 @@ export default function BillingPage() {
     if (!orgId) return
     let cancelled = false
     const supabase = createClient()
-    supabase
-      .from("organisations")
-      .select("founding_agent, founding_agent_price_cents, founding_agent_expires_at")
-      .eq("id", orgId)
-      .single()
-      .then(({ data }) => {
-        if (!cancelled && data) {
-          setFoundingCtx({
-            tier,
-            founding_agent: data.founding_agent,
-            founding_agent_price_cents: data.founding_agent_price_cents,
-            founding_agent_expires_at: data.founding_agent_expires_at,
-          })
-        }
-      })
+    async function load() {
+      const { data } = await supabase
+        .from("organisations")
+        .select("founding_agent, founding_agent_price_cents, founding_agent_expires_at")
+        .eq("id", orgId)
+        .single()
+      if (!cancelled && data) {
+        setFoundingCtx({
+          tier,
+          founding_agent: data.founding_agent,
+          founding_agent_price_cents: data.founding_agent_price_cents,
+          founding_agent_expires_at: data.founding_agent_expires_at,
+        })
+      }
+    }
+    load()
     return () => { cancelled = true }
   }, [orgId, tier])
 

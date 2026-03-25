@@ -43,34 +43,52 @@ export async function importLeases(
       continue
     }
 
-    // Match unit by address (property name + unit number)
+    // Match unit by unit_address field ("Flat 1, 3 Salford Street")
+    // Parse: first part before comma = unit number
     const unitAddress = row.unit_address ?? ""
-    const { data: units } = await supabase
-      .from("units")
-      .select("id, property_id")
-      .eq("org_id", orgId)
-      .is("deleted_at", null)
+    const parts = unitAddress.split(",").map((p) => p.trim())
+    const unitNum = parts[0] ?? ""
+    const propertyAddr = parts.slice(1).join(", ").trim()
 
-    // Fuzzy match: unit_address should contain unit_number and property address
-    const matchedUnit = (units ?? []).find((u) => {
-      // Simple contains match — works for "Flat 1, 3 Salford Street"
-      return unitAddress.toLowerCase().includes(u.id.slice(0, 4))
-    })
+    let unitId: string | null = null
+    let propertyId: string | null = null
 
-    // If no fuzzy match, try by unit_number directly
-    let unitId: string | null = matchedUnit?.id ?? null
-    let propertyId: string | null = matchedUnit?.property_id ?? null
+    // Try exact unit_number match first
+    if (unitNum) {
+      const query = supabase
+        .from("units")
+        .select("id, property_id, properties(address_line1)")
+        .eq("org_id", orgId)
+        .ilike("unit_number", unitNum)
+        .is("deleted_at", null)
 
+      const { data: matchedUnits } = await query
+
+      if (matchedUnits && matchedUnits.length === 1) {
+        // Unique match
+        unitId = matchedUnits[0].id
+        propertyId = matchedUnits[0].property_id
+      } else if (matchedUnits && matchedUnits.length > 1 && propertyAddr) {
+        // Multiple units with same number — disambiguate by property address
+        const match = matchedUnits.find((u) => {
+          const prop = u.properties as unknown as { address_line1: string } | null
+          return prop?.address_line1?.toLowerCase().includes(propertyAddr.toLowerCase().slice(0, 10))
+        })
+        if (match) {
+          unitId = match.id
+          propertyId = match.property_id
+        }
+      }
+    }
+
+    // Fallback: no match found
     if (!unitId) {
-      // Try matching by unit_number from the parsed address
-      const parts = unitAddress.split(",").map((p) => p.trim())
-      const unitNum = parts[0] ?? ""
-
+      // Try broader search by unit number only
       const { data: unitByNumber } = await supabase
         .from("units")
         .select("id, property_id")
         .eq("org_id", orgId)
-        .ilike("unit_number", unitNum)
+        .ilike("unit_number", `%${unitNum}%`)
         .is("deleted_at", null)
         .limit(1)
         .single()
