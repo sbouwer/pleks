@@ -11,13 +11,13 @@ export default function TermsOfServicePage() {
       <p className="text-sm text-muted-foreground mb-12">Effective 1 April 2026</p>
 
       <div className="space-y-10">
+        {/* PENDING: Replace "Pleks (Pty) Ltd" with registered company name + registration number once PTY is incorporated. Also add registered address. Contact: legal@pleks.co.za */}
         <section>
           <h2 className="text-lg font-semibold mb-3">Acceptance</h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
             By accessing or using Pleks, you agree to be bound by these Terms of Service. If you do
             not agree to these terms, you may not use the platform. These terms constitute a legally
-            binding agreement between you and Yoros, registered at 13 Station Street,
-            Paarl, South Africa.
+            binding agreement between you and Pleks (Pty) Ltd, a company registered in South Africa.
           </p>
         </section>
 
@@ -73,7 +73,7 @@ export default function TermsOfServicePage() {
         <section>
           <h2 className="text-lg font-semibold mb-3">Limitation of liability</h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            To the maximum extent permitted by South African law, Yoros shall not be
+            To the maximum extent permitted by South African law, Pleks (Pty) Ltd shall not be
             liable for any indirect, incidental, special, consequential, or punitive damages arising
             out of or related to your use of the platform. Our total liability for any claim arising
             from these terms or your use of Pleks shall not exceed the total amount you paid to us in
@@ -90,8 +90,8 @@ export default function TermsOfServicePage() {
             South Africa. Any dispute arising from or relating to these terms shall be subject to the
             exclusive jurisdiction of the courts of the Western Cape Division of the High Court of
             South Africa. For any questions regarding these terms, please contact us at{" "}
-            <a href="mailto:info@pleks.co.za" className="text-foreground underline underline-offset-4 hover:text-primary">
-              info@pleks.co.za
+            <a href="mailto:legal@pleks.co.za" className="text-foreground underline underline-offset-4 hover:text-primary">
+              legal@pleks.co.za
             </a>
             .
           </p>

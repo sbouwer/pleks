@@ -83,8 +83,8 @@ export default function CreditCheckPolicyPage() {
             </li>
             <li>
               You may also contact our Information Officer at{" "}
-              <a href="mailto:info@pleks.co.za" className="text-foreground underline underline-offset-4 hover:text-primary">
-                info@pleks.co.za
+              <a href="mailto:legal@pleks.co.za" className="text-foreground underline underline-offset-4 hover:text-primary">
+                legal@pleks.co.za
               </a>{" "}
               for assistance with the dispute process
             </li>
@@ -98,8 +98,8 @@ export default function CreditCheckPolicyPage() {
             submitted, consent cannot be retrospectively withdrawn for that specific check. The data
             has already been accessed and a report generated. You may, however, withdraw consent for
             any future checks or processing of your information by contacting us at{" "}
-            <a href="mailto:info@pleks.co.za" className="text-foreground underline underline-offset-4 hover:text-primary">
-              info@pleks.co.za
+            <a href="mailto:legal@pleks.co.za" className="text-foreground underline underline-offset-4 hover:text-primary">
+              legal@pleks.co.za
             </a>
             .
           </p>
