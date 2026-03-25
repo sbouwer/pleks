@@ -5,15 +5,18 @@ import { useRouter, useParams, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Upload, FileText, CheckCircle2, Plus } from "lucide-react"
+import { Upload, FileText, CheckCircle2, Plus, Loader2 } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
 
 interface DocSlot {
   key: string
   label: string
   required: boolean
   accept: string
-  multiple?: boolean
   file: File | null
+  uploading: boolean
+  uploaded: boolean
+  storagePath: string | null
 }
 
 export default function DocumentsPage() {
@@ -24,41 +27,100 @@ export default function DocumentsPage() {
   const applicationId = searchParams.get("application")
 
   const [documents, setDocuments] = useState<DocSlot[]>([
-    { key: "id_document", label: "ID document", required: true, accept: ".pdf,.jpg,.jpeg,.png", file: null },
-    { key: "payslip_1", label: "Payslip 1 (most recent)", required: true, accept: ".pdf,.jpg,.jpeg,.png", file: null },
-    { key: "payslip_2", label: "Payslip 2", required: true, accept: ".pdf,.jpg,.jpeg,.png", file: null },
-    { key: "payslip_3", label: "Payslip 3", required: true, accept: ".pdf,.jpg,.jpeg,.png", file: null },
-    { key: "bank_statement", label: "Bank statement (3 months)", required: true, accept: ".pdf", file: null },
-    { key: "employment_letter", label: "Employment letter / contract", required: true, accept: ".pdf,.jpg,.jpeg,.png", file: null },
+    { key: "id_document", label: "ID document", required: true, accept: ".pdf,.jpg,.jpeg,.png", file: null, uploading: false, uploaded: false, storagePath: null },
+    { key: "payslip_1", label: "Payslip 1 (most recent)", required: true, accept: ".pdf,.jpg,.jpeg,.png", file: null, uploading: false, uploaded: false, storagePath: null },
+    { key: "payslip_2", label: "Payslip 2", required: true, accept: ".pdf,.jpg,.jpeg,.png", file: null, uploading: false, uploaded: false, storagePath: null },
+    { key: "payslip_3", label: "Payslip 3", required: true, accept: ".pdf,.jpg,.jpeg,.png", file: null, uploading: false, uploaded: false, storagePath: null },
+    { key: "bank_statement", label: "Bank statement (3 months)", required: true, accept: ".pdf", file: null, uploading: false, uploaded: false, storagePath: null },
+    { key: "employment_letter", label: "Employment letter / contract", required: true, accept: ".pdf,.jpg,.jpeg,.png", file: null, uploading: false, uploaded: false, storagePath: null },
   ])
 
   const [optionalDocs, setOptionalDocs] = useState<DocSlot[]>([
-    { key: "savings_proof", label: "Savings / Pension / Investment proof", required: false, accept: ".pdf,.jpg,.jpeg,.png", file: null },
+    { key: "savings_proof", label: "Savings / Pension / Investment proof", required: false, accept: ".pdf,.jpg,.jpeg,.png", file: null, uploading: false, uploaded: false, storagePath: null },
   ])
 
   const [motivation, setMotivation] = useState("")
   const [submitting, setSubmitting] = useState(false)
 
-  const uploaded = documents.filter((d) => d.file).length
+  const uploaded = documents.filter((d) => d.uploaded).length
   const total = documents.length
 
-  function handleFileChange(index: number, list: "required" | "optional", file: File | null) {
-    if (list === "required") {
-      setDocuments((prev) =>
-        prev.map((d, i) => (i === index ? { ...d, file } : d))
+  async function handleFileChange(index: number, list: "required" | "optional", file: File | null) {
+    if (!file || !applicationId) return
+
+    const docs = list === "required" ? documents : optionalDocs
+    const setDocs = list === "required" ? setDocuments : setOptionalDocs
+    const doc = docs[index]
+
+    // Mark as uploading
+    setDocs((prev) => prev.map((d, i) => (i === index ? { ...d, file, uploading: true } : d)))
+
+    try {
+      const supabase = createClient()
+      const ext = file.name.split(".").pop() ?? "pdf"
+      const path = `applications/${applicationId}/${doc.key}.${ext}`
+
+      const { error } = await supabase.storage
+        .from("application-docs")
+        .upload(path, file, { upsert: true })
+
+      if (error) throw error
+
+      setDocs((prev) =>
+        prev.map((d, i) =>
+          i === index ? { ...d, uploading: false, uploaded: true, storagePath: path } : d
+        )
       )
-    } else {
-      setOptionalDocs((prev) =>
-        prev.map((d, i) => (i === index ? { ...d, file } : d))
+    } catch {
+      setDocs((prev) =>
+        prev.map((d, i) => (i === index ? { ...d, uploading: false } : d))
       )
+      alert("Upload failed. Please try again.")
     }
   }
 
   async function handleSubmit() {
+    if (!applicationId) return
     setSubmitting(true)
-    // Placeholder: would upload files to Supabase Storage and trigger extraction
-    await new Promise((r) => setTimeout(r, 1500))
-    router.push(`/apply/${listingId}/status?application=${applicationId}`)
+
+    try {
+      const supabase = createClient()
+
+      // Save motivation if provided
+      if (motivation.trim()) {
+        await supabase.from("applications").update({
+          applicant_motivation: motivation.trim(),
+          motivation_submitted_at: new Date().toISOString(),
+        }).eq("id", applicationId)
+      }
+
+      // Save bank statement path for extraction
+      const bankStatement = documents.find((d) => d.key === "bank_statement")
+      if (bankStatement?.storagePath) {
+        await supabase.from("applications").update({
+          bank_statement_path: bankStatement.storagePath,
+          documents_submitted: true,
+          stage1_status: "documents_submitted",
+        }).eq("id", applicationId)
+      }
+
+      // Trigger extraction via API
+      await fetch(`/api/applications/${applicationId}/documents`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bankStatementPath: bankStatement?.storagePath,
+          documentPaths: documents
+            .filter((d) => d.storagePath)
+            .map((d) => ({ key: d.key, path: d.storagePath })),
+        }),
+      })
+
+      router.push(`/apply/${listingId}/status?application=${applicationId}`)
+    } catch {
+      alert("Something went wrong. Please try again.")
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -94,7 +156,9 @@ export default function DocumentsPage() {
               key={doc.key}
               className="flex items-center gap-3 rounded-lg border border-border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
             >
-              {doc.file ? (
+              {doc.uploading ? (
+                <Loader2 className="size-5 text-primary animate-spin shrink-0" />
+              ) : doc.uploaded ? (
                 <CheckCircle2 className="size-5 text-green-500 shrink-0" />
               ) : (
                 <Upload className="size-5 text-muted-foreground shrink-0" />
@@ -110,6 +174,7 @@ export default function DocumentsPage() {
               <input
                 type="file"
                 accept={doc.accept}
+                capture={doc.key === "id_document" ? "environment" : undefined}
                 className="sr-only"
                 onChange={(e) =>
                   handleFileChange(i, "required", e.target.files?.[0] ?? null)
@@ -161,7 +226,9 @@ export default function DocumentsPage() {
               key={doc.key}
               className="flex items-center gap-3 rounded-lg border border-dashed border-border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
             >
-              {doc.file ? (
+              {doc.uploading ? (
+                <Loader2 className="size-5 text-primary animate-spin shrink-0" />
+              ) : doc.uploaded ? (
                 <CheckCircle2 className="size-5 text-green-500 shrink-0" />
               ) : (
                 <Upload className="size-5 text-muted-foreground shrink-0" />

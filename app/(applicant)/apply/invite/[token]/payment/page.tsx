@@ -1,29 +1,79 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useParams } from "next/navigation"
 import { formatZAR, APPLICATION_FEE_CENTS, JOINT_APPLICATION_FEE_CENTS } from "@/lib/constants"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { CreditCard, Landmark, ShieldCheck } from "lucide-react"
+import { CreditCard, Landmark, ShieldCheck, Loader2 } from "lucide-react"
 
 export default function PaymentPage() {
   const params = useParams()
   const token = params.token as string
+  const formRef = useRef<HTMLFormElement>(null)
 
-  // Placeholder: in production, fetch from application to determine joint vs single
-  const [isJoint] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [processing, setProcessing] = useState(false)
+  const [isJoint, setIsJoint] = useState(false)
+  const [payfastUrl, setPayfastUrl] = useState("")
+  const [payfastData, setPayfastData] = useState<Record<string, string>>({})
+  const [error, setError] = useState<string | null>(null)
+
   const fee = isJoint ? JOINT_APPLICATION_FEE_CENTS : APPLICATION_FEE_CENTS
 
-  const [processing, setProcessing] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    async function loadPayment() {
+      try {
+        const res = await fetch("/api/payments/screening", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token }),
+        })
 
-  async function handlePay() {
+        if (!res.ok) {
+          const err = await res.json()
+          throw new Error(err.error ?? "Failed to load payment")
+        }
+
+        const data = await res.json()
+        if (!cancelled) {
+          setIsJoint(data.is_joint)
+          setPayfastUrl(data.payfast_url)
+          setPayfastData(data.payfast_data)
+          setLoading(false)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to load payment")
+          setLoading(false)
+        }
+      }
+    }
+    loadPayment()
+    return () => { cancelled = true }
+  }, [token])
+
+  function handlePay() {
     setProcessing(true)
-    // Placeholder: would redirect to PayFast payment page
-    // e.g., window.location.href = `/api/payments/screening?token=${token}`
-    await new Promise((r) => setTimeout(r, 1500))
-    // After payment, PayFast would redirect to status page
-    window.location.href = `/apply/invite/${token}/status`
+    // Submit the hidden form to PayFast
+    formRef.current?.submit()
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="size-6 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-4 text-center py-12">
+        <p className="text-sm text-destructive">{error}</p>
+      </div>
+    )
   }
 
   return (
@@ -91,6 +141,13 @@ export default function PaymentPage() {
         <ShieldCheck className="size-4" />
         <span>Secured by PayFast — 256-bit SSL encryption</span>
       </div>
+
+      {/* Hidden PayFast form */}
+      <form ref={formRef} action={payfastUrl} method="POST" className="hidden">
+        {Object.entries(payfastData).map(([key, value]) => (
+          <input key={key} type="hidden" name={key} value={value} />
+        ))}
+      </form>
 
       {/* Pay button */}
       <Button
