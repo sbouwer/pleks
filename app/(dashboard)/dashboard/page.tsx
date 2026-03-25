@@ -10,6 +10,7 @@ import { getFeesDue } from "@/lib/dashboard/feesDue"
 import { getTrustBalance } from "@/lib/dashboard/trustBalance"
 import { getUnpaidOwners } from "@/lib/dashboard/unpaidOwners"
 import { formatDateShort } from "@/lib/reports/periods"
+import { computeTrialDaysLeft } from "@/lib/trial/utils"
 
 const CHECKLIST = [
   { key: "org", label: "Organisation created", done: true },
@@ -42,9 +43,7 @@ export default async function DashboardPage() {
 
   const isTrialing = sub?.status === "trialing" && !sub?.trial_converted
   const trialEndsAt = isTrialing ? sub?.trial_ends_at : null
-  const trialDaysLeft = trialEndsAt
-    ? Math.max(0, Math.ceil((new Date(trialEndsAt).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)))
-    : null
+  const trialDaysLeft = computeTrialDaysLeft(trialEndsAt)
 
   // Effective tier (trial_tier during trial, otherwise tier)
   const tier = isTrialing && sub?.trial_tier ? sub.trial_tier : (sub?.tier || "owner")
@@ -57,22 +56,13 @@ export default async function DashboardPage() {
   let vacantUnits = 0
 
   if (orgId) {
-    const { count: propCount } = await supabase
-      .from("properties")
-      .select("id", { count: "exact", head: true })
-      .eq("org_id", orgId)
-      .is("deleted_at", null)
+    const [propRes, unitRes] = await Promise.all([
+      supabase.from("properties").select("id", { count: "exact", head: true }).eq("org_id", orgId).is("deleted_at", null),
+      supabase.from("units").select("status, is_archived").eq("org_id", orgId).is("deleted_at", null).eq("is_archived", false),
+    ])
 
-    totalProperties = propCount || 0
-
-    const { data: units } = await supabase
-      .from("units")
-      .select("status, is_archived")
-      .eq("org_id", orgId)
-      .is("deleted_at", null)
-      .eq("is_archived", false)
-
-    const activeUnits = units || []
+    totalProperties = propRes.count || 0
+    const activeUnits = unitRes.data || []
     totalUnits = activeUnits.length
     occupiedUnits = activeUnits.filter((u) => u.status === "occupied").length
     vacantUnits = activeUnits.filter((u) => u.status === "vacant").length

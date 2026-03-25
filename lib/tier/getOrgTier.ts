@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import type { Tier } from "@/lib/constants"
+import { getEffectiveTier } from "./effectiveTier"
 
 // Server-only helper — do NOT import in client components
 export async function getOrgTier(orgId: string): Promise<Tier> {
@@ -14,23 +15,4 @@ export async function getOrgTier(orgId: string): Promise<Tier> {
   if (!sub) return "owner"
 
   return getEffectiveTier(sub)
-}
-
-export function getEffectiveTier(subscription: {
-  tier: string
-  status: string
-  trial_tier?: string | null
-  trial_ends_at?: string | null
-  trial_converted?: boolean | null
-}): Tier {
-  if (
-    subscription.status === "trialing" &&
-    subscription.trial_ends_at &&
-    new Date(subscription.trial_ends_at) > new Date() &&
-    subscription.trial_tier &&
-    !subscription.trial_converted
-  ) {
-    return subscription.trial_tier as Tier
-  }
-  return (subscription.tier as Tier) ?? "owner"
 }

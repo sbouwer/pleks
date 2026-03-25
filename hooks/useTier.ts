@@ -5,26 +5,8 @@ import { createClient } from "@/lib/supabase/client"
 import { useOrg } from "./useOrg"
 import { type Tier } from "@/lib/constants"
 import { hasFeature } from "@/lib/tier/gates"
+import { getEffectiveTier } from "@/lib/tier/effectiveTier"
 import { computeTrialDaysLeft } from "@/lib/trial/utils"
-
-function getEffectiveTier(sub: {
-  tier: string
-  status: string
-  trial_tier?: string | null
-  trial_ends_at?: string | null
-  trial_converted?: boolean | null
-}): Tier {
-  if (
-    sub.status === "trialing" &&
-    sub.trial_ends_at &&
-    new Date(sub.trial_ends_at) > new Date() &&
-    sub.trial_tier &&
-    !sub.trial_converted
-  ) {
-    return sub.trial_tier as Tier
-  }
-  return (sub.tier as Tier) ?? "owner"
-}
 
 export function useTier() {
   const { orgId } = useOrg()
