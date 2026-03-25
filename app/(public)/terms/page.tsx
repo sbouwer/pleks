@@ -16,7 +16,7 @@ export default function TermsOfServicePage() {
           <p className="text-sm text-muted-foreground leading-relaxed">
             By accessing or using Pleks, you agree to be bound by these Terms of Service. If you do
             not agree to these terms, you may not use the platform. These terms constitute a legally
-            binding agreement between you and Tohi Group PTY LTD, registered at 13 Station Street,
+            binding agreement between you and Yoros, registered at 13 Station Street,
             Paarl, South Africa.
           </p>
         </section>
@@ -73,7 +73,7 @@ export default function TermsOfServicePage() {
         <section>
           <h2 className="text-lg font-semibold mb-3">Limitation of liability</h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            To the maximum extent permitted by South African law, Tohi Group PTY LTD shall not be
+            To the maximum extent permitted by South African law, Yoros shall not be
             liable for any indirect, incidental, special, consequential, or punitive damages arising
             out of or related to your use of the platform. Our total liability for any claim arising
             from these terms or your use of Pleks shall not exceed the total amount you paid to us in

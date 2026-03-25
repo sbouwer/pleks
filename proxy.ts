@@ -1,14 +1,30 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { updateSession } from "@/lib/supabase/middleware"
 
-const PUBLIC_ROUTES = ["/", "/pricing", "/login", "/forgot-password", "/reset-password"]
+const PUBLIC_ROUTES = ["/", "/pricing", "/login", "/forgot-password", "/reset-password",
+  "/for-agents", "/for-landlords", "/early-access", "/migrate",
+  "/privacy", "/terms", "/credit-check-policy"]
 const AUTH_ROUTES = ["/auth"]
-const WEBHOOK_ROUTES = ["/api/webhooks", "/api/cron"]
+const WEBHOOK_ROUTES = ["/api/webhooks", "/api/cron", "/api/waitlist", "/api/admin"]
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Always allow webhooks, cron, static assets
+  // ── Admin panel protection ──────────────────────────────────
+  if (pathname.startsWith("/admin")) {
+    // Allow /admin/login through
+    if (pathname === "/admin/login") {
+      return NextResponse.next()
+    }
+    const adminToken = request.cookies.get("pleks_admin_token")?.value
+    const adminSecret = process.env.ADMIN_SECRET
+    if (!adminSecret || adminToken !== adminSecret) {
+      return NextResponse.redirect(new URL("/admin/login", request.url))
+    }
+    return NextResponse.next()
+  }
+
+  // Always allow webhooks, cron, API routes
   if (WEBHOOK_ROUTES.some((r) => pathname.startsWith(r))) {
     return NextResponse.next()
   }
@@ -17,7 +33,11 @@ export async function proxy(request: NextRequest) {
   if (
     PUBLIC_ROUTES.includes(pathname) ||
     AUTH_ROUTES.some((r) => pathname.startsWith(r)) ||
-    pathname.startsWith("/apply")
+    pathname.startsWith("/apply") ||
+    pathname.startsWith("/api/payfast") ||
+    pathname.startsWith("/api/payments") ||
+    pathname.startsWith("/api/import") ||
+    pathname.startsWith("/api/reports")
   ) {
     const { supabaseResponse } = await updateSession(request)
     return supabaseResponse
@@ -34,7 +54,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // Onboarding check — if no org, redirect to onboarding
-  if (!pathname.startsWith("/onboarding")) {
+  if (!pathname.startsWith("/onboarding") && !pathname.startsWith("/contractor") && !pathname.startsWith("/portal")) {
     const { data: orgs } = await supabase
       .from("user_orgs")
       .select("org_id")

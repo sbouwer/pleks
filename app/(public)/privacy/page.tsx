@@ -14,7 +14,7 @@ export default function PrivacyPolicyPage() {
         <section>
           <h2 className="text-lg font-semibold mb-3">Who we are</h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            Pleks is a property management platform operated by Tohi Group PTY LTD, a company
+            Pleks is a property management platform operated by Yoros, a company
             registered in South Africa. Our registered address is 13 Station Street, Paarl.
             We provide software tools to property managers, landlords, tenants, and rental
             applicants across South Africa.

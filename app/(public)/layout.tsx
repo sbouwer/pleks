@@ -53,7 +53,7 @@ export default function PublicLayout({
                 &copy; {new Date().getFullYear()} Pleks. Built in South Africa.
               </p>
             </div>
-            <p className="text-[10px] text-muted-foreground">Tohi Group PTY LTD</p>
+            <p className="text-[10px] text-muted-foreground">Powered by Yoros</p>
           </div>
         </div>
       </footer>
