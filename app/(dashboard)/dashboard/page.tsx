@@ -35,12 +35,19 @@ export default async function DashboardPage() {
 
   const orgId = membership?.org_id
 
-  // Get subscription
+  // Get subscription (including trial state)
   const { data: sub } = orgId
-    ? await supabase.from("subscriptions").select("tier").eq("org_id", orgId).eq("status", "active").single()
+    ? await supabase.from("subscriptions").select("tier, status, trial_tier, trial_ends_at, trial_converted").eq("org_id", orgId).in("status", ["active", "trialing"]).single()
     : { data: null }
 
-  const tier = sub?.tier || "owner"
+  const isTrialing = sub?.status === "trialing" && !sub?.trial_converted
+  const trialEndsAt = isTrialing ? sub?.trial_ends_at : null
+  const trialDaysLeft = trialEndsAt
+    ? Math.max(0, Math.ceil((new Date(trialEndsAt).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)))
+    : null
+
+  // Effective tier (trial_tier during trial, otherwise tier)
+  const tier = isTrialing && sub?.trial_tier ? sub.trial_tier : (sub?.tier || "owner")
   const org = membership?.organisations as unknown as Record<string, unknown> | null
 
   // Portfolio metrics
@@ -91,7 +98,12 @@ export default async function DashboardPage() {
     <div>
       <h1 className="font-heading text-3xl mb-6">Dashboard</h1>
 
-      <DashboardBanners showTrustBanner={showTrustBanner} />
+      <DashboardBanners
+        showTrustBanner={showTrustBanner}
+        isTrialing={isTrialing}
+        trialDaysLeft={trialDaysLeft}
+        trialTier={sub?.trial_tier}
+      />
 
       {/* Welcome checklist for new users */}
       {isNewOrg && (
