@@ -1,6 +1,6 @@
 import Link from "next/link"
 import Image from "next/image"
-import { Mail, MapPin } from "lucide-react"
+import { Mail } from "lucide-react"
 import { PublicNav } from "./PublicNav"
 
 export default function PublicLayout({
@@ -74,9 +74,9 @@ export default function PublicLayout({
               <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-4">Contact</h4>
               <ul className="space-y-2.5 text-sm">
                 <li>
-                  <a href="mailto:info@pleks.co.za" className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2">
+                  <a href="mailto:hello@pleks.co.za" className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2">
                     <Mail className="size-3.5 shrink-0" />
-                    info@pleks.co.za
+                    hello@pleks.co.za
                   </a>
                 </li>
                 <li>
@@ -85,9 +85,11 @@ export default function PublicLayout({
                     support@pleks.co.za
                   </a>
                 </li>
-                <li className="flex items-center gap-2 text-muted-foreground">
-                  <MapPin className="size-3.5 shrink-0" />
-                  Paarl, South Africa
+                <li>
+                  <a href="mailto:legal@pleks.co.za" className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2">
+                    <Mail className="size-3.5 shrink-0" />
+                    legal@pleks.co.za
+                  </a>
                 </li>
               </ul>
             </div>
@@ -98,17 +100,14 @@ export default function PublicLayout({
             <p className="text-xs text-muted-foreground">
               &copy; {new Date().getFullYear()} Pleks (Pty) Ltd. Built in South Africa.
             </p>
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span>Powered by</span>
-              <a
-                href="https://yoros.co.za"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-muted-foreground hover:text-foreground transition-colors font-medium underline underline-offset-2"
-              >
-                Yoros
-              </a>
-            </div>
+            <a
+              href="https://yoros.co.za"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Built by Yoros
+            </a>
           </div>
         </div>
       </footer>

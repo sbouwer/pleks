@@ -12,10 +12,11 @@ export default function PrivacyPolicyPage() {
 
       <div className="space-y-10">
         <section>
+          {/* PENDING: Replace "Pleks (Pty) Ltd" with registered company name + registration number once PTY is incorporated. Also add registered address. Contact: legal@pleks.co.za */}
           <h2 className="text-lg font-semibold mb-3">Who we are</h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            Pleks is a property management platform operated by Yoros, a company
-            registered in South Africa. Our registered address is 13 Station Street, Paarl.
+            Pleks is a South African property management platform operated by Pleks (Pty) Ltd,
+            a company registered in South Africa. Our registered office address is available on request.
             We provide software tools to property managers, landlords, tenants, and rental
             applicants across South Africa.
           </p>
@@ -112,8 +113,8 @@ export default function PrivacyPolicyPage() {
           <h2 className="text-lg font-semibold mb-3">Information Officer</h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
             Our designated Information Officer can be contacted at{" "}
-            <a href="mailto:info@pleks.co.za" className="text-foreground underline underline-offset-4 hover:text-primary">
-              info@pleks.co.za
+            <a href="mailto:legal@pleks.co.za" className="text-foreground underline underline-offset-4 hover:text-primary">
+              legal@pleks.co.za
             </a>
             . All requests related to your personal information will be responded to within a
             reasonable time, and no later than 30 days.
