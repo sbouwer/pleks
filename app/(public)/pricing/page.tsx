@@ -16,9 +16,11 @@ const tiers = [
     period: "",
     units: "1 unit",
     users: "1 user",
-    features: ["Lease management", "Basic inspections", "Tenant portal", "Maintenance log", "Email notifications"],
+    base: null,
+    extras: ["Lease management", "Basic inspections", "Tenant portal", "Maintenance log", "Email notifications"],
     cta: "Start free",
     variant: "outline" as const,
+    href: "/login",
   },
   {
     name: "Steward",
@@ -26,8 +28,8 @@ const tiers = [
     period: "/month",
     units: "20 units",
     users: "2 users",
-    features: [
-      "Everything in Owner",
+    base: "Everything in Owner",
+    extras: [
       "Bank reconciliation",
       "Owner statements",
       "Unlimited inspections",
@@ -39,6 +41,7 @@ const tiers = [
     ],
     cta: "Start 14-day trial",
     variant: "outline" as const,
+    href: "/login",
   },
   {
     name: "Portfolio",
@@ -47,8 +50,8 @@ const tiers = [
     units: "30 units",
     users: "5 users",
     popular: true,
-    features: [
-      "Everything in Steward",
+    base: "Everything in Steward",
+    extras: [
       "DebiCheck collections",
       "Arrears automation",
       "Application pipeline",
@@ -59,6 +62,7 @@ const tiers = [
     ],
     cta: "Get started",
     variant: "default" as const,
+    href: "/login",
   },
   {
     name: "Firm",
@@ -66,8 +70,8 @@ const tiers = [
     period: "/month",
     units: "Unlimited",
     users: "Unlimited",
-    features: [
-      "Everything in Portfolio",
+    base: "Everything in Portfolio",
+    extras: [
       "HOA / body corporate",
       "Contractor portal",
       "AI legal documents (Opus)",
@@ -77,6 +81,7 @@ const tiers = [
     ],
     cta: "Contact us",
     variant: "outline" as const,
+    href: "/early-access",
   },
 ]
 
@@ -131,45 +136,62 @@ export default function PricingPage() {
         {/* Tier cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-20">
           {tiers.map((tier) => (
-            <Card
-              key={tier.name}
-              className={`relative ${tier.popular ? "border-brand ring-1 ring-brand/30" : ""}`}
-            >
+            <div key={tier.name} className="relative pt-3">
               {tier.popular && (
-                <Badge className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-brand text-primary-foreground">
-                  Most popular
-                </Badge>
-              )}
-              <CardHeader>
-                <CardTitle className="font-heading text-xl">{tier.name}</CardTitle>
-                <div className="mt-2">
-                  <span className="font-heading text-3xl">{tier.price}</span>
-                  {tier.period && (
-                    <span className="text-muted-foreground text-sm">{tier.period}</span>
-                  )}
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 z-10">
+                  <Badge className="bg-brand text-primary-foreground px-3 py-1 text-xs font-semibold">
+                    Most popular
+                  </Badge>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  {tier.units} &middot; {tier.users}
-                </p>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2 mb-6">
-                  {tier.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2 text-sm">
-                      <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-                <Button
-                  className="w-full"
-                  variant={tier.variant}
-                  render={<Link href="/login" />}
-                >
-                  {tier.cta}
-                </Button>
-              </CardContent>
-            </Card>
+              )}
+              <Card
+                className={`h-full flex flex-col ${tier.popular ? "border-brand ring-1 ring-brand/30" : ""}`}
+              >
+                <CardHeader>
+                  <CardTitle className="font-heading text-xl">{tier.name}</CardTitle>
+                  <div className="mt-2">
+                    <span className="font-heading text-3xl">{tier.price}</span>
+                    {tier.period && (
+                      <span className="text-muted-foreground text-sm">{tier.period}</span>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {tier.units} &middot; {tier.users}
+                  </p>
+                </CardHeader>
+                <CardContent className="flex flex-col flex-1">
+                  {/* Base tier reference */}
+                  {tier.base && (
+                    <div className="mb-3 pb-3 border-b border-border/40">
+                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                        Includes
+                      </p>
+                      <p className="text-sm font-semibold text-foreground mt-0.5">
+                        {tier.base}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Extra features */}
+                  <ul className="space-y-2 flex-1 mb-6">
+                    {tier.extras.map((f) => (
+                      <li key={f} className="flex items-start gap-2 text-sm">
+                        <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <Button
+                    className="w-full mt-auto"
+                    variant={tier.variant}
+                    render={<Link href={tier.href} />}
+                  >
+                    {tier.cta}
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
           ))}
         </div>
 
