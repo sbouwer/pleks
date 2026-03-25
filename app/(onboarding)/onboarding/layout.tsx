@@ -25,7 +25,7 @@ export default function OnboardingLayout({
       <div className="border-b border-border bg-surface">
         <div className="max-w-2xl mx-auto px-4 py-4">
           <div className="flex items-center gap-2 mb-3">
-            <Image src="/logo.svg" alt="Pleks" width={86} height={24} />
+            <Image src="/logo.svg" alt="Pleks" width={86} height={24} className="h-auto" />
             <span className="text-xs text-muted-foreground">Setup</span>
           </div>
           <div className="flex gap-2">

@@ -10,7 +10,7 @@ export default function ApplicantLayout({
       {/* Header */}
       <div className="border-b border-border">
         <div className="max-w-xl mx-auto px-4 py-5 flex justify-center">
-          <Image src="/logo.svg" alt="Pleks" width={114} height={32} />
+          <Image src="/logo.svg" alt="Pleks" width={114} height={32} className="h-auto h-auto" />
         </div>
       </div>
 
