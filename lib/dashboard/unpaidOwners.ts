@@ -38,10 +38,10 @@ export async function getUnpaidOwners(orgId: string, periodMonth?: Date): Promis
 
   // Resolve owner names
   const ownerIds = stmts
-    .map((s) => (s.properties as unknown as { owner_id: string } | null)?.owner_id as string)
+    .map((s) => (s.properties as unknown as { owner_id: string } | null)?.owner_id)
     .filter(Boolean)
 
-  let ownerNames = new Map<string, string>()
+  const ownerNames = new Map<string, string>()
   if (ownerIds.length > 0) {
     const { data: owners } = await supabase
       .from("tenants")

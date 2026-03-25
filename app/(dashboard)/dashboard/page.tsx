@@ -5,6 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Check, Circle } from "lucide-react"
 import { DashboardBanners } from "./DashboardBanners"
+import { formatZAR } from "@/lib/constants"
+import { getFeesDue } from "@/lib/dashboard/feesDue"
+import { getTrustBalance } from "@/lib/dashboard/trustBalance"
+import { getUnpaidOwners } from "@/lib/dashboard/unpaidOwners"
+import { formatDateShort } from "@/lib/reports/periods"
 
 const CHECKLIST = [
   { key: "org", label: "Organisation created", done: true },
@@ -68,6 +73,19 @@ export default async function DashboardPage() {
 
   const showTrustBanner = tier !== "owner" && org?.has_trust_account !== true
   const isNewOrg = totalProperties === 0
+
+  // TPN gap widgets — load in parallel (only for non-new orgs)
+  let feesDue = null
+  let trustBalance = null
+  let unpaidOwners = null
+
+  if (orgId && !isNewOrg) {
+    ;[feesDue, trustBalance, unpaidOwners] = await Promise.all([
+      getFeesDue(orgId),
+      getTrustBalance(orgId),
+      getUnpaidOwners(orgId),
+    ])
+  }
 
   return (
     <div>
@@ -139,6 +157,79 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
+      {/* Financial widgets row — TPN gap additions */}
+      {!isNewOrg && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          {/* Fees Due widget */}
+          {feesDue && feesDue.total_fees_due_cents > 0 && (
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-xs text-muted-foreground">Fees Due — {feesDue.period_label}</p>
+                <p className="font-heading text-xl mt-1">{formatZAR(feesDue.total_fees_due_cents)}</p>
+                <div className="mt-2 space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-emerald-600">Ready to release</span>
+                    <span className="font-semibold">{formatZAR(feesDue.fees_in_collected_rent)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Pending income</span>
+                    <span>{formatZAR(feesDue.fees_in_uncollected_rent)}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Trust Balance widget */}
+          {trustBalance && (
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-xs text-muted-foreground">Trust Account (calculated)</p>
+                <p className="font-heading text-xl mt-1">{formatZAR(trustBalance.total_in_trust_cents)}</p>
+                <div className="mt-2 space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Undisbursed rent</span>
+                    <span>{formatZAR(trustBalance.rent_collected_undisbursed_cents)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Deposits held</span>
+                    <span>{formatZAR(trustBalance.deposits_held_cents)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Fees pending</span>
+                    <span>{formatZAR(trustBalance.management_fees_pending_cents)}</span>
+                  </div>
+                </div>
+                {trustBalance.last_recon_date && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Last reconciled: {formatDateShort(new Date(trustBalance.last_recon_date))}
+                  </p>
+                )}
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Pleks-calculated. Verify against your bank statement.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Unpaid Owners widget */}
+          {unpaidOwners && unpaidOwners.count > 0 && (
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-xs text-muted-foreground">Owners Not Yet Paid</p>
+                <p className="font-heading text-xl mt-1 text-amber-600">{unpaidOwners.count}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Total: {formatZAR(unpaidOwners.total_unpaid_cents)}
+                </p>
+                <Button variant="outline" size="sm" className="mt-3 w-full text-xs" render={<Link href="/reports" />}>
+                  View unpaid owners report
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
       {/* Quick actions */}
       {!isNewOrg && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -153,6 +244,9 @@ export default async function DashboardPage() {
               </Button>
               <Button variant="outline" className="w-full justify-start" render={<Link href="/leases" />}>
                 View Leases
+              </Button>
+              <Button variant="outline" className="w-full justify-start" render={<Link href="/reports" />}>
+                View Reports
               </Button>
             </CardContent>
           </Card>
