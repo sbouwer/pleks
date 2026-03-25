@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ShieldCheck } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
 
 export default function Stage2ConsentPage() {
   const router = useRouter()
@@ -14,19 +15,78 @@ export default function Stage2ConsentPage() {
   const [agreed, setAgreed] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
-  function handleDecline() {
-    // Placeholder: would call API to withdraw application
-    if (confirm("Are you sure you want to withdraw your application?")) {
-      router.push(`/apply/invite/${token}`)
+  async function handleDecline() {
+    if (!confirm("Are you sure you want to withdraw your application?")) return
+
+    const supabase = createClient()
+    const { data: tokenData } = await supabase
+      .from("application_tokens")
+      .select("application_id")
+      .eq("token", token)
+      .single()
+
+    if (tokenData) {
+      await supabase.from("applications").update({
+        stage2_status: "withdrawn",
+      }).eq("id", tokenData.application_id)
     }
+
+    router.push(`/apply/invite/${token}`)
   }
 
   async function handleAgree() {
     if (!agreed) return
     setSubmitting(true)
-    // Placeholder: would create consent_log entry for stage 2
-    await new Promise((r) => setTimeout(r, 500))
-    router.push(`/apply/invite/${token}/payment`)
+
+    try {
+      const supabase = createClient()
+
+      // Look up application from token
+      const { data: tokenData } = await supabase
+        .from("application_tokens")
+        .select("application_id, applicant_email")
+        .eq("token", token)
+        .single()
+
+      if (!tokenData) {
+        alert("Invalid or expired token.")
+        setSubmitting(false)
+        return
+      }
+
+      // Get application org_id
+      const { data: app } = await supabase
+        .from("applications")
+        .select("org_id")
+        .eq("id", tokenData.application_id)
+        .single()
+
+      // Log Stage 2 consent
+      await supabase.from("consent_log").insert({
+        org_id: app?.org_id,
+        subject_email: tokenData.applicant_email,
+        consent_type: "credit_check",
+        consent_version: "1.0-searchworx-stage2",
+        metadata: {
+          application_id: tokenData.application_id,
+          bureau: "searchworx",
+          check_types: ["transunion", "xds", "csi_id", "csi_id_photo", "tpn_adverse"],
+          stage: 2,
+        },
+      })
+
+      // Update application with Stage 2 consent
+      await supabase.from("applications").update({
+        stage2_consent_given: true,
+        stage2_consent_given_at: new Date().toISOString(),
+        stage2_status: "pending_payment",
+      }).eq("id", tokenData.application_id)
+
+      router.push(`/apply/invite/${token}/payment`)
+    } catch {
+      alert("Something went wrong. Please try again.")
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -76,16 +136,6 @@ export default function Stage2ConsentPage() {
               — judgements, defaults, sequestrations, and blacklisting
             </li>
           </ul>
-
-          <div className="space-y-2">
-            <p className="font-medium text-foreground">Purpose:</p>
-            <p>
-              These checks are performed solely to assess your suitability as a
-              tenant for the property you have applied for. Results are shared
-              with the property manager or landlord and are not used for any
-              other purpose.
-            </p>
-          </div>
 
           <div className="space-y-2">
             <p className="font-medium text-foreground">Your rights:</p>

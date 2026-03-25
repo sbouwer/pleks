@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { sendShortlistInvitation } from "@/lib/screening/sendShortlistInvitation"
+import { createTenantFromApplication } from "@/lib/applications/createTenantFromApplication"
 import { useUser } from "@/hooks/useUser"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -47,13 +48,26 @@ export function ApplicationActions({
   }
 
   async function handleApprove() {
+    if (!user) return
     const supabase = createClient()
+
+    // Create tenant record from application
+    const result = await createTenantFromApplication(applicationId, user.id)
+    if ("error" in result) {
+      toast.error(result.error)
+      return
+    }
+
+    // Mark application as approved
     await supabase.from("applications").update({
       stage2_status: "approved",
+      reviewed_by: user.id,
       reviewed_at: new Date().toISOString(),
+      tenant_id: result.tenantId,
     }).eq("id", applicationId)
-    toast.success("Application approved — create tenant record and lease")
-    router.refresh()
+
+    toast.success("Application approved — tenant record created")
+    router.push(`/tenants/${result.tenantId}`)
   }
 
   async function handleDeclineStage2() {
