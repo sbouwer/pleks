@@ -135,7 +135,7 @@ export default function PricingPage() {
         {/* Tier cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-20">
           {tiers.map((tier) => (
-            <div key={tier.name} className="group relative pt-4 cursor-pointer">
+            <div key={tier.name} className="group relative pt-4">
               {tier.popular && (
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 z-10">
                   <span className="inline-block bg-brand text-primary-foreground text-xs font-semibold px-3 py-1 rounded-full">
@@ -187,7 +187,7 @@ export default function PricingPage() {
                   </ul>
 
                   <Button
-                    className="w-full mt-auto transition-transform duration-200 group-hover:scale-[1.02]"
+                    className="w-full mt-auto transition-all duration-200 hover:brightness-125 hover:shadow-lg hover:shadow-brand/20 hover:scale-[1.03]"
                     variant={tier.variant}
                     render={<Link href={tier.href} />}
                   >
