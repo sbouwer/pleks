@@ -2,25 +2,15 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Check, Wallet, CalendarCheck, ShieldCheck, ArrowRight, ArrowDown } from "lucide-react"
+import { Wallet, CalendarCheck, ShieldCheck, ArrowRight, ArrowDown } from "lucide-react"
 import { formatZAR, FOUNDING_AGENT_PRICE_CENTS } from "@/lib/constants"
+import { FeatureExplorer } from "@/components/marketing/FeatureExplorer"
+import { CostComparison } from "@/components/marketing/CostComparison"
 
 export const metadata = {
   title: "Pleks — SA Property Management | Replace TPN RentBook",
   description: "South African property management built right. Free applicant screening, automated DebiCheck, Tribunal-ready documentation. Replace TPN RentBook today.",
 }
-
-const FEATURES = [
-  "FitScore screening", "DebiCheck collections", "Digital lease signing",
-  "Inspection PWA", "Bank reconciliation", "Arrears automation",
-  "Owner statements", "Municipal bills", "Deposit reconciliation",
-  "HOA / body corporate", "Contractor portal", "AI legal documents",
-  "Heritage building support", "SARS-ready reports", "POPIA compliant",
-]
-
-const PREMIUM_FEATURES = new Set([
-  "HOA / body corporate", "Contractor portal", "AI legal documents",
-])
 
 export default function HomePage() {
   return (
@@ -123,67 +113,11 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ─── SECTION 4: Feature grid ─── */}
-      <section className="max-w-6xl mx-auto px-4 py-16 md:py-24">
-        <h2 className="font-heading text-3xl md:text-4xl mb-3 text-center">Everything in one place</h2>
-        <p className="text-muted-foreground text-center mb-12">
-          No more TPN + RedRabbit + spreadsheets + WhatsApp.
-        </p>
+      {/* ─── SECTION 4: Feature Explorer ─── */}
+      <FeatureExplorer />
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {FEATURES.map((feature) => (
-            <div
-              key={feature}
-              className="flex items-center gap-2.5 rounded-lg bg-surface p-3 text-sm"
-            >
-              <Check className="size-4 text-brand shrink-0" />
-              <span>{feature}</span>
-              {PREMIUM_FEATURES.has(feature) && (
-                <Badge variant="secondary" className="text-[10px] ml-auto shrink-0">Firm</Badge>
-              )}
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ─── SECTION 5: Comparison ─── */}
-      <section className="bg-surface/50 py-16 md:py-24">
-        <div className="max-w-4xl mx-auto px-4">
-          <h2 className="font-heading text-3xl md:text-4xl mb-12 text-center">
-            What agents actually pay right now
-          </h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card className="bg-surface">
-              <CardContent className="pt-6 space-y-4">
-                <h3 className="font-heading text-lg text-muted-foreground">Current stack</h3>
-                <p className="text-2xl font-heading">R 2,150–2,850<span className="text-sm text-muted-foreground font-sans"> /month</span></p>
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li>TPN RentBook + RedRabbit + credit checks</li>
-                  <li>R 310 per credit check (you pay)</li>
-                  <li>R 5,000 onboarding fee (WeConnectU)</li>
-                  <li>15% of every arrears notice</li>
-                  <li>ABSA lock-in contract</li>
-                </ul>
-              </CardContent>
-            </Card>
-
-            <Card className="border-brand/50 bg-brand-dim/30">
-              <CardContent className="pt-6 space-y-4">
-                <h3 className="font-heading text-lg text-brand">Pleks</h3>
-                <p className="text-2xl font-heading">From R 599<span className="text-sm text-muted-foreground font-sans"> /month</span></p>
-                <ul className="space-y-2 text-sm">
-                  <li className="flex items-center gap-2"><Check className="size-3.5 text-brand shrink-0" /> Everything in one platform</li>
-                  <li className="flex items-center gap-2"><Check className="size-3.5 text-brand shrink-0" /> R 399 per screening (applicant pays)</li>
-                  <li className="flex items-center gap-2"><Check className="size-3.5 text-brand shrink-0" /> No onboarding fee</li>
-                  <li className="flex items-center gap-2"><Check className="size-3.5 text-brand shrink-0" /> Arrears automation included</li>
-                  <li className="flex items-center gap-2"><Check className="size-3.5 text-brand shrink-0" /> No bank lock-in</li>
-                </ul>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </section>
+      {/* ─── SECTION 5: Cost Comparison ─── */}
+      <CostComparison />
 
       {/* ─── SECTION 6: Founding agent CTA ─── */}
       <section className="bg-brand-dim py-16 md:py-20">
