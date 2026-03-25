@@ -15,6 +15,7 @@ import {
   CreditCard,
   BarChart3,
   UserCheck,
+  Landmark,
   Settings,
 } from "lucide-react"
 
@@ -28,6 +29,7 @@ const navItems = [
   { href: "/maintenance", label: "Maintenance", icon: Wrench },
   { href: "/applications", label: "Applications", icon: UserCheck },
   { href: "/payments", label: "Payments", icon: CreditCard },
+  { href: "/hoa", label: "HOA", icon: Landmark },
   { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/settings", label: "Settings", icon: Settings },
 ]

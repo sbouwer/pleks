@@ -6,6 +6,7 @@ import { GET as scheduledReports } from "../scheduled-reports/route"
 import { GET as debicheckCollection } from "../debicheck-collection/route"
 import { GET as ownerStatementGen } from "../owner-statement-gen/route"
 import { GET as depositInterest } from "../deposit-interest/route"
+import { GET as levyGenerate } from "../levy-generate/route"
 
 // Single daily cron — runs all jobs sequentially at 05:00 UTC (07:00 SAST)
 // Vercel free tier only allows 1 cron job
@@ -60,7 +61,17 @@ export async function GET(req: NextRequest) {
     results.deposit_interest = res.ok ? "ok" : "failed"
   } catch { results.deposit_interest = "error" }
 
-  // 7. Owner statement generation (2nd of month only)
+  // 7. HOA levy invoice generation (1st of month only)
+  if (dayOfMonth === 1) {
+    try {
+      const res = await levyGenerate(cronReq)
+      results.levy_generate = res.ok ? "ok" : "failed"
+    } catch { results.levy_generate = "error" }
+  } else {
+    results.levy_generate = "skipped (not 1st)"
+  }
+
+  // 8. Owner statement generation (2nd of month only)
   if (dayOfMonth === 2) {
     try {
       const res = await ownerStatementGen(cronReq)
