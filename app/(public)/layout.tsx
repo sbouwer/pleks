@@ -19,7 +19,9 @@ export default function PublicLayout({
             <div className="space-y-4">
               <Image src="/logo.svg" alt="Pleks" width={100} height={32} className="h-auto opacity-90" />
               <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
-                SA property management built by someone who has done it for 11 years.
+                Built from the inside out.
+                <br />
+                <span className="text-foreground/70">Every feature earned in the field.</span>
               </p>
               <Link
                 href="/early-access"
