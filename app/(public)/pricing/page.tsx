@@ -161,16 +161,16 @@ export default function PricingPage() {
                 </CardHeader>
                 <CardContent className="flex flex-col flex-1">
                   {/* Base tier reference */}
-                  {tier.base && (
-                    <div className="mb-3 pb-3 border-b border-border/40">
-                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
-                        Includes
-                      </p>
+                  <div className="mb-3 pb-3 border-b border-border/40">
+                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                      Includes
+                    </p>
+                    {tier.base && (
                       <p className="text-sm font-semibold text-foreground mt-0.5">
                         {tier.base}
                       </p>
-                    </div>
-                  )}
+                    )}
+                  </div>
 
                   {/* Extra features */}
                   <ul className="space-y-2 flex-1 mb-6">
