@@ -33,7 +33,7 @@ export default function AdminLoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <form onSubmit={handleSubmit} className="w-full max-w-xs space-y-6 text-center">
-        <Image src="/logo-mark.svg" alt="Pleks" width={40} height={40} className="mx-auto opacity-60" />
+        <Image src="/logo-mark.svg" alt="Pleks" width={40} height={40} className="h-auto mx-auto opacity-60" />
         <p className="text-xs text-muted-foreground uppercase tracking-widest">Admin Access</p>
         <Input
           type="password"
