@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
 import { Plus, Trash2 } from "lucide-react"
 import { createClient as createBrowserClient } from "@/lib/supabase/client"
 import { REPORT_LABELS } from "@/lib/reports/types"
@@ -33,33 +32,35 @@ export default function ReportSettingsPage() {
   const [saving, setSaving] = useState(false)
 
   const supabase = createBrowserClient()
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
-    loadConfigs()
-  }, [])
+    let cancelled = false
+    async function load() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user || cancelled) return
 
-  async function loadConfigs() {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+      const { data: membership } = await supabase
+        .from("user_orgs")
+        .select("org_id")
+        .eq("user_id", user.id)
+        .is("deleted_at", null)
+        .single()
 
-    const { data: membership } = await supabase
-      .from("user_orgs")
-      .select("org_id")
-      .eq("user_id", user.id)
-      .is("deleted_at", null)
-      .single()
+      if (!membership || cancelled) return
 
-    if (!membership) return
+      const { data } = await supabase
+        .from("report_configs")
+        .select("*")
+        .eq("org_id", membership.org_id)
+        .eq("is_scheduled", true)
+        .order("created_at")
 
-    const { data } = await supabase
-      .from("report_configs")
-      .select("*")
-      .eq("org_id", membership.org_id)
-      .eq("is_scheduled", true)
-      .order("created_at")
-
-    setConfigs(data ?? [])
-  }
+      if (!cancelled) setConfigs(data ?? [])
+    }
+    load()
+    return () => { cancelled = true }
+  }, [supabase, refreshKey])
 
   async function handleAdd() {
     setSaving(true)
@@ -94,12 +95,12 @@ export default function ReportSettingsPage() {
     setShowAdd(false)
     setNewConfig({ report_type: "portfolio_summary", name: "", schedule_day: 2, recipient_emails: "" })
     setSaving(false)
-    loadConfigs()
+    setRefreshKey((k) => k + 1)
   }
 
   async function handleDelete(id: string) {
     await supabase.from("report_configs").delete().eq("id", id)
-    loadConfigs()
+    setRefreshKey((k) => k + 1)
   }
 
   return (

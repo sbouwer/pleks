@@ -36,7 +36,7 @@ export function ReportsClient({ tier, properties, orgId }: ReportsClientProps) {
   const [activeTab, setActiveTab] = useState<string>("portfolio_summary")
 
   const handleApply = useCallback((f: { periodType: ReportPeriodType; propertyIds: string[]; customFrom?: string; customTo?: string }) => {
-    setFilters(f)
+    setFilters({ ...f, customFrom: f.customFrom, customTo: f.customTo })
   }, [])
 
   function hasAccess(reportType: ReportType): boolean {

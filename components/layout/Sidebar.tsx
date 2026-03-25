@@ -14,6 +14,7 @@ import {
   Wrench,
   CreditCard,
   BarChart3,
+  UserCheck,
   Settings,
 } from "lucide-react"
 
@@ -25,6 +26,7 @@ const navItems = [
   { href: "/leases", label: "Leases", icon: FileText },
   { href: "/inspections", label: "Inspections", icon: ClipboardCheck },
   { href: "/maintenance", label: "Maintenance", icon: Wrench },
+  { href: "/applications", label: "Applications", icon: UserCheck },
   { href: "/payments", label: "Payments", icon: CreditCard },
   { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/settings", label: "Settings", icon: Settings },
