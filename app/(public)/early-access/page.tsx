@@ -56,7 +56,7 @@ export default function EarlyAccessPage() {
             alt="Pleks"
             width={64}
             height={64}
-            className="mx-auto mb-6"
+            className="h-auto mx-auto mb-6"
           />
           <h1 className="font-heading text-3xl md:text-4xl mb-3">
             Pleks is launching in Paarl.
