@@ -5,6 +5,26 @@ import { createClient } from "@/lib/supabase/client"
 import { useOrg } from "./useOrg"
 import { type Tier } from "@/lib/constants"
 import { hasFeature } from "@/lib/tier/gates"
+import { computeTrialDaysLeft } from "@/lib/trial/utils"
+
+function getEffectiveTier(sub: {
+  tier: string
+  status: string
+  trial_tier?: string | null
+  trial_ends_at?: string | null
+  trial_converted?: boolean | null
+}): Tier {
+  if (
+    sub.status === "trialing" &&
+    sub.trial_ends_at &&
+    new Date(sub.trial_ends_at) > new Date() &&
+    sub.trial_tier &&
+    !sub.trial_converted
+  ) {
+    return sub.trial_tier as Tier
+  }
+  return (sub.tier as Tier) ?? "owner"
+}
 
 export function useTier() {
   const { orgId } = useOrg()
@@ -15,9 +35,9 @@ export function useTier() {
     queryFn: async () => {
       const { data } = await supabase
         .from("subscriptions")
-        .select("tier, status, current_period_end")
+        .select("tier, status, current_period_end, trial_tier, trial_ends_at, trial_converted")
         .eq("org_id", orgId!)
-        .eq("status", "active")
+        .in("status", ["active", "trialing"])
         .limit(1)
         .single()
       return data
@@ -25,7 +45,12 @@ export function useTier() {
     enabled: !!orgId,
   })
 
-  const tier = (data?.tier as Tier) ?? "owner"
+  const tier: Tier = data ? getEffectiveTier(data) : "owner"
+  const isTrialing = data?.status === "trialing" && !data?.trial_converted
+  const trialEndsAt = isTrialing ? data?.trial_ends_at : null
+  // Calculate days remaining from trial end date
+  // Computed as a derived value — trialEndsAt is stable from the query
+  const trialDaysLeft = computeTrialDaysLeft(trialEndsAt)
 
   return {
     tier,
@@ -37,5 +62,9 @@ export function useTier() {
     can: (feature: string) => hasFeature(tier, feature),
     status: data?.status ?? "active",
     periodEnd: data?.current_period_end ?? null,
+    isTrialing,
+    trialEndsAt,
+    trialDaysLeft,
+    trialTier: data?.trial_tier ?? null,
   }
 }

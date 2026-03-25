@@ -6,9 +6,31 @@ export async function getOrgTier(orgId: string): Promise<Tier> {
   const supabase = await createClient()
   const { data: sub } = await supabase
     .from("subscriptions")
-    .select("tier")
+    .select("tier, status, trial_tier, trial_ends_at, trial_converted")
     .eq("org_id", orgId)
-    .eq("status", "active")
+    .in("status", ["active", "trialing"])
     .single()
-  return (sub?.tier as Tier) ?? "owner"
+
+  if (!sub) return "owner"
+
+  return getEffectiveTier(sub)
+}
+
+export function getEffectiveTier(subscription: {
+  tier: string
+  status: string
+  trial_tier?: string | null
+  trial_ends_at?: string | null
+  trial_converted?: boolean | null
+}): Tier {
+  if (
+    subscription.status === "trialing" &&
+    subscription.trial_ends_at &&
+    new Date(subscription.trial_ends_at) > new Date() &&
+    subscription.trial_tier &&
+    !subscription.trial_converted
+  ) {
+    return subscription.trial_tier as Tier
+  }
+  return (subscription.tier as Tier) ?? "owner"
 }

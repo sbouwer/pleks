@@ -7,6 +7,7 @@ import { GET as debicheckCollection } from "../debicheck-collection/route"
 import { GET as ownerStatementGen } from "../owner-statement-gen/route"
 import { GET as depositInterest } from "../deposit-interest/route"
 import { GET as levyGenerate } from "../levy-generate/route"
+import { GET as trialExpiry } from "../trial-expiry/route"
 
 // Single daily cron — runs all jobs sequentially at 05:00 UTC (07:00 SAST)
 // Vercel free tier only allows 1 cron job
@@ -80,6 +81,12 @@ export async function GET(req: NextRequest) {
   } else {
     results.owner_statement_gen = "skipped (not 2nd)"
   }
+
+  // 9. Trial expiry check (daily)
+  try {
+    const res = await trialExpiry(cronReq)
+    results.trial_expiry = res.ok ? "ok" : "failed"
+  } catch { results.trial_expiry = "error" }
 
   return Response.json({ ok: true, ran_at: today.toISOString(), results })
 }
