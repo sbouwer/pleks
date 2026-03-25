@@ -1,12 +1,5 @@
 {
   "crons": [
-    { "path": "/api/cron/invoice-generate", "schedule": "0 6 * * *" },
-    { "path": "/api/cron/lease-expiry-check", "schedule": "0 7 * * *" },
-    { "path": "/api/cron/arrears-sequence", "schedule": "0 8 * * *" },
-    { "path": "/api/cron/scheduled-reports", "schedule": "0 9 * * *" },
-    { "path": "/api/cron/deposit-timer-check", "schedule": "0 0 * * *" },
-    { "path": "/api/cron/owner-statement-gen", "schedule": "0 7 2 * *" },
-    { "path": "/api/cron/debicheck-collection", "schedule": "0 6 * * *" },
-    { "path": "/api/cron/lightstone-refresh", "schedule": "0 3 1 * *" }
+    { "path": "/api/cron/daily", "schedule": "0 5 * * *" }
   ]
 }
