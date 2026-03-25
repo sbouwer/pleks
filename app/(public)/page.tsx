@@ -154,36 +154,76 @@ export default function HomePage() {
 
       {/* ─── SECTION 3: How it works ─── */}
       <section id="features" className="bg-surface/50 py-16 md:py-24">
-        <div className="max-w-5xl mx-auto px-4">
-          <h2 className="font-heading text-3xl md:text-4xl mb-16 text-center">How it works</h2>
+        <div className="max-w-6xl mx-auto px-4">
 
-          <div className="space-y-16">
-            {[
-              {
-                num: "1",
-                title: "List and screen",
-                desc: "Create a listing. Applicants apply free. Pleks extracts income from their bank statement. You see a pre-screen score instantly.",
-              },
-              {
-                num: "2",
-                title: "Shortlist and verify",
-                desc: "Shortlisted applicants pay R399 for their credit check. You get a full FitScore — credit, income ratio, rental history, employment, judgements.",
-              },
-              {
-                num: "3",
-                title: "Sign, collect, report",
-                desc: "Lease signed digitally. DebiCheck mandate created. Rent collects. Owner statements generate automatically.",
-              },
-            ].map((step) => (
-              <div key={step.num} className="relative pl-20 md:pl-28">
-                <span className="absolute left-0 top-0 font-heading text-7xl md:text-8xl text-brand/15 leading-none select-none">
-                  {step.num}
-                </span>
-                <h3 className="font-heading text-2xl mb-2">{step.title}</h3>
-                <p className="text-muted-foreground leading-relaxed max-w-xl">{step.desc}</p>
-              </div>
-            ))}
+          <div className="mb-12 md:mb-16">
+            <p className="text-brand text-sm font-semibold uppercase tracking-widest mb-3">
+              How it works
+            </p>
+            <h2 className="font-heading text-3xl md:text-4xl max-w-lg">
+              From listing to statement in three steps
+            </h2>
           </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
+            <div className="hidden md:block absolute top-10 left-[33%] right-[33%] h-px bg-gradient-to-r from-brand/40 via-brand/20 to-brand/40 pointer-events-none" />
+
+            <div className="relative bg-surface rounded-xl p-6 border border-border/50 hover:border-brand/30 transition-colors group">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-9 h-9 rounded-full bg-brand flex items-center justify-center shrink-0">
+                  <span className="text-primary-foreground font-bold text-sm">1</span>
+                </div>
+                <div className="h-px flex-1 bg-border/50" />
+              </div>
+              <h3 className="font-heading text-xl mb-3 group-hover:text-brand transition-colors">List and screen</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed mb-5">
+                Create a listing. Applicants apply free. Pleks extracts income from their bank statement automatically.
+              </p>
+              <div className="flex items-center gap-2 text-xs text-brand font-medium">
+                <div className="w-1.5 h-1.5 rounded-full bg-brand" />
+                Free for every applicant — no barrier to apply
+              </div>
+            </div>
+
+            <div className="relative bg-surface rounded-xl p-6 border border-brand/30 ring-1 ring-brand/10 hover:border-brand/50 transition-colors group">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-9 h-9 rounded-full bg-brand flex items-center justify-center shrink-0">
+                  <span className="text-primary-foreground font-bold text-sm">2</span>
+                </div>
+                <div className="h-px flex-1 bg-border/50" />
+              </div>
+              <h3 className="font-heading text-xl mb-3 group-hover:text-brand transition-colors">Shortlist and verify</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed mb-5">
+                Shortlisted applicants pay R399 for their credit check. You get a full FitScore — credit, income ratio, rental history, employment, judgements.
+              </p>
+              <div className="flex items-center gap-2 text-xs text-brand font-medium">
+                <div className="w-1.5 h-1.5 rounded-full bg-brand" />
+                R399 paid by the applicant — never by you
+              </div>
+            </div>
+
+            <div className="relative bg-surface rounded-xl p-6 border border-border/50 hover:border-brand/30 transition-colors group">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-9 h-9 rounded-full bg-brand flex items-center justify-center shrink-0">
+                  <span className="text-primary-foreground font-bold text-sm">3</span>
+                </div>
+                <div className="h-px flex-1 bg-border/50" />
+              </div>
+              <h3 className="font-heading text-xl mb-3 group-hover:text-brand transition-colors">Sign, collect, report</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed mb-5">
+                Lease signed digitally. DebiCheck mandate created. Rent collects automatically. Owner statements generate with one click.
+              </p>
+              <div className="flex items-center gap-2 text-xs text-brand font-medium">
+                <div className="w-1.5 h-1.5 rounded-full bg-brand" />
+                Automated from signature to statement
+              </div>
+            </div>
+          </div>
+
+          <p className="text-sm text-muted-foreground mt-8 text-center">
+            Most agents are fully set up and collecting rent within 48 hours.
+          </p>
+
         </div>
       </section>
 
