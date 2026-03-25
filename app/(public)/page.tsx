@@ -29,7 +29,7 @@ export default function HomePage() {
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-brand/5 via-transparent to-transparent pointer-events-none" />
         <div className="max-w-5xl mx-auto px-4 pt-24 pb-20 md:pt-36 md:pb-28">
-          <h1 className="font-heading text-5xl md:text-7xl leading-[1.05] tracking-tight mb-6">
+          <h1 className="font-heading text-4xl md:text-6xl leading-[1.1] tracking-tight mb-6">
             SA Property Management,
             <br />
             <span className="text-brand">Built Right.</span>

@@ -1,15 +1,15 @@
 import type { Metadata } from "next"
-import { Instrument_Serif, DM_Sans } from "next/font/google"
+import { Plus_Jakarta_Sans, DM_Sans } from "next/font/google"
 import { Toaster } from "sonner"
 import { ThemeProvider } from "next-themes"
 import { QueryProvider } from "@/components/providers/QueryProvider"
 import "./globals.css"
 
-const instrumentSerif = Instrument_Serif({
-  weight: ["400"],
-  style: ["normal", "italic"],
+const plusJakartaSans = Plus_Jakarta_Sans({
+  weight: ["400", "500", "600", "700", "800"],
   subsets: ["latin"],
-  variable: "--font-instrument-serif",
+  variable: "--font-plus-jakarta",
+  display: "swap",
 })
 
 const dmSans = DM_Sans({
@@ -39,7 +39,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${instrumentSerif.variable} ${dmSans.variable} h-full antialiased`}
+      className={`${plusJakartaSans.variable} ${dmSans.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <ThemeProvider
