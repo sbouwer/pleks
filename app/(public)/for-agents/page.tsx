@@ -16,7 +16,7 @@ import {
 export const metadata = {
   title: "For Property Agents | Replace TPN RentBook with Pleks",
   description:
-    "Replace TPN RentBook, RedRabbit, and your spreadsheet stack with Pleks. Free applicant screening, automated DebiCheck, Tribunal-ready inspections. Credit checks paid by applicants.",
+    "Built by someone who has placed tenants, chased arrears, inspected units, and sat in Tribunal. Then rebuilt the software to fix what was broken. No credit check fees.",
 }
 
 export default function ForAgentsPage() {
@@ -35,9 +35,7 @@ export default function ForAgentsPage() {
             <span className="text-brand">built years ago.</span>
           </h1>
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mb-10 leading-relaxed">
-            One platform replaces your entire prop-tech stack — screening,
-            collections, inspections, statements, arrears, compliance. Credit
-            checks are paid by applicants. Not you.
+            Built by someone who has placed tenants, chased arrears, inspected units, set up body corporates, and sat in Tribunal. Then rebuilt it all for the way it should work. Credit checks are paid by applicants. Not you.
           </p>
           <Button
             size="lg"

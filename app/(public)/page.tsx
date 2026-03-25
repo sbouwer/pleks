@@ -9,7 +9,7 @@ import { CostComparison } from "@/components/marketing/CostComparison"
 
 export const metadata = {
   title: "Pleks — SA Property Management | Replace TPN RentBook",
-  description: "South African property management built right. Free applicant screening, automated DebiCheck, Tribunal-ready documentation. Replace TPN RentBook today.",
+  description: "Every corner of this product was designed by someone who has done the work — inspections, arrears, HOA setup, Tribunal. Built for how property management actually works in South Africa.",
 }
 
 function IsometricBuildings() {
@@ -81,9 +81,7 @@ export default function HomePage() {
                 <span className="text-brand">Built Right.</span>
               </h1>
               <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mb-10 leading-relaxed">
-                Built by someone who has done it for 11 years.
-                Free applicant screening. Automated DebiCheck.
-                Tribunal-ready documentation. Always.
+                Every corner of this product was designed by someone who has done the work — inspections, debt collection, HOA setup, Tribunal submissions, tenant screening. Not read about it. Done it. Then automated.
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button size="lg" className="text-base h-13 px-8" render={<Link href="/login" />}>

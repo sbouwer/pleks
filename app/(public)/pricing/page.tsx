@@ -5,7 +5,7 @@ import Link from "next/link"
 
 export const metadata = {
   title: "Pleks Pricing — From R599/month | No Setup Fees",
-  description: "Simple, transparent pricing for SA property management. Free Owner plan for 1 unit. No onboarding fees. No contracts. Cancel anytime.",
+  description: "Property management software built by someone who knows what property management actually involves. From R599/month. No setup fees.",
 }
 
 const tiers = [
@@ -116,7 +116,10 @@ export default function PricingPage() {
           <h1 className="font-heading text-4xl md:text-5xl mb-4">
             Simple, transparent pricing
           </h1>
-          <p className="text-muted-foreground text-lg">
+          <p className="text-muted-foreground text-lg max-w-xl mx-auto mb-2">
+            Property management software that knows what property management actually involves.
+          </p>
+          <p className="text-sm text-muted-foreground">
             No onboarding fees. No hidden costs. Cancel anytime.
           </p>
         </div>
