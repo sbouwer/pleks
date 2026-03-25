@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge"
 import {
   ArrowRight,
   Check,
-  Shield,
   Smartphone,
   FileText,
   Bot,
