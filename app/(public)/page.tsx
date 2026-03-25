@@ -8,7 +8,7 @@ import { FeatureExplorer } from "@/components/marketing/FeatureExplorer"
 import { CostComparison } from "@/components/marketing/CostComparison"
 
 export const metadata = {
-  title: "Pleks — SA Property Management | Replace TPN RentBook",
+  title: "Pleks — SA Property Management, Built Right",
   description: "Every corner of this product was designed by someone who has done the work — inspections, arrears, HOA setup, Tribunal. Built for how property management actually works in South Africa.",
 }
 

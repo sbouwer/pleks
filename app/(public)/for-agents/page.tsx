@@ -14,9 +14,9 @@ import {
 } from "lucide-react"
 
 export const metadata = {
-  title: "For Property Agents | Replace TPN RentBook with Pleks",
+  title: "For Property Agents | Pleks",
   description:
-    "Built by someone who has placed tenants, chased arrears, inspected units, and sat in Tribunal. Then rebuilt the software to fix what was broken. No credit check fees.",
+    "Built by someone who has placed tenants, chased arrears, inspected units, and sat in Tribunal. Then rebuilt the software to fix what was broken.",
 }
 
 export default function ForAgentsPage() {
@@ -30,9 +30,9 @@ export default function ForAgentsPage() {
             For property agents
           </Badge>
           <h1 className="font-heading text-5xl md:text-7xl leading-[1.05] tracking-tight mb-6">
-            Everything TPN should have
+            The property management platform
             <br />
-            <span className="text-brand">built years ago.</span>
+            <span className="text-brand">your stack has been missing.</span>
           </h1>
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mb-10 leading-relaxed">
             Built by someone who has placed tenants, chased arrears, inspected units, set up body corporates, and sat in Tribunal. Then rebuilt it all for the way it should work. Credit checks are paid by applicants. Not you.
@@ -260,13 +260,13 @@ export default function ForAgentsPage() {
         </div>
       </section>
 
-      {/* ─── Migration from TPN ─── */}
+      {/* ─── Switching ─── */}
       <section className="py-16 md:py-24">
         <div className="max-w-5xl mx-auto px-4">
           <div className="flex items-center gap-3 mb-4">
             <Upload className="size-8 text-brand" />
             <h2 className="font-heading text-3xl md:text-4xl">
-              Migration from TPN
+              Switching is easier than you think
             </h2>
           </div>
           <p className="text-lg text-muted-foreground max-w-2xl mb-8 leading-relaxed">
@@ -303,7 +303,7 @@ export default function ForAgentsPage() {
               className="text-base h-13 px-8"
               render={<Link href="/migrate" />}
             >
-              See migration guide <ArrowRight className="ml-2 size-4" />
+              How switching works <ArrowRight className="ml-2 size-4" />
             </Button>
           </div>
         </div>

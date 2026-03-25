@@ -4,7 +4,7 @@ import Link from "next/link"
 import { ArrowRight, Download, AlertTriangle, CheckCircle2, Clock } from "lucide-react"
 
 export const metadata = {
-  title: "Migrate to Pleks | From TPN, WeConnectU, PayProp, or Excel",
+  title: "Switch to Pleks | Move your portfolio in a weekend",
 }
 
 export default function MigratePage() {
@@ -13,8 +13,7 @@ export default function MigratePage() {
       <div className="text-center">
         <h1 className="font-heading text-3xl mb-2">Move your portfolio to Pleks</h1>
         <p className="text-muted-foreground">
-          Whether you&apos;re on TPN RentBook, WeConnectU, PayProp, or Excel — we&apos;ll
-          help you switch without losing a day.
+          Whatever platform you&apos;re on — we&apos;ll help you move your portfolio without losing a day.
         </p>
       </div>
 
@@ -93,21 +92,21 @@ export default function MigratePage() {
         </CardContent>
       </Card>
 
-      {/* TPN specific */}
+      {/* CSV export from current system */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Migrating from TPN RentBook?</CardTitle>
+          <CardTitle className="text-lg">Using a CSV export from your current system?</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground">
-          <p>Pleks automatically detects TPN export format and maps columns for you.</p>
+          <p>Most property management platforms let you export your contacts and lease data as CSV. Pleks auto-detects common column formats and maps them automatically.</p>
           <ol className="list-decimal list-inside space-y-1">
-            <li>In TPN, go to <strong>Contacts</strong> and export your contact list as CSV</li>
+            <li>Export your tenants and property data as CSV from your current system</li>
             <li>In Pleks, go to <strong>Settings → Import</strong></li>
-            <li>Upload the TPN CSV — Pleks will auto-detect the format</li>
-            <li>Review the preview and confirm the import</li>
+            <li>Upload the CSV — Pleks will detect the format</li>
+            <li>Review the column mapping and confirm the import</li>
           </ol>
           <p className="text-xs">
-            TPN date formats (DD/MM/YYYY) and currency (R 6,600.00) are converted automatically.
+            Date formats (DD/MM/YYYY) and SA currency (R 6,600.00) are converted automatically. Not sure how to export? Email support@pleks.co.za — we&apos;ll walk you through it for your specific setup.
           </p>
         </CardContent>
       </Card>
