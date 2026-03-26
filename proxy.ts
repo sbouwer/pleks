@@ -3,7 +3,8 @@ import { updateSession } from "@/lib/supabase/middleware"
 
 const PUBLIC_ROUTES = ["/", "/pricing", "/login", "/forgot-password", "/reset-password",
   "/for-agents", "/for-landlords", "/early-access", "/migrate",
-  "/privacy", "/terms", "/credit-check-policy"]
+  "/privacy", "/terms", "/credit-check-policy",
+  "/register", "/onboarding"]
 const AUTH_ROUTES = ["/auth"]
 const WEBHOOK_ROUTES = ["/api/webhooks", "/api/cron", "/api/waitlist", "/api/admin"]
 
@@ -31,13 +32,15 @@ export async function proxy(request: NextRequest) {
 
   // Public routes — no auth required
   if (
-    PUBLIC_ROUTES.includes(pathname) ||
+    PUBLIC_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/")) ||
     AUTH_ROUTES.some((r) => pathname.startsWith(r)) ||
     pathname.startsWith("/apply") ||
+    pathname.startsWith("/demo") ||
     pathname.startsWith("/api/payfast") ||
     pathname.startsWith("/api/payments") ||
     pathname.startsWith("/api/import") ||
-    pathname.startsWith("/api/reports")
+    pathname.startsWith("/api/reports") ||
+    pathname.startsWith("/api/auth")
   ) {
     const { supabaseResponse } = await updateSession(request)
     return supabaseResponse
