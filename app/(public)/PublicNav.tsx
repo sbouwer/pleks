@@ -1,10 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
-import { Menu, X } from "lucide-react"
+import { Menu, X, User, LogOut, LayoutDashboard } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
 
 const NAV_LINKS = [
   { href: "/pricing", label: "Pricing" },
@@ -15,6 +16,21 @@ const NAV_LINKS = [
 
 export function PublicNav() {
   const [open, setOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
+  const [user, setUser] = useState<{ email?: string } | null>(null)
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data }) => {
+      setUser(data.user ? { email: data.user.email ?? undefined } : null)
+    })
+  }, [])
+
+  async function handleLogout() {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    globalThis.location.href = "/"
+  }
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/30 bg-background/80 backdrop-blur-xl">
@@ -35,16 +51,57 @@ export function PublicNav() {
               {link.label}
             </Link>
           ))}
-          <Button size="sm" variant="outline" render={<Link href="/register" />}>
-            Start free
-          </Button>
+          {!user && (
+            <Button size="sm" variant="outline" render={<Link href="/register" />}>
+              Start free
+            </Button>
+          )}
         </div>
 
-        {/* Right: sign in + mobile hamburger */}
+        {/* Right: auth state */}
         <div className="flex items-center justify-end gap-3">
-          <Button size="sm" className="hidden md:inline-flex" render={<Link href="/login" />}>
-            Sign in
-          </Button>
+          {user ? (
+            <div className="relative hidden md:block">
+              <button
+                type="button"
+                onClick={() => setProfileOpen(!profileOpen)}
+                className="flex items-center justify-center size-8 rounded-full bg-brand/10 text-brand hover:bg-brand/20 transition-colors"
+                aria-label="Account menu"
+              >
+                <User className="size-4" />
+              </button>
+              {profileOpen && (
+                <>
+                  <button type="button" className="fixed inset-0 z-40 cursor-default" onClick={() => setProfileOpen(false)} aria-label="Close menu" />
+                  <div className="absolute right-0 top-10 z-50 w-52 rounded-lg border border-border bg-popover shadow-lg py-1">
+                    <p className="px-3 py-2 text-xs text-muted-foreground truncate border-b border-border/50">
+                      {user.email}
+                    </p>
+                    <Link
+                      href="/dashboard"
+                      className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-surface-elevated transition-colors"
+                      onClick={() => setProfileOpen(false)}
+                    >
+                      <LayoutDashboard className="size-4 text-muted-foreground" />
+                      Dashboard
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-surface-elevated transition-colors w-full text-left text-danger"
+                    >
+                      <LogOut className="size-4" />
+                      Log out
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            <Button size="sm" className="hidden md:inline-flex" render={<Link href="/login" />}>
+              Sign in
+            </Button>
+          )}
           <button
             className="md:hidden p-2 -mr-2"
             onClick={() => setOpen(!open)}
@@ -71,12 +128,36 @@ export function PublicNav() {
             ))}
           </div>
           <div className="flex flex-col gap-2 pt-2 border-t border-border/30">
-            <Button variant="outline" className="w-full" render={<Link href="/register" />}>
-              Start free
-            </Button>
-            <Button className="w-full" render={<Link href="/login" />}>
-              Sign in
-            </Button>
+            {user ? (
+              <>
+                <p className="text-xs text-muted-foreground px-1 mb-1">{user.email}</p>
+                <Link
+                  href="/dashboard"
+                  className="flex items-center gap-2 py-2 text-sm hover:text-foreground transition-colors"
+                  onClick={() => setOpen(false)}
+                >
+                  <LayoutDashboard className="size-4" />
+                  Dashboard
+                </Link>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="flex items-center gap-2 py-2 text-sm text-danger text-left"
+                >
+                  <LogOut className="size-4" />
+                  Log out
+                </button>
+              </>
+            ) : (
+              <>
+                <Button variant="outline" className="w-full" render={<Link href="/register" />}>
+                  Start free
+                </Button>
+                <Button className="w-full" render={<Link href="/login" />}>
+                  Sign in
+                </Button>
+              </>
+            )}
           </div>
         </div>
       )}
