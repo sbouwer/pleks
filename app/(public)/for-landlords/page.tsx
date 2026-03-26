@@ -97,7 +97,7 @@ export default function ForLandlordsPage() {
               <Button
                 size="lg"
                 className="text-base h-13 px-8"
-                render={<Link href="/register" />}
+                render={<Link href="/onboarding" />}
               >
                 Get started free <ArrowRight className="ml-2 size-4" />
               </Button>
@@ -268,7 +268,7 @@ export default function ForLandlordsPage() {
           <Button
             size="lg"
             className="text-base h-13 px-8"
-            render={<Link href="/register" />}
+            render={<Link href="/onboarding" />}
           >
             Start free <ArrowRight className="ml-2 size-4" />
           </Button>
