@@ -212,6 +212,10 @@ function OnboardingWizard() {
 
     const result = await createAccountAndOrg(submitData)
     if (result?.error) {
+      if (result.errorType === "already_exists") {
+        globalThis.location.href = "/dashboard"
+        return
+      }
       if (result.errorType === "email_exists") {
         setEmailExists(true)
       }
@@ -219,7 +223,6 @@ function OnboardingWizard() {
       setLoading(false)
       return
     }
-    // Navigate to dashboard on success
     globalThis.location.href = "/dashboard?onboarding=complete"
   }
 
@@ -293,6 +296,10 @@ function OnboardingWizard() {
                 isAlreadyAuthenticated: true,
               })
               if (result?.error) {
+                if (result.errorType === "already_exists") {
+                  globalThis.location.href = "/dashboard"
+                  return
+                }
                 toast.error(result.error)
                 setLoading(false)
                 return
