@@ -42,13 +42,17 @@ function LoginContent() {
   // If already authenticated, redirect
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) {
-        router.replace(redirectParam || "/dashboard")
-      } else {
+    supabase.auth.getUser()
+      .then(({ data }) => {
+        if (data.user) {
+          router.replace(redirectParam || "/dashboard")
+        } else {
+          setChecking(false)
+        }
+      })
+      .catch(() => {
         setChecking(false)
-      }
-    })
+      })
   }, [router, redirectParam])
 
   async function handleLogin(e: React.FormEvent<HTMLFormElement>) {

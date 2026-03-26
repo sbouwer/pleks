@@ -127,15 +127,19 @@ function OnboardingWizard() {
   // Check if user already has a Supabase auth session
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) {
-        setIsAlreadyAuthenticated(true)
-        if (data.user.email) setAcctEmail(data.user.email)
-        if (data.user.email) setEmail(data.user.email)
-        const fullName = data.user.user_metadata?.full_name
-        if (typeof fullName === "string" && fullName) setName(fullName)
-      }
-    })
+    supabase.auth.getUser()
+      .then(({ data }) => {
+        if (data.user) {
+          setIsAlreadyAuthenticated(true)
+          if (data.user.email) setAcctEmail(data.user.email)
+          if (data.user.email) setEmail(data.user.email)
+          const fullName = data.user.user_metadata?.full_name
+          if (typeof fullName === "string" && fullName) setName(fullName)
+        }
+      })
+      .catch(() => {
+        // Not authenticated — that's fine, they'll create an account
+      })
   }, [])
 
   function getTotalSteps(): number {
