@@ -39,7 +39,7 @@ export function Step0Upload({ onAnalysed }: Readonly<Step0UploadProps>) {
       if (ext === "csv") {
         const Papa = (await import("papaparse")).default
         const text = await file.text()
-        const result = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true })
+        const result = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true, comments: "#" })
         headers = result.meta.fields ?? []
         rows = result.data
       } else {
