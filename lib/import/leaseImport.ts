@@ -133,6 +133,7 @@ export async function importLeases(
         payment_due_day: 1,
         notice_period_days: 20,
         status: "active",
+        migrated: true,
         signed_at: new Date().toISOString(),
         created_by: agentId,
       })

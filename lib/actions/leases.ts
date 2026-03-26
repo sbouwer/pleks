@@ -94,6 +94,7 @@ export async function createLease(formData: FormData) {
       deposit_interest_rate_percent: depositInterestRatePercent,
       arrears_interest_enabled: arrearsInterestEnabled,
       arrears_interest_margin_percent: arrearsInterestMarginPercent,
+      template_type: leaseType === "commercial" ? "pleks_commercial" : "pleks_residential",
       status: "draft",
       created_by: user.id,
     })

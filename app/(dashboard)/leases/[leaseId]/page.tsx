@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { LeaseActions } from "./LeaseActions"
 import { getLessorBankDetails } from "@/lib/leases/bankDetails"
 import { AlertTriangle } from "lucide-react"
+import { MigratedDocSection } from "./MigratedDocSection"
 
 const STATUS_MAP: Record<string, "active" | "pending" | "draft" | "notice" | "cancelled"> = {
   draft: "draft",
@@ -68,12 +69,17 @@ export default async function LeaseDetailPage({
           <div className="flex items-center gap-3">
             <h1 className="font-heading text-3xl">{tenantName}</h1>
             <StatusBadge status={STATUS_MAP[lease.status] || "draft"} />
-            {lease.template_type === "custom" && (
+            {lease.migrated && (
+              <Badge variant="outline" className="text-xs border-brand/40 text-brand bg-brand/10" title="This lease was migrated from another system. No document is stored in Pleks.">
+                Migrated lease
+              </Badge>
+            )}
+            {!lease.migrated && lease.template_type === "custom" && (
               <Badge variant="outline" className="text-xs border-brand/40 text-brand bg-brand/10" title="This lease was generated from your organisation's custom template.">
                 Custom template
               </Badge>
             )}
-            {lease.template_type !== "custom" && (editedClauseCount ?? 0) > 0 && (
+            {!lease.migrated && lease.template_type !== "custom" && (editedClauseCount ?? 0) > 0 && (
               <Badge variant="outline" className="text-xs border-brand/40 text-brand bg-brand/10" title="One or more clauses in this lease have been edited from standard Pleks wording.">
                 Edited lease
               </Badge>
@@ -98,6 +104,14 @@ export default async function LeaseDetailPage({
             before sending for signature. You can still save a draft.
           </p>
         </div>
+      )}
+
+      {/* Migrated lease document section */}
+      {lease.migrated && (
+        <MigratedDocSection
+          leaseId={leaseId}
+          externalDocPath={lease.external_document_path ?? null}
+        />
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
