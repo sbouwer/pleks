@@ -22,8 +22,8 @@ export default function SettingsLayout({ children }: Readonly<{ children: React.
       <h1 className="font-heading text-3xl mb-4">Settings</h1>
 
       {/* Tab navigation */}
-      <div className="border-b border-border mb-6 overflow-x-auto scrollbar-none">
-        <nav className="flex gap-1 min-w-max">
+      <div className="border-b border-border mb-6 overflow-x-auto overflow-y-hidden" style={{ scrollbarWidth: "none" }}>
+        <nav className="flex gap-1">
           {TABS.map((tab) => {
             const active = pathname === tab.href || pathname.startsWith(tab.href + "/")
             return (
