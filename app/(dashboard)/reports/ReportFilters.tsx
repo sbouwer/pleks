@@ -47,9 +47,9 @@ export function ReportFilters({ properties, onApply }: ReportFiltersProps) {
     <div className="flex flex-wrap items-end gap-3 mb-6">
       <div>
         <Label className="text-xs text-muted-foreground mb-1 block">Period</Label>
-        <Select value={periodType} onValueChange={(v) => setPeriodType(v as ReportPeriodType)}>
+        <Select value={periodType} onValueChange={(v) => setPeriodType((v ?? "this_month") as ReportPeriodType)}>
           <SelectTrigger className="w-[160px] h-9">
-            <SelectValue />
+            <SelectValue placeholder={PERIOD_OPTIONS.find((o) => o.value === periodType)?.label ?? "Select period"} />
           </SelectTrigger>
           <SelectContent>
             {PERIOD_OPTIONS.map((o) => (
@@ -76,7 +76,7 @@ export function ReportFilters({ properties, onApply }: ReportFiltersProps) {
         <Label className="text-xs text-muted-foreground mb-1 block">Property</Label>
         <Select value={selectedProperty} onValueChange={(v) => setSelectedProperty(v ?? "all")}>
           <SelectTrigger className="w-[180px] h-9">
-            <SelectValue />
+            <SelectValue placeholder={selectedProperty === "all" ? "All properties" : properties.find((p) => p.id === selectedProperty)?.name ?? "Select"} />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All properties</SelectItem>

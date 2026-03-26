@@ -65,7 +65,7 @@ export default async function MaintenancePage() {
       )}
 
       {list.length === 0 ? (
-        <EmptyState icon={Wrench} title="No maintenance requests" description="Log a maintenance request to get started." />
+        <EmptyState icon={<Wrench className="h-8 w-8 text-muted-foreground" />} title="No maintenance requests" description="Log a maintenance request to get started." />
       ) : (
         <div className="space-y-2">
           {list.map((req) => {

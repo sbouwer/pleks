@@ -45,7 +45,7 @@ export default async function InspectionsPage() {
 
       {list.length === 0 ? (
         <EmptyState
-          icon={ClipboardCheck}
+          icon={<ClipboardCheck className="h-8 w-8 text-muted-foreground" />}
           title="No inspections yet"
           description="Schedule your first inspection from a unit's detail page."
         />

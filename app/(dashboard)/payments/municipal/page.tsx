@@ -36,7 +36,7 @@ export default async function MunicipalBillsPage() {
       </div>
 
       {list.length === 0 ? (
-        <EmptyState icon={FileText} title="No municipal bills" description="Upload a municipal bill PDF from a property's page to start tracking." />
+        <EmptyState icon={<FileText className="h-8 w-8 text-muted-foreground" />} title="No municipal bills" description="Upload a municipal bill PDF from a property's page to start tracking." />
       ) : (
         <div className="space-y-2">
           {list.map((bill) => {

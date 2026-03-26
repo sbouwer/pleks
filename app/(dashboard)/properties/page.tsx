@@ -52,7 +52,7 @@ export default async function PropertiesPage() {
 
       {props.length === 0 ? (
         <EmptyState
-          icon={Building2}
+          icon={<Building2 className="h-8 w-8 text-muted-foreground" />}
           title="No properties yet"
           description="Add your first property to get started."
           action={{ label: "Add Property", onClick: () => {} }}

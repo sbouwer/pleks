@@ -98,7 +98,7 @@ export default async function DebiCheckPage() {
         <CardHeader><CardTitle className="text-lg">Mandates</CardTitle></CardHeader>
         <CardContent>
           {mandateList.length === 0 ? (
-            <EmptyState icon={CreditCard} title="No mandates" description="DebiCheck mandates are created automatically when leases are signed with DebiCheck as payment method." />
+            <EmptyState icon={<CreditCard className="h-8 w-8 text-muted-foreground" />} title="No mandates" description="DebiCheck mandates are created automatically when leases are signed with DebiCheck as payment method." />
           ) : (
             <div className="space-y-2">
               {mandateList.map((m) => {

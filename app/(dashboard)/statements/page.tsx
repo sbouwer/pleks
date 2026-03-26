@@ -37,7 +37,7 @@ export default async function StatementsPage() {
       </div>
 
       {list.length === 0 ? (
-        <EmptyState icon={FileText} title="No statements yet" description="Statements are generated automatically on the 2nd of each month." />
+        <EmptyState icon={<FileText className="h-8 w-8 text-muted-foreground" />} title="No statements yet" description="Statements are generated automatically on the 2nd of each month." />
       ) : (
         <div className="space-y-2">
           {list.map((stmt) => {

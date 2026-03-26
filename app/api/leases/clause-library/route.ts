@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { createClient, createServiceClient } from "@/lib/supabase/server"
 
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
@@ -17,8 +17,9 @@ export async function GET(req: NextRequest) {
 
   const leaseType = req.nextUrl.searchParams.get("type") ?? "residential"
 
-  // Fetch clause library (include body_template for editor)
-  const { data: library } = await supabase
+  // Fetch clause library via service client (table has no public RLS policies)
+  const service = await createServiceClient()
+  const { data: library } = await service
     .from("lease_clause_library")
     .select("clause_key, title, body_template, lease_type, is_required, is_enabled_by_default, depends_on, sort_order, description, toggle_label")
     .in("lease_type", [leaseType, "both"])
