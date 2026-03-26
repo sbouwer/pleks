@@ -49,6 +49,11 @@ export default function NewLeasePage() {
   const [depositAmount, setDepositAmount] = useState("")
   const [depositInterestTo, setDepositInterestTo] = useState("tenant")
 
+  // Step 4: Interest settings
+  const [depositInterestRate, setDepositInterestRate] = useState("5")
+  const [arrearsInterestEnabled, setArrearsInterestEnabled] = useState(true)
+  const [arrearsMargin, setArrearsMargin] = useState("2")
+
   // Step 5
   const [specialTerms, setSpecialTerms] = useState<SpecialTerm[]>([])
 
@@ -85,6 +90,9 @@ export default function NewLeasePage() {
     formData.set("escalation_type", escalationType)
     if (depositAmount) formData.set("deposit_amount", depositAmount)
     formData.set("deposit_interest_to", depositInterestTo)
+    formData.set("deposit_interest_rate", depositInterestRate)
+    formData.set("arrears_interest_enabled", String(arrearsInterestEnabled))
+    formData.set("arrears_interest_margin", arrearsMargin)
     formData.set("special_terms", JSON.stringify(specialTerms.filter((t) => t.detail.trim())))
 
     const result = await createLease(formData)
@@ -202,7 +210,7 @@ export default function NewLeasePage() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {[1, 15, 25, 28].map((d) => (
-                    <SelectItem key={d} value={String(d)}>{d}{d === 1 ? "st" : d === 15 ? "th" : d === 25 ? "th" : "th"}</SelectItem>
+                    <SelectItem key={d} value={String(d)}>{d}{d === 1 ? "st" : "th"}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -233,6 +241,69 @@ export default function NewLeasePage() {
           )}
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => setStep(2)}>Back</Button>
+            <Button className="flex-1" onClick={() => setStep(4)}>Continue</Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Step 4: Interest settings
+  if (step === 4) {
+    const currentPrime = 11.25
+    const effectiveRate = currentPrime + Number(arrearsMargin || 0)
+    return (
+      <div className="max-w-xl">
+        <h1 className="font-heading text-3xl mb-6">Create Lease</h1>
+        <p className="text-muted-foreground text-sm mb-4">Step 4: Interest settings</p>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Deposit interest rate (% p.a.)</Label>
+            <Input
+              type="number"
+              min="0"
+              max="20"
+              step="0.25"
+              value={depositInterestRate}
+              onChange={(e) => setDepositInterestRate(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Rate paid to tenant on deposit held. Your account may earn more — enter the rate you are passing on to the tenant.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={arrearsInterestEnabled}
+                  onChange={(e) => setArrearsInterestEnabled(e.target.checked)}
+                />
+                <span className="text-sm font-medium">Arrears interest clause</span>
+              </label>
+            </div>
+            {arrearsInterestEnabled && (
+              <div className="space-y-2 pl-6">
+                <Label>Prime + margin (%)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="10"
+                  step="0.5"
+                  value={arrearsMargin}
+                  onChange={(e) => setArrearsMargin(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  = {effectiveRate.toFixed(2)}% p.a. at current prime ({currentPrime}%)
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  This must match your signed lease agreement.
+                </p>
+              </div>
+            )}
+          </div>
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => setStep(3)}>Back</Button>
             <Button className="flex-1" onClick={() => setStep(5)}>Continue</Button>
           </div>
         </div>
@@ -248,7 +319,7 @@ export default function NewLeasePage() {
         <p className="text-muted-foreground text-sm mb-4">Step 5: Special agreements (Addendum D)</p>
         <div className="space-y-4">
           {specialTerms.map((term, i) => (
-            <div key={i} className="flex gap-2">
+            <div key={`term-${term.type}-${i}`} className="flex gap-2">
               <Select value={term.type} onValueChange={(v) => updateSpecialTerm(i, "type", v ?? "custom")}>
                 <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
                 <SelectContent>

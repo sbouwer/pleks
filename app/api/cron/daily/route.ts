@@ -7,7 +7,24 @@ import { GET as debicheckCollection } from "../debicheck-collection/route"
 import { GET as ownerStatementGen } from "../owner-statement-gen/route"
 import { GET as depositInterest } from "../deposit-interest/route"
 import { GET as levyGenerate } from "../levy-generate/route"
+import { GET as arrearsInterest } from "../arrears-interest/route"
 import { GET as trialExpiry } from "../trial-expiry/route"
+
+type CronHandler = (req: NextRequest) => Promise<Response>
+
+async function runJob(
+  name: string,
+  handler: CronHandler,
+  cronReq: NextRequest,
+  results: Record<string, string>
+) {
+  try {
+    const res = await handler(cronReq)
+    results[name] = res.ok ? "ok" : "failed"
+  } catch {
+    results[name] = "error"
+  }
+}
 
 // Single daily cron — runs all jobs sequentially at 05:00 UTC (07:00 SAST)
 // Vercel free tier only allows 1 cron job
@@ -21,72 +38,32 @@ export async function GET(req: NextRequest) {
   const today = new Date()
   const dayOfMonth = today.getUTCDate()
 
-  // Build a request with the cron secret header
   const cronReq = new NextRequest(req.url, {
     headers: new Headers({ "x-cron-secret": process.env.CRON_SECRET! }),
   })
 
-  // 1. Invoice generation (daily)
-  try {
-    const res = await invoiceGenerate(cronReq)
-    results.invoice_generate = res.ok ? "ok" : "failed"
-  } catch { results.invoice_generate = "error" }
+  // Daily jobs
+  await runJob("invoice_generate", invoiceGenerate, cronReq, results)
+  await runJob("lease_expiry_check", leaseExpiryCheck, cronReq, results)
+  await runJob("arrears_sequence", arrearsSequence, cronReq, results)
+  await runJob("debicheck_collection", debicheckCollection, cronReq, results)
+  await runJob("scheduled_reports", scheduledReports, cronReq, results)
+  await runJob("deposit_interest", depositInterest, cronReq, results)
+  await runJob("arrears_interest", arrearsInterest, cronReq, results)
+  await runJob("trial_expiry", trialExpiry, cronReq, results)
 
-  // 2. Lease expiry check (daily)
-  try {
-    const res = await leaseExpiryCheck(cronReq)
-    results.lease_expiry_check = res.ok ? "ok" : "failed"
-  } catch { results.lease_expiry_check = "error" }
-
-  // 3. Arrears sequence (daily)
-  try {
-    const res = await arrearsSequence(cronReq)
-    results.arrears_sequence = res.ok ? "ok" : "failed"
-  } catch { results.arrears_sequence = "error" }
-
-  // 4. DebiCheck collection (daily)
-  try {
-    const res = await debicheckCollection(cronReq)
-    results.debicheck_collection = res.ok ? "ok" : "failed"
-  } catch { results.debicheck_collection = "error" }
-
-  // 5. Scheduled reports (daily — checks if any are due today)
-  try {
-    const res = await scheduledReports(cronReq)
-    results.scheduled_reports = res.ok ? "ok" : "failed"
-  } catch { results.scheduled_reports = "error" }
-
-  // 6. Deposit interest accrual (daily — residential deposits)
-  try {
-    const res = await depositInterest(cronReq)
-    results.deposit_interest = res.ok ? "ok" : "failed"
-  } catch { results.deposit_interest = "error" }
-
-  // 7. HOA levy invoice generation (1st of month only)
+  // Monthly jobs
   if (dayOfMonth === 1) {
-    try {
-      const res = await levyGenerate(cronReq)
-      results.levy_generate = res.ok ? "ok" : "failed"
-    } catch { results.levy_generate = "error" }
+    await runJob("levy_generate", levyGenerate, cronReq, results)
   } else {
     results.levy_generate = "skipped (not 1st)"
   }
 
-  // 8. Owner statement generation (2nd of month only)
   if (dayOfMonth === 2) {
-    try {
-      const res = await ownerStatementGen(cronReq)
-      results.owner_statement_gen = res.ok ? "ok" : "failed"
-    } catch { results.owner_statement_gen = "error" }
+    await runJob("owner_statement_gen", ownerStatementGen, cronReq, results)
   } else {
     results.owner_statement_gen = "skipped (not 2nd)"
   }
-
-  // 9. Trial expiry check (daily)
-  try {
-    const res = await trialExpiry(cronReq)
-    results.trial_expiry = res.ok ? "ok" : "failed"
-  } catch { results.trial_expiry = "error" }
 
   return Response.json({ ok: true, ran_at: today.toISOString(), results })
 }
