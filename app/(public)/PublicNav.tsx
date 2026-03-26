@@ -18,13 +18,14 @@ export function PublicNav() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/30 bg-background/80 backdrop-blur-xl">
-      <nav className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+      <nav className="max-w-6xl mx-auto px-4 h-16 grid grid-cols-[auto_1fr_auto] items-center">
+        {/* Left: logo */}
         <Link href="/" className="shrink-0">
           <Image src="/logo.svg" alt="Pleks" width={90} height={28} className="h-auto" priority />
         </Link>
 
-        {/* Desktop nav */}
-        <div className="hidden md:flex items-center gap-6">
+        {/* Centre: nav links + Start free */}
+        <div className="hidden md:flex items-center justify-center gap-6">
           {NAV_LINKS.map((link) => (
             <Link
               key={link.href}
@@ -34,22 +35,24 @@ export function PublicNav() {
               {link.label}
             </Link>
           ))}
-          <Button size="sm" variant="outline" className="ml-2" render={<Link href="/register" />}>
+          <Button size="sm" variant="outline" render={<Link href="/register" />}>
             Start free
-          </Button>
-          <Button size="sm" className="ml-2" render={<Link href="/login" />}>
-            Sign in
           </Button>
         </div>
 
-        {/* Mobile hamburger */}
-        <button
-          className="md:hidden p-2 -mr-2"
-          onClick={() => setOpen(!open)}
-          aria-label="Toggle menu"
-        >
-          {open ? <X className="size-5" /> : <Menu className="size-5" />}
-        </button>
+        {/* Right: sign in + mobile hamburger */}
+        <div className="flex items-center justify-end gap-3">
+          <Button size="sm" className="hidden md:inline-flex" render={<Link href="/login" />}>
+            Sign in
+          </Button>
+          <button
+            className="md:hidden p-2 -mr-2"
+            onClick={() => setOpen(!open)}
+            aria-label="Toggle menu"
+          >
+            {open ? <X className="size-5" /> : <Menu className="size-5" />}
+          </button>
+        </div>
       </nav>
 
       {/* Mobile menu */}
