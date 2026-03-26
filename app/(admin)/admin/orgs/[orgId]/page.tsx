@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { formatDateShort } from "@/lib/reports/periods"
 import { formatZAR } from "@/lib/constants"
 import { AdminOrgActions } from "./AdminOrgActions"
+import { LeaseConfigSection } from "./LeaseConfigSection"
 
 export default async function AdminOrgDetailPage({
   params,
@@ -82,6 +83,14 @@ export default async function AdminOrgDetailPage({
           </dl>
         </CardContent>
       </Card>
+
+      {/* Lease configuration */}
+      <LeaseConfigSection
+        orgId={orgId}
+        clauseEditConfirmedAt={org.clause_edit_confirmed_at ?? null}
+        clauseEditConfirmedIp={org.clause_edit_confirmed_ip ?? null}
+        customTemplateActive={org.custom_template_active ?? false}
+      />
 
       {/* Subscription */}
       <Card>
