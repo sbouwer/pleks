@@ -129,14 +129,29 @@ type ServiceClient = Awaited<ReturnType<typeof createServiceClient>>
 
 // ─── Auth resolution ──────────────────────────────────
 
+async function resolveAuthenticatedUser(data: OnboardingData, service: ServiceClient) {
+  const supabase = await createClient()
+  const sessionUser = (await supabase.auth.getUser()).data.user
+  if (sessionUser) return sessionUser
+
+  // Fallback: look up by email via admin API
+  if (data.email) {
+    const { data: listData } = await service.auth.admin.listUsers({ perPage: 1000 })
+    const match = listData?.users?.find(
+      (u) => u.email?.toLowerCase() === data.email.toLowerCase()
+    )
+    if (match) return match
+  }
+  return null
+}
+
 async function resolveUserId(
   data: OnboardingData,
   service: ServiceClient
 ): Promise<{ userId: string } | { error: string; errorType: string }> {
   if (data.isAlreadyAuthenticated) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { error: "Not authenticated", errorType: "auth_required" }
+    const user = await resolveAuthenticatedUser(data, service)
+    if (!user) return { error: "Session expired — please sign in again.", errorType: "auth_required" }
 
     const { data: existing } = await service
       .from("user_orgs")
