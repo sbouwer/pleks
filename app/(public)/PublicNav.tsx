@@ -52,7 +52,7 @@ export function PublicNav() {
             </Link>
           ))}
           {!user && (
-            <Button size="sm" variant="outline" render={<Link href="/register" />}>
+            <Button size="sm" variant="outline" render={<Link href="/onboarding" />}>
               Start free
             </Button>
           )}
@@ -150,7 +150,7 @@ export function PublicNav() {
               </>
             ) : (
               <>
-                <Button variant="outline" className="w-full" render={<Link href="/register" />}>
+                <Button variant="outline" className="w-full" render={<Link href="/onboarding" />}>
                   Start free
                 </Button>
                 <Button className="w-full" render={<Link href="/login" />}>

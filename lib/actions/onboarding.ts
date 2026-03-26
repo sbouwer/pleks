@@ -3,7 +3,6 @@
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
-import { createHash } from "node:crypto"
 import { headers } from "next/headers"
 
 export interface OnboardingData {
@@ -28,33 +27,24 @@ export interface OnboardingData {
   bankAccountType?: "trust" | "deposit_holding" | "ppra_trust"
   invites?: Array<{ email: string; role: string }>
   onboardingComplete: boolean
+  // Auth fields (only when creating a new account)
+  password?: string
+  isAlreadyAuthenticated?: boolean
 }
 
-export async function createOrgAndComplete(data: OnboardingData) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
-
-  // Check if user already has an org
-  const { data: existing } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-
-  if (existing) {
-    redirect("/dashboard")
-  }
-
+export async function createAccountAndOrg(data: OnboardingData): Promise<{
+  error?: string
+  errorType?: string
+}> {
   const headersList = await headers()
   const ip = headersList.get("x-forwarded-for") || "unknown"
-
-  // Use service client for all inserts to bypass RLS
-  // (user_orgs RLS causes infinite recursion when the row doesn't exist yet)
   const service = await createServiceClient()
 
-  // 1. Create organisation
+  const authResult = await resolveUserId(data, service)
+  if ("error" in authResult) return authResult
+  const userId = authResult.userId
+
+  // Create organisation
   const { data: org, error: orgError } = await service
     .from("organisations")
     .insert({
@@ -75,19 +65,19 @@ export async function createOrgAndComplete(data: OnboardingData) {
     .single()
 
   if (orgError || !org) {
-    return { error: orgError?.message || "Failed to create organisation" }
+    return { error: orgError?.message || "Failed to create organisation", errorType: "org_failed" }
   }
 
   const orgId = org.id
 
-  // 2. Create user_orgs (owner role)
+  // Create user_orgs
   await service.from("user_orgs").insert({
-    user_id: user.id,
+    user_id: userId,
     org_id: orgId,
     role: "owner",
   })
 
-  // 3. Create default subscription (owner/free)
+  // Create default subscription
   await service.from("subscriptions").insert({
     org_id: orgId,
     tier: "owner",
@@ -95,28 +85,24 @@ export async function createOrgAndComplete(data: OnboardingData) {
     amount_cents: 0,
   })
 
-  // 4. Save bank account if provided
+  // Save bank account / consent / invites
   if (data.hasBankAccount && data.bankName) {
     await saveBankAccount(service, orgId, data)
   }
-
-  // 5. Log consent if declined bank account
   if (!data.hasBankAccount && data.userType !== "exploring") {
-    await logBankAccountDeferred(service, orgId, user.id, ip, data.userType)
+    await logBankDeferred(service, orgId, userId, ip, data.userType)
   }
-
-  // 6. Send team invites
   if (data.invites?.length) {
-    await sendInvites(service, orgId, user.id, data.invites)
+    await sendInvites(service, orgId, userId, data.invites)
   }
 
-  // 7. Audit log
+  // Audit log
   await service.from("audit_log").insert({
     org_id: orgId,
     table_name: "organisations",
     record_id: orgId,
     action: "INSERT",
-    changed_by: user.id,
+    changed_by: userId,
     new_values: {
       action: "onboarding_complete",
       user_type: data.userType,
@@ -125,18 +111,73 @@ export async function createOrgAndComplete(data: OnboardingData) {
     },
   })
 
+  // If we just created a new user, sign them in via the client
+  // (the server action can't set cookies directly with admin client)
+  if (!data.isAlreadyAuthenticated) {
+    const supabase = await createClient()
+    await supabase.auth.signInWithPassword({
+      email: data.email,
+      password: data.password!,
+    })
+  }
+
   revalidatePath("/dashboard")
   redirect("/dashboard?onboarding=complete")
 }
 
-// ─── Helpers (extracted to reduce cognitive complexity) ────
+type ServiceClient = Awaited<ReturnType<typeof createServiceClient>>
 
-async function saveBankAccount(
-  supabase: Awaited<ReturnType<typeof createServiceClient>>,
-  orgId: string,
-  data: OnboardingData
-) {
-  await supabase.from("bank_accounts").insert({
+// ─── Auth resolution ──────────────────────────────────
+
+async function resolveUserId(
+  data: OnboardingData,
+  service: ServiceClient
+): Promise<{ userId: string } | { error: string; errorType: string }> {
+  if (data.isAlreadyAuthenticated) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { error: "Not authenticated", errorType: "auth_required" }
+
+    const { data: existing } = await service
+      .from("user_orgs")
+      .select("org_id")
+      .eq("user_id", user.id)
+      .is("deleted_at", null)
+      .single()
+
+    if (existing) redirect("/dashboard")
+    return { userId: user.id }
+  }
+
+  if (!data.email || !data.password) {
+    return { error: "Email and password are required", errorType: "validation" }
+  }
+
+  const { data: signUpData, error: signUpError } = await service.auth.admin.createUser({
+    email: data.email,
+    password: data.password,
+    email_confirm: true,
+    user_metadata: { full_name: data.contactName || data.name },
+  })
+
+  if (signUpError) {
+    if (signUpError.message?.includes("already been registered") || signUpError.message?.includes("already exists")) {
+      return { error: "This email already has an account.", errorType: "email_exists" }
+    }
+    return { error: signUpError.message, errorType: "signup_failed" }
+  }
+
+  if (!signUpData.user) {
+    return { error: "Failed to create account", errorType: "signup_failed" }
+  }
+
+  return { userId: signUpData.user.id }
+}
+
+// ─── Helpers ──────────────────────────────────────────
+
+async function saveBankAccount(db: ServiceClient, orgId: string, data: OnboardingData) {
+  await db.from("bank_accounts").insert({
     org_id: orgId,
     type: data.bankAccountType || "deposit_holding",
     bank_name: data.bankName!,
@@ -147,17 +188,11 @@ async function saveBankAccount(
   })
 }
 
-async function logBankAccountDeferred(
-  supabase: Awaited<ReturnType<typeof createServiceClient>>,
-  orgId: string,
-  userId: string,
-  ip: string,
-  userType: string
-) {
+async function logBankDeferred(db: ServiceClient, orgId: string, userId: string, ip: string, userType: string) {
+  const { createHash } = await import("node:crypto")
   const noticeText = "Acknowledged deposit/trust account requirement — will set up later"
   const noticeHash = createHash("sha256").update(noticeText).digest("hex")
-
-  await supabase.from("consent_log").insert({
+  await db.from("consent_log").insert({
     org_id: orgId,
     user_id: userId,
     consent_type: "bank_account_deferred",
@@ -165,23 +200,14 @@ async function logBankAccountDeferred(
     consent_version: "1.0",
     ip_address: ip,
     user_agent: "",
-    metadata: {
-      notice_hash: noticeHash,
-      user_type: userType,
-      feature_restrictions_acknowledged: true,
-    },
+    metadata: { notice_hash: noticeHash, user_type: userType },
   })
 }
 
-async function sendInvites(
-  supabase: Awaited<ReturnType<typeof createServiceClient>>,
-  orgId: string,
-  userId: string,
-  invites: Array<{ email: string; role: string }>
-) {
+async function sendInvites(db: ServiceClient, orgId: string, userId: string, invites: Array<{ email: string; role: string }>) {
   for (const invite of invites) {
     if (!invite.email?.trim()) continue
-    await supabase.from("invites").insert({
+    await db.from("invites").insert({
       org_id: orgId,
       email: invite.email.trim(),
       role: invite.role,

@@ -25,7 +25,12 @@ export default function LoginPage() {
 }
 
 function LoginContent() {
-  const [email, setEmail] = useState("")
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirectParam = searchParams.get("redirect")
+  const emailParam = searchParams.get("email")
+
+  const [email, setEmail] = useState(emailParam ?? "")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -33,21 +38,18 @@ function LoginContent() {
   const [magicLinkMode, setMagicLinkMode] = useState(false)
   const [magicLinkSent, setMagicLinkSent] = useState(false)
   const [checking, setChecking] = useState(true)
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const redirect = searchParams.get("redirect")
 
   // If already authenticated, redirect
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) {
-        router.replace(redirect || "/dashboard")
+        router.replace(redirectParam || "/dashboard")
       } else {
         setChecking(false)
       }
     })
-  }, [router, redirect])
+  }, [router, redirectParam])
 
   async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -60,7 +62,7 @@ function LoginContent() {
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${globalThis.location.origin}/auth/callback?next=${redirect || "/dashboard"}`,
+          emailRedirectTo: `${globalThis.location.origin}/auth/callback?next=${redirectParam || "/dashboard"}`,
         },
       })
       if (otpError) {
@@ -100,8 +102,8 @@ function LoginContent() {
 
     if (!membership) {
       router.push("/onboarding")
-    } else if (redirect) {
-      router.push(redirect)
+    } else if (redirectParam) {
+      router.push(redirectParam)
     } else if (membership.role === "tenant") {
       router.push("/portal")
     } else if (membership.role === "contractor") {
@@ -228,7 +230,7 @@ function LoginContent() {
 
           <p className="mt-3 text-center text-sm text-muted-foreground">
             Don&apos;t have an account?{" "}
-            <Link href="/register" className="text-foreground hover:underline">
+            <Link href="/onboarding" className="text-foreground hover:underline">
               Create one free
             </Link>
           </p>

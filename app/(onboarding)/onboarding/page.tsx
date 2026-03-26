@@ -9,10 +9,11 @@ import { Card, CardContent } from "@/components/ui/card"
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select"
-import { createOrgAndComplete, type OnboardingData } from "@/lib/actions/onboarding"
+import { createAccountAndOrg, type OnboardingData } from "@/lib/actions/onboarding"
 import { toast } from "sonner"
-import { ArrowLeft, ArrowRight, Plus, X, Building2, User, Users, Heart, Eye } from "lucide-react"
+import { ArrowLeft, ArrowRight, Plus, X, Building2, User, Users, Heart, Eye, Info } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import Link from "next/link"
 
 type UserType = "owner" | "agent" | "agency" | "family" | "exploring"
 
@@ -115,23 +116,37 @@ function OnboardingWizard() {
   // Team invites
   const [invites, setInvites] = useState<Array<{ email: string; role: string }>>([{ email: "", role: "property_manager" }])
 
-  // Load user email
+  // Account creation (final step)
+  const [acctEmail, setAcctEmail] = useState("")
+  const [acctPassword, setAcctPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [emailExists, setEmailExists] = useState(false)
+  const [isAlreadyAuthenticated, setIsAlreadyAuthenticated] = useState(false)
+
+  // Check if user already has a Supabase auth session
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => {
-      if (data.user?.email) setEmail(data.user.email)
-      const fullName = data.user?.user_metadata?.full_name
-      if (typeof fullName === "string" && fullName) setName(fullName)
+      if (data.user) {
+        setIsAlreadyAuthenticated(true)
+        if (data.user.email) setAcctEmail(data.user.email)
+        if (data.user.email) setEmail(data.user.email)
+        const fullName = data.user.user_metadata?.full_name
+        if (typeof fullName === "string" && fullName) setName(fullName)
+      }
     })
   }, [])
 
   function getTotalSteps(): number {
     if (!userType) return 0
     if (userType === "exploring") return 1
-    if (userType === "owner" || userType === "family") return 3
-    if (userType === "agent") return 4
-    return 5
+    // Account creation step added unless already authenticated
+    const acctStep = isAlreadyAuthenticated ? 0 : 1
+    if (userType === "owner" || userType === "family") return 3 + acctStep
+    if (userType === "agent") return 4 + acctStep
+    return 5 + acctStep // agency
   }
+
 
   function handleTypeSelect(type: UserType) {
     setUserType(type)
@@ -168,14 +183,14 @@ function OnboardingWizard() {
     }
     const orgName = buildOrgName()
 
-    const data: OnboardingData = {
+    const submitData: OnboardingData = {
       userType: userType!,
       name: orgName,
       tradingAs: tradingAs || undefined,
       regNumber: regNumber || undefined,
       vatNumber: vatNumber || undefined,
       contactName: name,
-      email,
+      email: acctEmail || email,
       phone,
       address: address || undefined,
       managementScope: getManagementScope(),
@@ -190,12 +205,31 @@ function OnboardingWizard() {
       bankAccountType: hasBankAccount ? getBankAccountType() : undefined,
       invites: userType === "agency" ? invites.filter((i) => i.email.trim()) : undefined,
       onboardingComplete: true,
+      password: isAlreadyAuthenticated ? undefined : acctPassword,
+      isAlreadyAuthenticated,
     }
 
-    const result = await createOrgAndComplete(data)
+    const result = await createAccountAndOrg(submitData)
     if (result?.error) {
+      if (result.errorType === "email_exists") {
+        setEmailExists(true)
+      }
       toast.error(result.error)
       setLoading(false)
+    }
+    // redirect happens in the server action on success
+  }
+
+  async function checkEmailExists(emailToCheck: string) {
+    if (!emailToCheck || emailToCheck.length < 5) return
+    const res = await fetch("/api/auth/check-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: emailToCheck.trim() }),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      setEmailExists(data.exists === true)
     }
   }
 
@@ -359,19 +393,22 @@ function OnboardingWizard() {
     )
   }
 
-  // ─── OWNER / FAMILY: Step 3 — Done ─────────────────────
+  // ─── OWNER / FAMILY: Step 3 — Account creation or Done ──
 
   if ((userType === "owner" || userType === "family") && step === 3) {
-    return (
-      <div className="max-w-sm mx-auto">
-        {progressBar}
-        <h2 className="font-heading text-xl mb-4">You&apos;re all set</h2>
-        <p className="text-sm text-muted-foreground mb-6">Your free Owner account is ready. You can upgrade anytime from Settings.</p>
-        <Button className="w-full" onClick={handleComplete} disabled={loading}>
-          {loading ? "Setting up..." : "Go to dashboard →"}
-        </Button>
-      </div>
-    )
+    if (isAlreadyAuthenticated) {
+      return (
+        <div className="max-w-sm mx-auto">
+          {progressBar}
+          <h2 className="font-heading text-xl mb-4">You&apos;re all set</h2>
+          <p className="text-sm text-muted-foreground mb-6">Your free Owner account is ready.</p>
+          <Button className="w-full" onClick={handleComplete} disabled={loading}>
+            {loading ? "Setting up..." : "Go to dashboard →"}
+          </Button>
+        </div>
+      )
+    }
+    return renderAccountStep()
   }
 
   // ─── AGENT: Step 1 ──────────────────────────────────────
@@ -529,25 +566,120 @@ function OnboardingWizard() {
     )
   }
 
-  // ─── Final step — Plan / Done ───────────────────────────
+  // ─── Final step — Account creation or Done ──────────────
 
   if (
     (userType === "agent" && step === 4) ||
     (userType === "agency" && step === 5)
   ) {
-    return (
-      <div className="max-w-sm mx-auto">
-        {progressBar}
-        <h2 className="font-heading text-xl mb-4">You&apos;re all set</h2>
-        <p className="text-sm text-muted-foreground mb-6">
-          Your free Owner account is ready. You can upgrade to Steward or Portfolio anytime from Settings → Billing.
-        </p>
-        <Button className="w-full" onClick={handleComplete} disabled={loading}>
-          {loading ? "Setting up..." : "Go to dashboard →"}
-        </Button>
-      </div>
+    if (isAlreadyAuthenticated) {
+      return (
+        <div className="max-w-sm mx-auto">
+          {progressBar}
+          <h2 className="font-heading text-xl mb-4">You&apos;re all set</h2>
+          <p className="text-sm text-muted-foreground mb-6">
+            Your free Owner account is ready. Upgrade to Steward or Portfolio anytime from Settings.
+          </p>
+          <Button className="w-full" onClick={handleComplete} disabled={loading}>
+            {loading ? "Setting up..." : "Go to dashboard →"}
+          </Button>
+        </div>
     )
+    }
+    return renderAccountStep()
+  }
+
+  // Account step for agent (step 5) or agency (step 6) when not already authenticated
+  if (
+    (!isAlreadyAuthenticated) &&
+    ((userType === "agent" && step === 5) || (userType === "agency" && step === 6))
+  ) {
+    return renderAccountStep()
   }
 
   return null
+
+  // ─── Account creation step (shared) ─────────────────
+
+  function renderAccountStep() {
+    return (
+      <div className="max-w-sm mx-auto">
+        {progressBar}
+        <h2 className="font-heading text-xl mb-1">Almost there</h2>
+        <p className="text-sm text-muted-foreground mb-6">Create your account to save your setup.</p>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="acct-email">Email address *</Label>
+            <Input
+              id="acct-email"
+              type="email"
+              autoComplete="email"
+              value={acctEmail}
+              onChange={(e) => { setAcctEmail(e.target.value); setEmailExists(false) }}
+              onBlur={() => checkEmailExists(acctEmail)}
+              placeholder="you@example.com"
+              required
+            />
+            {emailExists && (
+              <div className="rounded-md bg-brand/5 border border-brand/30 p-3 text-sm flex items-start gap-2">
+                <Info className="size-4 text-brand shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium text-foreground">This email is already registered.</p>
+                  <p className="text-muted-foreground text-xs mt-0.5">
+                    Did you start setting up before?{" "}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        globalThis.location.href = `/login?redirect=/onboarding&email=${encodeURIComponent(acctEmail)}`
+                      }}
+                      className="text-brand underline"
+                    >
+                      Sign in to continue →
+                    </button>
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="acct-password">Password *</Label>
+            <div className="relative">
+              <Input
+                id="acct-password"
+                type={showPassword ? "text" : "password"}
+                autoComplete="new-password"
+                value={acctPassword}
+                onChange={(e) => setAcctPassword(e.target.value)}
+                placeholder="At least 8 characters"
+                className="pr-10"
+                required
+                minLength={8}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                tabIndex={-1}
+              >
+                {showPassword ? <X className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+          <Button
+            className="w-full"
+            onClick={handleComplete}
+            disabled={loading || !acctEmail.trim() || acctPassword.length < 8}
+          >
+            {loading ? "Creating account..." : "Create account →"}
+          </Button>
+          <p className="text-center text-xs text-muted-foreground">
+            By creating an account you agree to our{" "}
+            <Link href="/terms" className="underline underline-offset-2 hover:text-foreground">Terms</Link>{" "}
+            and{" "}
+            <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">Privacy Policy</Link>
+          </p>
+        </div>
+      </div>
+    )
+  }
 }
