@@ -1,7 +1,6 @@
 "use server"
 
 import { createClient, createServiceClient } from "@/lib/supabase/server"
-import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { headers } from "next/headers"
 
@@ -146,7 +145,7 @@ async function resolveUserId(
       .is("deleted_at", null)
       .single()
 
-    if (existing) redirect("/dashboard")
+    if (existing) return { error: "Account already set up", errorType: "already_exists" }
     return { userId: user.id }
   }
 
