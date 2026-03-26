@@ -19,7 +19,7 @@ const tiers = [
     extras: ["Lease management", "Basic inspections", "Tenant portal", "Maintenance log", "Email notifications"],
     cta: "Start free",
     variant: "outline" as const,
-    href: "/login",
+    href: "/register",
   },
   {
     name: "Steward",
@@ -40,7 +40,7 @@ const tiers = [
     ],
     cta: "Start 14-day trial",
     variant: "outline" as const,
-    href: "/login",
+    href: "/register",
   },
   {
     name: "Portfolio",
@@ -61,7 +61,7 @@ const tiers = [
     ],
     cta: "Get started",
     variant: "default" as const,
-    href: "/login",
+    href: "/register",
   },
   {
     name: "Firm",

@@ -96,7 +96,7 @@ export default function ForAgentsPage() {
               <Button
                 size="lg"
                 className="text-base h-13 px-8"
-                render={<Link href="/login" />}
+                render={<Link href="/register" />}
               >
                 Start 14-day trial <ArrowRight className="ml-2 size-4" />
               </Button>
@@ -354,7 +354,7 @@ export default function ForAgentsPage() {
             <Button
               size="lg"
               className="text-base h-13 px-8"
-              render={<Link href="/login" />}
+              render={<Link href="/register" />}
             >
               Start 14-day trial <ArrowRight className="ml-2 size-4" />
             </Button>

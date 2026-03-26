@@ -85,7 +85,7 @@ export default function HomePage() {
                 Every corner of this product was designed by someone who has done the work — inspections, debt collection, HOA setup, Tribunal submissions, tenant screening. Not read about it. Done it. Then automated.
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
-                <Button size="lg" className="text-base h-13 px-8" render={<Link href="/login" />}>
+                <Button size="lg" className="text-base h-13 px-8" render={<Link href="/register" />}>
                   Start free — 1 unit <ArrowRight className="ml-2 size-4" />
                 </Button>
                 <Button size="lg" variant="outline" className="text-base h-13 px-8" render={<a href="#features" />}>

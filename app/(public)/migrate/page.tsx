@@ -144,7 +144,7 @@ export default function MigratePage() {
 
       {/* CTA */}
       <div className="text-center">
-        <Button size="lg" render={<Link href="/login" />}>
+        <Button size="lg" render={<Link href="/register" />}>
           Get started <ArrowRight className="size-4 ml-2" />
         </Button>
         <p className="text-xs text-muted-foreground mt-2">
