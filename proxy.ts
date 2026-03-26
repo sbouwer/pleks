@@ -54,7 +54,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // Onboarding check — if no org, redirect to onboarding
-  if (!pathname.startsWith("/onboarding") && !pathname.startsWith("/contractor") && !pathname.startsWith("/portal")) {
+  if (!pathname.startsWith("/onboarding") && !pathname.startsWith("/demo") && !pathname.startsWith("/contractor") && !pathname.startsWith("/portal")) {
     const { data: orgs } = await supabase
       .from("user_orgs")
       .select("org_id")
