@@ -1,11 +1,33 @@
 import Image from "next/image"
 import Link from "next/link"
+import { createClient } from "@/lib/supabase/server"
+import { redirect } from "next/navigation"
 
-export default function OnboardingLayout({
+export default async function OnboardingLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // Must be authenticated to access onboarding
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    redirect("/register")
+  }
+
+  // If user already has an org, skip onboarding
+  const { data: membership } = await supabase
+    .from("user_orgs")
+    .select("org_id")
+    .eq("user_id", user.id)
+    .is("deleted_at", null)
+    .single()
+
+  if (membership) {
+    redirect("/dashboard")
+  }
+
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header — just logo */}
