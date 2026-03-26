@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { updateSession } from "@/lib/supabase/middleware"
+import { createServiceClient } from "@/lib/supabase/server"
 
 const PUBLIC_ROUTES = ["/", "/pricing", "/login", "/forgot-password", "/reset-password",
   "/for-agents", "/for-landlords", "/early-access", "/migrate",
@@ -47,7 +48,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // All other routes require auth
-  const { user, supabase, supabaseResponse } = await updateSession(request)
+  const { user, supabaseResponse } = await updateSession(request)
 
   if (!user) {
     const url = request.nextUrl.clone()
@@ -57,8 +58,10 @@ export async function proxy(request: NextRequest) {
   }
 
   // Onboarding check — if no org, redirect to onboarding
+  // Use service client to bypass user_orgs RLS (which causes infinite recursion)
   if (!pathname.startsWith("/onboarding") && !pathname.startsWith("/demo") && !pathname.startsWith("/contractor") && !pathname.startsWith("/portal")) {
-    const { data: orgs } = await supabase
+    const service = await createServiceClient()
+    const { data: orgs } = await service
       .from("user_orgs")
       .select("org_id")
       .eq("user_id", user.id)
