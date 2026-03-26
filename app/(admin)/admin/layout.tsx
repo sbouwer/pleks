@@ -1,4 +1,6 @@
 import Link from "next/link"
+import Image from "next/image"
+import { cookies } from "next/headers"
 import { AdminLogout } from "./AdminLogout"
 
 const NAV = [
@@ -10,7 +12,16 @@ const NAV = [
   { href: "/admin/audit", label: "Audit Log" },
 ]
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default async function AdminLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const cookieStore = await cookies()
+  const token = cookieStore.get("pleks_admin_token")?.value
+  const isAuthenticated = !!token && token === process.env.ADMIN_SECRET
+
+  // Not authenticated — render children only (login page handles its own layout)
+  if (!isAuthenticated) {
+    return <>{children}</>
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Amber top border */}
@@ -20,7 +31,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <header className="border-b border-border bg-surface">
         <div className="max-w-7xl mx-auto px-4 h-12 flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <span className="text-sm font-semibold text-brand">Pleks Admin</span>
+            <Link href="/admin" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+              <Image src="/logo-mark.svg" alt="Pleks" width={20} height={20} className="h-auto" />
+              <span className="text-sm font-semibold text-brand">Admin</span>
+            </Link>
             <nav className="hidden md:flex items-center gap-4">
               {NAV.map((item) => (
                 <Link
