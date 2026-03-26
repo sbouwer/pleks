@@ -159,6 +159,14 @@ export default async function AdminOrgDetailPage({
             isFoundingAgent={sub?.founding_agent ?? false}
             trialEndsAt={sub?.trial_ends_at ?? null}
           />
+          <div className="mt-4 pt-4 border-t border-border/50">
+            <a
+              href={`/admin/orgs/${orgId}/lease-clauses`}
+              className="text-sm text-brand hover:underline"
+            >
+              Lease clause customisation &rarr;
+            </a>
+          </div>
         </CardContent>
       </Card>
 
