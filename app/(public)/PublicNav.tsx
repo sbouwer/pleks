@@ -21,7 +21,7 @@ export function PublicNav() {
       <nav className="max-w-6xl mx-auto px-4 h-16 grid grid-cols-[auto_1fr_auto] items-center">
         {/* Left: logo */}
         <Link href="/" className="shrink-0">
-          <Image src="/logo.svg" alt="Pleks" width={90} height={28} className="h-auto" priority />
+          <Image src="/logo.svg" alt="Pleks" width={90} height={28} className="h-7 w-auto" priority />
         </Link>
 
         {/* Centre: nav links + Start free */}
