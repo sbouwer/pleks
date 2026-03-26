@@ -33,6 +33,7 @@ export interface OnboardingData {
 }
 
 export async function createAccountAndOrg(data: OnboardingData): Promise<{
+  ok?: boolean
   error?: string
   errorType?: string
 }> {
@@ -122,7 +123,7 @@ export async function createAccountAndOrg(data: OnboardingData): Promise<{
   }
 
   revalidatePath("/dashboard")
-  redirect("/dashboard?onboarding=complete")
+  return { ok: true }
 }
 
 type ServiceClient = Awaited<ReturnType<typeof createServiceClient>>
