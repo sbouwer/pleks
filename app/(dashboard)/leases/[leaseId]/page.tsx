@@ -4,6 +4,7 @@ import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { formatZAR } from "@/lib/constants"
+import { Badge } from "@/components/ui/badge"
 import { LeaseActions } from "./LeaseActions"
 import { getLessorBankDetails } from "@/lib/leases/bankDetails"
 import { AlertTriangle } from "lucide-react"
@@ -38,6 +39,13 @@ export default async function LeaseDetailPage({
 
   const bankDetails = await getLessorBankDetails(lease.org_id)
 
+  // Check for edited clauses
+  const { count: editedClauseCount } = await supabase
+    .from("lease_clause_selections")
+    .select("id", { count: "exact", head: true })
+    .eq("lease_id", leaseId)
+    .not("custom_body", "is", null)
+
   const tenant = lease.tenants as unknown as { first_name: string; last_name: string; company_name: string; tenant_type: string; email: string; phone: string } | null
   const unit = lease.units as unknown as { unit_number: string; properties: { name: string; address_line1: string; city: string } } | null
   const tenantName = tenant?.tenant_type === "company"
@@ -60,6 +68,16 @@ export default async function LeaseDetailPage({
           <div className="flex items-center gap-3">
             <h1 className="font-heading text-3xl">{tenantName}</h1>
             <StatusBadge status={STATUS_MAP[lease.status] || "draft"} />
+            {lease.template_type === "custom" && (
+              <Badge variant="outline" className="text-xs border-brand/40 text-brand bg-brand/10" title="This lease was generated from your organisation's custom template.">
+                Custom template
+              </Badge>
+            )}
+            {lease.template_type !== "custom" && (editedClauseCount ?? 0) > 0 && (
+              <Badge variant="outline" className="text-xs border-brand/40 text-brand bg-brand/10" title="One or more clauses in this lease have been edited from standard Pleks wording.">
+                Edited lease
+              </Badge>
+            )}
           </div>
           <p className="text-muted-foreground">
             {unit ? `${unit.unit_number}, ${unit.properties.name}` : ""}

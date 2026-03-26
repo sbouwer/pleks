@@ -40,6 +40,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  // Audit log
+  await supabase.from("audit_log").insert({
+    org_id: membership.org_id,
+    table_name: "lease_clause_selections",
+    record_id: clauseKey,
+    action: "UPDATE",
+    changed_by: user.id,
+    new_values: {
+      action: "clause_wording_edited",
+      clause_key: clauseKey,
+      scope: leaseId ? "per_lease" : "org_default",
+    },
+  })
+
   return NextResponse.json({ ok: true })
 }
 
