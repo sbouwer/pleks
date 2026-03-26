@@ -34,14 +34,12 @@ export function PublicNav() {
               {link.label}
             </Link>
           ))}
-          <div className="flex items-center gap-3 ml-4">
-            <Button variant="outline" size="sm" render={<Link href="/login" />}>
-              Sign in
-            </Button>
-            <Button size="sm" render={<Link href="/register" />}>
-              Start free
-            </Button>
-          </div>
+          <Button size="sm" variant="outline" className="ml-2" render={<Link href="/register" />}>
+            Start free
+          </Button>
+          <Button size="sm" className="ml-2" render={<Link href="/login" />}>
+            Sign in
+          </Button>
         </div>
 
         {/* Mobile hamburger */}
@@ -70,11 +68,11 @@ export function PublicNav() {
             ))}
           </div>
           <div className="flex flex-col gap-2 pt-2 border-t border-border/30">
-            <Button variant="outline" className="w-full" render={<Link href="/login" />}>
-              Sign in
-            </Button>
-            <Button className="w-full" render={<Link href="/register" />}>
+            <Button variant="outline" className="w-full" render={<Link href="/register" />}>
               Start free
+            </Button>
+            <Button className="w-full" render={<Link href="/login" />}>
+              Sign in
             </Button>
           </div>
         </div>
