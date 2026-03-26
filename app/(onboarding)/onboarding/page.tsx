@@ -221,13 +221,15 @@ function OnboardingWizard() {
   // ─── STEP 0: Type selection ─────────────────────────────
 
   if (step === 0) {
-    const types: Array<{ type: UserType; icon: typeof Building2; title: string; desc: string }> = [
+    const allTypes: Array<{ type: UserType; icon: typeof Building2; title: string; desc: string }> = [
       { type: "owner", icon: Building2, title: "I own rental properties", desc: "Manage your own portfolio" },
       { type: "agent", icon: User, title: "I'm a property agent / manager", desc: "You manage properties for clients" },
       { type: "agency", icon: Users, title: "We're a team or agency", desc: "Multiple staff, business entity" },
       { type: "family", icon: Heart, title: "I'm helping a family member or friend", desc: "Informal arrangement, not a business" },
       { type: "exploring", icon: Eye, title: "Just exploring for now", desc: "I want to see what Pleks can do" },
     ]
+    // Hide "exploring" when coming from demo setup — they already explored
+    const types = isSetup ? allTypes.filter((t) => t.type !== "exploring") : allTypes
 
     return (
       <div className="max-w-lg mx-auto space-y-6">
