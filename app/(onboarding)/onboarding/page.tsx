@@ -122,6 +122,7 @@ function OnboardingWizard() {
   const [showPassword, setShowPassword] = useState(false)
   const [emailExists, setEmailExists] = useState(false)
   const [isAlreadyAuthenticated, setIsAlreadyAuthenticated] = useState(false)
+  const [skipQuickFinish, setSkipQuickFinish] = useState(false)
 
   // Check if user already has a Supabase auth session
   useEffect(() => {
@@ -251,6 +252,68 @@ function OnboardingWizard() {
       </div>
     </div>
   )
+
+  // ─── RETURNING USER: Quick finish ─────────────────────
+
+  // If user already has auth but no org AND hasn't picked a type yet,
+  // show a quick "finish setup" screen instead of the full wizard
+  if (step === 0 && isAlreadyAuthenticated && !isSetup && !skipQuickFinish) {
+    return (
+      <div className="max-w-sm mx-auto space-y-6">
+        <div className="text-center">
+          <h1 className="font-heading text-2xl mb-2">Welcome back{name ? `, ${name.split(" ")[0]}` : ""}</h1>
+          <p className="text-sm text-muted-foreground">
+            You started setting up before. Let&apos;s finish your account.
+          </p>
+        </div>
+        <div className="space-y-4">
+          {!name && (
+            <div className="space-y-2">
+              <Label>Your name *</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" required />
+            </div>
+          )}
+          {!phone && (
+            <div className="space-y-2">
+              <Label>Phone number *</Label>
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="082 000 0000" type="tel" required />
+            </div>
+          )}
+          <Button
+            className="w-full"
+            onClick={async () => {
+              setLoading(true)
+              const result = await createAccountAndOrg({
+                userType: "owner",
+                name: name ? `${name.split(" ")[0]}'s Properties` : "My Properties",
+                contactName: name,
+                email: acctEmail,
+                phone: phone || "—",
+                managementScope: "own_only",
+                hasBankAccount: false,
+                onboardingComplete: true,
+                isAlreadyAuthenticated: true,
+              })
+              if (result?.error) {
+                toast.error(result.error)
+                setLoading(false)
+              }
+            }}
+            disabled={loading || (!name.trim())}
+          >
+            {loading ? "Setting up..." : "Go to dashboard →"}
+          </Button>
+          <button
+            type="button"
+            onClick={() => setSkipQuickFinish(true)}
+            className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            I want to choose a different account type
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   // ─── STEP 0: Type selection ─────────────────────────────
 
