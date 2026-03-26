@@ -96,6 +96,13 @@ export async function createAccountAndOrg(data: OnboardingData): Promise<{
     await sendInvites(service, orgId, userId, data.invites)
   }
 
+  // Create user profile
+  await service.from("user_profiles").upsert({
+    id: userId,
+    full_name: data.contactName || data.name,
+    phone: data.phone || null,
+  }, { onConflict: "id" })
+
   // Audit log
   await service.from("audit_log").insert({
     org_id: orgId,
