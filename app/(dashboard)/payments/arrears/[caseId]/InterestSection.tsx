@@ -5,13 +5,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { formatZAR } from "@/lib/constants"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
@@ -96,10 +90,10 @@ export function InterestSection({
         </p>
 
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger>
-            <Button variant="outline" size="sm" className="text-brand border-brand/30">
-              Waive all interest
-            </Button>
+          <DialogTrigger
+            className="inline-flex shrink-0 items-center justify-center rounded-md border border-brand/30 bg-background px-3 py-1.5 text-sm font-medium text-brand shadow-xs transition-colors hover:bg-accent"
+          >
+            Waive all interest
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>

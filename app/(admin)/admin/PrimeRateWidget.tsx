@@ -5,13 +5,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 
@@ -73,8 +67,10 @@ export function PrimeRateWidget({ currentRate, effectiveSince }: Readonly<PrimeR
             </p>
           </div>
           <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger>
-              <Button variant="outline" size="sm">Update</Button>
+            <DialogTrigger
+              className="inline-flex shrink-0 items-center justify-center rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"
+            >
+              Update
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
