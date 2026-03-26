@@ -32,7 +32,7 @@ export default function RegisterPage() {
     setLoading(true)
     const supabase = createClient()
 
-    const { error: signUpError } = await supabase.auth.signUp({
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -49,8 +49,15 @@ export default function RegisterPage() {
       return
     }
 
-    // Supabase may auto-confirm or require email confirmation
-    // Try to sign in immediately
+    // Supabase returns user with empty identities when email already exists
+    // (security feature to prevent email enumeration)
+    if (signUpData.user && signUpData.user.identities?.length === 0) {
+      setError("An account with this email already exists. Try signing in instead.")
+      setLoading(false)
+      return
+    }
+
+    // Try to sign in immediately (works if auto-confirm is enabled)
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -81,6 +88,11 @@ export default function RegisterPage() {
           {error && (
             <div className="mb-4 rounded-md bg-danger-bg border border-danger/20 p-3 text-sm text-danger">
               {error}
+              {error.includes("already exists") && (
+                <Link href="/login" className="block mt-2 text-foreground underline underline-offset-2 hover:text-brand">
+                  Sign in instead →
+                </Link>
+              )}
             </div>
           )}
 
