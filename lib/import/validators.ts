@@ -47,6 +47,50 @@ export function validateTenantRow(row: ParsedRow, index: number): ParseError[] {
   return errors
 }
 
+export const VALID_EMPLOYMENT_TYPES = [
+  "employed",
+  "self_employed",
+  "unemployed",
+  "retired",
+  "student",
+  "contractor",
+  "freelance",
+  "government",
+  "part_time",
+] as const
+
+/**
+ * Validate a South African ID number using the Luhn algorithm.
+ * SA ID numbers are 13 digits: YYMMDD SSSS C A Z
+ */
+export function validateSAID(idNumber: string): boolean {
+  const cleaned = idNumber.replaceAll(/\s/g, "")
+
+  if (!/^\d{13}$/.test(cleaned)) return false
+
+  // Luhn check
+  let sum = 0
+  for (let i = 0; i < 13; i++) {
+    let digit = Number.parseInt(cleaned[i], 10)
+
+    if (i % 2 === 1) {
+      digit *= 2
+      if (digit > 9) digit -= 9
+    }
+
+    sum += digit
+  }
+
+  return sum % 10 === 0
+}
+
+/**
+ * Basic email format validation.
+ */
+export function validateEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+}
+
 export function validateLeaseRow(row: ParsedRow, index: number): ParseError[] {
   const errors: ParseError[] = []
   const rowNum = index + 2
@@ -59,7 +103,7 @@ export function validateLeaseRow(row: ParsedRow, index: number): ParseError[] {
   }
   if (!row.lease_start?.trim()) {
     errors.push({ row: rowNum, field: "lease_start", message: "Lease start date is required" })
-  } else if (isNaN(Date.parse(row.lease_start))) {
+  } else if (Number.isNaN(Date.parse(row.lease_start))) {
     errors.push({ row: rowNum, field: "lease_start", message: "Invalid date format (use YYYY-MM-DD)" })
   }
   if (!row.monthly_rent_cents?.trim()) {
