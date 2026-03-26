@@ -1,6 +1,6 @@
 import Image from "next/image"
 import Link from "next/link"
-import { createClient } from "@/lib/supabase/server"
+import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 
 export default async function OnboardingLayout({
@@ -13,7 +13,9 @@ export default async function OnboardingLayout({
   const { data: { user } } = await supabase.auth.getUser()
 
   if (user) {
-    const { data: membership } = await supabase
+    // Use service client to bypass RLS (user_orgs policy causes recursion)
+    const service = await createServiceClient()
+    const { data: membership } = await service
       .from("user_orgs")
       .select("org_id")
       .eq("user_id", user.id)
