@@ -155,8 +155,8 @@ function OnboardingWizard() {
     if (userType === "exploring") {
       if (typeof globalThis.window !== "undefined") {
         globalThis.localStorage.setItem("pleks_demo_name", name)
+        globalThis.location.href = "/demo"
       }
-      router.push("/demo")
       return
     }
 
