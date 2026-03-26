@@ -267,18 +267,19 @@ function OnboardingWizard() {
   // If user already has auth but no org AND hasn't picked a type yet,
   // show a quick "finish setup" screen instead of the full wizard
   if (step === 0 && isAlreadyAuthenticated && !isSetup && !skipQuickFinish) {
+    const displayName = name?.split(" ")[0] || acctEmail?.split("@")[0] || ""
     return (
       <div className="max-w-sm mx-auto space-y-6">
         <div className="text-center">
-          <h1 className="font-heading text-2xl mb-2">Welcome back{name ? `, ${name.split(" ")[0]}` : ""}</h1>
+          <h1 className="font-heading text-2xl mb-2">Welcome back{displayName ? `, ${displayName}` : ""}</h1>
           <p className="text-sm text-muted-foreground">
             You started setting up before. Let&apos;s finish your account.
           </p>
         </div>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>Your name *</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" required />
+            <Label>Your name</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name (optional)" />
           </div>
           <div className="space-y-2">
             <Label>Phone number</Label>
@@ -288,11 +289,17 @@ function OnboardingWizard() {
             className="w-full"
             onClick={async () => {
               setLoading(true)
+              const emailToUse = acctEmail || email
+              if (!emailToUse) {
+                toast.error("Session error — please refresh and try again.")
+                setLoading(false)
+                return
+              }
               const result = await createAccountAndOrg({
                 userType: "owner",
                 name: name ? `${name.split(" ")[0]}'s Properties` : "My Properties",
-                contactName: name,
-                email: acctEmail,
+                contactName: name || emailToUse.split("@")[0],
+                email: emailToUse,
                 phone: phone || "—",
                 managementScope: "own_only",
                 hasBankAccount: false,
@@ -302,6 +309,10 @@ function OnboardingWizard() {
               if (result?.error) {
                 if (result.errorType === "already_exists") {
                   globalThis.location.href = "/dashboard"
+                  return
+                }
+                if (result.errorType === "auth_required") {
+                  globalThis.location.href = `/login?redirect=/onboarding&email=${encodeURIComponent(emailToUse)}`
                   return
                 }
                 toast.error(result.error)
