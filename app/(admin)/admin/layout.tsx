@@ -32,7 +32,7 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
         <div className="max-w-7xl mx-auto px-4 h-12 flex items-center justify-between">
           <div className="flex items-center gap-6">
             <Link href="/admin" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-              <Image src="/logo-mark.svg" alt="Pleks" width={20} height={20} className="h-auto" />
+              <Image src="/logo-mark.svg" alt="Pleks" width={20} height={20} className="h-5 w-auto" />
               <span className="text-sm font-semibold text-brand">Admin</span>
             </Link>
             <nav className="hidden md:flex items-center gap-4">

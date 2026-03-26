@@ -73,7 +73,7 @@ export default function RegisterPage() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle>
-            <Image src="/logo.svg" alt="Pleks" width={114} height={32} className="h-auto mx-auto" />
+            <Image src="/logo.svg" alt="Pleks" width={114} height={32} className="h-8 w-auto mx-auto" />
           </CardTitle>
           <CardDescription>Create your free account</CardDescription>
         </CardHeader>

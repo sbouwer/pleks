@@ -17,7 +17,7 @@ export default function PublicLayout({
           <div className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr_1fr_1fr] gap-10 mb-10">
             {/* Brand */}
             <div className="space-y-4">
-              <Image src="/logo.svg" alt="Pleks" width={100} height={32} className="h-auto opacity-90" />
+              <Image src="/logo.svg" alt="Pleks" width={100} height={32} className="h-8 w-auto opacity-90" />
               <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
                 Built from the inside out.
                 <br />
