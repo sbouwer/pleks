@@ -1,6 +1,6 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { createHash } from "node:crypto"
@@ -50,8 +50,12 @@ export async function createOrgAndComplete(data: OnboardingData) {
   const headersList = await headers()
   const ip = headersList.get("x-forwarded-for") || "unknown"
 
+  // Use service client for all inserts to bypass RLS
+  // (user_orgs RLS causes infinite recursion when the row doesn't exist yet)
+  const service = await createServiceClient()
+
   // 1. Create organisation
-  const { data: org, error: orgError } = await supabase
+  const { data: org, error: orgError } = await service
     .from("organisations")
     .insert({
       name: data.name,
@@ -77,14 +81,14 @@ export async function createOrgAndComplete(data: OnboardingData) {
   const orgId = org.id
 
   // 2. Create user_orgs (owner role)
-  await supabase.from("user_orgs").insert({
+  await service.from("user_orgs").insert({
     user_id: user.id,
     org_id: orgId,
     role: "owner",
   })
 
   // 3. Create default subscription (owner/free)
-  await supabase.from("subscriptions").insert({
+  await service.from("subscriptions").insert({
     org_id: orgId,
     tier: "owner",
     status: "active",
@@ -93,21 +97,21 @@ export async function createOrgAndComplete(data: OnboardingData) {
 
   // 4. Save bank account if provided
   if (data.hasBankAccount && data.bankName) {
-    await saveBankAccount(supabase, orgId, data)
+    await saveBankAccount(service, orgId, data)
   }
 
   // 5. Log consent if declined bank account
   if (!data.hasBankAccount && data.userType !== "exploring") {
-    await logBankAccountDeferred(supabase, orgId, user.id, ip, data.userType)
+    await logBankAccountDeferred(service, orgId, user.id, ip, data.userType)
   }
 
   // 6. Send team invites
   if (data.invites?.length) {
-    await sendInvites(supabase, orgId, user.id, data.invites)
+    await sendInvites(service, orgId, user.id, data.invites)
   }
 
   // 7. Audit log
-  await supabase.from("audit_log").insert({
+  await service.from("audit_log").insert({
     org_id: orgId,
     table_name: "organisations",
     record_id: orgId,
@@ -128,7 +132,7 @@ export async function createOrgAndComplete(data: OnboardingData) {
 // ─── Helpers (extracted to reduce cognitive complexity) ────
 
 async function saveBankAccount(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: Awaited<ReturnType<typeof createServiceClient>>,
   orgId: string,
   data: OnboardingData
 ) {
@@ -144,7 +148,7 @@ async function saveBankAccount(
 }
 
 async function logBankAccountDeferred(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: Awaited<ReturnType<typeof createServiceClient>>,
   orgId: string,
   userId: string,
   ip: string,
@@ -170,7 +174,7 @@ async function logBankAccountDeferred(
 }
 
 async function sendInvites(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: Awaited<ReturnType<typeof createServiceClient>>,
   orgId: string,
   userId: string,
   invites: Array<{ email: string; role: string }>
