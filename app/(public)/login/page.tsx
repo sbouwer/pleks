@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, Suspense } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -32,9 +32,22 @@ function LoginContent() {
   const [error, setError] = useState<string | null>(null)
   const [magicLinkMode, setMagicLinkMode] = useState(false)
   const [magicLinkSent, setMagicLinkSent] = useState(false)
+  const [checking, setChecking] = useState(true)
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirect = searchParams.get("redirect")
+
+  // If already authenticated, redirect
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) {
+        router.replace(redirect || "/dashboard")
+      } else {
+        setChecking(false)
+      }
+    })
+  }, [router, redirect])
 
   async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -96,6 +109,14 @@ function LoginContent() {
     } else {
       router.push("/dashboard")
     }
+  }
+
+  if (checking) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    )
   }
 
   if (magicLinkSent) {
