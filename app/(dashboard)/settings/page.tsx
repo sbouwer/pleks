@@ -1,13 +1,14 @@
 "use client"
 
 import Link from "next/link"
-import { Users, CreditCard, Shield, Wrench } from "lucide-react"
+import { Users, CreditCard, Shield, Wrench, FileText } from "lucide-react"
 
 const settingsNav = [
   { href: "/settings/team", label: "Team", icon: Users },
   { href: "/settings/billing", label: "Billing", icon: CreditCard },
   { href: "/settings/compliance", label: "Compliance", icon: Shield },
   { href: "/settings/contractors", label: "Contractors", icon: Wrench },
+  { href: "/settings/lease-templates", label: "Lease Templates", icon: FileText },
 ]
 
 export default function SettingsPage() {

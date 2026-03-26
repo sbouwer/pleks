@@ -15,8 +15,9 @@ import { Card, CardContent } from "@/components/ui/card"
 import { createLease } from "@/lib/actions/leases"
 import { toast } from "sonner"
 import { Plus, X } from "lucide-react"
+import { ClauseConfigurator } from "@/components/leases/ClauseConfigurator"
 
-type Step = 1 | 2 | 3 | 4 | 5 | 6
+type Step = 1 | 2 | 3 | 4 | 45 | 5 | 6
 
 interface SpecialTerm {
   type: string
@@ -48,6 +49,10 @@ export default function NewLeasePage() {
   const [escalationType] = useState("fixed")
   const [depositAmount, setDepositAmount] = useState("")
   const [depositInterestTo, setDepositInterestTo] = useState("tenant")
+
+  // Step 4b: Lease template
+  const [templateType, setTemplateType] = useState<"pleks" | "custom">("pleks")
+  const [clauseSelections, setClauseSelections] = useState<Record<string, boolean>>({})
 
   // Step 4: Interest settings
   const [depositInterestRate, setDepositInterestRate] = useState("5")
@@ -94,6 +99,8 @@ export default function NewLeasePage() {
     formData.set("arrears_interest_enabled", String(arrearsInterestEnabled))
     formData.set("arrears_interest_margin", arrearsMargin)
     formData.set("special_terms", JSON.stringify(specialTerms.filter((t) => t.detail.trim())))
+    formData.set("template_type", templateType)
+    formData.set("clause_selections", JSON.stringify(clauseSelections))
 
     const result = await createLease(formData)
     if (result?.error) {
@@ -304,6 +311,70 @@ export default function NewLeasePage() {
           </div>
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => setStep(3)}>Back</Button>
+            <Button className="flex-1" onClick={() => setStep(45)}>Continue</Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Step 4b: Lease template
+  if (step === 45) {
+    return (
+      <div>
+        <h1 className="font-heading text-3xl mb-6">Create Lease</h1>
+        <p className="text-muted-foreground text-sm mb-4">Step 5: Lease template</p>
+        <div className="space-y-6">
+          {/* Template type selection */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card
+              className={`cursor-pointer transition-colors ${templateType === "pleks" ? "border-brand ring-1 ring-brand/30" : ""}`}
+              onClick={() => setTemplateType("pleks")}
+            >
+              <CardContent className="pt-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <input type="radio" checked={templateType === "pleks"} readOnly className="accent-brand" />
+                  <span className="font-medium text-sm">Use Pleks standard template</span>
+                </div>
+                <p className="text-xs text-muted-foreground pl-5">Auto-numbered. Fully configurable clauses.</p>
+              </CardContent>
+            </Card>
+            <Card
+              className={`cursor-pointer transition-colors ${templateType === "custom" ? "border-brand ring-1 ring-brand/30" : ""}`}
+              onClick={() => setTemplateType("custom")}
+            >
+              <CardContent className="pt-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <input type="radio" checked={templateType === "custom"} readOnly className="accent-brand" />
+                  <span className="font-medium text-sm">Use my own template</span>
+                </div>
+                <p className="text-xs text-muted-foreground pl-5">Upload a .docx or choose a saved template.</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Pleks template: clause configurator */}
+          {templateType === "pleks" && (
+            <ClauseConfigurator
+              leaseType={leaseType}
+              onSelectionsChange={setClauseSelections}
+            />
+          )}
+
+          {/* Custom template: placeholder for now */}
+          {templateType === "custom" && (
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-sm text-muted-foreground">
+                  Custom template upload will be available here. For now, use the Pleks standard template
+                  or upload your template in Settings → Lease Templates.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => setStep(4)}>Back</Button>
             <Button className="flex-1" onClick={() => setStep(5)}>Continue</Button>
           </div>
         </div>
@@ -316,7 +387,7 @@ export default function NewLeasePage() {
     return (
       <div className="max-w-xl">
         <h1 className="font-heading text-3xl mb-6">Create Lease</h1>
-        <p className="text-muted-foreground text-sm mb-4">Step 5: Special agreements (Addendum D)</p>
+        <p className="text-muted-foreground text-sm mb-4">Step 6: Special agreements (Addendum D)</p>
         <div className="space-y-4">
           {specialTerms.map((term, i) => (
             <div key={`term-${term.type}-${i}`} className="flex gap-2">
@@ -349,7 +420,7 @@ export default function NewLeasePage() {
             <p className="text-sm text-muted-foreground">No special agreements — Addendum D will state &quot;No special agreements apply.&quot;</p>
           )}
           <div className="flex gap-3">
-            <Button variant="outline" onClick={() => setStep(3)}>Back</Button>
+            <Button variant="outline" onClick={() => setStep(45)}>Back</Button>
             <Button className="flex-1" onClick={() => setStep(6)}>Review</Button>
           </div>
         </div>
