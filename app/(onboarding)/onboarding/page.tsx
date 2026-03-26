@@ -217,8 +217,10 @@ function OnboardingWizard() {
       }
       toast.error(result.error)
       setLoading(false)
+      return
     }
-    // redirect happens in the server action on success
+    // Navigate to dashboard on success
+    globalThis.location.href = "/dashboard?onboarding=complete"
   }
 
   async function checkEmailExists(emailToCheck: string) {
@@ -267,18 +269,14 @@ function OnboardingWizard() {
           </p>
         </div>
         <div className="space-y-4">
-          {!name && (
-            <div className="space-y-2">
-              <Label>Your name *</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" required />
-            </div>
-          )}
-          {!phone && (
-            <div className="space-y-2">
-              <Label>Phone number *</Label>
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="082 000 0000" type="tel" required />
-            </div>
-          )}
+          <div className="space-y-2">
+            <Label>Your name *</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" required />
+          </div>
+          <div className="space-y-2">
+            <Label>Phone number</Label>
+            <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="082 000 0000" type="tel" />
+          </div>
           <Button
             className="w-full"
             onClick={async () => {
@@ -297,7 +295,9 @@ function OnboardingWizard() {
               if (result?.error) {
                 toast.error(result.error)
                 setLoading(false)
+                return
               }
+              globalThis.location.href = "/dashboard?onboarding=complete"
             }}
             disabled={loading || (!name.trim())}
           >
