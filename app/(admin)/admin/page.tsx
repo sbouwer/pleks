@@ -3,6 +3,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { formatDateShort } from "@/lib/reports/periods"
+import { PrimeRateWidget } from "./PrimeRateWidget"
 
 export default async function AdminOverviewPage() {
   await requireAdminAuth()
@@ -39,6 +40,14 @@ export default async function AdminOverviewPage() {
     .lte("trial_ends_at", sevenDays.toISOString())
     .gte("trial_ends_at", new Date().toISOString())
 
+  // Current prime rate
+  const { data: primeRate } = await supabase
+    .from("prime_rates")
+    .select("rate_percent, effective_date")
+    .order("effective_date", { ascending: false })
+    .limit(1)
+    .single()
+
   // Recent waitlist
   const { data: recentWaitlist } = await supabase
     .from("waitlist")
@@ -50,11 +59,15 @@ export default async function AdminOverviewPage() {
     <div className="space-y-6">
       <h1 className="font-heading text-2xl">Overview</h1>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Organisations</p><p className="font-heading text-2xl">{orgsRes.count ?? 0}</p></CardContent></Card>
         <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Paid subscribers</p><p className="font-heading text-2xl">{paidRes.count ?? 0}</p></CardContent></Card>
         <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Trialing</p><p className="font-heading text-2xl">{trialingRes.count ?? 0}</p></CardContent></Card>
         <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Waitlist</p><p className="font-heading text-2xl">{waitlistRes.count ?? 0}</p></CardContent></Card>
+        <PrimeRateWidget
+          currentRate={primeRate?.rate_percent ?? 11.25}
+          effectiveSince={primeRate?.effective_date ?? "2024-01-01"}
+        />
       </div>
 
       {/* Expiring trials */}

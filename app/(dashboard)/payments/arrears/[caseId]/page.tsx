@@ -1,10 +1,17 @@
-import { createClient } from "@/lib/supabase/server"
+import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { formatZAR } from "@/lib/constants"
 import { ArrearsActions } from "./ArrearsActions"
+import { InterestSection } from "./InterestSection"
+
+function getArrearsBadgeStatus(status: string) {
+  if (status === "open") return "arrears"
+  if (status === "resolved") return "completed"
+  return "pending"
+}
 
 export default async function ArrearsDetailPage({
   params,
@@ -30,6 +37,21 @@ export default async function ArrearsDetailPage({
     .eq("case_id", caseId)
     .order("created_at", { ascending: false })
 
+  // Fetch lease interest settings and current prime rate
+  const { data: leaseData } = await supabase
+    .from("leases")
+    .select("arrears_interest_enabled, arrears_interest_margin_percent")
+    .eq("id", arrearsCase.lease_id)
+    .single()
+
+  const serviceSupabase = await createServiceClient()
+  const { data: primeRate } = await serviceSupabase
+    .from("prime_rates")
+    .select("rate_percent")
+    .order("effective_date", { ascending: false })
+    .limit(1)
+    .single()
+
   const tenant = arrearsCase.tenants as unknown as { first_name: string; last_name: string; company_name: string; tenant_type: string; email: string; phone: string } | null
   const unit = arrearsCase.units as unknown as { unit_number: string; properties: { name: string } } | null
   const tenantName = tenant?.tenant_type === "company"
@@ -45,7 +67,7 @@ export default async function ArrearsDetailPage({
           </p>
           <div className="flex items-center gap-3">
             <h1 className="font-heading text-3xl">{tenantName}</h1>
-            <StatusBadge status={arrearsCase.status === "open" ? "arrears" : arrearsCase.status === "resolved" ? "completed" : "pending"} />
+            <StatusBadge status={getArrearsBadgeStatus(arrearsCase.status)} />
           </div>
           <p className="text-muted-foreground">
             {unit ? `${unit.unit_number}, ${unit.properties.name}` : ""}
@@ -62,6 +84,16 @@ export default async function ArrearsDetailPage({
         <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Current Step</p><p className="font-heading text-2xl">{arrearsCase.current_step}</p></CardContent></Card>
         <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Sequence</p><p className="text-sm">{arrearsCase.sequence_paused ? "Paused" : "Active"}</p></CardContent></Card>
       </div>
+
+      {/* Interest */}
+      <InterestSection
+        caseId={caseId}
+        totalArrearsCents={arrearsCase.total_arrears_cents}
+        interestAccruedCents={arrearsCase.interest_accrued_cents ?? 0}
+        interestEnabled={leaseData?.arrears_interest_enabled ?? true}
+        primeRatePercent={primeRate?.rate_percent ?? 11.25}
+        marginPercent={leaseData?.arrears_interest_margin_percent ?? 2}
+      />
 
       {/* Payment arrangement */}
       {arrearsCase.status === "payment_arrangement" && arrearsCase.arrangement_amount_cents && (
