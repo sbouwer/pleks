@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
+import { allocatePayment } from "@/lib/finance/paymentAllocation"
 
 export async function recordPayment(formData: FormData) {
   const supabase = await createClient()
@@ -97,6 +98,11 @@ export async function recordPayment(formData: FormData) {
     statement_month: currentMonth.toISOString().split("T")[0],
     created_by: user.id,
   })
+
+  // Allocate payment: interest first, then rent (lease clause 6.6)
+  if (invoice.lease_id) {
+    await allocatePayment(payment.id, invoice.lease_id, amountCents)
+  }
 
   // Audit
   await supabase.from("audit_log").insert({

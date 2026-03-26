@@ -40,6 +40,12 @@ export async function createLease(formData: FormData) {
     : null
   const depositInterestTo = leaseType === "residential" ? "tenant" : (formData.get("deposit_interest_to") as string || "landlord")
 
+  // Interest settings
+  const depositInterestRateRaw = formData.get("deposit_interest_rate") as string
+  const depositInterestRatePercent = depositInterestRateRaw ? Number.parseFloat(depositInterestRateRaw) : null
+  const arrearsInterestEnabled = formData.get("arrears_interest_enabled") !== "false"
+  const arrearsInterestMarginPercent = Number.parseFloat(formData.get("arrears_interest_margin") as string) || 2
+
   // Addendum C
   const propertyRulesId = formData.get("property_rules_id") as string || null
 
@@ -85,6 +91,9 @@ export async function createLease(formData: FormData) {
       property_rules_id: propertyRulesId,
       special_terms: specialTerms,
       auto_renewal_notice_due: autoRenewalNoticeDue,
+      deposit_interest_rate_percent: depositInterestRatePercent,
+      arrears_interest_enabled: arrearsInterestEnabled,
+      arrears_interest_margin_percent: arrearsInterestMarginPercent,
       status: "draft",
       created_by: user.id,
     })

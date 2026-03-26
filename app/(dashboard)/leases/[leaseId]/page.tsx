@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { formatZAR } from "@/lib/constants"
 import { LeaseActions } from "./LeaseActions"
+import { getLessorBankDetails } from "@/lib/leases/bankDetails"
+import { AlertTriangle } from "lucide-react"
 
 const STATUS_MAP: Record<string, "active" | "pending" | "draft" | "notice" | "cancelled"> = {
   draft: "draft",
@@ -33,6 +35,8 @@ export default async function LeaseDetailPage({
     .single()
 
   if (!lease) notFound()
+
+  const bankDetails = await getLessorBankDetails(lease.org_id)
 
   const tenant = lease.tenants as unknown as { first_name: string; last_name: string; company_name: string; tenant_type: string; email: string; phone: string } | null
   const unit = lease.units as unknown as { unit_number: string; properties: { name: string; address_line1: string; city: string } } | null
@@ -63,6 +67,20 @@ export default async function LeaseDetailPage({
         </div>
         <LeaseActions leaseId={leaseId} status={lease.status} />
       </div>
+
+      {!bankDetails.configured && lease.status === "draft" && (
+        <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
+          <AlertTriangle className="size-4 text-amber-500 mt-0.5 shrink-0" />
+          <p className="text-amber-200">
+            Your trust account banking details are not configured.
+            Add them in{" "}
+            <Link href="/settings/compliance" className="underline hover:text-foreground">
+              Settings → Banking
+            </Link>{" "}
+            before sending for signature. You can still save a draft.
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
