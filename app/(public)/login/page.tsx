@@ -204,6 +204,13 @@ function LoginContent() {
               {magicLinkMode ? "Sign in with password instead" : "Email me a login link instead"}
             </button>
           </div>
+
+          <p className="mt-3 text-center text-sm text-muted-foreground">
+            Don&apos;t have an account?{" "}
+            <Link href="/register" className="text-foreground hover:underline">
+              Create one free
+            </Link>
+          </p>
         </CardContent>
       </Card>
     </div>

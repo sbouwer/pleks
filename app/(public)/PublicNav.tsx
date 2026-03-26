@@ -38,7 +38,7 @@ export function PublicNav() {
             <Button variant="outline" size="sm" render={<Link href="/login" />}>
               Sign in
             </Button>
-            <Button size="sm" render={<Link href="/login" />}>
+            <Button size="sm" render={<Link href="/register" />}>
               Start free
             </Button>
           </div>
@@ -73,7 +73,7 @@ export function PublicNav() {
             <Button variant="outline" className="w-full" render={<Link href="/login" />}>
               Sign in
             </Button>
-            <Button className="w-full" render={<Link href="/login" />}>
+            <Button className="w-full" render={<Link href="/register" />}>
               Start free
             </Button>
           </div>
