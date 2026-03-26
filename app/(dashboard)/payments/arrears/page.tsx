@@ -45,7 +45,7 @@ export default async function ArrearsPage() {
       </div>
 
       {list.length === 0 ? (
-        <EmptyState icon={AlertTriangle} title="No arrears cases" description="Arrears cases are created automatically when invoices become overdue." />
+        <EmptyState icon={<AlertTriangle className="h-8 w-8 text-muted-foreground" />} title="No arrears cases" description="Arrears cases are created automatically when invoices become overdue." />
       ) : (
         <div className="space-y-2">
           {list.map((arrearsCase) => {

@@ -81,7 +81,7 @@ export default async function PropertyDetailPage({
 
       {activeUnits.length === 0 ? (
         <EmptyState
-          icon={DoorOpen}
+          icon={<DoorOpen className="h-8 w-8 text-muted-foreground" />}
           title="No units yet"
           description="Add units to this property to start managing tenants."
           action={{ label: "Add Unit", onClick: () => {} }}

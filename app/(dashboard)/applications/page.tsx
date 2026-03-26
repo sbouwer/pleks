@@ -57,7 +57,7 @@ export default async function ApplicationsPage() {
       </div>
 
       {list.length === 0 ? (
-        <EmptyState icon={Users} title="No applications yet" description="Applications will appear when applicants apply to your listings." />
+        <EmptyState icon={<Users className="h-8 w-8 text-muted-foreground" />} title="No applications yet" description="Applications will appear when applicants apply to your listings." />
       ) : (
         <div className="space-y-2">
           {list.map((app) => {

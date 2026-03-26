@@ -50,7 +50,7 @@ export default async function LeasesPage() {
 
       {list.length === 0 ? (
         <EmptyState
-          icon={FileText}
+          icon={<FileText className="h-8 w-8 text-muted-foreground" />}
           title="No leases yet"
           description="Create a lease to start managing tenancies."
           action={{ label: "Create Lease", onClick: () => {} }}

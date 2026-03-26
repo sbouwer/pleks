@@ -51,7 +51,7 @@ export default async function PaymentsPage() {
       </div>
 
       {list.length === 0 ? (
-        <EmptyState icon={CreditCard} title="No invoices yet" description="Invoices from contractors and suppliers will appear here." />
+        <EmptyState icon={<CreditCard className="h-8 w-8 text-muted-foreground" />} title="No invoices yet" description="Invoices from contractors and suppliers will appear here." />
       ) : (
         <div className="space-y-2">
           {list.map((inv) => {

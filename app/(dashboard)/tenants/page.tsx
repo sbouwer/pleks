@@ -36,7 +36,7 @@ export default async function TenantsPage() {
 
       {list.length === 0 ? (
         <EmptyState
-          icon={Users}
+          icon={<Users className="h-8 w-8 text-muted-foreground" />}
           title="No tenants yet"
           description="Add your first tenant to get started."
           action={{ label: "Add Tenant", onClick: () => {} }}

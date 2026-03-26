@@ -104,7 +104,7 @@ export default function ReconciliationPage() {
 
       {/* Import history */}
       {imports.length === 0 ? (
-        <EmptyState icon={Upload} title="No statements uploaded" description="Upload a bank statement PDF to start reconciling." />
+        <EmptyState icon={<Upload className="h-8 w-8 text-muted-foreground" />} title="No statements uploaded" description="Upload a bank statement PDF to start reconciling." />
       ) : (
         <div className="space-y-2">
           {imports.map((imp) => (
