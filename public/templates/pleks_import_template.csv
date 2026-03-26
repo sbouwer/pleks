@@ -1,1 +1,13 @@
-First Name,Last Name,Email,Phone,ID Number,Property Name,Unit Number,Bedrooms,Lease Start,Lease End,Monthly Rent,Deposit,Escalation %,Payment Method
+tenant_role,first_name,last_name,email,phone,id_number,id_type,employer_name,employment_type,property_name,unit_number,address_line1,suburb,city,province,lease_start,lease_end,monthly_rent,deposit,escalation_percent,payment_method,agent_notes,key_safe_code,owner_instructions
+# INSTRUCTIONS: Delete these example rows before importing. Keep the header row above exactly as-is. See notes below each column group.,,,,,,,,,,,,,,,,,,,,,,
+# TENANT_ROLE options: primary | co_tenant | previous | leave blank (defaults to primary). Co-tenants share the same unit — repeat property_name and unit_number on their row. Lease columns on co_tenant rows must be blank.,,,,,,,,,,,,,,,,,,,,,,
+# DATE FORMAT: DD/MM/YYYY or YYYY-MM-DD both work. Leave lease_end blank for month-to-month tenancies.,,,,,,,,,,,,,,,,,,,,,,
+# CURRENCY: Enter rent and deposit as R 7200.00 or 7200 or 720000 (cents) — all formats are handled.,,,,,,,,,,,,,,,,,,,,,,
+# EXTRA COLUMNS: agent_notes key_safe_code owner_instructions are examples of extra data you can include. The import wizard will ask where to put them. You can rename these or add your own columns.,,,,,,,,,,,,,,,,,,,,,,
+# --- DELETE FROM HERE DOWN ---,,,,,,,,,,,,,,,,,,,,,,
+primary,John,Smith,john.smith@gmail.com,0821234567,8501015009087,sa_id,Absa Bank,permanent,Sunrise Estate,Flat 2A,3 Sunflower Street,Bellville,Cape Town,Western Cape,01/03/2024,28/02/2026,R 7200.00,R 14400.00,10,debicheck,Prefers WhatsApp.,#4421,No pets. Pool service Tuesdays.
+co_tenant,Mary,Smith,mary.smith@gmail.com,0831234567,8808080045081,sa_id,Woolworths SA,permanent,Sunrise Estate,Flat 2A,,,,,,,,,,,,,
+primary,Sipho,Dlamini,sipho.d@yahoo.com,0799998877,9105125678901,sa_id,City of Cape Town,permanent,Sunrise Estate,Flat 3B,3 Sunflower Street,Bellville,Cape Town,Western Cape,01/06/2024,,R 6500.00,R 13000.00,10,eft,Key under mat at back door.,#8832,Garden service every Friday.
+primary,Rina,van der Berg,rina.vdb@gmail.com,0724441122,7803030045081,sa_id,Dis-Chem,permanent,Oak Manor,Unit 7,14 Oak Avenue,Kenilworth,Cape Town,Western Cape,01/01/2023,31/12/2025,R 5500.00,R 11000.00,8,debicheck,,#7791,
+previous,Thandi,Nkosi,thandi.nkosi@gmail.com,0611112222,8912124567890,sa_id,,unemployed,Oak Manor,Unit 7,,,,,01/01/2021,31/12/2022,R 4800.00,R 9600.00,,,,Prior tenant — deposit returned 2023-01-14.,,
+primary,Peter,van Wyk,peter.vw@outlook.com,0835557890,7706065009087,sa_id,Standard Bank,permanent,Oak Manor,Unit 12,14 Oak Avenue,Kenilworth,Cape Town,Western Cape,01/09/2024,,R 8200.00,R 16400.00,10,debicheck,,,
