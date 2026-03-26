@@ -21,9 +21,13 @@ export function PublicNav() {
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user ? { email: data.user.email ?? undefined } : null)
-    })
+    supabase.auth.getUser()
+      .then(({ data }) => {
+        setUser(data.user ? { email: data.user.email ?? undefined } : null)
+      })
+      .catch(() => {
+        setUser(null)
+      })
   }, [])
 
   async function handleLogout() {
