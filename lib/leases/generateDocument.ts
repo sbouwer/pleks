@@ -94,28 +94,42 @@ export async function generateLeaseDocument(
     .in("lease_type", [leaseType, "both"])
     .order("sort_order")
 
-  // Load per-lease selections
-  const { data: selections } = await supabase
+  // Load per-lease selections (highest priority)
+  const { data: leaseSelections } = await supabase
     .from("lease_clause_selections")
     .select("clause_key, enabled, custom_body")
     .eq("lease_id", leaseId)
 
-  // Load org defaults
+  // Load org-level custom wording (lease_id IS NULL)
+  const { data: orgCustom } = await supabase
+    .from("lease_clause_selections")
+    .select("clause_key, enabled, custom_body")
+    .eq("org_id", orgId)
+    .is("lease_id", null)
+
+  // Load org defaults (toggle preferences only)
   const { data: orgDefaults } = await supabase
     .from("org_lease_clause_defaults")
     .select("clause_key, enabled")
     .eq("org_id", orgId)
 
-  const selMap = new Map(selections?.map((s) => [s.clause_key, s]) ?? [])
-  const orgMap = new Map(orgDefaults?.map((d) => [d.clause_key, d.enabled]) ?? [])
+  const leaseSelMap = new Map(leaseSelections?.map((s) => [s.clause_key, s]) ?? [])
+  const orgCustomMap = new Map(orgCustom?.map((s) => [s.clause_key, s]) ?? [])
+  const orgDefaultMap = new Map(orgDefaults?.map((d) => [d.clause_key, d.enabled]) ?? [])
 
-  // Determine which clauses are enabled
+  // Determine which clauses are enabled (3-level priority)
   const enabledClauses = (library ?? []).filter((clause) => {
     if (clause.is_required) return true
-    const sel = selMap.get(clause.clause_key)
-    if (sel !== undefined) return sel.enabled
-    const orgDef = orgMap.get(clause.clause_key)
+    // 1. Per-lease selection
+    const leaseSel = leaseSelMap.get(clause.clause_key)
+    if (leaseSel !== undefined) return leaseSel.enabled
+    // 2. Org-level custom
+    const orgCust = orgCustomMap.get(clause.clause_key)
+    if (orgCust !== undefined) return orgCust.enabled
+    // 3. Org toggle defaults
+    const orgDef = orgDefaultMap.get(clause.clause_key)
     if (orgDef !== undefined) return orgDef
+    // 4. Library default
     return clause.is_enabled_by_default
   })
 
@@ -178,10 +192,11 @@ export async function generateLeaseDocument(
     vat_rate: "15",
   }
 
-  // Resolve all tokens in each clause body
+  // Resolve all tokens in each clause body (3-level priority for custom_body)
   const resolvedClauses: ResolvedClause[] = enabledClauses.map((clause) => {
-    const sel = selMap.get(clause.clause_key)
-    let body: string = sel?.custom_body ?? clause.body_template
+    const leaseSel = leaseSelMap.get(clause.clause_key)
+    const orgCust = orgCustomMap.get(clause.clause_key)
+    let body: string = leaseSel?.custom_body ?? orgCust?.custom_body ?? clause.body_template
 
     // Resolve {{ref:key}} — external clause references
     body = body.replace(/\{\{ref:([a-z_]+)\}\}/g, (_, key: string) => {
@@ -301,39 +316,62 @@ async function buildDocx(
   // Use explicit type for mixed content arrays
   type DocChild = InstanceType<typeof Paragraph> | InstanceType<typeof Table>
 
+  // ─── Cover page ───────────────────────────────────────
   const titleChildren: DocChild[] = [
-    new Paragraph({ spacing: { before: 4000 }, children: [] }),
+    new Paragraph({ spacing: { before: 3000 }, children: [] }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      children: [new TextRun({ text: "LEASE AGREEMENT", bold: true, size: 32, font: "Calibri" })],
+      children: [new TextRun({ text: "LEASE AGREEMENT", bold: true, size: 28, font: "Calibri" })],
     }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      spacing: { after: 400 },
+      spacing: { after: 600 },
       children: [new TextRun({
-        text: `[${leaseType.toUpperCase()}]`,
-        size: 24, font: "Calibri", italics: true,
+        text: `${leaseType.charAt(0).toUpperCase() + leaseType.slice(1)} lease`,
+        size: 22, font: "Calibri", italics: true, color: "999999",
       })],
     }),
-    new Paragraph({ spacing: { after: 600 }, children: [] }),
-    new Table({
-      width: { size: 9000, type: WidthType.DXA },
-      rows: [
-        detailRow("LESSOR", variables.lessor_name),
-        detailRow("REG NO", variables.lessor_reg_number),
-        detailRow("LESSEE", variables.lessee_name),
-        detailRow("ID / REG", variables.lessee_id_reg),
-        detailRow("PROPERTY", `${variables.property_address} — ${variables.unit_number}`),
-        detailRow("COMMENCEMENT", variables.commencement_date),
-        detailRow("TERMINATION", variables.end_date || "Month to month"),
-        detailRow("MONTHLY RENTAL", variables.monthly_rent_formatted),
-        detailRow("DEPOSIT", variables.deposit_formatted),
-      ],
-    }),
-    new Paragraph({ spacing: { after: 600 }, children: [] }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      children: [new TextRun({ text: `Date: ${variables.signature_date}`, size: 20, font: "Calibri" })],
+      spacing: { after: 100 },
+      children: [new TextRun({ text: "─────────────────────────────────────", size: 20, font: "Calibri", color: "CCCCCC" })],
+    }),
+    new Paragraph({ spacing: { after: 60 }, children: [] }),
+    new Table({
+      width: { size: 7000, type: WidthType.DXA },
+      borders: borderNone,
+      rows: [
+        new TableRow({ children: [
+          new TableCell({ borders: borderNone, width: { size: 2000, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: "LESSOR:", bold: true, size: 20, font: "Calibri", color: "666666" })] })] }),
+          new TableCell({ borders: borderNone, width: { size: 5000, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: variables.lessor_name, size: 20, font: "Calibri" })] })] }),
+        ]}),
+        new TableRow({ children: [
+          new TableCell({ borders: borderNone, width: { size: 2000, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: "LESSEE:", bold: true, size: 20, font: "Calibri", color: "666666" })] })] }),
+          new TableCell({ borders: borderNone, width: { size: 5000, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: variables.lessee_name, size: 20, font: "Calibri" })] })] }),
+        ]}),
+        new TableRow({ children: [
+          new TableCell({ borders: borderNone, width: { size: 2000, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: "PROPERTY:", bold: true, size: 20, font: "Calibri", color: "666666" })] })] }),
+          new TableCell({ borders: borderNone, width: { size: 5000, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: `${variables.property_address}, Unit ${variables.unit_number}`, size: 20, font: "Calibri" })] })] }),
+        ]}),
+        new TableRow({ children: [
+          new TableCell({ borders: borderNone, width: { size: 2000, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: "PERIOD:", bold: true, size: 20, font: "Calibri", color: "666666" })] })] }),
+          new TableCell({ borders: borderNone, width: { size: 5000, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: `${variables.commencement_date} – ${variables.end_date || "Month to month"}`, size: 20, font: "Calibri" })] })] }),
+        ]}),
+        new TableRow({ children: [
+          new TableCell({ borders: borderNone, width: { size: 2000, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: "RENTAL:", bold: true, size: 20, font: "Calibri", color: "666666" })] })] }),
+          new TableCell({ borders: borderNone, width: { size: 5000, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: `${variables.monthly_rent_formatted} per month`, size: 20, font: "Calibri" })] })] }),
+        ]}),
+      ],
+    }),
+    new Paragraph({ spacing: { after: 60 }, children: [] }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 3000 },
+      children: [new TextRun({ text: "─────────────────────────────────────", size: 20, font: "Calibri", color: "CCCCCC" })],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      children: [new TextRun({ text: "Prepared by Pleks Property Management", size: 16, font: "Calibri", italics: true, color: "999999" })],
     }),
   ]
 

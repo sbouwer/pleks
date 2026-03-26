@@ -2,12 +2,15 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Lock, ChevronDown, ChevronUp } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Lock, ChevronDown, ChevronUp, Pencil } from "lucide-react"
 import { toast } from "sonner"
+import { ClauseEditor } from "./ClauseEditor"
 
 interface ClauseItem {
   clause_key: string
   title: string
+  body_template: string
   lease_type: string
   is_required: boolean
   is_enabled_by_default: boolean
@@ -16,21 +19,32 @@ interface ClauseItem {
   description: string | null
   toggle_label: string | null
   enabled?: boolean
+  custom_body?: string | null
 }
 
 interface ClauseConfiguratorProps {
   leaseType: string
+  leaseId?: string | null
   onSelectionsChange: (selections: Record<string, boolean>) => void
+}
+
+function getCardStyle(isOptional: boolean, enabled: boolean) {
+  if (!isOptional) return ""
+  if (enabled) return "border-l-2 border-l-brand"
+  return "opacity-60"
 }
 
 export function ClauseConfigurator({
   leaseType,
+  leaseId,
   onSelectionsChange,
 }: Readonly<ClauseConfiguratorProps>) {
   const [required, setRequired] = useState<ClauseItem[]>([])
   const [optional, setOptional] = useState<ClauseItem[]>([])
   const [selections, setSelections] = useState<Record<string, boolean>>({})
+  const [customBodies, setCustomBodies] = useState<Record<string, string | null>>({})
   const [showRequired, setShowRequired] = useState(false)
+  const [editingKey, setEditingKey] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -42,10 +56,17 @@ export function ClauseConfigurator({
       setRequired(data.required ?? [])
       setOptional(data.optional ?? [])
       const initial: Record<string, boolean> = {}
-      for (const c of data.optional ?? []) {
-        initial[c.clause_key] = c.enabled ?? c.is_enabled_by_default
+      const bodies: Record<string, string | null> = {}
+      for (const c of [...(data.required ?? []), ...(data.optional ?? [])]) {
+        if (!c.is_required) {
+          initial[c.clause_key] = c.enabled ?? c.is_enabled_by_default
+        }
+        if (c.custom_body) {
+          bodies[c.clause_key] = c.custom_body
+        }
       }
       setSelections(initial)
+      setCustomBodies(bodies)
       setLoading(false)
     }
     load()
@@ -61,8 +82,6 @@ export function ClauseConfigurator({
 
   function toggleClause(key: string, enabled: boolean) {
     const updated = { ...selections, [key]: enabled }
-
-    // Handle dependencies: if enabling a clause that depends on another
     if (enabled) {
       const clause = optional.find((c) => c.clause_key === key)
       if (clause?.depends_on?.length) {
@@ -70,18 +89,42 @@ export function ClauseConfigurator({
           if (!updated[dep]) {
             updated[dep] = true
             const depClause = optional.find((c) => c.clause_key === dep)
-            if (depClause) {
-              toast.info(`"${depClause.title}" was also enabled`)
-            }
+            if (depClause) toast.info(`"${depClause.title}" was also enabled`)
           }
         }
       }
     }
-
     setSelections(updated)
   }
 
-  // Build ordered preview list
+  async function handleSaveBody(clauseKey: string, customBody: string) {
+    const res = await fetch("/api/leases/clause-body", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clauseKey, customBody, leaseId: leaseId ?? null }),
+    })
+    if (res.ok) {
+      setCustomBodies((prev) => ({ ...prev, [clauseKey]: customBody }))
+      setEditingKey(null)
+    }
+  }
+
+  async function handleResetBody(clauseKey: string) {
+    const res = await fetch("/api/leases/clause-body", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clauseKey, leaseId: leaseId ?? null }),
+    })
+    if (res.ok) {
+      setCustomBodies((prev) => {
+        const next = { ...prev }
+        delete next[clauseKey]
+        return next
+      })
+      setEditingKey(null)
+    }
+  }
+
   const allClauses = [...required, ...optional].sort((a, b) => a.sort_order - b.sort_order)
   const enabledClauses = allClauses.filter((c) => {
     if (c.is_required) return true
@@ -93,14 +136,86 @@ export function ClauseConfigurator({
     return <p className="text-sm text-muted-foreground">Loading clause library...</p>
   }
 
+  function renderClauseCard(clause: ClauseItem, isOptional: boolean) {
+    const enabled = clause.is_required || (selections[clause.clause_key] ?? false)
+    const hasCustom = !!customBodies[clause.clause_key]
+    const isEditing = editingKey === clause.clause_key
+
+    return (
+      <Card
+        key={clause.clause_key}
+        className={`transition-colors ${getCardStyle(isOptional, enabled)}`}
+      >
+        <CardContent className="py-3">
+          <div className="flex items-start gap-3">
+            {isOptional ? (
+              <input
+                type="checkbox"
+                checked={enabled}
+                onChange={(e) => toggleClause(clause.clause_key, e.target.checked)}
+                className="mt-1 accent-brand size-4 shrink-0 cursor-pointer"
+              />
+            ) : (
+              <Lock className="size-4 text-muted-foreground mt-1 shrink-0" />
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium">{clause.title}</p>
+                {hasCustom && (
+                  <Badge variant="secondary" className="text-brand border-brand/30 text-[10px] px-1.5 py-0">
+                    Custom
+                  </Badge>
+                )}
+              </div>
+              {clause.toggle_label && (
+                <p className="text-xs text-muted-foreground mt-0.5">{clause.toggle_label}</p>
+              )}
+              {clause.description && (
+                <p className="text-xs text-muted-foreground mt-1">{clause.description}</p>
+              )}
+              {clause.depends_on?.length > 0 && (
+                <p className="text-xs text-brand mt-1">
+                  Also enables: {clause.depends_on.join(", ")}
+                </p>
+              )}
+              {enabled && !isEditing && (
+                <button
+                  type="button"
+                  onClick={() => setEditingKey(clause.clause_key)}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mt-2 transition-colors"
+                >
+                  <Pencil className="size-3" />
+                  Edit wording
+                </button>
+              )}
+            </div>
+          </div>
+
+          {isEditing && (
+            <ClauseEditor
+              clauseKey={clause.clause_key}
+              title={clause.title}
+              bodyTemplate={clause.body_template}
+              customBody={customBodies[clause.clause_key] ?? null}
+              isRequired={clause.is_required}
+              onSave={handleSaveBody}
+              onReset={handleResetBody}
+              onCancel={() => setEditingKey(null)}
+            />
+          )}
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
       {/* LEFT: Configurator */}
       <div className="lg:col-span-3 space-y-4">
         <div>
-          <h3 className="font-heading text-lg mb-1">Configure optional clauses</h3>
+          <h3 className="font-heading text-lg mb-1">Configure clauses</h3>
           <p className="text-sm text-muted-foreground">
-            Required clauses are always included and cannot be removed.
+            Required clauses are always included. Optional clauses can be toggled. Click &quot;Edit wording&quot; to customise any clause.
           </p>
         </div>
 
@@ -112,16 +227,11 @@ export function ClauseConfigurator({
             className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             {showRequired ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
-            Always included ({required.length} clauses)
+            Required clauses ({required.length})
           </button>
           {showRequired && (
-            <div className="mt-2 space-y-1 pl-6">
-              {required.map((c) => (
-                <div key={c.clause_key} className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Lock className="size-3 shrink-0" />
-                  <span>{c.title}</span>
-                </div>
-              ))}
+            <div className="mt-2 space-y-2">
+              {required.map((c) => renderClauseCard(c, false))}
             </div>
           )}
         </div>
@@ -129,38 +239,7 @@ export function ClauseConfigurator({
         {/* Optional clauses */}
         <div className="space-y-2">
           <p className="text-sm font-medium">Optional clauses</p>
-          {optional.map((clause) => {
-            const enabled = selections[clause.clause_key] ?? false
-            return (
-              <Card
-                key={clause.clause_key}
-                className={`transition-colors ${enabled ? "border-l-2 border-l-brand" : "opacity-60"}`}
-              >
-                <CardContent className="py-3 flex items-start gap-3">
-                  <input
-                    type="checkbox"
-                    checked={enabled}
-                    onChange={(e) => toggleClause(clause.clause_key, e.target.checked)}
-                    className="mt-1 accent-brand size-4 shrink-0 cursor-pointer"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">{clause.title}</p>
-                    {clause.toggle_label && (
-                      <p className="text-xs text-muted-foreground mt-0.5">{clause.toggle_label}</p>
-                    )}
-                    {clause.description && (
-                      <p className="text-xs text-muted-foreground mt-1">{clause.description}</p>
-                    )}
-                    {clause.depends_on?.length > 0 && (
-                      <p className="text-xs text-brand mt-1">
-                        Also enables: {clause.depends_on.join(", ")}
-                      </p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
+          {optional.map((clause) => renderClauseCard(clause, true))}
         </div>
 
         <p className="text-sm text-muted-foreground">{enabledCount} clauses included</p>
@@ -177,16 +256,18 @@ export function ClauseConfigurator({
               const num = isEnabled
                 ? enabledClauses.findIndex((c) => c.clause_key === clause.clause_key) + 1
                 : null
-              function getClauseColor() {
+              const hasCustom = !!customBodies[clause.clause_key]
+              function getColor() {
                 if (!isEnabled) return "text-muted-foreground line-through"
                 if (clause.is_required) return "text-foreground"
                 return "text-brand"
               }
-              const colorClass = getClauseColor()
               return (
-                <div key={clause.clause_key} className={`text-sm py-1 ${colorClass}`}>
-                  {isEnabled ? `${num}. ` : ""}
-                  {clause.title}
+                <div key={clause.clause_key} className={`text-sm py-1 flex items-center gap-1.5 ${getColor()}`}>
+                  <span>{isEnabled ? `${num}. ` : ""}{clause.title}</span>
+                  {hasCustom && isEnabled && (
+                    <span className="text-[10px] text-brand">(custom)</span>
+                  )}
                 </div>
               )
             })}

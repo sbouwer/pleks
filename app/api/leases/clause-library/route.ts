@@ -17,25 +17,38 @@ export async function GET(req: NextRequest) {
 
   const leaseType = req.nextUrl.searchParams.get("type") ?? "residential"
 
-  // Fetch clause library
+  // Fetch clause library (include body_template for editor)
   const { data: library } = await supabase
     .from("lease_clause_library")
-    .select("clause_key, title, lease_type, is_required, is_enabled_by_default, depends_on, sort_order, description, toggle_label")
+    .select("clause_key, title, body_template, lease_type, is_required, is_enabled_by_default, depends_on, sort_order, description, toggle_label")
     .in("lease_type", [leaseType, "both"])
     .order("sort_order")
 
-  // Fetch org defaults
+  // Fetch org toggle defaults
   const { data: orgDefaults } = await supabase
     .from("org_lease_clause_defaults")
     .select("clause_key, enabled")
     .eq("org_id", membership.org_id)
 
-  const orgMap = new Map(orgDefaults?.map((d) => [d.clause_key, d.enabled]) ?? [])
+  // Fetch org-level custom wording (lease_id IS NULL)
+  const { data: orgCustom } = await supabase
+    .from("lease_clause_selections")
+    .select("clause_key, custom_body")
+    .eq("org_id", membership.org_id)
+    .is("lease_id", null)
 
-  const required = (library ?? []).filter((c) => c.is_required)
+  const orgMap = new Map(orgDefaults?.map((d) => [d.clause_key, d.enabled]) ?? [])
+  const customMap = new Map(orgCustom?.map((c) => [c.clause_key, c.custom_body]) ?? [])
+
+  const required = (library ?? []).filter((c) => c.is_required).map((c) => ({
+    ...c,
+    custom_body: customMap.get(c.clause_key) ?? null,
+  }))
+
   const optional = (library ?? []).filter((c) => !c.is_required).map((c) => ({
     ...c,
     enabled: orgMap.get(c.clause_key) ?? c.is_enabled_by_default,
+    custom_body: customMap.get(c.clause_key) ?? null,
   }))
 
   const defaultEnabled = required.length + optional.filter((c) => c.enabled).length
@@ -45,5 +58,6 @@ export async function GET(req: NextRequest) {
     optional,
     total: (library ?? []).length,
     defaultEnabled,
+    orgId: membership.org_id,
   })
 }
