@@ -23,7 +23,7 @@ export default async function ContractorsPage() {
     .from("contractor_view")
     .select("id, first_name, last_name, company_name, email, phone, supplier_type, is_active")
     .eq("org_id", membership.org_id)
-    .order("first_name")
+    .order("created_at", { ascending: false })
 
   return (
     <div>

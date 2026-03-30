@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { Users } from "lucide-react"
+import { AddLandlordForm } from "./AddLandlordForm"
 
 export default async function LandlordsPage() {
   const supabase = await createClient()
@@ -54,6 +55,7 @@ export default async function LandlordsPage() {
             <p className="text-sm text-muted-foreground mt-1">{list.length} landlords</p>
           )}
         </div>
+        <AddLandlordForm orgId={membership.org_id} />
       </div>
 
       {list.length === 0 ? (
