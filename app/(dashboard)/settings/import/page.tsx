@@ -136,22 +136,24 @@ export default function ImportWizardPage() {
           analysis={analysis}
           onBack={() => setStep("upload")}
           onContinue={(typeFilter, stateFilter) => {
-            if (typeFilter || stateFilter) {
-              setDecisions((d) => ({ ...d, typeFilter, stateFilter }))
-              // Filter rows by type/state if filters provided
-              if (typeFilter && allRows.length > 0) {
-                const typeCol = analysis.columnSuggestions.find((s) => s.field === "__entity_type")?.column
-                const stateCol = analysis.columnSuggestions.find((s) => s.field === "__entity_state")?.column
-                if (typeCol) {
-                  const filtered = allRows.filter((row) => {
-                    const typeVal = row[typeCol]?.trim()
-                    const stateVal = stateCol ? row[stateCol]?.trim() : "Active"
-                    const typeMatch = !typeFilter.length || typeFilter.some((t) => typeVal?.toLowerCase() === t.toLowerCase())
-                    const stateMatch = !stateFilter?.length || stateFilter.some((s) => stateVal?.toLowerCase() === s.toLowerCase())
-                    return typeMatch && stateMatch
-                  })
-                  setAllRows(filtered)
-                }
+            setDecisions((d) => ({ ...d, typeFilter, stateFilter }))
+            // Filter rows by type/state if filters provided
+            if (typeFilter && typeFilter.length > 0 && allRows.length > 0) {
+              // Find the actual column name for the type/state fields
+              const typeCol = analysis.columnSuggestions.find((s) => s.field === "__entity_type")?.column
+              const stateCol = analysis.columnSuggestions.find((s) => s.field === "__entity_state")?.column
+              if (typeCol) {
+                const beforeCount = allRows.length
+                const filtered = allRows.filter((row) => {
+                  const typeVal = row[typeCol]?.trim()
+                  if (!typeVal) return true // keep rows without a type value
+                  const stateVal = stateCol ? row[stateCol]?.trim() : "Active"
+                  const typeMatch = typeFilter.some((t) => typeVal.toLowerCase() === t.toLowerCase())
+                  const stateMatch = !stateFilter?.length || stateFilter.some((s) => stateVal?.toLowerCase() === s.toLowerCase())
+                  return typeMatch && stateMatch
+                })
+                console.log(`Type filter: ${beforeCount} → ${filtered.length} rows (types: ${typeFilter.join(", ")})`)
+                setAllRows(filtered)
               }
             }
             setStep("mapping")
