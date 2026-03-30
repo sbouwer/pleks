@@ -7,6 +7,7 @@ import { formatZAR } from "@/lib/constants"
 import { Badge } from "@/components/ui/badge"
 import { LeaseActions } from "./LeaseActions"
 import { getLessorBankDetails } from "@/lib/leases/bankDetails"
+import { LeaseCharges } from "@/components/leases/LeaseCharges"
 import { AlertTriangle } from "lucide-react"
 import { MigratedDocSection } from "./MigratedDocSection"
 
@@ -164,6 +165,9 @@ export default async function LeaseDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      {/* Additional charges */}
+      <LeaseCharges leaseId={leaseId} />
 
       {/* Special terms */}
       {(lease.special_terms as unknown[])?.length > 0 && (

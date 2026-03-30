@@ -1,39 +1,79 @@
 -- 009_maintenance.sql
--- Contractors, preferences, maintenance requests, photos, updates
+-- Contractors (thin, contact_id backed), preferences, maintenance requests, photos, updates
+--
+-- Contractors follow the contacts pattern: identity in contacts, role-specific in contractors.
+-- contractors.id is the PK referenced by all downstream tables — unchanged.
+-- contacts table must be created first (005_contacts.sql).
 
--- Contractors
+-- Contractors (thin extension — identity lives in contacts)
 CREATE TABLE contractors (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL REFERENCES organisations(id),
-  name            text NOT NULL,
-  company_name    text,
-  email           text NOT NULL,
-  phone           text,
-  whatsapp        text,
+  contact_id      uuid NOT NULL REFERENCES contacts(id),
+
+  -- Contractor-specific fields
   specialities    text[] DEFAULT '{}',
-  property_ids    uuid[] DEFAULT '{}',
+  property_ids    uuid[] DEFAULT '{}',      -- properties this contractor is assigned to
   call_out_rate_cents integer,
   hourly_rate_cents   integer,
+
+  -- Contractor portal access
   portal_access_enabled boolean DEFAULT false,
   portal_invite_sent_at timestamptz,
   access_token    text UNIQUE DEFAULT encode(gen_random_bytes(32), 'hex'),
-  notes           text,
+
+  -- Audit
   is_active       boolean DEFAULT true,
+  created_by      uuid REFERENCES auth.users(id),
   created_at      timestamptz NOT NULL DEFAULT now(),
-  updated_at      timestamptz NOT NULL DEFAULT now()
+  updated_at      timestamptz NOT NULL DEFAULT now(),
+
+  UNIQUE(org_id, contact_id)
 );
 
 CREATE TRIGGER update_contractors_updated_at
   BEFORE UPDATE ON contractors
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE INDEX idx_contractors_org_id ON contractors(org_id);
+CREATE INDEX idx_contractors_org_id     ON contractors(org_id);
+CREATE INDEX idx_contractors_contact_id ON contractors(contact_id);
 
 ALTER TABLE contractors ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "org_contractors" ON contractors
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
   );
+
+-- Convenience view: contractors with identity joined from contacts
+CREATE OR REPLACE VIEW contractor_view AS
+SELECT
+  co.id,
+  co.org_id,
+  co.contact_id,
+  -- Identity from contacts
+  c.entity_type,
+  c.first_name,
+  c.last_name,
+  c.company_name,
+  c.trading_as,
+  c.registration_number,
+  c.vat_number,
+  c.contact_first_name,
+  c.contact_last_name,
+  c.primary_email       AS email,
+  c.primary_phone       AS phone,
+  c.notes,
+  -- Contractor-specific
+  co.specialities,
+  co.property_ids,
+  co.call_out_rate_cents,
+  co.hourly_rate_cents,
+  co.portal_access_enabled,
+  co.is_active,
+  co.created_at,
+  co.updated_at
+FROM contractors co
+JOIN contacts c ON c.id = co.contact_id;
 
 -- Contractor preferences
 CREATE TABLE contractor_preferences (
@@ -87,17 +127,17 @@ CREATE TABLE maintenance_requests (
   reviewed_by       uuid REFERENCES auth.users(id),
   reviewed_at       timestamptz,
   rejection_reason  text,
-  landlord_notified_at   timestamptz,
-  landlord_approved_by   text,
-  landlord_approved_at   timestamptz,
+  landlord_notified_at      timestamptz,
+  landlord_approved_by      text,
+  landlord_approved_at      timestamptz,
   landlord_rejection_reason text,
   work_order_number text UNIQUE,
   contractor_id     uuid REFERENCES contractors(id),
-  work_order_sent_at timestamptz,
+  work_order_sent_at  timestamptz,
   work_order_pdf_path text,
-  access_instructions text,
+  access_instructions  text,
   special_instructions text,
-  scheduled_date    date,
+  scheduled_date      date,
   scheduled_time_from time,
   scheduled_time_to   time,
   tenant_notified_of_schedule boolean DEFAULT false,
@@ -120,9 +160,9 @@ CREATE TRIGGER update_maintenance_requests_updated_at
   BEFORE UPDATE ON maintenance_requests
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE INDEX idx_maintenance_org_id ON maintenance_requests(org_id);
+CREATE INDEX idx_maintenance_org_id  ON maintenance_requests(org_id);
 CREATE INDEX idx_maintenance_unit_id ON maintenance_requests(unit_id);
-CREATE INDEX idx_maintenance_status ON maintenance_requests(status);
+CREATE INDEX idx_maintenance_status  ON maintenance_requests(status);
 CREATE INDEX idx_maintenance_urgency ON maintenance_requests(urgency);
 
 ALTER TABLE maintenance_requests ENABLE ROW LEVEL SECURITY;
@@ -142,19 +182,20 @@ CREATE POLICY "tenant_create_requests" ON maintenance_requests
 
 -- Maintenance photos
 CREATE TABLE maintenance_photos (
-  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id          uuid NOT NULL,
-  request_id      uuid NOT NULL REFERENCES maintenance_requests(id) ON DELETE CASCADE,
-  storage_path    text NOT NULL,
-  storage_path_thumb text,
-  caption         text,
-  uploaded_by_type text CHECK (uploaded_by_type IN ('tenant', 'agent', 'contractor')),
-  uploaded_by_user uuid REFERENCES auth.users(id),
+  id                     uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id                 uuid NOT NULL,
+  request_id             uuid NOT NULL REFERENCES maintenance_requests(id) ON DELETE CASCADE,
+  storage_path           text NOT NULL,
+  storage_path_thumb     text,
+  caption                text,
+  uploaded_by_type       text CHECK (uploaded_by_type IN ('tenant', 'agent', 'contractor')),
+  uploaded_by_user       uuid REFERENCES auth.users(id),
   uploaded_by_contractor uuid REFERENCES contractors(id),
-  photo_phase     text NOT NULL DEFAULT 'before' CHECK (photo_phase IN ('before', 'during', 'after')),
-  gps_lat         numeric(10,7),
-  gps_lng         numeric(10,7),
-  created_at      timestamptz NOT NULL DEFAULT now()
+  photo_phase            text NOT NULL DEFAULT 'before'
+                         CHECK (photo_phase IN ('before', 'during', 'after')),
+  gps_lat                numeric(10,7),
+  gps_lng                numeric(10,7),
+  created_at             timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE INDEX idx_maintenance_photos_request ON maintenance_photos(request_id);
@@ -167,14 +208,14 @@ CREATE POLICY "org_maintenance_photos" ON maintenance_photos
 
 -- Contractor updates (immutable)
 CREATE TABLE contractor_updates (
-  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id          uuid NOT NULL,
-  request_id      uuid NOT NULL REFERENCES maintenance_requests(id),
-  contractor_id   uuid NOT NULL REFERENCES contractors(id),
-  new_status      text NOT NULL,
-  notes           text,
-  eta             timestamptz,
-  created_at      timestamptz NOT NULL DEFAULT now()
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id        uuid NOT NULL,
+  request_id    uuid NOT NULL REFERENCES maintenance_requests(id),
+  contractor_id uuid NOT NULL REFERENCES contractors(id),
+  new_status    text NOT NULL,
+  notes         text,
+  eta           timestamptz,
+  created_at    timestamptz NOT NULL DEFAULT now()
 );
 
 ALTER TABLE contractor_updates ENABLE ROW LEVEL SECURITY;

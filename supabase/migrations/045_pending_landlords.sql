@@ -1,43 +1,10 @@
--- 045_pending_landlords.sql — Landlord import staging + invites metadata
+-- 045_pending_landlords.sql
+-- SUPERSEDED — pending_landlords staging table replaced by landlords table (005_contacts.sql)
+-- Landlords are now first-class contacts with primary_role = 'landlord'.
+-- The landlords thin table in 005_contacts.sql replaces the staging pattern.
+-- Agent dedup function and invites.metadata column remain useful — kept here.
 
-CREATE TABLE IF NOT EXISTS pending_landlords (
-  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id              uuid NOT NULL REFERENCES organisations(id),
-  import_session_id   uuid REFERENCES import_sessions(id),
-  first_name          text,
-  last_name           text,
-  full_name           text,
-  company_name        text,
-  email               text,
-  phone               text,
-  id_number           text,
-  passport_number     text,
-  vat_number          text,
-  trading_as          text,
-  tpn_reference       text,
-  tpn_entity_id       text,
-  address_raw         text,
-  linked_property_id  uuid REFERENCES properties(id),
-  linked_at           timestamptz,
-  linked_by           uuid REFERENCES auth.users(id),
-  created_by          uuid REFERENCES auth.users(id),
-  created_at          timestamptz NOT NULL DEFAULT now(),
-  deleted_at          timestamptz
-);
-
-CREATE INDEX IF NOT EXISTS idx_pending_landlords_org_id ON pending_landlords(org_id);
-CREATE INDEX IF NOT EXISTS idx_pending_landlords_email ON pending_landlords(email);
-
-ALTER TABLE pending_landlords ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "org_pending_landlords" ON pending_landlords
-  FOR ALL USING (
-    org_id IN (
-      SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
-    )
-  );
-
--- Invites metadata column
+-- Invites metadata column (used by agent import in BUILD_23)
 ALTER TABLE invites ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}';
 
 -- Agent dedup helper function
