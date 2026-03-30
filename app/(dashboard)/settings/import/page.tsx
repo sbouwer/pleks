@@ -7,8 +7,13 @@ import { Step2Mapping } from "./_components/Step2Mapping"
 import { Step3ExpiredLeases } from "./_components/Step3ExpiredLeases"
 import { Step4Confirm } from "./_components/Step4Confirm"
 import { StepSuccess } from "./_components/StepSuccess"
+import { GLDetected } from "./_components/GLDetected"
+import { GLLeaseMatch } from "./_components/GLLeaseMatch"
+import { GLReview, type GLImportResultData } from "./_components/GLReview"
+import { GLSuccess } from "./_components/GLSuccess"
 import { WizardStepBar } from "./_components/WizardStepBar"
 import type { ColumnSuggestion } from "@/lib/import/columnMapper"
+import type { GLPropertyBlock } from "@/lib/import/parseGLReport"
 
 export interface AnalysisResult {
   detectedEntities: { hasTenant: boolean; hasUnit: boolean; hasLease: boolean }
@@ -35,6 +40,7 @@ export interface ImportResultData {
 }
 
 type WizardStep = "upload" | "detected" | "mapping" | "expired" | "confirm" | "success"
+  | "gl_detected" | "gl_lease_match" | "gl_review" | "gl_success"
 
 const STEP_ORDER: WizardStep[] = ["upload", "detected", "mapping", "expired", "confirm", "success"]
 
@@ -51,7 +57,17 @@ export default function ImportWizardPage() {
   })
   const [result, setResult] = useState<ImportResultData | null>(null)
 
-  const stepIndex = STEP_ORDER.indexOf(step)
+  // GL flow state
+  const [glBlocks, setGlBlocks] = useState<GLPropertyBlock[]>([])
+  const [glFilename, setGlFilename] = useState("")
+  const [glLeaseMatches, setGlLeaseMatches] = useState<Record<string, string>>({})
+  const [glPropertyMatches, setGlPropertyMatches] = useState<Record<string, string>>({})
+  const [glResult, setGlResult] = useState<GLImportResultData | null>(null)
+
+  const isGlFlow = step.startsWith("gl_")
+  const stepIndex = isGlFlow
+    ? ["gl_detected", "gl_lease_match", "gl_review", "gl_success"].indexOf(step) + 1
+    : STEP_ORDER.indexOf(step)
 
   const handleFileAnalysed = useCallback((
     analysisData: AnalysisResult,
@@ -119,16 +135,28 @@ export default function ImportWizardPage() {
       perRowOverrides: {},
     })
     setResult(null)
+    setGlBlocks([])
+    setGlFilename("")
+    setGlLeaseMatches({})
+    setGlPropertyMatches({})
+    setGlResult(null)
+  }, [])
+
+  // GL file detected callback
+  const handleGlDetected = useCallback((blocks: GLPropertyBlock[], filename: string) => {
+    setGlBlocks(blocks)
+    setGlFilename(filename)
+    setStep("gl_detected")
   }, [])
 
   return (
     <div>
-      {step !== "upload" && step !== "success" && (
-        <WizardStepBar currentStep={stepIndex} totalSteps={5} />
+      {step !== "upload" && step !== "success" && step !== "gl_success" && (
+        <WizardStepBar currentStep={stepIndex} totalSteps={isGlFlow ? 4 : 5} />
       )}
 
       {step === "upload" && (
-        <Step0Upload onAnalysed={handleFileAnalysed} />
+        <Step0Upload onAnalysed={handleFileAnalysed} onGlDetected={handleGlDetected} />
       )}
 
       {step === "detected" && analysis && (
@@ -206,6 +234,45 @@ export default function ImportWizardPage() {
 
       {step === "success" && result && (
         <StepSuccess result={result} onReset={handleReset} />
+      )}
+
+      {/* GL flow */}
+      {step === "gl_detected" && glBlocks.length > 0 && (
+        <GLDetected
+          blocks={glBlocks}
+          filename={glFilename}
+          onBack={() => setStep("upload")}
+          onContinue={() => setStep("gl_lease_match")}
+        />
+      )}
+
+      {step === "gl_lease_match" && glBlocks.length > 0 && (
+        <GLLeaseMatch
+          blocks={glBlocks}
+          onBack={() => setStep("gl_detected")}
+          onConfirm={(lm, pm) => {
+            setGlLeaseMatches(lm)
+            setGlPropertyMatches(pm)
+            setStep("gl_review")
+          }}
+        />
+      )}
+
+      {step === "gl_review" && glBlocks.length > 0 && (
+        <GLReview
+          blocks={glBlocks}
+          leaseMatches={glLeaseMatches}
+          propertyMatches={glPropertyMatches}
+          onBack={() => setStep("gl_lease_match")}
+          onImportComplete={(res) => {
+            setGlResult(res)
+            setStep("gl_success")
+          }}
+        />
+      )}
+
+      {step === "gl_success" && glResult && (
+        <GLSuccess result={glResult} onReset={handleReset} />
       )}
     </div>
   )
