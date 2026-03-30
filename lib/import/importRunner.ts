@@ -608,9 +608,9 @@ export async function runImport(
   }
 
   // Build conflict lookup
-  const skipSet = new Set<number>(decisions.skipRows)
+  const skipSet = new Set<number>(decisions.skipRows ?? [])
   const conflictMap = new Map<number, ConflictDecision>()
-  for (const cd of decisions.conflicts) {
+  for (const cd of decisions.conflicts ?? []) {
     for (const idx of cd.rowIndices) {
       conflictMap.set(idx, cd)
     }
