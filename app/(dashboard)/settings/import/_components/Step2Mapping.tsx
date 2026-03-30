@@ -40,6 +40,17 @@ const ALL_FIELDS = [
   { value: "tenant_bank_account_2", label: "Bank account 2 (encrypted)", entity: "bank" },
   { value: "tenant_bank_name_2", label: "Bank name 2", entity: "bank" },
   { value: "tenant_bank_branch_2", label: "Branch code 2", entity: "bank" },
+  // TPN extras
+  { value: "__dob", label: "Date of birth", entity: "extra" },
+  { value: "__vat", label: "VAT number", entity: "extra" },
+  { value: "__legal_name", label: "Legal / company name", entity: "extra" },
+  { value: "__trading_name", label: "Trading name", entity: "extra" },
+  { value: "__entity_id", label: "System ID (skip)", entity: "extra" },
+  { value: "__tpn_reference", label: "TPN reference (skip)", entity: "extra" },
+  { value: "__description", label: "Description", entity: "extra" },
+  { value: "__entity_state", label: "Status filter", entity: "filter" },
+  { value: "__entity_type", label: "Type filter", entity: "filter" },
+  { value: "__address_type", label: "Address type (skip)", entity: "extra" },
   // Routing
   { value: "tenant_notes", label: "→ Tenant notes", entity: "extra" },
   { value: "unit_notes", label: "→ Unit notes", entity: "extra" },
@@ -160,11 +171,12 @@ export function Step2Mapping({
             {headers.map((col) => {
               const mapped = mapping[col]
               const sample = sampleRows[0]?.[col] ?? ""
-              const status = mapped
-                ? ["tenant_notes", "unit_notes", "lease_notes", "export_csv"].includes(mapped.field)
-                  ? "extra"
-                  : "matched"
-                : "unmapped"
+              function getStatus() {
+                if (!mapped) return "unmapped"
+                if (["tenant_notes", "unit_notes", "lease_notes", "export_csv"].includes(mapped.field)) return "extra"
+                return "matched"
+              }
+              const status = getStatus()
 
               return (
                 <tr key={col} className="border-b border-border/50">
@@ -199,7 +211,9 @@ export function Step2Mapping({
                         : status === "extra" ? "bg-amber-500/10 text-amber-400"
                         : "bg-surface-elevated text-muted-foreground"
                     }`}>
-                      {status === "matched" ? "Matched" : status === "extra" ? "Extra" : "Skip"}
+                      {getStatus() === "unmapped" && "Skip"}
+                      {getStatus() === "extra" && "Extra"}
+                      {getStatus() === "matched" && "Matched"}
                     </Badge>
                   </td>
                 </tr>

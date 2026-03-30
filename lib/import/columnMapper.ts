@@ -133,30 +133,53 @@ export const FIELD_ALIASES: Record<string, FieldAlias> = {
 
   // TPN-specific fields
   identifier: { field: "id_number", entity: "tenant" },
+  textbox28: { field: "id_number", entity: "tenant" },
   numbers: { field: "phone", entity: "tenant" },
-  "legal name": { field: "employer_name", entity: "tenant" },
-  "trading name": { field: "employer_name", entity: "tenant" },
+  "legal name": { field: "__legal_name", entity: "extra" },
+  legalname: { field: "__legal_name", entity: "extra" },
+  "trading name": { field: "__trading_name", entity: "extra" },
+  tradingname: { field: "__trading_name", entity: "extra" },
   reference: { field: "__tpn_reference", entity: "extra" },
   "entity id": { field: "__entity_id", entity: "extra" },
+  entityid: { field: "__entity_id", entity: "extra" },
   description: { field: "__description", entity: "extra" },
   "date of birth": { field: "__dob", entity: "extra" },
+  dateofbirth: { field: "__dob", entity: "extra" },
   "vat number": { field: "__vat", entity: "extra" },
+  vatnumber1: { field: "__vat", entity: "extra" },
+  vatnumber: { field: "__vat", entity: "extra" },
+  // TPN address fields (addresstype columns are metadata, not addresses)
+  addresstype1: { field: "__address_type", entity: "extra" },
+  addresstype2: { field: "__address_type", entity: "extra" },
+  addresstype3: { field: "__address_type", entity: "extra" },
+  address1: { field: "address", entity: "unit" },
+  address2: { field: "__address_2", entity: "extra" },
+  address3: { field: "__address_3", entity: "extra" },
 
   // Bank fields
   "bank account 1": { field: "tenant_bank_account_1", entity: "bank" },
+  bankaccount1: { field: "tenant_bank_account_1", entity: "bank" },
   "bank name 1": { field: "tenant_bank_name_1", entity: "bank" },
+  bankname1: { field: "tenant_bank_name_1", entity: "bank" },
   "bank branch 1": { field: "tenant_bank_branch_1", entity: "bank" },
+  bankbranch1: { field: "tenant_bank_branch_1", entity: "bank" },
   "bank account 2": { field: "tenant_bank_account_2", entity: "bank" },
+  bankaccount2: { field: "tenant_bank_account_2", entity: "bank" },
   "bank name 2": { field: "tenant_bank_name_2", entity: "bank" },
+  bankname2: { field: "tenant_bank_name_2", entity: "bank" },
   "bank branch 2": { field: "tenant_bank_branch_2", entity: "bank" },
+  bankbranch2: { field: "tenant_bank_branch_2", entity: "bank" },
 
   // State/filter fields
   state: { field: "__entity_state", entity: "filter" },
   "entity state": { field: "__entity_state", entity: "filter" },
   entitystate1: { field: "__entity_state", entity: "filter" },
+  "entity state 1": { field: "__entity_state", entity: "filter" },
   status: { field: "__entity_state", entity: "filter" },
   "contact type": { field: "__entity_type", entity: "filter" },
   type: { field: "__entity_type", entity: "filter" },
+  entitytype1: { field: "__entity_type", entity: "filter" },
+  "entity type 1": { field: "__entity_type", entity: "filter" },
 }
 
 /**
@@ -190,8 +213,10 @@ export function matchColumns(headers: string[]): ColumnSuggestion[] {
       }
     }
 
-    // Partial/fuzzy: check if any alias key is contained in the header or vice versa
+    // Partial/fuzzy: only for longer aliases (min 6 chars) to avoid
+    // false positives like "id" matching "entityid" or "name" matching "bankname1"
     for (const [alias, mapping] of Object.entries(FIELD_ALIASES)) {
+      if (alias.length < 6) continue
       if (normalised.includes(alias) || alias.includes(normalised)) {
         return {
           column: header,
