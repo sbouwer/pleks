@@ -741,7 +741,7 @@ async function importVendors(
         registration_number: regNumber,
         vat_number: vatNumber,
         tpn_reference: tpnRef,
-        entity_id: entityId,
+        tpn_entity_id: entityId,
         notes,
       })
 
@@ -835,7 +835,8 @@ async function importLandlords(
           id_number: idNumber,
           vat_number: vatNumber,
           tpn_reference: tpnRef,
-          entity_id: entityId,
+          tpn_entity_id: entityId,
+          created_by: ctx.agentId,
         })
         .select("id")
         .single()
