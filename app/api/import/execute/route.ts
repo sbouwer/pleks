@@ -62,6 +62,7 @@ export async function POST(req: NextRequest) {
       decisions ?? {},
       orgId,
       user.id,
+      importSessionId,
       service
     )
 
@@ -87,9 +88,14 @@ export async function POST(req: NextRequest) {
         tenants: result.tenantsCreated,
         units: result.unitsCreated,
         leases: result.leasesCreated,
+        contractors: result.contractorsCreated ?? 0,
+        landlords: result.landlordsImported ?? 0,
+        agentInvites: result.agentInvitesSent ?? 0,
       },
       skipped: result.skipped,
       errors: result.errors,
+      pendingLandlordLinks: result.pendingLandlordLinks ?? [],
+      agentInvites: result.agentInvites ?? [],
     })
   } catch (err) {
     await service

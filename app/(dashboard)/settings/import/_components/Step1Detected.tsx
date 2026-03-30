@@ -1,30 +1,21 @@
 "use client"
 
-import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Users, Building2, FileText, ArrowLeft, ArrowRight, Info } from "lucide-react"
+import { Users, Building2, FileText, ArrowLeft, ArrowRight, Info, Wrench, UserCheck } from "lucide-react"
 import type { AnalysisResult } from "../page"
 
 interface Step1DetectedProps {
   analysis: AnalysisResult
   onBack: () => void
-  onContinue: (typeFilter?: string[], stateFilter?: string[]) => void
+  onContinue: () => void
 }
 
 export function Step1Detected({ analysis, onBack, onContinue }: Readonly<Step1DetectedProps>) {
-  // TYPE column filtering (for TPN mixed-entity exports)
   const hasTypeColumn = analysis.columnSuggestions.some(
     (s) => s.field === "__entity_type"
   )
-  const [typeFilters, setTypeFilters] = useState<Record<string, boolean>>({
-    Tenant: true,
-    Landlord: false,
-    Vendor: false,
-    Agent: false,
-  })
-  const [includeApplicants, setIncludeApplicants] = useState(false)
 
   const entities = [
     { key: "hasTenant", label: "Tenants", icon: Users, found: analysis.detectedEntities.hasTenant },
@@ -32,20 +23,6 @@ export function Step1Detected({ analysis, onBack, onContinue }: Readonly<Step1De
     { key: "hasLease", label: "Leases", icon: FileText, found: analysis.detectedEntities.hasLease },
   ]
 
-  function handleContinue() {
-    if (hasTypeColumn) {
-      const selectedTypes = Object.entries(typeFilters)
-        .filter(([, v]) => v)
-        .map(([k]) => k)
-      const states = ["Active"]
-      if (includeApplicants) states.push("Applicant")
-      onContinue(selectedTypes, states)
-    } else {
-      onContinue()
-    }
-  }
-
-  // Fix 6: Better "not found" messaging
   function getNotFoundMessage(key: string): string {
     if (key === "hasLease" && analysis.detectedEntities.hasTenant) {
       return "No lease data — this looks like a contacts export. Import tenants now and add lease details after."
@@ -83,45 +60,40 @@ export function Step1Detected({ analysis, onBack, onContinue }: Readonly<Step1De
         ))}
       </div>
 
-      {/* Fix 2: TYPE column entity filtering */}
+      {/* Mixed entity type info — routing is automatic */}
       {hasTypeColumn && (
-        <Card className="mb-6 border-amber-500/30 bg-amber-500/5">
-          <CardContent className="pt-4 space-y-3">
+        <Card className="mb-6 border-blue-500/20 bg-blue-500/5">
+          <CardContent className="pt-4 space-y-2">
             <div className="flex items-start gap-2">
-              <Info className="size-4 text-amber-500 mt-0.5 shrink-0" />
+              <Info className="size-4 text-blue-400 mt-0.5 shrink-0" />
               <div>
-                <p className="text-sm font-medium">This file contains multiple contact types</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Only tenants should be imported. Landlords, vendors, and agents are not tenant records.</p>
+                <p className="text-sm font-medium">Multiple contact types detected</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Each contact type will be imported to the correct location automatically:
+                </p>
               </div>
             </div>
-            <div className="space-y-2 pl-6">
-              {Object.entries(typeFilters).map(([type, checked]) => (
-                <label key={type} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={(e) => setTypeFilters({ ...typeFilters, [type]: e.target.checked })}
-                    className="accent-brand"
-                  />
-                  <span className={`text-sm ${type !== "Tenant" && checked ? "text-amber-500" : ""}`}>
-                    {type}s
-                    {type !== "Tenant" && checked && <span className="text-xs ml-1">(not recommended)</span>}
-                  </span>
-                </label>
-              ))}
+            <div className="grid grid-cols-2 gap-2 pl-6 text-xs">
+              <div className="flex items-center gap-1.5">
+                <Users className="size-3 text-blue-400" />
+                <span>Tenants → tenant records</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Wrench className="size-3 text-green-400" />
+                <span>Vendors → contractor records</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Building2 className="size-3 text-purple-400" />
+                <span>Landlords → link to properties</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <UserCheck className="size-3 text-amber-400" />
+                <span>Agents → team invites</span>
+              </div>
             </div>
-            <div className="pl-6">
-              <label className="flex items-center gap-2 cursor-pointer text-xs text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={includeApplicants}
-                  onChange={(e) => setIncludeApplicants(e.target.checked)}
-                  className="accent-brand"
-                />
-                Also import Applicants (STATE = &apos;Applicant&apos;)
-              </label>
-              <p className="text-xs text-muted-foreground mt-1">Inactive contacts are always skipped.</p>
-            </div>
+            <p className="text-xs text-muted-foreground pl-6">
+              Inactive contacts are skipped automatically.
+            </p>
           </CardContent>
         </Card>
       )}
@@ -159,7 +131,7 @@ export function Step1Detected({ analysis, onBack, onContinue }: Readonly<Step1De
         <Button variant="outline" onClick={onBack}>
           <ArrowLeft className="size-4 mr-1" /> Upload different file
         </Button>
-        <Button onClick={handleContinue} className="flex-1">
+        <Button onClick={onContinue} className="flex-1">
           Map columns <ArrowRight className="size-4 ml-1" />
         </Button>
       </div>
