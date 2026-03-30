@@ -4,6 +4,7 @@ export interface DetectedEntities {
   hasTenant: boolean
   hasUnit: boolean
   hasLease: boolean
+  hasBank: boolean
 }
 
 /**
@@ -16,5 +17,6 @@ export function detectEntities(suggestions: ColumnSuggestion[]): DetectedEntitie
     hasTenant: matched.some((s) => s.entity === "tenant"),
     hasUnit: matched.some((s) => s.entity === "unit"),
     hasLease: matched.some((s) => s.entity === "lease"),
+    hasBank: matched.some((s) => s.entity === "bank"),
   }
 }

@@ -24,6 +24,8 @@ export interface ImportDecisions {
   extraColumnRouting: Record<string, string>
   expiredLeaseAction: "skip" | "import_as_expired"
   perRowOverrides: Record<number, "active" | "skip">
+  typeFilter?: string[]
+  stateFilter?: string[]
 }
 
 export interface ImportResultData {
@@ -133,7 +135,27 @@ export default function ImportWizardPage() {
         <Step1Detected
           analysis={analysis}
           onBack={() => setStep("upload")}
-          onContinue={() => setStep("mapping")}
+          onContinue={(typeFilter, stateFilter) => {
+            if (typeFilter || stateFilter) {
+              setDecisions((d) => ({ ...d, typeFilter, stateFilter }))
+              // Filter rows by type/state if filters provided
+              if (typeFilter && allRows.length > 0) {
+                const typeCol = analysis.columnSuggestions.find((s) => s.field === "__entity_type")?.column
+                const stateCol = analysis.columnSuggestions.find((s) => s.field === "__entity_state")?.column
+                if (typeCol) {
+                  const filtered = allRows.filter((row) => {
+                    const typeVal = row[typeCol]?.trim()
+                    const stateVal = stateCol ? row[stateCol]?.trim() : "Active"
+                    const typeMatch = !typeFilter.length || typeFilter.some((t) => typeVal?.toLowerCase() === t.toLowerCase())
+                    const stateMatch = !stateFilter?.length || stateFilter.some((s) => stateVal?.toLowerCase() === s.toLowerCase())
+                    return typeMatch && stateMatch
+                  })
+                  setAllRows(filtered)
+                }
+              }
+            }
+            setStep("mapping")
+          }}
         />
       )}
 

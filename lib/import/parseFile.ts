@@ -39,6 +39,31 @@ async function parseCSVFile(file: File): Promise<ParsedFileResult> {
   })
 }
 
+function findHeaderRow(sheet: XLSX.WorkSheet): { headerRowIndex: number; headers: string[] } {
+  const range = XLSX.utils.decode_range(sheet["!ref"] || "A1")
+  for (let r = range.s.r; r <= Math.min(range.e.r, 9); r++) {
+    const rowValues: string[] = []
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const addr = XLSX.utils.encode_cell({ r, c })
+      const cell = sheet[addr]
+      if (cell?.v != null && String(cell.v).trim() !== "") {
+        rowValues.push(String(cell.v).trim())
+      }
+    }
+    if (rowValues.length >= 3) {
+      const headers: string[] = []
+      for (let c = range.s.c; c <= range.e.c; c++) {
+        const addr = XLSX.utils.encode_cell({ r, c })
+        const cell = sheet[addr]
+        const val = cell?.v != null ? String(cell.v).trim() : ""
+        if (val !== "") headers.push(val)
+      }
+      return { headerRowIndex: r, headers }
+    }
+  }
+  return { headerRowIndex: 0, headers: [] }
+}
+
 async function parseXLSXFile(file: File): Promise<ParsedFileResult> {
   const buffer = await file.arrayBuffer()
   const workbook = XLSX.read(buffer, { type: "array" })
@@ -53,8 +78,12 @@ async function parseXLSXFile(file: File): Promise<ParsedFileResult> {
     throw new Error("Could not read first sheet")
   }
 
-  // Get raw JSON with headers from first row
+  const { headerRowIndex, headers } = findHeaderRow(sheet)
+
+  // Read data rows starting after the detected header row
   const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+    header: headers,
+    range: headerRowIndex + 1,
     defval: "",
   })
 
@@ -66,8 +95,6 @@ async function parseXLSXFile(file: File): Promise<ParsedFileResult> {
     }
     return stringRow
   })
-
-  const headers = rawRows.length > 0 ? Object.keys(rawRows[0]) : []
 
   return { headers, rows }
 }

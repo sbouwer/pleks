@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArrowLeft, ArrowRight } from "lucide-react"
 import type { AnalysisResult } from "../page"
@@ -32,6 +33,14 @@ const ALL_FIELDS = [
   { value: "deposit_amount_cents", label: "Deposit", entity: "lease" },
   { value: "escalation_percent", label: "Escalation %", entity: "lease" },
   { value: "payment_method", label: "Payment method", entity: "lease" },
+  // Bank fields
+  { value: "tenant_bank_account_1", label: "Bank account (encrypted)", entity: "bank" },
+  { value: "tenant_bank_name_1", label: "Bank name", entity: "bank" },
+  { value: "tenant_bank_branch_1", label: "Branch code", entity: "bank" },
+  { value: "tenant_bank_account_2", label: "Bank account 2 (encrypted)", entity: "bank" },
+  { value: "tenant_bank_name_2", label: "Bank name 2", entity: "bank" },
+  { value: "tenant_bank_branch_2", label: "Branch code 2", entity: "bank" },
+  // Routing
   { value: "tenant_notes", label: "→ Tenant notes", entity: "extra" },
   { value: "unit_notes", label: "→ Unit notes", entity: "extra" },
   { value: "lease_notes", label: "→ Lease notes", entity: "extra" },
@@ -59,6 +68,12 @@ export function Step2Mapping({
   onConfirm,
 }: Readonly<Step2MappingProps>) {
   const [mapping, setMapping] = useState<Record<string, { field: string; entity: string }>>(initialMapping)
+  const [bankNoticeShown, setBankNoticeShown] = useState(false)
+  const [bankImportAccepted, setBankImportAccepted] = useState<boolean | null>(null)
+
+  // Detect if any columns are mapped to bank fields
+  const hasBankColumns = Object.values(mapping).some((m) => m.entity === "bank")
+  const showBankNotice = hasBankColumns && !bankNoticeShown
 
   function handleFieldChange(column: string, value: string) {
     if (value === "__skip") {
@@ -101,6 +116,36 @@ export function Step2Mapping({
         Confirm how each column maps to Pleks fields.
       </p>
 
+      {/* POPIA bank details notice */}
+      {showBankNotice && (
+        <Card className="mb-4 border-amber-500/20">
+          <CardContent className="pt-4 space-y-3">
+            <p className="text-sm font-medium">Bank account numbers detected in your file</p>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              These will be stored encrypted and used only for DebiCheck mandate setup and deposit refund processing.
+              Imported bank details are marked as unverified until confirmed via DebiCheck authentication.
+            </p>
+            <div className="flex gap-3">
+              <Button size="sm" onClick={() => { setBankNoticeShown(true); setBankImportAccepted(true) }}>
+                Import bank details securely
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => {
+                setBankNoticeShown(true)
+                setBankImportAccepted(false)
+                // Set all bank columns to skip
+                const updated = { ...mapping }
+                for (const [col, m] of Object.entries(updated)) {
+                  if (m.entity === "bank") delete updated[col]
+                }
+                setMapping(updated)
+              }}>
+                Skip bank columns
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="border border-border rounded-lg overflow-hidden mb-4">
         <table className="w-full text-sm">
           <thead>
@@ -138,11 +183,13 @@ export function Step2Mapping({
                         <SelectValue placeholder="Select field" />
                       </SelectTrigger>
                       <SelectContent>
-                        {ALL_FIELDS.map((f) => (
-                          <SelectItem key={f.value} value={f.value}>
-                            {f.label}
-                          </SelectItem>
-                        ))}
+                        {ALL_FIELDS
+                          .filter((f) => bankImportAccepted !== false || f.entity !== "bank")
+                          .map((f) => (
+                            <SelectItem key={f.value} value={f.value}>
+                              {f.label}
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </td>
