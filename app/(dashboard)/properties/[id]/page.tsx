@@ -84,7 +84,7 @@ export default async function PropertyDetailPage({
           icon={<DoorOpen className="h-8 w-8 text-muted-foreground" />}
           title="No units yet"
           description="Add units to this property to start managing tenants."
-          action={{ label: "Add Unit", onClick: () => {} }}
+          
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
