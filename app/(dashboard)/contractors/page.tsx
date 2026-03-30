@@ -2,6 +2,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { AddContractorForm } from "./AddContractorForm"
 
 export default async function ContractorsPage() {
   const supabase = await createClient()
@@ -27,8 +28,13 @@ export default async function ContractorsPage() {
 
   return (
     <div>
-      <h1 className="font-heading text-3xl mb-6">Contractors</h1>
-      <p className="text-sm text-muted-foreground mb-4">{contractors?.length ?? 0} contractors</p>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="font-heading text-3xl">Contractors</h1>
+          <p className="text-sm text-muted-foreground">{contractors?.length ?? 0} contractors</p>
+        </div>
+        <AddContractorForm orgId={membership.org_id} />
+      </div>
 
       {(!contractors || contractors.length === 0) ? (
         <p className="text-sm text-muted-foreground py-8 text-center">

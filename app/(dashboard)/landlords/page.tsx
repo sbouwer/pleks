@@ -2,6 +2,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { AddLandlordForm } from "./AddLandlordForm"
 
 export default async function LandlordsPage() {
   const supabase = await createClient()
@@ -36,7 +37,10 @@ export default async function LandlordsPage() {
 
   return (
     <div>
-      <h1 className="font-heading text-3xl mb-6">Landlords</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="font-heading text-3xl">Landlords</h1>
+        <AddLandlordForm orgId={membership.org_id} />
+      </div>
 
       {/* Pending landlords */}
       {pending && pending.length > 0 && (
