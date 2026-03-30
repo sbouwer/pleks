@@ -53,7 +53,7 @@ export default async function LeasesPage() {
           icon={<FileText className="h-8 w-8 text-muted-foreground" />}
           title="No leases yet"
           description="Create a lease to start managing tenancies."
-          action={{ label: "Create Lease", onClick: () => {} }}
+          
         />
       ) : (
         <div className="space-y-2">
