@@ -26,7 +26,7 @@ export async function buildRentRoll(filters: ReportFilters): Promise<RentRollDat
       id, unit_id, start_date, end_date, is_fixed_term,
       rent_amount_cents, deposit_amount_cents, status,
       debicheck_mandate_status,
-      tenants(first_name, last_name)
+      tenant_view(first_name, last_name)
     `)
     .eq("org_id", orgId)
     .in("unit_id", unitIds)
@@ -68,7 +68,7 @@ export async function buildRentRoll(filters: ReportFilters): Promise<RentRollDat
   const rows: RentRollRow[] = allUnits.map((unit) => {
     const prop = unit.properties as unknown as { name: string } | null
     const lease = leaseByUnit.get(unit.id)
-    const tenant = lease?.tenants as unknown as { first_name: string; last_name: string } | null
+    const tenant = lease?.tenant_view as unknown as { first_name: string; last_name: string } | null
     const endDate = lease?.end_date ? new Date(lease.end_date) : null
     const daysToExpiry = endDate
       ? Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))

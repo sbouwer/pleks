@@ -363,7 +363,7 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
 
   try {
     const { data: existing } = await ctx.supabase
-      .from("tenants").select("id").eq("org_id", ctx.orgId).ilike("email", email).limit(1).single()
+      .from("contacts").select("id").eq("org_id", ctx.orgId).ilike("primary_email", email).limit(1).single()
 
     if (existing) {
       ctx.tenantIdCache.set(email, String(existing.id))
@@ -373,15 +373,30 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
 
     const { firstName, lastName } = resolveName(entry.row, ctx.mapping)
 
+    const { data: contact, error: contactError } = await ctx.supabase
+      .from("contacts")
+      .insert({
+        org_id: ctx.orgId,
+        entity_type: "individual",
+        primary_role: "tenant",
+        first_name: firstName || "Unknown",
+        last_name: lastName || "Unknown",
+        primary_email: email,
+        primary_phone: getField(entry.row, "phone", ctx.mapping) || null,
+        id_number: getField(entry.row, "id_number", ctx.mapping) || null,
+      })
+      .select("id").single()
+
+    if (contactError || !contact) {
+      ctx.result.errors.push({ rowIndex: entry.index, field: "email", message: `Failed to create contact: ${contactError?.message ?? "Unknown error"}`, severity: "error" })
+      return
+    }
+
     const { data: created, error } = await ctx.supabase
       .from("tenants")
       .insert({
         org_id: ctx.orgId,
-        first_name: firstName || "Unknown",
-        last_name: lastName || "Unknown",
-        email,
-        phone: getField(entry.row, "phone", ctx.mapping) || null,
-        id_number: getField(entry.row, "id_number", ctx.mapping) || null,
+        contact_id: contact.id,
         employer_name: getField(entry.row, "employer_name", ctx.mapping) || null,
       })
       .select("id").single()
@@ -414,10 +429,29 @@ async function insertSingleTenant(params: {
   if (ctx.tenantIdCache.has(email)) return
 
   const { data: existing } = await ctx.supabase
-    .from("tenants").select("id").eq("org_id", ctx.orgId).ilike("email", email).limit(1).single()
+    .from("contacts").select("id").eq("org_id", ctx.orgId).ilike("primary_email", email).limit(1).single()
 
   if (existing) {
     ctx.tenantIdCache.set(email, String(existing.id))
+    return
+  }
+
+  const { data: contact, error: contactError } = await ctx.supabase
+    .from("contacts")
+    .insert({
+      org_id: ctx.orgId,
+      entity_type: "individual",
+      primary_role: "tenant",
+      first_name: firstName || "Unknown",
+      last_name: lastName || "Unknown",
+      primary_email: email,
+      primary_phone: phone || null,
+      id_number: idNumber || null,
+    })
+    .select("id").single()
+
+  if (contactError || !contact) {
+    ctx.result.errors.push({ rowIndex: entry.index, field: "email", message: `Co-tenant contact error: ${contactError?.message}`, severity: "error" })
     return
   }
 
@@ -425,13 +459,7 @@ async function insertSingleTenant(params: {
     .from("tenants")
     .insert({
       org_id: ctx.orgId,
-      first_name: firstName || "Unknown",
-      last_name: lastName || "Unknown",
-      email,
-      phone: phone || null,
-      id_number: idNumber || null,
-      tenant_type: "individual",
-      status: "active",
+      contact_id: contact.id,
     })
     .select("id")
     .single()
@@ -776,7 +804,7 @@ async function importVendors(
       // Dedup by email against existing contractors
       if (email) {
         const { data: existingByEmail } = await ctx.supabase
-          .from("contractors")
+          .from("contractor_view")
           .select("id")
           .eq("org_id", ctx.orgId)
           .ilike("email", email)
@@ -792,10 +820,10 @@ async function importVendors(
       // Dedup by name against existing contractors
       if (displayName) {
         const { data: existingByName } = await ctx.supabase
-          .from("contractors")
+          .from("contractor_view")
           .select("id")
           .eq("org_id", ctx.orgId)
-          .ilike("name", displayName)
+          .ilike("company_name", displayName)
           .limit(1)
           .single()
 
@@ -808,22 +836,38 @@ async function importVendors(
       const phone = getField(row, "phone", ctx.mapping) || null
       const regNumber = getField(row, "registration_number", ctx.mapping) || null
       const vatNumber = getField(row, "vat_number", ctx.mapping) || null
-      const tpnRef = getField(row, "__tpn_reference", ctx.mapping) || null
-      const entityId = getField(row, "__entity_id", ctx.mapping) || null
       const notes = buildBankNotes(row, ctx.mapping)
+
+      const { data: contact, error: contactError } = await ctx.supabase
+        .from("contacts")
+        .insert({
+          org_id: ctx.orgId,
+          entity_type: displayName && !firstName ? "organisation" : "individual",
+          primary_role: "contractor",
+          first_name: firstName || null,
+          last_name: lastName || null,
+          company_name: displayName || null,
+          primary_email: email || null,
+          primary_phone: phone,
+          registration_number: regNumber,
+          vat_number: vatNumber,
+          notes,
+        })
+        .select("id").single()
+
+      if (contactError || !contact) {
+        ctx.result.errors.push({
+          rowIndex: i,
+          field: "email",
+          message: `Failed to create contractor contact: ${contactError?.message}`,
+          severity: "error",
+        })
+        continue
+      }
 
       const { error } = await ctx.supabase.from("contractors").insert({
         org_id: ctx.orgId,
-        name: displayName || "Unknown",
-        first_name: firstName || null,
-        last_name: lastName || null,
-        email: email || null,
-        phone,
-        registration_number: regNumber,
-        vat_number: vatNumber,
-        tpn_reference: tpnRef,
-        tpn_entity_id: entityId,
-        notes,
+        contact_id: contact.id,
       })
 
       if (error) {
@@ -886,7 +930,7 @@ async function importLandlords(
 
       // Dedup against pending_landlords.email
       const { data: existingPending } = await ctx.supabase
-        .from("pending_landlords")
+        .from("landlord_view")
         .select("id")
         .eq("org_id", ctx.orgId)
         .ilike("email", email)
@@ -902,21 +946,37 @@ async function importLandlords(
       const phone = getField(row, "phone", ctx.mapping) || null
       const idNumber = getField(row, "id_number", ctx.mapping) || null
       const vatNumber = getField(row, "vat_number", ctx.mapping) || null
-      const tpnRef = getField(row, "__tpn_reference", ctx.mapping) || null
-      const entityId = getField(row, "__entity_id", ctx.mapping) || null
 
-      const { data: created, error } = await ctx.supabase
-        .from("pending_landlords")
+      const { data: contact, error: contactError } = await ctx.supabase
+        .from("contacts")
         .insert({
           org_id: ctx.orgId,
+          entity_type: "individual",
+          primary_role: "landlord",
           first_name: firstName || "Unknown",
           last_name: lastName || "Unknown",
-          email,
-          phone,
+          primary_email: email,
+          primary_phone: phone,
           id_number: idNumber,
           vat_number: vatNumber,
-          tpn_reference: tpnRef,
-          tpn_entity_id: entityId,
+        })
+        .select("id").single()
+
+      if (contactError || !contact) {
+        ctx.result.errors.push({
+          rowIndex: i,
+          field: "email",
+          message: `Failed to create landlord contact: ${contactError?.message ?? "Unknown error"}`,
+          severity: "error",
+        })
+        continue
+      }
+
+      const { data: created, error } = await ctx.supabase
+        .from("landlords")
+        .insert({
+          org_id: ctx.orgId,
+          contact_id: contact.id,
           created_by: ctx.agentId,
         })
         .select("id")
@@ -926,7 +986,7 @@ async function importLandlords(
         ctx.result.errors.push({
           rowIndex: i,
           field: "email",
-          message: `Failed to create pending landlord: ${error?.message ?? "Unknown error"}`,
+          message: `Failed to create landlord: ${error?.message ?? "Unknown error"}`,
           severity: "error",
         })
       } else {

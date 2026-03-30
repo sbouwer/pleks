@@ -12,7 +12,7 @@ export default async function ContractorDashboard() {
 
   // Get contractor records (may work for multiple orgs)
   const { data: contractors } = await supabase
-    .from("contractors")
+    .from("contractor_view")
     .select("id, name, company_name, org_id, organisations(name)")
     .eq("auth_user_id", user.id)
     .eq("portal_access_enabled", true)

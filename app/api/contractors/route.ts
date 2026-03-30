@@ -22,14 +22,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Name is required" }, { status: 400 })
   }
 
+  // Create contact first
+  const { data: contact, error: contactError } = await service.from("contacts").insert({
+    org_id: membership.org_id,
+    entity_type: companyName?.trim() ? "organisation" : "individual",
+    primary_role: "contractor",
+    first_name: name.trim(),
+    company_name: companyName?.trim() || null,
+    primary_email: email?.trim() || null,
+    primary_phone: phone?.trim() || null,
+    created_by: user.id,
+  }).select("id").single()
+
+  if (contactError || !contact) return NextResponse.json({ error: contactError?.message || "Failed to create contact" }, { status: 500 })
+
+  // Create thin contractor record
   const { error } = await service.from("contractors").insert({
     org_id: membership.org_id,
-    name: name.trim(),
-    company_name: companyName?.trim() || null,
-    email: email?.trim() || null,
-    phone: phone?.trim() || null,
+    contact_id: contact.id,
     is_active: true,
-    created_by: user.id,
   })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

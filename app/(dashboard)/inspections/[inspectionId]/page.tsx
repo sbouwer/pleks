@@ -29,7 +29,7 @@ export default async function InspectionDetailPage({
 
   const { data: inspection } = await supabase
     .from("inspections")
-    .select("*, units(unit_number, properties(name, address_line1)), tenants(first_name, last_name)")
+    .select("*, units(unit_number, properties(name, address_line1)), tenant_view(first_name, last_name)")
     .eq("id", inspectionId)
     .single()
 
@@ -42,7 +42,7 @@ export default async function InspectionDetailPage({
     .order("display_order")
 
   const unit = inspection.units as unknown as { unit_number: string; properties: { name: string; address_line1: string } } | null
-  const tenant = inspection.tenants as unknown as { first_name: string; last_name: string } | null
+  const tenant = inspection.tenant_view as unknown as { first_name: string; last_name: string } | null
 
   const totalItems = (rooms || []).reduce((sum, r) => sum + ((r.inspection_items as unknown[]) || []).length, 0)
   const inspectedItems = (rooms || []).reduce((sum, r) =>

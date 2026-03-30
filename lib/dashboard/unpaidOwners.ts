@@ -44,7 +44,7 @@ export async function getUnpaidOwners(orgId: string, periodMonth?: Date): Promis
   const ownerNames = new Map<string, string>()
   if (ownerIds.length > 0) {
     const { data: owners } = await supabase
-      .from("tenants")
+      .from("landlord_view")
       .select("id, first_name, last_name, company_name")
       .in("id", ownerIds)
 

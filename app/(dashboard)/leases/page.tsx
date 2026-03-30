@@ -25,7 +25,7 @@ export default async function LeasesPage() {
 
   const { data: leases } = await supabase
     .from("leases")
-    .select("id, status, lease_type, start_date, end_date, rent_amount_cents, tenants(first_name, last_name, company_name, tenant_type), units(unit_number, properties(name))")
+    .select("id, status, lease_type, start_date, end_date, rent_amount_cents, tenant_view(first_name, last_name, company_name, entity_type), units(unit_number, properties(name))")
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
 
@@ -58,9 +58,9 @@ export default async function LeasesPage() {
       ) : (
         <div className="space-y-2">
           {list.map((lease) => {
-            const tenant = lease.tenants as unknown as { first_name: string; last_name: string; company_name: string; tenant_type: string } | null
+            const tenant = lease.tenant_view as unknown as { first_name: string; last_name: string; company_name: string; entity_type: string } | null
             const unit = lease.units as unknown as { unit_number: string; properties: { name: string } } | null
-            const tenantName = tenant?.tenant_type === "company"
+            const tenantName = tenant?.entity_type === "company"
               ? tenant.company_name
               : `${tenant?.first_name || ""} ${tenant?.last_name || ""}`.trim()
 

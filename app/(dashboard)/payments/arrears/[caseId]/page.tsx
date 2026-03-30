@@ -25,7 +25,7 @@ export default async function ArrearsDetailPage({
 
   const { data: arrearsCase } = await supabase
     .from("arrears_cases")
-    .select("*, tenants(first_name, last_name, company_name, tenant_type, email, phone), units(unit_number, properties(name))")
+    .select("*, tenant_view(first_name, last_name, company_name, entity_type, email, phone), units(unit_number, properties(name))")
     .eq("id", caseId)
     .single()
 
@@ -52,9 +52,9 @@ export default async function ArrearsDetailPage({
     .limit(1)
     .single()
 
-  const tenant = arrearsCase.tenants as unknown as { first_name: string; last_name: string; company_name: string; tenant_type: string; email: string; phone: string } | null
+  const tenant = arrearsCase.tenant_view as unknown as { first_name: string; last_name: string; company_name: string; entity_type: string; email: string; phone: string } | null
   const unit = arrearsCase.units as unknown as { unit_number: string; properties: { name: string } } | null
-  const tenantName = tenant?.tenant_type === "company"
+  const tenantName = tenant?.entity_type === "company"
     ? tenant.company_name
     : `${tenant?.first_name || ""} ${tenant?.last_name || ""}`.trim()
 

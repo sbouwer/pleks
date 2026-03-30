@@ -25,7 +25,7 @@ export default async function ContractorJobDetailPage({
       estimated_cost_cents, quoted_cost_cents, actual_cost_cents,
       properties(name, address_line1, city),
       units(unit_number),
-      tenants(first_name, last_name, phone)
+      tenant_view(first_name, last_name, phone)
     `)
     .eq("id", requestId)
     .single()
@@ -34,7 +34,7 @@ export default async function ContractorJobDetailPage({
 
   const prop = job.properties as unknown as { name: string; address_line1: string; city: string } | null
   const unit = job.units as unknown as { unit_number: string } | null
-  const tenant = job.tenants as unknown as { first_name: string; last_name: string; phone: string } | null
+  const tenant = job.tenant_view as unknown as { first_name: string; last_name: string; phone: string } | null
 
   // Get quotes for this job
   const { data: quotes } = await supabase

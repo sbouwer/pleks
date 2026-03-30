@@ -19,7 +19,7 @@ export async function disburseDeposit(leaseId: string, agentId: string) {
   if (!recon) return { error: "Reconciliation not found" }
 
   const { data: tenant } = await supabase
-    .from("tenants")
+    .from("tenant_view")
     .select("first_name, last_name, email")
     .eq("id", recon.tenant_id)
     .single()

@@ -24,7 +24,7 @@ export default async function InspectionsPage() {
 
   const { data: inspections } = await supabase
     .from("inspections")
-    .select("id, inspection_type, lease_type, status, scheduled_date, conducted_date, units(unit_number, properties(name)), tenants(first_name, last_name)")
+    .select("id, inspection_type, lease_type, status, scheduled_date, conducted_date, units(unit_number, properties(name)), tenant_view(first_name, last_name)")
     .order("created_at", { ascending: false })
 
   const list = inspections || []
@@ -53,7 +53,7 @@ export default async function InspectionsPage() {
         <div className="space-y-2">
           {list.map((insp) => {
             const unit = insp.units as unknown as { unit_number: string; properties: { name: string } } | null
-            const tenant = insp.tenants as unknown as { first_name: string; last_name: string } | null
+            const tenant = insp.tenant_view as unknown as { first_name: string; last_name: string } | null
 
             return (
               <Link key={insp.id} href={`/inspections/${insp.id}`}>

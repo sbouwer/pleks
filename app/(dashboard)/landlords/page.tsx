@@ -2,7 +2,8 @@ import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { AddLandlordForm } from "./AddLandlordForm"
+import { EmptyState } from "@/components/shared/EmptyState"
+import { Users } from "lucide-react"
 
 export default async function LandlordsPage() {
   const supabase = await createClient()
@@ -19,80 +20,75 @@ export default async function LandlordsPage() {
 
   if (!membership) redirect("/onboarding")
 
-  // Get pending landlords
-  const { data: pending } = await supabase
-    .from("pending_landlords")
-    .select("id, full_name, first_name, last_name, email, phone, linked_property_id, properties(name)")
+  // Get landlords from the view (joins contacts automatically)
+  const { data: landlords } = await supabase
+    .from("landlord_view")
+    .select("id, contact_id, first_name, last_name, company_name, email, phone, tax_number, bank_name, bank_account, bank_branch")
     .eq("org_id", membership.org_id)
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
 
-  // Get linked landlords (from properties.owner_*)
-  const { data: linked } = await supabase
+  // Get properties linked to landlords
+  const { data: properties } = await supabase
     .from("properties")
-    .select("id, name, owner_name, owner_email, owner_phone")
+    .select("id, name, landlord_id")
     .eq("org_id", membership.org_id)
-    .not("owner_email", "is", null)
+    .not("landlord_id", "is", null)
     .is("deleted_at", null)
+
+  const list = landlords || []
+  const propsByLandlord = (properties || []).reduce<Record<string, string[]>>((acc, p) => {
+    if (p.landlord_id) {
+      acc[p.landlord_id] = acc[p.landlord_id] || []
+      acc[p.landlord_id].push(p.name)
+    }
+    return acc
+  }, {})
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="font-heading text-3xl">Landlords</h1>
-        <AddLandlordForm orgId={membership.org_id} />
+        <div>
+          <h1 className="font-heading text-3xl">Landlords</h1>
+          {list.length > 0 && (
+            <p className="text-sm text-muted-foreground mt-1">{list.length} landlords</p>
+          )}
+        </div>
       </div>
 
-      {/* Pending landlords */}
-      {pending && pending.length > 0 && (
-        <div className="mb-8">
-          <h2 className="text-sm font-medium text-amber-500 mb-3">
-            Pending — link to properties ({pending.filter((p) => !p.linked_property_id).length})
-          </h2>
-          <div className="space-y-2">
-            {pending.filter((p) => !p.linked_property_id).map((ll) => {
-              const name = ll.full_name || `${ll.first_name ?? ""} ${ll.last_name ?? ""}`.trim() || "Unknown"
-              return (
-                <Card key={ll.id} className="border-amber-500/20">
-                  <CardContent className="py-3 flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">{name}</p>
-                      <p className="text-xs text-muted-foreground">{ll.email}{ll.phone ? ` · ${ll.phone}` : ""}</p>
-                    </div>
-                    <Badge variant="secondary" className="text-[10px] bg-amber-500/10 text-amber-400">Pending</Badge>
-                  </CardContent>
-                </Card>
-              )
-            })}
-          </div>
-        </div>
-      )}
+      {list.length === 0 ? (
+        <EmptyState
+          icon={<Users className="h-8 w-8 text-muted-foreground" />}
+          title="No landlords yet"
+          description="Import contacts or add landlord details on a property's page."
+        />
+      ) : (
+        <div className="space-y-2">
+          {list.map((ll) => {
+            const name = ll.company_name
+              ? ll.company_name
+              : `${ll.first_name ?? ""} ${ll.last_name ?? ""}`.trim() || "Unknown"
+            const linkedProps = propsByLandlord[ll.id] || []
 
-      {/* Linked landlords */}
-      {linked && linked.length > 0 && (
-        <div>
-          <h2 className="text-sm font-medium mb-3">Linked to properties ({linked.length})</h2>
-          <div className="space-y-2">
-            {linked.map((prop) => (
-              <Card key={prop.id}>
+            return (
+              <Card key={ll.id}>
                 <CardContent className="py-3 flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium">{prop.owner_name ?? "Unknown"}</p>
+                    <p className="text-sm font-medium">{name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {prop.owner_email}{prop.owner_phone ? ` · ${prop.owner_phone}` : ""}
+                      {ll.email}{ll.phone ? ` · ${ll.phone}` : ""}
                     </p>
                   </div>
-                  <Badge variant="secondary" className="text-[10px]">{prop.name}</Badge>
+                  <div className="flex items-center gap-2">
+                    {linkedProps.map((propName) => (
+                      <Badge key={propName} variant="secondary" className="text-[10px]">{propName}</Badge>
+                    ))}
+                  </div>
                 </CardContent>
               </Card>
-            ))}
-          </div>
+            )
+          })}
         </div>
-      )}
-
-      {(!pending || pending.length === 0) && (!linked || linked.length === 0) && (
-        <p className="text-sm text-muted-foreground py-8 text-center">
-          No landlords yet. Import contacts or add landlord details on a property&apos;s page.
-        </p>
       )}
     </div>
   )

@@ -34,16 +34,16 @@ export async function generateOwnerStatement(
   const { data: invoices } = unitIds.length > 0
     ? await supabase
         .from("rent_invoices")
-        .select("*, leases(tenant_id, tenants(first_name, last_name, company_name, tenant_type)), units(unit_number)")
+        .select("*, leases(tenant_id, tenant_view(first_name, last_name, company_name, entity_type)), units(unit_number)")
         .in("unit_id", unitIds)
         .gte("period_from", periodFromStr)
         .lte("period_to", periodToStr)
     : { data: [] }
 
   const incomeLines = (invoices || []).map((inv) => {
-    const tenant = (inv.leases as Record<string, unknown>)?.tenants as Record<string, string> | undefined
+    const tenant = (inv.leases as Record<string, unknown>)?.tenant_view as Record<string, string> | undefined
     const unit = inv.units as Record<string, string> | null
-    const tenantName = tenant?.tenant_type === "company"
+    const tenantName = tenant?.entity_type === "company"
       ? tenant.company_name
       : `${tenant?.first_name || ""} ${tenant?.last_name || ""}`.trim()
     return {
@@ -64,14 +64,14 @@ export async function generateOwnerStatement(
   // Expenses: paid supplier invoices for this property in this period
   const { data: expenses } = await supabase
     .from("supplier_invoices")
-    .select("*, contractors(name)")
+    .select("*, contractor_view(first_name, last_name, company_name)")
     .eq("property_id", propertyId)
     .in("status", ["paid", "owner_direct_recorded"])
     .eq("statement_month", periodFromStr)
 
   const expenseLines = (expenses || []).map((exp) => ({
     description: exp.statement_line_description || exp.description,
-    contractor: (exp.contractors as Record<string, string> | null)?.name || "—",
+    contractor: ((cv) => cv?.company_name || `${cv?.first_name ?? ""} ${cv?.last_name ?? ""}`.trim() || "—")(exp.contractor_view as Record<string, string> | null),
     invoice_ref: exp.invoice_number || "—",
     amount_cents: exp.amount_incl_vat_cents,
   }))

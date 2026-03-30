@@ -72,7 +72,7 @@ export async function buildOwnerPortfolio(filters: ReportFilters): Promise<Owner
   const ownerIds = Array.from(ownerMap.keys()).filter((id) => id.length === 36) // UUID check
   if (ownerIds.length > 0) {
     const { data: owners } = await supabase
-      .from("tenants")
+      .from("landlord_view")
       .select("id, first_name, last_name, company_name")
       .in("id", ownerIds)
 

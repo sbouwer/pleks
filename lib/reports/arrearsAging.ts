@@ -10,7 +10,7 @@ export async function buildArrearsAgingReport(filters: ReportFilters): Promise<A
     .select(`
       id, tenant_id, unit_id, property_id, total_arrears_cents,
       oldest_outstanding_date, current_step, status,
-      tenants(first_name, last_name),
+      tenant_view(first_name, last_name),
       units(unit_number),
       properties(name)
     `)
@@ -26,7 +26,7 @@ export async function buildArrearsAgingReport(filters: ReportFilters): Promise<A
   let total30 = 0, total60 = 0, total90 = 0, total90plus = 0
 
   const rows: ArrearsAgingRow[] = allCases.map((c) => {
-    const tenant = c.tenants as unknown as { first_name: string; last_name: string } | null
+    const tenant = c.tenant_view as unknown as { first_name: string; last_name: string } | null
     const unit = c.units as unknown as { unit_number: string } | null
     const prop = c.properties as unknown as { name: string } | null
     const amount = c.total_arrears_cents ?? 0

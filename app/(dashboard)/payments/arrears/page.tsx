@@ -25,7 +25,7 @@ export default async function ArrearsPage() {
 
   const { data: cases } = await supabase
     .from("arrears_cases")
-    .select("id, status, total_arrears_cents, months_in_arrears, current_step, lease_type, tenants(first_name, last_name, company_name, tenant_type), units(unit_number, properties(name))")
+    .select("id, status, total_arrears_cents, months_in_arrears, current_step, lease_type, tenant_view(first_name, last_name, company_name, entity_type), units(unit_number, properties(name))")
     .order("total_arrears_cents", { ascending: false })
 
   const list = cases || []
@@ -49,9 +49,9 @@ export default async function ArrearsPage() {
       ) : (
         <div className="space-y-2">
           {list.map((arrearsCase) => {
-            const tenant = arrearsCase.tenants as unknown as { first_name: string; last_name: string; company_name: string; tenant_type: string } | null
+            const tenant = arrearsCase.tenant_view as unknown as { first_name: string; last_name: string; company_name: string; entity_type: string } | null
             const unit = arrearsCase.units as unknown as { unit_number: string; properties: { name: string } } | null
-            const tenantName = tenant?.tenant_type === "company"
+            const tenantName = tenant?.entity_type === "company"
               ? tenant.company_name
               : `${tenant?.first_name || ""} ${tenant?.last_name || ""}`.trim()
 

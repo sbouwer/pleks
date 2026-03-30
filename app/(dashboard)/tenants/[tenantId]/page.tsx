@@ -18,7 +18,7 @@ export default async function TenantDetailPage({
   if (!user) redirect("/login")
 
   const { data: tenant } = await supabase
-    .from("tenants")
+    .from("tenant_view")
     .select("*")
     .eq("id", tenantId)
     .is("deleted_at", null)
@@ -27,7 +27,7 @@ export default async function TenantDetailPage({
   if (!tenant) notFound()
 
   const { data: contacts } = await supabase
-    .from("tenant_contacts")
+    .from("tenant_next_of_kin")
     .select("*")
     .eq("tenant_id", tenantId)
 
@@ -44,7 +44,7 @@ export default async function TenantDetailPage({
     .eq("tenant_id", tenantId)
     .order("move_in_date", { ascending: false })
 
-  const name = tenant.tenant_type === "individual"
+  const name = tenant.entity_type === "individual"
     ? `${tenant.first_name || ""} ${tenant.last_name || ""}`.trim()
     : tenant.company_name || "Unnamed"
 
@@ -57,7 +57,7 @@ export default async function TenantDetailPage({
             <Link href="/tenants" className="hover:text-foreground">Tenants</Link> &rsaquo; {name}
           </p>
           <h1 className="font-heading text-3xl">{name}</h1>
-          <p className="text-sm text-muted-foreground capitalize">{tenant.tenant_type} tenant</p>
+          <p className="text-sm text-muted-foreground capitalize">{tenant.entity_type} tenant</p>
         </div>
         <Button variant="outline" render={<Link href={`/tenants/${tenantId}/edit`} />}>
           <Pencil className="h-4 w-4 mr-1" /> Edit
@@ -69,7 +69,7 @@ export default async function TenantDetailPage({
         <Card>
           <CardHeader><CardTitle className="text-lg">Details</CardTitle></CardHeader>
           <CardContent className="space-y-3 text-sm">
-            {tenant.tenant_type === "individual" ? (
+            {tenant.entity_type === "individual" ? (
               <>
                 {tenant.id_number && (
                   <div className="flex justify-between">
@@ -92,12 +92,7 @@ export default async function TenantDetailPage({
               </>
             ) : (
               <>
-                {tenant.company_reg_number && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Reg Number</span>
-                    <span>{tenant.company_reg_number}</span>
-                  </div>
-                )}
+                {/* registration_number not exposed in tenant_view — query contacts if needed */}
                 {tenant.contact_person && (
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Contact Person</span>

@@ -26,7 +26,7 @@ export default async function PaymentsPage() {
 
   const { data: invoices } = await supabase
     .from("supplier_invoices")
-    .select("id, invoice_number, description, amount_incl_vat_cents, invoice_date, status, payment_source, contractors(name, company_name), properties(name)")
+    .select("id, invoice_number, description, amount_incl_vat_cents, invoice_date, status, payment_source, contractor_view(first_name, last_name, company_name), properties(name)")
     .order("created_at", { ascending: false })
     .limit(50)
 
@@ -55,7 +55,7 @@ export default async function PaymentsPage() {
       ) : (
         <div className="space-y-2">
           {list.map((inv) => {
-            const contractor = inv.contractors as unknown as { name: string; company_name: string | null } | null
+            const contractor = inv.contractor_view as unknown as { first_name: string; last_name: string; company_name: string | null } | null
             const property = inv.properties as unknown as { name: string } | null
 
             return (
@@ -70,7 +70,7 @@ export default async function PaymentsPage() {
                         )}
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        {contractor ? contractor.company_name || contractor.name : "Unknown"}
+                        {contractor ? contractor.company_name || `${contractor.first_name} ${contractor.last_name}`.trim() : "Unknown"}
                         {property ? ` · ${property.name}` : ""}
                         {` · ${inv.invoice_date}`}
                       </p>

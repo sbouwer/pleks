@@ -13,7 +13,7 @@ export async function buildLeaseExpiryReport(filters: ReportFilters): Promise<Le
       auto_renewal_notice_sent_at,
       units(unit_number),
       properties(name),
-      tenants(first_name, last_name)
+      tenant_view(first_name, last_name)
     `)
     .eq("org_id", orgId)
     .in("status", ["active"])
@@ -31,7 +31,7 @@ export async function buildLeaseExpiryReport(filters: ReportFilters): Promise<Le
   function toRow(l: typeof allLeases[number]): LeaseExpiryRow {
     const unit = l.units as unknown as { unit_number: string } | null
     const prop = l.properties as unknown as { name: string } | null
-    const tenant = l.tenants as unknown as { first_name: string; last_name: string } | null
+    const tenant = l.tenant_view as unknown as { first_name: string; last_name: string } | null
     const endDate = l.end_date ? new Date(l.end_date) : null
     const daysToExpiry = endDate
       ? Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
