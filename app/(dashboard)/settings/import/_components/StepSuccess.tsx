@@ -17,6 +17,12 @@ export function StepSuccess({ result, onReset }: Readonly<StepSuccessProps>) {
   const hasRecords = result.created.tenants > 0 || result.created.units > 0 || result.created.leases > 0
   const hasErrors = result.errors.length > 0
 
+  function getHeading() {
+    if (!hasRecords) return "Import completed with errors"
+    if (result.created.units > 0) return "Portfolio imported"
+    return "Contacts imported"
+  }
+
   return (
     <div className="max-w-lg mx-auto text-center py-8">
       <div className={`mx-auto w-16 h-16 rounded-full flex items-center justify-center mb-6 ${hasRecords ? "bg-green-500/10" : "bg-amber-500/10"}`}>
@@ -28,10 +34,10 @@ export function StepSuccess({ result, onReset }: Readonly<StepSuccessProps>) {
       </div>
 
       <h2 className="font-heading text-2xl mb-2">
-        {hasRecords ? "Portfolio imported" : "Import completed with errors"}
+        {getHeading()}
       </h2>
       <p className="text-muted-foreground text-sm mb-6">
-        {result.created.tenants} tenant{result.created.tenants !== 1 ? "s" : ""} · {result.created.units} unit{result.created.units !== 1 ? "s" : ""} · {result.created.leases} lease{result.created.leases !== 1 ? "s" : ""}
+        {result.created.tenants} contact{result.created.tenants === 1 ? "" : "s"} · {result.created.units} unit{result.created.units === 1 ? "" : "s"} · {result.created.leases} lease{result.created.leases === 1 ? "" : "s"}
       </p>
 
       {result.skipped > 0 && (

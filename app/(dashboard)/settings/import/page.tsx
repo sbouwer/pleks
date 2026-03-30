@@ -137,25 +137,35 @@ export default function ImportWizardPage() {
           onBack={() => setStep("upload")}
           onContinue={(typeFilter, stateFilter) => {
             setDecisions((d) => ({ ...d, typeFilter, stateFilter }))
-            // Filter rows by type/state if filters provided
+
+            // Filter rows by type/state BEFORE advancing
+            let rowsToUse = allRows
             if (typeFilter && typeFilter.length > 0 && allRows.length > 0) {
-              // Find the actual column name for the type/state fields
               const typeCol = analysis.columnSuggestions.find((s) => s.field === "__entity_type")?.column
               const stateCol = analysis.columnSuggestions.find((s) => s.field === "__entity_state")?.column
+
+              // Debug: log what we're looking for
+              console.log("Filter debug:", { typeCol, stateCol, typeFilter, stateFilter })
+              if (allRows[0]) console.log("Row keys:", Object.keys(allRows[0]))
+              if (typeCol && allRows[0]) console.log("Type value in row[0]:", allRows[0][typeCol])
+
               if (typeCol) {
-                const beforeCount = allRows.length
-                const filtered = allRows.filter((row) => {
+                rowsToUse = allRows.filter((row) => {
                   const typeVal = row[typeCol]?.trim()
-                  if (!typeVal) return true // keep rows without a type value
+                  if (!typeVal) return true
                   const stateVal = stateCol ? row[stateCol]?.trim() : "Active"
                   const typeMatch = typeFilter.some((t) => typeVal.toLowerCase() === t.toLowerCase())
                   const stateMatch = !stateFilter?.length || stateFilter.some((s) => stateVal?.toLowerCase() === s.toLowerCase())
                   return typeMatch && stateMatch
                 })
-                console.log(`Type filter: ${beforeCount} → ${filtered.length} rows (types: ${typeFilter.join(", ")})`)
-                setAllRows(filtered)
+                console.log(`Filtered: ${allRows.length} → ${rowsToUse.length} rows`)
+              } else {
+                console.log("No typeCol found — filter skipped")
               }
+            } else {
+              console.log("No typeFilter provided — all rows passed through")
             }
+            setAllRows(rowsToUse)
             setStep("mapping")
           }}
         />
