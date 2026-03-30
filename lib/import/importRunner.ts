@@ -318,7 +318,43 @@ async function createTenants(
 }
 
 async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<void> {
-  const email = getField(entry.row, "email", ctx.mapping).toLowerCase()
+  // Co-tenant detection: "Donovan & Apphia" with comma-separated emails
+  const rawFirstName = getField(entry.row, "first_name", ctx.mapping)
+  const rawEmail = getField(entry.row, "email", ctx.mapping)
+  const hasAmpersand = rawFirstName.includes(" & ")
+  const emails = rawEmail.split(",").map((e) => e.trim()).filter(Boolean)
+
+  if (hasAmpersand && emails.length >= 2) {
+    const nameParts = rawFirstName.split(" & ")
+    const lastName = getField(entry.row, "last_name", ctx.mapping)
+    const phones = getField(entry.row, "phone", ctx.mapping).split(",").map((p) => p.trim()).filter(Boolean)
+
+    // Create primary tenant
+    await insertSingleTenant({
+      firstName: nameParts[0]?.trim() ?? rawFirstName,
+      lastName,
+      email: emails[0],
+      phone: phones[0] ?? "",
+      idNumber: getField(entry.row, "id_number", ctx.mapping),
+      entry,
+      ctx,
+    })
+
+    // Create co-tenant
+    await insertSingleTenant({
+      firstName: nameParts[1]?.trim() ?? "",
+      lastName,
+      email: emails[1],
+      phone: phones[1] ?? "",
+      idNumber: "",
+      entry,
+      ctx,
+    })
+    return
+  }
+
+  // Single tenant (normal path)
+  const email = rawEmail.toLowerCase().trim()
   if (!email) {
     ctx.result.errors.push({ rowIndex: entry.index, field: "email", message: "Tenant email is required", severity: "error" })
     return
@@ -360,6 +396,51 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error"
     ctx.result.errors.push({ rowIndex: entry.index, field: "email", message: `Tenant error: ${msg}`, severity: "error" })
+  }
+}
+
+async function insertSingleTenant(params: {
+  firstName: string
+  lastName: string
+  email: string
+  phone: string
+  idNumber: string
+  entry: UnitGroupEntry
+  ctx: ImportContext
+}): Promise<void> {
+  const { firstName, lastName, email: rawEmail, phone, idNumber, entry, ctx } = params
+  const email = rawEmail.toLowerCase().trim()
+  if (!email) return
+  if (ctx.tenantIdCache.has(email)) return
+
+  const { data: existing } = await ctx.supabase
+    .from("tenants").select("id").eq("org_id", ctx.orgId).ilike("email", email).limit(1).single()
+
+  if (existing) {
+    ctx.tenantIdCache.set(email, String(existing.id))
+    return
+  }
+
+  const { data: created, error } = await ctx.supabase
+    .from("tenants")
+    .insert({
+      org_id: ctx.orgId,
+      first_name: firstName || "Unknown",
+      last_name: lastName || "Unknown",
+      email,
+      phone: phone || null,
+      id_number: idNumber || null,
+      tenant_type: "individual",
+      status: "active",
+    })
+    .select("id")
+    .single()
+
+  if (error || !created) {
+    ctx.result.errors.push({ rowIndex: entry.index, field: "email", message: `Co-tenant error: ${error?.message}`, severity: "error" })
+  } else {
+    ctx.tenantIdCache.set(email, String(created.id))
+    ctx.result.tenantsCreated++
   }
 }
 

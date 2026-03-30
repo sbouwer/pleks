@@ -17,6 +17,8 @@ import {
   Landmark,
   Settings,
   Wallet,
+  HardHat,
+  UserSquare2,
 } from "lucide-react"
 
 const NAV_GROUPS: NavGroup[] = [
@@ -32,6 +34,8 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/properties", label: "Properties", icon: Building2 },
       { href: "/units", label: "Units", icon: DoorOpen },
       { href: "/tenants", label: "Tenants", icon: Users },
+      { href: "/landlords", label: "Landlords", icon: UserSquare2 },
+      { href: "/contractors", label: "Contractors", icon: HardHat },
       { href: "/leases", label: "Leases", icon: FileText },
     ],
   },
