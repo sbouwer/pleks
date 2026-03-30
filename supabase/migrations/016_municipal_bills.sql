@@ -85,7 +85,7 @@ CREATE TABLE municipal_bills (
                           CHECK (payment_status IN ('unpaid', 'paid', 'partial', 'overdue')),
   paid_at                 timestamptz,
   payment_reference       text,
-  supplier_invoice_id     uuid REFERENCES supplier_invoices(id),
+  supplier_invoice_id     uuid,
   allocation_status       text NOT NULL DEFAULT 'unallocated'
                           CHECK (allocation_status IN ('unallocated', 'allocated', 'not_required')),
   uploaded_by             uuid REFERENCES auth.users(id),

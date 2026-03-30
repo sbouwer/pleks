@@ -87,7 +87,7 @@ ALTER TABLE contractor_preferences ADD COLUMN IF NOT EXISTS building_id uuid REF
 -- =============================================================
 -- AMENDMENT 3: Building-aware supplier invoices
 -- =============================================================
-ALTER TABLE supplier_invoices ADD COLUMN IF NOT EXISTS building_id uuid REFERENCES buildings(id);
+-- DEFERRED: ALTER TABLE supplier_invoices ADD COLUMN IF NOT EXISTS building_id uuid REFERENCES buildings(id);
 
 -- =============================================================
 -- AMENDMENT 4: Building context on municipal bill allocations

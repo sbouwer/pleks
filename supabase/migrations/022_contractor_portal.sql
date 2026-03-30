@@ -79,12 +79,9 @@ CREATE POLICY "contractor_update_own_jobs" ON maintenance_requests
   );
 
 -- Contractor sees invoices for their own jobs
-CREATE POLICY "contractor_own_invoices" ON supplier_invoices
-  FOR ALL USING (
-    contractor_id IN (
-      SELECT id FROM contractors WHERE auth_user_id = auth.uid()
-    )
-  );
+-- DEFERRED: policy on supplier_invoices (table created later)
+-- CREATE POLICY "contractor_own_invoices" ON supplier_invoices
+--   FOR ALL USING (contractor_id IN (SELECT id FROM contractors WHERE auth_user_id = auth.uid()));
 
 -- Add new maintenance request statuses for quote workflow
 -- (The CHECK constraint on maintenance_requests.status already allows arbitrary text,

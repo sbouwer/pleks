@@ -421,8 +421,8 @@ CREATE TABLE landlords (
                         CHECK (payment_method IN ('eft', 'cash', 'other')),
   payment_terms         text,    -- e.g. "Last day of month"
 
-  -- Import tracking
-  import_session_id     uuid REFERENCES import_sessions(id),
+  -- Import tracking (FK added later in 041 after import_sessions table exists)
+  import_session_id     uuid,
 
   -- Audit
   created_by            uuid REFERENCES auth.users(id),
@@ -619,7 +619,7 @@ SELECT
   c.first_name,
   c.last_name,
   c.company_name,
-  c.contact_person,     -- contact_first_name || ' ' || contact_last_name for orgs
+  COALESCE(NULLIF(TRIM(COALESCE(c.contact_first_name, '') || ' ' || COALESCE(c.contact_last_name, '')), ''), NULL) AS contact_person,
   c.id_number,
   c.id_number_hash,
   c.id_type,
