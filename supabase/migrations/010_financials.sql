@@ -27,7 +27,7 @@ CREATE TABLE trust_transactions (
   description     text NOT NULL,
   reference       text,
   invoice_id      uuid,
-  supplier_invoice_id uuid REFERENCES supplier_invoices(id),
+  supplier_invoice_id uuid,  -- FK added later after supplier_invoices table created
   statement_month date,
   created_by      uuid REFERENCES auth.users(id),
   created_at      timestamptz NOT NULL DEFAULT now()

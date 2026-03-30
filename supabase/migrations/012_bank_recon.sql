@@ -4,7 +4,7 @@
 CREATE TABLE bank_statement_imports (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id            uuid NOT NULL REFERENCES organisations(id),
-  bank_account_id   uuid NOT NULL REFERENCES bank_accounts(id),
+  bank_account_id   uuid NOT NULL,
   original_filename  text NOT NULL,
   storage_path       text NOT NULL,
   file_size_bytes    integer,
@@ -75,7 +75,7 @@ CREATE TABLE bank_statement_lines (
   match_confidence  numeric(3,2),
   matched_invoice_id       uuid REFERENCES rent_invoices(id),
   matched_payment_id       uuid REFERENCES payments(id),
-  matched_supplier_inv_id  uuid REFERENCES supplier_invoices(id),
+  matched_supplier_inv_id  uuid,
   matched_trust_txn_id     uuid REFERENCES trust_transactions(id),
   ai_match_suggestion      jsonb,
   ai_match_confirmed       boolean DEFAULT false,
