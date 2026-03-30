@@ -657,7 +657,7 @@ async function createTenancyHistory(
       tenant_id: tenantId,
       move_in_date: leaseStart ? normaliseDate(leaseStart) : null,
       move_out_date: leaseEnd ? normaliseDate(leaseEnd) : null,
-      status: "moved_out",
+      status: "ended",
     })
 
     if (error) {
