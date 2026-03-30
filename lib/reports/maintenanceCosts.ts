@@ -13,7 +13,7 @@ export async function buildMaintenanceCostReport(filters: ReportFilters): Promis
     .select(`
       id, work_order_number, property_id, unit_id, category, urgency,
       status, actual_cost_cents, completed_at, created_at,
-      contractors(name, company_name),
+      contractor_view(first_name, last_name, company_name),
       units(unit_number),
       properties(name)
     `)
@@ -32,13 +32,13 @@ export async function buildMaintenanceCostReport(filters: ReportFilters): Promis
   const rows: MaintenanceCostRow[] = completedInPeriod.map((j) => {
     const unit = j.units as unknown as { unit_number: string } | null
     const prop = j.properties as unknown as { name: string } | null
-    const contractor = j.contractors as unknown as { name: string; company_name: string } | null
+    const contractor = j.contractor_view as unknown as { first_name: string; last_name: string; company_name: string } | null
     return {
       work_order_number: j.work_order_number ?? "",
       property_name: prop?.name ?? "",
       unit_number: unit?.unit_number ?? "",
       category: j.category ?? "other",
-      contractor_name: contractor?.company_name ?? contractor?.name ?? "",
+      contractor_name: contractor?.company_name ?? (`${contractor?.first_name ?? ""} ${contractor?.last_name ?? ""}`.trim() || ""),
       completed_at: j.completed_at ? new Date(j.completed_at) : null,
       actual_cost_cents: j.actual_cost_cents ?? 0,
     }

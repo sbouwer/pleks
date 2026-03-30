@@ -13,8 +13,8 @@ export default async function TenantsPage() {
   if (!user) redirect("/login")
 
   const { data: tenants } = await supabase
-    .from("tenants")
-    .select("id, tenant_type, first_name, last_name, company_name, contact_person, email, phone, id_number")
+    .from("tenant_view")
+    .select("id, entity_type, first_name, last_name, company_name, contact_person, email, phone, id_number")
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
 
@@ -44,7 +44,7 @@ export default async function TenantsPage() {
       ) : (
         <div className="space-y-2">
           {list.map((tenant) => {
-            const name = tenant.tenant_type === "individual"
+            const name = tenant.entity_type === "individual"
               ? `${tenant.first_name || ""} ${tenant.last_name || ""}`.trim()
               : tenant.company_name || "Unnamed Company"
 
@@ -60,7 +60,7 @@ export default async function TenantsPage() {
                       </p>
                     </div>
                     <span className="text-xs capitalize text-muted-foreground bg-surface-elevated px-2 py-0.5 rounded">
-                      {tenant.tenant_type}
+                      {tenant.entity_type}
                     </span>
                   </CardContent>
                 </Card>

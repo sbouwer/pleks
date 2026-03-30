@@ -28,13 +28,13 @@ export default async function InvoiceDetailPage({
 
   const { data: invoice } = await supabase
     .from("supplier_invoices")
-    .select("*, contractors(name, company_name, email, phone, vat_registered, vat_number), properties(name, address_line1), maintenance_requests(title, work_order_number)")
+    .select("*, contractor_view(first_name, last_name, company_name, email, phone, vat_number), properties(name, address_line1), maintenance_requests(title, work_order_number)")
     .eq("id", invoiceId)
     .single()
 
   if (!invoice) notFound()
 
-  const contractor = invoice.contractors as unknown as { name: string; company_name: string | null; email: string; phone: string; vat_registered: boolean; vat_number: string | null } | null
+  const contractor = invoice.contractor_view as unknown as { first_name: string; last_name: string; company_name: string | null; email: string; phone: string; vat_number: string | null } | null
   const property = invoice.properties as unknown as { name: string; address_line1: string } | null
   const request = invoice.maintenance_requests as unknown as { title: string; work_order_number: string } | null
 
@@ -90,11 +90,11 @@ export default async function InvoiceDetailPage({
           <CardContent className="space-y-3 text-sm">
             {contractor ? (
               <>
-                <p className="font-medium">{contractor.name}{contractor.company_name ? ` (${contractor.company_name})` : ""}</p>
+                <p className="font-medium">{contractor.company_name || `${contractor.first_name} ${contractor.last_name}`.trim()}</p>
                 <p className="text-muted-foreground">{contractor.email} · {contractor.phone}</p>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">VAT Registered</span>
-                  <span>{contractor.vat_registered ? `Yes — ${contractor.vat_number}` : "No"}</span>
+                  <span>{contractor.vat_number ? `Yes — ${contractor.vat_number}` : "No"}</span>
                 </div>
               </>
             ) : (

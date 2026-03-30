@@ -12,7 +12,8 @@ import { toast } from "sonner"
 
 interface Contractor {
   id: string
-  name: string
+  first_name: string
+  last_name: string
   company_name: string | null
   email: string
   phone: string | null
@@ -30,10 +31,10 @@ export default function ContractorsPage() {
     if (!orgId) return
     const supabase = createClient()
     supabase
-      .from("contractors")
-      .select("id, name, company_name, email, phone, specialities, is_active")
+      .from("contractor_view")
+      .select("id, first_name, last_name, company_name, email, phone, specialities, is_active")
       .eq("org_id", orgId)
-      .order("name")
+      .order("first_name")
       .then(({ data }) => setContractors((data as Contractor[]) || []))
   }, [orgId])
 
@@ -45,12 +46,26 @@ export default function ContractorsPage() {
     const form = new FormData(e.currentTarget)
     const supabase = createClient()
 
+    // Create contact first
+    const { data: contact, error: contactError } = await supabase.from("contacts").insert({
+      org_id: orgId,
+      entity_type: "individual",
+      primary_role: "contractor",
+      first_name: form.get("name") as string,
+      primary_email: form.get("email") as string,
+      primary_phone: form.get("phone") as string || null,
+      company_name: form.get("company_name") as string || null,
+    }).select("id").single()
+
+    if (contactError || !contact) {
+      toast.error(contactError?.message || "Failed to create contact")
+      setSaving(false)
+      return
+    }
+
     const { error } = await supabase.from("contractors").insert({
       org_id: orgId,
-      name: form.get("name") as string,
-      company_name: form.get("company_name") as string || null,
-      email: form.get("email") as string,
-      phone: form.get("phone") as string || null,
+      contact_id: contact.id,
       specialities: (form.get("specialities") as string).split(",").map((s) => s.trim()).filter(Boolean),
     })
 
@@ -61,10 +76,10 @@ export default function ContractorsPage() {
       setShowAdd(false)
       // Refresh
       const { data } = await supabase
-        .from("contractors")
-        .select("id, name, company_name, email, phone, specialities, is_active")
+        .from("contractor_view")
+        .select("id, first_name, last_name, company_name, email, phone, specialities, is_active")
         .eq("org_id", orgId)
-        .order("name")
+        .order("first_name")
       setContractors((data as Contractor[]) || [])
     }
     setSaving(false)
@@ -125,7 +140,7 @@ export default function ContractorsPage() {
             <Card key={c.id}>
               <CardContent className="flex items-center justify-between pt-4">
                 <div>
-                  <p className="font-medium">{c.name}{c.company_name ? ` (${c.company_name})` : ""}</p>
+                  <p className="font-medium">{c.company_name || `${c.first_name} ${c.last_name}`.trim()}</p>
                   <p className="text-sm text-muted-foreground">{c.email}{c.phone ? ` · ${c.phone}` : ""}</p>
                   {c.specialities.length > 0 && (
                     <div className="flex gap-1 mt-1">

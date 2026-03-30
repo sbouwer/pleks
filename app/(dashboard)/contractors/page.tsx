@@ -20,11 +20,10 @@ export default async function ContractorsPage() {
   if (!membership) redirect("/onboarding")
 
   const { data: contractors } = await supabase
-    .from("contractors")
-    .select("id, name, company_name, email, phone, vendor_type, is_active")
+    .from("contractor_view")
+    .select("id, first_name, last_name, company_name, email, phone, supplier_type, is_active")
     .eq("org_id", membership.org_id)
-    .is("deleted_at", null)
-    .order("name")
+    .order("first_name")
 
   return (
     <div>
@@ -46,14 +45,13 @@ export default async function ContractorsPage() {
             <Card key={c.id}>
               <CardContent className="py-3 flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium">{c.name}</p>
+                  <p className="text-sm font-medium">{c.company_name || `${c.first_name} ${c.last_name}`.trim()}</p>
                   <p className="text-xs text-muted-foreground">
                     {c.email}{c.phone ? ` · ${c.phone}` : ""}
-                    {c.company_name && c.company_name !== c.name ? ` · ${c.company_name}` : ""}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  {c.vendor_type && <Badge variant="secondary" className="text-[10px]">{c.vendor_type}</Badge>}
+                  {c.supplier_type && <Badge variant="secondary" className="text-[10px]">{c.supplier_type}</Badge>}
                   <Badge variant="secondary" className={`text-[10px] ${c.is_active ? "bg-green-500/10 text-green-400" : "bg-surface-elevated"}`}>
                     {c.is_active ? "Active" : "Inactive"}
                   </Badge>

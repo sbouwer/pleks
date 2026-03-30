@@ -23,7 +23,7 @@ interface LeaseCharge {
   payable_to: string
   payable_to_contractor_id: string | null
   deduct_from_owner_payment: boolean
-  contractors: { name: string } | null
+  contractor_view: { first_name: string; last_name: string; company_name: string | null } | null
 }
 
 interface LeaseChargesProps {
@@ -187,7 +187,7 @@ export function LeaseCharges({ leaseId }: Readonly<LeaseChargesProps>) {
                   <p className="text-xs text-muted-foreground">
                     {formatZAR(c.amount_cents)}/mo · from {c.start_date}
                     {c.end_date ? ` to ${c.end_date}` : ""}
-                    {c.contractors ? ` · ${c.contractors.name}` : ""}
+                    {c.contractor_view ? ` · ${c.contractor_view.company_name || `${c.contractor_view.first_name} ${c.contractor_view.last_name}`.trim()}` : ""}
                   </p>
                   {c.deduct_from_owner_payment && (
                     <p className="text-xs text-amber-500">Deducted from owner payment</p>

@@ -65,7 +65,7 @@ interface EncryptTask {
 }
 
 const TASKS: EncryptTask[] = [
-  { table: "tenants", column: "id_number" },
+  { table: "contacts", column: "id_number" },
   { table: "contractors", column: "bank_account_number" },
   { table: "tenant_bank_accounts", column: "account_number" },
   { table: "applications", column: "id_number" },
@@ -149,9 +149,9 @@ async function main() {
   console.log("")
   console.log(`=== Complete: ${totalMigrated} total rows encrypted ===`)
 
-  // Spot check: read back 1 row from tenants if any exist
+  // Spot check: read back 1 row from contacts if any exist
   const { data: spotCheck } = await supabase
-    .from("tenants")
+    .from("contacts")
     .select("id, id_number")
     .not("id_number", "is", null)
     .limit(1)
@@ -160,13 +160,13 @@ async function main() {
     const stored = spotCheck[0].id_number
     if (isEncrypted(stored)) {
       const decrypted = decrypt(stored)
-      console.log(`\nSpot check (tenants): stored=${stored.slice(0, 20)}... decrypted=${decrypted.slice(0, 4)}••••`)
+      console.log(`\nSpot check (contacts): stored=${stored.slice(0, 20)}... decrypted=${decrypted.slice(0, 4)}••••`)
       console.log("✅ Spot check passed")
     } else {
       console.log(`\nSpot check: value does not appear encrypted: ${stored.slice(0, 10)}...`)
     }
   } else {
-    console.log("\nNo tenant records with id_number to spot check.")
+    console.log("\nNo contact records with id_number to spot check.")
   }
 }
 

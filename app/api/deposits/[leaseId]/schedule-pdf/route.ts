@@ -26,13 +26,13 @@ export async function GET(
     .select(`
       start_date, end_date,
       units(unit_number, properties(name, address_line1, city)),
-      tenants(first_name, last_name)
+      tenant_view(first_name, last_name)
     `)
     .eq("id", leaseId)
     .single()
 
   const unit = lease?.units as unknown as { unit_number: string; properties: { name: string; address_line1: string; city: string } | null } | null
-  const tenant = lease?.tenants as unknown as { first_name: string; last_name: string } | null
+  const tenant = lease?.tenant_view as unknown as { first_name: string; last_name: string } | null
 
   // Get org
   const { data: membership } = await supabase

@@ -13,8 +13,8 @@ export default async function ContractorLayout({
   if (!user) redirect("/login?role=contractor")
 
   const { data: contractor } = await supabase
-    .from("contractors")
-    .select("id, name, company_name")
+    .from("contractor_view")
+    .select("id, first_name, last_name, company_name")
     .eq("auth_user_id", user.id)
     .eq("portal_access_enabled", true)
     .limit(1)

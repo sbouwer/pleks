@@ -33,12 +33,12 @@ export async function importTenants(
 
     results.errors.push(...errors.filter((e) => e.severity === "warning"))
 
-    // Deduplication: check by email
+    // Deduplication: check by email in contacts
     const { data: existing } = await supabase
-      .from("tenants")
+      .from("contacts")
       .select("id")
       .eq("org_id", orgId)
-      .ilike("email", row.email)
+      .ilike("primary_email", row.email)
       .is("deleted_at", null)
       .limit(1)
 
@@ -46,21 +46,33 @@ export async function importTenants(
       results.errors.push({
         row: index + 2,
         field: "email",
-        message: `Tenant with email "${row.email}" already exists — skipped`,
+        message: `Contact with email "${row.email}" already exists — skipped`,
         severity: "warning",
       })
       results.skipped++
       continue
     }
 
-    await supabase.from("tenants").insert({
+    // Create contact first
+    const { data: contact } = await supabase.from("contacts").insert({
       org_id: orgId,
+      entity_type: "individual",
+      primary_role: "tenant",
       first_name: row.first_name,
       last_name: row.last_name,
-      email: row.email,
-      phone: row.phone ?? null,
+      primary_email: row.email,
+      primary_phone: row.phone ?? null,
       id_type: row.id_type ?? "sa_id",
       id_number: row.id_number ?? null,
+      created_by: agentId,
+    }).select("id").single()
+
+    if (!contact) continue
+
+    // Create thin tenant record
+    await supabase.from("tenants").insert({
+      org_id: orgId,
+      contact_id: contact.id,
       employer_name: row.employer_name ?? null,
       employment_type: row.employment_type ?? null,
       popia_consent_given: false,

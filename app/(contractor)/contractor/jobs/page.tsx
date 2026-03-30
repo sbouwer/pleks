@@ -11,7 +11,7 @@ export default async function ContractorJobsPage() {
   if (!user) redirect("/login")
 
   const { data: contractors } = await supabase
-    .from("contractors")
+    .from("contractor_view")
     .select("id")
     .eq("auth_user_id", user.id)
     .eq("portal_access_enabled", true)

@@ -27,40 +27,67 @@ export async function createTenantFromApplication(
     return { tenantId: application.tenant_id }
   }
 
-  // Deduplication — check if tenant with same ID hash already exists in org
+  // Deduplication — check if contact with same ID hash already exists in org
   if (application.id_number_hash) {
-    const { data: existing } = await supabase
-      .from("tenants")
+    const { data: existingContact } = await supabase
+      .from("contacts")
       .select("id")
       .eq("org_id", application.org_id)
       .eq("id_number_hash", application.id_number_hash)
       .is("deleted_at", null)
       .single()
 
-    if (existing) {
-      await supabase.from("applications")
-        .update({ tenant_id: existing.id })
-        .eq("id", applicationId)
+    if (existingContact) {
+      // Find the tenant linked to this contact
+      const { data: existingTenant } = await supabase
+        .from("tenants")
+        .select("id")
+        .eq("contact_id", existingContact.id)
+        .is("deleted_at", null)
+        .single()
 
-      return { tenantId: existing.id }
+      if (existingTenant) {
+        await supabase.from("applications")
+          .update({ tenant_id: existingTenant.id })
+          .eq("id", applicationId)
+
+        return { tenantId: existingTenant.id }
+      }
     }
   }
 
-  // Create new tenant
-  const { data: tenant, error: insertError } = await supabase
-    .from("tenants")
+  // Create contact first
+  const { data: contact, error: contactError } = await supabase
+    .from("contacts")
     .insert({
       org_id: application.org_id,
+      entity_type: "individual",
+      primary_role: "tenant",
       first_name: application.first_name,
       last_name: application.last_name,
-      email: application.applicant_email,
-      phone: application.applicant_phone,
+      primary_email: application.applicant_email,
+      primary_phone: application.applicant_phone,
       id_type: application.id_type,
       id_number: application.id_number,
       id_number_hash: application.id_number_hash,
       date_of_birth: application.date_of_birth,
-      employer_name: application.employer_name,
       nationality: application.nationality,
+      created_by: agentId,
+    })
+    .select("id")
+    .single()
+
+  if (contactError || !contact) {
+    return { error: contactError?.message ?? "Failed to create contact" }
+  }
+
+  // Create thin tenant record
+  const { data: tenant, error: insertError } = await supabase
+    .from("tenants")
+    .insert({
+      org_id: application.org_id,
+      contact_id: contact.id,
+      employer_name: application.employer_name,
       popia_consent_given: true,
       popia_consent_given_at: application.stage1_consent_given_at,
       portal_access_enabled: false,

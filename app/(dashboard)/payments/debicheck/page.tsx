@@ -33,13 +33,13 @@ export default async function DebiCheckPage() {
   // Get mandates
   const { data: mandates } = await supabase
     .from("debicheck_mandates")
-    .select("id, status, amount_cents, billing_day, description, tenants(first_name, last_name), units(unit_number, properties(name))")
+    .select("id, status, amount_cents, billing_day, description, tenant_view(first_name, last_name), units(unit_number, properties(name))")
     .order("created_at", { ascending: false })
 
   // Get recent collections
   const { data: collections } = await supabase
     .from("debicheck_collections")
-    .select("id, status, amount_cents, collection_date, failure_reason_human, is_retry, debicheck_mandates(description, tenants(first_name, last_name))")
+    .select("id, status, amount_cents, collection_date, failure_reason_human, is_retry, debicheck_mandates(description, tenant_view(first_name, last_name))")
     .order("collection_date", { ascending: false })
     .limit(30)
 
@@ -70,7 +70,7 @@ export default async function DebiCheckPage() {
           ) : (
             <div className="space-y-2">
               {collectionList.map((col) => {
-                const mandate = col.debicheck_mandates as unknown as { description: string; tenants: { first_name: string; last_name: string } } | null
+                const mandate = col.debicheck_mandates as unknown as { description: string; tenant_view: { first_name: string; last_name: string } } | null
                 return (
                   <div key={col.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">
                     <div>
@@ -102,7 +102,7 @@ export default async function DebiCheckPage() {
           ) : (
             <div className="space-y-2">
               {mandateList.map((m) => {
-                const tenant = m.tenants as unknown as { first_name: string; last_name: string } | null
+                const tenant = m.tenant_view as unknown as { first_name: string; last_name: string } | null
                 const unit = m.units as unknown as { unit_number: string; properties: { name: string } } | null
                 return (
                   <div key={m.id} className="flex items-center justify-between py-2 border-b border-border last:border-0">

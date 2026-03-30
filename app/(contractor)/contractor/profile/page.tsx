@@ -9,7 +9,7 @@ export default async function ContractorProfilePage() {
   if (!user) redirect("/login")
 
   const { data: contractors } = await supabase
-    .from("contractors")
+    .from("contractor_view")
     .select("*, organisations(name)")
     .eq("auth_user_id", user.id)
     .eq("portal_access_enabled", true)

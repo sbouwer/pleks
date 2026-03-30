@@ -38,15 +38,15 @@ export default async function MaintenanceDetailPage({
 
   const { data: request } = await supabase
     .from("maintenance_requests")
-    .select("*, units(unit_number, properties(name, address_line1)), tenants(first_name, last_name, phone), contractors(name, company_name, email, phone)")
+    .select("*, units(unit_number, properties(name, address_line1)), tenant_view(first_name, last_name, phone), contractor_view(first_name, last_name, company_name, email, phone)")
     .eq("id", requestId)
     .single()
 
   if (!request) notFound()
 
   const unit = request.units as unknown as { unit_number: string; properties: { name: string; address_line1: string } } | null
-  const tenant = request.tenants as unknown as { first_name: string; last_name: string; phone: string } | null
-  const contractor = request.contractors as unknown as { name: string; company_name: string; email: string; phone: string } | null
+  const tenant = request.tenant_view as unknown as { first_name: string; last_name: string; phone: string } | null
+  const contractor = request.contractor_view as unknown as { first_name: string; last_name: string; company_name: string; email: string; phone: string } | null
 
   // Get contractor updates timeline
   const { data: updates } = await supabase
@@ -128,7 +128,7 @@ export default async function MaintenanceDetailPage({
             {contractor && (
               <div>
                 <p className="text-muted-foreground mb-1">Contractor</p>
-                <p className="font-medium">{contractor.name}{contractor.company_name ? ` (${contractor.company_name})` : ""}</p>
+                <p className="font-medium">{contractor.company_name || `${contractor.first_name} ${contractor.last_name}`.trim()}</p>
                 <p className="text-muted-foreground">{contractor.email} · {contractor.phone}</p>
               </div>
             )}

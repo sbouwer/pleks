@@ -22,16 +22,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Name is required" }, { status: 400 })
   }
 
-  const fullName = [firstName?.trim(), lastName?.trim()].filter(Boolean).join(" ")
-
-  const { error } = await service.from("pending_landlords").insert({
+  // Create contact first
+  const { data: contact, error: contactError } = await service.from("contacts").insert({
     org_id: membership.org_id,
+    entity_type: "individual",
+    primary_role: "landlord",
     first_name: firstName?.trim() || null,
     last_name: lastName?.trim() || null,
-    full_name: fullName || null,
-    email: email?.trim() || null,
-    phone: phone?.trim() || null,
+    primary_email: email?.trim() || null,
+    primary_phone: phone?.trim() || null,
     id_number: idNumber?.trim() || null,
+    created_by: user.id,
+  }).select("id").single()
+
+  if (contactError || !contact) return NextResponse.json({ error: contactError?.message || "Failed to create contact" }, { status: 500 })
+
+  // Create thin landlord record
+  const { error } = await service.from("landlords").insert({
+    org_id: membership.org_id,
+    contact_id: contact.id,
     created_by: user.id,
   })
 

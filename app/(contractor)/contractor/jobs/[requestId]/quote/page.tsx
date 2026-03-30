@@ -70,7 +70,7 @@ export default function QuoteSubmissionPage() {
     if (!user) return
 
     const { data: contractor } = await supabase
-      .from("contractors")
+      .from("contractor_view")
       .select("id, org_id")
       .eq("auth_user_id", user.id)
       .limit(1)

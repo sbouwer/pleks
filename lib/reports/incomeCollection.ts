@@ -15,7 +15,7 @@ export async function buildIncomeCollectionReport(filters: ReportFilters): Promi
         id, unit_id, tenant_id, invoice_number, period_from, period_to,
         total_amount_cents, amount_paid_cents, status,
         units(unit_number, property_id, properties(name)),
-        tenants(first_name, last_name)
+        tenant_view(first_name, last_name)
       `)
       .eq("org_id", orgId)
       .gte("period_from", fromStr)
@@ -55,7 +55,7 @@ export async function buildIncomeCollectionReport(filters: ReportFilters): Promi
   const rows: IncomeCollectionRow[] = filteredInvoices.map((inv) => {
     const unit = inv.units as unknown as { unit_number: string; property_id: string; properties: { name: string } | null } | null
     const prop = unit?.properties ?? null
-    const tenant = inv.tenants as unknown as { first_name: string; last_name: string } | null
+    const tenant = inv.tenant_view as unknown as { first_name: string; last_name: string } | null
     const payment = paymentsByInvoice.get(inv.id)
 
     return {

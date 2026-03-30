@@ -27,7 +27,7 @@ export default async function DepositsPage() {
     .select(`
       id, deposit_amount_cents, status,
       units(unit_number, properties(name)),
-      tenants(first_name, last_name)
+      tenant_view(first_name, last_name)
     `)
     .eq("org_id", orgId)
     .gt("deposit_amount_cents", 0)
@@ -40,7 +40,7 @@ export default async function DepositsPage() {
     .select(`
       id, lease_id, tenant_id, deposit_held_cents, interest_accrued_cents,
       total_available_cents, refund_to_tenant_cents, total_deductions_cents, status,
-      leases(units(unit_number, properties(name)), tenants(first_name, last_name))
+      leases(units(unit_number, properties(name)), tenant_view(first_name, last_name))
     `)
     .eq("org_id", orgId)
     .in("status", ["draft", "pending_review", "sent_to_tenant", "disputed", "overdue"])
@@ -61,7 +61,7 @@ export default async function DepositsPage() {
     .from("deposit_reconciliations")
     .select(`
       id, lease_id, refund_to_tenant_cents, total_deductions_cents, status,
-      leases(units(unit_number, properties(name)), tenants(first_name, last_name))
+      leases(units(unit_number, properties(name)), tenant_view(first_name, last_name))
     `)
     .eq("org_id", orgId)
     .eq("status", "refunded")
@@ -132,10 +132,10 @@ export default async function DepositsPage() {
               </thead>
               <tbody>
                 {(recons ?? []).map((r) => {
-                  const rLease = r.leases as unknown as { units: { unit_number: string; properties: { name: string } | null } | null; tenants: { first_name: string; last_name: string } | null } | null
+                  const rLease = r.leases as unknown as { units: { unit_number: string; properties: { name: string } | null } | null; tenant_view: { first_name: string; last_name: string } | null } | null
                   return (
                     <tr key={r.id} className="border-b border-border/50">
-                      <td className="py-2 pr-2">{rLease?.tenants ? `${rLease.tenants.first_name} ${rLease.tenants.last_name}` : "—"}</td>
+                      <td className="py-2 pr-2">{rLease?.tenant_view ? `${rLease.tenant_view.first_name} ${rLease.tenant_view.last_name}` : "—"}</td>
                       <td className="py-2 pr-2 text-xs">{rLease?.units?.unit_number}, {rLease?.units?.properties?.name}</td>
                       <td className="text-right py-2 px-2">{formatZAR(r.total_available_cents)}</td>
                       <td className="text-right py-2 px-2 text-emerald-600">{formatZAR(r.refund_to_tenant_cents)}</td>
@@ -177,10 +177,10 @@ export default async function DepositsPage() {
               </thead>
               <tbody>
                 {(completedRecons ?? []).map((r) => {
-                  const rLease = r.leases as unknown as { units: { unit_number: string; properties: { name: string } | null } | null; tenants: { first_name: string; last_name: string } | null } | null
+                  const rLease = r.leases as unknown as { units: { unit_number: string; properties: { name: string } | null } | null; tenant_view: { first_name: string; last_name: string } | null } | null
                   return (
                     <tr key={r.id} className="border-b border-border/50">
-                      <td className="py-2 pr-2">{rLease?.tenants ? `${rLease.tenants.first_name} ${rLease.tenants.last_name}` : "—"}</td>
+                      <td className="py-2 pr-2">{rLease?.tenant_view ? `${rLease.tenant_view.first_name} ${rLease.tenant_view.last_name}` : "—"}</td>
                       <td className="py-2 pr-2 text-xs">{rLease?.units?.unit_number}, {rLease?.units?.properties?.name}</td>
                       <td className="text-right py-2 px-2 text-emerald-600">{formatZAR(r.refund_to_tenant_cents)}</td>
                       <td className="text-right py-2 px-2">{formatZAR(r.total_deductions_cents)}</td>
@@ -213,7 +213,7 @@ export default async function DepositsPage() {
               <tbody>
                 {(activeLeases ?? []).map((l) => {
                   const lUnit = l.units as unknown as { unit_number: string; properties: { name: string } | null } | null
-                  const lTenant = l.tenants as unknown as { first_name: string; last_name: string } | null
+                  const lTenant = l.tenant_view as unknown as { first_name: string; last_name: string } | null
                   return (
                     <tr key={l.id} className="border-b border-border/50">
                       <td className="py-2 pr-2">{lTenant ? `${lTenant.first_name} ${lTenant.last_name}` : "—"}</td>

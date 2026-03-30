@@ -23,9 +23,9 @@ export async function importLeases(
       continue
     }
 
-    // Match tenant by email
+    // Match tenant by email via tenant_view
     const { data: tenant } = await supabase
-      .from("tenants")
+      .from("tenant_view")
       .select("id")
       .eq("org_id", orgId)
       .ilike("email", row.tenant_email)

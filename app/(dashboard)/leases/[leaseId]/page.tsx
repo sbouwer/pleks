@@ -33,7 +33,7 @@ export default async function LeaseDetailPage({
 
   const { data: lease } = await supabase
     .from("leases")
-    .select("*, tenants(first_name, last_name, company_name, tenant_type, email, phone), units(unit_number, properties(name, address_line1, city))")
+    .select("*, tenant_view(first_name, last_name, company_name, entity_type, email, phone), units(unit_number, properties(name, address_line1, city))")
     .eq("id", leaseId)
     .single()
 
@@ -48,9 +48,9 @@ export default async function LeaseDetailPage({
     .eq("lease_id", leaseId)
     .not("custom_body", "is", null)
 
-  const tenant = lease.tenants as unknown as { first_name: string; last_name: string; company_name: string; tenant_type: string; email: string; phone: string } | null
+  const tenant = lease.tenant_view as unknown as { first_name: string; last_name: string; company_name: string; entity_type: string; email: string; phone: string } | null
   const unit = lease.units as unknown as { unit_number: string; properties: { name: string; address_line1: string; city: string } } | null
-  const tenantName = tenant?.tenant_type === "company"
+  const tenantName = tenant?.entity_type === "company"
     ? tenant.company_name
     : `${tenant?.first_name || ""} ${tenant?.last_name || ""}`.trim()
 

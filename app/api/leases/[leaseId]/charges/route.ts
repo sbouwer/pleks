@@ -12,7 +12,7 @@ export async function GET(
 
   const { data: charges } = await supabase
     .from("lease_charges")
-    .select("*, contractors(name)")
+    .select("*, contractor_view(first_name, last_name, company_name)")
     .eq("lease_id", leaseId)
     .eq("is_active", true)
     .order("charge_type")

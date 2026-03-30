@@ -14,7 +14,7 @@ export default async function EditTenantPage({
   if (!user) redirect("/login")
 
   const { data: tenant } = await supabase
-    .from("tenants")
+    .from("tenant_view")
     .select("*")
     .eq("id", tenantId)
     .is("deleted_at", null)

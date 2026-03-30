@@ -72,7 +72,7 @@ export async function generateLeaseDocument(
     .select(`
       *,
       units(*, properties(*)),
-      tenants(*)
+      tenant_view(*)
     `)
     .eq("id", leaseId)
     .single()
@@ -141,7 +141,7 @@ export async function generateLeaseDocument(
 
   // Build lease variables
   const bankDetails = await getLessorBankDetails(orgId)
-  const tenant = lease.tenants as Record<string, string> | null
+  const tenant = lease.tenant_view as Record<string, string> | null
   const unit = lease.units as Record<string, unknown> | null
   const property = (unit?.properties ?? null) as Record<string, string> | null
 

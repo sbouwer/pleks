@@ -1345,7 +1345,9 @@ SELECT
   co.call_out_rate_cents,
   co.hourly_rate_cents,
   co.portal_access_enabled,
+  co.auth_user_id,
   co.is_active,
+  co.supplier_type,
   co.created_at,
   co.updated_at
 FROM contractors co
