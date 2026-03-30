@@ -31,7 +31,7 @@ export interface ImportDecisions {
 export interface ImportResultData {
   created: { tenants: number; units: number; leases: number }
   skipped: number
-  errors: Array<{ row: number; error: string }>
+  errors: Array<{ row?: number; error?: string; message?: string; [key: string]: unknown }>
 }
 
 type WizardStep = "upload" | "detected" | "mapping" | "expired" | "confirm" | "success"
