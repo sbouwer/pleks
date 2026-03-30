@@ -50,7 +50,7 @@ export default async function LeaseDetailPage({
 
   const tenant = lease.tenant_view as unknown as { first_name: string; last_name: string; company_name: string; entity_type: string; email: string; phone: string } | null
   const unit = lease.units as unknown as { unit_number: string; properties: { name: string; address_line1: string; city: string } } | null
-  const tenantName = tenant?.entity_type === "company"
+  const tenantName = tenant?.entity_type === "organisation"
     ? tenant.company_name
     : `${tenant?.first_name || ""} ${tenant?.last_name || ""}`.trim()
 

@@ -51,7 +51,7 @@ export default async function ArrearsPage() {
           {list.map((arrearsCase) => {
             const tenant = arrearsCase.tenant_view as unknown as { first_name: string; last_name: string; company_name: string; entity_type: string } | null
             const unit = arrearsCase.units as unknown as { unit_number: string; properties: { name: string } } | null
-            const tenantName = tenant?.entity_type === "company"
+            const tenantName = tenant?.entity_type === "organisation"
               ? tenant.company_name
               : `${tenant?.first_name || ""} ${tenant?.last_name || ""}`.trim()
 

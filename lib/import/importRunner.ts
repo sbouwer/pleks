@@ -573,13 +573,17 @@ async function linkTenantToLease(
   const tenantId = ctx.tenantIdCache.get(email)
   if (!tenantId) return
 
+  if (entry.role === "co_tenant") {
+    // Co-tenant support not yet in schema — log for manual review
+    ctx.result.errors.push({ rowIndex: entry.index, field: "email", message: `Co-tenant "${email}" noted but not linked (no co-tenant table yet)`, severity: "warning" })
+    return
+  }
+
+  // Set tenant_id on the lease for primary tenant
   const { error } = await ctx.supabase
-    .from("lease_tenants")
-    .insert({
-      lease_id: leaseId,
-      tenant_id: tenantId,
-      role: entry.role === "co_tenant" ? "co_tenant" : "primary",
-    })
+    .from("leases")
+    .update({ tenant_id: tenantId })
+    .eq("id", leaseId)
 
   if (error) {
     ctx.result.errors.push({ rowIndex: entry.index, field: "email", message: `Failed to link tenant to lease: ${error.message}`, severity: "warning" })
@@ -594,18 +598,66 @@ async function createTenancyHistory(
   const email = getField(entry.row, "email", ctx.mapping).toLowerCase()
   const leaseStart = getField(entry.row, "lease_start", ctx.mapping)
   const leaseEnd = getField(entry.row, "lease_end", ctx.mapping)
-  const rentRaw = getField(entry.row, "rent_amount_cents", ctx.mapping)
-  const { firstName, lastName } = resolveName(entry.row, ctx.mapping)
+
+  // Need a tenant_id — check cache or create contact+tenant
+  let tenantId = email ? ctx.tenantIdCache.get(email) : undefined
+
+  if (!tenantId && email) {
+    // Try to find existing contact
+    const { data: existingContact } = await ctx.supabase
+      .from("contacts").select("id").eq("org_id", ctx.orgId).ilike("primary_email", email).limit(1).single()
+
+    if (existingContact) {
+      const { data: existingTenant } = await ctx.supabase
+        .from("tenants").select("id").eq("contact_id", existingContact.id).limit(1).single()
+      if (existingTenant) {
+        tenantId = String(existingTenant.id)
+        ctx.tenantIdCache.set(email, tenantId)
+      }
+    }
+
+    if (!tenantId) {
+      // Create contact + tenant for the previous tenant
+      const { firstName, lastName } = resolveName(entry.row, ctx.mapping)
+      const { data: contact } = await ctx.supabase
+        .from("contacts")
+        .insert({
+          org_id: ctx.orgId,
+          entity_type: "individual",
+          primary_role: "tenant",
+          first_name: firstName || "Unknown",
+          last_name: lastName || "Unknown",
+          primary_email: email,
+        })
+        .select("id").single()
+
+      if (contact) {
+        const { data: tenant } = await ctx.supabase
+          .from("tenants")
+          .insert({ org_id: ctx.orgId, contact_id: contact.id })
+          .select("id").single()
+
+        if (tenant) {
+          tenantId = String(tenant.id)
+          ctx.tenantIdCache.set(email, tenantId)
+        }
+      }
+    }
+  }
+
+  if (!tenantId) {
+    ctx.result.errors.push({ rowIndex: entry.index, field: "tenancy_history", message: "Cannot create history without tenant email", severity: "warning" })
+    return
+  }
 
   try {
     const { error } = await ctx.supabase.from("tenancy_history").insert({
       unit_id: unitId,
       org_id: ctx.orgId,
-      tenant_name: `${firstName} ${lastName}`.trim() || "Unknown",
-      tenant_email: email || null,
-      start_date: leaseStart ? normaliseDate(leaseStart) : null,
-      end_date: leaseEnd ? normaliseDate(leaseEnd) : null,
-      rent_amount_cents: rentRaw ? normaliseCurrencyCents(rentRaw) : null,
+      tenant_id: tenantId,
+      move_in_date: leaseStart ? normaliseDate(leaseStart) : null,
+      move_out_date: leaseEnd ? normaliseDate(leaseEnd) : null,
+      status: "moved_out",
     })
 
     if (error) {
@@ -674,7 +726,7 @@ async function writeNotes(
 
 async function writeAuditLog(ctx: ImportContext): Promise<void> {
   try {
-    await ctx.supabase.from("audit_logs").insert({
+    await ctx.supabase.from("audit_log").insert({
       org_id: ctx.orgId,
       user_id: ctx.agentId,
       action: "bulk_import",
@@ -1073,12 +1125,13 @@ async function importAgents(
       const { error } = await ctx.supabase.from("invites").insert({
         org_id: ctx.orgId,
         email,
-        first_name: firstName || null,
-        last_name: lastName || null,
-        phone,
         role,
         invited_by: ctx.agentId,
         expires_at: expiresAt.toISOString(),
+        metadata: {
+          full_name: `${firstName} ${lastName}`.trim() || null,
+          phone: phone || null,
+        },
       })
 
       if (error) {

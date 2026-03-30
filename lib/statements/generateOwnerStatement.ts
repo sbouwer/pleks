@@ -43,7 +43,7 @@ export async function generateOwnerStatement(
   const incomeLines = (invoices || []).map((inv) => {
     const tenant = (inv.leases as Record<string, unknown>)?.tenant_view as Record<string, string> | undefined
     const unit = inv.units as Record<string, string> | null
-    const tenantName = tenant?.entity_type === "company"
+    const tenantName = tenant?.entity_type === "organisation"
       ? tenant.company_name
       : `${tenant?.first_name || ""} ${tenant?.last_name || ""}`.trim()
     return {
