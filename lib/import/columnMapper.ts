@@ -23,6 +23,7 @@ export const FIELD_ALIASES: Record<string, FieldAlias> = {
   first_name: { field: "first_name", entity: "tenant" },
   firstname: { field: "first_name", entity: "tenant" },
   "first name": { field: "first_name", entity: "tenant" },
+  "first names": { field: "first_name", entity: "tenant" },
   name: { field: "first_name", entity: "tenant" },
   last_name: { field: "last_name", entity: "tenant" },
   lastname: { field: "last_name", entity: "tenant" },
@@ -86,7 +87,6 @@ export const FIELD_ALIASES: Record<string, FieldAlias> = {
   city: { field: "city", entity: "unit" },
   town: { field: "city", entity: "unit" },
   province: { field: "province", entity: "unit" },
-  state: { field: "province", entity: "unit" },
   bedrooms: { field: "bedrooms", entity: "unit" },
   beds: { field: "bedrooms", entity: "unit" },
   bathrooms: { field: "bathrooms", entity: "unit" },
@@ -130,6 +130,33 @@ export const FIELD_ALIASES: Record<string, FieldAlias> = {
   "payment method": { field: "payment_method", entity: "lease" },
   payment_type: { field: "payment_method", entity: "lease" },
   "payment type": { field: "payment_method", entity: "lease" },
+
+  // TPN-specific fields
+  identifier: { field: "id_number", entity: "tenant" },
+  numbers: { field: "phone", entity: "tenant" },
+  "legal name": { field: "employer_name", entity: "tenant" },
+  "trading name": { field: "employer_name", entity: "tenant" },
+  reference: { field: "__tpn_reference", entity: "extra" },
+  "entity id": { field: "__entity_id", entity: "extra" },
+  description: { field: "__description", entity: "extra" },
+  "date of birth": { field: "__dob", entity: "extra" },
+  "vat number": { field: "__vat", entity: "extra" },
+
+  // Bank fields
+  "bank account 1": { field: "tenant_bank_account_1", entity: "bank" },
+  "bank name 1": { field: "tenant_bank_name_1", entity: "bank" },
+  "bank branch 1": { field: "tenant_bank_branch_1", entity: "bank" },
+  "bank account 2": { field: "tenant_bank_account_2", entity: "bank" },
+  "bank name 2": { field: "tenant_bank_name_2", entity: "bank" },
+  "bank branch 2": { field: "tenant_bank_branch_2", entity: "bank" },
+
+  // State/filter fields
+  state: { field: "__entity_state", entity: "filter" },
+  "entity state": { field: "__entity_state", entity: "filter" },
+  entitystate1: { field: "__entity_state", entity: "filter" },
+  status: { field: "__entity_state", entity: "filter" },
+  "contact type": { field: "__entity_type", entity: "filter" },
+  type: { field: "__entity_type", entity: "filter" },
 }
 
 /**

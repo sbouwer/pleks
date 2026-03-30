@@ -91,6 +91,14 @@ export function validateEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
 }
 
+export function normaliseBranchCode(raw: string | null): string | null {
+  if (!raw) return null
+  const match = /\((\d+)\)/.exec(raw)
+  if (match) return match[1]
+  if (/^\d+$/.test(raw.trim())) return raw.trim()
+  return raw
+}
+
 export function validateLeaseRow(row: ParsedRow, index: number): ParseError[] {
   const errors: ParseError[] = []
   const rowNum = index + 2
