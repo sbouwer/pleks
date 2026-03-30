@@ -29,14 +29,21 @@ export interface ImportDecisions {
   extraColumnRouting: Record<string, string>
   expiredLeaseAction: "skip" | "import_as_expired"
   perRowOverrides: Record<number, "active" | "skip">
-  typeFilter?: string[]
-  stateFilter?: string[]
 }
 
 export interface ImportResultData {
-  created: { tenants: number; units: number; leases: number }
+  created: {
+    tenants: number
+    units: number
+    leases: number
+    contractors?: number
+    landlords?: number
+    agentInvites?: number
+  }
   skipped: number
   errors: Array<{ row?: number; error?: string; message?: string; [key: string]: unknown }>
+  pendingLandlordLinks?: Array<{ pendingLandlordId: string; name: string; email: string }>
+  agentInvites?: Array<{ email: string; role: string }>
 }
 
 type WizardStep = "upload" | "detected" | "mapping" | "expired" | "confirm" | "success"
@@ -163,37 +170,16 @@ export default function ImportWizardPage() {
         <Step1Detected
           analysis={analysis}
           onBack={() => setStep("upload")}
-          onContinue={(typeFilter, stateFilter) => {
-            setDecisions((d) => ({ ...d, typeFilter, stateFilter }))
-
-            // Filter rows by type/state BEFORE advancing
-            let rowsToUse = allRows
-            if (typeFilter && typeFilter.length > 0 && allRows.length > 0) {
-              const typeCol = analysis.columnSuggestions.find((s) => s.field === "__entity_type")?.column
-              const stateCol = analysis.columnSuggestions.find((s) => s.field === "__entity_state")?.column
-
-              // Debug: log what we're looking for
-              console.log("Filter debug:", { typeCol, stateCol, typeFilter, stateFilter })
-              if (allRows[0]) console.log("Row keys:", Object.keys(allRows[0]))
-              if (typeCol && allRows[0]) console.log("Type value in row[0]:", allRows[0][typeCol])
-
-              if (typeCol) {
-                rowsToUse = allRows.filter((row) => {
-                  const typeVal = row[typeCol]?.trim()
-                  if (!typeVal) return true
-                  const stateVal = stateCol ? row[stateCol]?.trim() : "Active"
-                  const typeMatch = typeFilter.some((t) => typeVal.toLowerCase() === t.toLowerCase())
-                  const stateMatch = !stateFilter?.length || stateFilter.some((s) => stateVal?.toLowerCase() === s.toLowerCase())
-                  return typeMatch && stateMatch
-                })
-                console.log(`Filtered: ${allRows.length} → ${rowsToUse.length} rows`)
-              } else {
-                console.log("No typeCol found — filter skipped")
-              }
-            } else {
-              console.log("No typeFilter provided — all rows passed through")
+          onContinue={() => {
+            // Filter out Inactive rows (STATE column) if present, keep all types
+            const stateCol = analysis.columnSuggestions.find((s) => s.field === "__entity_state")?.column
+            if (stateCol) {
+              const filtered = allRows.filter((row) => {
+                const stateVal = row[stateCol]?.trim().toLowerCase()
+                return !stateVal || stateVal !== "inactive"
+              })
+              setAllRows(filtered)
             }
-            setAllRows(rowsToUse)
             setStep("mapping")
           }}
         />

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { normaliseDate, normaliseCurrencyCents } from "./normalise"
+import { normaliseBranchCode } from "./bankImport"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -27,8 +28,13 @@ export interface ImportResult {
   leasesCreated: number
   historyCreated: number
   notesCreated: number
+  contractorsCreated: number
+  landlordsImported: number
+  agentInvitesSent: number
   skipped: number
   errors: ImportError[]
+  pendingLandlordLinks: Array<{ pendingLandlordId: string; name: string; email: string }>
+  agentInvites: Array<{ email: string; role: string }>
 }
 
 export type ConflictResolution = "skip" | "co_tenant" | "previous" | "duplicate"
@@ -70,6 +76,7 @@ interface ImportContext {
   decisions: ImportDecisions
   orgId: string
   agentId: string
+  importSessionId: string | undefined
   supabase: SupabaseClient
   result: ImportResult
   unitIdCache: Map<string, string>
@@ -578,6 +585,383 @@ async function writeAuditLog(ctx: ImportContext): Promise<void> {
   }
 }
 
+// ── Entity routing ──────────────────────────────────────────────────────
+
+interface RoutedRows {
+  tenantRows: Record<string, string>[]
+  vendorRows: Record<string, string>[]
+  landlordRows: Record<string, string>[]
+  agentRows: Record<string, string>[]
+}
+
+function routeRowsByType(
+  rows: Record<string, string>[],
+  mapping: ColumnMapping
+): RoutedRows {
+  const result: RoutedRows = {
+    tenantRows: [],
+    vendorRows: [],
+    landlordRows: [],
+    agentRows: [],
+  }
+
+  for (const row of rows) {
+    const entityType = getField(row, "__entity_type", mapping).toLowerCase().trim()
+
+    switch (entityType) {
+      case "tenant":
+      case "":
+        result.tenantRows.push(row)
+        break
+      case "vendor":
+      case "supplier":
+      case "contractor":
+        result.vendorRows.push(row)
+        break
+      case "landlord":
+      case "owner":
+        result.landlordRows.push(row)
+        break
+      case "agent":
+      case "principal agent":
+      case "administrator":
+        result.agentRows.push(row)
+        break
+      default:
+        // Unknown entity type — skip silently
+        break
+    }
+  }
+
+  return result
+}
+
+// ── Vendor / Contractor import ─────────────────────────────────────────
+
+function resolveVendorName(
+  row: Record<string, string>,
+  mapping: ColumnMapping
+): { displayName: string; firstName: string; lastName: string } {
+  const legalName = getField(row, "legal_name", mapping) || getField(row, "__split_name", mapping)
+  const tradingName = getField(row, "trading_name", mapping)
+  const firstName = getField(row, "first_name", mapping)
+  const lastName = getField(row, "last_name", mapping)
+
+  const displayName = tradingName || legalName || `${firstName} ${lastName}`.trim()
+  if (firstName || lastName) {
+    return { displayName, firstName, lastName }
+  }
+  if (legalName) {
+    const split = splitFullName(legalName)
+    return { displayName, firstName: split.firstName, lastName: split.lastName }
+  }
+  return { displayName: displayName || "Unknown", firstName: "", lastName: "" }
+}
+
+function buildBankNotes(
+  row: Record<string, string>,
+  mapping: ColumnMapping
+): string | null {
+  const parts: string[] = []
+  const account = getField(row, "__bank_account", mapping)
+  const bankName = getField(row, "__bank_name", mapping)
+  const branch = getField(row, "__bank_branch", mapping)
+
+  if (bankName) parts.push(`Bank: ${bankName}`)
+  if (branch) parts.push(`Branch: ${normaliseBranchCode(branch) ?? branch}`)
+  if (account) parts.push(`Account: ${account}`)
+
+  return parts.length > 0 ? parts.join("\n") : null
+}
+
+async function importVendors(
+  vendorRows: Record<string, string>[],
+  ctx: ImportContext
+): Promise<void> {
+  const seenEmails = new Set<string>()
+
+  for (let i = 0; i < vendorRows.length; i++) {
+    const row = vendorRows[i]
+    if (!row) continue
+
+    const email = getField(row, "email", ctx.mapping).toLowerCase()
+    const { displayName, firstName, lastName } = resolveVendorName(row, ctx.mapping)
+
+    // Dedup by email within this batch
+    if (email && seenEmails.has(email)) continue
+    if (email) seenEmails.add(email)
+
+    try {
+      // Dedup by email against existing contractors
+      if (email) {
+        const { data: existingByEmail } = await ctx.supabase
+          .from("contractors")
+          .select("id")
+          .eq("org_id", ctx.orgId)
+          .ilike("email", email)
+          .limit(1)
+          .single()
+
+        if (existingByEmail) {
+          ctx.result.skipped++
+          continue
+        }
+      }
+
+      // Dedup by name against existing contractors
+      if (displayName) {
+        const { data: existingByName } = await ctx.supabase
+          .from("contractors")
+          .select("id")
+          .eq("org_id", ctx.orgId)
+          .ilike("name", displayName)
+          .limit(1)
+          .single()
+
+        if (existingByName) {
+          ctx.result.skipped++
+          continue
+        }
+      }
+
+      const phone = getField(row, "phone", ctx.mapping) || null
+      const regNumber = getField(row, "registration_number", ctx.mapping) || null
+      const vatNumber = getField(row, "vat_number", ctx.mapping) || null
+      const tpnRef = getField(row, "__tpn_reference", ctx.mapping) || null
+      const entityId = getField(row, "__entity_id", ctx.mapping) || null
+      const notes = buildBankNotes(row, ctx.mapping)
+
+      const { error } = await ctx.supabase.from("contractors").insert({
+        org_id: ctx.orgId,
+        name: displayName || "Unknown",
+        first_name: firstName || null,
+        last_name: lastName || null,
+        email: email || null,
+        phone,
+        registration_number: regNumber,
+        vat_number: vatNumber,
+        tpn_reference: tpnRef,
+        entity_id: entityId,
+        notes,
+      })
+
+      if (error) {
+        ctx.result.errors.push({
+          rowIndex: i,
+          field: "email",
+          message: `Failed to create contractor: ${error.message}`,
+          severity: "error",
+        })
+      } else {
+        ctx.result.contractorsCreated++
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error"
+      ctx.result.errors.push({
+        rowIndex: i,
+        field: "email",
+        message: `Contractor error: ${msg}`,
+        severity: "error",
+      })
+    }
+  }
+}
+
+// ── Landlord import ────────────────────────────────────────────────────
+
+async function importLandlords(
+  landlordRows: Record<string, string>[],
+  ctx: ImportContext
+): Promise<void> {
+  for (let i = 0; i < landlordRows.length; i++) {
+    const row = landlordRows[i]
+    if (!row) continue
+
+    const email = getField(row, "email", ctx.mapping).toLowerCase()
+    if (!email) {
+      ctx.result.errors.push({
+        rowIndex: i,
+        field: "email",
+        message: "Landlord email is required",
+        severity: "error",
+      })
+      continue
+    }
+
+    try {
+      // Dedup against properties.owner_email
+      const { data: existingProperty } = await ctx.supabase
+        .from("properties")
+        .select("id")
+        .eq("org_id", ctx.orgId)
+        .ilike("owner_email", email)
+        .limit(1)
+        .single()
+
+      if (existingProperty) {
+        ctx.result.skipped++
+        continue
+      }
+
+      // Dedup against pending_landlords.email
+      const { data: existingPending } = await ctx.supabase
+        .from("pending_landlords")
+        .select("id")
+        .eq("org_id", ctx.orgId)
+        .ilike("email", email)
+        .limit(1)
+        .single()
+
+      if (existingPending) {
+        ctx.result.skipped++
+        continue
+      }
+
+      const { firstName, lastName } = resolveName(row, ctx.mapping)
+      const phone = getField(row, "phone", ctx.mapping) || null
+      const idNumber = getField(row, "id_number", ctx.mapping) || null
+      const vatNumber = getField(row, "vat_number", ctx.mapping) || null
+      const tpnRef = getField(row, "__tpn_reference", ctx.mapping) || null
+      const entityId = getField(row, "__entity_id", ctx.mapping) || null
+
+      const { data: created, error } = await ctx.supabase
+        .from("pending_landlords")
+        .insert({
+          org_id: ctx.orgId,
+          first_name: firstName || "Unknown",
+          last_name: lastName || "Unknown",
+          email,
+          phone,
+          id_number: idNumber,
+          vat_number: vatNumber,
+          tpn_reference: tpnRef,
+          entity_id: entityId,
+        })
+        .select("id")
+        .single()
+
+      if (error || !created) {
+        ctx.result.errors.push({
+          rowIndex: i,
+          field: "email",
+          message: `Failed to create pending landlord: ${error?.message ?? "Unknown error"}`,
+          severity: "error",
+        })
+      } else {
+        const fullName = `${firstName} ${lastName}`.trim() || "Unknown"
+        ctx.result.landlordsImported++
+        ctx.result.pendingLandlordLinks.push({
+          pendingLandlordId: String(created.id),
+          name: fullName,
+          email,
+        })
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error"
+      ctx.result.errors.push({
+        rowIndex: i,
+        field: "email",
+        message: `Landlord error: ${msg}`,
+        severity: "error",
+      })
+    }
+  }
+}
+
+// ── Agent import ───────────────────────────────────────────────────────
+
+function mapAgentRole(entityType: string): string {
+  const normalized = entityType.toLowerCase().trim()
+  if (normalized === "principal agent") return "property_manager"
+  if (normalized === "administrator") return "owner"
+  return "agent"
+}
+
+async function importAgents(
+  agentRows: Record<string, string>[],
+  ctx: ImportContext
+): Promise<void> {
+  for (let i = 0; i < agentRows.length; i++) {
+    const row = agentRows[i]
+    if (!row) continue
+
+    const email = getField(row, "email", ctx.mapping).toLowerCase()
+    if (!email) {
+      ctx.result.errors.push({
+        rowIndex: i,
+        field: "email",
+        message: "Agent email is required",
+        severity: "error",
+      })
+      continue
+    }
+
+    try {
+      // Dedup: check if already an org member
+      const { data: existingMember } = await ctx.supabase
+        .rpc("get_org_member_by_email", { p_org_id: ctx.orgId, p_email: email })
+
+      if (existingMember && (Array.isArray(existingMember) ? existingMember.length > 0 : true)) {
+        ctx.result.skipped++
+        continue
+      }
+
+      // Dedup: check existing invites
+      const { data: existingInvite } = await ctx.supabase
+        .from("invites")
+        .select("id")
+        .eq("org_id", ctx.orgId)
+        .ilike("email", email)
+        .limit(1)
+        .single()
+
+      if (existingInvite) {
+        ctx.result.skipped++
+        continue
+      }
+
+      const { firstName, lastName } = resolveName(row, ctx.mapping)
+      const phone = getField(row, "phone", ctx.mapping) || null
+      const entityType = getField(row, "__entity_type", ctx.mapping)
+      const role = mapAgentRole(entityType)
+
+      const expiresAt = new Date()
+      expiresAt.setDate(expiresAt.getDate() + 7)
+
+      const { error } = await ctx.supabase.from("invites").insert({
+        org_id: ctx.orgId,
+        email,
+        first_name: firstName || null,
+        last_name: lastName || null,
+        phone,
+        role,
+        invited_by: ctx.agentId,
+        expires_at: expiresAt.toISOString(),
+      })
+
+      if (error) {
+        ctx.result.errors.push({
+          rowIndex: i,
+          field: "email",
+          message: `Failed to create agent invite: ${error.message}`,
+          severity: "error",
+        })
+      } else {
+        ctx.result.agentInvitesSent++
+        ctx.result.agentInvites.push({ email, role })
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error"
+      ctx.result.errors.push({
+        rowIndex: i,
+        field: "email",
+        message: `Agent invite error: ${msg}`,
+        severity: "error",
+      })
+    }
+  }
+}
+
 // ── Main Import Runner ─────────────────────────────────────────────────
 
 export async function runImport(
@@ -586,6 +970,7 @@ export async function runImport(
   decisions: ImportDecisions,
   orgId: string,
   agentId: string,
+  importSessionId: string | undefined,
   supabase: SupabaseClient
 ): Promise<ImportResult> {
   const ctx: ImportContext = {
@@ -593,6 +978,7 @@ export async function runImport(
     decisions,
     orgId,
     agentId,
+    importSessionId,
     supabase,
     result: {
       propertiesCreated: 0,
@@ -601,14 +987,22 @@ export async function runImport(
       leasesCreated: 0,
       historyCreated: 0,
       notesCreated: 0,
+      contractorsCreated: 0,
+      landlordsImported: 0,
+      agentInvitesSent: 0,
       skipped: 0,
       errors: [],
+      pendingLandlordLinks: [],
+      agentInvites: [],
     },
     unitIdCache: new Map(),
     tenantIdCache: new Map(),
   }
 
-  // Build conflict lookup
+  // Route rows by entity type
+  const routed = routeRowsByType(rows, mapping)
+
+  // Build conflict lookup (applies to tenant rows only)
   const skipSet = new Set<number>(decisions.skipRows ?? [])
   const conflictMap = new Map<number, ConflictDecision>()
   for (const cd of decisions.conflicts ?? []) {
@@ -617,8 +1011,8 @@ export async function runImport(
     }
   }
 
-  // Phase 1: Group rows by unit
-  const unitGroups = buildUnitGroups(rows, ctx, conflictMap, skipSet)
+  // Phase 1: Group tenant rows by unit
+  const unitGroups = buildUnitGroups(routed.tenantRows, ctx, conflictMap, skipSet)
 
   // Phase 2: Upsert properties + units
   await upsertPropertiesAndUnits(unitGroups, ctx)
@@ -634,6 +1028,15 @@ export async function runImport(
 
   // Phase 7: Audit log
   await writeAuditLog(ctx)
+
+  // Phase 8: Import vendors / contractors
+  await importVendors(routed.vendorRows, ctx)
+
+  // Phase 9: Import landlords
+  await importLandlords(routed.landlordRows, ctx)
+
+  // Phase 10: Import agents
+  await importAgents(routed.agentRows, ctx)
 
   return ctx.result
 }
