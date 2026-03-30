@@ -83,9 +83,10 @@ function getField(
   fieldName: string,
   mapping: ColumnMapping
 ): string {
-  for (const mapped of Object.values(mapping)) {
+  // The mapping key IS the original column name from the file
+  for (const [columnName, mapped] of Object.entries(mapping)) {
     if (mapped.field === fieldName) {
-      return (row[mapped.column] ?? "").trim()
+      return (row[columnName] ?? row[mapped.column] ?? "").trim()
     }
   }
   return ""
