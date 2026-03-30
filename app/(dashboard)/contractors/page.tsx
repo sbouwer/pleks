@@ -1,0 +1,62 @@
+import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { redirect } from "next/navigation"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+
+export default async function ContractorsPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect("/login")
+
+  const service = await createServiceClient()
+  const { data: membership } = await service
+    .from("user_orgs")
+    .select("org_id")
+    .eq("user_id", user.id)
+    .is("deleted_at", null)
+    .single()
+
+  if (!membership) redirect("/onboarding")
+
+  const { data: contractors } = await supabase
+    .from("contractors")
+    .select("id, name, company_name, email, phone, vendor_type, is_active")
+    .eq("org_id", membership.org_id)
+    .is("deleted_at", null)
+    .order("name")
+
+  return (
+    <div>
+      <h1 className="font-heading text-3xl mb-6">Contractors</h1>
+      <p className="text-sm text-muted-foreground mb-4">{contractors?.length ?? 0} contractors</p>
+
+      {(!contractors || contractors.length === 0) ? (
+        <p className="text-sm text-muted-foreground py-8 text-center">
+          No contractors yet. Import contacts or add contractors from Settings → Contractors.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {contractors.map((c) => (
+            <Card key={c.id}>
+              <CardContent className="py-3 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">{c.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {c.email}{c.phone ? ` · ${c.phone}` : ""}
+                    {c.company_name && c.company_name !== c.name ? ` · ${c.company_name}` : ""}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {c.vendor_type && <Badge variant="secondary" className="text-[10px]">{c.vendor_type}</Badge>}
+                  <Badge variant="secondary" className={`text-[10px] ${c.is_active ? "bg-green-500/10 text-green-400" : "bg-surface-elevated"}`}>
+                    {c.is_active ? "Active" : "Inactive"}
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
