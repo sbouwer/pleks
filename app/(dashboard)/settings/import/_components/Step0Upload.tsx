@@ -5,12 +5,14 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Upload, CheckCircle2, Loader2 } from "lucide-react"
 import Link from "next/link"
 import type { AnalysisResult } from "../page"
+import type { GLPropertyBlock } from "@/lib/import/parseGLReport"
 
 interface Step0UploadProps {
   onAnalysed: (analysis: AnalysisResult, headers: string[], rows: Record<string, string>[]) => void
+  onGlDetected?: (blocks: GLPropertyBlock[], filename: string) => void
 }
 
-export function Step0Upload({ onAnalysed }: Readonly<Step0UploadProps>) {
+export function Step0Upload({ onAnalysed, onGlDetected }: Readonly<Step0UploadProps>) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [dragActive, setDragActive] = useState(false)
@@ -58,6 +60,22 @@ export function Step0Upload({ onAnalysed }: Readonly<Step0UploadProps>) {
         setError("No columns found in the file. Is it empty?")
         setLoading(false)
         return
+      }
+
+      // Check if this is a TPN GL report (has Property1, TransDate, Debit, Credit columns)
+      const lowerHeaders = headers.map((h) => h.toLowerCase().trim())
+      const isGlReport = lowerHeaders.includes("property1") &&
+        lowerHeaders.includes("transdate") &&
+        (lowerHeaders.includes("debit") || lowerHeaders.includes("credit"))
+
+      if (isGlReport && onGlDetected) {
+        const { parseGLCsv } = await import("@/lib/import/parseGLReport")
+        const text = await file.text()
+        const blocks = parseGLCsv(text)
+        if (blocks.length > 0) {
+          onGlDetected(blocks, file.name)
+          return
+        }
       }
 
       // Send headers + sample to analyse endpoint
