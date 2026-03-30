@@ -85,11 +85,14 @@ export function Step1Detected({ analysis, onBack, onContinue }: Readonly<Step1De
 
       {/* Fix 2: TYPE column entity filtering */}
       {hasTypeColumn && (
-        <Card className="mb-6 border-amber-500/20">
+        <Card className="mb-6 border-amber-500/30 bg-amber-500/5">
           <CardContent className="pt-4 space-y-3">
             <div className="flex items-start gap-2">
               <Info className="size-4 text-amber-500 mt-0.5 shrink-0" />
-              <p className="text-sm">This file contains multiple contact types. Choose what to import:</p>
+              <div>
+                <p className="text-sm font-medium">This file contains multiple contact types</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Only tenants should be imported. Landlords, vendors, and agents are not tenant records.</p>
+              </div>
             </div>
             <div className="space-y-2 pl-6">
               {Object.entries(typeFilters).map(([type, checked]) => (
@@ -100,7 +103,10 @@ export function Step1Detected({ analysis, onBack, onContinue }: Readonly<Step1De
                     onChange={(e) => setTypeFilters({ ...typeFilters, [type]: e.target.checked })}
                     className="accent-brand"
                   />
-                  <span className="text-sm">{type}s</span>
+                  <span className={`text-sm ${type !== "Tenant" && checked ? "text-amber-500" : ""}`}>
+                    {type}s
+                    {type !== "Tenant" && checked && <span className="text-xs ml-1">(not recommended)</span>}
+                  </span>
                 </label>
               ))}
             </div>
