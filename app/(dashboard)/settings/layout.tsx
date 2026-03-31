@@ -2,14 +2,13 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Users, CreditCard, Shield, Wrench, FileText, Upload } from "lucide-react"
+import { Users, CreditCard, Shield, FileText, Upload } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const TABS = [
   { href: "/settings/team", label: "Team", icon: Users },
   { href: "/settings/billing", label: "Billing", icon: CreditCard },
   { href: "/settings/compliance", label: "Compliance", icon: Shield },
-  { href: "/settings/contractors", label: "Contractors", icon: Wrench },
   { href: "/settings/lease-templates", label: "Lease Templates", icon: FileText },
   { href: "/settings/import", label: "Import", icon: Upload },
 ]

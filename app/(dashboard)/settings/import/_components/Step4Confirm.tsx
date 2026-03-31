@@ -22,6 +22,29 @@ export function Step4Confirm({ analysis, rows, decisions, onBack, onImportComple
   const mappedCount = Object.keys(decisions.columnMapping).length
   const extraCount = Object.keys(decisions.extraColumnRouting).length
 
+  // Detect mixed batch (has __entity_type routing column)
+  const entityTypeCol = analysis.columnSuggestions.find((s) => s.field === "__entity_type")?.column
+  const isMixedBatch = !!entityTypeCol
+
+  // For mixed batches, count rows per entity type from the actual data
+  const mixedCounts = isMixedBatch
+    ? rows.reduce<Record<string, number>>((acc, row) => {
+        const type = (row[entityTypeCol!] ?? "unknown").toLowerCase().trim()
+        acc[type] = (acc[type] ?? 0) + 1
+        return acc
+      }, {})
+    : null
+
+  const MIXED_LABELS: Record<string, string> = {
+    tenant: "Tenants",
+    vendor: "Contractors",
+    contractor: "Contractors",
+    landlord: "Landlords",
+    owner: "Landlords",
+    agent: "Agents",
+    inactive: "Inactive (skipped)",
+  }
+
   async function handleImport() {
     setLoading(true)
     setProgress("Importing...")
@@ -64,32 +87,45 @@ export function Step4Confirm({ analysis, rows, decisions, onBack, onImportComple
       </p>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        {analysis.detectedEntities.hasTenant && (
-          <Card>
-            <CardContent className="py-4 text-center">
-              <p className="font-heading text-2xl">{rows.length}</p>
-              <p className="text-xs text-muted-foreground">Tenant rows</p>
-            </CardContent>
-          </Card>
-        )}
-        {analysis.detectedEntities.hasUnit && (
-          <Card>
-            <CardContent className="py-4 text-center">
-              <p className="font-heading text-2xl">{rows.length}</p>
-              <p className="text-xs text-muted-foreground">Unit rows</p>
-            </CardContent>
-          </Card>
-        )}
-        {analysis.detectedEntities.hasLease && (
-          <Card>
-            <CardContent className="py-4 text-center">
-              <p className="font-heading text-2xl">{rows.length}</p>
-              <p className="text-xs text-muted-foreground">Lease rows</p>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+      {isMixedBatch && mixedCounts ? (
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          {Object.entries(mixedCounts).map(([type, count]) => (
+            <Card key={type}>
+              <CardContent className="py-4 text-center">
+                <p className="font-heading text-2xl">{count}</p>
+                <p className="text-xs text-muted-foreground">{MIXED_LABELS[type] ?? type}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          {analysis.detectedEntities.hasTenant && (
+            <Card>
+              <CardContent className="py-4 text-center">
+                <p className="font-heading text-2xl">{analysis.rowCounts.tenant || rows.length}</p>
+                <p className="text-xs text-muted-foreground">Tenants</p>
+              </CardContent>
+            </Card>
+          )}
+          {analysis.detectedEntities.hasUnit && (
+            <Card>
+              <CardContent className="py-4 text-center">
+                <p className="font-heading text-2xl">{analysis.rowCounts.unit || rows.length}</p>
+                <p className="text-xs text-muted-foreground">Units</p>
+              </CardContent>
+            </Card>
+          )}
+          {analysis.detectedEntities.hasLease && (
+            <Card>
+              <CardContent className="py-4 text-center">
+                <p className="font-heading text-2xl">{analysis.rowCounts.lease || rows.length}</p>
+                <p className="text-xs text-muted-foreground">Leases</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       <div className="space-y-2 mb-6 text-sm text-muted-foreground">
         <p>{mappedCount} columns mapped to Pleks fields</p>
