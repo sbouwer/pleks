@@ -365,6 +365,7 @@ export function TenantDetail({
   const isIndividual = initial.entity_type === "individual"
 
   // ── Overview state ──────────────────────────────────────────────────────────
+  const [entityType, setEntityType] = useState(initial.entity_type ?? "individual")
   const [firstName, setFirstName] = useState(initial.first_name ?? "")
   const [lastName, setLastName] = useState(initial.last_name ?? "")
   const [companyName, setCompanyName] = useState(initial.company_name ?? "")
@@ -413,22 +414,21 @@ export function TenantDetail({
   // ── Save overview ───────────────────────────────────────────────────────────
   async function handleSaveOverview() {
     setSavingOverview(true)
+    const isOrg = entityType === "organisation"
     const body: Record<string, unknown> = {
       tenantId: initial.id,
       contactId: initial.contact_id,
+      entityType,
       email: email.trim() || null,
       phone: phone.trim() || null,
       notes: notes.trim() || null,
-    }
-    if (isIndividual) {
-      body.firstName = firstName.trim() || null
-      body.lastName = lastName.trim() || null
-      body.nationality = nationality.trim() || null
-      body.dateOfBirth = dateOfBirth || null
-    } else {
-      body.companyName = companyName.trim() || null
-      body.registrationNumber = registrationNumber.trim() || null
-      body.vatNumber = vatNumber.trim() || null
+      firstName: firstName.trim() || null,
+      lastName: lastName.trim() || null,
+      companyName: isOrg ? companyName.trim() || null : null,
+      registrationNumber: isOrg ? registrationNumber.trim() || null : null,
+      vatNumber: isOrg ? vatNumber.trim() || null : null,
+      nationality: !isOrg ? nationality.trim() || null : null,
+      dateOfBirth: !isOrg ? dateOfBirth || null : null,
     }
     const res = await fetch("/api/tenants", {
       method: "PATCH",
@@ -555,46 +555,42 @@ export function TenantDetail({
           <CardContent className="pt-5 space-y-4">
             <div className="flex items-center gap-2">
               <p className="text-sm font-medium text-foreground">Identity</p>
-              <Badge variant="secondary" className="text-[10px]">
-                {isIndividual ? "Individual" : "Company"}
-              </Badge>
+              <div className="flex rounded-md border border-border overflow-hidden text-xs">
+                <button type="button" onClick={() => setEntityType("individual")}
+                  className={`px-3 py-1 transition-colors ${entityType === "individual" ? "bg-brand text-white" : "text-muted-foreground hover:text-foreground"}`}>
+                  Individual
+                </button>
+                <button type="button" onClick={() => setEntityType("organisation")}
+                  className={`px-3 py-1 transition-colors ${entityType === "organisation" ? "bg-brand text-white" : "text-muted-foreground hover:text-foreground"}`}>
+                  Company
+                </button>
+              </div>
               {initial.blacklisted && (
                 <Badge variant="destructive" className="text-[10px]">Blacklisted</Badge>
               )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              {/* Company fields — always shown so users can convert individual ↔ company */}
-              <div className="space-y-1.5">
-                <Label className="text-xs">Company Name</Label>
-                <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="ABC Holdings (Pty) Ltd" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Registration Number</Label>
-                <Input value={registrationNumber} onChange={(e) => setRegistrationNumber(e.target.value)} placeholder="2001/123456/07" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">First Name</Label>
-                <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Jane" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Last Name</Label>
-                <Input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Smith" />
-              </div>
-
-              {/* Individual-only fields */}
-              {initial.id_number && (
-                <div className="space-y-1.5">
-                  <Label className="text-xs">ID Number ({initial.id_type ?? "ID"})</Label>
-                  <Input
-                    value={initial.id_number.replace(/\S/g, "•").slice(0, -4) + initial.id_number.slice(-4)}
-                    readOnly
-                    className="font-mono text-muted-foreground bg-muted/40"
-                  />
-                </div>
-              )}
-              {isIndividual && (
+              {entityType === "individual" ? (
                 <>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">First Name</Label>
+                    <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Jane" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Last Name</Label>
+                    <Input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Smith" />
+                  </div>
+                  {initial.id_number && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">ID Number ({initial.id_type ?? "ID"})</Label>
+                      <Input
+                        value={initial.id_number.replace(/\S/g, "•").slice(0, -4) + initial.id_number.slice(-4)}
+                        readOnly
+                        className="font-mono text-muted-foreground bg-muted/40"
+                      />
+                    </div>
+                  )}
                   <div className="space-y-1.5">
                     <Label className="text-xs">Date of Birth</Label>
                     <Input type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} />
@@ -602,6 +598,29 @@ export function TenantDetail({
                   <div className="space-y-1.5">
                     <Label className="text-xs">Nationality</Label>
                     <Input value={nationality} onChange={(e) => setNationality(e.target.value)} placeholder="South African" />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Company Name</Label>
+                    <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="ABC Holdings (Pty) Ltd" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Registration Number</Label>
+                    <Input value={registrationNumber} onChange={(e) => setRegistrationNumber(e.target.value)} placeholder="2001/123456/07" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">First Name</Label>
+                    <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Contact person" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Last Name</Label>
+                    <Input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Contact person" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">VAT Number</Label>
+                    <Input value={vatNumber} onChange={(e) => setVatNumber(e.target.value)} placeholder="4110123456" />
                   </div>
                 </>
               )}
