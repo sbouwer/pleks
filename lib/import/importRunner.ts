@@ -767,10 +767,18 @@ function routeRowsByType(
   }
 
   for (const row of rows) {
-    const entityType = getField(row, "__entity_type", mapping).toLowerCase().trim()
+    const raw = getField(row, "__entity_type", mapping).toLowerCase().trim()
+    // Strip individual/company qualifiers so "contractor individual", "landlord company" etc. all normalize cleanly
+    const entityType = raw
+      .replace(/\b(individual|person|company|organisation|organization|cc|pty\s*ltd|ltd|inc)\b/g, "")
+      .replace(/[-_]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
 
     switch (entityType) {
       case "tenant":
+      case "lessee":
+      case "huurder":
       case "":
         result.tenantRows.push(row)
         break
@@ -778,9 +786,7 @@ function routeRowsByType(
       case "supplier":
       case "contractor":
       case "managing scheme":
-      case "managing_scheme":
       case "body corporate":
-      case "body_corporate":
       case "utility":
       case "utilities":
       case "municipality":
@@ -790,6 +796,8 @@ function routeRowsByType(
         break
       case "landlord":
       case "owner":
+      case "verhuurder":
+      case "eienaar":
         result.landlordRows.push(row)
         break
       case "agent":
@@ -926,11 +934,14 @@ async function importVendors(
         continue
       }
 
-      const rawType = getField(row, "__entity_type", ctx.mapping).toLowerCase().trim()
+      const normalizedType = getField(row, "__entity_type", ctx.mapping)
+        .toLowerCase().trim()
+        .replace(/\b(individual|person|company|organisation|organization|cc|pty\s*ltd|ltd|inc)\b/g, "")
+        .replace(/[-_]/g, " ").replace(/\s+/g, " ").trim()
       const supplierType =
-        rawType === "managing_scheme" || rawType === "managing scheme" || rawType === "body_corporate" || rawType === "body corporate"
+        normalizedType === "managing scheme" || normalizedType === "body corporate"
           ? "managing_scheme"
-          : rawType === "utility" || rawType === "utilities" || rawType === "municipality" || rawType === "munisipaliteit" || rawType === "munisipalite"
+          : normalizedType === "utility" || normalizedType === "utilities" || normalizedType === "municipality" || normalizedType === "munisipaliteit" || normalizedType === "munisipalite"
             ? "utility"
             : "contractor"
 
