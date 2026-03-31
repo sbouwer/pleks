@@ -777,6 +777,11 @@ function routeRowsByType(
       case "vendor":
       case "supplier":
       case "contractor":
+      case "managing scheme":
+      case "managing_scheme":
+      case "body corporate":
+      case "body_corporate":
+      case "utility":
         result.vendorRows.push(row)
         break
       case "landlord":
@@ -917,10 +922,18 @@ async function importVendors(
         continue
       }
 
+      const rawType = getField(row, "__entity_type", ctx.mapping).toLowerCase().trim()
+      const supplierType =
+        rawType === "managing_scheme" || rawType === "managing scheme" || rawType === "body_corporate" || rawType === "body corporate"
+          ? "managing_scheme"
+          : rawType === "utility"
+            ? "utility"
+            : "contractor"
+
       const { error } = await ctx.supabase.from("contractors").insert({
         org_id: ctx.orgId,
         contact_id: contact.id,
-        supplier_type: "contractor",
+        supplier_type: supplierType,
         is_active: true,
       })
 
