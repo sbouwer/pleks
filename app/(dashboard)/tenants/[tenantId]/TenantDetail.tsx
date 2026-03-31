@@ -564,59 +564,45 @@ export function TenantDetail({
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              {isIndividual ? (
+              {/* Company fields — always shown so users can convert individual ↔ company */}
+              <div className="space-y-1.5">
+                <Label className="text-xs">Company Name</Label>
+                <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="ABC Holdings (Pty) Ltd" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Registration Number</Label>
+                <Input value={registrationNumber} onChange={(e) => setRegistrationNumber(e.target.value)} placeholder="2001/123456/07" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">First Name</Label>
+                <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Jane" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Last Name</Label>
+                <Input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Smith" />
+              </div>
+
+              {/* Individual-only fields */}
+              {initial.id_number && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">ID Number ({initial.id_type ?? "ID"})</Label>
+                  <Input
+                    value={initial.id_number.replace(/\S/g, "•").slice(0, -4) + initial.id_number.slice(-4)}
+                    readOnly
+                    className="font-mono text-muted-foreground bg-muted/40"
+                  />
+                </div>
+              )}
+              {isIndividual && (
                 <>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">First Name</Label>
-                    <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Jane" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Last Name</Label>
-                    <Input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Smith" />
-                  </div>
-                  {initial.id_number && (
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">ID Number ({initial.id_type ?? "ID"})</Label>
-                      <Input
-                        value={initial.id_number.replace(/./g, "•").slice(0, -4) + initial.id_number.slice(-4)}
-                        readOnly
-                        className="font-mono text-muted-foreground bg-muted/40"
-                      />
-                    </div>
-                  )}
-                  <div className="space-y-1.5">
                     <Label className="text-xs">Date of Birth</Label>
-                    <Input
-                      type="date"
-                      value={dateOfBirth}
-                      onChange={(e) => setDateOfBirth(e.target.value)}
-                    />
+                    <Input type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Nationality</Label>
                     <Input value={nationality} onChange={(e) => setNationality(e.target.value)} placeholder="South African" />
                   </div>
-                </>
-              ) : (
-                <>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Company Name</Label>
-                    <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="ABC Holdings (Pty) Ltd" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Registration Number (optional)</Label>
-                    <Input value={registrationNumber} onChange={(e) => setRegistrationNumber(e.target.value)} placeholder="2001/123456/07" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">VAT Number (optional)</Label>
-                    <Input value={vatNumber} onChange={(e) => setVatNumber(e.target.value)} placeholder="4110123456" />
-                  </div>
-                  {initial.contact_person && (
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Contact Person</Label>
-                      <Input value={initial.contact_person} readOnly className="text-muted-foreground bg-muted/40" />
-                    </div>
-                  )}
                 </>
               )}
             </div>

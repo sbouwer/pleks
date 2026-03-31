@@ -1,22 +1,30 @@
-import { createClient } from "@/lib/supabase/server"
+import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { EmptyState } from "@/components/shared/EmptyState"
-import { Users, Plus } from "lucide-react"
-import { maskIdNumber } from "@/lib/crypto/idNumber"
+import { Plus } from "lucide-react"
+import { TenantsClient } from "./TenantsClient"
 
 export default async function TenantsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
+  const service = await createServiceClient()
+  const { data: membership } = await service
+    .from("user_orgs")
+    .select("org_id, role")
+    .eq("user_id", user.id)
+    .is("deleted_at", null)
+    .single()
+
+  if (!membership) redirect("/onboarding")
+
   const { data: tenants } = await supabase
     .from("tenant_view")
-    .select("id, entity_type, first_name, last_name, company_name, contact_person, email, phone, id_number")
+    .select("id, contact_id, entity_type, first_name, last_name, company_name, email, phone")
+    .eq("org_id", membership.org_id)
     .is("deleted_at", null)
-    .order("created_at", { ascending: false })
 
   const list = tenants || []
 
@@ -25,9 +33,7 @@ export default async function TenantsPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="font-heading text-3xl">Tenants</h1>
-          {list.length > 0 && (
-            <p className="text-sm text-muted-foreground mt-1">{list.length} tenants</p>
-          )}
+          <p className="text-sm text-muted-foreground">{list.length} tenants</p>
         </div>
         <Button render={<Link href="/tenants/new" />}>
           <Plus className="h-4 w-4 mr-1" /> Add Tenant
@@ -35,39 +41,11 @@ export default async function TenantsPage() {
       </div>
 
       {list.length === 0 ? (
-        <EmptyState
-          icon={<Users className="h-8 w-8 text-muted-foreground" />}
-          title="No tenants yet"
-          description="Add your first tenant to get started."
-          
-        />
+        <p className="text-sm text-muted-foreground py-8 text-center">
+          No tenants yet. Import contacts or add one using the button above.
+        </p>
       ) : (
-        <div className="space-y-2">
-          {list.map((tenant) => {
-            const name = tenant.entity_type === "individual"
-              ? `${tenant.first_name || ""} ${tenant.last_name || ""}`.trim()
-              : tenant.company_name || "Unnamed Company"
-
-            return (
-              <Link key={tenant.id} href={`/tenants/${tenant.id}`}>
-                <Card className="hover:border-brand/50 transition-colors cursor-pointer">
-                  <CardContent className="flex items-center justify-between pt-4">
-                    <div>
-                      <p className="font-medium">{name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {tenant.email || tenant.phone || "No contact info"}
-                        {tenant.id_number && ` · ID: ${maskIdNumber(tenant.id_number)}`}
-                      </p>
-                    </div>
-                    <span className="text-xs capitalize text-muted-foreground bg-surface-elevated px-2 py-0.5 rounded">
-                      {tenant.entity_type}
-                    </span>
-                  </CardContent>
-                </Card>
-              </Link>
-            )
-          })}
-        </div>
+        <TenantsClient tenants={list} userRole={membership.role} />
       )}
     </div>
   )
