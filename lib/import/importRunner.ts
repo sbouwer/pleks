@@ -920,6 +920,8 @@ async function importVendors(
       const { error } = await ctx.supabase.from("contractors").insert({
         org_id: ctx.orgId,
         contact_id: contact.id,
+        supplier_type: "contractor",
+        is_active: true,
       })
 
       if (error) {
