@@ -26,6 +26,7 @@ import { SPECIALITY_OPTIONS } from "../ContractorsClient"
 interface Contractor {
   id: string
   contact_id: string
+  entity_type: string
   first_name: string | null
   last_name: string | null
   company_name: string | null
@@ -387,6 +388,9 @@ export function ContractorDetail({
   const isOwner = userRole === "owner"
 
   // ── Overview state ──────────────────────────────────────────────────────────
+  const [entityType, setEntityType] = useState(initial.entity_type ?? "organisation")
+  const [firstName, setFirstName] = useState(initial.first_name ?? "")
+  const [lastName, setLastName] = useState(initial.last_name ?? "")
   const [companyName, setCompanyName] = useState(initial.company_name ?? "")
   const [tradingAs, setTradingAs] = useState(initial.trading_as ?? "")
   const [registrationNumber, setRegistrationNumber] = useState(initial.registration_number ?? "")
@@ -452,10 +456,13 @@ export function ContractorDetail({
       body: JSON.stringify({
         contractorId: initial.id,
         contactId: initial.contact_id,
-        companyName: companyName.trim() || null,
-        tradingAs: tradingAs.trim() || null,
-        registrationNumber: registrationNumber.trim() || null,
-        vatNumber: vatNumber.trim() || null,
+        entityType,
+        firstName: entityType === "individual" ? firstName.trim() || null : null,
+        lastName: entityType === "individual" ? lastName.trim() || null : null,
+        companyName: entityType === "organisation" ? companyName.trim() || null : null,
+        tradingAs: entityType === "organisation" ? tradingAs.trim() || null : null,
+        registrationNumber: entityType === "organisation" ? registrationNumber.trim() || null : null,
+        vatNumber: entityType === "organisation" ? vatNumber.trim() || null : null,
         notes: notes.trim() || null,
         isActive,
         specialities,
@@ -619,27 +626,55 @@ export function ContractorDetail({
       ══════════════════════════════════════════════════════════════════════ */}
       <TabsContent value="overview" className="space-y-6 pt-4">
 
-        {/* Company info */}
+        {/* Identity */}
         <Card>
           <CardContent className="pt-5 space-y-4">
-            <p className="text-sm font-medium text-foreground">Company Details</p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium text-foreground">Identity</p>
+              <div className="flex rounded-md border border-border overflow-hidden text-xs">
+                <button type="button" onClick={() => setEntityType("individual")}
+                  className={`px-3 py-1 transition-colors ${entityType === "individual" ? "bg-brand text-white" : "text-muted-foreground hover:text-foreground"}`}>
+                  Individual
+                </button>
+                <button type="button" onClick={() => setEntityType("organisation")}
+                  className={`px-3 py-1 transition-colors ${entityType === "organisation" ? "bg-brand text-white" : "text-muted-foreground hover:text-foreground"}`}>
+                  Company
+                </button>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Company Name</Label>
-                <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="DW Plumbing (Pty) Ltd" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Trading As (optional)</Label>
-                <Input value={tradingAs} onChange={(e) => setTradingAs(e.target.value)} placeholder="DW Plumbing" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Registration Number (optional)</Label>
-                <Input value={registrationNumber} onChange={(e) => setRegistrationNumber(e.target.value)} placeholder="2001/123456/07" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">VAT Number (optional)</Label>
-                <Input value={vatNumber} onChange={(e) => setVatNumber(e.target.value)} placeholder="4110123456" />
-              </div>
+              {entityType === "individual" ? (
+                <>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">First Name</Label>
+                    <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Dean" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Last Name</Label>
+                    <Input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Wyld" />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Company Name</Label>
+                    <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="DW Plumbing (Pty) Ltd" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Trading As</Label>
+                    <Input value={tradingAs} onChange={(e) => setTradingAs(e.target.value)} placeholder="DW Plumbing" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Registration Number</Label>
+                    <Input value={registrationNumber} onChange={(e) => setRegistrationNumber(e.target.value)} placeholder="2001/123456/07" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">VAT Number</Label>
+                    <Input value={vatNumber} onChange={(e) => setVatNumber(e.target.value)} placeholder="4110123456" />
+                  </div>
+                </>
+              )}
               <div className="space-y-1.5 col-span-2">
                 <Label className="text-xs">Notes</Label>
                 <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Internal notes about this contractor…" rows={3} />

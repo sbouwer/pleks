@@ -77,10 +77,8 @@ export async function PATCH(req: NextRequest) {
   const contactUpdate: Record<string, unknown> = {}
   if (firstName !== undefined) contactUpdate.first_name = firstName?.trim() || null
   if (lastName !== undefined) contactUpdate.last_name = lastName?.trim() || null
-  if (companyName !== undefined) {
-    contactUpdate.company_name = companyName?.trim() || null
-    contactUpdate.entity_type = companyName?.trim() ? "organisation" : "individual"
-  }
+  if (entityType !== undefined) contactUpdate.entity_type = entityType
+  if (companyName !== undefined) contactUpdate.company_name = companyName?.trim() || null
   if (tradingAs !== undefined) contactUpdate.trading_as = tradingAs?.trim() || null
   if (registrationNumber !== undefined) contactUpdate.registration_number = registrationNumber?.trim() || null
   if (vatNumber !== undefined) contactUpdate.vat_number = vatNumber?.trim() || null
