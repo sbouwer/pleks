@@ -782,6 +782,10 @@ function routeRowsByType(
       case "body corporate":
       case "body_corporate":
       case "utility":
+      case "utilities":
+      case "municipality":
+      case "munisipaliteit":
+      case "munisipalite":
         result.vendorRows.push(row)
         break
       case "landlord":
@@ -926,7 +930,7 @@ async function importVendors(
       const supplierType =
         rawType === "managing_scheme" || rawType === "managing scheme" || rawType === "body_corporate" || rawType === "body corporate"
           ? "managing_scheme"
-          : rawType === "utility"
+          : rawType === "utility" || rawType === "utilities" || rawType === "municipality" || rawType === "munisipaliteit" || rawType === "munisipalite"
             ? "utility"
             : "contractor"
 
