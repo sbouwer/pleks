@@ -8,7 +8,12 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
-import { Search, Pencil, Trash2, X, Plus, Check } from "lucide-react"
+import Link from "next/link"
+import {
+  Search, Trash2, X, Plus, Check,
+  ArrowUpDown, ArrowUp, ArrowDown,
+  Pencil,
+} from "lucide-react"
 
 export const SPECIALITY_OPTIONS = [
   "Plumbing",
@@ -49,6 +54,9 @@ interface Props {
   orgId: string
 }
 
+type SortKey = "company" | "contact" | "phone" | "email" | "status"
+type SortDir = "asc" | "desc"
+
 function SpecialityPicker({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
   function toggle(s: string) {
     onChange(value.includes(s) ? value.filter((x) => x !== s) : [...value, s])
@@ -74,93 +82,31 @@ function SpecialityPicker({ value, onChange }: { value: string[]; onChange: (v: 
   )
 }
 
-function EditForm({
-  contractor,
-  onSave,
-  onCancel,
-}: {
-  contractor: Contractor
-  onSave: () => void
-  onCancel: () => void
-}) {
-  const [firstName, setFirstName] = useState(contractor.first_name ?? "")
-  const [lastName, setLastName] = useState(contractor.last_name ?? "")
-  const [companyName, setCompanyName] = useState(contractor.company_name ?? "")
-  const [email, setEmail] = useState(contractor.email ?? "")
-  const [phone, setPhone] = useState(contractor.phone ?? "")
-  const [specialities, setSpecialities] = useState<string[]>(contractor.specialities ?? [])
-  const [saving, setSaving] = useState(false)
-
-  async function handleSave() {
-    setSaving(true)
-    const res = await fetch("/api/contractors", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contractorId: contractor.id,
-        contactId: contractor.contact_id,
-        firstName,
-        lastName,
-        companyName,
-        email,
-        phone,
-        specialities,
-      }),
-    })
-    setSaving(false)
-    if (res.ok) {
-      toast.success("Contractor updated")
-      onSave()
-    } else {
-      const d = await res.json()
-      toast.error(d.error || "Failed to update")
-    }
-  }
-
-  return (
-    <div className="space-y-3 pt-2">
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <Label className="text-xs">Company / Trading As</Label>
-          <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="DW Plumbing" />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">First name</Label>
-          <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Dean" />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">Last name</Label>
-          <Input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Wyld" />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">Phone</Label>
-          <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="082 000 0000" />
-        </div>
-        <div className="space-y-1 col-span-2">
-          <Label className="text-xs">Email</Label>
-          <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="email@example.com" />
-        </div>
-      </div>
-      <div className="space-y-1.5">
-        <Label className="text-xs">Specialities</Label>
-        <SpecialityPicker value={specialities} onChange={setSpecialities} />
-      </div>
-      <div className="flex gap-2 pt-1">
-        <Button size="sm" onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
-        <Button size="sm" variant="ghost" onClick={onCancel}>Cancel</Button>
-      </div>
-    </div>
-  )
+function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
+  if (col !== sortKey) return <ArrowUpDown className="size-3.5 text-muted-foreground/50 ml-1 inline" />
+  return sortDir === "asc"
+    ? <ArrowUp className="size-3.5 text-brand ml-1 inline" />
+    : <ArrowDown className="size-3.5 text-brand ml-1 inline" />
 }
 
 export function ContractorsClient({ contractors: initial, userRole, orgId }: Readonly<Props>) {
   const router = useRouter()
   const [search, setSearch] = useState("")
   const [activeFilter, setActiveFilter] = useState<string | null>(null)
-  const [editingId, setEditingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [sortKey, setSortKey] = useState<SortKey>("company")
+  const [sortDir, setSortDir] = useState<SortDir>("asc")
 
   const isOwner = userRole === "owner"
+
+  function handleSort(col: SortKey) {
+    if (sortKey === col) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc")
+    } else {
+      setSortKey(col)
+      setSortDir("asc")
+    }
+  }
 
   const filtered = initial
     .filter((c) => {
@@ -172,12 +118,28 @@ export function ContractorsClient({ contractors: initial, userRole, orgId }: Rea
       return matchSearch && matchFilter
     })
     .sort((a, b) => {
-      const nameA = (a.company_name || `${a.first_name} ${a.last_name}`).toLowerCase()
-      const nameB = (b.company_name || `${b.first_name} ${b.last_name}`).toLowerCase()
-      return nameA.localeCompare(nameB)
+      let valA = ""
+      let valB = ""
+      if (sortKey === "company") {
+        valA = (a.company_name || `${a.first_name ?? ""} ${a.last_name ?? ""}`).toLowerCase()
+        valB = (b.company_name || `${b.first_name ?? ""} ${b.last_name ?? ""}`).toLowerCase()
+      } else if (sortKey === "contact") {
+        valA = `${a.last_name ?? ""} ${a.first_name ?? ""}`.toLowerCase().trim()
+        valB = `${b.last_name ?? ""} ${b.first_name ?? ""}`.toLowerCase().trim()
+      } else if (sortKey === "phone") {
+        valA = a.phone ?? ""
+        valB = b.phone ?? ""
+      } else if (sortKey === "email") {
+        valA = a.email?.toLowerCase() ?? ""
+        valB = b.email?.toLowerCase() ?? ""
+      } else if (sortKey === "status") {
+        valA = a.is_active ? "a" : "b"
+        valB = b.is_active ? "a" : "b"
+      }
+      const cmp = valA.localeCompare(valB)
+      return sortDir === "asc" ? cmp : -cmp
     })
 
-  // All specialities present across contractors for filter chips
   const allSpecialities = Array.from(
     new Set(initial.flatMap((c) => c.specialities ?? []))
   ).sort()
@@ -199,6 +161,19 @@ export function ContractorsClient({ contractors: initial, userRole, orgId }: Rea
     }
   }
 
+  function ColHeader({ col, label }: { col: SortKey; label: string }) {
+    return (
+      <button
+        type="button"
+        onClick={() => handleSort(col)}
+        className="flex items-center gap-0.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
+      >
+        {label}
+        <SortIcon col={col} sortKey={sortKey} sortDir={sortDir} />
+      </button>
+    )
+  }
+
   return (
     <div className="space-y-4">
       {/* Search + filter */}
@@ -212,7 +187,10 @@ export function ContractorsClient({ contractors: initial, userRole, orgId }: Rea
             onChange={(e) => setSearch(e.target.value)}
           />
           {search && (
-            <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
               <X className="size-4" />
             </button>
           )}
@@ -246,78 +224,119 @@ export function ContractorsClient({ contractors: initial, userRole, orgId }: Rea
       {filtered.length === 0 ? (
         <p className="text-sm text-muted-foreground py-8 text-center">No contractors match your search.</p>
       ) : (
-        <div className="space-y-2">
-          {filtered.map((c) => {
-            const displayName = c.company_name || `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || "Unnamed"
-            const contactName = c.company_name ? `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() : null
-            const isEditing = editingId === c.id
-            const isDeleting = deletingId === c.id
+        <div className="rounded-lg border border-border overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/30">
+                <th className="px-4 py-2.5 text-left">
+                  <ColHeader col="company" label="Company" />
+                </th>
+                <th className="px-4 py-2.5 text-left hidden md:table-cell">
+                  <ColHeader col="contact" label="Primary Contact" />
+                </th>
+                <th className="px-4 py-2.5 text-left hidden lg:table-cell">
+                  <ColHeader col="phone" label="Phone" />
+                </th>
+                <th className="px-4 py-2.5 text-left hidden lg:table-cell">
+                  <ColHeader col="email" label="Email" />
+                </th>
+                <th className="px-4 py-2.5 text-left hidden xl:table-cell">
+                  <span className="text-xs font-medium text-muted-foreground">Specialities</span>
+                </th>
+                <th className="px-4 py-2.5 text-left">
+                  <ColHeader col="status" label="Status" />
+                </th>
+                <th className="px-4 py-2.5 text-right">
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((c) => {
+                const displayName = c.company_name || `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || "Unnamed"
+                const contactName = c.company_name
+                  ? `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim()
+                  : null
+                const isDeleting = deletingId === c.id
+                const visibleSpecialities = (c.specialities ?? []).slice(0, 2)
+                const extraCount = (c.specialities ?? []).length - 2
 
-            return (
-              <Card key={c.id} className={isEditing ? "border-brand/30" : ""}>
-                <CardContent className="py-3">
-                  <div className="flex items-start justify-between gap-3">
-                    {/* Main info */}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-medium">{displayName}</p>
-                        {!c.is_active && (
-                          <Badge variant="secondary" className="text-[10px] bg-surface-elevated">Inactive</Badge>
+                return (
+                  <tr
+                    key={c.id}
+                    className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors cursor-pointer group"
+                    onClick={() => router.push(`/contractors/${c.id}`)}
+                  >
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-sm">{displayName}</p>
+                    </td>
+                    <td className="px-4 py-3 hidden md:table-cell">
+                      <p className="text-sm text-muted-foreground">
+                        {contactName || <span className="text-muted-foreground/40">—</span>}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3 hidden lg:table-cell">
+                      <p className="text-sm text-muted-foreground">
+                        {c.phone || <span className="text-muted-foreground/40">—</span>}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3 hidden lg:table-cell">
+                      <p className="text-sm text-muted-foreground truncate max-w-[200px]">
+                        {c.email || <span className="text-muted-foreground/40">—</span>}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3 hidden xl:table-cell">
+                      <div className="flex flex-wrap gap-1">
+                        {visibleSpecialities.map((s) => (
+                          <Badge key={s} variant="secondary" className="text-[10px] bg-brand/8 text-brand">
+                            {s}
+                          </Badge>
+                        ))}
+                        {extraCount > 0 && (
+                          <Badge variant="secondary" className="text-[10px] bg-surface-elevated text-muted-foreground">
+                            +{extraCount} more
+                          </Badge>
                         )}
                       </div>
-                      {contactName && (
-                        <p className="text-xs text-muted-foreground mt-0.5">{contactName}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      {c.is_active ? (
+                        <Badge variant="secondary" className="text-[10px] bg-green-500/10 text-green-600 dark:text-green-400">Active</Badge>
+                      ) : (
+                        <Badge variant="secondary" className="text-[10px] bg-surface-elevated">Inactive</Badge>
                       )}
-                      <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1">
-                        {c.phone && <p className="text-xs text-muted-foreground">{c.phone}</p>}
-                        {c.email && <p className="text-xs text-muted-foreground">{c.email}</p>}
-                      </div>
-                      {(c.specialities ?? []).length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-2">
-                          {c.specialities.map((s) => (
-                            <Badge key={s} variant="secondary" className="text-[10px] bg-brand/8 text-brand">
-                              {s}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex items-center gap-1 shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-8 text-muted-foreground hover:text-foreground"
-                        onClick={() => setEditingId(isEditing ? null : c.id)}
-                      >
-                        {isEditing ? <X className="size-4" /> : <Pencil className="size-4" />}
-                      </Button>
-                      {isOwner && (
+                    </td>
+                    <td
+                      className="px-4 py-3 text-right"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Button
                           variant="ghost"
-                          size="icon"
-                          className="size-8 text-muted-foreground hover:text-destructive"
-                          onClick={() => handleDelete(c)}
-                          disabled={isDeleting}
+                          size="icon-sm"
+                          className="text-muted-foreground hover:text-foreground"
+                          render={<Link href={`/contractors/${c.id}`} />}
                         >
-                          <Trash2 className="size-4" />
+                          <Pencil className="size-3.5" />
                         </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  {isEditing && (
-                    <EditForm
-                      contractor={c}
-                      onSave={() => { setEditingId(null); router.refresh() }}
-                      onCancel={() => setEditingId(null)}
-                    />
-                  )}
-                </CardContent>
-              </Card>
-            )
-          })}
+                        {isOwner && (
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="text-muted-foreground hover:text-destructive"
+                            onClick={() => handleDelete(c)}
+                            disabled={isDeleting}
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

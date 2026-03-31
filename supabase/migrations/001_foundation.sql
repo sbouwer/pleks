@@ -567,3 +567,20 @@ CREATE OR REPLACE FUNCTION get_org_member_by_email(
     AND uo.deleted_at IS NULL
   LIMIT 1;
 $$ LANGUAGE sql STABLE SECURITY DEFINER;
+
+-- contractor_contacts: multiple people per contractor firm
+CREATE TABLE IF NOT EXISTS public.contractor_contacts (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id        uuid NOT NULL REFERENCES public.organisations(id),
+  contractor_id uuid NOT NULL REFERENCES public.contractors(id) ON DELETE CASCADE,
+  contact_id    uuid NOT NULL REFERENCES public.contacts(id) ON DELETE CASCADE,
+  role          text,
+  is_primary    boolean NOT NULL DEFAULT false,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(contractor_id, contact_id)
+);
+ALTER TABLE public.contractor_contacts ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "org_contractor_contacts" ON public.contractor_contacts
+  FOR ALL USING (org_id IN (
+    SELECT org_id FROM public.user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL
+  ));
