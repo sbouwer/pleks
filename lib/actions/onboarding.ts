@@ -65,29 +65,42 @@ export async function createAccountAndOrg(data: OnboardingData): Promise<{
     .single()
 
   if (orgError || !org) {
+    console.error("[onboarding] organisations insert failed:", orgError)
     return { error: orgError?.message || "Failed to create organisation", errorType: "org_failed" }
   }
 
   const orgId = org.id
 
   // Create user_orgs
-  await service.from("user_orgs").insert({
+  const { error: userOrgError } = await service.from("user_orgs").insert({
     user_id: userId,
     org_id: orgId,
     role: "owner",
   })
+  if (userOrgError) {
+    console.error("[onboarding] user_orgs insert failed:", userOrgError)
+    return { error: userOrgError.message, errorType: "user_org_failed" }
+  }
 
   // Create default subscription
-  await service.from("subscriptions").insert({
+  const { error: subError } = await service.from("subscriptions").insert({
     org_id: orgId,
     tier: "owner",
     status: "active",
     amount_cents: 0,
   })
+  if (subError) {
+    console.error("[onboarding] subscriptions insert failed:", subError)
+    return { error: subError.message, errorType: "sub_failed" }
+  }
 
   // Save bank account / consent / invites
   if (data.hasBankAccount && data.bankName) {
-    await saveBankAccount(service, orgId, data)
+    const bankError = await saveBankAccount(service, orgId, data)
+    if (bankError) {
+      console.error("[onboarding] bank_accounts insert failed:", bankError)
+      return { error: bankError.message, errorType: "bank_failed" }
+    }
   }
   if (!data.hasBankAccount && data.userType !== "exploring") {
     await logBankDeferred(service, orgId, userId, ip, data.userType)
@@ -97,11 +110,15 @@ export async function createAccountAndOrg(data: OnboardingData): Promise<{
   }
 
   // Create user profile
-  await service.from("user_profiles").upsert({
+  const { error: profileError } = await service.from("user_profiles").upsert({
     id: userId,
     full_name: data.contactName || data.name,
     phone: data.phone || null,
   }, { onConflict: "id" })
+  if (profileError) {
+    console.error("[onboarding] user_profiles upsert failed:", profileError)
+    return { error: profileError.message, errorType: "profile_failed" }
+  }
 
   // Audit log
   await service.from("audit_log").insert({
@@ -117,16 +134,6 @@ export async function createAccountAndOrg(data: OnboardingData): Promise<{
       management_scope: data.managementScope,
     },
   })
-
-  // If we just created a new user, sign them in via the client
-  // (the server action can't set cookies directly with admin client)
-  if (!data.isAlreadyAuthenticated) {
-    const supabase = await createClient()
-    await supabase.auth.signInWithPassword({
-      email: data.email,
-      password: data.password!,
-    })
-  }
 
   revalidatePath("/dashboard")
   return { ok: true }
@@ -199,7 +206,7 @@ async function resolveUserId(
 // ─── Helpers ──────────────────────────────────────────
 
 async function saveBankAccount(db: ServiceClient, orgId: string, data: OnboardingData) {
-  await db.from("bank_accounts").insert({
+  const { error } = await db.from("bank_accounts").insert({
     org_id: orgId,
     type: data.bankAccountType || "deposit_holding",
     bank_name: data.bankName!,
@@ -208,6 +215,7 @@ async function saveBankAccount(db: ServiceClient, orgId: string, data: Onboardin
     branch_code: data.branchCode || null,
     account_type: data.accountType || null,
   })
+  return error ?? null
 }
 
 async function logBankDeferred(db: ServiceClient, orgId: string, userId: string, ip: string, userType: string) {

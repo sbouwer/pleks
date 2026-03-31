@@ -227,6 +227,11 @@ function OnboardingWizard() {
       setLoading(false)
       return
     }
+    // Sign in client-side to avoid cookie-setting inside a streaming server action
+    if (!submitData.isAlreadyAuthenticated && submitData.password) {
+      const supabase = createClient()
+      await supabase.auth.signInWithPassword({ email: submitData.email, password: submitData.password })
+    }
     globalThis.location.href = "/dashboard?onboarding=complete"
   }
 

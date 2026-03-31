@@ -261,6 +261,11 @@ CREATE INDEX idx_subscriptions_trialing
   ON subscriptions(status, trial_ends_at)
   WHERE status = 'trialing';
 
+-- user_orgs → user_profiles FK (enables PostgREST embedded joins)
+ALTER TABLE public.user_orgs
+  ADD CONSTRAINT user_orgs_user_id_profile_fkey
+  FOREIGN KEY (user_id) REFERENCES public.user_profiles(id) ON DELETE CASCADE;
+
 -- User orgs
 CREATE INDEX idx_user_orgs_user_id ON user_orgs(user_id);
 CREATE INDEX idx_user_orgs_org_id ON user_orgs(org_id);
@@ -488,17 +493,17 @@ CREATE TRIGGER update_bank_accounts_updated_at
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Auto-create user_profile on signup
-CREATE OR REPLACE FUNCTION handle_new_user()
-RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN
-  INSERT INTO user_profiles (id, full_name)
+  INSERT INTO public.user_profiles (id, full_name)
   VALUES (
     NEW.id,
     COALESCE(NEW.raw_user_meta_data->>'full_name', '')
   );
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users

@@ -17,7 +17,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { toast } from "sonner"
-import { Plus } from "lucide-react"
+import { Plus, Trash2 } from "lucide-react"
 
 const ROLE_LABELS: Record<string, string> = {
   owner: "Owner",
@@ -56,20 +56,27 @@ export default function TeamPage() {
   const [inviteEmail, setInviteEmail] = useState("")
   const [inviteRole, setInviteRole] = useState("")
   const [loading, setLoading] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
   const usersLimit = TIER_LIMITS[tier].users
   const atLimit = usersLimit !== null && members.length >= usersLimit
 
-  useEffect(() => {
+  function loadMembers(supabase: ReturnType<typeof createClient>) {
     if (!orgId) return
-    const supabase = createClient()
-
     supabase
       .from("user_orgs")
       .select("id, user_id, role, user_profiles(full_name)")
       .eq("org_id", orgId)
       .is("deleted_at", null)
       .then(({ data }) => setMembers((data as unknown as Member[]) || []))
+  }
+
+  useEffect(() => {
+    if (!orgId) return
+    const supabase = createClient()
+
+    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null))
+    loadMembers(supabase)
 
     supabase
       .from("invites")
@@ -78,6 +85,45 @@ export default function TeamPage() {
       .is("accepted_at", null)
       .then(({ data }) => setPendingInvites((data as unknown as PendingInvite[]) || []))
   }, [orgId])
+
+  async function handleRoleChange(memberOrgId: string, newRole: string) {
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("user_orgs")
+      .update({ role: newRole })
+      .eq("id", memberOrgId)
+    if (error) {
+      toast.error("Failed to update role")
+    } else {
+      toast.success("Role updated")
+      loadMembers(supabase)
+    }
+  }
+
+  async function handleRemove(memberOrgId: string) {
+    const supabase = createClient()
+    const { error } = await supabase
+      .from("user_orgs")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", memberOrgId)
+    if (error) {
+      toast.error("Failed to remove member")
+    } else {
+      toast.success("Member removed")
+      loadMembers(supabase)
+    }
+  }
+
+  async function handleRevokeInvite(inviteId: string) {
+    const supabase = createClient()
+    const { error } = await supabase.from("invites").delete().eq("id", inviteId)
+    if (error) {
+      toast.error("Failed to revoke invite")
+    } else {
+      toast.success("Invite revoked")
+      setPendingInvites((prev) => prev.filter((i) => i.id !== inviteId))
+    }
+  }
 
   async function handleInvite() {
     if (!inviteEmail || !inviteRole || !orgId) return
@@ -127,16 +173,49 @@ export default function TeamPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {members.map((m) => (
-              <div key={m.id} className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium">
-                    {m.user_profiles?.full_name || "Unnamed"}
-                  </p>
+            {members.map((m) => {
+              const isMe = m.user_id === currentUserId
+              const isOwner = m.role === "owner"
+              const canEdit = !isMe && !isOwner
+              return (
+                <div key={m.id} className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {m.user_profiles?.full_name || "Unnamed"}
+                      {isMe && <span className="ml-1.5 text-xs text-muted-foreground">(you)</span>}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {canEdit ? (
+                      <Select value={m.role} onValueChange={(v) => handleRoleChange(m.id, v)}>
+                        <SelectTrigger className="h-8 w-44 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {INVITABLE_ROLES.map((r) => (
+                            <SelectItem key={r.value} value={r.value} className="text-xs">
+                              {r.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <StatusBadge status={m.role} />
+                    )}
+                    {canEdit && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        onClick={() => handleRemove(m.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <StatusBadge status="active" />
-              </div>
-            ))}
+              )
+            })}
           </div>
         </CardContent>
       </Card>
@@ -150,14 +229,24 @@ export default function TeamPage() {
           <CardContent>
             <div className="space-y-3">
               {pendingInvites.map((inv) => (
-                <div key={inv.id} className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm">{inv.email}</p>
+                <div key={inv.id} className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm truncate">{inv.email}</p>
                     <p className="text-xs text-muted-foreground">
                       {ROLE_LABELS[inv.role] || inv.role}
                     </p>
                   </div>
-                  <StatusBadge status="pending" />
+                  <div className="flex items-center gap-2 shrink-0">
+                    <StatusBadge status="pending" />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      onClick={() => handleRevokeInvite(inv.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
