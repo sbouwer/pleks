@@ -33,8 +33,8 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/properties", label: "Properties", icon: Building2 },
       { href: "/units", label: "Units", icon: DoorOpen },
-      { href: "/tenants", label: "Tenants", icon: Users },
       { href: "/landlords", label: "Landlords", icon: UserSquare2 },
+      { href: "/tenants", label: "Tenants", icon: Users },
       { href: "/contractors", label: "Suppliers", icon: HardHat },
       { href: "/leases", label: "Leases", icon: FileText },
     ],
@@ -42,16 +42,16 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: "Operations",
     items: [
-      { href: "/inspections", label: "Inspections", icon: ClipboardCheck },
-      { href: "/maintenance", label: "Maintenance", icon: Wrench },
       { href: "/applications", label: "Applications", icon: UserCheck },
+      { href: "/maintenance", label: "Maintenance", icon: Wrench },
+      { href: "/inspections", label: "Inspections", icon: ClipboardCheck },
     ],
   },
   {
     title: "Finance",
     items: [
-      { href: "/payments", label: "Payments", icon: CreditCard },
       { href: "/finance/deposits", label: "Deposits", icon: Wallet },
+      { href: "/payments", label: "Payments", icon: CreditCard },
       { href: "/reports", label: "Reports", icon: BarChart3 },
     ],
   },

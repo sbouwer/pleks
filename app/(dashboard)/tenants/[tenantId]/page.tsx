@@ -1,187 +1,138 @@
-import { createClient } from "@/lib/supabase/server"
+import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Pencil, Phone, Mail } from "lucide-react"
-import { maskIdNumber } from "@/lib/crypto/idNumber"
-import { CommunicationFeed } from "./CommunicationFeed"
+import { ChevronLeft } from "lucide-react"
+import { TenantDetail } from "./TenantDetail"
 
 export default async function TenantDetailPage({
   params,
-}: {
+}: Readonly<{
   params: Promise<{ tenantId: string }>
-}) {
+}>) {
   const { tenantId } = await params
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  const { data: tenant } = await supabase
+  const service = await createServiceClient()
+
+  const { data: membership } = await service
+    .from("user_orgs")
+    .select("org_id, role")
+    .eq("user_id", user.id)
+    .is("deleted_at", null)
+    .single()
+
+  if (!membership) redirect("/onboarding")
+
+  const { data: tenant } = await service
     .from("tenant_view")
     .select("*")
     .eq("id", tenantId)
+    .eq("org_id", membership.org_id)
     .is("deleted_at", null)
     .single()
 
   if (!tenant) notFound()
 
-  const { data: contacts } = await supabase
-    .from("tenant_next_of_kin")
-    .select("*")
-    .eq("tenant_id", tenantId)
+  const { data: phones } = await service
+    .from("contact_phones")
+    .select("id, number, phone_type, label, is_primary, can_whatsapp")
+    .eq("contact_id", tenant.contact_id)
+    .order("is_primary", { ascending: false })
 
-  const { data: comms } = await supabase
+  const { data: emails } = await service
+    .from("contact_emails")
+    .select("id, email, email_type, label, is_primary")
+    .eq("contact_id", tenant.contact_id)
+    .order("is_primary", { ascending: false })
+
+  const { data: addresses } = await service
+    .from("contact_addresses")
+    .select("id, street_line1, street_line2, suburb, city, province, postal_code, address_type, is_primary")
+    .eq("contact_id", tenant.contact_id)
+    .order("is_primary", { ascending: false })
+
+  const { data: history } = await service
+    .from("tenancy_history")
+    .select("id, move_in_date, move_out_date, status, units(unit_number, properties(name))")
+    .eq("tenant_id", tenantId)
+    .order("move_in_date", { ascending: false })
+
+  const { data: comms } = await service
     .from("communication_log")
-    .select("*")
+    .select("id, channel, direction, subject, body, status, created_at")
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false })
     .limit(20)
 
-  const { data: history } = await supabase
-    .from("tenancy_history")
-    .select("*, units(unit_number, properties(name))")
-    .eq("tenant_id", tenantId)
-    .order("move_in_date", { ascending: false })
-
-  const name = tenant.entity_type === "individual"
-    ? `${tenant.first_name || ""} ${tenant.last_name || ""}`.trim()
-    : tenant.company_name || "Unnamed"
+  const displayName = tenant.entity_type === "individual"
+    ? `${tenant.first_name ?? ""} ${tenant.last_name ?? ""}`.trim() || "Unnamed Tenant"
+    : tenant.company_name || "Unnamed Tenant"
 
   return (
     <div>
-      {/* Header */}
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <p className="text-sm text-muted-foreground mb-1">
-            <Link href="/tenants" className="hover:text-foreground">Tenants</Link> &rsaquo; {name}
-          </p>
-          <h1 className="font-heading text-3xl">{name}</h1>
-          <p className="text-sm text-muted-foreground capitalize">{tenant.entity_type} tenant</p>
-        </div>
-        <Button variant="outline" render={<Link href={`/tenants/${tenantId}/edit`} />}>
-          <Pencil className="h-4 w-4 mr-1" /> Edit
+      <div className="flex items-center gap-2 mb-6">
+        <Button
+          variant="ghost"
+          size="sm"
+          render={<Link href="/tenants" />}
+          className="text-muted-foreground"
+        >
+          <ChevronLeft className="size-4" />
+          Tenants
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Personal details */}
-        <Card>
-          <CardHeader><CardTitle className="text-lg">Details</CardTitle></CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            {tenant.entity_type === "individual" ? (
-              <>
-                {tenant.id_number && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">ID ({tenant.id_type})</span>
-                    <span>{maskIdNumber(tenant.id_number)}</span>
-                  </div>
-                )}
-                {tenant.date_of_birth && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Date of Birth</span>
-                    <span>{new Date(tenant.date_of_birth).toLocaleDateString("en-ZA")}</span>
-                  </div>
-                )}
-                {tenant.nationality && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Nationality</span>
-                    <span>{tenant.nationality}</span>
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                {/* registration_number not exposed in tenant_view — query contacts if needed */}
-                {tenant.contact_person && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Contact Person</span>
-                    <span>{tenant.contact_person}</span>
-                  </div>
-                )}
-              </>
-            )}
-            <div className="pt-2 border-t border-border space-y-2">
-              {tenant.email && (
-                <div className="flex items-center gap-2">
-                  <Mail className="h-3 w-3 text-muted-foreground" />
-                  <a href={`mailto:${tenant.email}`} className="text-sm hover:text-brand">{tenant.email}</a>
-                </div>
-              )}
-              {tenant.phone && (
-                <div className="flex items-center gap-2">
-                  <Phone className="h-3 w-3 text-muted-foreground" />
-                  <a href={`tel:${tenant.phone}`} className="text-sm hover:text-brand">{tenant.phone}</a>
-                </div>
-              )}
-            </div>
-            {tenant.employer_name && (
-              <div className="pt-2 border-t border-border">
-                <p className="text-muted-foreground mb-1">Employment</p>
-                <p>{tenant.occupation && `${tenant.occupation} at `}{tenant.employer_name}</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Emergency contacts */}
-        <Card>
-          <CardHeader><CardTitle className="text-lg">Emergency Contacts</CardTitle></CardHeader>
-          <CardContent>
-            {(!contacts || contacts.length === 0) ? (
-              <p className="text-sm text-muted-foreground">No emergency contacts added.</p>
-            ) : (
-              <div className="space-y-3">
-                {contacts.map((c) => (
-                  <div key={c.id} className="text-sm">
-                    <p className="font-medium">{c.full_name}</p>
-                    <p className="text-muted-foreground">{c.relationship} · {c.phone || c.email}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      <div className="mb-6">
+        <h1 className="font-heading text-3xl">{displayName}</h1>
+        {tenant.entity_type !== "individual" && (tenant.first_name || tenant.last_name) && (
+          <p className="text-sm text-muted-foreground mt-1">
+            {`${tenant.first_name ?? ""} ${tenant.last_name ?? ""}`.trim()}
+          </p>
+        )}
       </div>
 
-      {/* Communication log */}
-      <Card className="mt-6">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">Communications</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <CommunicationFeed tenantId={tenantId} initialComms={comms || []} />
-        </CardContent>
-      </Card>
-
-      {/* Tenancy history */}
-      {history && history.length > 0 && (
-        <Card className="mt-6">
-          <CardHeader><CardTitle className="text-lg">Tenancy History</CardTitle></CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {history.map((h) => {
-                const unit = h.units as unknown as { unit_number: string; properties: { name: string } } | null
-                return (
-                  <div key={h.id} className="flex items-center gap-3 text-sm">
-                    <div className="w-2 h-2 rounded-full bg-brand shrink-0" />
-                    <div className="flex-1">
-                      {unit && <span>{unit.properties.name} — {unit.unit_number}</span>}
-                      <span className="text-muted-foreground ml-2">
-                        {new Date(h.move_in_date).toLocaleDateString("en-ZA")}
-                        {h.move_out_date && ` → ${new Date(h.move_out_date).toLocaleDateString("en-ZA")}`}
-                      </span>
-                    </div>
-                    <span className="text-xs capitalize bg-surface-elevated px-2 py-0.5 rounded">{h.status}</span>
-                  </div>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <TenantDetail
+        tenant={{
+          id: tenant.id,
+          contact_id: tenant.contact_id,
+          entity_type: tenant.entity_type,
+          first_name: tenant.first_name ?? null,
+          last_name: tenant.last_name ?? null,
+          company_name: tenant.company_name ?? null,
+          registration_number: tenant.registration_number ?? null,
+          vat_number: tenant.vat_number ?? null,
+          contact_person: tenant.contact_person ?? null,
+          id_number: tenant.id_number ?? null,
+          id_type: tenant.id_type ?? null,
+          date_of_birth: tenant.date_of_birth ?? null,
+          nationality: tenant.nationality ?? null,
+          email: tenant.email ?? null,
+          phone: tenant.phone ?? null,
+          employer_name: tenant.employer_name ?? null,
+          employer_phone: tenant.employer_phone ?? null,
+          occupation: tenant.occupation ?? null,
+          employment_type: tenant.employment_type ?? null,
+          preferred_contact: tenant.preferred_contact ?? null,
+          blacklisted: tenant.blacklisted ?? false,
+          notes: tenant.notes ?? null,
+        }}
+        phones={phones ?? []}
+        emails={emails ?? []}
+        addresses={addresses ?? []}
+        history={(history ?? []) as unknown as Array<{
+          id: string
+          move_in_date: string
+          move_out_date: string | null
+          status: string
+          units: { unit_number: string; properties: { name: string } } | null
+        }>}
+        comms={comms ?? []}
+        userRole={membership.role}
+      />
     </div>
   )
 }
