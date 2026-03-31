@@ -110,14 +110,24 @@ function splitFullName(fullName: string): { firstName: string; lastName: string 
   }
 }
 
-function resolveName(row: Record<string, string>, mapping: ColumnMapping): { firstName: string; lastName: string } {
+const BUSINESS_SUFFIX_RE = /\b(pty\.?\s*ltd|pty|cc|bk|npc|rf|ltd|inc|corp|trust|holdings|properties|investments|group|enterprises|solutions)\b/i
+
+function resolveEntityType(companyField: string, displayName: string): "organisation" | "individual" {
+  if (companyField.trim()) return "organisation"
+  if (displayName && BUSINESS_SUFFIX_RE.test(displayName)) return "organisation"
+  return "individual"
+}
+
+function resolveName(row: Record<string, string>, mapping: ColumnMapping): { firstName: string; lastName: string; companyName: string } {
   const firstName = getField(row, "first_name", mapping)
   const lastName = getField(row, "last_name", mapping)
+  const companyName = getField(row, "company_name", mapping) || getField(row, "legal_name", mapping) || getField(row, "trading_name", mapping)
 
-  if (firstName || lastName) return { firstName, lastName }
+  if (firstName || lastName) return { firstName, lastName, companyName }
 
   const fullName = getField(row, "__split_name", mapping)
-  return fullName ? splitFullName(fullName) : { firstName: "", lastName: "" }
+  const split = fullName ? splitFullName(fullName) : { firstName: "", lastName: "" }
+  return { ...split, companyName }
 }
 
 function getExtraColumns(
@@ -371,16 +381,18 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
       return
     }
 
-    const { firstName, lastName } = resolveName(entry.row, ctx.mapping)
+    const { firstName, lastName, companyName: tenantCompany } = resolveName(entry.row, ctx.mapping)
+    const displayForTenant = tenantCompany || `${firstName} ${lastName}`.trim()
 
     const { data: contact, error: contactError } = await ctx.supabase
       .from("contacts")
       .insert({
         org_id: ctx.orgId,
-        entity_type: "individual",
+        entity_type: resolveEntityType(tenantCompany, displayForTenant),
         primary_role: "tenant",
-        first_name: firstName || "Unknown",
-        last_name: lastName || "Unknown",
+        first_name: firstName || (tenantCompany ? null : "Unknown"),
+        last_name: lastName || (tenantCompany ? null : "Unknown"),
+        company_name: tenantCompany || null,
         primary_email: email,
         primary_phone: getField(entry.row, "phone", ctx.mapping) || null,
         id_number: getField(entry.row, "id_number", ctx.mapping) || null,
@@ -618,15 +630,17 @@ async function createTenancyHistory(
 
     if (!tenantId) {
       // Create contact + tenant for the previous tenant
-      const { firstName, lastName } = resolveName(entry.row, ctx.mapping)
+      const { firstName, lastName, companyName: prevTenantCompany } = resolveName(entry.row, ctx.mapping)
+      const prevDisplay = prevTenantCompany || `${firstName} ${lastName}`.trim()
       const { data: contact } = await ctx.supabase
         .from("contacts")
         .insert({
           org_id: ctx.orgId,
-          entity_type: "individual",
+          entity_type: resolveEntityType(prevTenantCompany, prevDisplay),
           primary_role: "tenant",
-          first_name: firstName || "Unknown",
-          last_name: lastName || "Unknown",
+          first_name: firstName || (prevTenantCompany ? null : "Unknown"),
+          last_name: lastName || (prevTenantCompany ? null : "Unknown"),
+          company_name: prevTenantCompany || null,
           primary_email: email,
         })
         .select("id").single()
@@ -819,21 +833,22 @@ function routeRowsByType(
 function resolveVendorName(
   row: Record<string, string>,
   mapping: ColumnMapping
-): { displayName: string; firstName: string; lastName: string } {
+): { displayName: string; companyName: string; firstName: string; lastName: string } {
   const legalName = getField(row, "legal_name", mapping) || getField(row, "__split_name", mapping)
   const tradingName = getField(row, "trading_name", mapping)
+  const companyName = getField(row, "company_name", mapping) || tradingName || legalName
   const firstName = getField(row, "first_name", mapping)
   const lastName = getField(row, "last_name", mapping)
 
-  const displayName = tradingName || legalName || `${firstName} ${lastName}`.trim()
+  const displayName = tradingName || legalName || companyName || `${firstName} ${lastName}`.trim()
   if (firstName || lastName) {
-    return { displayName, firstName, lastName }
+    return { displayName, companyName, firstName, lastName }
   }
   if (legalName) {
     const split = splitFullName(legalName)
-    return { displayName, firstName: split.firstName, lastName: split.lastName }
+    return { displayName, companyName, firstName: split.firstName, lastName: split.lastName }
   }
-  return { displayName: displayName || "Unknown", firstName: "", lastName: "" }
+  return { displayName: displayName || "Unknown", companyName, firstName: "", lastName: "" }
 }
 
 function buildBankNotes(
@@ -863,7 +878,7 @@ async function importVendors(
     if (!row) continue
 
     const email = getField(row, "email", ctx.mapping).toLowerCase()
-    const { displayName, firstName, lastName } = resolveVendorName(row, ctx.mapping)
+    const { displayName, companyName, firstName, lastName } = resolveVendorName(row, ctx.mapping)
 
     // Dedup by email within this batch
     if (email && seenEmails.has(email)) continue
@@ -911,7 +926,7 @@ async function importVendors(
         .from("contacts")
         .insert({
           org_id: ctx.orgId,
-          entity_type: displayName && !firstName ? "organisation" : "individual",
+          entity_type: resolveEntityType(companyName, displayName),
           primary_role: "contractor",
           first_name: firstName || null,
           last_name: lastName || null,
@@ -1024,7 +1039,8 @@ async function importLandlords(
         continue
       }
 
-      const { firstName, lastName } = resolveName(row, ctx.mapping)
+      const { firstName, lastName, companyName: landlordCompany } = resolveName(row, ctx.mapping)
+      const landlordDisplay = landlordCompany || `${firstName} ${lastName}`.trim()
       const phone = getField(row, "phone", ctx.mapping) || null
       const idNumber = getField(row, "id_number", ctx.mapping) || null
       const vatNumber = getField(row, "vat_number", ctx.mapping) || null
@@ -1033,10 +1049,11 @@ async function importLandlords(
         .from("contacts")
         .insert({
           org_id: ctx.orgId,
-          entity_type: "individual",
+          entity_type: resolveEntityType(landlordCompany, landlordDisplay),
           primary_role: "landlord",
-          first_name: firstName || "Unknown",
-          last_name: lastName || "Unknown",
+          first_name: firstName || (landlordCompany ? null : "Unknown"),
+          last_name: lastName || (landlordCompany ? null : "Unknown"),
+          company_name: landlordCompany || null,
           primary_email: email,
           primary_phone: phone,
           id_number: idNumber,
