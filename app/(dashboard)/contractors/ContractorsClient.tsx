@@ -343,7 +343,7 @@ export function ContractorsClient({ contractors: initial, userRole, orgId }: Rea
   )
 }
 
-export function AddContractorButton({ orgId }: Readonly<{ orgId: string }>) {
+export function AddContractorButton({ orgId, supplierType = "contractor" }: Readonly<{ orgId: string; supplierType?: string }>) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [firstName, setFirstName] = useState("")
@@ -366,7 +366,7 @@ export function AddContractorButton({ orgId }: Readonly<{ orgId: string }>) {
       body: JSON.stringify({
         name: firstName.trim() || companyName.trim(),
         email, phone, companyName, specialities,
-        orgId,
+        orgId, supplierType,
       }),
     })
     setSaving(false)
@@ -382,10 +382,17 @@ export function AddContractorButton({ orgId }: Readonly<{ orgId: string }>) {
     }
   }
 
+  const SUPPLIER_LABELS: Record<string, string> = {
+    managing_scheme: "Managing Scheme",
+    utility: "Utility",
+    contractor: "Contractor",
+  }
+  const label = SUPPLIER_LABELS[supplierType] ?? "Contractor"
+
   if (!open) {
     return (
       <Button size="sm" onClick={() => setOpen(true)}>
-        <Plus className="size-4 mr-1" /> Add Contractor
+        <Plus className="size-4 mr-1" /> Add {label}
       </Button>
     )
   }
@@ -394,7 +401,7 @@ export function AddContractorButton({ orgId }: Readonly<{ orgId: string }>) {
     <Card className="mb-6">
       <CardContent className="pt-4 space-y-3">
         <div className="flex items-center justify-between">
-          <p className="text-sm font-medium">Add contractor</p>
+          <p className="text-sm font-medium">Add {label.toLowerCase()}</p>
           <Button variant="ghost" size="icon" className="size-7" onClick={() => setOpen(false)}>
             <X className="size-4" />
           </Button>
@@ -426,7 +433,7 @@ export function AddContractorButton({ orgId }: Readonly<{ orgId: string }>) {
           <SpecialityPicker value={specialities} onChange={setSpecialities} />
         </div>
         <Button size="sm" onClick={handleSubmit} disabled={saving || (!firstName.trim() && !companyName.trim())}>
-          {saving ? "Adding…" : "Add contractor"}
+          {saving ? "Adding…" : `Add ${label.toLowerCase()}`}
         </Button>
       </CardContent>
     </Card>

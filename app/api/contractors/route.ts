@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
   const membership = await getMembership(service, user.id)
   if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
 
-  const { name, email, phone, companyName, specialities } = await req.json()
+  const { name, email, phone, companyName, specialities, supplierType } = await req.json()
   if (!name?.trim()) return NextResponse.json({ error: "Name is required" }, { status: 400 })
 
   const { data: contact, error: contactError } = await service.from("contacts").insert({
@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
     contact_id: contact.id,
     is_active: true,
     specialities: specialities ?? [],
+    supplier_type: supplierType ?? "contractor",
   })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

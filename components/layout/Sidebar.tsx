@@ -35,7 +35,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/units", label: "Units", icon: DoorOpen },
       { href: "/tenants", label: "Tenants", icon: Users },
       { href: "/landlords", label: "Landlords", icon: UserSquare2 },
-      { href: "/contractors", label: "Contractors", icon: HardHat },
+      { href: "/contractors", label: "Suppliers", icon: HardHat },
       { href: "/leases", label: "Leases", icon: FileText },
     ],
   },
