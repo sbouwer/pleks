@@ -21,7 +21,7 @@ export default async function ContractorsPage() {
 
   const { data: contractors } = await supabase
     .from("contractor_view")
-    .select("id, first_name, last_name, company_name, email, phone, supplier_type, is_active")
+    .select("id, first_name, last_name, company_name, email, phone, is_active")
     .eq("org_id", membership.org_id)
     .order("created_at", { ascending: false })
 
@@ -37,7 +37,7 @@ export default async function ContractorsPage() {
 
       {(!contractors || contractors.length === 0) ? (
         <p className="text-sm text-muted-foreground py-8 text-center">
-          No contractors yet. Import contacts or add contractors from Settings → Contractors.
+          No contractors yet. Import contacts or add one using the button above.
         </p>
       ) : (
         <div className="space-y-2">
