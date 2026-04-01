@@ -4,6 +4,7 @@ import { useCallback, useState } from "react"
 import { Sidebar, NAV_GROUPS } from "@/components/layout/Sidebar"
 import { Topbar } from "@/components/layout/Topbar"
 import { MobileNav } from "@/components/layout/MobileNav"
+import { InactivityGuard } from "@/components/layout/InactivityGuard"
 
 export default function DashboardLayout({
   children,
@@ -25,6 +26,7 @@ export default function DashboardLayout({
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar onMenuClick={() => setMobileNavOpen(true)} />
         <main className="flex-1 overflow-y-auto bg-muted/30 p-6">{children}</main>
+        <InactivityGuard />
       </div>
     </div>
   )
