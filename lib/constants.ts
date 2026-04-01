@@ -84,6 +84,13 @@ export const DOCUMENT_TYPES = [
 ] as const
 
 // Currency formatting (South African Rand)
+export function formatZARAbbrev(cents: number): string {
+  const rands = cents / 100
+  if (rands >= 1_000_000) return `R ${(rands / 1_000_000).toFixed(1)}m`
+  if (rands >= 10_000) return `R ${Math.round(rands / 1000)}k`
+  return formatZAR(cents)
+}
+
 export function formatZAR(cents: number, showCents = false): string {
   const rands = cents / 100
   const formatted = rands.toLocaleString("en-ZA", {
