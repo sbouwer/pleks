@@ -63,12 +63,32 @@ export default async function PropertyDetailPage({
         </Button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Active Units</p><p className="font-heading text-2xl">{activeUnits.length}</p></CardContent></Card>
-        <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Occupied</p><p className="font-heading text-2xl">{occupied}/{activeUnits.length}</p></CardContent></Card>
-        <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Vacant</p><p className="font-heading text-2xl">{activeUnits.filter((u) => u.status === "vacant").length}</p></CardContent></Card>
-        <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Type</p><p className="font-heading text-2xl capitalize">{property.type}</p></CardContent></Card>
+      {/* Stats + Map */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        {/* 2×2 stat cards */}
+        <div className="grid grid-cols-2 gap-4">
+          <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Active Units</p><p className="font-heading text-2xl">{activeUnits.length}</p></CardContent></Card>
+          <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Occupied</p><p className="font-heading text-2xl">{occupied}/{activeUnits.length}</p></CardContent></Card>
+          <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Vacant</p><p className="font-heading text-2xl">{activeUnits.filter((u) => u.status === "vacant").length}</p></CardContent></Card>
+          <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Type</p><p className="font-heading text-2xl capitalize">{property.type}</p></CardContent></Card>
+        </div>
+
+        {/* Map */}
+        <Card className="overflow-hidden min-h-[200px]">
+          <iframe
+            title="Property location"
+            width="100%"
+            height="100%"
+            className="block min-h-[200px]"
+            style={{ border: 0 }}
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+            src={`https://maps.google.com/maps?q=${encodeURIComponent(
+              [property.address_line1, property.suburb, property.city, property.province, "South Africa"]
+                .filter(Boolean).join(", ")
+            )}&output=embed&z=15`}
+          />
+        </Card>
       </div>
 
       {/* Units */}
@@ -98,7 +118,7 @@ export default async function PropertyDetailPage({
                   </div>
                   <div className="text-sm text-muted-foreground space-y-1">
                     {unit.bedrooms !== null && (
-                      <p>{unit.bedrooms} bed &middot; {unit.bathrooms ?? 0} bath{unit.size_m2 ? ` &middot; ${unit.size_m2}m²` : ""}</p>
+                      <p>{unit.bedrooms} bed · {unit.bathrooms ?? 0} bath{unit.size_m2 ? ` · ${unit.size_m2}m²` : ""}</p>
                     )}
                     {unit.asking_rent_cents && (
                       <p className="font-heading text-foreground">{formatZAR(unit.asking_rent_cents)}/mo</p>
