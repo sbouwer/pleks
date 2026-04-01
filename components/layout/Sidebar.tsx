@@ -6,7 +6,6 @@ import { SidebarContent, type NavGroup } from "./SidebarContent"
 import {
   LayoutDashboard,
   Building2,
-  DoorOpen,
   Users,
   FileText,
   ClipboardCheck,
@@ -32,7 +31,6 @@ const NAV_GROUPS: NavGroup[] = [
     title: "Portfolio",
     items: [
       { href: "/properties", label: "Properties", icon: Building2 },
-      { href: "/units", label: "Units", icon: DoorOpen },
       { href: "/landlords", label: "Landlords", icon: UserSquare2 },
       { href: "/tenants", label: "Tenants", icon: Users },
       { href: "/contractors", label: "Suppliers", icon: HardHat },
