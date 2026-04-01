@@ -77,7 +77,7 @@ export default async function LeasesPage() {
   })
 
   return (
-    <div className="space-y-4">
+    <div className="flex h-full flex-col gap-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-heading text-2xl font-bold">Leases</h1>

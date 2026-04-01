@@ -45,7 +45,7 @@ function isInCurrentQuarter(dateStr: string | null): boolean {
 }
 
 interface LeaseListTabsProps {
-  leases: SerializedLease[]
+  readonly leases: SerializedLease[]
 }
 
 export function LeaseListTabs({ leases }: LeaseListTabsProps) {
@@ -75,7 +75,7 @@ export function LeaseListTabs({ leases }: LeaseListTabsProps) {
   }, [filtered])
 
   return (
-    <>
+    <div className="flex flex-1 flex-col min-h-0">
       {/* Tab bar */}
       <div className="mb-4 flex gap-1 overflow-x-auto border-b pb-0">
         {TABS.map((tab) => (
@@ -129,8 +129,11 @@ export function LeaseListTabs({ leases }: LeaseListTabsProps) {
         </div>
       )}
 
-      {/* Sticky footer */}
+      {/* Spacer pushes footer to bottom */}
+      <div className="flex-1" />
+
+      {/* Footer */}
       <LeaseListFooter {...footerMetrics} />
-    </>
+    </div>
   )
 }
