@@ -43,15 +43,15 @@ export async function POST(req: NextRequest) {
   if (contactError || !contact) return NextResponse.json({ error: contactError?.message || "Failed to create contact" }, { status: 500 })
 
   // Create thin landlord record
-  const { error } = await service.from("landlords").insert({
+  const { data: landlord, error } = await service.from("landlords").insert({
     org_id: membership.org_id,
     contact_id: contact.id,
     created_by: user.id,
-  })
+  }).select("id").single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error || !landlord) return NextResponse.json({ error: error?.message || "Failed to create landlord" }, { status: 500 })
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, landlordId: landlord.id })
 }
 
 export async function PATCH(req: NextRequest) {

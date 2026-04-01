@@ -2,9 +2,17 @@
 
 import Link from "next/link"
 import { Wrench } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { formatZAR } from "@/lib/constants"
+
+function getUnitDescription(unit: { bedrooms: number | null; bathrooms: number | null; size_m2: number | null }): string | null {
+  if (unit.bedrooms !== null) {
+    const sizeStr = unit.size_m2 ? ` · ${unit.size_m2}m²` : ""
+    return `${unit.bedrooms} bed · ${unit.bathrooms ?? 0} bath${sizeStr}`
+  }
+  if (unit.size_m2) return `${unit.size_m2}m²`
+  return null
+}
 
 const STATUS_MAP: Record<string, "active" | "pending" | "open" | "scheduled" | "arrears"> = {
   occupied: "active",
@@ -34,11 +42,12 @@ interface UnitRowProps {
     id: string
     name: string
     initials: string
+    inherited: boolean
   } | null
   maintenanceCount: number
 }
 
-export function UnitRow({ unit, propertyId, tenant, managingAgent, maintenanceCount }: UnitRowProps) {
+export function UnitRow({ unit, propertyId, tenant, managingAgent, maintenanceCount }: Readonly<UnitRowProps>) {
   return (
     <Link href={`/properties/${propertyId}/units/${unit.id}`}>
       <div className="border rounded-lg p-4 hover:border-brand/50 transition-colors cursor-pointer bg-card">
@@ -56,13 +65,9 @@ export function UnitRow({ unit, propertyId, tenant, managingAgent, maintenanceCo
                 </span>
               )}
             </div>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {unit.bedrooms !== null
-                ? `${unit.bedrooms} bed · ${unit.bathrooms ?? 0} bath${unit.size_m2 ? ` · ${unit.size_m2}m²` : ""}`
-                : unit.size_m2
-                  ? `${unit.size_m2}m²`
-                  : null}
-            </p>
+            {getUnitDescription(unit) && (
+              <p className="text-sm text-muted-foreground mt-0.5">{getUnitDescription(unit)}</p>
+            )}
           </div>
 
           {/* Column 2: Tenant */}
@@ -86,7 +91,7 @@ export function UnitRow({ unit, propertyId, tenant, managingAgent, maintenanceCo
             )}
           </div>
 
-          {/* Column 3: Managing agent */}
+          {/* Column 3: Agent — display only; assignment happens on unit detail page */}
           <div>
             {managingAgent ? (
               <div className="flex items-center gap-2">
@@ -95,18 +100,13 @@ export function UnitRow({ unit, propertyId, tenant, managingAgent, maintenanceCo
                 </div>
                 <div>
                   <p className="text-sm font-medium">{managingAgent.name}</p>
-                  <p className="text-xs text-muted-foreground">Managing agent</p>
+                  <p className="text-xs text-muted-foreground">
+                    {managingAgent.inherited ? "Property manager" : "Letting agent"}
+                  </p>
                 </div>
               </div>
             ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={(e) => { e.preventDefault(); e.stopPropagation() }}
-                className="text-xs"
-              >
-                Assign agent
-              </Button>
+              <p className="text-sm text-muted-foreground italic">No agent</p>
             )}
           </div>
 
