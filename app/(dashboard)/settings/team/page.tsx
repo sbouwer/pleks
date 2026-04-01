@@ -187,7 +187,7 @@ export default function TeamPage() {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {canEdit ? (
-                      <Select value={m.role} onValueChange={(v) => handleRoleChange(m.id, v)}>
+                      <Select value={m.role} onValueChange={(v) => v && handleRoleChange(m.id, v)}>
                         <SelectTrigger className="h-8 w-44 text-xs">
                           <SelectValue />
                         </SelectTrigger>
