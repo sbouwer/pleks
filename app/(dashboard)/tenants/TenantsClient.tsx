@@ -28,14 +28,23 @@ interface Props {
 type SortKey = "name" | "type" | "email" | "phone"
 type SortDir = "asc" | "desc"
 
-function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
+function SortIcon({ col, sortKey, sortDir }: Readonly<{ col: SortKey; sortKey: SortKey; sortDir: SortDir }>) {
   if (col !== sortKey) return <ArrowUpDown className="size-3.5 text-muted-foreground/50 ml-1 inline" />
   return sortDir === "asc"
     ? <ArrowUp className="size-3.5 text-brand ml-1 inline" />
     : <ArrowDown className="size-3.5 text-brand ml-1 inline" />
 }
 
-export function TenantsClient({ tenants: initial, userRole }: Props) {
+function ColHeader({ col, label, sortKey, sortDir, onSort }: Readonly<{ col: SortKey; label: string; sortKey: SortKey; sortDir: SortDir; onSort: (col: SortKey) => void }>) {
+  return (
+    <button type="button" onClick={() => onSort(col)}
+      className="flex items-center gap-0.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap">
+      {label}<SortIcon col={col} sortKey={sortKey} sortDir={sortDir} />
+    </button>
+  )
+}
+
+export function TenantsClient({ tenants: initial, userRole }: Readonly<Props>) {
   const router = useRouter()
   const [search, setSearch] = useState("")
   const [sortKey, setSortKey] = useState<SortKey>("name")
@@ -81,15 +90,6 @@ export function TenantsClient({ tenants: initial, userRole }: Props) {
     else { const d = await res.json(); toast.error(d.error || "Failed to delete") }
   }
 
-  function ColHeader({ col, label }: { col: SortKey; label: string }) {
-    return (
-      <button type="button" onClick={() => handleSort(col)}
-        className="flex items-center gap-0.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap">
-        {label}<SortIcon col={col} sortKey={sortKey} sortDir={sortDir} />
-      </button>
-    )
-  }
-
   return (
     <div className="space-y-4">
       <div className="relative">
@@ -104,7 +104,7 @@ export function TenantsClient({ tenants: initial, userRole }: Props) {
         )}
       </div>
 
-      <p className="text-xs text-muted-foreground">{filtered.length} of {initial.length} tenant{initial.length !== 1 ? "s" : ""}</p>
+      <p className="text-xs text-muted-foreground">{filtered.length} of {initial.length} tenant{initial.length === 1 ? "" : "s"}</p>
 
       {filtered.length === 0 ? (
         <p className="text-sm text-muted-foreground py-8 text-center">No tenants match your search.</p>
@@ -113,10 +113,10 @@ export function TenantsClient({ tenants: initial, userRole }: Props) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/30">
-                <th className="px-4 py-2.5 text-left"><ColHeader col="name" label="Name" /></th>
-                <th className="px-4 py-2.5 text-left hidden md:table-cell"><ColHeader col="type" label="Type" /></th>
-                <th className="px-4 py-2.5 text-left hidden lg:table-cell"><ColHeader col="phone" label="Phone" /></th>
-                <th className="px-4 py-2.5 text-left hidden lg:table-cell"><ColHeader col="email" label="Email" /></th>
+                <th className="px-4 py-2.5 text-left"><ColHeader col="name" label="Name" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} /></th>
+                <th className="px-4 py-2.5 text-left hidden md:table-cell"><ColHeader col="type" label="Type" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} /></th>
+                <th className="px-4 py-2.5 text-left hidden lg:table-cell"><ColHeader col="phone" label="Phone" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} /></th>
+                <th className="px-4 py-2.5 text-left hidden lg:table-cell"><ColHeader col="email" label="Email" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} /></th>
                 <th className="px-4 py-2.5 text-right"><span className="sr-only">Actions</span></th>
               </tr>
             </thead>

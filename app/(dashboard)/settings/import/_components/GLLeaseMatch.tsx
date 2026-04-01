@@ -27,9 +27,8 @@ export function GLLeaseMatch({ blocks, onBack, onConfirm }: Readonly<GLLeaseMatc
   const [leaseMatches, setLeaseMatches] = useState<Record<string, string>>({})
   const [propertyMatches, setPropertyMatches] = useState<Record<string, string>>({})
 
-  // Collect all unique unit refs and property keys
+  // Collect all unique unit refs
   const unitRefs = [...new Set(blocks.flatMap((b) => b.unitRefs.filter(Boolean)))]
-  const propertyKeys = blocks.map((b) => `${b.propertyName}(${b.ownerName})`)
 
   useEffect(() => {
     async function loadLeases() {
@@ -54,9 +53,6 @@ export function GLLeaseMatch({ blocks, onBack, onConfirm }: Readonly<GLLeaseMatc
     }
     loadLeases()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const allMatched = unitRefs.every((ref) => leaseMatches[ref]) ||
-    propertyKeys.every((key) => propertyMatches[key])
 
   if (loading) {
     return (

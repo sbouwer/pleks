@@ -40,10 +40,6 @@ const PERIOD_RE = /^(\d{6})/
 const TPN_DATE_RE = /^(\d{4})\/(\d{2})\/(\d{2})$/
 const CURRENCY_RE = /^(-?)R\s?([\d,]+\.\d{2})$/
 
-const MONTH_NAMES = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-]
 
 function parseTpnDate(raw: string): Date {
   const trimmed = raw.trim()
@@ -93,15 +89,6 @@ function extractUnitRef(desc: string): string | null {
 function extractPeriod(desc: string): string | null {
   const match = PERIOD_RE.exec(desc)
   return match ? match[1]! : null
-}
-
-function formatPeriod(period: string): string {
-  if (period.length !== 6) return period
-  const year = period.slice(0, 4)
-  const monthIdx = Number.parseInt(period.slice(4), 10) - 1
-  const monthName = MONTH_NAMES[monthIdx]
-  if (!monthName) return period
-  return `${monthName} ${year}`
 }
 
 // ── CSV Parser ─────────────────────────────────────────────────────────
@@ -253,32 +240,6 @@ export function parseGLCsv(csvText: string): GLPropertyBlock[] {
 
 // ── XLSX Parser ────────────────────────────────────────────────────────
 
-function findHeaderRow(
-  sheet: XLSX.WorkSheet,
-): { headerRowIndex: number; headers: string[] } {
-  const range = XLSX.utils.decode_range(sheet["!ref"] ?? "A1")
-  for (let r = range.s.r; r <= Math.min(range.e.r, 15); r++) {
-    const rowValues: string[] = []
-    for (let c = range.s.c; c <= range.e.c; c++) {
-      const addr = XLSX.utils.encode_cell({ r, c })
-      const cell = sheet[addr] as XLSX.CellObject | undefined
-      if (cell?.v != null && String(cell.v).trim() !== "") {
-        rowValues.push(String(cell.v).trim())
-      }
-    }
-    if (rowValues.length >= 3) {
-      const headers: string[] = []
-      for (let c = range.s.c; c <= range.e.c; c++) {
-        const addr = XLSX.utils.encode_cell({ r, c })
-        const cell = sheet[addr] as XLSX.CellObject | undefined
-        const val = cell?.v != null ? String(cell.v).trim() : ""
-        if (val !== "") headers.push(val)
-      }
-      return { headerRowIndex: r, headers }
-    }
-  }
-  return { headerRowIndex: 0, headers: [] }
-}
 
 interface XlsxBlockBoundary {
   propertyHeader: string

@@ -34,7 +34,6 @@ interface UnitAgentPickerProps {
 }
 
 export function UnitAgentPicker({
-  propertyId,
   unitId,
   currentAgentId,
   propertyManagerId,

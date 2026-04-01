@@ -84,6 +84,7 @@ export default function TeamPage() {
       .eq("org_id", orgId)
       .is("accepted_at", null)
       .then(({ data }) => setPendingInvites((data as unknown as PendingInvite[]) || []))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgId])
 
   async function handleRoleChange(memberOrgId: string, newRole: string) {
