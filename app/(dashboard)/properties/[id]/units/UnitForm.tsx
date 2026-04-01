@@ -135,7 +135,7 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
       {members.length > 0 && (
         <div className="space-y-2">
           <Label>Managing Person</Label>
-          <Select value={managedBy} onValueChange={setManagedBy}>
+          <Select value={managedBy} onValueChange={(v) => setManagedBy(v ?? "")}>
             <SelectTrigger>
               <SelectValue placeholder="Select team member..." />
             </SelectTrigger>
