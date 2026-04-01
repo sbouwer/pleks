@@ -1,9 +1,15 @@
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { ChevronLeft } from "lucide-react"
-import { ContractorDetail } from "./ContractorDetail"
+import { Wrench } from "lucide-react"
+import { ContactDetailLayout } from "@/components/contacts/ContactDetailLayout"
+import { ContactSidebar } from "@/components/contacts/ContactSidebar"
+import { QuickActions } from "@/components/contacts/QuickActions"
+import { SectionCard } from "@/components/contacts/SectionCard"
+import { RelationshipCard } from "@/components/contacts/RelationshipCard"
+import { StatGrid } from "@/components/contacts/StatGrid"
+import { ActivityTimeline } from "@/components/contacts/ActivityTimeline"
+import { ContractorContactSection, ContractorRatesSection, ContractorBankingSection, ContractorAddressSection } from "./ContractorSections"
+import { formatZAR } from "@/lib/constants"
 
 interface Props {
   params: Promise<{ id: string }>
@@ -73,57 +79,152 @@ export default async function ContractorDetailPage({ params }: Props) {
     .eq("contractor_id", id)
     .eq("org_id", membership.org_id)
 
+  // Active maintenance jobs assigned to this contractor
+  const { data: activeJobs } = await service
+    .from("maintenance_requests")
+    .select("id, title, category, status, urgency, created_at, quoted_cost_cents, units(unit_number, properties(name))")
+    .eq("contractor_id", id)
+    .not("status", "in", "(completed,closed,cancelled)")
+    .order("created_at", { ascending: false })
+
+  // Completed jobs for performance stats
+  const { data: completedJobs } = await service
+    .from("maintenance_requests")
+    .select("id, created_at, completed_at, tenant_rating")
+    .eq("contractor_id", id)
+    .eq("status", "completed")
+
+  // Recent invoices (may not exist)
+  let recentInvoices: Array<{ id: string; invoice_number: string | null; amount_incl_vat_cents: number; status: string; invoice_date: string }> = []
+  let totalInvoiced = 0
+  try {
+    const { data: invData } = await service
+      .from("supplier_invoices")
+      .select("id, invoice_number, amount_incl_vat_cents, status, invoice_date")
+      .eq("contractor_id", id)
+      .order("invoice_date", { ascending: false })
+      .limit(5)
+    recentInvoices = invData ?? []
+
+    const { data: invTotal } = await service
+      .from("supplier_invoices")
+      .select("amount_incl_vat_cents")
+      .eq("contractor_id", id)
+      .eq("status", "paid")
+    totalInvoiced = (invTotal ?? []).reduce((sum, i) => sum + (i.amount_incl_vat_cents || 0), 0)
+  } catch { recentInvoices = []; totalInvoiced = 0 }
+
+  // Performance stats
+  const totalCompleted = completedJobs?.length ?? 0
+  const avgCompletionDays = totalCompleted > 0
+    ? Math.round(
+        (completedJobs ?? []).reduce((sum, j) => {
+          const days = j.completed_at && j.created_at
+            ? (new Date(j.completed_at).getTime() - new Date(j.created_at).getTime()) / (1000 * 60 * 60 * 24)
+            : 0
+          return sum + days
+        }, 0) / totalCompleted * 10
+      ) / 10
+    : 0
+
+  const ratings = (completedJobs ?? []).filter((j) => j.tenant_rating != null).map((j) => j.tenant_rating as number)
+  const avgRating = ratings.length > 0
+    ? Math.round(ratings.reduce((a, b) => a + b, 0) / ratings.length * 10) / 10
+    : null
+
+  // Badges
+  const badges: Array<{ text: string; variant: "green" | "amber" | "red" | "blue" | "gray" }> = [
+    { text: contractor.is_active ? "Active" : "Inactive", variant: contractor.is_active ? "green" : "gray" },
+  ]
+  if (contractorBanking?.vat_registered) badges.push({ text: "VAT registered", variant: "gray" })
+
   const displayName = contractor.company_name ||
     `${contractor.first_name ?? ""} ${contractor.last_name ?? ""}`.trim() ||
     "Unnamed Contractor"
+  const primaryPhone = phones?.[0]?.number ?? null
+  const primaryEmail = emails?.[0]?.email ?? null
+  const initials = (name: string) => name.split(" ").map((w: string) => w[0]).filter(Boolean).join("").slice(0, 2).toUpperCase()
+
+  void contractorContacts
 
   return (
-    <div>
-      <div className="flex items-center gap-2 mb-6">
-        <Button
-          variant="ghost"
-          size="sm"
-          render={<Link href="/contractors" />}
-          className="text-muted-foreground"
-        >
-          <ChevronLeft className="size-4" />
-          Contractors
-        </Button>
-      </div>
+    <ContactDetailLayout breadcrumb={{ label: "Contractors", href: "/contractors" }} sidebar={
+      <ContactSidebar
+        avatar={{ initials: initials(displayName), bgColor: "#FFF7ED", textColor: "#C2410C" }}
+        name={displayName}
+        subtitle={contractor.entity_type === "organisation" ? "Company" : "Individual contractor"}
+        badges={badges}
+        quickActions={
+          <QuickActions primaryPhone={primaryPhone} primaryEmail={primaryEmail} moreItems={[
+            { label: "Archive", variant: "danger" as const },
+          ]} />
+        }
+      >
+        <ContractorContactSection entityId={id} phones={phones ?? []} emails={emails ?? []} />
+        <ContractorRatesSection
+          contractorId={id}
+          callOutRateCents={contractor.call_out_rate_cents ?? null}
+          hourlyRateCents={contractor.hourly_rate_cents ?? null}
+          specialities={contractor.specialities ?? []}
+        />
+        <ContractorBankingSection
+          contractorId={id}
+          bankingName={contractorBanking?.banking_name ?? null}
+          bankName={contractorBanking?.bank_name ?? null}
+          bankAccountNumber={contractorBanking?.bank_account_number ?? null}
+          bankBranchCode={contractorBanking?.bank_branch_code ?? null}
+          bankAccountType={contractorBanking?.bank_account_type ?? null}
+        />
+        <ContractorAddressSection entityId={id} address={(addresses ?? [])[0] ?? null} />
+      </ContactSidebar>
+    }>
 
-      <div className="mb-6">
-        <h1 className="font-heading text-3xl">{displayName}</h1>
-        {contractor.company_name && (contractor.first_name || contractor.last_name) && (
-          <p className="text-sm text-muted-foreground mt-1">
-            {`${contractor.first_name ?? ""} ${contractor.last_name ?? ""}`.trim()}
-          </p>
+      {/* Active jobs */}
+      <SectionCard title="Active jobs" count={(activeJobs ?? []).length}>
+        {(activeJobs ?? []).length === 0 ? (
+          <p className="text-sm text-muted-foreground">No active jobs.</p>
+        ) : (
+          <div className="space-y-1">
+            {(activeJobs ?? []).map((job) => {
+              const unit = job.units as unknown as { unit_number: string; properties: { name: string } } | null
+              const statusVariant = ["in_progress", "acknowledged", "work_order_sent"].includes(job.status) ? "amber" as const : "blue" as const
+              return (
+                <RelationshipCard
+                  key={job.id}
+                  icon={<Wrench className="h-4 w-4 text-orange-600" />}
+                  iconBg="#FFF7ED"
+                  title={job.title}
+                  subtitle={unit ? `${unit.properties?.name ?? ""} — ${unit.unit_number}` : job.category ?? ""}
+                  rightLabel={job.quoted_cost_cents ? formatZAR(job.quoted_cost_cents) : undefined}
+                  rightBadge={!job.quoted_cost_cents ? { text: job.status.replaceAll(/_/g, " "), variant: statusVariant } : undefined}
+                  href={`/maintenance/${job.id}`}
+                />
+              )
+            })}
+          </div>
         )}
-      </div>
+      </SectionCard>
 
-      <ContractorDetail
-        contractor={{
-          ...contractor,
-          specialities: contractor.specialities ?? [],
-          banking_name: contractorBanking?.banking_name ?? null,
-          bank_name: contractorBanking?.bank_name ?? null,
-          bank_account_number: contractorBanking?.bank_account_number ?? null,
-          bank_branch_code: contractorBanking?.bank_branch_code ?? null,
-          bank_account_type: contractorBanking?.bank_account_type ?? null,
-          vat_registered: contractorBanking?.vat_registered ?? false,
-        }}
-        phones={phones ?? []}
-        emails={emails ?? []}
-        addresses={addresses ?? []}
-        contractorContacts={(contractorContacts ?? []).map((cc) => ({
-          id: cc.id,
-          contact_id: cc.contact_id,
-          role: cc.role,
-          is_primary: cc.is_primary,
-          contacts: Array.isArray(cc.contacts) ? cc.contacts[0] : cc.contacts,
-        }))}
-        userRole={membership.role}
-        orgId={membership.org_id}
-      />
-    </div>
+      {/* Performance */}
+      <SectionCard title="Performance">
+        <StatGrid stats={[
+          { label: "Jobs completed", value: String(totalCompleted) },
+          { label: "Avg completion", value: totalCompleted > 0 ? `${avgCompletionDays} days` : "—" },
+          { label: "Avg rating", value: avgRating != null ? `${avgRating}/5` : "—" },
+          { label: "Total invoiced", value: formatZAR(totalInvoiced) },
+        ]} />
+      </SectionCard>
+
+      {/* Recent invoices */}
+      <SectionCard title="Recent invoices" count={recentInvoices.length}>
+        <ActivityTimeline
+          items={recentInvoices.map((inv) => ({
+            dotColor: inv.status === "paid" ? "#1D9E75" : "#D85A30",
+            title: `${inv.invoice_number ?? "Invoice"} — ${formatZAR(inv.amount_incl_vat_cents)} (${inv.status})`,
+            time: new Date(inv.invoice_date).toLocaleDateString("en-ZA"),
+          }))}
+        />
+      </SectionCard>
+    </ContactDetailLayout>
   )
 }
