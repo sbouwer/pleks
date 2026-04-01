@@ -105,9 +105,9 @@ export async function getAttentionItems(orgId: string): Promise<AttentionItem[]>
     const daysOverdue = Math.floor((now.getTime() - oldest.getTime()) / 86400000)
     const unit = c.units as unknown as { unit_number: string; properties: { name: string } } | null
     const tenant = c.tenants as unknown as { contacts: { first_name: string; last_name: string; company_name: string | null } } | null
-    const tenantName = tenant?.contacts?.company_name
-      ?? `${tenant?.contacts?.first_name ?? ""} ${tenant?.contacts?.last_name ?? ""}`.trim()
-      || "Unknown"
+    const tenantName =
+      tenant?.contacts?.company_name
+      ?? (`${tenant?.contacts?.first_name ?? ""} ${tenant?.contacts?.last_name ?? ""}`.trim() || "Unknown")
     const location = unit ? `${unit.unit_number}, ${unit.properties.name}` : "Unknown"
     const months = c.months_in_arrears ?? 1
     const isHighSeverity = daysOverdue > 30
