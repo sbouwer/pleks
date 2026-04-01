@@ -6,13 +6,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-interface QuickAction {
-  icon: React.ReactNode
-  label: string
-  href?: string
-  onClick?: () => void
-}
-
 interface QuickActionsProps {
   primaryPhone?: string | null
   primaryEmail?: string | null
@@ -85,11 +78,9 @@ export function QuickActions({ primaryPhone, primaryEmail, waNumber, moreItems =
 
       {/* More */}
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-surface transition-colors text-center w-full">
-            <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">More</span>
-          </button>
+        <DropdownMenuTrigger className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-surface transition-colors text-center w-full">
+          <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">More</span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           {moreItems.length === 0 ? (
