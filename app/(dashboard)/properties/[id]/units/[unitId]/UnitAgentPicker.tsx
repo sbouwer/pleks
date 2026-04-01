@@ -47,8 +47,8 @@ export function UnitAgentPicker({
     ? `Inherit from property manager (${pmMember.name})`
     : "Inherit from property manager"
 
-  function handleChange(value: string) {
-    const next = value === "__inherit__" ? null : value
+  function handleChange(value: string | null) {
+    const next = value === "__inherit__" || value === null ? null : value
     startTransition(() => {
       assignUnitAgent(unitId, next)
     })
