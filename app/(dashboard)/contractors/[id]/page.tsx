@@ -30,7 +30,7 @@ export default async function ContractorDetailPage({ params }: Props) {
   // Fetch contractor from view
   const { data: contractor } = await service
     .from("contractor_view")
-    .select("id, contact_id, first_name, last_name, company_name, trading_as, registration_number, vat_number, email, phone, specialities, is_active, notes, call_out_rate_cents, hourly_rate_cents")
+    .select("id, contact_id, entity_type, first_name, last_name, company_name, trading_as, registration_number, vat_number, email, phone, specialities, is_active, notes, call_out_rate_cents, hourly_rate_cents")
     .eq("id", id)
     .eq("org_id", membership.org_id)
     .single()
