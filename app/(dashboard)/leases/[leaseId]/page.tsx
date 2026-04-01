@@ -128,7 +128,7 @@ export default async function LeaseDetailPage({
     entityType: tv?.entity_type,
   }
 
-  const coTenantsRaw = (coTenantsRes.data ?? []) as Array<{
+  const coTenantsRaw = (coTenantsRes.data ?? []) as unknown as Array<{
     tenant_id: string
     tenants: {
       id: string
