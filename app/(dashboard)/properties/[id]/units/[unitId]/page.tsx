@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -7,6 +7,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge"
 import { Pencil } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import { UnitStatusActions } from "./UnitStatusActions"
+import { UnitAgentPicker } from "./UnitAgentPicker"
 
 export default async function UnitDetailPage({
   params,
@@ -18,20 +19,51 @@ export default async function UnitDetailPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  const { data: unit } = await supabase
-    .from("units")
-    .select("*, properties(name)")
-    .eq("id", unitId)
-    .single()
+  const service = await createServiceClient()
+
+  const [
+    { data: unit },
+    membershipResult,
+  ] = await Promise.all([
+    supabase
+      .from("units")
+      .select("*, properties(name, managing_agent_id)")
+      .eq("id", unitId)
+      .single(),
+    service
+      .from("user_orgs")
+      .select("org_id")
+      .eq("user_id", user.id)
+      .is("deleted_at", null)
+      .single(),
+  ])
 
   if (!unit) notFound()
+  if (!membershipResult.data) redirect("/onboarding")
 
-  const { data: statusHistory } = await supabase
-    .from("unit_status_history")
-    .select("*")
-    .eq("unit_id", unitId)
-    .order("created_at", { ascending: false })
-    .limit(10)
+  const [
+    { data: statusHistory },
+    { data: teamMemberRows },
+  ] = await Promise.all([
+    supabase
+      .from("unit_status_history")
+      .select("*")
+      .eq("unit_id", unitId)
+      .order("created_at", { ascending: false })
+      .limit(10),
+    service
+      .from("user_orgs")
+      .select("user_id, role, user_profiles(full_name)")
+      .eq("org_id", membershipResult.data.org_id)
+      .is("deleted_at", null),
+  ])
+
+  const property = unit.properties as unknown as { name: string; managing_agent_id: string | null }
+
+  const teamMembers = (teamMemberRows || []).map((m) => {
+    const profile = m.user_profiles as unknown as { full_name: string | null }
+    return { userId: m.user_id, name: profile?.full_name || "Unnamed", role: m.role }
+  })
 
   const statusMap: Record<string, "active" | "pending" | "open" | "scheduled" | "cancelled"> = {
     occupied: "active",
@@ -40,8 +72,6 @@ export default async function UnitDetailPage({
     maintenance: "scheduled",
     archived: "cancelled",
   }
-
-  const property = unit.properties as unknown as { name: string }
 
   return (
     <div>
@@ -100,6 +130,12 @@ export default async function UnitDetailPage({
                 <span className="font-heading text-lg">{formatZAR(unit.asking_rent_cents)}/mo</span>
               </div>
             )}
+            {unit.deposit_amount_cents && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Deposit</span>
+                <span>{formatZAR(unit.deposit_amount_cents)}</span>
+              </div>
+            )}
             {unit.market_rent_cents && (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Market Rent (AVM)</span>
@@ -115,6 +151,20 @@ export default async function UnitDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      {/* Assigned agent */}
+      <Card className="mt-6">
+        <CardHeader><CardTitle className="text-lg">Assigned agent</CardTitle></CardHeader>
+        <CardContent>
+          <UnitAgentPicker
+            propertyId={id}
+            unitId={unitId}
+            currentAgentId={unit.assigned_agent_id ?? null}
+            propertyManagerId={property.managing_agent_id}
+            teamMembers={teamMembers}
+          />
+        </CardContent>
+      </Card>
 
       {/* Status history */}
       <Card className="mt-6">

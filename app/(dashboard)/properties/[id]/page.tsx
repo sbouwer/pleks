@@ -7,7 +7,9 @@ import { Card, CardContent } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { UnitRow } from "./UnitRow"
-import { DoorOpen, ExternalLink, Pencil, Plus, Upload, User } from "lucide-react"
+import { LandlordPicker } from "./LandlordPicker"
+import { AgentPicker } from "./AgentPicker"
+import { DoorOpen, ExternalLink, Pencil, Plus, Upload } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 
@@ -43,12 +45,23 @@ export default async function PropertyDetailPage({
 
   const service = await createServiceClient()
 
+  // Get org membership for landlord list and team members
+  const { data: membership } = await service
+    .from("user_orgs")
+    .select("org_id")
+    .eq("user_id", user.id)
+    .is("deleted_at", null)
+    .single()
+
+  if (!membership) redirect("/onboarding")
+
   const [
     { data: units },
     landlordResult,
+    { data: allLandlords },
     { data: activeLeases },
     { data: maintenanceCounts },
-    agentProfileResult,
+    { data: teamMemberRows },
   ] = await Promise.all([
     supabase
       .from("units")
@@ -65,6 +78,13 @@ export default async function PropertyDetailPage({
           .single()
       : Promise.resolve({ data: null }),
 
+    service
+      .from("landlord_view")
+      .select("id, first_name, last_name, company_name, email, phone")
+      .eq("org_id", membership.org_id)
+      .is("deleted_at", null)
+      .order("first_name"),
+
     supabase
       .from("leases")
       .select("unit_id, id, tenant_id, tenants(id, contacts(id, first_name, last_name, company_name))")
@@ -78,13 +98,11 @@ export default async function PropertyDetailPage({
       .eq("property_id", id)
       .in("status", ["pending_review", "approved", "pending_landlord", "landlord_approved", "work_order_sent", "acknowledged", "in_progress", "pending_completion"]),
 
-    property.managing_agent_id
-      ? service
-          .from("user_profiles")
-          .select("id, full_name")
-          .eq("id", property.managing_agent_id)
-          .single()
-      : Promise.resolve({ data: null }),
+    service
+      .from("user_orgs")
+      .select("user_id, role, user_profiles(id, full_name)")
+      .eq("org_id", membership.org_id)
+      .is("deleted_at", null),
   ])
 
   const landlord = landlordResult.data as {
@@ -96,10 +114,25 @@ export default async function PropertyDetailPage({
     phone?: string | null
   } | null
 
-  const agentProfile = agentProfileResult.data as {
-    id: string
-    full_name: string | null
-  } | null
+  // Build agent lookup map: user_id → { id, name, initials, role }
+  type AgentEntry = { id: string; name: string; initials: string; role: string }
+  const agentMap: Record<string, AgentEntry> = {}
+  for (const m of teamMemberRows || []) {
+    const profile = m.user_profiles as unknown as { id: string; full_name: string | null }
+    const name = profile?.full_name || "Unnamed"
+    agentMap[m.user_id] = {
+      id: m.user_id,
+      name,
+      initials: name.split(" ").map((w: string) => w[0]).filter(Boolean).join("").slice(0, 2).toUpperCase(),
+      role: m.role,
+    }
+  }
+
+  // Team members for AgentPicker (client component)
+  const teamMembers = (teamMemberRows || []).map((m) => {
+    const profile = m.user_profiles as unknown as { full_name: string | null }
+    return { userId: m.user_id, name: profile?.full_name || "Unnamed", role: m.role }
+  })
 
   // Build tenant map: unit_id → tenant info
   const tenantByUnit: Record<string, { tenantId: string; contactId: string; name: string; initials: string }> = {}
@@ -115,20 +148,11 @@ export default async function PropertyDetailPage({
     }
   }
 
-  // Build maintenance count map: unit_id → count
+  // Build maintenance count map
   const maintenanceByUnit: Record<string, number> = {}
   for (const req of maintenanceCounts || []) {
     maintenanceByUnit[req.unit_id] = (maintenanceByUnit[req.unit_id] || 0) + 1
   }
-
-  // Derive managing agent prop
-  const managingAgent = agentProfile?.full_name
-    ? {
-        id: agentProfile.id,
-        name: agentProfile.full_name,
-        initials: agentProfile.full_name.split(" ").map((w: string) => w[0]).join("").slice(0, 2).toUpperCase(),
-      }
-    : null
 
   const activeUnits = (units || []).filter((u) => !u.is_archived)
   const archivedUnits = (units || []).filter((u) => u.is_archived)
@@ -140,11 +164,6 @@ export default async function PropertyDetailPage({
   const fullAddress = addressParts.join(", ")
   const mapsQuery = encodeURIComponent([...addressParts, "South Africa"].join(", "))
   const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`
-
-  const landlordName = landlord ? displayName(landlord) : null
-  const landlordInitials = landlord ? getInitials(landlord.first_name, landlord.last_name, landlord.company_name) : null
-
-  const waNumber = landlord?.phone?.replace(/\D/g, "").replace(/^0/, "27") ?? null
 
   return (
     <div>
@@ -163,6 +182,11 @@ export default async function PropertyDetailPage({
             )}
           </div>
           <p className="text-muted-foreground">{fullAddress}</p>
+          <AgentPicker
+            propertyId={id}
+            currentAgentId={property.managing_agent_id ?? null}
+            teamMembers={teamMembers}
+          />
         </div>
         <Button variant="outline" render={<Link href={`/properties/${id}/edit`} />}>
           <Pencil className="h-4 w-4 mr-1" /> Edit
@@ -178,44 +202,12 @@ export default async function PropertyDetailPage({
             <span className="text-xs text-muted-foreground uppercase tracking-wide">Landlord</span>
           </div>
           <CardContent className="pt-4">
-            {landlord && landlordName ? (
-              <>
-                <Link href={`/landlords/${landlord.id}`} className="flex items-center gap-3 mb-4 hover:opacity-80 transition-opacity">
-                  <div className="h-10 w-10 rounded-full bg-brand/10 text-brand flex items-center justify-center text-sm font-medium shrink-0">
-                    {landlordInitials}
-                  </div>
-                  <div>
-                    <p className="font-medium text-sm">{landlordName}</p>
-                    <p className="text-xs text-muted-foreground">Owner</p>
-                  </div>
-                </Link>
-                <div className="flex gap-2 flex-wrap">
-                  {landlord.phone && (
-                    <a href={`tel:${landlord.phone}`} className="flex-1 sm:flex-none">
-                      <Button size="sm" variant="outline" className="w-full">Call</Button>
-                    </a>
-                  )}
-                  {landlord.email && (
-                    <a href={`mailto:${landlord.email}`} className="flex-1 sm:flex-none">
-                      <Button size="sm" variant="outline" className="w-full">Email</Button>
-                    </a>
-                  )}
-                  {landlord.phone && waNumber && (
-                    <a href={`https://wa.me/${waNumber}`} target="_blank" rel="noopener noreferrer" className="flex-1 sm:flex-none">
-                      <Button size="sm" variant="outline" className="w-full">WhatsApp</Button>
-                    </a>
-                  )}
-                </div>
-              </>
-            ) : (
-              <div className="text-center py-4 space-y-3">
-                <User className="h-8 w-8 text-muted-foreground mx-auto" />
-                <p className="text-sm text-muted-foreground">No landlord assigned</p>
-                <Button variant="outline" size="sm" render={<Link href={`/properties/${id}/edit`} />}>
-                  Assign landlord
-                </Button>
-              </div>
-            )}
+            <LandlordPicker
+              propertyId={id}
+              orgId={membership.org_id}
+              landlords={allLandlords ?? []}
+              current={landlord}
+            />
           </CardContent>
         </Card>
 
@@ -248,26 +240,26 @@ export default async function PropertyDetailPage({
           </CardContent>
         </Card>
 
-        {/* Card 3: Map */}
-        <Card className="overflow-hidden">
-          <div className="relative h-full min-h-[220px]">
-            <a
-              href={googleMapsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="absolute top-2 left-2 z-10 flex items-center gap-1 text-xs bg-background/90 backdrop-blur-sm border rounded px-2 py-1 hover:bg-background transition-colors"
-            >
-              Open in Maps <ExternalLink className="h-3 w-3" />
-            </a>
-            <iframe
-              title="Property location"
-              className="w-full h-full min-h-[220px] block"
-              style={{ border: 0 }}
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-              src={`https://maps.google.com/maps?q=${mapsQuery}&output=embed&z=15`}
-            />
-          </div>
+        {/* Card 3: Map — Card is relative, iframe absolute inset-0 */}
+        <Card className="relative overflow-hidden min-h-[220px]">
+          {/* Hidden div enforces minimum height for mobile */}
+          <div className="hidden min-h-[220px]" aria-hidden="true" />
+          <a
+            href={googleMapsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="absolute top-2 left-2 z-10 flex items-center gap-1 text-xs bg-background/90 backdrop-blur-sm border rounded px-2 py-1 hover:bg-background transition-colors"
+          >
+            Open in Maps <ExternalLink className="h-3 w-3" />
+          </a>
+          <iframe
+            title="Property location"
+            className="absolute inset-0 w-full h-full block"
+            style={{ border: 0 }}
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+            src={`https://maps.google.com/maps?q=${mapsQuery}&output=embed&z=15`}
+          />
         </Card>
 
       </div>
@@ -294,16 +286,25 @@ export default async function PropertyDetailPage({
         />
       ) : (
         <div className="space-y-2">
-          {activeUnits.map((unit) => (
-            <UnitRow
-              key={unit.id}
-              unit={unit}
-              propertyId={id}
-              tenant={tenantByUnit[unit.id] ?? null}
-              managingAgent={managingAgent}
-              maintenanceCount={maintenanceByUnit[unit.id] ?? 0}
-            />
-          ))}
+          {activeUnits.map((unit) => {
+            // Resolve effective agent: unit-level first, fallback to property PM
+            const effectiveAgent = unit.assigned_agent_id
+              ? (agentMap[unit.assigned_agent_id] ? { ...agentMap[unit.assigned_agent_id], inherited: false } : null)
+              : (property.managing_agent_id && agentMap[property.managing_agent_id]
+                  ? { ...agentMap[property.managing_agent_id], inherited: true }
+                  : null)
+
+            return (
+              <UnitRow
+                key={unit.id}
+                unit={unit}
+                propertyId={id}
+                tenant={tenantByUnit[unit.id] ?? null}
+                managingAgent={effectiveAgent}
+                maintenanceCount={maintenanceByUnit[unit.id] ?? 0}
+              />
+            )
+          })}
         </div>
       )}
 
