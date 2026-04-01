@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 
 interface LandlordIdentityFormProps {
   landlordId: string
+  contactId: string
   entityType: string
   firstName: string | null
   lastName: string | null
@@ -22,7 +23,7 @@ interface LandlordIdentityFormProps {
 }
 
 export function LandlordIdentityForm({
-  landlordId, entityType, firstName, lastName, companyName, tradingAs, registrationNumber, vatNumber, notes, onSaved
+  landlordId, contactId, entityType, firstName, lastName, companyName, tradingAs, registrationNumber, vatNumber, notes, onSaved
 }: Readonly<LandlordIdentityFormProps>) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -43,7 +44,7 @@ export function LandlordIdentityForm({
         const res = await fetch("/api/landlords", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: landlordId, entity_type: type, ...form }),
+          body: JSON.stringify({ landlordId, contactId, entity_type: type, ...form }),
         })
         if (!res.ok) throw new Error()
         toast.success("Saved")

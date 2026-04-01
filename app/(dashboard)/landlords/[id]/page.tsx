@@ -150,6 +150,7 @@ export default async function LandlordDetailPage({ params }: Props) {
         >
           <LandlordIdentitySection
             landlordId={id}
+            contactId={landlord.contact_id}
             entityType={landlord.entity_type}
             firstName={landlord.first_name}
             lastName={landlord.last_name}
@@ -170,6 +171,7 @@ export default async function LandlordDetailPage({ params }: Props) {
           />
           <LandlordBankingSection
             landlordId={id}
+            contactId={landlord.contact_id}
             bankName={landlord.bank_name}
             bankAccount={landlord.bank_account}
             bankBranch={landlord.bank_branch}
