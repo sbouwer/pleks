@@ -14,7 +14,7 @@ export function LeaseListFooter({
   cpaNoticesDue,
 }: LeaseListFooterProps) {
   return (
-    <div className="sticky bottom-0 z-10 -mx-6 border-t border-border bg-background/80 px-6 py-3 backdrop-blur-sm">
+    <div className="-mx-6 -mb-6 border-t border-border bg-background/80 px-6 py-3 backdrop-blur-sm">
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <div>
           <p className="text-xs text-muted-foreground">Total monthly rent</p>
