@@ -6,8 +6,6 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { CONTRACTOR_SPECIALITIES } from "@/lib/constants"
-
 interface ContractorRatesFormProps {
   contractorId: string
   callOutRateCents: number | null
@@ -29,7 +27,7 @@ export function ContractorRatesForm({
   const [hourly, setHourly] = useState(hourlyRateCents ? String(hourlyRateCents / 100) : "")
   const [specialities, setSpecialities] = useState(initialSpecialities)
 
-  const specList = (typeof CONTRACTOR_SPECIALITIES !== "undefined" && CONTRACTOR_SPECIALITIES) ? CONTRACTOR_SPECIALITIES : FALLBACK_SPECIALITIES
+  const specList = FALLBACK_SPECIALITIES
 
   function toggleSpeciality(s: string) {
     setSpecialities((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s])
