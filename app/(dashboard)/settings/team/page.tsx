@@ -200,7 +200,7 @@ export default function TeamPage() {
                         </SelectContent>
                       </Select>
                     ) : (
-                      <StatusBadge status={m.role} />
+                      <StatusBadge status={m.role as Parameters<typeof StatusBadge>[0]["status"]} />
                     )}
                     {canEdit && (
                       <Button
