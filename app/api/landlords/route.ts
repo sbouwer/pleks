@@ -66,7 +66,7 @@ export async function PATCH(req: NextRequest) {
   const {
     landlordId, contactId,
     // Contact fields
-    firstName, lastName, companyName, tradingAs, registrationNumber, vatNumber,
+    entityType, firstName, lastName, companyName, tradingAs, registrationNumber, vatNumber,
     email, phone, notes,
     // Landlord fields
     bankName, bankAccount, bankBranch, bankAccountType, taxNumber, paymentMethod,
