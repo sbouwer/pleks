@@ -26,8 +26,17 @@ export function Step0Upload({ onAnalysed, onGlDetected }: Readonly<Step0UploadPr
       setError("Only CSV and Excel (.xlsx) files are supported.")
       return
     }
+    const ALLOWED_MIME = ["text/csv", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/octet-stream", ""]
+    if (file.type && !ALLOWED_MIME.includes(file.type)) {
+      setError("Invalid file type. Please upload a .csv or .xlsx file.")
+      return
+    }
     if (file.size > 10 * 1024 * 1024) {
       setError("File must be under 10MB.")
+      return
+    }
+    if (file.size === 0) {
+      setError("File is empty.")
       return
     }
 
