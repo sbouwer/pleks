@@ -25,22 +25,24 @@ export function MetricCard({
   href,
 }: MetricCardProps) {
   const inner = (
-    <div className="rounded-xl border bg-card p-4 transition-colors hover:bg-muted/30">
+    <div className="flex h-[88px] flex-col justify-between rounded-xl border bg-card p-4 transition-colors hover:bg-muted/30">
       <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </p>
-      <p className="mt-1 font-heading text-[22px] leading-none">{value}</p>
-      {progressBar !== undefined && (
-        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-          <div
-            className="h-full rounded-full bg-emerald-500 transition-all"
-            style={{ width: `${Math.min(100, Math.max(0, progressBar))}%` }}
-          />
-        </div>
-      )}
-      {subtext && (
-        <p className={`mt-1.5 text-[11px] ${subtextColors[subtextVariant]}`}>{subtext}</p>
-      )}
+      <p className="font-heading text-[22px] leading-none">{value}</p>
+      <div className="h-4">
+        {progressBar !== undefined && (
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-emerald-500 transition-all"
+              style={{ width: `${Math.min(100, Math.max(0, progressBar))}%` }}
+            />
+          </div>
+        )}
+        {subtext && (
+          <p className={`text-[11px] ${subtextColors[subtextVariant]}`}>{subtext}</p>
+        )}
+      </div>
     </div>
   )
 
