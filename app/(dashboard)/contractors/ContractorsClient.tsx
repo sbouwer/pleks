@@ -57,7 +57,7 @@ interface Props {
 type SortKey = "company" | "contact" | "phone" | "email" | "status"
 type SortDir = "asc" | "desc"
 
-function SpecialityPicker({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+function SpecialityPicker({ value, onChange }: Readonly<{ value: string[]; onChange: (v: string[]) => void }>) {
   function toggle(s: string) {
     onChange(value.includes(s) ? value.filter((x) => x !== s) : [...value, s])
   }
@@ -82,14 +82,27 @@ function SpecialityPicker({ value, onChange }: { value: string[]; onChange: (v: 
   )
 }
 
-function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
+function SortIcon({ col, sortKey, sortDir }: Readonly<{ col: SortKey; sortKey: SortKey; sortDir: SortDir }>) {
   if (col !== sortKey) return <ArrowUpDown className="size-3.5 text-muted-foreground/50 ml-1 inline" />
   return sortDir === "asc"
     ? <ArrowUp className="size-3.5 text-brand ml-1 inline" />
     : <ArrowDown className="size-3.5 text-brand ml-1 inline" />
 }
 
-export function ContractorsClient({ contractors: initial, userRole, orgId }: Readonly<Props>) {
+function ColHeader({ col, label, sortKey, sortDir, onSort }: Readonly<{ col: SortKey; label: string; sortKey: SortKey; sortDir: SortDir; onSort: (col: SortKey) => void }>) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(col)}
+      className="flex items-center gap-0.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
+    >
+      {label}
+      <SortIcon col={col} sortKey={sortKey} sortDir={sortDir} />
+    </button>
+  )
+}
+
+export function ContractorsClient({ contractors: initial, userRole }: Readonly<Props>) {
   const router = useRouter()
   const [search, setSearch] = useState("")
   const [activeFilter, setActiveFilter] = useState<string | null>(null)
@@ -142,7 +155,7 @@ export function ContractorsClient({ contractors: initial, userRole, orgId }: Rea
 
   const allSpecialities = Array.from(
     new Set(initial.flatMap((c) => c.specialities ?? []))
-  ).sort()
+  ).sort((a, b) => a.localeCompare(b))
 
   async function handleDelete(c: Contractor) {
     setDeletingId(c.id)
@@ -159,19 +172,6 @@ export function ContractorsClient({ contractors: initial, userRole, orgId }: Rea
       const d = await res.json()
       toast.error(d.error || "Failed to delete")
     }
-  }
-
-  function ColHeader({ col, label }: { col: SortKey; label: string }) {
-    return (
-      <button
-        type="button"
-        onClick={() => handleSort(col)}
-        className="flex items-center gap-0.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
-      >
-        {label}
-        <SortIcon col={col} sortKey={sortKey} sortDir={sortDir} />
-      </button>
-    )
   }
 
   return (
@@ -217,7 +217,7 @@ export function ContractorsClient({ contractors: initial, userRole, orgId }: Rea
       </div>
 
       <p className="text-xs text-muted-foreground">
-        {filtered.length} of {initial.length} contractor{initial.length !== 1 ? "s" : ""}
+        {filtered.length} of {initial.length} contractor{initial.length === 1 ? "" : "s"}
         {activeFilter && ` · filtered by "${activeFilter}"`}
       </p>
 
@@ -229,22 +229,22 @@ export function ContractorsClient({ contractors: initial, userRole, orgId }: Rea
             <thead>
               <tr className="border-b border-border bg-muted/30">
                 <th className="px-4 py-2.5 text-left">
-                  <ColHeader col="company" label="Company" />
+                  <ColHeader col="company" label="Company" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                 </th>
                 <th className="px-4 py-2.5 text-left hidden md:table-cell">
-                  <ColHeader col="contact" label="Primary Contact" />
+                  <ColHeader col="contact" label="Primary Contact" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                 </th>
                 <th className="px-4 py-2.5 text-left hidden lg:table-cell">
-                  <ColHeader col="phone" label="Phone" />
+                  <ColHeader col="phone" label="Phone" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                 </th>
                 <th className="px-4 py-2.5 text-left hidden lg:table-cell">
-                  <ColHeader col="email" label="Email" />
+                  <ColHeader col="email" label="Email" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                 </th>
                 <th className="px-4 py-2.5 text-left hidden xl:table-cell">
                   <span className="text-xs font-medium text-muted-foreground">Specialities</span>
                 </th>
                 <th className="px-4 py-2.5 text-left">
-                  <ColHeader col="status" label="Status" />
+                  <ColHeader col="status" label="Status" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                 </th>
                 <th className="px-4 py-2.5 text-right">
                   <span className="sr-only">Actions</span>

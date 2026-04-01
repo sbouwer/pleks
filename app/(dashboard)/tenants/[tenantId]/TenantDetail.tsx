@@ -359,7 +359,6 @@ export function TenantDetail({
   addresses: initialAddresses,
   history,
   comms,
-  userRole,
 }: Props) {
   const router = useRouter()
   const isIndividual = initial.entity_type === "individual"
