@@ -49,8 +49,8 @@ export function AgentPicker({ propertyId, currentAgentId, teamMembers }: Readonl
 
   const currentMember = teamMembers.find((m) => m.userId === currentAgentId)
 
-  function handleChange(value: string) {
-    const next = value === "__none__" ? null : value
+  function handleChange(value: string | null) {
+    const next = value === "__none__" || value === null ? null : value
     startPending(() => {
       assignManagingAgent(propertyId, next)
     })
