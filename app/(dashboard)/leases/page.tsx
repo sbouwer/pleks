@@ -2,93 +2,95 @@ import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { StatusBadge } from "@/components/shared/StatusBadge"
-import { EmptyState } from "@/components/shared/EmptyState"
-import { FileText, Plus } from "lucide-react"
-import { formatZAR } from "@/lib/constants"
-
-const STATUS_MAP: Record<string, "active" | "pending" | "open" | "notice" | "cancelled" | "draft"> = {
-  draft: "draft",
-  pending_signing: "pending",
-  active: "active",
-  notice: "notice",
-  expired: "cancelled",
-  cancelled: "cancelled",
-  month_to_month: "active",
-}
+import { Plus } from "lucide-react"
+import { LeaseListTabs } from "./LeaseListTabs"
+import type { SerializedLease } from "./LeaseRow"
 
 export default async function LeasesPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
+  const { data: membership } = await supabase
+    .from("user_orgs")
+    .select("org_id")
+    .eq("user_id", user.id)
+    .is("deleted_at", null)
+    .single()
+
+  const orgId = membership?.org_id
+  if (!orgId) redirect("/login")
+
   const { data: leases } = await supabase
     .from("leases")
-    .select("id, status, lease_type, start_date, end_date, rent_amount_cents, tenant_view(first_name, last_name, company_name, entity_type), units(unit_number, properties(name))")
+    .select(`
+      id, status, lease_type, start_date, end_date, rent_amount_cents,
+      notice_period_days, is_fixed_term, cpa_applies,
+      auto_renewal_notice_sent_at, debicheck_mandate_status,
+      escalation_review_date, tenant_id,
+      tenant_view(id, first_name, last_name, company_name, entity_type),
+      units(unit_number, properties(name, suburb, city)),
+      lease_co_tenants(tenant_id, tenants(id, contacts(first_name, last_name, company_name, entity_type)))
+    `)
+    .eq("org_id", orgId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
 
-  const list = leases || []
-  const active = list.filter((l) => ["active", "month_to_month"].includes(l.status))
+  // Serialise for client component — cast to known shape
+  const serialised: SerializedLease[] = (leases ?? []).map((l) => {
+    const tv = l.tenant_view as unknown as {
+      id: string; first_name: string | null; last_name: string | null
+      company_name: string | null; entity_type: string
+    } | null
+
+    const unit = l.units as unknown as {
+      unit_number: string
+      properties: { name: string; suburb: string | null; city: string | null }
+    } | null
+
+    const coTenants = (l.lease_co_tenants as unknown as Array<{
+      tenant_id: string
+      tenants: {
+        id: string
+        contacts: { first_name: string | null; last_name: string | null; company_name: string | null; entity_type: string } | null
+      } | null
+    }>) ?? []
+
+    return {
+      id: l.id,
+      status: l.status,
+      lease_type: l.lease_type,
+      start_date: l.start_date ?? null,
+      end_date: l.end_date ?? null,
+      rent_amount_cents: l.rent_amount_cents ?? 0,
+      notice_period_days: l.notice_period_days ?? 20,
+      is_fixed_term: l.is_fixed_term ?? false,
+      cpa_applies: l.cpa_applies ?? false,
+      auto_renewal_notice_sent_at: l.auto_renewal_notice_sent_at ?? null,
+      debicheck_mandate_status: l.debicheck_mandate_status ?? null,
+      escalation_review_date: l.escalation_review_date ?? null,
+      tenant_id: l.tenant_id,
+      tenant_view: tv,
+      units: unit,
+      lease_co_tenants: coTenants,
+    }
+  })
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-heading text-3xl">Leases</h1>
-          {list.length > 0 && (
-            <p className="text-sm text-muted-foreground mt-1">
-              {active.length} active &middot; {list.length} total
-            </p>
-          )}
+          <h1 className="font-heading text-2xl font-bold">Leases</h1>
+          <p className="text-sm text-muted-foreground">
+            Manage tenancy agreements and rental schedules.
+          </p>
         </div>
         <Button render={<Link href="/leases/new" />}>
-          <Plus className="h-4 w-4 mr-1" /> Create Lease
+          <Plus className="mr-1 h-4 w-4" /> Create Lease
         </Button>
       </div>
 
-      {list.length === 0 ? (
-        <EmptyState
-          icon={<FileText className="h-8 w-8 text-muted-foreground" />}
-          title="No leases yet"
-          description="Create a lease to start managing tenancies."
-          
-        />
-      ) : (
-        <div className="space-y-2">
-          {list.map((lease) => {
-            const tenant = lease.tenant_view as unknown as { first_name: string; last_name: string; company_name: string; entity_type: string } | null
-            const unit = lease.units as unknown as { unit_number: string; properties: { name: string } } | null
-            const tenantName = tenant?.entity_type === "organisation"
-              ? tenant.company_name
-              : `${tenant?.first_name || ""} ${tenant?.last_name || ""}`.trim()
-
-            return (
-              <Link key={lease.id} href={`/leases/${lease.id}`}>
-                <Card className="hover:border-brand/50 transition-colors cursor-pointer">
-                  <CardContent className="flex items-center justify-between pt-4">
-                    <div>
-                      <p className="font-medium">{tenantName || "No tenant"}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {unit ? `${unit.unit_number}, ${unit.properties.name}` : "No unit"}
-                        {" · "}{formatZAR(lease.rent_amount_cents)}/mo
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {lease.start_date}{lease.end_date ? ` → ${lease.end_date}` : " · Month to month"}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs capitalize text-muted-foreground">{lease.lease_type}</span>
-                      <StatusBadge status={STATUS_MAP[lease.status] || "draft"} />
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            )
-          })}
-        </div>
-      )}
+      <LeaseListTabs leases={serialised} />
     </div>
   )
 }
