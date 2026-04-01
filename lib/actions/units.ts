@@ -35,6 +35,8 @@ export async function createUnit(propertyId: string, formData: FormData) {
       furnished: formData.get("furnished") === "true",
       features,
       asking_rent_cents: formData.get("asking_rent") ? Math.round(parseFloat(formData.get("asking_rent") as string) * 100) : null,
+      deposit_amount_cents: formData.get("deposit_amount") ? Math.round(parseFloat(formData.get("deposit_amount") as string) * 100) : null,
+      managed_by: (formData.get("managed_by") as string) || null,
       notes: formData.get("notes") as string || null,
       status: "vacant",
     })
@@ -84,6 +86,8 @@ export async function updateUnit(unitId: string, propertyId: string, formData: F
     furnished: formData.get("furnished") === "true",
     features,
     asking_rent_cents: formData.get("asking_rent") ? Math.round(parseFloat(formData.get("asking_rent") as string) * 100) : null,
+    deposit_amount_cents: formData.get("deposit_amount") ? Math.round(parseFloat(formData.get("deposit_amount") as string) * 100) : null,
+    managed_by: (formData.get("managed_by") as string) || null,
     notes: formData.get("notes") as string || null,
   }
 
