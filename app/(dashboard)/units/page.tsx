@@ -2,7 +2,6 @@ import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 
 const STATUS_MAP: Record<string, "active" | "pending" | "cancelled"> = {
@@ -29,7 +28,7 @@ export default async function UnitsPage() {
 
   const { data: units } = await supabase
     .from("units")
-    .select("id, unit_number, status, letting_type, properties(id, name)")
+    .select("id, unit_number, status, properties(id, name)")
     .eq("org_id", membership.org_id)
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
@@ -56,9 +55,6 @@ export default async function UnitsPage() {
                       <p className="text-xs text-muted-foreground">{property?.name ?? "Unknown property"}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      {unit.letting_type && (
-                        <Badge variant="secondary" className="text-[10px]">{unit.letting_type}</Badge>
-                      )}
                       <StatusBadge status={STATUS_MAP[unit.status] ?? "pending"} />
                     </div>
                   </CardContent>
