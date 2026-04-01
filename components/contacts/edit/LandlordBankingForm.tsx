@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 interface LandlordBankingFormProps {
   landlordId: string
+  contactId: string
   bankName: string | null
   bankAccount: string | null
   bankBranch: string | null
@@ -20,7 +21,7 @@ interface LandlordBankingFormProps {
 }
 
 export function LandlordBankingForm({
-  landlordId, bankName, bankAccount, bankBranch, bankAccountType, taxNumber, paymentMethod, onSaved
+  landlordId, contactId, bankName, bankAccount, bankBranch, bankAccountType, taxNumber, paymentMethod, onSaved
 }: Readonly<LandlordBankingFormProps>) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -39,7 +40,7 @@ export function LandlordBankingForm({
         const res = await fetch("/api/landlords", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: landlordId, ...form }),
+          body: JSON.stringify({ landlordId, contactId, ...form }),
         })
         if (!res.ok) throw new Error()
         toast.success("Banking details saved")

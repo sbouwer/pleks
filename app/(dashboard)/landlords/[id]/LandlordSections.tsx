@@ -40,6 +40,7 @@ interface ContactAddress {
 
 interface LandlordIdentitySectionProps {
   landlordId: string
+  contactId: string
   entityType: string
   firstName: string | null
   lastName: string | null
@@ -51,7 +52,7 @@ interface LandlordIdentitySectionProps {
 }
 
 export function LandlordIdentitySection({
-  landlordId, entityType, firstName, lastName, companyName, tradingAs, registrationNumber, vatNumber, notes,
+  landlordId, contactId, entityType, firstName, lastName, companyName, tradingAs, registrationNumber, vatNumber, notes,
 }: Readonly<LandlordIdentitySectionProps>) {
   const [editing, setEditing] = useState(false)
 
@@ -71,6 +72,7 @@ export function LandlordIdentitySection({
       {editing ? (
         <LandlordIdentityForm
           landlordId={landlordId}
+          contactId={contactId}
           entityType={entityType}
           firstName={firstName}
           lastName={lastName}
@@ -220,6 +222,7 @@ export function LandlordAddressSection({
 
 interface LandlordBankingSectionProps {
   landlordId: string
+  contactId: string
   bankName: string | null
   bankAccount: string | null
   bankBranch: string | null
@@ -229,7 +232,7 @@ interface LandlordBankingSectionProps {
 }
 
 export function LandlordBankingSection({
-  landlordId, bankName, bankAccount, bankBranch, bankAccountType, taxNumber, paymentMethod,
+  landlordId, contactId, bankName, bankAccount, bankBranch, bankAccountType, taxNumber, paymentMethod,
 }: Readonly<LandlordBankingSectionProps>) {
   const [editing, setEditing] = useState(false)
 
@@ -250,6 +253,7 @@ export function LandlordBankingSection({
       {editing ? (
         <LandlordBankingForm
           landlordId={landlordId}
+          contactId={contactId}
           bankName={bankName}
           bankAccount={bankAccount}
           bankBranch={bankBranch}
