@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -23,6 +23,30 @@ export default function LeaseTemplatesPage() {
   const [showRequestForm, setShowRequestForm] = useState(false)
   const [notes, setNotes] = useState("")
   const [file, setFile] = useState<File | null>(null)
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle")
+  const initializedRef = useRef<Record<string, boolean>>({ residential: false, commercial: false })
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleSelectionsChange = useCallback((leaseType: string, selections: Record<string, boolean>) => {
+    // Skip the initial population call — only save user-triggered changes
+    if (!initializedRef.current[leaseType]) {
+      initializedRef.current[leaseType] = true
+      return
+    }
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    setSaveStatus("saving")
+    saveTimerRef.current = setTimeout(async () => {
+      const updates = Object.entries(selections).map(([clause_key, enabled]) => ({ clause_key, enabled }))
+      const res = await fetch("/api/leases/org-clause-defaults", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates }),
+      })
+      setSaveStatus(res.ok ? "saved" : "idle")
+      if (!res.ok) toast.error("Failed to save clause defaults")
+      if (res.ok) setTimeout(() => setSaveStatus("idle"), 2000)
+    }, 800)
+  }, [])
   const [templateConfirmed, setTemplateConfirmed] = useState(false)
   const [loading, setLoading] = useState(false)
 
@@ -104,22 +128,26 @@ export default function LeaseTemplatesPage() {
       )}
 
       <Tabs value={clauseSubTab} onValueChange={setClauseSubTab}>
-        <TabsList>
-          <TabsTrigger value="residential">Residential</TabsTrigger>
-          <TabsTrigger value="commercial">Commercial</TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between mb-1">
+          <TabsList>
+            <TabsTrigger value="residential">Residential</TabsTrigger>
+            <TabsTrigger value="commercial">Commercial</TabsTrigger>
+          </TabsList>
+          {saveStatus === "saving" && <p className="text-xs text-muted-foreground">Saving...</p>}
+          {saveStatus === "saved" && <p className="text-xs text-brand">Saved</p>}
+        </div>
 
         <TabsContent value="residential" className="mt-4">
           <ClauseConfigurator
             leaseType="residential"
-            onSelectionsChange={() => {}}
+            onSelectionsChange={(s) => handleSelectionsChange("residential", s)}
           />
         </TabsContent>
 
         <TabsContent value="commercial" className="mt-4">
           <ClauseConfigurator
             leaseType="commercial"
-            onSelectionsChange={() => {}}
+            onSelectionsChange={(s) => handleSelectionsChange("commercial", s)}
           />
         </TabsContent>
       </Tabs>
