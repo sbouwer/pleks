@@ -118,54 +118,71 @@ export async function createLease(formData: FormData) {
   redirect(`/leases/${lease.id}`)
 }
 
-export async function activateLease(leaseId: string) {
+export async function markAsSigned(leaseId: string) {
+  const { activateLeaseCascade } = await import("@/lib/leases/activateLeaseCascade")
+  const { checkLeasePrerequisites } = await import("@/lib/leases/checkPrerequisites")
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  const { data: lease } = await supabase.from("leases").select("*").eq("id", leaseId).single()
+  const { data: membership } = await supabase
+    .from("user_orgs")
+    .select("org_id")
+    .eq("user_id", user.id)
+    .is("deleted_at", null)
+    .single()
+  if (!membership) return { error: "No org" }
+
+  const prereqs = await checkLeasePrerequisites(supabase, leaseId, membership.org_id)
+  if (!prereqs.canProceed) {
+    return { error: `${prereqs.failCount} prerequisite(s) not met` }
+  }
+
+  try {
+    const result = await activateLeaseCascade(supabase, leaseId, membership.org_id, "manual", user.id)
+    revalidatePath(`/leases/${leaseId}`)
+    revalidatePath("/leases")
+    return { success: true, steps: result.steps }
+  } catch (e) {
+    return { error: String(e) }
+  }
+}
+
+export async function sendForSigning(leaseId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect("/login")
+
+  const { data: membership } = await supabase
+    .from("user_orgs")
+    .select("org_id")
+    .eq("user_id", user.id)
+    .is("deleted_at", null)
+    .single()
+  if (!membership) return { error: "No org" }
+
+  const { data: lease } = await supabase
+    .from("leases")
+    .select("status, generated_doc_path")
+    .eq("id", leaseId)
+    .single()
+
   if (!lease) return { error: "Lease not found" }
+  if (!lease.generated_doc_path) return { error: "Generate the lease document first" }
 
-  // Mark active (normally via DocuSeal webhook, this is manual fallback)
-  await supabase.from("leases").update({
-    status: "active",
-    signed_at: new Date().toISOString(),
-  }).eq("id", leaseId)
+  await supabase.from("leases").update({ status: "pending_signing" }).eq("id", leaseId)
 
-  // Update unit → occupied
-  await supabase.from("units").update({ status: "occupied" }).eq("id", lease.unit_id)
-
-  // Create tenancy history
-  await supabase.from("tenancy_history").insert({
-    org_id: lease.org_id,
-    tenant_id: lease.tenant_id,
-    unit_id: lease.unit_id,
-    lease_id: lease.id,
-    move_in_date: lease.start_date,
-    status: "active",
-  })
-
-  // Unit status history
-  await supabase.from("unit_status_history").insert({
-    unit_id: lease.unit_id,
-    org_id: lease.org_id,
-    from_status: "vacant",
-    to_status: "occupied",
-    changed_by: user.id,
-    reason: "Lease activated",
-  })
-
-  await supabase.from("audit_log").insert({
-    org_id: lease.org_id,
-    table_name: "leases",
-    record_id: leaseId,
-    action: "UPDATE",
-    changed_by: user.id,
-    new_values: { status: "active", signed_at: new Date().toISOString() },
+  await supabase.from("lease_lifecycle_events").insert({
+    org_id: membership.org_id,
+    lease_id: leaseId,
+    event_type: "lease_sent_for_signing",
+    description: "Lease sent for digital signing via DocuSeal",
+    triggered_by: "agent",
+    triggered_by_user: user.id,
   })
 
   revalidatePath(`/leases/${leaseId}`)
-  revalidatePath("/leases")
   return { success: true }
 }
 

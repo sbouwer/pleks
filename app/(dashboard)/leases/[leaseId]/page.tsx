@@ -8,8 +8,11 @@ import { LeaseTermsGrid } from "./LeaseTermsGrid"
 import { PaymentStatus } from "./PaymentStatus"
 import { LeaseTimeline } from "./LeaseTimeline"
 import { TenantCards, buildTenantContact } from "./TenantCards"
+import { PrerequisitesCard } from "./PrerequisitesCard"
+import { SigningOptions } from "./SigningOptions"
 import { LeaseCharges } from "@/components/leases/LeaseCharges"
 import { buildTenantDisplay } from "@/lib/leases/tenantDisplay"
+import { checkLeasePrerequisites } from "@/lib/leases/checkPrerequisites"
 import { AlertTriangle } from "lucide-react"
 import { getLessorBankDetails } from "@/lib/leases/bankDetails"
 import { formatZAR } from "@/lib/constants"
@@ -62,6 +65,8 @@ export default async function LeaseDetailPage({
 
   const ownerIdForProperty = unit?.properties?.owner_id ?? null
 
+  const isDraft = lease.status === "draft"
+
   // All secondary fetches in parallel
   const [
     coTenantsRes,
@@ -73,6 +78,7 @@ export default async function LeaseDetailPage({
     editedClauseCountRes,
     landlordRes,
     bankDetails,
+    prereqs,
   ] = await Promise.all([
     supabase
       .from("lease_co_tenants")
@@ -117,6 +123,7 @@ export default async function LeaseDetailPage({
       ? supabase.from("landlord_view").select("id, first_name, last_name, company_name").eq("id", ownerIdForProperty).maybeSingle()
       : Promise.resolve({ data: null }),
     getLessorBankDetails(lease.org_id),
+    isDraft ? checkLeasePrerequisites(supabase, leaseId, lease.org_id).catch(() => null) : Promise.resolve(null),
   ])
 
   // Build tenant display
@@ -247,6 +254,25 @@ export default async function LeaseDetailPage({
           leaseId={leaseId}
           externalDocPath={lease.external_document_path ?? null}
         />
+      )}
+
+      {/* Draft: prerequisites + signing options */}
+      {isDraft && prereqs && (
+        <div className="mb-6 space-y-4">
+          <PrerequisitesCard prereqs={prereqs} leaseId={leaseId} />
+          <SigningOptions
+            leaseId={leaseId}
+            hasGeneratedDoc={lease.generated_doc_path != null}
+            hasExternalDoc={lease.external_document_path != null}
+            hasDocusealDoc={lease.docuseal_document_url != null}
+            canProceed={prereqs.canProceed}
+            tenantName={tenantDisplayText}
+            unitLabel={unitLabel}
+            depositAmountCents={lease.deposit_amount_cents ?? null}
+            startDate={lease.start_date ?? null}
+            rentAmountCents={lease.rent_amount_cents ?? 0}
+          />
+        </div>
       )}
 
       {/* Two-panel layout */}
