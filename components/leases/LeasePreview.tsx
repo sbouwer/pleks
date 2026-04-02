@@ -28,7 +28,7 @@ interface PreviewBranding {
   email: string | null
   website: string | null
   accentColor: string | null
-  coverTemplate: string
+  layout: string
   logoUrl: string | null
 }
 
@@ -131,7 +131,7 @@ const COVER_COMPONENTS = {
 } as const
 
 function CoverPage({ branding, leaseType }: Readonly<{ branding: PreviewBranding; leaseType: string }>) {
-  const Component = COVER_COMPONENTS[branding.coverTemplate as keyof typeof COVER_COMPONENTS] ?? ClassicCover
+  const Component = COVER_COMPONENTS[branding.layout as keyof typeof COVER_COMPONENTS] ?? ClassicCover
   const identity = {
     name: branding.displayName ?? "",
     tradingAs: branding.tradingAs ?? null,
@@ -353,7 +353,7 @@ export function LeasePreview({ open, onOpenChange, leaseType: initialLeaseType }
 
   const branding = data?.branding ?? {
     displayName: null, tradingAs: null, registration: null, address: null,
-    phone: null, email: null, website: null, accentColor: null, coverTemplate: "classic", logoUrl: null,
+    phone: null, email: null, website: null, accentColor: null, layout: "classic", logoUrl: null,
   }
 
   return (

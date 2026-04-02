@@ -20,10 +20,10 @@ const PRESET_COLOURS = [
   { name: "Terracotta", hex: "#993C1D" },
 ]
 
-type CoverTemplate = "classic" | "modern" | "bold" | "minimal"
+type DocLayout = "classic" | "modern" | "bold" | "minimal"
 type BrandFont = "inter" | "merriweather" | "lato" | "playfair"
 
-const TEMPLATES: { id: CoverTemplate; name: string; description: string }[] = [
+const TEMPLATES: { id: DocLayout; name: string; description: string }[] = [
   { id: "classic", name: "Classic", description: "Centred, formal" },
   { id: "modern", name: "Modern", description: "Left-aligned, clean" },
   { id: "bold", name: "Bold", description: "Logo-dominant" },
@@ -37,7 +37,7 @@ const FONTS: { id: BrandFont; name: string; sample: string; stack: string; descr
   { id: "playfair", name: "Playfair Display", sample: "Aa", stack: '"Playfair Display", Georgia, serif', description: "Elegant · prestigious" },
 ]
 
-function TemplateThumbnail({ id, accentColor }: Readonly<{ id: CoverTemplate; accentColor: string }>) {
+function TemplateThumbnail({ id, accentColor }: Readonly<{ id: DocLayout; accentColor: string }>) {
   if (id === "classic") return (
     <div className="flex flex-col items-center justify-center h-[60px] gap-1.5 px-2">
       <div className="w-8 h-1.5 rounded-sm bg-muted-foreground/30" />
@@ -79,7 +79,7 @@ export default function BrandingPage() {
   const [logoPatch, setLogoPatch] = useState<string | null>(null)
   const [accentColor, setAccentColor] = useState("#1a3a5c")
   const [customHex, setCustomHex] = useState("#1a3a5c")
-  const [template, setTemplate] = useState<CoverTemplate>("classic")
+  const [template, setTemplate] = useState<DocLayout>("classic")
   const [font, setFont] = useState<BrandFont>("inter")
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [savingColor, setSavingColor] = useState(false)
@@ -95,7 +95,7 @@ export default function BrandingPage() {
       const color = data.brand_accent_color ?? "#1a3a5c"
       setAccentColor(color)
       setCustomHex(color)
-      setTemplate((data.brand_cover_template as CoverTemplate) ?? "classic")
+      setTemplate((data.brand_cover_template as DocLayout) ?? "classic")
       setFont((data.brand_font as BrandFont) ?? "inter")
     }
     load()
@@ -149,7 +149,7 @@ export default function BrandingPage() {
     finally { setSavingColor(false) }
   }
 
-  async function handleTemplateClick(id: CoverTemplate) {
+  async function handleTemplateClick(id: DocLayout) {
     setTemplate(id)
     const res = await fetch("/api/org/brand", {
       method: "PATCH", headers: { "Content-Type": "application/json" },
@@ -278,7 +278,7 @@ export default function BrandingPage() {
 
           {/* Cover page template */}
           <Card>
-            <CardHeader><CardTitle className="text-base">Cover page template</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-base">Document layout</CardTitle></CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {TEMPLATES.map((t) => {
@@ -304,7 +304,7 @@ export default function BrandingPage() {
 
         {/* ── Preview tab ────────────────────────────────────────────────────── */}
         <TabsContent value="preview">
-          <DocumentPreview logoUrl={logoUrl} accentColor={accentColor} coverTemplate={template} font={font} />
+          <DocumentPreview logoUrl={logoUrl} accentColor={accentColor} layout={template} font={font} />
         </TabsContent>
       </Tabs>
     </div>
