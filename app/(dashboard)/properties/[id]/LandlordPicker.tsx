@@ -47,12 +47,22 @@ export function LandlordPicker({ propertyId, orgId, landlords, current }: Readon
   const [search, setSearch] = useState("")
   const [isPending, startTransition] = useTransition()
   const containerRef = useRef<HTMLDivElement>(null)
+  const [isOwnerTier, setIsOwnerTier] = useState(false)
 
   // Add form state
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
   const [email, setEmail] = useState("")
   const [phone, setPhone] = useState("")
+
+  // Fetch org type once to determine if owner-tier shortcut should show
+  useEffect(() => {
+    if (landlords.length > 0) return
+    fetch("/api/org/details")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data?.type === "landlord") setIsOwnerTier(true) })
+      .catch(() => {})
+  }, [landlords.length])
 
   // Close on outside click
   useEffect(() => {
@@ -265,6 +275,33 @@ export function LandlordPicker({ propertyId, orgId, landlords, current }: Readon
                   </button>
                 ))}
               </div>
+
+              {/* Owner-tier shortcut */}
+              {isOwnerTier && landlords.length === 0 && (
+                <div className="border-t">
+                  <button
+                    onClick={async () => {
+                      const res = await fetch("/api/org/details")
+                      if (!res.ok) return
+                      const data = await res.json()
+                      setFirstName(data.first_name ?? "")
+                      setLastName(data.last_name ?? "")
+                      setEmail(data.email ?? "")
+                      setPhone(data.mobile ?? data.phone ?? "")
+                      setShowAddForm(true)
+                    }}
+                    className="w-full flex items-start gap-3 px-3 py-2.5 text-sm hover:bg-accent transition-colors"
+                  >
+                    <div className="h-8 w-8 rounded-full bg-brand/10 text-brand flex items-center justify-center text-xs font-medium shrink-0 mt-0.5">
+                      You
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-medium">Use my own details</p>
+                      <p className="text-xs text-muted-foreground">Pre-fill from your profile</p>
+                    </div>
+                  </button>
+                </div>
+              )}
 
               {/* Add new */}
               <div className="border-t">

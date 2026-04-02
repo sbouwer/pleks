@@ -6,6 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
 import { Download } from "lucide-react"
+import { ClassicCover } from "@/components/branding/templates/ClassicCover"
+import { ModernCover } from "@/components/branding/templates/ModernCover"
+import { BoldCover } from "@/components/branding/templates/BoldCover"
+import { MinimalCover } from "@/components/branding/templates/MinimalCover"
 
 interface PreviewClause {
   number: number
@@ -17,12 +21,14 @@ interface PreviewClause {
 
 interface PreviewBranding {
   displayName: string | null
+  tradingAs: string | null
   registration: string | null
   address: string | null
   phone: string | null
   email: string | null
   website: string | null
   accentColor: string | null
+  coverTemplate: string
   logoUrl: string | null
 }
 
@@ -117,44 +123,32 @@ function PageBreak({ branding, page, showInitials = false }: { branding: Preview
   )
 }
 
-function CoverPage({ branding, leaseType }: { branding: PreviewBranding; leaseType: string }) {
-  const ds = dividerStyle(branding.accentColor)
-  const contactLine = [branding.phone, branding.email, branding.website].filter(Boolean).join("  ·  ")
-  const title = `${leaseType === "commercial" ? "Commercial" : "Residential"} Lease Agreement`
+const COVER_COMPONENTS = {
+  classic: ClassicCover,
+  modern:  ModernCover,
+  bold:    BoldCover,
+  minimal: MinimalCover,
+} as const
 
+function CoverPage({ branding, leaseType }: Readonly<{ branding: PreviewBranding; leaseType: string }>) {
+  const Component = COVER_COMPONENTS[branding.coverTemplate as keyof typeof COVER_COMPONENTS] ?? ClassicCover
+  const identity = {
+    name: branding.displayName ?? "",
+    tradingAs: branding.tradingAs ?? null,
+    registration: branding.registration ?? null,
+    eaab: null,
+    address: branding.address ?? "",
+    phone: branding.phone ?? "",
+    email: branding.email ?? "",
+    website: branding.website ?? null,
+  }
+  const coverBranding = {
+    logoUrl: branding.logoUrl,
+    accentColor: branding.accentColor ?? "#1a3a5c",
+  }
   return (
-    <div className="rounded-lg border border-border/60 bg-card px-12 py-16 text-center mb-4">
-      {branding.logoUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={branding.logoUrl}
-          alt="Agency logo"
-          className="max-w-[200px] max-h-[100px] object-contain mx-auto mb-8"
-        />
-      )}
-
-      <hr className="border-t mb-8" style={ds} />
-
-      <p className="text-base font-bold uppercase tracking-widest mb-6">{title}</p>
-      <p className="text-xs text-muted-foreground mb-4">prepared by</p>
-
-      <p className="text-sm font-semibold">
-        {branding.displayName ?? <span className="text-muted-foreground italic">[Agency name]</span>}
-      </p>
-      {branding.registration && (
-        <p className="text-xs text-muted-foreground mt-1">{branding.registration}</p>
-      )}
-
-      <hr className="border-t mt-8 mb-6" style={ds} />
-
-      {branding.address && (
-        <p className="text-xs text-muted-foreground mb-1">{branding.address}</p>
-      )}
-      {contactLine && (
-        <p className="text-xs text-muted-foreground">{contactLine}</p>
-      )}
-
-      <p className="text-xs text-muted-foreground/50 mt-12">Page 1 of {TOTAL_PAGES}</p>
+    <div className="rounded-lg border border-border/60 overflow-hidden mb-4" style={{ aspectRatio: "1/1.414", maxWidth: "100%" }}>
+      <Component identity={identity} branding={coverBranding} leaseType={leaseType} />
     </div>
   )
 }
@@ -358,8 +352,8 @@ export function LeasePreview({ open, onOpenChange, leaseType: initialLeaseType }
   }, [open, localLeaseType])
 
   const branding = data?.branding ?? {
-    displayName: null, registration: null, address: null,
-    phone: null, email: null, website: null, accentColor: null, logoUrl: null,
+    displayName: null, tradingAs: null, registration: null, address: null,
+    phone: null, email: null, website: null, accentColor: null, coverTemplate: "classic", logoUrl: null,
   }
 
   return (

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
-import { Plus, X } from "lucide-react"
+import { Info, Plus, X } from "lucide-react"
 
 const TITLES = ["Mr", "Mrs", "Ms", "Miss", "Dr", "Prof", "Adv", "Rev"]
 const PROVINCES = [
@@ -245,15 +245,18 @@ export default function OrganisationPage() {
   const [showVat, setShowVat] = useState(false)
   const [showSecondAddr, setShowSecondAddr] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [primaryContactIsUser, setPrimaryContactIsUser] = useState<boolean>(true)
+  const [showContactPrompt, setShowContactPrompt] = useState(false)
 
   useEffect(() => {
     fetch("/api/org/details")
       .then((r) => r.json())
-      .then((data: OrgDetails) => {
+      .then((data: OrgDetails & { primary_contact_is_user: boolean }) => {
         setOrg(data)
         setForm(data)
         if (data.vat_number) setShowVat(true)
         if (data.addr2_line1) setShowSecondAddr(true)
+        setPrimaryContactIsUser(data.primary_contact_is_user ?? true)
       })
   }, [])
 
@@ -278,11 +281,31 @@ export default function OrganisationPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       })
-      toast[res.ok ? "success" : "error"](res.ok ? "Details saved" : "Failed to save")
+      if (res.ok) {
+        toast.success("Details saved")
+        // For agency/sole_prop: nudge if primary contact email is set and flag not yet dismissed
+        if (org?.type !== "landlord" && form.email && primaryContactIsUser !== false) {
+          setShowContactPrompt(true)
+        }
+      } else {
+        toast.error("Failed to save")
+      }
     } catch {
       toast.error("Failed to save")
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function dismissContactPrompt(willUseSystem: boolean) {
+    setShowContactPrompt(false)
+    if (!willUseSystem) {
+      setPrimaryContactIsUser(false)
+      await fetch("/api/org/details", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ primary_contact_is_user: false }),
+      })
     }
   }
 
@@ -291,8 +314,43 @@ export default function OrganisationPage() {
   const type = org.type
 
   const saveBtn = (
-    <div className="flex justify-end pt-2">
-      <Button onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "Save changes"}</Button>
+    <div className="space-y-3 pt-2">
+      {showContactPrompt && (
+        <div className="flex items-start gap-3 rounded-lg border border-brand/20 bg-brand/5 px-4 py-3 text-sm">
+          <Info className="size-4 shrink-0 mt-0.5 text-brand" />
+          <div className="flex-1">
+            <p className="font-medium text-sm">Is this person a system user?</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {form.first_name ?? "The primary contact"} doesn&apos;t need a Pleks account — their details still appear on leases and documents.
+            </p>
+            <div className="flex gap-2 mt-2">
+              <Button size="sm" variant="outline" className="h-7 text-xs"
+                onClick={() => dismissContactPrompt(true)}>
+                They&apos;ll use the system
+              </Button>
+              <Button size="sm" variant="ghost" className="h-7 text-xs"
+                onClick={() => dismissContactPrompt(false)}>
+                They won&apos;t be using the system
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="flex justify-end">
+        <Button onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "Save changes"}</Button>
+      </div>
+    </div>
+  )
+
+  const agencyInfoNote = (
+    <div className="flex items-start gap-2 rounded-lg border border-border/50 bg-muted/30 px-3 py-2.5 mb-4 text-xs text-muted-foreground">
+      <Info className="size-3.5 shrink-0 mt-0.5" />
+      <span>
+        The primary contact is the person legally responsible for the organisation.
+        Their details appear on leases and official documents.
+        They don&apos;t need to be a system user — add team members separately in{" "}
+        <a href="/settings/team" className="underline underline-offset-2">Settings &rarr; Team</a>.
+      </span>
     </div>
   )
 
@@ -411,6 +469,8 @@ export default function OrganisationPage() {
       <p className="text-sm text-muted-foreground mb-6">
         Your company information appears on all documents, invoices, and communications.
       </p>
+
+      {agencyInfoNote}
 
       <Card className="mb-4">
         <CardHeader><CardTitle className="text-base">Primary contact</CardTitle></CardHeader>

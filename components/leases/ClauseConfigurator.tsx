@@ -29,6 +29,8 @@ interface ClauseConfiguratorProps {
   onSelectionsChange: (selections: Record<string, boolean>) => void
   /** Called only on actual user toggles. Async return signals save success for inline indicator. */
   onToggleSave?: (selections: Record<string, boolean>) => Promise<boolean> | void
+  /** When set, shows only required or optional clauses (hides the other group). */
+  view?: "all" | "required" | "optional"
 }
 
 function applyDependencies(
@@ -78,6 +80,7 @@ export function ClauseConfigurator({
   unitId,
   onSelectionsChange,
   onToggleSave,
+  view = "all",
 }: Readonly<ClauseConfiguratorProps>) {
   const [required, setRequired] = useState<ClauseItem[]>([])
   const [optional, setOptional] = useState<ClauseItem[]>([])
@@ -273,12 +276,14 @@ export function ClauseConfigurator({
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
       {/* LEFT: Configurator */}
       <div className="lg:col-span-3 space-y-4">
-        <div>
-          <h3 className="font-heading text-lg mb-1">Configure clauses</h3>
-          <p className="text-sm text-muted-foreground">
-            Required clauses are always included. Optional clauses can be toggled. Click &quot;Edit wording&quot; to customise any clause.
-          </p>
-        </div>
+        {view === "all" && (
+          <div>
+            <h3 className="font-heading text-lg mb-1">Configure clauses</h3>
+            <p className="text-sm text-muted-foreground">
+              Required clauses are always included. Optional clauses can be toggled. Click &quot;Edit wording&quot; to customise any clause.
+            </p>
+          </div>
+        )}
 
         {unitId && unitSourceKeys.size > 0 && (
           <div className="rounded-md border border-brand/20 bg-brand/5 px-3 py-2 text-xs text-brand">
@@ -286,28 +291,41 @@ export function ClauseConfigurator({
           </div>
         )}
 
-        {/* Required — collapsible */}
-        <div>
-          <button
-            type="button"
-            onClick={() => setShowRequired(!showRequired)}
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {showRequired ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
-            Required clauses ({required.length})
-          </button>
-          {showRequired && (
-            <div className="mt-2 space-y-2">
-              {required.map((c) => renderClauseCard(c, false))}
-            </div>
-          )}
-        </div>
+        {/* Required clauses */}
+        {(view === "all" || view === "required") && (
+          <div>
+            {view === "all" ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowRequired(!showRequired)}
+                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showRequired ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+                  Required clauses ({required.length})
+                </button>
+                {showRequired && (
+                  <div className="mt-2 space-y-2">
+                    {required.map((c) => renderClauseCard(c, false))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="space-y-2">
+                {required.map((c) => renderClauseCard(c, false))}
+                <p className="text-xs text-muted-foreground pt-1">{required.length} required clauses — always included</p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Optional clauses */}
-        <div className="space-y-2">
-          <p className="text-sm font-medium">Optional clauses</p>
-          {optional.map((clause) => renderClauseCard(clause, true))}
-        </div>
+        {(view === "all" || view === "optional") && (
+          <div className="space-y-2">
+            {view === "all" && <p className="text-sm font-medium">Optional clauses</p>}
+            {optional.map((clause) => renderClauseCard(clause, true))}
+          </div>
+        )}
 
         <p className="text-sm text-muted-foreground">{enabledCount} clauses included</p>
       </div>
