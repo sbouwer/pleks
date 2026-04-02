@@ -67,16 +67,16 @@ function F({ label, id, required, help, children }: Readonly<{
   )
 }
 
-function Sel({ id, value, onChange, options, placeholder, capitalize }: Readonly<{
+function Sel({ id, value, onChange, options, placeholder, capitalize, className }: Readonly<{
   id: string; value: string; onChange: (v: string) => void
-  options: string[]; placeholder?: string; capitalize?: boolean
+  options: string[]; placeholder?: string; capitalize?: boolean; className?: string
 }>) {
   return (
     <select
       id={id}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm font-sans shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      className={`flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm font-sans shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${className ?? "w-full"}`}
     >
       <option value="">{placeholder ?? "Select…"}</option>
       {options.map((o) => (
@@ -105,23 +105,21 @@ function AddressBlock({ prefix, form, set, onRemove }: Readonly<{
   const t = (col: string) => `${prefix}_${col}` as keyof FormState
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <F label="Address type" id={t("type")}>
-          <Sel
-            id={t("type")}
-            value={(form[t("type")] as string) ?? ""}
-            onChange={(v) => set(t("type"), v)}
-            options={ADDRESS_TYPES}
-            placeholder="Select type…"
-            capitalize
-          />
-        </F>
-        {onRemove && (
-          <button type="button" onClick={onRemove}
-            className="ml-3 mt-5 text-muted-foreground hover:text-destructive transition-colors shrink-0">
-            <X className="size-4" />
-          </button>
-        )}
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs font-medium text-muted-foreground shrink-0">
+          {prefix === "addr" ? "Primary" : "Additional"}
+        </span>
+        <div className="flex items-center gap-2 min-w-0">
+          <Sel id={t("type")} value={form[t("type")] ?? ""}
+            onChange={(v) => set(t("type"), v)} options={ADDRESS_TYPES}
+            placeholder="Type…" capitalize className="w-36" />
+          {onRemove && (
+            <button type="button" onClick={onRemove}
+              className="text-muted-foreground hover:text-destructive transition-colors shrink-0">
+              <X className="size-4" />
+            </button>
+          )}
+        </div>
       </div>
       <F label="Street address" id={t("line1")} required>
         <Input id={t("line1")} value={(form[t("line1")] as string) ?? ""}
@@ -223,15 +221,12 @@ function AddressesSection({ form, set, showSecond, onAddSecond, onRemoveSecond }
   onRemoveSecond: () => void
 }>) {
   return (
-    <div className="space-y-5">
-      <SecHeading>Address</SecHeading>
+    <div className="space-y-3">
       <AddressBlock prefix="addr" form={form} set={set} />
       {showSecond ? (
-        <>
-          <div className="border-t border-border/40 pt-4">
-            <AddressBlock prefix="addr2" form={form} set={set} onRemove={onRemoveSecond} />
-          </div>
-        </>
+        <div className="border-t border-border/40 pt-4">
+          <AddressBlock prefix="addr2" form={form} set={set} onRemove={onRemoveSecond} />
+        </div>
       ) : (
         <button type="button" onClick={onAddSecond}
           className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
