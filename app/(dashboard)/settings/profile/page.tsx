@@ -73,7 +73,7 @@ function Sel({ id, value, onChange, options, placeholder, capitalize, className 
   options: string[]; placeholder?: string; capitalize?: boolean; className?: string
 }>) {
   return (
-    <Select value={value || undefined} onValueChange={(v) => onChange(v ?? "")}>
+    <Select value={value} onValueChange={(v) => onChange(v ?? "")}>
       <SelectTrigger id={id} className={`h-9 text-sm ${className ?? "w-full"}`}>
         <SelectValue placeholder={placeholder ?? "Select…"} />
       </SelectTrigger>
