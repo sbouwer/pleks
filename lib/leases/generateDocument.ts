@@ -1,5 +1,7 @@
 import { createServiceClient } from "@/lib/supabase/server"
 import { getLessorBankDetails } from "@/lib/leases/bankDetails"
+import { parseClauseBody, buildSelfLookup } from "./parseClauseBody"
+import { renderClauseBodyToDocx } from "./renderClauseDocx"
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -199,23 +201,21 @@ export async function generateLeaseDocument(
     let body: string = leaseSel?.custom_body ?? orgCust?.custom_body ?? clause.body_template
 
     // Resolve {{ref:key}} — external clause references
-    body = body.replace(/\{\{ref:([a-z_]+)\}\}/g, (_, key: string) => {
+    body = body.replaceAll(/\{\{ref:([a-z_]+)\}\}/g, (_, key: string) => {
       const num = clauseSnapshot[key]
       return num ? `clause ${num}.0` : "[not included in this agreement]"
     })
 
-    // Resolve {{self:N}} — internal sub-clause references
-    const selfNum = clauseSnapshot[clause.clause_key]
-    body = body.replace(/\{\{self:(\w+)\}\}/g, (_, sub: string) => {
-      return `clause ${selfNum}.${sub}`
-    })
+    // NOTE: {{self:N}} is NOT resolved here — it needs the parsed sub-clause
+    // numbers which are only available after parseClauseBody() runs in buildDocx.
 
     // Resolve {{var:field}} — lease variable values
-    body = body.replace(/\{\{var:([a-z_]+)\}\}/g, (_, field: string) => {
+    body = body.replaceAll(/\{\{var:([a-z_]+)\}\}/g, (_, field: string) => {
       const val = (variables as unknown as Record<string, string>)[field]
-      return val !== undefined ? val : `[${field}]`
+      return val ?? `[${field}]`
     })
 
+    const selfNum = clauseSnapshot[clause.clause_key]
     return {
       number: selfNum,
       title: clause.title,
@@ -384,22 +384,29 @@ async function buildDocx(
   for (const clause of clauses) {
     // Clause heading
     clauseChildren.push(new Paragraph({
-      heading: HeadingLevel.HEADING_2,
-      spacing: { before: 300, after: 100 },
+      alignment: AlignmentType.JUSTIFIED,
+      spacing: { before: 300, after: 160 },
+      indent: { left: 0, hanging: 0 },
       children: [new TextRun({
         text: `${clause.number}. ${clause.title.toUpperCase()}`,
         bold: true, size: 24, font: "Calibri",
       })],
     }))
 
-    // Clause body — split by newlines into paragraphs
-    const paragraphs = clause.body.split("\n").filter((p) => p.trim())
-    for (const para of paragraphs) {
-      clauseChildren.push(new Paragraph({
-        spacing: { after: 120 },
-        children: [new TextRun({ text: para.trim(), size: 22, font: "Calibri" })],
-      }))
+    // Parse clause body into structured nodes with hierarchical numbers
+    const bodyNodes = parseClauseBody(clause.body, clause.number)
+    const selfLookup = buildSelfLookup(bodyNodes)
+
+    // Resolve {{self:N}} using actual assigned sub-clause numbers
+    for (const node of bodyNodes) {
+      node.text = node.text.replaceAll(/\{\{self:(\w+)\}\}/g, (_, n: string) => {
+        const resolved = selfLookup[n]
+        return resolved ? `clause ${resolved}` : `clause ${clause.number}.${n}`
+      })
     }
+
+    const bodyParagraphs = renderClauseBodyToDocx(bodyNodes, { Paragraph, TextRun, AlignmentType })
+    clauseChildren.push(...bodyParagraphs)
   }
 
   // ─── Annexure A — Lease details ──────────────────────────
@@ -658,14 +665,14 @@ async function buildDocx(
       default: {
         document: {
           run: { size: 22, font: "Calibri" },
-          paragraph: { spacing: { after: 120 } },
+          paragraph: { spacing: { after: 120 }, alignment: AlignmentType.JUSTIFIED },
         },
       },
       paragraphStyles: [{
         id: "Normal",
         name: "Normal",
         run: { size: 22, font: "Calibri" },
-        paragraph: { spacing: { after: 120 } },
+        paragraph: { spacing: { after: 120 }, alignment: AlignmentType.JUSTIFIED },
       }],
     },
   })
