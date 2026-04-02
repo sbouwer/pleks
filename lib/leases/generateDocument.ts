@@ -405,7 +405,7 @@ async function buildDocx(
       })
     }
 
-    const bodyParagraphs = renderClauseBodyToDocx(bodyNodes, { Paragraph, TextRun, AlignmentType })
+    const bodyParagraphs = renderClauseBodyToDocx(bodyNodes, { Paragraph, TextRun, AlignmentType }) as DocChild[]
     clauseChildren.push(...bodyParagraphs)
   }
 
