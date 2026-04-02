@@ -345,7 +345,7 @@ export function LeasePreview({ open, onOpenChange, leaseType: initialLeaseType }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0">
+      <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border/40 shrink-0">
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -408,7 +408,7 @@ export function LeasePreview({ open, onOpenChange, leaseType: initialLeaseType }
               <CoverPage branding={branding} leaseType={localLeaseType} />
 
               {/* Page 2: first clause page */}
-              <div className="rounded-lg border border-border/60 bg-card px-10 py-8 mb-4">
+              <div className="rounded-lg border border-border/60 bg-card px-14 py-10 mb-4">
                 <PageHeader branding={branding} page={2} />
 
                 <div className="space-y-6">
