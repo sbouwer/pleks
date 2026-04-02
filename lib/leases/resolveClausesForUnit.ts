@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 export interface ResolvedClause {
   clause_key: string
   title: string
+  toggle_label: string | null
   enabled: boolean
   source: "required" | "unit_override" | "org_default" | "library_default"
   is_required: boolean
@@ -25,7 +26,7 @@ export async function resolveClausesForUnit(
   const [libraryResult, orgResult, unitResult] = await Promise.all([
     supabase
       .from("lease_clause_library")
-      .select("clause_key, title, is_required, is_enabled_by_default, lease_type")
+      .select("clause_key, title, toggle_label, is_required, is_enabled_by_default, lease_type")
       .or(`lease_type.eq.both,lease_type.eq.${leaseType}`)
       .order("sort_order"),
     supabase
@@ -42,42 +43,20 @@ export async function resolveClausesForUnit(
   const unitMap = new Map((unitResult.data ?? []).map((d) => [d.clause_key, d.enabled]))
 
   return (libraryResult.data ?? []).map((clause) => {
+    const base = { clause_key: clause.clause_key, title: clause.title, toggle_label: clause.toggle_label ?? null }
+
     if (clause.is_required) {
-      return {
-        clause_key: clause.clause_key,
-        title: clause.title,
-        enabled: true,
-        source: "required" as const,
-        is_required: true,
-      }
+      return { ...base, enabled: true, source: "required" as const, is_required: true }
     }
 
     if (unitMap.has(clause.clause_key)) {
-      return {
-        clause_key: clause.clause_key,
-        title: clause.title,
-        enabled: unitMap.get(clause.clause_key)!,
-        source: "unit_override" as const,
-        is_required: false,
-      }
+      return { ...base, enabled: unitMap.get(clause.clause_key)!, source: "unit_override" as const, is_required: false }
     }
 
     if (orgMap.has(clause.clause_key)) {
-      return {
-        clause_key: clause.clause_key,
-        title: clause.title,
-        enabled: orgMap.get(clause.clause_key)!,
-        source: "org_default" as const,
-        is_required: false,
-      }
+      return { ...base, enabled: orgMap.get(clause.clause_key)!, source: "org_default" as const, is_required: false }
     }
 
-    return {
-      clause_key: clause.clause_key,
-      title: clause.title,
-      enabled: clause.is_enabled_by_default,
-      source: "library_default" as const,
-      is_required: false,
-    }
+    return { ...base, enabled: clause.is_enabled_by_default, source: "library_default" as const, is_required: false }
   })
 }

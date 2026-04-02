@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
   const [libraryResult, orgResult, unitResult] = await Promise.all([
     service
       .from("lease_clause_library")
-      .select("clause_key, title, is_required, is_enabled_by_default")
+      .select("clause_key, title, toggle_label, is_required, is_enabled_by_default")
       .or(`lease_type.eq.both,lease_type.eq.${leaseType}`)
       .eq("is_required", false)
       .order("sort_order"),
@@ -51,10 +51,11 @@ export async function GET(req: NextRequest) {
       ? orgMap.get(clause.clause_key)!
       : clause.is_enabled_by_default
 
+    const base = { clause_key: clause.clause_key, title: clause.title, toggle_label: clause.toggle_label ?? null }
+
     if (unitEntry !== undefined) {
       return {
-        clause_key: clause.clause_key,
-        title: clause.title,
+        ...base,
         enabled: unitEntry.enabled,
         source: "unit_override" as const,
         auto_set: unitEntry.auto_set,
@@ -64,8 +65,7 @@ export async function GET(req: NextRequest) {
     }
 
     return {
-      clause_key: clause.clause_key,
-      title: clause.title,
+      ...base,
       enabled: orgEnabled,
       source: orgMap.has(clause.clause_key) ? ("org_default" as const) : ("library_default" as const),
       auto_set: null,

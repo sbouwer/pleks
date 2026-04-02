@@ -12,9 +12,9 @@ import { UnitClauseProfile } from "@/components/leases/UnitClauseProfile"
 
 export default async function UnitDetailPage({
   params,
-}: {
+}: Readonly<{
   params: Promise<{ id: string; unitId: string }>
-}) {
+}>) {
   const { id, unitId } = await params
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -169,7 +169,11 @@ export default async function UnitDetailPage({
 
       {/* Clause profile */}
       <div className="mt-6">
-        <UnitClauseProfile unitId={unitId} />
+        <UnitClauseProfile
+          unitId={unitId}
+          propertyId={id}
+          features={(unit.features as string[]) || []}
+        />
       </div>
 
       {/* Status history */}
