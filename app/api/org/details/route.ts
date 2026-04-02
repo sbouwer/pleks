@@ -38,7 +38,7 @@ export async function GET() {
 
   const { data: org, error } = await supabase
     .from("organisations")
-    .select("id, name, trading_as, reg_number, eaab_number, vat_number, email, phone, address, website, type")
+    .select("id, name, trading_as, reg_number, eaab_number, vat_number, email, phone, address, website, type, user_type")
     .eq("id", orgId)
     .single()
 
@@ -58,6 +58,16 @@ export async function GET() {
     address: string | null
     website: string | null
     type: "agency" | "landlord" | "sole_prop" | null
+    user_type: string | null
+  }
+
+  // Derive the effective org variant:
+  // user_type='owner' maps to the landlord (simple) form even if type='agency' by default
+  let effectiveType: "agency" | "landlord" | "sole_prop" = "agency"
+  if (d.type === "landlord" || d.user_type === "owner") {
+    effectiveType = "landlord"
+  } else if (d.type === "sole_prop") {
+    effectiveType = "sole_prop"
   }
 
   return NextResponse.json({
@@ -71,7 +81,7 @@ export async function GET() {
     phone: d.phone ?? null,
     address: d.address ?? null,
     website: d.website ?? null,
-    type: d.type ?? "agency",
+    type: effectiveType,
   })
 }
 
