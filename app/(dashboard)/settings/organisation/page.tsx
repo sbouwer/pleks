@@ -76,7 +76,7 @@ function Sel({ id, value, onChange, options, placeholder, capitalize }: Readonly
       id={id}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm font-sans shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
     >
       <option value="">{placeholder ?? "Select…"}</option>
       {options.map((o) => (
@@ -156,10 +156,13 @@ function AddressBlock({ prefix, form, set, onRemove }: Readonly<{
 function PersonalSection({ form, set }: Readonly<{ form: FormState; set: (f: keyof FormState, v: string) => void }>) {
   return (
     <div className="space-y-4">
-      {/* Row 1: Title + First + Last */}
-      <div className="grid grid-cols-[110px_1fr_1fr] gap-3">
+      {/* Row 1: Title + Initials + First name + Last name */}
+      <div className="grid grid-cols-[100px_100px_1fr_1fr] gap-3">
         <F label="Title" id="title">
           <Sel id="title" value={form.title ?? ""} onChange={(v) => set("title", v)} options={TITLES} />
+        </F>
+        <F label="Initials" id="initials" help="e.g. J.P.">
+          <Input id="initials" value={form.initials ?? ""} onChange={(e) => set("initials", e.target.value)} />
         </F>
         <F label="First name" id="first_name" required>
           <Input id="first_name" value={form.first_name ?? ""} onChange={(e) => set("first_name", e.target.value)} />
@@ -168,11 +171,8 @@ function PersonalSection({ form, set }: Readonly<{ form: FormState; set: (f: key
           <Input id="last_name" value={form.last_name ?? ""} onChange={(e) => set("last_name", e.target.value)} />
         </F>
       </div>
-      {/* Row 2: Initials + Gender + DOB + ID */}
-      <div className="grid grid-cols-4 gap-3">
-        <F label="Initials" id="initials" help="e.g. J.P.">
-          <Input id="initials" value={form.initials ?? ""} onChange={(e) => set("initials", e.target.value)} />
-        </F>
+      {/* Row 2: Gender + DOB + SA ID */}
+      <div className="grid grid-cols-3 gap-3">
         <F label="Gender" id="gender">
           <Sel id="gender" value={form.gender ?? ""} onChange={(v) => set("gender", v)}
             options={["male", "female", "non_binary", "prefer_not_to_say"]}
