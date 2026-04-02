@@ -31,7 +31,7 @@ export async function GET() {
   const orgId = await resolveOrgId(supabase, user.id)
   if (!orgId) return NextResponse.json({ error: "No org" }, { status: 403 })
 
-  const selectFields = [...ALL_FIELDS, "id", "type", "user_type"].join(", ")
+  const selectFields = [...ALL_FIELDS, "id", "type", "user_type", "primary_contact_is_user"].join(", ")
   const { data: org, error } = await supabase
     .from("organisations")
     .select(selectFields)
@@ -51,10 +51,12 @@ export async function GET() {
     effectiveType = "sole_prop"
   }
 
-  const result: Record<string, string | null> = { id: d.id, type: effectiveType }
+  const result: Record<string, string | null | boolean> = { id: d.id, type: effectiveType }
   for (const field of ALL_FIELDS) {
     result[field] = d[field] ?? null
   }
+  const pcUser = (d as unknown as Record<string, unknown>)["primary_contact_is_user"]
+  result["primary_contact_is_user"] = typeof pcUser === "boolean" ? pcUser : true
   return NextResponse.json(result)
 }
 
@@ -85,11 +87,21 @@ export async function PATCH(req: NextRequest) {
     }
   }
 
-  if (Object.keys(patch).length === 0) {
+  // Accept primary_contact_is_user as a boolean alongside string fields
+  const boolPatch: Record<string, boolean> = {}
+  const bodyObj = body as Record<string, unknown>
+  if ("primary_contact_is_user" in bodyObj) {
+    if (typeof bodyObj["primary_contact_is_user"] !== "boolean") {
+      return NextResponse.json({ error: "primary_contact_is_user must be a boolean" }, { status: 400 })
+    }
+    boolPatch["primary_contact_is_user"] = bodyObj["primary_contact_is_user"]
+  }
+
+  if (Object.keys(patch).length === 0 && Object.keys(boolPatch).length === 0) {
     return NextResponse.json({ error: "No valid fields provided" }, { status: 400 })
   }
 
-  const { error } = await supabase.from("organisations").update(patch).eq("id", orgId)
+  const { error } = await supabase.from("organisations").update({ ...patch, ...boolPatch }).eq("id", orgId)
   if (error) return NextResponse.json({ error: "Failed to update organisation" }, { status: 500 })
 
   return NextResponse.json({ ok: true })

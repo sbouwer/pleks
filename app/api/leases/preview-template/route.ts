@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
       .order("sort_order"),
     supabase
       .from("organisations")
-      .select("name, lease_logo_path, lease_display_name, lease_registration_number, lease_address, lease_phone, lease_email, lease_website, lease_accent_color")
+      .select("name, trading_as, reg_number, eaab_number, phone, mobile, email, website, addr_line1, addr_suburb, addr_city, brand_logo_path, brand_accent_color, brand_cover_template")
       .eq("id", membership.org_id)
       .single(),
     getLessorBankDetails(membership.org_id),
@@ -107,35 +107,44 @@ export async function GET(req: NextRequest) {
     }
   })
 
-  // Build branding response (cast for new migration columns)
+  // Build branding response
   const org = orgRes.data as unknown as {
     name: string | null
-    lease_logo_path: string | null
-    lease_display_name: string | null
-    lease_registration_number: string | null
-    lease_address: string | null
-    lease_phone: string | null
-    lease_email: string | null
-    lease_website: string | null
-    lease_accent_color: string | null
+    trading_as: string | null
+    reg_number: string | null
+    eaab_number: string | null
+    phone: string | null
+    mobile: string | null
+    email: string | null
+    website: string | null
+    addr_line1: string | null
+    addr_suburb: string | null
+    addr_city: string | null
+    brand_logo_path: string | null
+    brand_accent_color: string | null
+    brand_cover_template: string | null
   } | null
 
   let logoUrl: string | null = null
-  if (org?.lease_logo_path) {
+  if (org?.brand_logo_path) {
     const { data: signed } = await supabase.storage
       .from("org-assets")
-      .createSignedUrl(org.lease_logo_path, 3600)
+      .createSignedUrl(org.brand_logo_path, 3600)
     logoUrl = signed?.signedUrl ?? null
   }
 
+  const addrParts = [org?.addr_line1, org?.addr_suburb, org?.addr_city].filter(Boolean)
+
   const branding = {
-    displayName: org?.lease_display_name ?? org?.name ?? null,
-    registration: org?.lease_registration_number ?? null,
-    address: org?.lease_address ?? null,
-    phone: org?.lease_phone ?? null,
-    email: org?.lease_email ?? null,
-    website: org?.lease_website ?? null,
-    accentColor: org?.lease_accent_color ?? null,
+    displayName: org?.trading_as ?? org?.name ?? null,
+    tradingAs: org?.trading_as ?? null,
+    registration: org?.reg_number ?? null,
+    address: addrParts.join(", ") || null,
+    phone: org?.phone ?? org?.mobile ?? null,
+    email: org?.email ?? null,
+    website: org?.website ?? null,
+    accentColor: org?.brand_accent_color ?? null,
+    coverTemplate: org?.brand_cover_template ?? "classic",
     logoUrl,
   }
 

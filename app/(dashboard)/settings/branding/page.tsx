@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
+import { DocumentPreview } from "@/components/settings/DocumentPreview"
 
 const PRESET_COLOURS = [
   { name: "Navy", hex: "#1a3a5c" },
@@ -27,21 +28,22 @@ const TEMPLATES: { id: CoverTemplate; name: string; description: string }[] = [
   { id: "minimal", name: "Minimal", description: "Text-first" },
 ]
 
-function ClassicThumbnail() {
+function ClassicThumbnail({ accentColor }: Readonly<{ accentColor: string }>) {
   return (
     <div className="flex flex-col items-center justify-center h-[60px] gap-1.5 px-2">
       <div className="w-8 h-1.5 rounded-sm bg-muted-foreground/30" />
-      <div className="w-12 h-1 rounded-sm bg-muted-foreground/20" />
-      <div className="w-10 h-1 rounded-sm bg-muted-foreground/20" />
-      <div className="w-6 h-px rounded-sm bg-muted-foreground/30 mt-0.5" />
+      <div className="w-12 h-px" style={{ background: accentColor, opacity: 0.6 }} />
+      <div className="w-10 h-1 rounded-sm" style={{ background: accentColor, opacity: 0.7 }} />
+      <div className="w-8 h-1 rounded-sm bg-muted-foreground/20" />
+      <div className="w-12 h-px" style={{ background: accentColor, opacity: 0.6 }} />
     </div>
   )
 }
 
-function ModernThumbnail() {
+function ModernThumbnail({ accentColor }: Readonly<{ accentColor: string }>) {
   return (
     <div className="flex flex-col justify-center h-[60px] gap-1.5 px-3">
-      <div className="w-5 h-1 rounded-sm bg-brand/60" />
+      <div className="w-5 h-[3px] rounded-sm" style={{ background: accentColor }} />
       <div className="w-10 h-1.5 rounded-sm bg-muted-foreground/30" />
       <div className="w-14 h-1 rounded-sm bg-muted-foreground/20" />
       <div className="w-10 h-1 rounded-sm bg-muted-foreground/20" />
@@ -49,33 +51,34 @@ function ModernThumbnail() {
   )
 }
 
-function BoldThumbnail() {
+function BoldThumbnail({ accentColor }: Readonly<{ accentColor: string }>) {
   return (
     <div className="flex flex-col h-[60px]">
-      <div className="h-3 w-full rounded-t bg-brand/40" />
+      <div className="h-[3px] w-full rounded-t" style={{ background: accentColor }} />
       <div className="flex flex-col items-center justify-center flex-1 gap-1">
         <div className="w-8 h-4 rounded bg-muted-foreground/20" />
-        <div className="w-10 h-1 rounded-sm bg-muted-foreground/20" />
+        <div className="w-10 h-1 rounded-sm" style={{ background: accentColor, opacity: 0.6 }} />
       </div>
+      <div className="h-[3px] w-full rounded-b" style={{ background: accentColor }} />
     </div>
   )
 }
 
-function MinimalThumbnail() {
+function MinimalThumbnail({ accentColor }: Readonly<{ accentColor: string }>) {
   return (
     <div className="flex flex-col justify-center h-[60px] gap-2 px-3">
       <div className="w-14 h-2 rounded-sm bg-muted-foreground/30" />
-      <div className="w-px h-4 bg-muted-foreground/30" />
-      <div className="w-10 h-1 rounded-sm bg-muted-foreground/20" />
+      <div className="w-6 h-[2px] rounded-sm" style={{ background: accentColor }} />
+      <div className="w-6 h-1.5 rounded-sm bg-muted-foreground/20" />
     </div>
   )
 }
 
-function TemplateThumbnail({ id }: { id: CoverTemplate }) {
-  if (id === "classic") return <ClassicThumbnail />
-  if (id === "modern") return <ModernThumbnail />
-  if (id === "bold") return <BoldThumbnail />
-  return <MinimalThumbnail />
+function TemplateThumbnail({ id, accentColor }: Readonly<{ id: CoverTemplate; accentColor: string }>) {
+  if (id === "classic") return <ClassicThumbnail accentColor={accentColor} />
+  if (id === "modern") return <ModernThumbnail accentColor={accentColor} />
+  if (id === "bold") return <BoldThumbnail accentColor={accentColor} />
+  return <MinimalThumbnail accentColor={accentColor} />
 }
 
 export default function BrandingPage() {
@@ -192,12 +195,12 @@ export default function BrandingPage() {
   }
 
   return (
-    <div className="max-w-2xl">
+    <div>
       <h1 className="font-heading text-3xl mb-1">Branding</h1>
       <p className="text-sm text-muted-foreground mb-6">
         Control how your documents look. Organisation details are configured in{" "}
-        <Link href="/settings/organisation" className="text-brand hover:underline underline-offset-4">
-          Settings &rarr; Organisation
+        <Link href="/settings/profile" className="text-brand hover:underline underline-offset-4">
+          Settings &rarr; Your details
         </Link>
         .
       </p>
@@ -325,7 +328,7 @@ export default function BrandingPage() {
                   }`}
                 >
                   <div className="overflow-hidden rounded bg-muted/30 mb-2">
-                    <TemplateThumbnail id={t.id} />
+                    <TemplateThumbnail id={t.id} accentColor={accentColor} />
                   </div>
                   <p className="text-xs font-medium leading-tight">{t.name}</p>
                   <p className="text-xs text-muted-foreground leading-tight mt-0.5">
@@ -338,25 +341,17 @@ export default function BrandingPage() {
         </CardContent>
       </Card>
 
-      {/* Section 4: Document preview placeholder */}
+      {/* Section 4: Document preview */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Document preview</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground mb-2">
-            Preview how your documents will look with your current branding.
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Cover page and lease preview available in{" "}
-            <Link
-              href="/settings/lease-templates"
-              className="text-brand hover:underline underline-offset-4"
-            >
-              Settings &rarr; Lease Templates &rarr; Preview
-            </Link>
-            .
-          </p>
+          <DocumentPreview
+            logoUrl={logoUrl}
+            accentColor={accentColor}
+            coverTemplate={template}
+          />
         </CardContent>
       </Card>
     </div>
