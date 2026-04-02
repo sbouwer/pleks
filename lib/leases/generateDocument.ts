@@ -277,11 +277,12 @@ export async function generateLeaseDocument(
 
 // ─── DOCX builder ────────────────────────────────────────────
 
-async function buildDocx(
+export async function buildDocx(
   leaseType: string,
   variables: LeaseVariables,
   clauses: ResolvedClause[],
-  specialTerms: unknown
+  specialTerms: unknown,
+  watermark = false
 ): Promise<Buffer> {
   const {
     Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
@@ -644,23 +645,38 @@ async function buildDocx(
       },
       headers: {
         default: new Header({
-          children: [new Paragraph({
-            alignment: AlignmentType.RIGHT,
-            children: [new TextRun({ text: "CONFIDENTIAL — LEASE AGREEMENT", size: 16, font: "Calibri", italics: true, color: "999999" })],
-          })],
+          children: [watermark
+            ? new Paragraph({
+                alignment: AlignmentType.CENTER,
+                children: [new TextRun({ text: "SAMPLE — NOT FOR SIGNING", color: "E0E0E0", size: 60, font: "Calibri", bold: true })],
+              })
+            : new Paragraph({
+                alignment: AlignmentType.RIGHT,
+                children: [new TextRun({ text: "CONFIDENTIAL — LEASE AGREEMENT", size: 16, font: "Calibri", italics: true, color: "999999" })],
+              }),
+          ],
         }),
       },
       footers: {
         default: new Footer({
-          children: [new Paragraph({
-            alignment: AlignmentType.CENTER,
-            children: [
-              new TextRun({ text: "Page ", size: 16, font: "Calibri" }),
-              new TextRun({ children: [PageNumber.CURRENT], size: 16, font: "Calibri" }),
-              new TextRun({ text: " of ", size: 16, font: "Calibri" }),
-              new TextRun({ children: [PageNumber.TOTAL_PAGES], size: 16, font: "Calibri" }),
-            ],
-          })],
+          children: [watermark
+            ? new Paragraph({
+                alignment: AlignmentType.CENTER,
+                children: [new TextRun({
+                  text: `Sample generated via Pleks on ${variables.date_formatted}. Not a valid lease agreement.`,
+                  size: 16, font: "Calibri", italics: true, color: "999999",
+                })],
+              })
+            : new Paragraph({
+                alignment: AlignmentType.CENTER,
+                children: [
+                  new TextRun({ text: "Page ", size: 16, font: "Calibri" }),
+                  new TextRun({ children: [PageNumber.CURRENT], size: 16, font: "Calibri" }),
+                  new TextRun({ text: " of ", size: 16, font: "Calibri" }),
+                  new TextRun({ children: [PageNumber.TOTAL_PAGES], size: 16, font: "Calibri" }),
+                ],
+              }),
+          ],
         }),
       },
       children: [

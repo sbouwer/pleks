@@ -1,15 +1,16 @@
 "use client"
 
-import { useState, useEffect, useRef, useLayoutEffect, Fragment } from "react"
+import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
-import { Download } from "lucide-react"
+import { Download, Loader2, Lock } from "lucide-react"
 import { ClassicCover } from "@/components/branding/templates/ClassicCover"
 import { ModernCover } from "@/components/branding/templates/ModernCover"
 import { BoldCover } from "@/components/branding/templates/BoldCover"
 import { MinimalCover } from "@/components/branding/templates/MinimalCover"
+import { useTier } from "@/hooks/useTier"
 
 interface PreviewClause {
   number: number
@@ -59,40 +60,18 @@ function dividerStyle(color: string | null) {
   return { borderColor: valid ? color : undefined }
 }
 
-// Approximate content height per page (A4 at preview scale, minus header/footer/padding)
-const PAGE_CONTENT_HEIGHT_PX = 820
-
-// Returns the set of clause indices that start a new page (i.e. a PageBreak goes before them)
-function usePageBreakIndices(clauses: PreviewClause[]) {
-  const [breakIndices, setBreakIndices] = useState(new Set<number>())
-  const measureRef = useRef<HTMLDivElement>(null)
-
-  useLayoutEffect(() => {
-    const container = measureRef.current
-    if (!container || clauses.length === 0) return
-    const els = Array.from(container.querySelectorAll<HTMLElement>("[data-measure]"))
-    if (els.length !== clauses.length) return
-
-    const breaks = new Set<number>()
-    let height = 0
-
-    clauses.forEach((_, i) => {
-      const h = els[i].offsetHeight + 24 // 24px ≈ space-y-6 gap
-      if (i > 0 && height + h > PAGE_CONTENT_HEIGHT_PX) {
-        breaks.add(i)
-        height = h
-      } else {
-        height += h
-      }
-    })
-
-    setBreakIndices(breaks)
-  }, [clauses])
-
-  return { breakIndices, measureRef }
+// Rough page estimate: ~3000 chars per A4 page at 11pt Calibri justified
+function estimatePageCount(clauses: PreviewClause[]): number {
+  const CHARS_PER_PAGE = 3000
+  let totalChars = 0
+  for (const clause of clauses) {
+    totalChars += 50 // heading overhead
+    totalChars += clause.body.replace(/<[^>]+>/g, "").length
+  }
+  return 1 + Math.ceil(totalChars / CHARS_PER_PAGE) + 4 // cover + body pages + 4 annexures
 }
 
-function PageHeader({ branding, page, total }: Readonly<{ branding: PreviewBranding; page: number; total: number }>) {
+function DocHeader({ branding }: Readonly<{ branding: PreviewBranding }>) {
   const ds = dividerStyle(branding.accentColor)
   return (
     <div className="mb-4">
@@ -104,51 +83,35 @@ function PageHeader({ branding, page, total }: Readonly<{ branding: PreviewBrand
         <span className="flex-1 text-xs font-medium text-foreground/70 text-center truncate">
           {branding.displayName ?? ""}
         </span>
-        <span className="text-xs text-muted-foreground shrink-0">Page {page} of {total}</span>
       </div>
       <hr className="border-t" style={ds} />
     </div>
   )
 }
 
-function InitialsBar() {
-  return (
-    <div className="flex gap-8 justify-end mt-3">
-      <span className="text-[10px] text-muted-foreground">
-        Lessor initials: <span className="inline-block w-16 border-b border-foreground/25 align-bottom" />
-      </span>
-      <span className="text-[10px] text-muted-foreground">
-        Lessee initials: <span className="inline-block w-16 border-b border-foreground/25 align-bottom" />
-      </span>
-    </div>
-  )
-}
-
-function PageFooter({ branding, showInitials = false }: Readonly<{ branding: PreviewBranding; showInitials?: boolean }>) {
+function DocFooter({ branding }: Readonly<{ branding: PreviewBranding }>) {
   const ds = dividerStyle(branding.accentColor)
-  const line = [branding.address, branding.phone, branding.email]
-    .filter(Boolean)
-    .join(" · ")
+  const line = [branding.address, branding.phone, branding.email].filter(Boolean).join(" · ")
   return (
-    <div className="mt-6">
-      {showInitials && <InitialsBar />}
-      <hr className="border-t mt-3 mb-2" style={ds} />
+    <div className="mt-8">
+      <hr className="border-t mb-2" style={ds} />
       {line && <p className="text-[11px] text-muted-foreground text-center">{line}</p>}
     </div>
   )
 }
 
-
-function PageBreak({ branding, page, total, showInitials = false }: Readonly<{ branding: PreviewBranding; page: number; total: number; showInitials?: boolean }>) {
+// Visual separator between body and each annexure — replaces fake PageBreak
+function AnnexureSeparator({ branding, label }: Readonly<{ branding: PreviewBranding; label: string }>) {
   const ds = dividerStyle(branding.accentColor)
   const line = [branding.address, branding.phone, branding.email].filter(Boolean).join(" · ")
   return (
-    <div className="my-8">
-      {showInitials && <InitialsBar />}
-      <hr className="border-t mt-3 mb-2" style={ds} />
-      {line && <p className="text-[11px] text-muted-foreground text-center mb-6">{line}</p>}
-      <div className="border-t border-border/20 mb-6" />
-      <PageHeader branding={branding} page={page} total={total} />
+    <div className="mt-10 mb-2">
+      <hr className="border-t mt-3" style={ds} />
+      {line && <p className="text-[11px] text-muted-foreground text-center mt-2">{line}</p>}
+      <div className="border-t border-border/20 mt-6 mb-2" />
+      <p className="text-sm font-semibold text-center uppercase tracking-wide py-4">
+        ANNEXURE {label}
+      </p>
     </div>
   )
 }
@@ -195,14 +158,6 @@ const TOKEN_CLASSES = `
   [&_.token-var]:bg-green-400/10 [&_.token-var]:text-green-400 [&_.token-var]:text-[11px] [&_.token-var]:mx-0.5
 `.trim()
 
-function AnnexureHeading({ label }: Readonly<{ label: string }>) {
-  return (
-    <p className="text-sm font-semibold text-center uppercase tracking-wide pt-6 pb-4 border-t border-border/30 mt-2">
-      ANNEXURE {label}
-    </p>
-  )
-}
-
 function chip(label: string, color: "green" | "amber" | "blue") {
   const classes = {
     green: "border-green-400/40 bg-green-400/10 text-green-400",
@@ -227,10 +182,7 @@ function AnnexureA() {
         ].map(([label, val]) => (
           <div key={label} className="contents">
             <span className="text-muted-foreground text-xs self-start pt-0.5">{label}</span>
-            <span
-              className={TOKEN_CLASSES}
-              dangerouslySetInnerHTML={{ __html: val }}
-            />
+            <span className={TOKEN_CLASSES} dangerouslySetInnerHTML={{ __html: val }} />
           </div>
         ))}
       </div>
@@ -265,10 +217,7 @@ function AnnexureB({ banking }: Readonly<{ banking: PreviewBanking }>) {
             {banking.configured ? (
               <span className="text-sm">{val}</span>
             ) : (
-              <span
-                className={TOKEN_CLASSES}
-                dangerouslySetInnerHTML={{ __html: val }}
-              />
+              <span className={TOKEN_CLASSES} dangerouslySetInnerHTML={{ __html: val }} />
             )}
           </div>
         ))}
@@ -290,10 +239,7 @@ function AnnexureC() {
         {["Pets", "Smoking", "Parking", "Noise", "Common areas"].map((rule) => (
           <div key={rule} className="contents">
             <span className="text-xs text-muted-foreground self-start pt-0.5">{rule}</span>
-            <span
-              className={TOKEN_CLASSES}
-              dangerouslySetInnerHTML={{ __html: chip(`as per property rules`, "green") }}
-            />
+            <span className={TOKEN_CLASSES} dangerouslySetInnerHTML={{ __html: chip("as per property rules", "green") }} />
           </div>
         ))}
       </div>
@@ -315,7 +261,6 @@ function AnnexureD() {
     </div>
   )
 }
-
 
 function SignatureBlock({ role, optional }: Readonly<{ role: string; optional?: boolean }>) {
   return (
@@ -367,9 +312,13 @@ function SignatureBlocks({ label }: Readonly<{ label?: string }>) {
 
 export function LeasePreview({ open, onOpenChange, leaseType: initialLeaseType }: Readonly<LeasePreviewProps>) {
   const [localLeaseType, setLocalLeaseType] = useState(initialLeaseType)
+  const [previewTab, setPreviewTab] = useState<"structure" | "document">("structure")
   const [data, setData] = useState<PreviewData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
+  const [downloading, setDownloading] = useState(false)
+
+  const { isOwner } = useTier()
 
   useEffect(() => {
     if (!open) return
@@ -386,16 +335,24 @@ export function LeasePreview({ open, onOpenChange, leaseType: initialLeaseType }
     phone: null, email: null, website: null, accentColor: null, layout: "classic", logoUrl: null,
   }
 
-  const { breakIndices, measureRef } = usePageBreakIndices(data?.clauses ?? [])
-  const totalPages = 1 + (1 + breakIndices.size) + 4   // cover + clause pages + 4 annexures
-  const annexureStart = 3 + breakIndices.size           // first page after all clause pages
+  const estimatedPages = data ? estimatePageCount(data.clauses) : null
 
-  // Page number each clause sits on (2 = first clause page, increments at each break)
-  const clausePageNums: number[] = []
-  let _cp = 2
-  for (let i = 0; i < (data?.clauses.length ?? 0); i++) {
-    if (i > 0 && breakIndices.has(i)) _cp++
-    clausePageNums.push(_cp)
+  async function handleDownload() {
+    setDownloading(true)
+    try {
+      const res = await fetch(`/api/leases/preview-document?leaseType=${localLeaseType}`)
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({})) as { message?: string }
+        toast.error(json.message ?? "Failed to generate sample")
+        return
+      }
+      const { downloadUrl } = await res.json() as { downloadUrl: string }
+      window.open(downloadUrl, "_blank")
+    } catch {
+      toast.error("Failed to generate sample")
+    } finally {
+      setDownloading(false)
+    }
   }
 
   return (
@@ -406,142 +363,177 @@ export function LeasePreview({ open, onOpenChange, leaseType: initialLeaseType }
             <div>
               <DialogTitle>Lease preview</DialogTitle>
               <p className="text-xs text-muted-foreground mt-1">
-                Full document as generated — tokens are filled from lease data at creation time.
+                Preview your template structure or download a sample document.
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              <Tabs value={previewTab} onValueChange={(v) => setPreviewTab(v as "structure" | "document")}>
+                <TabsList className="h-8">
+                  <TabsTrigger value="structure" className="text-xs px-3 h-7">Structure</TabsTrigger>
+                  <TabsTrigger value="document" className="text-xs px-3 h-7">Document</TabsTrigger>
+                </TabsList>
+              </Tabs>
               <Tabs value={localLeaseType} onValueChange={setLocalLeaseType}>
                 <TabsList className="h-8">
                   <TabsTrigger value="residential" className="text-xs px-3 h-7">Residential</TabsTrigger>
                   <TabsTrigger value="commercial" className="text-xs px-3 h-7">Commercial</TabsTrigger>
                 </TabsList>
               </Tabs>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 text-xs"
-                onClick={() => toast.info("Sample DOCX download coming soon")}
-              >
-                <Download className="size-3.5 mr-1" /> Sample
-              </Button>
             </div>
           </div>
         </DialogHeader>
 
+        {/* Clause / page count meta — Structure tab only */}
+        {previewTab === "structure" && data && (
+          <div className="px-6 py-2 border-b border-border/20 bg-muted/30 shrink-0">
+            <p className="text-xs text-muted-foreground">
+              {data.totalClauses} clause{data.totalClauses !== 1 ? "s" : ""} enabled
+              {" · "}4 annexures
+              {" · "}estimated ~{estimatedPages} pages
+            </p>
+          </div>
+        )}
+
         <div className="overflow-y-auto flex-1 px-6 py-5">
-          <style>{`
-            .clause-para { display: table; width: 100%; font-size: 13px; line-height: 1.8; margin: 0 0 8px; border-spacing: 0; }
-            .clause-para[data-depth="0"] { padding-left: 0; }
-            .clause-para[data-depth="1"] { padding-left: 28px; }
-            .clause-para[data-depth="2"] { padding-left: 56px; }
-            .clause-para[data-depth="3"] { padding-left: 84px; }
-            .clause-para[data-depth="4"] { padding-left: 112px; }
-            .clause-number { display: table-cell; white-space: nowrap; font-variant-numeric: tabular-nums; vertical-align: top; padding-right: 10px; width: 1px; }
-            .clause-text { display: table-cell; text-align: justify; text-justify: inter-word; vertical-align: top; width: auto; }
-            .clause-intro { display: block; font-size: 13px; line-height: 1.8; margin: 0 0 8px; text-align: justify; }
-          `}</style>
 
-          {loading && <p className="text-sm text-muted-foreground">Loading preview…</p>}
-          {error && <p className="text-sm text-muted-foreground">Failed to load preview. Please try again.</p>}
+          {/* ── Structure tab ─────────────────────────────────── */}
+          {previewTab === "structure" && (
+            <>
+              <style>{`
+                .clause-para { display: table; width: 100%; font-size: 13px; line-height: 1.8; margin: 0 0 8px; border-spacing: 0; }
+                .clause-para[data-depth="0"] { padding-left: 0; }
+                .clause-para[data-depth="1"] { padding-left: 28px; }
+                .clause-para[data-depth="2"] { padding-left: 56px; }
+                .clause-para[data-depth="3"] { padding-left: 84px; }
+                .clause-para[data-depth="4"] { padding-left: 112px; }
+                .clause-number { display: table-cell; white-space: nowrap; font-variant-numeric: tabular-nums; vertical-align: top; padding-right: 10px; width: 1px; }
+                .clause-text { display: table-cell; text-align: justify; text-justify: inter-word; vertical-align: top; width: auto; }
+                .clause-intro { display: block; font-size: 13px; line-height: 1.8; margin: 0 0 8px; text-align: justify; }
+              `}</style>
 
-          {!loading && !error && data && (
-            <div>
-              {/* Token legend */}
-              <div className="flex flex-wrap gap-3 text-xs mb-6 pb-4 border-b border-border/30">
-                <span className="inline-flex items-center gap-1">
-                  <span className="inline-block px-1.5 py-0.5 rounded border border-brand/40 bg-brand/10 text-brand text-[10px]">clause N</span>
-                  {" "}Clause reference
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="inline-block px-1.5 py-0.5 rounded border border-blue-400/40 bg-blue-400/10 text-blue-400 text-[10px]">[N]</span>
-                  {" "}Sub-clause
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="inline-block px-1.5 py-0.5 rounded border border-green-400/40 bg-green-400/10 text-green-400 text-[10px]">[field]</span>
-                  {" "}Filled from lease data
-                </span>
-              </div>
+              {loading && <p className="text-sm text-muted-foreground">Loading preview…</p>}
+              {error && <p className="text-sm text-muted-foreground">Failed to load preview. Please try again.</p>}
 
-              {/* Cover page */}
-              <div className="max-w-[680px] mx-auto">
-                <CoverPage branding={branding} leaseType={localLeaseType} />
+              {!loading && !error && data && (
+                <div>
+                  {/* Token legend */}
+                  <div className="flex flex-wrap gap-3 text-xs mb-6 pb-4 border-b border-border/30">
+                    <span className="inline-flex items-center gap-1">
+                      <span className="inline-block px-1.5 py-0.5 rounded border border-brand/40 bg-brand/10 text-brand text-[10px]">clause N</span>
+                      {" "}Clause reference
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="inline-block px-1.5 py-0.5 rounded border border-blue-400/40 bg-blue-400/10 text-blue-400 text-[10px]">[N]</span>
+                      {" "}Sub-clause
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="inline-block px-1.5 py-0.5 rounded border border-green-400/40 bg-green-400/10 text-green-400 text-[10px]">[field]</span>
+                      {" "}Filled from lease data
+                    </span>
+                  </div>
 
-                {/* Single document body — page breaks are visual dividers, not separate boxes */}
-                <div className="rounded-lg border border-border/60 bg-card px-14 py-10 mb-4">
+                  <div className="max-w-[680px] mx-auto">
+                    {/* Cover page */}
+                    <CoverPage branding={branding} leaseType={localLeaseType} />
 
-                  {/* Hidden measurement container — same px-14 content width as real pages */}
-                  <div ref={measureRef} className="h-0 overflow-hidden" aria-hidden="true">
-                    {data.clauses.map((clause) => (
-                      <div key={clause.key} data-measure className="pb-6">
-                        <p className="text-sm font-semibold mb-2 uppercase tracking-wide">
-                          {clause.number}. {clause.title}
-                        </p>
-                        {clause.key === "signatures" ? (
-                          <SignatureBlocks />
-                        ) : (
-                          <div
-                            className={TOKEN_CLASSES}
-                            dangerouslySetInnerHTML={{ __html: clause.body }}
-                          />
-                        )}
+                    {/* Document body */}
+                    <div className="rounded-lg border border-border/60 bg-card px-14 py-10 mb-4">
+                      <DocHeader branding={branding} />
+
+                      {/* Clauses — select-none deters casual copy/paste */}
+                      <div
+                        className="space-y-6 select-none"
+                        style={{ WebkitUserSelect: "none" }}
+                      >
+                        {data.clauses.map((clause) => (
+                          <div key={clause.key}>
+                            <p className="text-sm font-semibold mb-2 uppercase tracking-wide">
+                              {clause.number}. {clause.title}
+                            </p>
+                            {clause.key === "signatures" ? (
+                              <SignatureBlocks />
+                            ) : (
+                              <div
+                                className={TOKEN_CLASSES}
+                                dangerouslySetInnerHTML={{ __html: clause.body }}
+                              />
+                            )}
+                          </div>
+                        ))}
                       </div>
-                    ))}
+
+                      {/* Annexures */}
+                      <AnnexureSeparator branding={branding} label="A: Rental Calculation" />
+                      <AnnexureA />
+                      <SignatureBlocks label="Signed in acknowledgement of Annexure A" />
+
+                      <AnnexureSeparator branding={branding} label="B: Banking Details" />
+                      <AnnexureB banking={data.banking} />
+                      <SignatureBlocks label="Signed in acknowledgement of Annexure B" />
+
+                      <AnnexureSeparator branding={branding} label="C: Property Rules" />
+                      <AnnexureC />
+                      <SignatureBlocks label="Signed in acknowledgement of Annexure C" />
+
+                      <AnnexureSeparator branding={branding} label="D: Special Agreements" />
+                      <AnnexureD />
+                      <SignatureBlocks label="Signed in acknowledgement of Annexure D" />
+
+                      <DocFooter branding={branding} />
+                    </div>
                   </div>
-
-                  <PageHeader branding={branding} page={2} total={totalPages} />
-
-                  <div className="space-y-6">
-                    {data.clauses.map((clause, i) => (
-                      <Fragment key={clause.key}>
-                        {i > 0 && breakIndices.has(i) && (
-                          <PageBreak branding={branding} page={clausePageNums[i]} total={totalPages} />
-                        )}
-                        <div>
-                          <p className="text-sm font-semibold mb-2 uppercase tracking-wide">
-                            {clause.number}. {clause.title}
-                          </p>
-                          {clause.key === "signatures" ? (
-                            <SignatureBlocks />
-                          ) : (
-                            <div
-                              className={TOKEN_CLASSES}
-                              dangerouslySetInnerHTML={{ __html: clause.body }}
-                            />
-                          )}
-                        </div>
-                      </Fragment>
-                    ))}
-                  </div>
-
-                  {/* Annexure A */}
-                  <PageBreak branding={branding} page={annexureStart} total={totalPages} showInitials />
-                  <AnnexureHeading label="A: Rental Calculation" />
-                  <AnnexureA />
-                  <SignatureBlocks label="Signed in acknowledgement of Annexure A" />
-
-                  {/* Annexure B */}
-                  <PageBreak branding={branding} page={annexureStart + 1} total={totalPages} />
-                  <AnnexureHeading label="B: Banking Details" />
-                  <AnnexureB banking={data.banking} />
-                  <SignatureBlocks label="Signed in acknowledgement of Annexure B" />
-
-                  {/* Annexure C */}
-                  <PageBreak branding={branding} page={annexureStart + 2} total={totalPages} />
-                  <AnnexureHeading label="C: Property Rules" />
-                  <AnnexureC />
-                  <SignatureBlocks label="Signed in acknowledgement of Annexure C" />
-
-                  {/* Annexure D */}
-                  <PageBreak branding={branding} page={annexureStart + 3} total={totalPages} />
-                  <AnnexureHeading label="D: Special Agreements" />
-                  <AnnexureD />
-                  <SignatureBlocks label="Signed in acknowledgement of Annexure D" />
-
-                  <PageFooter branding={branding} />
                 </div>
+              )}
+            </>
+          )}
+
+          {/* ── Document tab ───────────────────────────────────── */}
+          {previewTab === "document" && (
+            <div className="max-w-[520px] mx-auto flex flex-col items-center text-center py-16 gap-5">
+              <div className="size-12 rounded-full bg-muted flex items-center justify-center">
+                <Download className="size-5 text-muted-foreground" />
               </div>
+              <div>
+                <h3 className="font-semibold text-base mb-1">Sample lease document</h3>
+                <p className="text-sm text-muted-foreground">
+                  Download a sample lease with placeholder data to review exact formatting,
+                  page breaks, and clause layout in Word or Google Docs.
+                </p>
+              </div>
+
+              {isOwner ? (
+                <>
+                  <div className="rounded-lg border border-border/40 bg-muted/30 p-4 text-sm text-left w-full space-y-1.5">
+                    <p className="flex items-center gap-2 font-medium text-foreground">
+                      <Lock className="size-3.5 shrink-0" />
+                      Available on paid plans
+                    </p>
+                    <p className="text-muted-foreground text-xs">
+                      Sample downloads are available on Steward and above.
+                      Your lease is generated automatically when you create one from the Leases page.
+                    </p>
+                  </div>
+                  <Button variant="outline" asChild>
+                    <a href="/settings/billing">View plans</a>
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button onClick={handleDownload} disabled={downloading} className="gap-2">
+                    {downloading
+                      ? <Loader2 className="size-4 animate-spin" />
+                      : <Download className="size-4" />
+                    }
+                    {downloading ? "Generating…" : "Download sample (.docx)"}
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Watermarked "SAMPLE — NOT FOR SIGNING". Contains placeholder data only.
+                  </p>
+                </>
+              )}
             </div>
           )}
+
         </div>
       </DialogContent>
     </Dialog>
