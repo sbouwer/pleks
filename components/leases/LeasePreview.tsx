@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useLayoutEffect } from "react"
+import { useState, useEffect, useRef, useLayoutEffect, Fragment } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -59,12 +59,12 @@ function dividerStyle(color: string | null) {
   return { borderColor: valid ? color : undefined }
 }
 
-// Approximate available vertical space for clause content within one A4-proportioned page
-// (page height minus py-10 padding, header, and footer)
+// Approximate content height per page (A4 at preview scale, minus header/footer/padding)
 const PAGE_CONTENT_HEIGHT_PX = 820
 
-function useClausePages(clauses: PreviewClause[]) {
-  const [pages, setPages] = useState<PreviewClause[][]>(clauses.length ? [clauses] : [])
+// Returns the set of clause indices that start a new page (i.e. a PageBreak goes before them)
+function usePageBreakIndices(clauses: PreviewClause[]) {
+  const [breakIndices, setBreakIndices] = useState(new Set<number>())
   const measureRef = useRef<HTMLDivElement>(null)
 
   useLayoutEffect(() => {
@@ -73,27 +73,23 @@ function useClausePages(clauses: PreviewClause[]) {
     const els = Array.from(container.querySelectorAll<HTMLElement>("[data-measure]"))
     if (els.length !== clauses.length) return
 
-    const groups: PreviewClause[][] = []
-    let current: PreviewClause[] = []
+    const breaks = new Set<number>()
     let height = 0
 
-    clauses.forEach((clause, i) => {
+    clauses.forEach((_, i) => {
       const h = els[i].offsetHeight + 24 // 24px ≈ space-y-6 gap
-      if (height + h > PAGE_CONTENT_HEIGHT_PX && current.length > 0) {
-        groups.push(current)
-        current = [clause]
+      if (i > 0 && height + h > PAGE_CONTENT_HEIGHT_PX) {
+        breaks.add(i)
         height = h
       } else {
-        current.push(clause)
         height += h
       }
     })
 
-    if (current.length > 0) groups.push(current)
-    setPages(groups)
+    setBreakIndices(breaks)
   }, [clauses])
 
-  return { pages, measureRef }
+  return { breakIndices, measureRef }
 }
 
 function PageHeader({ branding, page, total }: Readonly<{ branding: PreviewBranding; page: number; total: number }>) {
@@ -142,6 +138,20 @@ function PageFooter({ branding, showInitials = false }: Readonly<{ branding: Pre
   )
 }
 
+
+function PageBreak({ branding, page, total, showInitials = false }: Readonly<{ branding: PreviewBranding; page: number; total: number; showInitials?: boolean }>) {
+  const ds = dividerStyle(branding.accentColor)
+  const line = [branding.address, branding.phone, branding.email].filter(Boolean).join(" · ")
+  return (
+    <div className="my-8">
+      {showInitials && <InitialsBar />}
+      <hr className="border-t mt-3 mb-2" style={ds} />
+      {line && <p className="text-[11px] text-muted-foreground text-center mb-6">{line}</p>}
+      <div className="border-t border-border/20 mb-6" />
+      <PageHeader branding={branding} page={page} total={total} />
+    </div>
+  )
+}
 
 const COVER_COMPONENTS = {
   classic: ClassicCover,
@@ -376,10 +386,17 @@ export function LeasePreview({ open, onOpenChange, leaseType: initialLeaseType }
     phone: null, email: null, website: null, accentColor: null, layout: "classic", logoUrl: null,
   }
 
-  const { pages: clausePages, measureRef } = useClausePages(data?.clauses ?? [])
-  const safePageCount = Math.max(1, clausePages.length)
-  const totalPages = 1 + safePageCount + 4
-  const annexureStart = 2 + safePageCount
+  const { breakIndices, measureRef } = usePageBreakIndices(data?.clauses ?? [])
+  const totalPages = 1 + (1 + breakIndices.size) + 4   // cover + clause pages + 4 annexures
+  const annexureStart = 3 + breakIndices.size           // first page after all clause pages
+
+  // Page number each clause sits on (2 = first clause page, increments at each break)
+  const clausePageNums: number[] = []
+  let _cp = 2
+  for (let i = 0; i < (data?.clauses.length ?? 0); i++) {
+    if (i > 0 && breakIndices.has(i)) _cp++
+    clausePageNums.push(_cp)
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -445,96 +462,83 @@ export function LeasePreview({ open, onOpenChange, leaseType: initialLeaseType }
                 </span>
               </div>
 
-              {/* Portrait-width centred column — constrains all pages to ~A4 proportions */}
+              {/* Cover page */}
               <div className="max-w-[680px] mx-auto">
-
-                {/* Hidden measurement container — must share same content width as real pages */}
-                <div ref={measureRef} className="h-0 overflow-hidden px-14" aria-hidden="true">
-                  {data.clauses.map((clause) => (
-                    <div key={clause.key} data-measure className="pb-6">
-                      <p className="text-sm font-semibold mb-2 uppercase tracking-wide">
-                        {clause.number}. {clause.title}
-                      </p>
-                      {clause.key === "signatures" ? (
-                        <SignatureBlocks />
-                      ) : (
-                        <div
-                          className={TOKEN_CLASSES}
-                          dangerouslySetInnerHTML={{ __html: clause.body }}
-                        />
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Cover page */}
                 <CoverPage branding={branding} leaseType={localLeaseType} />
 
-                {/* Clause pages — one bordered div per page */}
-                {clausePages.map((pageClauses, pageIdx) => {
-                  const pageNum = 2 + pageIdx
-                  const isLastClausePage = pageIdx === clausePages.length - 1
-                  return (
-                    <div key={pageNum} className="rounded-lg border border-border/60 bg-card px-14 py-10 mb-4 min-h-[960px]">
-                      <PageHeader branding={branding} page={pageNum} total={totalPages} />
-                      <div className="space-y-6">
-                        {pageClauses.map((clause) => (
-                          <div key={clause.key}>
-                            <p className="text-sm font-semibold mb-2 uppercase tracking-wide">
-                              {clause.number}. {clause.title}
-                            </p>
-                            {clause.key === "signatures" ? (
-                              <SignatureBlocks />
-                            ) : (
-                              <div
-                                className={TOKEN_CLASSES}
-                                dangerouslySetInnerHTML={{ __html: clause.body }}
-                              />
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                      <PageFooter branding={branding} showInitials={isLastClausePage} />
-                    </div>
-                  )
-                })}
+                {/* Single document body — page breaks are visual dividers, not separate boxes */}
+                <div className="rounded-lg border border-border/60 bg-card px-14 py-10 mb-4">
 
-                {/* Annexure A */}
-                <div className="rounded-lg border border-border/60 bg-card px-14 py-10 mb-4 min-h-[960px]">
-                  <PageHeader branding={branding} page={annexureStart} total={totalPages} />
+                  {/* Hidden measurement container — same px-14 content width as real pages */}
+                  <div ref={measureRef} className="h-0 overflow-hidden" aria-hidden="true">
+                    {data.clauses.map((clause) => (
+                      <div key={clause.key} data-measure className="pb-6">
+                        <p className="text-sm font-semibold mb-2 uppercase tracking-wide">
+                          {clause.number}. {clause.title}
+                        </p>
+                        {clause.key === "signatures" ? (
+                          <SignatureBlocks />
+                        ) : (
+                          <div
+                            className={TOKEN_CLASSES}
+                            dangerouslySetInnerHTML={{ __html: clause.body }}
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  <PageHeader branding={branding} page={2} total={totalPages} />
+
+                  <div className="space-y-6">
+                    {data.clauses.map((clause, i) => (
+                      <Fragment key={clause.key}>
+                        {i > 0 && breakIndices.has(i) && (
+                          <PageBreak branding={branding} page={clausePageNums[i]} total={totalPages} />
+                        )}
+                        <div>
+                          <p className="text-sm font-semibold mb-2 uppercase tracking-wide">
+                            {clause.number}. {clause.title}
+                          </p>
+                          {clause.key === "signatures" ? (
+                            <SignatureBlocks />
+                          ) : (
+                            <div
+                              className={TOKEN_CLASSES}
+                              dangerouslySetInnerHTML={{ __html: clause.body }}
+                            />
+                          )}
+                        </div>
+                      </Fragment>
+                    ))}
+                  </div>
+
+                  {/* Annexure A */}
+                  <PageBreak branding={branding} page={annexureStart} total={totalPages} showInitials />
                   <AnnexureHeading label="A: Rental Calculation" />
                   <AnnexureA />
                   <SignatureBlocks label="Signed in acknowledgement of Annexure A" />
-                  <PageFooter branding={branding} />
-                </div>
 
-                {/* Annexure B */}
-                <div className="rounded-lg border border-border/60 bg-card px-14 py-10 mb-4 min-h-[960px]">
-                  <PageHeader branding={branding} page={annexureStart + 1} total={totalPages} />
+                  {/* Annexure B */}
+                  <PageBreak branding={branding} page={annexureStart + 1} total={totalPages} />
                   <AnnexureHeading label="B: Banking Details" />
                   <AnnexureB banking={data.banking} />
                   <SignatureBlocks label="Signed in acknowledgement of Annexure B" />
-                  <PageFooter branding={branding} />
-                </div>
 
-                {/* Annexure C */}
-                <div className="rounded-lg border border-border/60 bg-card px-14 py-10 mb-4 min-h-[960px]">
-                  <PageHeader branding={branding} page={annexureStart + 2} total={totalPages} />
+                  {/* Annexure C */}
+                  <PageBreak branding={branding} page={annexureStart + 2} total={totalPages} />
                   <AnnexureHeading label="C: Property Rules" />
                   <AnnexureC />
                   <SignatureBlocks label="Signed in acknowledgement of Annexure C" />
-                  <PageFooter branding={branding} />
-                </div>
 
-                {/* Annexure D */}
-                <div className="rounded-lg border border-border/60 bg-card px-14 py-10 mb-4 min-h-[960px]">
-                  <PageHeader branding={branding} page={annexureStart + 3} total={totalPages} />
+                  {/* Annexure D */}
+                  <PageBreak branding={branding} page={annexureStart + 3} total={totalPages} />
                   <AnnexureHeading label="D: Special Agreements" />
                   <AnnexureD />
                   <SignatureBlocks label="Signed in acknowledgement of Annexure D" />
+
                   <PageFooter branding={branding} />
                 </div>
-
               </div>
             </div>
           )}
