@@ -513,8 +513,8 @@ export function LeasePreview({ open, onOpenChange, leaseType: initialLeaseType }
                       Your lease is generated automatically when you create one from the Leases page.
                     </p>
                   </div>
-                  <Button variant="outline" asChild>
-                    <a href="/settings/billing">View plans</a>
+                  <Button variant="outline" onClick={() => globalThis.location.assign("/settings/billing")}>
+                    View plans
                   </Button>
                 </>
               ) : (
