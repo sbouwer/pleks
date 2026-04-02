@@ -80,7 +80,7 @@ function Sel({ id, value, onChange, options, placeholder, capitalize, className 
       <SelectContent>
         {options.map((o) => (
           <SelectItem key={o} value={o}>
-            {capitalize ? o.charAt(0).toUpperCase() + o.slice(1) : o}
+            {capitalize ? o.split("_").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ") : o}
           </SelectItem>
         ))}
       </SelectContent>
@@ -172,7 +172,7 @@ function PersonalSection({ form, set }: Readonly<{ form: FormState; set: (f: key
         </F>
       </div>
       {/* Row 2: Gender + DOB + SA ID */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-[calc(200px+0.75rem)_1fr_1fr] gap-3">
         <F label="Gender" id="gender">
           <Sel id="gender" value={form.gender ?? ""} onChange={(v) => set("gender", v)}
             options={["male", "female", "prefer_not_to_say"]}
