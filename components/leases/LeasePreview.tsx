@@ -445,91 +445,96 @@ export function LeasePreview({ open, onOpenChange, leaseType: initialLeaseType }
                 </span>
               </div>
 
-              {/* Hidden measurement container — same px-14 width as real pages */}
-              <div ref={measureRef} className="h-0 overflow-hidden px-14" aria-hidden="true">
-                {data.clauses.map((clause) => (
-                  <div key={clause.key} data-measure className="pb-6">
-                    <p className="text-sm font-semibold mb-2 uppercase tracking-wide">
-                      {clause.number}. {clause.title}
-                    </p>
-                    {clause.key === "signatures" ? (
-                      <SignatureBlocks />
-                    ) : (
-                      <div
-                        className={TOKEN_CLASSES}
-                        dangerouslySetInnerHTML={{ __html: clause.body }}
-                      />
-                    )}
-                  </div>
-                ))}
-              </div>
+              {/* Portrait-width centred column — constrains all pages to ~A4 proportions */}
+              <div className="max-w-[680px] mx-auto">
 
-              {/* Cover page */}
-              <CoverPage branding={branding} leaseType={localLeaseType} />
-
-              {/* Clause pages — one bordered div per page */}
-              {clausePages.map((pageClauses, pageIdx) => {
-                const pageNum = 2 + pageIdx
-                const isLastClausePage = pageIdx === clausePages.length - 1
-                return (
-                  <div key={pageNum} className="rounded-lg border border-border/60 bg-card px-14 py-10 mb-4">
-                    <PageHeader branding={branding} page={pageNum} total={totalPages} />
-                    <div className="space-y-6">
-                      {pageClauses.map((clause) => (
-                        <div key={clause.key}>
-                          <p className="text-sm font-semibold mb-2 uppercase tracking-wide">
-                            {clause.number}. {clause.title}
-                          </p>
-                          {clause.key === "signatures" ? (
-                            <SignatureBlocks />
-                          ) : (
-                            <div
-                              className={TOKEN_CLASSES}
-                              dangerouslySetInnerHTML={{ __html: clause.body }}
-                            />
-                          )}
-                        </div>
-                      ))}
+                {/* Hidden measurement container — must share same content width as real pages */}
+                <div ref={measureRef} className="h-0 overflow-hidden px-14" aria-hidden="true">
+                  {data.clauses.map((clause) => (
+                    <div key={clause.key} data-measure className="pb-6">
+                      <p className="text-sm font-semibold mb-2 uppercase tracking-wide">
+                        {clause.number}. {clause.title}
+                      </p>
+                      {clause.key === "signatures" ? (
+                        <SignatureBlocks />
+                      ) : (
+                        <div
+                          className={TOKEN_CLASSES}
+                          dangerouslySetInnerHTML={{ __html: clause.body }}
+                        />
+                      )}
                     </div>
-                    <PageFooter branding={branding} showInitials={isLastClausePage} />
-                  </div>
-                )
-              })}
+                  ))}
+                </div>
 
-              {/* Annexure A */}
-              <div className="rounded-lg border border-border/60 bg-card px-14 py-10 mb-4">
-                <PageHeader branding={branding} page={annexureStart} total={totalPages} />
-                <AnnexureHeading label="A: Rental Calculation" />
-                <AnnexureA />
-                <SignatureBlocks label="Signed in acknowledgement of Annexure A" />
-                <PageFooter branding={branding} />
-              </div>
+                {/* Cover page */}
+                <CoverPage branding={branding} leaseType={localLeaseType} />
 
-              {/* Annexure B */}
-              <div className="rounded-lg border border-border/60 bg-card px-14 py-10 mb-4">
-                <PageHeader branding={branding} page={annexureStart + 1} total={totalPages} />
-                <AnnexureHeading label="B: Banking Details" />
-                <AnnexureB banking={data.banking} />
-                <SignatureBlocks label="Signed in acknowledgement of Annexure B" />
-                <PageFooter branding={branding} />
-              </div>
+                {/* Clause pages — one bordered div per page */}
+                {clausePages.map((pageClauses, pageIdx) => {
+                  const pageNum = 2 + pageIdx
+                  const isLastClausePage = pageIdx === clausePages.length - 1
+                  return (
+                    <div key={pageNum} className="rounded-lg border border-border/60 bg-card px-14 py-10 mb-4 min-h-[960px]">
+                      <PageHeader branding={branding} page={pageNum} total={totalPages} />
+                      <div className="space-y-6">
+                        {pageClauses.map((clause) => (
+                          <div key={clause.key}>
+                            <p className="text-sm font-semibold mb-2 uppercase tracking-wide">
+                              {clause.number}. {clause.title}
+                            </p>
+                            {clause.key === "signatures" ? (
+                              <SignatureBlocks />
+                            ) : (
+                              <div
+                                className={TOKEN_CLASSES}
+                                dangerouslySetInnerHTML={{ __html: clause.body }}
+                              />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <PageFooter branding={branding} showInitials={isLastClausePage} />
+                    </div>
+                  )
+                })}
 
-              {/* Annexure C */}
-              <div className="rounded-lg border border-border/60 bg-card px-14 py-10 mb-4">
-                <PageHeader branding={branding} page={annexureStart + 2} total={totalPages} />
-                <AnnexureHeading label="C: Property Rules" />
-                <AnnexureC />
-                <SignatureBlocks label="Signed in acknowledgement of Annexure C" />
-                <PageFooter branding={branding} />
-              </div>
+                {/* Annexure A */}
+                <div className="rounded-lg border border-border/60 bg-card px-14 py-10 mb-4 min-h-[960px]">
+                  <PageHeader branding={branding} page={annexureStart} total={totalPages} />
+                  <AnnexureHeading label="A: Rental Calculation" />
+                  <AnnexureA />
+                  <SignatureBlocks label="Signed in acknowledgement of Annexure A" />
+                  <PageFooter branding={branding} />
+                </div>
 
-              {/* Annexure D */}
-              <div className="rounded-lg border border-border/60 bg-card px-14 py-10 mb-4">
-                <PageHeader branding={branding} page={annexureStart + 3} total={totalPages} />
-                <AnnexureHeading label="D: Special Agreements" />
-                <AnnexureD />
-                <SignatureBlocks label="Signed in acknowledgement of Annexure D" />
-                <PageFooter branding={branding} />
+                {/* Annexure B */}
+                <div className="rounded-lg border border-border/60 bg-card px-14 py-10 mb-4 min-h-[960px]">
+                  <PageHeader branding={branding} page={annexureStart + 1} total={totalPages} />
+                  <AnnexureHeading label="B: Banking Details" />
+                  <AnnexureB banking={data.banking} />
+                  <SignatureBlocks label="Signed in acknowledgement of Annexure B" />
+                  <PageFooter branding={branding} />
+                </div>
+
+                {/* Annexure C */}
+                <div className="rounded-lg border border-border/60 bg-card px-14 py-10 mb-4 min-h-[960px]">
+                  <PageHeader branding={branding} page={annexureStart + 2} total={totalPages} />
+                  <AnnexureHeading label="C: Property Rules" />
+                  <AnnexureC />
+                  <SignatureBlocks label="Signed in acknowledgement of Annexure C" />
+                  <PageFooter branding={branding} />
+                </div>
+
+                {/* Annexure D */}
+                <div className="rounded-lg border border-border/60 bg-card px-14 py-10 mb-4 min-h-[960px]">
+                  <PageHeader branding={branding} page={annexureStart + 3} total={totalPages} />
+                  <AnnexureHeading label="D: Special Agreements" />
+                  <AnnexureD />
+                  <SignatureBlocks label="Signed in acknowledgement of Annexure D" />
+                  <PageFooter branding={branding} />
+                </div>
+
               </div>
             </div>
           )}
