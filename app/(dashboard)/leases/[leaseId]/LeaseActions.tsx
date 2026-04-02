@@ -9,10 +9,10 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
-import { activateLease, giveNotice } from "@/lib/actions/leases"
+import { markAsSigned, giveNotice } from "@/lib/actions/leases"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { ChevronDown, Download, Bell, RefreshCw, MoreHorizontal, Pencil, TrendingUp, FileText, ShieldCheck, Search } from "lucide-react"
+import { ChevronDown, Download, Bell, RefreshCw, MoreHorizontal, Pencil, TrendingUp, FileText, ShieldCheck, Search, Clock } from "lucide-react"
 
 interface LeaseActionsProps {
   readonly leaseId: string
@@ -22,10 +22,10 @@ interface LeaseActionsProps {
 export function LeaseActions({ leaseId, status }: LeaseActionsProps) {
   const router = useRouter()
   const isActive = status === "active" || status === "month_to_month"
-  const isDraft  = status === "draft" || status === "pending_signing"
+  const isPendingSigning = status === "pending_signing"
 
-  async function handleActivate() {
-    const result = await activateLease(leaseId)
+  async function handleMarkSigned() {
+    const result = await markAsSigned(leaseId)
     if (result?.error) toast.error(result.error)
     else { toast.success("Lease activated"); router.refresh() }
   }
@@ -39,10 +39,15 @@ export function LeaseActions({ leaseId, status }: LeaseActionsProps) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       {/* Primary action — status-dependent */}
-      {isDraft && (
-        <Button size="sm" onClick={handleActivate}>
-          {status === "pending_signing" ? "Mark as Signed" : "Activate Lease"}
-        </Button>
+      {isPendingSigning && (
+        <div className="flex items-center gap-2">
+          <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <Clock className="size-3.5" /> Awaiting signatures
+          </span>
+          <Button size="sm" variant="outline" onClick={handleMarkSigned}>
+            Mark as signed
+          </Button>
+        </div>
       )}
 
       {isActive && (

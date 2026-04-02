@@ -43,42 +43,9 @@ export async function POST(req: Request) {
       }
     }
 
-    // Activate lease
-    await supabase.from("leases").update({
-      status: "active",
-      signed_at: new Date().toISOString(),
-    }).eq("id", lease.id)
-
-    // Update unit → occupied
-    await supabase.from("units").update({ status: "occupied" }).eq("id", lease.unit_id)
-
-    // Create tenancy history
-    await supabase.from("tenancy_history").insert({
-      org_id: lease.org_id,
-      tenant_id: lease.tenant_id,
-      unit_id: lease.unit_id,
-      lease_id: lease.id,
-      move_in_date: lease.start_date,
-      status: "active",
-    })
-
-    // Unit status history
-    await supabase.from("unit_status_history").insert({
-      unit_id: lease.unit_id,
-      org_id: lease.org_id,
-      from_status: "vacant",
-      to_status: "occupied",
-      reason: "Lease signed via DocuSeal",
-    })
-
-    // Audit
-    await supabase.from("audit_log").insert({
-      org_id: lease.org_id,
-      table_name: "leases",
-      record_id: lease.id,
-      action: "UPDATE",
-      new_values: { status: "active", event: "docuseal_signing_complete" },
-    })
+    // Run full activation cascade
+    const { activateLeaseCascade } = await import("@/lib/leases/activateLeaseCascade")
+    await activateLeaseCascade(supabase, lease.id, lease.org_id, "docuseal")
   }
 
   return NextResponse.json({ ok: true })

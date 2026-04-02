@@ -50,26 +50,39 @@ export async function GET() {
     return NextResponse.json({ error: "Failed to fetch branding" }, { status: 500 })
   }
 
+  // Cast to known shape (columns added via migration, not yet in generated types)
+  const orgData = org as unknown as {
+    name: string | null
+    lease_logo_path: string | null
+    lease_display_name: string | null
+    lease_registration_number: string | null
+    lease_address: string | null
+    lease_phone: string | null
+    lease_email: string | null
+    lease_website: string | null
+    lease_accent_color: string | null
+  }
+
   // Generate a signed URL for the logo if a path is stored
   let logoUrl: string | null = null
-  if (org.lease_logo_path) {
+  if (orgData.lease_logo_path) {
     const { data: signed } = await supabase.storage
       .from("org-assets")
-      .createSignedUrl(org.lease_logo_path, 3600)
+      .createSignedUrl(orgData.lease_logo_path, 3600)
     logoUrl = signed?.signedUrl ?? null
   }
 
   return NextResponse.json({
-    orgName: org.name ?? "",
+    orgName: orgData.name ?? "",
     logoUrl,
-    lease_logo_path: org.lease_logo_path ?? null,
-    lease_display_name: org.lease_display_name ?? null,
-    lease_registration_number: org.lease_registration_number ?? null,
-    lease_address: org.lease_address ?? null,
-    lease_phone: org.lease_phone ?? null,
-    lease_email: org.lease_email ?? null,
-    lease_website: org.lease_website ?? null,
-    lease_accent_color: org.lease_accent_color ?? null,
+    lease_logo_path: orgData.lease_logo_path ?? null,
+    lease_display_name: orgData.lease_display_name ?? null,
+    lease_registration_number: orgData.lease_registration_number ?? null,
+    lease_address: orgData.lease_address ?? null,
+    lease_phone: orgData.lease_phone ?? null,
+    lease_email: orgData.lease_email ?? null,
+    lease_website: orgData.lease_website ?? null,
+    lease_accent_color: orgData.lease_accent_color ?? null,
   })
 }
 
