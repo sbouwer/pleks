@@ -151,6 +151,7 @@ export async function generateLeaseDocument(
   const orgFields = {
     name: org?.name ?? "",
     type: (org?.type as string) ?? "agency",
+    user_type: org?.user_type as string | null | undefined,
     trading_as: org?.trading_as as string | null | undefined,
     title: org?.title as string | null | undefined,
     first_name: org?.first_name as string | null | undefined,

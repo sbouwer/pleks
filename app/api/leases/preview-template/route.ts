@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
       .order("sort_order"),
     supabase
       .from("organisations")
-      .select("name, type, trading_as, title, first_name, last_name, initials, reg_number, eaab_number, phone, mobile, email, website, addr_line1, addr_suburb, addr_city, brand_logo_path, brand_accent_color, brand_cover_template")
+      .select("name, type, user_type, trading_as, title, first_name, last_name, initials, reg_number, eaab_number, phone, mobile, email, website, addr_line1, addr_suburb, addr_city, brand_logo_path, brand_accent_color, brand_cover_template")
       .eq("id", membership.org_id)
       .single(),
     getLessorBankDetails(membership.org_id),
@@ -123,6 +123,7 @@ export async function GET(req: NextRequest) {
     addr_city: string | null
     brand_logo_path: string | null
     type: string | null
+    user_type: string | null
     title: string | null
     first_name: string | null
     last_name: string | null
@@ -145,6 +146,7 @@ export async function GET(req: NextRequest) {
     displayName: org ? getOrgDisplayName({
       name: org.name ?? "",
       type: org.type ?? "agency",
+      user_type: org.user_type,
       trading_as: org.trading_as,
       title: org.title,
       first_name: org.first_name,
