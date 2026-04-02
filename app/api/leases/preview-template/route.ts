@@ -1,17 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { getLessorBankDetails } from "@/lib/leases/bankDetails"
+import { parseClauseBody, buildSelfLookup } from "@/lib/leases/parseClauseBody"
+import { renderClauseBodyToHtml } from "@/lib/leases/renderClauseHtml"
 
-function resolveTokens(body: string, clauseNumberMap: Map<string, number>): string {
+/** Resolves {{ref:key}} and {{var:field}} tokens only. {{self:N}} is deferred to post-parse. */
+function resolveRefAndVar(body: string, clauseNumberMap: Map<string, number>): string {
   // {{ref:key}} → <span class="token-ref">clause N</span>
   let resolved = body.replaceAll(/\{\{ref:([^}]+)\}\}/g, (_match, key: string) => {
     const num = clauseNumberMap.get(key)
     return `<span class="token-ref">clause ${num ?? "?"}</span>`
-  })
-
-  // {{self:N}} → <span class="token-self">[N]</span>
-  resolved = resolved.replaceAll(/\{\{self:([^}]+)\}\}/g, (_match, n: string) => {
-    return `<span class="token-self">[${n}]</span>`
   })
 
   // {{var:field}} → <span class="token-var">[field name]</span>
@@ -80,13 +78,34 @@ export async function GET(req: NextRequest) {
     clauseNumberMap.set(clause.clause_key, index + 1)
   })
 
-  const clauses = enabledClauses.map((clause, index) => ({
-    number: index + 1,
-    key: clause.clause_key,
-    title: clause.title,
-    body: resolveTokens(clause.body_template ?? "", clauseNumberMap),
-    is_required: clause.is_required,
-  }))
+  const clauses = enabledClauses.map((clause, index) => {
+    const clauseNum = index + 1
+
+    // Resolve ref + var tokens first (don't depend on sub-clause numbers)
+    const preResolved = resolveRefAndVar(clause.body_template ?? "", clauseNumberMap)
+
+    // Parse body to assign hierarchical sub-clause numbers
+    const bodyNodes = parseClauseBody(preResolved, clauseNum)
+    const selfLookup = buildSelfLookup(bodyNodes)
+
+    // Resolve {{self:N}} using actual assigned numbers
+    for (const node of bodyNodes) {
+      node.text = node.text.replaceAll(/\{\{self:([^}]+)\}\}/g, (_match, n: string) => {
+        const resolved = selfLookup[n]
+        return resolved
+          ? `<span class="token-self">${resolved}</span>`
+          : `<span class="token-self">[${n}]</span>`
+      })
+    }
+
+    return {
+      number: clauseNum,
+      key: clause.clause_key,
+      title: clause.title,
+      body: renderClauseBodyToHtml(bodyNodes),
+      is_required: clause.is_required,
+    }
+  })
 
   // Build branding response (cast for new migration columns)
   const org = orgRes.data as unknown as {

@@ -374,6 +374,15 @@ export function LeasePreview({ open, onOpenChange, leaseType: initialLeaseType }
         </DialogHeader>
 
         <div className="overflow-y-auto flex-1 px-6 py-5">
+          <style>{`
+            .clause-para { text-align: justify; text-justify: inter-word; font-size: 13px; line-height: 1.8; margin: 0 0 8px; }
+            .clause-para[data-depth="0"] { padding-left: 40px; text-indent: -40px; }
+            .clause-para[data-depth="1"] { padding-left: 80px; text-indent: -40px; }
+            .clause-para[data-depth="2"] { padding-left: 120px; text-indent: -40px; }
+            .clause-number { display: inline; font-variant-numeric: tabular-nums; min-width: 40px; }
+            .clause-intro { text-align: justify; text-justify: inter-word; font-size: 13px; line-height: 1.8; margin: 0 0 8px; }
+          `}</style>
+
           {loading && <p className="text-sm text-muted-foreground">Loading preview…</p>}
           {error && <p className="text-sm text-muted-foreground">Failed to load preview. Please try again.</p>}
 
@@ -405,11 +414,11 @@ export function LeasePreview({ open, onOpenChange, leaseType: initialLeaseType }
                 <div className="space-y-6">
                   {data.clauses.map((clause) => (
                     <div key={clause.key}>
-                      <p className="text-sm font-semibold mb-1">
+                      <p className="text-sm font-semibold mb-2 uppercase tracking-wide">
                         {clause.number}. {clause.title}
                       </p>
                       <div
-                        className={`text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap ${TOKEN_CLASSES}`}
+                        className={TOKEN_CLASSES}
                         dangerouslySetInnerHTML={{ __html: clause.body }}
                       />
                     </div>
