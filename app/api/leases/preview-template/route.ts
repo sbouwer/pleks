@@ -122,7 +122,7 @@ export async function GET(req: NextRequest) {
     addr_city: string | null
     brand_logo_path: string | null
     brand_accent_color: string | null
-    brand_cover_template: string | null
+    brand_cover_template: string | null  // DB column name unchanged
   } | null
 
   let logoUrl: string | null = null
@@ -144,7 +144,7 @@ export async function GET(req: NextRequest) {
     email: org?.email ?? null,
     website: org?.website ?? null,
     accentColor: org?.brand_accent_color ?? null,
-    coverTemplate: org?.brand_cover_template ?? "classic",
+    layout: org?.brand_cover_template ?? "classic",
     logoUrl,
   }
 

@@ -14,7 +14,7 @@ type Font = "inter" | "merriweather" | "lato" | "playfair"
 interface DocumentPreviewProps {
   logoUrl: string | null
   accentColor: string
-  coverTemplate: Template
+  layout: Template
   font?: Font
 }
 
@@ -573,7 +573,7 @@ const COVER_COMPONENTS: Record<Template, (p: Readonly<{ identity: CoverIdentity;
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function DocumentPreview({ logoUrl, accentColor, coverTemplate, font = "inter" }: Readonly<DocumentPreviewProps>) {
+export function DocumentPreview({ logoUrl, accentColor, layout, font = "inter" }: Readonly<DocumentPreviewProps>) {
   const [identity, setIdentity] = useState<CoverIdentity>({
     name: "", tradingAs: null, registration: null, eaab: null,
     address: "", phone: "", email: "", website: null,
@@ -602,11 +602,11 @@ export function DocumentPreview({ logoUrl, accentColor, coverTemplate, font = "i
   const branding: CoverBranding = { logoUrl, accentColor }
   const fontStack = FONT_STACKS[font]
 
-  const CoverComp = COVER_COMPONENTS[coverTemplate]
-  const LeaseComp = LEASE_VARIANTS[coverTemplate]
-  const InvoiceComp = INVOICE_VARIANTS[coverTemplate]
-  const EmailComp = EMAIL_VARIANTS[coverTemplate]
-  const LetterComp = LETTER_VARIANTS[coverTemplate]
+  const CoverComp = COVER_COMPONENTS[layout]
+  const LeaseComp = LEASE_VARIANTS[layout]
+  const InvoiceComp = INVOICE_VARIANTS[layout]
+  const EmailComp = EMAIL_VARIANTS[layout]
+  const LetterComp = LETTER_VARIANTS[layout]
 
   return (
     <>
