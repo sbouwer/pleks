@@ -350,6 +350,7 @@ export function NewLeaseForm() {
         <div className="space-y-6">
           <ClauseConfigurator
             leaseType={leaseType}
+            unitId={unitId}
             onSelectionsChange={setClauseSelections}
           />
           <div className="flex gap-3">

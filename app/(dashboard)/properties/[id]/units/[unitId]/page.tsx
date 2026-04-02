@@ -8,6 +8,7 @@ import { Pencil } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import { UnitStatusActions } from "./UnitStatusActions"
 import { UnitAgentPicker } from "./UnitAgentPicker"
+import { UnitClauseProfile } from "@/components/leases/UnitClauseProfile"
 
 export default async function UnitDetailPage({
   params,
@@ -165,6 +166,11 @@ export default async function UnitDetailPage({
           />
         </CardContent>
       </Card>
+
+      {/* Clause profile */}
+      <div className="mt-6">
+        <UnitClauseProfile unitId={unitId} />
+      </div>
 
       {/* Status history */}
       <Card className="mt-6">

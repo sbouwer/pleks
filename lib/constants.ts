@@ -68,6 +68,7 @@ export const UNIT_FEATURES = [
   "DSTV",
   "Pet-friendly",
   "Wheelchair-accessible",
+  "Air-conditioning",        // maps to `aircon` clause
 ] as const
 
 export const DOCUMENT_TYPES = [

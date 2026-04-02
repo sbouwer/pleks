@@ -65,7 +65,14 @@ export function UnitAgentPicker({
         disabled={isPending}
       >
         <SelectTrigger className="w-full">
-          <SelectValue placeholder="Select agent..." />
+          <SelectValue>
+            {currentAgentId
+              ? (() => {
+                  const m = teamMembers.find((tm) => tm.userId === currentAgentId)
+                  return m ? `${m.name} (${ROLE_LABELS[m.role] ?? m.role})` : "Select agent..."
+                })()
+              : inheritLabel}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="__inherit__">
