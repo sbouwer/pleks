@@ -345,7 +345,7 @@ export function LeasePreview({ open, onOpenChange, leaseType: initialLeaseType }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col p-0">
+      <DialogContent className="w-[92vw] max-w-5xl sm:max-w-5xl max-h-[90vh] flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border/40 shrink-0">
           <div className="flex items-center justify-between gap-4">
             <div>
