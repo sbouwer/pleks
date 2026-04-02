@@ -9,7 +9,6 @@ import { toast } from "sonner"
 import { FileSignature, PenLine, Upload, CheckCircle2 } from "lucide-react"
 import { ActivationDialog } from "./ActivationDialog"
 import { sendForSigning } from "@/lib/actions/leases"
-import type { CascadeStep } from "./ActivationDialog"
 
 interface SigningOptionsProps {
   leaseId: string
@@ -35,7 +34,7 @@ export function SigningOptions({
   depositAmountCents,
   startDate,
   rentAmountCents,
-}: SigningOptionsProps) {
+}: Readonly<SigningOptionsProps>) {
   const router = useRouter()
 
   // Path A state
@@ -101,7 +100,7 @@ export function SigningOptions({
     }
   }
 
-  function handleActivated(_steps: CascadeStep[]) {
+  function handleActivated() {
     router.refresh()
   }
 

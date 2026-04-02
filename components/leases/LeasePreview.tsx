@@ -61,7 +61,7 @@ function dividerStyle(color: string | null) {
 
 const TOTAL_PAGES = 7
 
-function PageHeader({ branding, page }: { branding: PreviewBranding; page: number }) {
+function PageHeader({ branding, page }: Readonly<{ branding: PreviewBranding; page: number }>) {
   const ds = dividerStyle(branding.accentColor)
   return (
     <div className="mb-4">
@@ -93,7 +93,7 @@ function InitialsBar() {
   )
 }
 
-function PageFooter({ branding, showInitials = false }: { branding: PreviewBranding; showInitials?: boolean }) {
+function PageFooter({ branding, showInitials = false }: Readonly<{ branding: PreviewBranding; showInitials?: boolean }>) {
   const ds = dividerStyle(branding.accentColor)
   const line = [branding.address, branding.phone, branding.email]
     .filter(Boolean)
@@ -107,7 +107,7 @@ function PageFooter({ branding, showInitials = false }: { branding: PreviewBrand
   )
 }
 
-function PageBreak({ branding, page, showInitials = false }: { branding: PreviewBranding; page: number; showInitials?: boolean }) {
+function PageBreak({ branding, page, showInitials = false }: Readonly<{ branding: PreviewBranding; page: number; showInitials?: boolean }>) {
   const ds = dividerStyle(branding.accentColor)
   const line = [branding.address, branding.phone, branding.email]
     .filter(Boolean)
@@ -165,7 +165,7 @@ const TOKEN_CLASSES = `
   [&_.token-var]:bg-green-400/10 [&_.token-var]:text-green-400 [&_.token-var]:text-[11px] [&_.token-var]:mx-0.5
 `.trim()
 
-function AnnexureHeading({ label }: { label: string }) {
+function AnnexureHeading({ label }: Readonly<{ label: string }>) {
   return (
     <p className="text-sm font-semibold text-center uppercase tracking-wide pt-6 pb-4 border-t border-border/30 mt-2">
       ANNEXURE {label}
@@ -208,7 +208,7 @@ function AnnexureA() {
   )
 }
 
-function AnnexureB({ banking }: { banking: PreviewBanking }) {
+function AnnexureB({ banking }: Readonly<{ banking: PreviewBanking }>) {
   const rows = banking.configured
     ? [
         ["Account name", banking.accountHolder],
@@ -287,7 +287,7 @@ function AnnexureD() {
 }
 
 
-function SignatureBlock({ role, optional }: { role: string; optional?: boolean }) {
+function SignatureBlock({ role, optional }: Readonly<{ role: string; optional?: boolean }>) {
   return (
     <div className="border border-border/50 rounded-lg p-4 space-y-3">
       <p className="text-[11px] font-semibold uppercase tracking-wide text-foreground/70">
@@ -321,7 +321,7 @@ function SignatureBlock({ role, optional }: { role: string; optional?: boolean }
   )
 }
 
-function SignatureBlocks({ label }: { label?: string }) {
+function SignatureBlocks({ label }: Readonly<{ label?: string }>) {
   return (
     <div className="mt-4 pt-4 border-t border-border/30 space-y-3">
       {label && <p className="text-xs font-medium text-muted-foreground">{label}</p>}
@@ -343,7 +343,7 @@ export function LeasePreview({ open, onOpenChange, leaseType: initialLeaseType }
 
   useEffect(() => {
     if (!open) return
-    setLoading(true)
+    setLoading(true) // eslint-disable-line react-hooks/set-state-in-effect
     setError(false)
     fetch(`/api/leases/preview-template?leaseType=${localLeaseType}`)
       .then((r) => r.json())
@@ -408,15 +408,15 @@ export function LeasePreview({ open, onOpenChange, leaseType: initialLeaseType }
               <div className="flex flex-wrap gap-3 text-xs mb-6 pb-4 border-b border-border/30">
                 <span className="inline-flex items-center gap-1">
                   <span className="inline-block px-1.5 py-0.5 rounded border border-brand/40 bg-brand/10 text-brand text-[10px]">clause N</span>
-                  Clause reference
+                  {" "}Clause reference
                 </span>
                 <span className="inline-flex items-center gap-1">
                   <span className="inline-block px-1.5 py-0.5 rounded border border-blue-400/40 bg-blue-400/10 text-blue-400 text-[10px]">[N]</span>
-                  Sub-clause
+                  {" "}Sub-clause
                 </span>
                 <span className="inline-flex items-center gap-1">
                   <span className="inline-block px-1.5 py-0.5 rounded border border-green-400/40 bg-green-400/10 text-green-400 text-[10px]">[field]</span>
-                  Filled from lease data
+                  {" "}Filled from lease data
                 </span>
               </div>
 

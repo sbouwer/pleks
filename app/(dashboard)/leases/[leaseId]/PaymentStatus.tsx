@@ -18,7 +18,6 @@ interface ArrearsCase {
 interface PaymentStatusProps {
   leaseId: string
   balanceCents: number | null
-  invoiceStatus: string | null
   recentPayments: Payment[]
   arrearsCase: ArrearsCase | null
 }
@@ -26,7 +25,6 @@ interface PaymentStatusProps {
 export function PaymentStatus({
   leaseId,
   balanceCents,
-  invoiceStatus,
   recentPayments,
   arrearsCase,
 }: PaymentStatusProps) {

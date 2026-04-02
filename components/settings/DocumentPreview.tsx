@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client"
 
 import { useEffect, useState } from "react"
@@ -620,7 +621,6 @@ export function DocumentPreview({ logoUrl, accentColor, layout, font = "inter" }
   return (
     <>
       {/* Load Google Fonts */}
-      {/* eslint-disable-next-line @next/next/no-page-custom-font */}
       <link rel="stylesheet" href={GOOGLE_FONTS_URL} />
 
       <Tabs defaultValue="cover">

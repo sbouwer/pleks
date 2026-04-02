@@ -382,7 +382,7 @@ async function buildDocx(
     }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      children: [new TextRun({ text: `Prepared by ${getOrgDisplayName(orgFields)}`, size: 16, font: "Calibri", italics: true, color: "999999" })],
+      children: [new TextRun({ text: `Prepared by ${variables.agent_name}`, size: 16, font: "Calibri", italics: true, color: "999999" })],
     }),
   ]
 

@@ -15,13 +15,6 @@ import { buildTenantDisplay } from "@/lib/leases/tenantDisplay"
 import { checkLeasePrerequisites } from "@/lib/leases/checkPrerequisites"
 import { AlertTriangle } from "lucide-react"
 import { getLessorBankDetails } from "@/lib/leases/bankDetails"
-import { formatZAR } from "@/lib/constants"
-
-const STATUS_MAP: Record<string, string> = {
-  draft: "draft", pending_signing: "pending", active: "active",
-  notice: "notice", expired: "cancelled", cancelled: "cancelled",
-  month_to_month: "active",
-}
 
 const EVENT_DOT: Record<string, string> = {
   lease_created: "#7F77DD", lease_signed: "#7F77DD", lease_renewed: "#7F77DD",
@@ -259,7 +252,7 @@ export default async function LeaseDetailPage({
       {/* Draft: prerequisites + signing options */}
       {isDraft && prereqs && (
         <div className="mb-6 space-y-4">
-          <PrerequisitesCard prereqs={prereqs} leaseId={leaseId} />
+          <PrerequisitesCard prereqs={prereqs} />
           <SigningOptions
             leaseId={leaseId}
             hasGeneratedDoc={lease.generated_doc_path != null}
@@ -301,7 +294,7 @@ export default async function LeaseDetailPage({
             <PaymentStatus
               leaseId={leaseId}
               balanceCents={latestInvoice?.balance_cents ?? null}
-              invoiceStatus={latestInvoice?.status ?? null}
+
               recentPayments={recentPaymentsRes.data ?? []}
               arrearsCase={arrearsCase}
             />
