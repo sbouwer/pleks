@@ -5,12 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Pencil, X, Check } from "lucide-react"
+import Link from "next/link"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 
 interface ClauseProfileEntry {
   clause_key: string
   title: string
+  toggle_label: string | null
   enabled: boolean
   source: "unit_override" | "org_default" | "library_default"
   auto_set: boolean | null
@@ -22,10 +24,17 @@ type TriState = "inherit" | "on" | "off"
 
 interface UnitClauseProfileProps {
   unitId: string
+  propertyId: string
+  features?: string[]
   leaseType?: string
 }
 
-export function UnitClauseProfile({ unitId, leaseType = "residential" }: UnitClauseProfileProps) {
+export function UnitClauseProfile({
+  unitId,
+  propertyId,
+  features = [],
+  leaseType = "residential",
+}: UnitClauseProfileProps) {
   const [clauses, setClauses] = useState<ClauseProfileEntry[]>([])
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<Record<string, TriState>>({})
@@ -47,11 +56,9 @@ export function UnitClauseProfile({ unitId, leaseType = "residential" }: UnitCla
   function startEdit() {
     const initial: Record<string, TriState> = {}
     for (const c of clauses) {
-      if (c.source === "unit_override") {
-        initial[c.clause_key] = c.unit_enabled ? "on" : "off"
-      } else {
-        initial[c.clause_key] = "inherit"
-      }
+      initial[c.clause_key] = c.source === "unit_override"
+        ? (c.unit_enabled ? "on" : "off")
+        : "inherit"
     }
     setDraft(initial)
     setEditing(true)
@@ -72,83 +79,120 @@ export function UnitClauseProfile({ unitId, leaseType = "residential" }: UnitCla
     })
     setSaving(false)
     if (res.ok) {
-      toast.success("Clause profile saved")
+      toast.success("Lease setup saved")
       setEditing(false)
       setDraft({})
       await load()
     } else {
-      toast.error("Failed to save clause profile")
+      toast.error("Failed to save lease setup")
     }
-  }
-
-  if (loading) {
-    return (
-      <Card>
-        <CardHeader><CardTitle className="text-lg">Clause Profile</CardTitle></CardHeader>
-        <CardContent><p className="text-sm text-muted-foreground">Loading...</p></CardContent>
-      </Card>
-    )
   }
 
   const unitOverrides = clauses.filter((c) => c.source === "unit_override")
   const autoCount = unitOverrides.filter((c) => c.auto_set && c.unit_enabled).length
   const manualCount = unitOverrides.filter((c) => !c.auto_set).length
-  const activeCount = clauses.filter((c) => c.enabled).length
+  const hasFeatures = features.length > 0
+  const isEmpty = !hasFeatures && unitOverrides.length === 0
+
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader><CardTitle className="text-lg">Lease setup</CardTitle></CardHeader>
+        <CardContent><p className="text-sm text-muted-foreground">Loading...</p></CardContent>
+      </Card>
+    )
+  }
+
+  function clauseLabel(clause: ClauseProfileEntry) {
+    return clause.toggle_label ?? clause.title
+  }
 
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex items-start justify-between gap-3">
           <div>
-            <CardTitle className="text-lg">Clause Profile</CardTitle>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {activeCount} of {clauses.length} optional clauses active
-              {autoCount > 0 && ` · ${autoCount} auto-mapped`}
-              {manualCount > 0 && ` · ${manualCount} manual`}
+            <CardTitle className="text-lg">Lease setup</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Controls which optional clauses are included when creating a lease for this unit.
+              Based on unit features — review and adjust if needed.
             </p>
+            {!isEmpty && !editing && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {clauses.filter((c) => c.enabled).length} of {clauses.length} optional clauses active
+                {autoCount > 0 && ` · ${autoCount} auto-mapped`}
+                {manualCount > 0 && ` · ${manualCount} manual`}
+              </p>
+            )}
           </div>
-          {!editing && (
-            <Button variant="outline" size="sm" onClick={startEdit}>
+          {!editing && !isEmpty && (
+            <Button variant="outline" size="sm" className="shrink-0" onClick={startEdit}>
               <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
             </Button>
           )}
         </div>
       </CardHeader>
-      <CardContent className="space-y-1 pt-0">
-        {clauses.length === 0 && (
-          <p className="text-sm text-muted-foreground">No optional clauses in library.</p>
+
+      <CardContent className="space-y-3 pt-0">
+        {/* Empty state */}
+        {isEmpty && (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              No unit features have been set yet. Add features like garden, pool, or air-conditioning
+              on this unit to automatically configure the right lease clauses.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              render={<Link href={`/properties/${propertyId}/units/${unitId}/edit`} />}
+            >
+              Edit unit features
+            </Button>
+          </div>
         )}
 
-        {editing ? (
+        {/* Auto-mapped banner */}
+        {!isEmpty && !editing && autoCount > 0 && (
+          <div className="rounded-lg bg-info-bg text-info text-sm p-3">
+            Based on this unit&apos;s features ({features.length} set), we&apos;ve pre-selected {autoCount} optional lease clause{autoCount === 1 ? "" : "s"}.
+            Review below and adjust if anything doesn&apos;t apply.
+          </div>
+        )}
+
+        {/* Edit mode */}
+        {editing && (
           <>
-            <p className="text-xs text-muted-foreground mb-3">
-              <strong>Inherit</strong> uses the org master template default.
-              <strong> On/Off</strong> overrides for this unit only.
+            <p className="text-sm text-muted-foreground">
+              Toggle clauses on or off for this unit. Changes apply to all future leases —
+              existing leases are not affected. Set to &quot;Inherit&quot; to follow your organisation&apos;s default.
             </p>
             <div className="space-y-2">
               {clauses.map((clause) => {
                 const state = draft[clause.clause_key] ?? "inherit"
                 return (
-                  <div key={clause.clause_key} className="flex items-center justify-between gap-3 py-1">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className={cn(
-                        "text-sm truncate",
-                        state === "off" && "line-through text-muted-foreground"
-                      )}>
-                        {clause.title}
-                      </span>
-                      {clause.auto_set && state !== "inherit" && (
-                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">Auto</Badge>
-                      )}
+                  <div key={clause.clause_key} className="flex items-start justify-between gap-3 py-1.5 border-b border-border/30 last:border-0">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className={cn(
+                          "text-sm",
+                          state === "off" && "line-through text-muted-foreground"
+                        )}>
+                          {clauseLabel(clause)}
+                        </span>
+                        {clause.auto_set && state !== "inherit" && (
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">Auto</Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">{clause.title}</p>
                     </div>
-                    <div className="flex shrink-0 rounded-md border border-border overflow-hidden text-xs">
+                    <div className="flex shrink-0 rounded-md border border-border overflow-hidden text-xs mt-0.5">
                       {(["inherit", "on", "off"] as TriState[]).map((option) => (
                         <button
                           key={option}
                           type="button"
                           onClick={() => setDraft((prev) => ({ ...prev, [clause.clause_key]: option }))}
                           className={cn(
-                            "px-2.5 py-1 transition-colors capitalize",
+                            "px-2.5 py-1 transition-colors capitalize whitespace-nowrap",
                             state === option
                               ? option === "off"
                                 ? "bg-danger/15 text-danger font-medium"
@@ -167,7 +211,7 @@ export function UnitClauseProfile({ unitId, leaseType = "residential" }: UnitCla
                 )
               })}
             </div>
-            <div className="flex gap-2 pt-3 border-t border-border/40 mt-3">
+            <div className="flex gap-2 pt-2">
               <Button size="sm" onClick={save} disabled={saving}>
                 <Check className="h-3.5 w-3.5 mr-1" />
                 {saving ? "Saving..." : "Save"}
@@ -177,7 +221,10 @@ export function UnitClauseProfile({ unitId, leaseType = "residential" }: UnitCla
               </Button>
             </div>
           </>
-        ) : (
+        )}
+
+        {/* Read mode — overrides list */}
+        {!editing && !isEmpty && (
           <>
             {unitOverrides.length === 0 ? (
               <p className="text-sm text-muted-foreground">
@@ -189,16 +236,19 @@ export function UnitClauseProfile({ unitId, leaseType = "residential" }: UnitCla
                   <div
                     key={clause.clause_key}
                     className={cn(
-                      "flex items-center justify-between rounded px-2 py-1.5 text-sm",
+                      "flex items-center justify-between rounded px-2 py-2 text-sm",
                       clause.unit_enabled
                         ? "border-l-2 border-l-brand bg-brand/5"
                         : "border-l-2 border-l-muted"
                     )}
                   >
-                    <span className={cn(!clause.unit_enabled && "line-through text-muted-foreground")}>
-                      {clause.title}
-                    </span>
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="min-w-0">
+                      <p className={cn(!clause.unit_enabled && "line-through text-muted-foreground")}>
+                        {clauseLabel(clause)}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{clause.title}</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0 ml-3">
                       {clause.auto_set && (
                         <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Auto</Badge>
                       )}
@@ -219,7 +269,7 @@ export function UnitClauseProfile({ unitId, leaseType = "residential" }: UnitCla
               </div>
             )}
             {clauses.filter((c) => c.source !== "unit_override").length > 0 && unitOverrides.length > 0 && (
-              <p className="text-xs text-muted-foreground pt-1">
+              <p className="text-xs text-muted-foreground">
                 {clauses.filter((c) => c.source !== "unit_override").length} clauses inherit from org template.
               </p>
             )}
