@@ -7,7 +7,8 @@ const ALL_FIELDS = [
   // personal / owner fields
   "title", "first_name", "last_name", "initials", "gender",
   "date_of_birth", "id_number", "mobile",
-  "addr_line1", "addr_suburb", "addr_city", "addr_province", "addr_postal_code",
+  "addr_type", "addr_line1", "addr_suburb", "addr_city", "addr_province", "addr_postal_code",
+  "addr2_type", "addr2_line1", "addr2_suburb", "addr2_city", "addr2_province", "addr2_postal_code",
 ] as const
 
 type OrgField = (typeof ALL_FIELDS)[number]
