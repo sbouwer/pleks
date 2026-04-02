@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,7 +8,11 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ClauseConfigurator } from "@/components/leases/ClauseConfigurator"
+import { LeaseBrandingSection } from "@/components/leases/LeaseBrandingSection"
+import { LeasePreview } from "@/components/leases/LeasePreview"
+import Link from "next/link"
 import { toast } from "sonner"
+import { Eye, ExternalLink } from "lucide-react"
 
 interface OrgInfo {
   orgId: string
@@ -21,79 +25,52 @@ export default function LeaseTemplatesPage() {
   const [orgInfo, setOrgInfo] = useState<OrgInfo | null>(null)
   const [showConfirmRecord, setShowConfirmRecord] = useState(false)
   const [showRequestForm, setShowRequestForm] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
   const [notes, setNotes] = useState("")
   const [file, setFile] = useState<File | null>(null)
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle")
-  const initializedRef = useRef<Record<string, boolean>>({ residential: false, commercial: false })
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => {
-    // Reset the initialized flag when tab changes so remounted ClauseConfigurator's
-    // initial population call is skipped and doesn't overwrite saved org defaults.
-    initializedRef.current[clauseSubTab] = false
-  }, [clauseSubTab])
-
-  const handleSelectionsChange = useCallback((leaseType: string, selections: Record<string, boolean>) => {
-    // Skip the initial population call — only save user-triggered changes
-    if (!initializedRef.current[leaseType]) {
-      initializedRef.current[leaseType] = true
-      return
-    }
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    setSaveStatus("saving")
-    saveTimerRef.current = setTimeout(async () => {
-      const updates = Object.entries(selections).map(([clause_key, enabled]) => ({ clause_key, enabled }))
-      const res = await fetch("/api/leases/org-clause-defaults", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ updates }),
-      })
-      setSaveStatus(res.ok ? "saved" : "idle")
-      if (!res.ok) toast.error("Failed to save clause defaults")
-      if (res.ok) setTimeout(() => setSaveStatus("idle"), 2000)
-    }, 800)
-  }, [])
-
-  // Stable callbacks per lease type — prevents ClauseConfigurator's notifyParent
-  // effect from re-firing every time saveStatus changes and re-renders this page.
-  const onResidentialChange = useCallback(
-    (s: Record<string, boolean>) => handleSelectionsChange("residential", s),
-    [handleSelectionsChange]
-  )
-  const onCommercialChange = useCallback(
-    (s: Record<string, boolean>) => handleSelectionsChange("commercial", s),
-    [handleSelectionsChange]
-  )
-
   const [templateConfirmed, setTemplateConfirmed] = useState(false)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     async function loadOrg() {
-      const res = await fetch("/api/leases/clause-library?type=residential")
-      if (!res.ok) return
-      const data = await res.json()
-      // Fetch org info separately
       const orgRes = await fetch("/api/org/info")
       if (orgRes.ok) {
         const org = await orgRes.json()
         setOrgInfo({
-          orgId: org.orgId ?? data.orgId,
+          orgId: org.orgId,
           clauseEditConfirmedAt: org.clauseEditConfirmedAt ?? null,
           customTemplateActive: org.customTemplateActive ?? false,
         })
-      } else {
-        setOrgInfo({ orgId: data.orgId, clauseEditConfirmedAt: null, customTemplateActive: false })
       }
     }
     loadOrg()
   }, [])
 
+  // Immediate save per toggle — called only on real user toggles, not on initial load.
+  const handleToggleSave = useCallback(async (selections: Record<string, boolean>): Promise<boolean> => {
+    const updates = Object.entries(selections).map(([clause_key, enabled]) => ({ clause_key, enabled }))
+    const res = await fetch("/api/leases/org-clause-defaults", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ updates }),
+    })
+    if (!res.ok) toast.error("Failed to save clause defaults")
+    return res.ok
+  }, [])
+
+  const onResidentialToggleSave = useCallback(
+    (s: Record<string, boolean>) => handleToggleSave(s),
+    [handleToggleSave]
+  )
+  const onCommercialToggleSave = useCallback(
+    (s: Record<string, boolean>) => handleToggleSave(s),
+    [handleToggleSave]
+  )
+
   async function handleSubmitRequest() {
     if (!file || !orgInfo) return
     setLoading(true)
 
-    // Upload file to Supabase Storage via API
     const formData = new FormData()
     formData.append("file", file)
     formData.append("notes", notes)
@@ -125,9 +102,12 @@ export default function LeaseTemplatesPage() {
         Changes to wording or org-level defaults cascade to all future leases. Unit profiles only override which optional clauses are included.
       </p>
 
+      {/* 1. Lease branding */}
+      <LeaseBrandingSection />
+
       {/* Confirmation status */}
       {orgInfo?.clauseEditConfirmedAt && (
-        <div className="flex items-center justify-between mb-4 text-xs text-muted-foreground border-b border-border/40 pb-3">
+        <div className="flex items-center justify-between mt-6 mb-4 text-xs text-muted-foreground border-b border-border/40 pb-3">
           <span>
             Custom clause editing enabled — you accepted responsibility on{" "}
             {new Date(orgInfo.clauseEditConfirmedAt).toLocaleDateString("en-ZA", {
@@ -145,32 +125,107 @@ export default function LeaseTemplatesPage() {
         </div>
       )}
 
-      <Tabs value={clauseSubTab} onValueChange={setClauseSubTab}>
-        <div className="flex items-center justify-between mb-1">
-          <TabsList>
-            <TabsTrigger value="residential">Residential</TabsTrigger>
-            <TabsTrigger value="commercial">Commercial</TabsTrigger>
-          </TabsList>
-          {saveStatus === "saving" && <p className="text-xs text-muted-foreground">Saving...</p>}
-          {saveStatus === "saved" && <p className="text-xs text-brand">Saved</p>}
-        </div>
+      {/* 2. Clause configurator */}
+      <div className={orgInfo?.clauseEditConfirmedAt ? "" : "mt-8"}>
+        <Tabs value={clauseSubTab} onValueChange={setClauseSubTab}>
+          <div className="flex items-center justify-between mb-1">
+            <TabsList>
+              <TabsTrigger value="residential">Residential</TabsTrigger>
+              <TabsTrigger value="commercial">Commercial</TabsTrigger>
+            </TabsList>
+            <Button variant="outline" size="sm" onClick={() => setShowPreview(true)}>
+              <Eye className="size-4 mr-1.5" /> Preview lease
+            </Button>
+          </div>
 
-        <TabsContent value="residential" className="mt-4">
-          <ClauseConfigurator
-            leaseType="residential"
-            onSelectionsChange={onResidentialChange}
-          />
-        </TabsContent>
+          <TabsContent value="residential" className="mt-4">
+            <ClauseConfigurator
+              leaseType="residential"
+              onSelectionsChange={() => {}}
+              onToggleSave={onResidentialToggleSave}
+            />
+          </TabsContent>
 
-        <TabsContent value="commercial" className="mt-4">
-          <ClauseConfigurator
-            leaseType="commercial"
-            onSelectionsChange={onCommercialChange}
-          />
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="commercial" className="mt-4">
+            <ClauseConfigurator
+              leaseType="commercial"
+              onSelectionsChange={() => {}}
+              onToggleSave={onCommercialToggleSave}
+            />
+          </TabsContent>
+        </Tabs>
+      </div>
 
-      {/* Custom lease configuration CTA */}
+      {/* 3. Annexures — informational */}
+      <Card className="mt-8">
+        <CardContent className="pt-5">
+          <h2 className="font-semibold text-sm mb-1">Annexures</h2>
+          <p className="text-xs text-muted-foreground mb-4">
+            These annexures are appended to every lease. Their content is filled from your
+            property and lease data — they don&apos;t need separate template configuration.
+          </p>
+          <div className="space-y-4">
+            <div className="flex items-start gap-3">
+              <span className="text-xs font-medium text-muted-foreground w-6 shrink-0 pt-0.5">A</span>
+              <div>
+                <p className="text-sm font-medium">Rental calculation</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Auto-generated from lease terms — rent, deposit, escalation, charges.
+                  No configuration needed.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="text-xs font-medium text-muted-foreground w-6 shrink-0 pt-0.5">B</span>
+              <div>
+                <p className="text-sm font-medium">Banking details</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Pulled from your trust account settings.
+                </p>
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-xs text-brand mt-1"
+                  render={<Link href="/settings/compliance" />}
+                >
+                  Configure banking <ExternalLink className="size-3 ml-1" />
+                </Button>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="text-xs font-medium text-muted-foreground w-6 shrink-0 pt-0.5">C</span>
+              <div>
+                <p className="text-sm font-medium">Property rules</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Set per property. Each property can have its own rules for pets,
+                  smoking, parking, noise, and common areas.
+                </p>
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-xs text-brand mt-1"
+                  render={<Link href="/properties" />}
+                >
+                  Manage property rules <ExternalLink className="size-3 ml-1" />
+                </Button>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="text-xs font-medium text-muted-foreground w-6 shrink-0 pt-0.5">D</span>
+              <div>
+                <p className="text-sm font-medium">Special agreements</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Added during lease creation. Covers unit-specific arrangements
+                  like pet permissions, parking allocations, and custom terms.
+                  No template configuration needed.
+                </p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 4. Custom lease configuration CTA */}
       {orgInfo?.customTemplateActive ? (
         <Card className="border-brand/30 mt-8">
           <CardContent className="pt-4 flex items-center justify-between gap-4">
@@ -304,6 +359,13 @@ export default function LeaseTemplatesPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Lease preview dialog */}
+      <LeasePreview
+        open={showPreview}
+        onOpenChange={setShowPreview}
+        leaseType={clauseSubTab}
+      />
     </div>
   )
 }
