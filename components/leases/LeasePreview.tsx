@@ -74,33 +74,43 @@ function PageHeader({ branding, page }: { branding: PreviewBranding; page: numbe
   )
 }
 
-function PageFooter({ branding }: { branding: PreviewBranding }) {
-  const ds = dividerStyle(branding.accentColor)
-  const line = [branding.address, branding.phone, branding.email]
-    .filter(Boolean)
-    .join(" · ")
-  if (!line) return null
+function InitialsBar() {
   return (
-    <div className="mt-6">
-      <hr className="border-t mb-2" style={ds} />
-      <p className="text-[11px] text-muted-foreground text-center">{line}</p>
+    <div className="flex gap-8 justify-end mt-3">
+      <span className="text-[10px] text-muted-foreground">
+        Lessor initials: <span className="inline-block w-16 border-b border-foreground/25 align-bottom" />
+      </span>
+      <span className="text-[10px] text-muted-foreground">
+        Lessee initials: <span className="inline-block w-16 border-b border-foreground/25 align-bottom" />
+      </span>
     </div>
   )
 }
 
-function PageBreak({ branding, page }: { branding: PreviewBranding; page: number }) {
+function PageFooter({ branding, showInitials = false }: { branding: PreviewBranding; showInitials?: boolean }) {
+  const ds = dividerStyle(branding.accentColor)
+  const line = [branding.address, branding.phone, branding.email]
+    .filter(Boolean)
+    .join(" · ")
+  return (
+    <div className="mt-6">
+      {showInitials && <InitialsBar />}
+      <hr className="border-t mt-3 mb-2" style={ds} />
+      {line && <p className="text-[11px] text-muted-foreground text-center">{line}</p>}
+    </div>
+  )
+}
+
+function PageBreak({ branding, page, showInitials = false }: { branding: PreviewBranding; page: number; showInitials?: boolean }) {
   const ds = dividerStyle(branding.accentColor)
   const line = [branding.address, branding.phone, branding.email]
     .filter(Boolean)
     .join(" · ")
   return (
     <div className="my-8">
-      {line && (
-        <>
-          <hr className="border-t mb-2" style={ds} />
-          <p className="text-[11px] text-muted-foreground text-center mb-6">{line}</p>
-        </>
-      )}
+      {showInitials && <InitialsBar />}
+      <hr className="border-t mt-3 mb-2" style={ds} />
+      {line && <p className="text-[11px] text-muted-foreground text-center mb-6">{line}</p>}
       <div className="border-t border-border/20 mb-6" />
       <PageHeader branding={branding} page={page} />
     </div>
@@ -282,93 +292,50 @@ function AnnexureD() {
   )
 }
 
-function SignaturePage() {
-  const block = (role: string, nameVar: string) => (
-    <div key={role} className="space-y-4">
-      <p className="text-sm font-semibold uppercase tracking-wide">{role}</p>
-      <div
-        className={TOKEN_CLASSES}
-        dangerouslySetInnerHTML={{ __html: `Name: ${chip(nameVar, "green")}` }}
-      />
-      <div className="grid grid-cols-2 gap-8">
-        <div>
-          <div className="border-b border-foreground/30 pb-0.5 mb-1" />
-          <p className="text-xs text-muted-foreground">Signature</p>
-        </div>
-        <div>
-          <div className="border-b border-foreground/30 pb-0.5 mb-1" />
-          <p className="text-xs text-muted-foreground">Date</p>
-        </div>
-      </div>
-    </div>
-  )
 
+function SignatureBlock({ role, optional }: { role: string; optional?: boolean }) {
   return (
-    <div className="space-y-8">
-      {block("Lessor", "lessor name")}
-      {block("Lessee", "lessee name")}
-      <div className="space-y-4">
-        <p className="text-sm font-semibold uppercase tracking-wide">Witness</p>
-        <div className="grid grid-cols-2 gap-8">
-          <div>
-            <div className="border-b border-foreground/30 pb-0.5 mb-1" />
-            <p className="text-xs text-muted-foreground">Signature</p>
-          </div>
-          <div>
-            <div className="border-b border-foreground/30 pb-0.5 mb-1" />
-            <p className="text-xs text-muted-foreground">Date</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function SignatureBlock({ role, nameLabel }: { role: string; nameLabel: string }) {
-  return (
-    <div className="border border-border/50 rounded-lg p-5 space-y-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-foreground/70">{role}</p>
-      <div className="space-y-3">
-        <div>
-          <p className="text-[11px] text-muted-foreground mb-1">Full name</p>
-          <div className="h-8 border-b border-foreground/25" />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-[11px] text-muted-foreground mb-1">Signature</p>
-            <div className="h-12 border border-border/40 rounded" />
-          </div>
-          <div>
-            <p className="text-[11px] text-muted-foreground mb-1">Date</p>
-            <div className="h-12 border border-border/40 rounded" />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-[11px] text-muted-foreground mb-1">Witness signature</p>
-            <div className="h-12 border border-border/40 rounded" />
-          </div>
-          <div>
-            <p className="text-[11px] text-muted-foreground mb-1">Witness name</p>
-            <div className="h-8 border-b border-foreground/25 mt-4" />
-          </div>
-        </div>
-        <p className="text-[11px] text-muted-foreground/60 italic">{nameLabel}</p>
-      </div>
-    </div>
-  )
-}
-
-function SignatureBlocks() {
-  return (
-    <div className="space-y-4 mt-2">
-      <p className="text-xs text-muted-foreground">
-        This agreement is signed by the parties on the date/s indicated below.
+    <div className="border border-border/50 rounded-lg p-4 space-y-3">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-foreground/70">
+        {role}{optional && <span className="normal-case font-normal text-muted-foreground"> (if applicable)</span>}
       </p>
-      <div className="grid grid-cols-1 gap-4">
-        <SignatureBlock role="Lessor / Agent" nameLabel="Authorised signatory on behalf of the Lessor" />
-        <SignatureBlock role="Lessee 1" nameLabel="Lessee" />
-        <SignatureBlock role="Lessee 2 (if applicable)" nameLabel="Second lessee (if applicable)" />
+      <div>
+        <p className="text-[10px] text-muted-foreground mb-1">Full name</p>
+        <div className="h-6 border-b border-foreground/20" />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <p className="text-[10px] text-muted-foreground mb-1">Signature</p>
+          <div className="h-10 border border-border/40 rounded" />
+        </div>
+        <div>
+          <p className="text-[10px] text-muted-foreground mb-1">Date</p>
+          <div className="h-10 border border-border/40 rounded" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <p className="text-[10px] text-muted-foreground mb-1">Witness</p>
+          <div className="h-10 border border-border/40 rounded" />
+        </div>
+        <div>
+          <p className="text-[10px] text-muted-foreground mb-1">Witness name</p>
+          <div className="h-6 border-b border-foreground/20 mt-4" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SignatureBlocks({ label }: { label?: string }) {
+  return (
+    <div className="mt-4 pt-4 border-t border-border/30 space-y-3">
+      {label && <p className="text-xs font-medium text-muted-foreground">{label}</p>}
+      <div className="grid grid-cols-2 gap-3">
+        <SignatureBlock role="Lessor" />
+        <SignatureBlock role="Agent" optional />
+        <SignatureBlock role="Lessee 1" />
+        <SignatureBlock role="Lessee 2" optional />
       </div>
     </div>
   )
@@ -484,7 +451,7 @@ export function LeasePreview({ open, onOpenChange, leaseType: initialLeaseType }
                   ))}
                 </div>
 
-                <PageBreak branding={branding} page={3} />
+                <PageBreak branding={branding} page={3} showInitials />
 
                 {/* Annexure A */}
                 <AnnexureHeading label="A: Rental Calculation" />
@@ -512,7 +479,7 @@ export function LeasePreview({ open, onOpenChange, leaseType: initialLeaseType }
 
                 {/* Signature page */}
                 <AnnexureHeading label="— Signature Page —" />
-                <SignaturePage />
+                <SignatureBlocks label="This agreement is signed by the parties on the date/s indicated below." />
 
                 <PageFooter branding={branding} />
               </div>
