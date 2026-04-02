@@ -7,8 +7,16 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 
+const TITLES = ["Mr", "Mrs", "Ms", "Miss", "Dr", "Prof", "Adv", "Rev"]
+const PROVINCES = [
+  "Eastern Cape", "Free State", "Gauteng", "KwaZulu-Natal",
+  "Limpopo", "Mpumalanga", "Northern Cape", "North West", "Western Cape",
+]
+
 interface OrgDetails {
   id: string
+  type: "agency" | "landlord" | "sole_prop"
+  // entity
   name: string | null
   trading_as: string | null
   reg_number: string | null
@@ -18,30 +26,174 @@ interface OrgDetails {
   phone: string | null
   address: string | null
   website: string | null
-  type: "agency" | "landlord" | "sole_prop"
+  // personal / primary contact
+  title: string | null
+  first_name: string | null
+  last_name: string | null
+  initials: string | null
+  gender: string | null
+  date_of_birth: string | null
+  id_number: string | null
+  mobile: string | null
+  // structured address
+  addr_line1: string | null
+  addr_suburb: string | null
+  addr_city: string | null
+  addr_province: string | null
+  addr_postal_code: string | null
+}
+
+type FormState = Omit<OrgDetails, "id" | "type">
+
+function Field({
+  label, id, required, help, children,
+}: {
+  label: string; id?: string; required?: boolean; help?: string; children: React.ReactNode
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>
+        {label}{required && <span className="text-destructive ml-0.5">*</span>}
+      </Label>
+      {children}
+      {help && <p className="text-xs text-muted-foreground">{help}</p>}
+    </div>
+  )
+}
+
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3 mt-1">{children}</h3>
+}
+
+function SelectInput({ id, value, onChange, options, placeholder }: {
+  id: string; value: string; onChange: (v: string) => void
+  options: string[]; placeholder?: string
+}) {
+  return (
+    <select
+      id={id}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+    >
+      <option value="">{placeholder ?? "Select…"}</option>
+      {options.map((o) => <option key={o} value={o}>{o}</option>)}
+    </select>
+  )
+}
+
+function PersonalSection({ form, set }: { form: FormState; set: (f: keyof FormState, v: string) => void }) {
+  return (
+    <div className="space-y-4">
+      <SectionHeading>Personal details</SectionHeading>
+
+      <div className="grid grid-cols-[120px_1fr_1fr] gap-3">
+        <Field label="Title" id="title">
+          <SelectInput id="title" value={form.title ?? ""} onChange={(v) => set("title", v)} options={TITLES} />
+        </Field>
+        <Field label="First name" id="first_name" required>
+          <Input id="first_name" value={form.first_name ?? ""} onChange={(e) => set("first_name", e.target.value)} />
+        </Field>
+        <Field label="Last name" id="last_name" required>
+          <Input id="last_name" value={form.last_name ?? ""} onChange={(e) => set("last_name", e.target.value)} />
+        </Field>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field label="Initials" id="initials" help="e.g. J.P.">
+          <Input id="initials" value={form.initials ?? ""} onChange={(e) => set("initials", e.target.value)} className="w-24" />
+        </Field>
+        <Field label="Gender" id="gender">
+          <SelectInput
+            id="gender"
+            value={form.gender ?? ""}
+            onChange={(v) => set("gender", v)}
+            options={["male", "female", "non_binary", "prefer_not_to_say"]}
+            placeholder="Select…"
+          />
+        </Field>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field label="Date of birth" id="date_of_birth">
+          <Input id="date_of_birth" type="date" value={form.date_of_birth ?? ""} onChange={(e) => set("date_of_birth", e.target.value)} />
+        </Field>
+        <Field label="SA ID number" id="id_number" help="13-digit South African ID number">
+          <Input id="id_number" value={form.id_number ?? ""} onChange={(e) => set("id_number", e.target.value)} maxLength={13} />
+        </Field>
+      </div>
+    </div>
+  )
+}
+
+function ContactSection({ form, set, phonLabel = "Landline" }: {
+  form: FormState; set: (f: keyof FormState, v: string) => void; phonLabel?: string
+}) {
+  return (
+    <div className="space-y-4">
+      <SectionHeading>Contact details</SectionHeading>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field label="Mobile" id="mobile" required>
+          <Input id="mobile" type="tel" value={form.mobile ?? ""} onChange={(e) => set("mobile", e.target.value)} placeholder="082 000 0000" />
+        </Field>
+        <Field label={phonLabel} id="phone">
+          <Input id="phone" type="tel" value={form.phone ?? ""} onChange={(e) => set("phone", e.target.value)} placeholder="021 000 0000" />
+        </Field>
+      </div>
+      <Field label="Email" id="email" required>
+        <Input id="email" type="email" value={form.email ?? ""} onChange={(e) => set("email", e.target.value)} />
+      </Field>
+    </div>
+  )
+}
+
+function AddressSection({ form, set, label = "Residential address" }: {
+  form: FormState; set: (f: keyof FormState, v: string) => void; label?: string
+}) {
+  return (
+    <div className="space-y-4">
+      <SectionHeading>{label}</SectionHeading>
+      <Field label="Street address" id="addr_line1" required>
+        <Input id="addr_line1" value={form.addr_line1 ?? ""} onChange={(e) => set("addr_line1", e.target.value)} placeholder="14 Rose Street" />
+      </Field>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field label="Suburb" id="addr_suburb">
+          <Input id="addr_suburb" value={form.addr_suburb ?? ""} onChange={(e) => set("addr_suburb", e.target.value)} placeholder="Paarl" />
+        </Field>
+        <Field label="City / Town" id="addr_city" required>
+          <Input id="addr_city" value={form.addr_city ?? ""} onChange={(e) => set("addr_city", e.target.value)} placeholder="Cape Town" />
+        </Field>
+      </div>
+      <div className="grid grid-cols-[1fr_120px] gap-4">
+        <Field label="Province" id="addr_province" required>
+          <SelectInput id="addr_province" value={form.addr_province ?? ""} onChange={(v) => set("addr_province", v)} options={PROVINCES} placeholder="Select province…" />
+        </Field>
+        <Field label="Postal code" id="addr_postal_code">
+          <Input id="addr_postal_code" value={form.addr_postal_code ?? ""} onChange={(e) => set("addr_postal_code", e.target.value)} placeholder="7646" maxLength={4} />
+        </Field>
+      </div>
+    </div>
+  )
 }
 
 export default function OrganisationPage() {
   const [org, setOrg] = useState<OrgDetails | null>(null)
-  const [form, setForm] = useState<Partial<OrgDetails>>({})
+  const [form, setForm] = useState<FormState>({} as FormState)
   const [showVat, setShowVat] = useState(false)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    async function load() {
-      const res = await fetch("/api/org/details")
-      if (res.ok) {
-        const data: OrgDetails = await res.json()
+    fetch("/api/org/details")
+      .then((r) => r.json())
+      .then((data: OrgDetails) => {
         setOrg(data)
         setForm(data)
         if (data.vat_number) setShowVat(true)
-      }
-    }
-    load()
+      })
   }, [])
 
-  function set(field: keyof OrgDetails, value: string) {
-    setForm((prev) => ({ ...prev, [field]: value }))
+  function set(field: keyof FormState, value: string) {
+    setForm((prev) => ({ ...prev, [field]: value || null }))
   }
 
   async function handleSave() {
@@ -68,72 +220,54 @@ export default function OrganisationPage() {
 
   const type = org.type
 
-  // ── Landlord variant ────────────────────────────────────────────────────────
+  const saveButton = (
+    <div className="flex justify-end pt-2">
+      <Button onClick={handleSave} disabled={saving}>
+        {saving ? "Saving…" : "Save changes"}
+      </Button>
+    </div>
+  )
+
+  // ── Landlord (owner) variant ─────────────────────────────────────────────────
   if (type === "landlord") {
     return (
       <div className="max-w-2xl">
         <h1 className="font-heading text-3xl mb-1">Your details</h1>
         <p className="text-sm text-muted-foreground mb-6">
-          Your name and contact info appear on leases and tenant communications.
+          Your personal information appears on leases and tenant communications.
         </p>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Personal information</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="name">Full name</Label>
-              <Input
-                id="name"
-                value={form.name ?? ""}
-                onChange={(e) => set("name", e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">As it appears on your ID</p>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="address">Your residential address</Label>
-              <Input
-                id="address"
-                value={form.address ?? ""}
-                onChange={(e) => set("address", e.target.value)}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="phone">Phone</Label>
-                <Input
-                  id="phone"
-                  type="tel"
-                  value={form.phone ?? ""}
-                  onChange={(e) => set("phone", e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={form.email ?? ""}
-                  onChange={(e) => set("email", e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <Button onClick={handleSave} disabled={saving}>
-                {saving ? "Saving..." : "Save"}
-              </Button>
-            </div>
+        <Card className="mb-4">
+          <CardHeader><CardTitle className="text-base">Personal information</CardTitle></CardHeader>
+          <CardContent className="space-y-6">
+            <PersonalSection form={form} set={set} />
           </CardContent>
         </Card>
+
+        <Card className="mb-4">
+          <CardHeader><CardTitle className="text-base">Contact details</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <ContactSection form={form} set={set} phonLabel="Landline" />
+          </CardContent>
+        </Card>
+
+        <Card className="mb-4">
+          <CardHeader><CardTitle className="text-base">Residential address</CardTitle></CardHeader>
+          <CardContent>
+            <AddressSection form={form} set={set} label="" />
+          </CardContent>
+        </Card>
+
+        <div className="flex justify-end">
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? "Saving…" : "Save changes"}
+          </Button>
+        </div>
       </div>
     )
   }
 
-  // ── Sole proprietor variant ─────────────────────────────────────────────────
+  // ── Sole proprietor variant ──────────────────────────────────────────────────
   if (type === "sole_prop") {
     return (
       <div className="max-w-2xl">
@@ -143,124 +277,56 @@ export default function OrganisationPage() {
         </p>
 
         <Card className="mb-4">
-          <CardHeader>
-            <CardTitle className="text-base">About you</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="name">Full name</Label>
-              <Input
-                id="name"
-                value={form.name ?? ""}
-                onChange={(e) => set("name", e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="trading_as">Business name</Label>
-              <Input
-                id="trading_as"
-                value={form.trading_as ?? ""}
-                onChange={(e) => set("trading_as", e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                If you trade under a different name. Leave blank to use your full name.
-              </p>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="eaab_number">EAAB / FFC number</Label>
-              <Input
-                id="eaab_number"
-                value={form.eaab_number ?? ""}
-                onChange={(e) => set("eaab_number", e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Not required for landlords managing own properties.
-              </p>
-            </div>
+          <CardHeader><CardTitle className="text-base">Primary contact</CardTitle></CardHeader>
+          <CardContent className="space-y-6">
+            <PersonalSection form={form} set={set} />
+            <ContactSection form={form} set={set} phonLabel="Landline" />
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Contact details</CardTitle>
-          </CardHeader>
+        <Card className="mb-4">
+          <CardHeader><CardTitle className="text-base">Business information</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="address">Business address</Label>
-              <Input
-                id="address"
-                value={form.address ?? ""}
-                onChange={(e) => set("address", e.target.value)}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="phone">Phone</Label>
-                <Input
-                  id="phone"
-                  type="tel"
-                  value={form.phone ?? ""}
-                  onChange={(e) => set("phone", e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={form.email ?? ""}
-                  onChange={(e) => set("email", e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="website">Website</Label>
-              <Input
-                id="website"
-                type="url"
-                placeholder="https://"
-                value={form.website ?? ""}
-                onChange={(e) => set("website", e.target.value)}
-              />
-            </div>
-
+            <Field label="Business name" id="trading_as" help="If you trade under a different name. Leave blank to use your full name.">
+              <Input id="trading_as" value={form.trading_as ?? ""} onChange={(e) => set("trading_as", e.target.value)} />
+            </Field>
+            <Field label="EAAB / FFC number" id="eaab_number" help="Not required for landlords managing own properties.">
+              <Input id="eaab_number" value={form.eaab_number ?? ""} onChange={(e) => set("eaab_number", e.target.value)} />
+            </Field>
+            <Field label="Email" id="email" required>
+              <Input id="email" type="email" value={form.email ?? ""} onChange={(e) => set("email", e.target.value)} />
+            </Field>
+            <Field label="Website" id="website">
+              <Input id="website" type="url" placeholder="https://" value={form.website ?? ""} onChange={(e) => set("website", e.target.value)} />
+            </Field>
             <div className="pt-1">
               {showVat ? (
-                <div className="space-y-1.5">
-                  <Label htmlFor="vat_number">VAT number</Label>
-                  <Input
-                    id="vat_number"
-                    value={form.vat_number ?? ""}
-                    onChange={(e) => set("vat_number", e.target.value)}
-                  />
-                </div>
+                <Field label="VAT number" id="vat_number">
+                  <Input id="vat_number" value={form.vat_number ?? ""} onChange={(e) => set("vat_number", e.target.value)} />
+                </Field>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowVat(true)}
-                  className="text-sm text-muted-foreground hover:text-foreground underline-offset-4 hover:underline transition-colors"
-                >
+                <button type="button" onClick={() => setShowVat(true)}
+                  className="text-sm text-muted-foreground hover:text-foreground underline-offset-4 hover:underline transition-colors">
                   VAT registered? Add VAT number
                 </button>
               )}
             </div>
-
-            <div className="flex justify-end pt-2">
-              <Button onClick={handleSave} disabled={saving}>
-                {saving ? "Saving..." : "Save"}
-              </Button>
-            </div>
           </CardContent>
         </Card>
+
+        <Card className="mb-4">
+          <CardHeader><CardTitle className="text-base">Business address</CardTitle></CardHeader>
+          <CardContent>
+            <AddressSection form={form} set={set} label="" />
+          </CardContent>
+        </Card>
+
+        <div className="flex justify-end">{saveButton}</div>
       </div>
     )
   }
 
-  // ── Agency variant (default) ────────────────────────────────────────────────
+  // ── Agency variant ───────────────────────────────────────────────────────────
   return (
     <div className="max-w-2xl">
       <h1 className="font-heading text-3xl mb-1">Organisation details</h1>
@@ -269,129 +335,56 @@ export default function OrganisationPage() {
       </p>
 
       <Card className="mb-4">
-        <CardHeader>
-          <CardTitle className="text-base">Company information</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="name">
-              Legal entity name <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="name"
-              value={form.name ?? ""}
-              onChange={(e) => set("name", e.target.value)}
-              required
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="trading_as">Trading as</Label>
-            <Input
-              id="trading_as"
-              value={form.trading_as ?? ""}
-              onChange={(e) => set("trading_as", e.target.value)}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="reg_number">
-                CIPC registration <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="reg_number"
-                value={form.reg_number ?? ""}
-                onChange={(e) => set("reg_number", e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="eaab_number">
-                EAAB / FFC number <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="eaab_number"
-                value={form.eaab_number ?? ""}
-                onChange={(e) => set("eaab_number", e.target.value)}
-                required
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="vat_number">VAT number</Label>
-            <Input
-              id="vat_number"
-              value={form.vat_number ?? ""}
-              onChange={(e) => set("vat_number", e.target.value)}
-            />
-          </div>
+        <CardHeader><CardTitle className="text-base">Primary contact</CardTitle></CardHeader>
+        <CardContent className="space-y-6">
+          <PersonalSection form={form} set={set} />
+          <ContactSection form={form} set={set} phonLabel="Direct line" />
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Contact details</CardTitle>
-        </CardHeader>
+      <Card className="mb-4">
+        <CardHeader><CardTitle className="text-base">Company information</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="address">
-              Registered address <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="address"
-              value={form.address ?? ""}
-              onChange={(e) => set("address", e.target.value)}
-              required
-            />
-          </div>
-
+          <Field label="Legal entity name" id="name" required>
+            <Input id="name" value={form.name ?? ""} onChange={(e) => set("name", e.target.value)} />
+          </Field>
+          <Field label="Trading as" id="trading_as">
+            <Input id="trading_as" value={form.trading_as ?? ""} onChange={(e) => set("trading_as", e.target.value)} />
+          </Field>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="phone">
-                Phone <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="phone"
-                type="tel"
-                value={form.phone ?? ""}
-                onChange={(e) => set("phone", e.target.value)}
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="email">
-                Email <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                value={form.email ?? ""}
-                onChange={(e) => set("email", e.target.value)}
-                required
-              />
-            </div>
+            <Field label="CIPC registration" id="reg_number" required>
+              <Input id="reg_number" value={form.reg_number ?? ""} onChange={(e) => set("reg_number", e.target.value)} placeholder="2020/123456/07" />
+            </Field>
+            <Field label="EAAB / FFC number" id="eaab_number" required>
+              <Input id="eaab_number" value={form.eaab_number ?? ""} onChange={(e) => set("eaab_number", e.target.value)} />
+            </Field>
           </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="website">Website</Label>
-            <Input
-              id="website"
-              type="url"
-              placeholder="https://"
-              value={form.website ?? ""}
-              onChange={(e) => set("website", e.target.value)}
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="VAT number" id="vat_number">
+              <Input id="vat_number" value={form.vat_number ?? ""} onChange={(e) => set("vat_number", e.target.value)} />
+            </Field>
+            <Field label="Email" id="email" required>
+              <Input id="email" type="email" value={form.email ?? ""} onChange={(e) => set("email", e.target.value)} />
+            </Field>
           </div>
-
-          <div className="flex justify-end pt-2">
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? "Saving..." : "Save"}
-            </Button>
-          </div>
+          <Field label="Website" id="website">
+            <Input id="website" type="url" placeholder="https://" value={form.website ?? ""} onChange={(e) => set("website", e.target.value)} />
+          </Field>
         </CardContent>
       </Card>
+
+      <Card className="mb-4">
+        <CardHeader><CardTitle className="text-base">Registered address</CardTitle></CardHeader>
+        <CardContent>
+          <AddressSection form={form} set={set} label="" />
+        </CardContent>
+      </Card>
+
+      <div className="flex justify-end">
+        <Button onClick={handleSave} disabled={saving}>
+          {saving ? "Saving…" : "Save changes"}
+        </Button>
+      </div>
     </div>
   )
 }

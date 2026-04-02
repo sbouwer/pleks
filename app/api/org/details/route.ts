@@ -1,20 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
-const IDENTITY_FIELDS = [
-  "name",
-  "trading_as",
-  "reg_number",
-  "eaab_number",
-  "vat_number",
-  "email",
-  "phone",
-  "address",
-  "website",
+const ALL_FIELDS = [
+  "name", "trading_as", "reg_number", "eaab_number", "vat_number",
+  "email", "phone", "address", "website",
+  // personal / owner fields
+  "title", "first_name", "last_name", "initials", "gender",
+  "date_of_birth", "id_number", "mobile",
+  "addr_line1", "addr_suburb", "addr_city", "addr_province", "addr_postal_code",
 ] as const
 
-type IdentityField = (typeof IDENTITY_FIELDS)[number]
-type IdentityPatch = Partial<Record<IdentityField, string | null>>
+type OrgField = (typeof ALL_FIELDS)[number]
 
 async function resolveOrgId(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
   const { data: membership } = await supabase
@@ -28,17 +24,16 @@ async function resolveOrgId(supabase: Awaited<ReturnType<typeof createClient>>, 
 
 export async function GET() {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const orgId = await resolveOrgId(supabase, user.id)
   if (!orgId) return NextResponse.json({ error: "No org" }, { status: 403 })
 
+  const selectFields = [...ALL_FIELDS, "id", "type", "user_type"].join(", ")
   const { data: org, error } = await supabase
     .from("organisations")
-    .select("id, name, trading_as, reg_number, eaab_number, vat_number, email, phone, address, website, type, user_type")
+    .select(selectFields)
     .eq("id", orgId)
     .single()
 
@@ -46,23 +41,8 @@ export async function GET() {
     return NextResponse.json({ error: "Failed to fetch organisation" }, { status: 500 })
   }
 
-  const d = org as unknown as {
-    id: string
-    name: string | null
-    trading_as: string | null
-    reg_number: string | null
-    eaab_number: string | null
-    vat_number: string | null
-    email: string | null
-    phone: string | null
-    address: string | null
-    website: string | null
-    type: "agency" | "landlord" | "sole_prop" | null
-    user_type: string | null
-  }
+  const d = org as unknown as Record<string, string | null>
 
-  // Derive the effective org variant:
-  // user_type='owner' maps to the landlord (simple) form even if type='agency' by default
   let effectiveType: "agency" | "landlord" | "sole_prop" = "agency"
   if (d.type === "landlord" || d.user_type === "owner") {
     effectiveType = "landlord"
@@ -70,51 +50,35 @@ export async function GET() {
     effectiveType = "sole_prop"
   }
 
-  return NextResponse.json({
-    id: d.id,
-    name: d.name ?? null,
-    trading_as: d.trading_as ?? null,
-    reg_number: d.reg_number ?? null,
-    eaab_number: d.eaab_number ?? null,
-    vat_number: d.vat_number ?? null,
-    email: d.email ?? null,
-    phone: d.phone ?? null,
-    address: d.address ?? null,
-    website: d.website ?? null,
-    type: effectiveType,
-  })
+  const result: Record<string, string | null> = { id: d.id, type: effectiveType }
+  for (const field of ALL_FIELDS) {
+    result[field] = d[field] ?? null
+  }
+  return NextResponse.json(result)
 }
 
 export async function PATCH(req: NextRequest) {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const orgId = await resolveOrgId(supabase, user.id)
   if (!orgId) return NextResponse.json({ error: "No org" }, { status: 403 })
 
   let body: unknown
-  try {
-    body = await req.json()
-  } catch {
+  try { body = await req.json() } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
-
   if (typeof body !== "object" || body === null || Array.isArray(body)) {
     return NextResponse.json({ error: "Body must be a JSON object" }, { status: 400 })
   }
 
-  const patch: IdentityPatch = {}
-  for (const field of IDENTITY_FIELDS) {
+  const patch: Record<string, string | null> = {}
+  for (const field of ALL_FIELDS) {
     if (field in (body as Record<string, unknown>)) {
       const value = (body as Record<string, unknown>)[field]
       if (value !== null && typeof value !== "string") {
-        return NextResponse.json(
-          { error: `Field "${field}" must be a string or null` },
-          { status: 400 }
-        )
+        return NextResponse.json({ error: `Field "${field}" must be a string or null` }, { status: 400 })
       }
       patch[field] = value as string | null
     }
@@ -124,14 +88,8 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "No valid fields provided" }, { status: 400 })
   }
 
-  const { error } = await supabase
-    .from("organisations")
-    .update(patch)
-    .eq("id", orgId)
-
-  if (error) {
-    return NextResponse.json({ error: "Failed to update organisation" }, { status: 500 })
-  }
+  const { error } = await supabase.from("organisations").update(patch).eq("id", orgId)
+  if (error) return NextResponse.json({ error: "Failed to update organisation" }, { status: 500 })
 
   return NextResponse.json({ ok: true })
 }
