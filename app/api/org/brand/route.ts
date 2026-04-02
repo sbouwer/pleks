@@ -5,6 +5,7 @@ const BRAND_FIELDS = [
   "brand_logo_path",
   "brand_accent_color",
   "brand_cover_template",
+  "brand_font",
 ] as const
 
 type BrandField = (typeof BRAND_FIELDS)[number]
@@ -32,7 +33,7 @@ export async function GET() {
 
   const { data: org, error } = await supabase
     .from("organisations")
-    .select("brand_logo_path, brand_accent_color, brand_cover_template")
+    .select("brand_logo_path, brand_accent_color, brand_cover_template, brand_font")
     .eq("id", orgId)
     .single()
 
@@ -44,6 +45,7 @@ export async function GET() {
     brand_logo_path: string | null
     brand_accent_color: string | null
     brand_cover_template: string | null
+    brand_font: string | null
   }
 
   let logoUrl: string | null = null
@@ -59,6 +61,7 @@ export async function GET() {
     brand_logo_path: d.brand_logo_path ?? null,
     brand_accent_color: d.brand_accent_color ?? "#1a3a5c",
     brand_cover_template: d.brand_cover_template ?? "classic",
+    brand_font: d.brand_font ?? "inter",
   })
 }
 
