@@ -2,6 +2,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { getLessorBankDetails } from "@/lib/leases/bankDetails"
 import { parseClauseBody, buildSelfLookup } from "./parseClauseBody"
 import { renderClauseBodyToDocx } from "./renderClauseDocx"
+import { getOrgDisplayName, getOrgLegalName } from "@/lib/org/displayName"
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -147,13 +148,23 @@ export async function generateLeaseDocument(
   const unit = lease.units as Record<string, unknown> | null
   const property = (unit?.properties ?? null) as Record<string, string> | null
 
+  const orgFields = {
+    name: org?.name ?? "",
+    type: (org?.type as string) ?? "agency",
+    trading_as: org?.trading_as as string | null | undefined,
+    title: org?.title as string | null | undefined,
+    first_name: org?.first_name as string | null | undefined,
+    last_name: org?.last_name as string | null | undefined,
+    initials: org?.initials as string | null | undefined,
+  }
+
   const variables: LeaseVariables = {
-    lessor_name: org?.name ?? "",
+    lessor_name: getOrgLegalName(orgFields),
     lessor_reg_number: org?.reg_number ?? "",
     lessor_address: org?.address ?? "",
     lessor_email: org?.email ?? "",
     lessor_contact: org?.phone ?? "",
-    agent_name: org?.trading_as ?? org?.name ?? "",
+    agent_name: getOrgDisplayName(orgFields),
     agent_company: org?.name ?? "",
     lessee_name: tenant?.full_name ?? `${tenant?.first_name ?? ""} ${tenant?.last_name ?? ""}`.trim(),
     lessee_id_reg: tenant?.id_number ?? "",
@@ -371,7 +382,7 @@ async function buildDocx(
     }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      children: [new TextRun({ text: "Prepared by Pleks Property Management", size: 16, font: "Calibri", italics: true, color: "999999" })],
+      children: [new TextRun({ text: `Prepared by ${getOrgDisplayName(orgFields)}`, size: 16, font: "Calibri", italics: true, color: "999999" })],
     }),
   ]
 
