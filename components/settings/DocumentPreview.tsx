@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { getOrgDisplayName } from "@/lib/org/displayName"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { ClassicCover } from "@/components/branding/templates/ClassicCover"
 import { ModernCover } from "@/components/branding/templates/ModernCover"
@@ -586,7 +587,15 @@ export function DocumentPreview({ logoUrl, accentColor, layout, font = "inter" }
         if (!data) return
         const addrParts = [data.addr_line1, data.addr_suburb, data.addr_city].filter(Boolean)
         setIdentity({
-          name: data.name ?? "",
+          name: getOrgDisplayName({
+            name: data.name ?? "",
+            type: data.type ?? "agency",
+            trading_as: data.trading_as,
+            title: data.title,
+            first_name: data.first_name,
+            last_name: data.last_name,
+            initials: data.initials,
+          }),
           tradingAs: data.trading_as ?? null,
           registration: data.reg_number ?? null,
           eaab: data.eaab_number ?? null,

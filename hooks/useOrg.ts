@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { createClient } from "@/lib/supabase/client"
 import { useUser } from "./useUser"
+import { getOrgDisplayName, type OrgNameFields } from "@/lib/org/displayName"
 
 export function useOrg() {
   const { user } = useUser()
@@ -25,6 +26,7 @@ export function useOrg() {
 
   const org = (data?.organisations as unknown as Record<string, unknown>) ?? null
   const role = data?.role ?? null
+  const displayName = org ? getOrgDisplayName(org as unknown as OrgNameFields) : null
 
-  return { org, orgId: data?.org_id ?? null, role, loading: isLoading }
+  return { org, orgId: data?.org_id ?? null, role, displayName, loading: isLoading }
 }

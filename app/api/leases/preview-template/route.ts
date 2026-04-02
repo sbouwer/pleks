@@ -3,6 +3,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { getLessorBankDetails } from "@/lib/leases/bankDetails"
 import { parseClauseBody, buildSelfLookup } from "@/lib/leases/parseClauseBody"
 import { renderClauseBodyToHtml } from "@/lib/leases/renderClauseHtml"
+import { getOrgDisplayName } from "@/lib/org/displayName"
 
 /** Resolves {{ref:key}} and {{var:field}} tokens only. {{self:N}} is deferred to post-parse. */
 function resolveRefAndVar(body: string, clauseNumberMap: Map<string, number>): string {
@@ -48,7 +49,7 @@ export async function GET(req: NextRequest) {
       .order("sort_order"),
     supabase
       .from("organisations")
-      .select("name, trading_as, reg_number, eaab_number, phone, mobile, email, website, addr_line1, addr_suburb, addr_city, brand_logo_path, brand_accent_color, brand_cover_template")
+      .select("name, type, trading_as, title, first_name, last_name, initials, reg_number, eaab_number, phone, mobile, email, website, addr_line1, addr_suburb, addr_city, brand_logo_path, brand_accent_color, brand_cover_template")
       .eq("id", membership.org_id)
       .single(),
     getLessorBankDetails(membership.org_id),
@@ -121,8 +122,13 @@ export async function GET(req: NextRequest) {
     addr_suburb: string | null
     addr_city: string | null
     brand_logo_path: string | null
+    type: string | null
+    title: string | null
+    first_name: string | null
+    last_name: string | null
+    initials: string | null
     brand_accent_color: string | null
-    brand_cover_template: string | null  // DB column name unchanged
+    brand_cover_template: string | null
   } | null
 
   let logoUrl: string | null = null
@@ -136,7 +142,15 @@ export async function GET(req: NextRequest) {
   const addrParts = [org?.addr_line1, org?.addr_suburb, org?.addr_city].filter(Boolean)
 
   const branding = {
-    displayName: org?.trading_as ?? org?.name ?? null,
+    displayName: org ? getOrgDisplayName({
+      name: org.name ?? "",
+      type: org.type ?? "agency",
+      trading_as: org.trading_as,
+      title: org.title,
+      first_name: org.first_name,
+      last_name: org.last_name,
+      initials: org.initials,
+    }) : null,
     tradingAs: org?.trading_as ?? null,
     registration: org?.reg_number ?? null,
     address: addrParts.join(", ") || null,
