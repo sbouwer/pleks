@@ -53,6 +53,8 @@ function dividerStyle(color: string | null) {
   return { borderColor: valid ? color : undefined }
 }
 
+const TOTAL_PAGES = 7
+
 function PageHeader({ branding, page }: { branding: PreviewBranding; page: number }) {
   const ds = dividerStyle(branding.accentColor)
   return (
@@ -65,7 +67,7 @@ function PageHeader({ branding, page }: { branding: PreviewBranding; page: numbe
         <span className="flex-1 text-xs font-medium text-foreground/70 text-center truncate">
           {branding.displayName ?? ""}
         </span>
-        <span className="text-xs text-muted-foreground shrink-0">Page {page}</span>
+        <span className="text-xs text-muted-foreground shrink-0">Page {page} of {TOTAL_PAGES}</span>
       </div>
       <hr className="border-t" style={ds} />
     </div>
@@ -142,7 +144,7 @@ function CoverPage({ branding, leaseType }: { branding: PreviewBranding; leaseTy
         <p className="text-xs text-muted-foreground">{contactLine}</p>
       )}
 
-      <p className="text-xs text-muted-foreground/50 mt-12">Page 1</p>
+      <p className="text-xs text-muted-foreground/50 mt-12">Page 1 of {TOTAL_PAGES}</p>
     </div>
   )
 }
@@ -322,6 +324,56 @@ function SignaturePage() {
   )
 }
 
+function SignatureBlock({ role, nameLabel }: { role: string; nameLabel: string }) {
+  return (
+    <div className="border border-border/50 rounded-lg p-5 space-y-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-foreground/70">{role}</p>
+      <div className="space-y-3">
+        <div>
+          <p className="text-[11px] text-muted-foreground mb-1">Full name</p>
+          <div className="h-8 border-b border-foreground/25" />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-[11px] text-muted-foreground mb-1">Signature</p>
+            <div className="h-12 border border-border/40 rounded" />
+          </div>
+          <div>
+            <p className="text-[11px] text-muted-foreground mb-1">Date</p>
+            <div className="h-12 border border-border/40 rounded" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-[11px] text-muted-foreground mb-1">Witness signature</p>
+            <div className="h-12 border border-border/40 rounded" />
+          </div>
+          <div>
+            <p className="text-[11px] text-muted-foreground mb-1">Witness name</p>
+            <div className="h-8 border-b border-foreground/25 mt-4" />
+          </div>
+        </div>
+        <p className="text-[11px] text-muted-foreground/60 italic">{nameLabel}</p>
+      </div>
+    </div>
+  )
+}
+
+function SignatureBlocks() {
+  return (
+    <div className="space-y-4 mt-2">
+      <p className="text-xs text-muted-foreground">
+        This agreement is signed by the parties on the date/s indicated below.
+      </p>
+      <div className="grid grid-cols-1 gap-4">
+        <SignatureBlock role="Lessor / Agent" nameLabel="Authorised signatory on behalf of the Lessor" />
+        <SignatureBlock role="Lessee 1" nameLabel="Lessee" />
+        <SignatureBlock role="Lessee 2 (if applicable)" nameLabel="Second lessee (if applicable)" />
+      </div>
+    </div>
+  )
+}
+
 export function LeasePreview({ open, onOpenChange, leaseType: initialLeaseType }: Readonly<LeasePreviewProps>) {
   const [localLeaseType, setLocalLeaseType] = useState(initialLeaseType)
   const [data, setData] = useState<PreviewData | null>(null)
@@ -420,10 +472,14 @@ export function LeasePreview({ open, onOpenChange, leaseType: initialLeaseType }
                       <p className="text-sm font-semibold mb-2 uppercase tracking-wide">
                         {clause.number}. {clause.title}
                       </p>
-                      <div
-                        className={TOKEN_CLASSES}
-                        dangerouslySetInnerHTML={{ __html: clause.body }}
-                      />
+                      {clause.key === "signatures" ? (
+                        <SignatureBlocks />
+                      ) : (
+                        <div
+                          className={TOKEN_CLASSES}
+                          dangerouslySetInnerHTML={{ __html: clause.body }}
+                        />
+                      )}
                     </div>
                   ))}
                 </div>
