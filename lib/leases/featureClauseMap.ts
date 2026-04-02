@@ -9,24 +9,20 @@
  * mapped when proper legal clause text is available.
  */
 
-// ── Active mappings (clause keys exist in the library) ──────────────────────
 export const FEATURE_CLAUSE_MAP: Record<string, string[]> = {
   "Alarm":                 ["security"],
   "Pool":                  ["common_property"],
   "Garden":                ["common_property"],
   "Wheelchair-accessible": ["wheelchairs"],
   "Air-conditioning":      ["aircon"],
+  "Pet-friendly":          ["pets"],
+  "Solar":                 ["utilities_alternative"],
+  "Borehole":              ["utilities_alternative"],
+  "Garage":                ["parking"],
+  "Carport":               ["parking"],
+  "Fibre":                 ["telecommunications"],
+  "DSTV":                  ["telecommunications"],
 }
-
-// ── Future mappings (clause keys don't exist yet — need legal text) ──────────
-// TODO: Add these when clause body text is written and seeded:
-//   "Pet-friendly"     → "pets"             (occupancy with animals, conditions, damage liability, pet deposit)
-//   "Solar"            → "utilities_alternative"  (alternative utilities, metering, maintenance responsibility)
-//   "Borehole"         → "utilities_alternative"  (same clause as Solar)
-//   "Garage"           → "parking"          (allocated bay/garage, access rights, vehicle restrictions)
-//   "Carport"          → "parking"          (same clause as Garage)
-//   "Fibre"            → "telecommunications" (fibre infrastructure, provider access, installation rights)
-//   "DSTV"             → "telecommunications" (same clause as Fibre)
 
 /**
  * Given a unit's features array, returns the clause keys that should be
