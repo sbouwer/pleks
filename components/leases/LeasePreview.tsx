@@ -456,30 +456,28 @@ export function LeasePreview({ open, onOpenChange, leaseType: initialLeaseType }
                 {/* Annexure A */}
                 <AnnexureHeading label="A: Rental Calculation" />
                 <AnnexureA />
+                <SignatureBlocks label="Signed in acknowledgement of Annexure A" />
 
                 <PageBreak branding={branding} page={4} />
 
                 {/* Annexure B */}
                 <AnnexureHeading label="B: Banking Details" />
                 <AnnexureB banking={data.banking} />
+                <SignatureBlocks label="Signed in acknowledgement of Annexure B" />
 
                 <PageBreak branding={branding} page={5} />
 
                 {/* Annexure C */}
                 <AnnexureHeading label="C: Property Rules" />
                 <AnnexureC />
+                <SignatureBlocks label="Signed in acknowledgement of Annexure C" />
 
                 <PageBreak branding={branding} page={6} />
 
                 {/* Annexure D */}
                 <AnnexureHeading label="D: Special Agreements" />
                 <AnnexureD />
-
-                <PageBreak branding={branding} page={7} />
-
-                {/* Signature page */}
-                <AnnexureHeading label="— Signature Page —" />
-                <SignatureBlocks label="This agreement is signed by the parties on the date/s indicated below." />
+                <SignatureBlocks label="Signed in acknowledgement of Annexure D" />
 
                 <PageFooter branding={branding} />
               </div>
