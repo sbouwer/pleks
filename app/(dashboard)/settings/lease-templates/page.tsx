@@ -53,6 +53,18 @@ export default function LeaseTemplatesPage() {
       if (res.ok) setTimeout(() => setSaveStatus("idle"), 2000)
     }, 800)
   }, [])
+
+  // Stable callbacks per lease type — prevents ClauseConfigurator's notifyParent
+  // effect from re-firing every time saveStatus changes and re-renders this page.
+  const onResidentialChange = useCallback(
+    (s: Record<string, boolean>) => handleSelectionsChange("residential", s),
+    [handleSelectionsChange]
+  )
+  const onCommercialChange = useCallback(
+    (s: Record<string, boolean>) => handleSelectionsChange("commercial", s),
+    [handleSelectionsChange]
+  )
+
   const [templateConfirmed, setTemplateConfirmed] = useState(false)
   const [loading, setLoading] = useState(false)
 
@@ -146,14 +158,14 @@ export default function LeaseTemplatesPage() {
         <TabsContent value="residential" className="mt-4">
           <ClauseConfigurator
             leaseType="residential"
-            onSelectionsChange={(s) => handleSelectionsChange("residential", s)}
+            onSelectionsChange={onResidentialChange}
           />
         </TabsContent>
 
         <TabsContent value="commercial" className="mt-4">
           <ClauseConfigurator
             leaseType="commercial"
-            onSelectionsChange={(s) => handleSelectionsChange("commercial", s)}
+            onSelectionsChange={onCommercialChange}
           />
         </TabsContent>
       </Tabs>
