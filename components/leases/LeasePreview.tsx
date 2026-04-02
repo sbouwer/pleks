@@ -11,6 +11,7 @@ import { ModernCover } from "@/components/branding/templates/ModernCover"
 import { BoldCover } from "@/components/branding/templates/BoldCover"
 import { MinimalCover } from "@/components/branding/templates/MinimalCover"
 import { useTier } from "@/hooks/useTier"
+import type { CoverParties } from "@/components/branding/templates/types"
 
 interface PreviewClause {
   number: number
@@ -66,7 +67,7 @@ function estimatePageCount(clauses: PreviewClause[]): number {
   let totalChars = 0
   for (const clause of clauses) {
     totalChars += 50 // heading overhead
-    totalChars += clause.body.replace(/<[^>]+>/g, "").length
+    totalChars += clause.body.replaceAll(/<[^>]+>/g, "").length
   }
   return 1 + Math.ceil(totalChars / CHARS_PER_PAGE) + 4 // cover + body pages + 4 annexures
 }
@@ -123,6 +124,18 @@ const COVER_COMPONENTS = {
   minimal: MinimalCover,
 } as const
 
+// Placeholder party details shown in the template preview (no real lease data available)
+const PREVIEW_PARTIES: CoverParties = {
+  lessorName: "[Lessor name]",
+  lessorAddress: "[Lessor address]",
+  agentName: "[Managing agent]",
+  agentContact: "[Agent contact details]",
+  lesseeName: "[Lessee name]",
+  lessee2Name: null,
+  lesseeAddress: "[Lessee address]",
+  lesseeContact: "[Lessee contact details]",
+}
+
 function CoverPage({ branding, leaseType }: Readonly<{ branding: PreviewBranding; leaseType: string }>) {
   const Component = COVER_COMPONENTS[branding.layout as keyof typeof COVER_COMPONENTS] ?? ClassicCover
   const identity = {
@@ -141,7 +154,7 @@ function CoverPage({ branding, leaseType }: Readonly<{ branding: PreviewBranding
   }
   return (
     <div className="rounded-lg border border-border/60 overflow-hidden mb-4" style={{ aspectRatio: "1/1.414", maxWidth: "100%" }}>
-      <Component identity={identity} branding={coverBranding} leaseType={leaseType} />
+      <Component identity={identity} branding={coverBranding} leaseType={leaseType} parties={PREVIEW_PARTIES} />
     </div>
   )
 }
@@ -387,7 +400,7 @@ export function LeasePreview({ open, onOpenChange, leaseType: initialLeaseType }
         {previewTab === "structure" && data && (
           <div className="px-6 py-2 border-b border-border/20 bg-muted/30 shrink-0">
             <p className="text-xs text-muted-foreground">
-              {data.totalClauses} clause{data.totalClauses !== 1 ? "s" : ""} enabled
+              {data.totalClauses} clause{data.totalClauses === 1 ? "" : "s"} enabled
               {" · "}4 annexures
               {" · "}estimated ~{estimatedPages} pages
             </p>
