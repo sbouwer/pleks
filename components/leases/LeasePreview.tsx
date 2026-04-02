@@ -375,12 +375,15 @@ export function LeasePreview({ open, onOpenChange, leaseType: initialLeaseType }
 
         <div className="overflow-y-auto flex-1 px-6 py-5">
           <style>{`
-            .clause-para { text-align: justify; text-justify: inter-word; font-size: 13px; line-height: 1.8; margin: 0 0 8px; }
-            .clause-para[data-depth="0"] { padding-left: 40px; text-indent: -40px; }
-            .clause-para[data-depth="1"] { padding-left: 80px; text-indent: -40px; }
-            .clause-para[data-depth="2"] { padding-left: 120px; text-indent: -40px; }
-            .clause-number { display: inline; font-variant-numeric: tabular-nums; min-width: 40px; }
-            .clause-intro { text-align: justify; text-justify: inter-word; font-size: 13px; line-height: 1.8; margin: 0 0 8px; }
+            .clause-para { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.8; margin: 0 0 8px; }
+            .clause-para[data-depth="0"] { padding-left: 0; }
+            .clause-para[data-depth="1"] { padding-left: 28px; }
+            .clause-para[data-depth="2"] { padding-left: 56px; }
+            .clause-para[data-depth="3"] { padding-left: 84px; }
+            .clause-para[data-depth="4"] { padding-left: 112px; }
+            .clause-number { flex: 0 0 auto; font-variant-numeric: tabular-nums; white-space: nowrap; }
+            .clause-text { flex: 1; text-align: justify; text-justify: inter-word; min-width: 0; }
+            .clause-intro { display: block; font-size: 13px; line-height: 1.8; margin: 0 0 8px; text-align: justify; }
           `}</style>
 
           {loading && <p className="text-sm text-muted-foreground">Loading preview…</p>}
