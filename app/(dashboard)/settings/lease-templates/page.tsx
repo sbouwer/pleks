@@ -27,6 +27,12 @@ export default function LeaseTemplatesPage() {
   const initializedRef = useRef<Record<string, boolean>>({ residential: false, commercial: false })
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  useEffect(() => {
+    // Reset the initialized flag when tab changes so remounted ClauseConfigurator's
+    // initial population call is skipped and doesn't overwrite saved org defaults.
+    initializedRef.current[clauseSubTab] = false
+  }, [clauseSubTab])
+
   const handleSelectionsChange = useCallback((leaseType: string, selections: Record<string, boolean>) => {
     // Skip the initial population call — only save user-triggered changes
     if (!initializedRef.current[leaseType]) {
