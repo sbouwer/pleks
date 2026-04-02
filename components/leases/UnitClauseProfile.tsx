@@ -9,6 +9,19 @@ import Link from "next/link"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 
+type TriState = "on" | "off" | "inherit"
+
+function optionClass(option: TriState, active: boolean): string {
+  if (!active) return "text-muted-foreground hover:text-foreground hover:bg-surface-elevated"
+  if (option === "off") return "bg-danger/15 text-danger font-medium"
+  if (option === "on") return "bg-brand text-brand-dim font-medium"
+  return "bg-surface-elevated text-foreground font-medium"
+}
+
+function inheritLabel(orgEnabled: boolean): string {
+  return `Inherit (${orgEnabled ? "on" : "off"})`
+}
+
 interface ClauseProfileEntry {
   clause_key: string
   title: string
@@ -19,8 +32,6 @@ interface ClauseProfileEntry {
   unit_enabled: boolean | null
   org_enabled: boolean
 }
-
-type TriState = "inherit" | "on" | "off"
 
 interface UnitClauseProfileProps {
   unitId: string
@@ -34,7 +45,7 @@ export function UnitClauseProfile({
   propertyId,
   features = [],
   leaseType = "residential",
-}: UnitClauseProfileProps) {
+}: Readonly<UnitClauseProfileProps>) {
   const [clauses, setClauses] = useState<ClauseProfileEntry[]>([])
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<Record<string, TriState>>({})
@@ -51,14 +62,17 @@ export function UnitClauseProfile({
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [unitId, leaseType]) // eslint-disable-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load() }, [unitId, leaseType])
 
   function startEdit() {
     const initial: Record<string, TriState> = {}
     for (const c of clauses) {
-      initial[c.clause_key] = c.source === "unit_override"
-        ? (c.unit_enabled ? "on" : "off")
-        : "inherit"
+      let state: TriState = "inherit"
+      if (c.source === "unit_override") {
+        state = c.unit_enabled ? "on" : "off"
+      }
+      initial[c.clause_key] = state
     }
     setDraft(initial)
     setEditing(true)
@@ -67,6 +81,10 @@ export function UnitClauseProfile({
   function cancelEdit() {
     setEditing(false)
     setDraft({})
+  }
+
+  function handleDraftChange(key: string, value: TriState) {
+    setDraft((prev) => ({ ...prev, [key]: value }))
   }
 
   async function save() {
@@ -190,20 +208,14 @@ export function UnitClauseProfile({
                         <button
                           key={option}
                           type="button"
-                          onClick={() => setDraft((prev) => ({ ...prev, [clause.clause_key]: option }))}
+                          onClick={() => handleDraftChange(clause.clause_key, option)}
                           className={cn(
                             "px-2.5 py-1 transition-colors capitalize whitespace-nowrap",
-                            state === option
-                              ? option === "off"
-                                ? "bg-danger/15 text-danger font-medium"
-                                : option === "on"
-                                  ? "bg-brand text-brand-dim font-medium"
-                                  : "bg-surface-elevated text-foreground font-medium"
-                              : "text-muted-foreground hover:text-foreground hover:bg-surface-elevated",
+                            optionClass(option, state === option),
                             option !== "off" && "border-r border-border"
                           )}
                         >
-                          {option === "inherit" ? `Inherit (${clause.org_enabled ? "on" : "off"})` : option}
+                          {option === "inherit" ? inheritLabel(clause.org_enabled) : option}
                         </button>
                       ))}
                     </div>
@@ -268,7 +280,7 @@ export function UnitClauseProfile({
                 ))}
               </div>
             )}
-            {clauses.filter((c) => c.source !== "unit_override").length > 0 && unitOverrides.length > 0 && (
+            {clauses.some((c) => c.source !== "unit_override") && unitOverrides.length > 0 && (
               <p className="text-xs text-muted-foreground">
                 {clauses.filter((c) => c.source !== "unit_override").length} clauses inherit from org template.
               </p>

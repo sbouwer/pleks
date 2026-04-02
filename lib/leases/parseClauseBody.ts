@@ -47,7 +47,6 @@ export function parseClauseBody(body: string, clauseNum: number): ClauseNode[] {
   // baseDepth = 1 when the first line was an unnumbered intro (children sit at depth=1
   // but are numbered at the top-level counter)
   let baseDepth = 0
-  let topIntroUnnumbered = false
 
   // Stack of frames for numbered intro nesting
   // stack[0] is the implicit top frame; we never pop it
@@ -79,7 +78,6 @@ export function parseClauseBody(body: string, clauseNum: number): ClauseNode[] {
 
     // Special case: very first line is an intro → unnumbered top-level intro
     if (i === 0 && isIntroLine) {
-      topIntroUnnumbered = true
       baseDepth = 1
       nodes.push({ text: line, depth: 0, children: [], isIntro: true, number: undefined })
       continue

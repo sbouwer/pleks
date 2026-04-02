@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react"
 import { cn } from "@/lib/utils"
 import { SidebarContent, type NavGroup } from "@/components/layout/SidebarContent"
-import { Topbar } from "@/components/layout/Topbar"
+import { Topbar } from "@/components/layout/TopBar"
 import { MobileNav } from "@/components/layout/MobileNav"
 import {
   LayoutDashboard,

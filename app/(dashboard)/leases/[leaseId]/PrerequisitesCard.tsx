@@ -19,7 +19,6 @@ interface PrerequisitesCheck {
 
 interface PrerequisitesCardProps {
   prereqs: PrerequisitesCheck
-  leaseId: string
 }
 
 function StatusIcon({ status }: { status: PrerequisiteResult["status"] }) {
@@ -68,7 +67,7 @@ function PrerequisiteRow({ item }: { item: PrerequisiteResult }) {
   )
 }
 
-export function PrerequisitesCard({ prereqs, leaseId: _leaseId }: PrerequisitesCardProps) {
+export function PrerequisitesCard({ prereqs }: Readonly<PrerequisitesCardProps>) {
   const failItems = prereqs.items.filter((i) => i.status === "fail")
   const warnItems = prereqs.items.filter((i) => i.status === "warning")
   const passItems = prereqs.items.filter((i) => i.status === "pass")

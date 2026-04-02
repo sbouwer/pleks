@@ -11,7 +11,6 @@ const ALL_FIELDS = [
   "addr2_type", "addr2_line1", "addr2_suburb", "addr2_city", "addr2_province", "addr2_postal_code",
 ] as const
 
-type OrgField = (typeof ALL_FIELDS)[number]
 
 async function resolveOrgId(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
   const { data: membership } = await supabase

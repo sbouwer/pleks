@@ -29,7 +29,7 @@ export function Topbar({
   visitSiteLabel = "Visit Site",
 }: TopbarProps) {
   const { user } = useUser()
-  const { org } = useOrg()
+  const { displayName } = useOrg()
   const router = useRouter()
 
   const fullName = user?.user_metadata?.full_name as string | undefined
@@ -57,9 +57,9 @@ export function Topbar({
         >
           <Menu className="h-5 w-5" />
         </Button>
-        {org && (
+        {displayName && (
           <span className="text-sm font-medium text-muted-foreground hidden sm:inline">
-            {(org as Record<string, unknown>).name as string}
+            {displayName}
           </span>
         )}
       </div>

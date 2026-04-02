@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react"
 import { PortalSidebar, PORTAL_NAV_GROUPS } from "@/components/layout/PortalSidebar"
-import { Topbar } from "@/components/layout/Topbar"
+import { Topbar } from "@/components/layout/TopBar"
 import { MobileNav } from "@/components/layout/MobileNav"
 
 export default function PortalLayout({
