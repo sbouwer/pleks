@@ -27,6 +27,25 @@ interface ClauseConfiguratorProps {
   leaseId?: string | null
   unitId?: string | null
   onSelectionsChange: (selections: Record<string, boolean>) => void
+  /** Called only on actual user toggles. Async return signals save success for inline indicator. */
+  onToggleSave?: (selections: Record<string, boolean>) => Promise<boolean> | void
+}
+
+function applyDependencies(
+  key: string,
+  enabled: boolean,
+  updated: Record<string, boolean>,
+  optional: ClauseItem[]
+): void {
+  if (!enabled) return
+  const clause = optional.find((c) => c.clause_key === key)
+  if (!clause?.depends_on?.length) return
+  for (const dep of clause.depends_on) {
+    if (updated[dep]) continue
+    updated[dep] = true
+    const depClause = optional.find((c) => c.clause_key === dep)
+    if (depClause) toast.info(`"${depClause.title}" was also enabled`)
+  }
 }
 
 async function loadUnitProfile(
@@ -58,6 +77,7 @@ export function ClauseConfigurator({
   leaseId,
   unitId,
   onSelectionsChange,
+  onToggleSave,
 }: Readonly<ClauseConfiguratorProps>) {
   const [required, setRequired] = useState<ClauseItem[]>([])
   const [optional, setOptional] = useState<ClauseItem[]>([])
@@ -67,6 +87,8 @@ export function ClauseConfigurator({
   const [showRequired, setShowRequired] = useState(false)
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [lastToggledKey, setLastToggledKey] = useState<string | null>(null)
+  const [toggleSaveStatus, setToggleSaveStatus] = useState<"idle" | "saving" | "saved">("idle")
 
   useEffect(() => {
     async function load() {
@@ -109,21 +131,22 @@ export function ClauseConfigurator({
     if (!loading) notifyParent(selections)
   }, [selections, loading, notifyParent])
 
-  function toggleClause(key: string, enabled: boolean) {
+  async function toggleClause(key: string, enabled: boolean) {
     const updated = { ...selections, [key]: enabled }
-    if (enabled) {
-      const clause = optional.find((c) => c.clause_key === key)
-      if (clause?.depends_on?.length) {
-        for (const dep of clause.depends_on) {
-          if (!updated[dep]) {
-            updated[dep] = true
-            const depClause = optional.find((c) => c.clause_key === dep)
-            if (depClause) toast.info(`"${depClause.title}" was also enabled`)
-          }
-        }
-      }
-    }
+    applyDependencies(key, enabled, updated, optional)
     setSelections(updated)
+    if (!onToggleSave) return
+    setLastToggledKey(key)
+    setToggleSaveStatus("saving")
+    const result = onToggleSave(updated)
+    const ok = result instanceof Promise ? await result : true
+    if (ok) {
+      setToggleSaveStatus("saved")
+      setTimeout(() => { setLastToggledKey(null); setToggleSaveStatus("idle") }, 2000)
+    } else {
+      setToggleSaveStatus("idle")
+      toast.error("Failed to save")
+    }
   }
 
   async function handleSaveBody(clauseKey: string, customBody: string) {
@@ -192,6 +215,12 @@ export function ClauseConfigurator({
                 <p className="text-sm font-medium">{clause.title}</p>
                 {unitSourceKeys.has(clause.clause_key) && (
                   <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Unit</Badge>
+                )}
+                {lastToggledKey === clause.clause_key && toggleSaveStatus === "saving" && (
+                  <span className="text-[10px] text-muted-foreground animate-pulse">Saving...</span>
+                )}
+                {lastToggledKey === clause.clause_key && toggleSaveStatus === "saved" && (
+                  <span className="text-[10px] text-green-500">✓ Saved</span>
                 )}
                 {hasCustom && (
                   <Badge variant="secondary" className="text-brand border-brand/30 text-[10px] px-1.5 py-0">

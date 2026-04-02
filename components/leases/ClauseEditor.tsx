@@ -80,6 +80,7 @@ export function ClauseEditor({
 }: Readonly<ClauseEditorProps>) {
   const [showEditor, setShowEditor] = useState(!isRequired)
   const [saving, setSaving] = useState(false)
+  const [isDirty, setIsDirty] = useState(false)
   const editorRef = useRef<HTMLDivElement>(null)
 
   const currentBody = customBody ?? bodyTemplate
@@ -109,6 +110,17 @@ export function ClauseEditor({
     setSaving(false)
     toast.success(`"${title}" wording saved`)
   }, [clauseKey, title, bodyTemplate, requiredTokens, onSave, onCancel])
+
+  const handleCancel = useCallback(() => {
+    if (isDirty) {
+      if (confirm("You have unsaved changes. Discard them?")) {
+        toast.info("Changes discarded")
+        onCancel()
+      }
+    } else {
+      onCancel()
+    }
+  }, [isDirty, onCancel])
 
   const handleReset = useCallback(async () => {
     setSaving(true)
@@ -185,6 +197,7 @@ export function ClauseEditor({
                        [&_.token-var]:rounded [&_.token-var]:border [&_.token-var]:border-green-400/40
                        [&_.token-var]:bg-green-400/10 [&_.token-var]:text-green-400 [&_.token-var]:text-xs
                        [&_.token-var]:select-none [&_.token-var]:cursor-default [&_.token-var]:mx-0.5"
+            onInput={() => setIsDirty(true)}
             dangerouslySetInnerHTML={{ __html: htmlContent }}
           />
 
@@ -197,7 +210,7 @@ export function ClauseEditor({
                 Reset to standard
               </Button>
             )}
-            <Button size="sm" variant="ghost" onClick={onCancel}>
+            <Button size="sm" variant="ghost" onClick={handleCancel}>
               Cancel
             </Button>
           </div>
