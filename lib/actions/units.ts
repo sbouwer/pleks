@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
+import { syncUnitClauseProfile } from "@/lib/leases/syncUnitClauseProfile"
 
 export async function createUnit(propertyId: string, formData: FormData) {
   const supabase = await createClient()
@@ -27,15 +28,15 @@ export async function createUnit(propertyId: string, formData: FormData) {
       org_id: orgId,
       property_id: propertyId,
       unit_number: formData.get("unit_number") as string,
-      floor: formData.get("floor") ? parseInt(formData.get("floor") as string) : null,
-      size_m2: formData.get("size_m2") ? parseFloat(formData.get("size_m2") as string) : null,
-      bedrooms: formData.get("bedrooms") ? parseInt(formData.get("bedrooms") as string) : null,
-      bathrooms: formData.get("bathrooms") ? parseFloat(formData.get("bathrooms") as string) : null,
-      parking_bays: formData.get("parking_bays") ? parseInt(formData.get("parking_bays") as string) : 0,
+      floor: formData.get("floor") ? Number.parseInt(formData.get("floor") as string) : null,
+      size_m2: formData.get("size_m2") ? Number.parseFloat(formData.get("size_m2") as string) : null,
+      bedrooms: formData.get("bedrooms") ? Number.parseInt(formData.get("bedrooms") as string) : null,
+      bathrooms: formData.get("bathrooms") ? Number.parseFloat(formData.get("bathrooms") as string) : null,
+      parking_bays: formData.get("parking_bays") ? Number.parseInt(formData.get("parking_bays") as string) : 0,
       furnished: formData.get("furnished") === "true",
       features,
-      asking_rent_cents: formData.get("asking_rent") ? Math.round(parseFloat(formData.get("asking_rent") as string) * 100) : null,
-      deposit_amount_cents: formData.get("deposit_amount") ? Math.round(parseFloat(formData.get("deposit_amount") as string) * 100) : null,
+      asking_rent_cents: formData.get("asking_rent") ? Math.round(Number.parseFloat(formData.get("asking_rent") as string) * 100) : null,
+      deposit_amount_cents: formData.get("deposit_amount") ? Math.round(Number.parseFloat(formData.get("deposit_amount") as string) * 100) : null,
       managed_by: (formData.get("managed_by") as string) || null,
       notes: formData.get("notes") as string || null,
       status: "vacant",
@@ -47,7 +48,6 @@ export async function createUnit(propertyId: string, formData: FormData) {
     return { error: error?.message || "Failed to create unit" }
   }
 
-  // Log initial status
   await supabase.from("unit_status_history").insert({
     unit_id: unit.id,
     org_id: orgId,
@@ -65,6 +65,12 @@ export async function createUnit(propertyId: string, formData: FormData) {
     new_values: { unit_number: formData.get("unit_number"), property_id: propertyId },
   })
 
+  try {
+    await syncUnitClauseProfile(supabase, unit.id, orgId, features)
+  } catch (err) {
+    console.error("[createUnit] syncUnitClauseProfile failed:", err)
+  }
+
   revalidatePath(`/properties/${propertyId}`)
   redirect(`/properties/${propertyId}`)
 }
@@ -74,25 +80,41 @@ export async function updateUnit(unitId: string, propertyId: string, formData: F
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
+  const { data: membership } = await supabase
+    .from("user_orgs")
+    .select("org_id")
+    .eq("user_id", user.id)
+    .is("deleted_at", null)
+    .single()
+
+  if (!membership) redirect("/onboarding")
+  const orgId = membership.org_id
+
   const features = formData.getAll("features") as string[]
 
   const updates: Record<string, unknown> = {
     unit_number: formData.get("unit_number"),
-    floor: formData.get("floor") ? parseInt(formData.get("floor") as string) : null,
-    size_m2: formData.get("size_m2") ? parseFloat(formData.get("size_m2") as string) : null,
-    bedrooms: formData.get("bedrooms") ? parseInt(formData.get("bedrooms") as string) : null,
-    bathrooms: formData.get("bathrooms") ? parseFloat(formData.get("bathrooms") as string) : null,
-    parking_bays: formData.get("parking_bays") ? parseInt(formData.get("parking_bays") as string) : 0,
+    floor: formData.get("floor") ? Number.parseInt(formData.get("floor") as string) : null,
+    size_m2: formData.get("size_m2") ? Number.parseFloat(formData.get("size_m2") as string) : null,
+    bedrooms: formData.get("bedrooms") ? Number.parseInt(formData.get("bedrooms") as string) : null,
+    bathrooms: formData.get("bathrooms") ? Number.parseFloat(formData.get("bathrooms") as string) : null,
+    parking_bays: formData.get("parking_bays") ? Number.parseInt(formData.get("parking_bays") as string) : 0,
     furnished: formData.get("furnished") === "true",
     features,
-    asking_rent_cents: formData.get("asking_rent") ? Math.round(parseFloat(formData.get("asking_rent") as string) * 100) : null,
-    deposit_amount_cents: formData.get("deposit_amount") ? Math.round(parseFloat(formData.get("deposit_amount") as string) * 100) : null,
+    asking_rent_cents: formData.get("asking_rent") ? Math.round(Number.parseFloat(formData.get("asking_rent") as string) * 100) : null,
+    deposit_amount_cents: formData.get("deposit_amount") ? Math.round(Number.parseFloat(formData.get("deposit_amount") as string) * 100) : null,
     managed_by: (formData.get("managed_by") as string) || null,
     notes: formData.get("notes") as string || null,
   }
 
   const { error } = await supabase.from("units").update(updates).eq("id", unitId)
   if (error) return { error: error.message }
+
+  try {
+    await syncUnitClauseProfile(supabase, unitId, orgId, features)
+  } catch (err) {
+    console.error("[updateUnit] syncUnitClauseProfile failed:", err)
+  }
 
   revalidatePath(`/properties/${propertyId}`)
   redirect(`/properties/${propertyId}`)
@@ -108,7 +130,6 @@ export async function updateUnitStatus(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  // Get current status
   const { data: unit } = await supabase
     .from("units")
     .select("status, org_id")

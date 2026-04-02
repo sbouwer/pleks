@@ -75,9 +75,12 @@ export default function LeaseTemplatesPage() {
 
   return (
     <div>
-      <h1 className="font-heading text-3xl mb-2">Lease Templates</h1>
-      <p className="text-muted-foreground text-sm mb-6">
-        Configure default clause settings for new leases. You can override these for each individual lease.
+      <h1 className="font-heading text-3xl mb-2">Master lease template</h1>
+      <p className="text-muted-foreground text-sm mb-1">
+        Your approved lease with all clauses. Unit-specific clause toggles are configured on each unit&apos;s detail page.
+      </p>
+      <p className="text-muted-foreground text-xs mb-6">
+        Changes to wording or org-level defaults cascade to all future leases. Unit profiles only override which optional clauses are included.
       </p>
 
       {/* Confirmation status */}

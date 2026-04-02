@@ -25,7 +25,26 @@ interface ClauseItem {
 interface ClauseConfiguratorProps {
   leaseType: string
   leaseId?: string | null
+  unitId?: string | null
   onSelectionsChange: (selections: Record<string, boolean>) => void
+}
+
+async function loadUnitProfile(
+  unitId: string,
+  leaseType: string
+): Promise<{ overrides: Record<string, boolean>; keys: Set<string> }> {
+  const res = await fetch(`/api/leases/unit-clause-profile?unitId=${unitId}&leaseType=${leaseType}`)
+  if (!res.ok) return { overrides: {}, keys: new Set() }
+  const data = await res.json()
+  const overrides: Record<string, boolean> = {}
+  const keys = new Set<string>()
+  for (const c of data.clauses ?? []) {
+    if (c.source === "unit_override") {
+      overrides[c.clause_key] = c.enabled
+      keys.add(c.clause_key)
+    }
+  }
+  return { overrides, keys }
 }
 
 function getCardStyle(isOptional: boolean, enabled: boolean) {
@@ -37,12 +56,14 @@ function getCardStyle(isOptional: boolean, enabled: boolean) {
 export function ClauseConfigurator({
   leaseType,
   leaseId,
+  unitId,
   onSelectionsChange,
 }: Readonly<ClauseConfiguratorProps>) {
   const [required, setRequired] = useState<ClauseItem[]>([])
   const [optional, setOptional] = useState<ClauseItem[]>([])
   const [selections, setSelections] = useState<Record<string, boolean>>({})
   const [customBodies, setCustomBodies] = useState<Record<string, string | null>>({})
+  const [unitSourceKeys, setUnitSourceKeys] = useState<Set<string>>(new Set())
   const [showRequired, setShowRequired] = useState(false)
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -65,12 +86,20 @@ export function ClauseConfigurator({
           bodies[c.clause_key] = c.custom_body
         }
       }
+
+      // If unitId provided, overlay unit profile selections
+      if (unitId) {
+        const { overrides, keys } = await loadUnitProfile(unitId, leaseType)
+        Object.assign(initial, overrides)
+        setUnitSourceKeys(keys)
+      }
+
       setSelections(initial)
       setCustomBodies(bodies)
       setLoading(false)
     }
     load()
-  }, [leaseType])
+  }, [leaseType, unitId])
 
   const notifyParent = useCallback((sels: Record<string, boolean>) => {
     onSelectionsChange(sels)
@@ -161,6 +190,9 @@ export function ClauseConfigurator({
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <p className="text-sm font-medium">{clause.title}</p>
+                {unitSourceKeys.has(clause.clause_key) && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Unit</Badge>
+                )}
                 {hasCustom && (
                   <Badge variant="secondary" className="text-brand border-brand/30 text-[10px] px-1.5 py-0">
                     Custom
@@ -218,6 +250,12 @@ export function ClauseConfigurator({
             Required clauses are always included. Optional clauses can be toggled. Click &quot;Edit wording&quot; to customise any clause.
           </p>
         </div>
+
+        {unitId && unitSourceKeys.size > 0 && (
+          <div className="rounded-md border border-brand/20 bg-brand/5 px-3 py-2 text-xs text-brand">
+            Clauses pre-configured from unit profile — {unitSourceKeys.size} clause{unitSourceKeys.size === 1 ? "" : "s"} pre-set. Marked with a <strong>Unit</strong> badge.
+          </div>
+        )}
 
         {/* Required — collapsible */}
         <div>
