@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Pencil, X, Check, Upload } from "lucide-react"
 import { toast } from "sonner"
 import Image from "next/image"
+import { BrandingPreview } from "./BrandingPreview"
 
 interface BrandingData {
   orgName: string
@@ -249,6 +250,23 @@ export function LeaseBrandingSection() {
                 <X className="h-3.5 w-3.5 mr-1" /> Cancel
               </Button>
             </div>
+          </div>
+        )}
+
+        {/* Document preview */}
+        {data && (
+          <div className="mt-6 p-4 bg-muted/40 rounded-lg">
+            <p className="text-xs text-muted-foreground mb-4">Document preview — cover page and first page</p>
+            <BrandingPreview
+              logoUrl={data.logoUrl ?? null}
+              displayName={editing ? (draft.lease_display_name ?? data.lease_display_name ?? data.orgName ?? "") : (data.lease_display_name ?? data.orgName ?? "")}
+              registration={editing ? (draft.lease_registration_number ?? data.lease_registration_number ?? "") : (data.lease_registration_number ?? "")}
+              address={editing ? (draft.lease_address ?? data.lease_address ?? "") : (data.lease_address ?? "")}
+              phone={editing ? (draft.lease_phone ?? data.lease_phone ?? "") : (data.lease_phone ?? "")}
+              email={editing ? (draft.lease_email ?? data.lease_email ?? "") : (data.lease_email ?? "")}
+              website={editing ? (draft.lease_website ?? data.lease_website ?? "") : (data.lease_website ?? "")}
+              accentColor={editing ? (draft.lease_accent_color ?? data.lease_accent_color ?? "") : (data.lease_accent_color ?? "")}
+            />
           </div>
         )}
       </CardContent>
