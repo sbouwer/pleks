@@ -8,16 +8,17 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ClauseConfigurator } from "@/components/leases/ClauseConfigurator"
-import { LeaseBrandingSection } from "@/components/leases/LeaseBrandingSection"
 import { LeasePreview } from "@/components/leases/LeasePreview"
 import Link from "next/link"
 import { toast } from "sonner"
-import { Eye, ExternalLink } from "lucide-react"
+import { Eye, ExternalLink, Info } from "lucide-react"
 
 interface OrgInfo {
   orgId: string
   clauseEditConfirmedAt: string | null
   customTemplateActive: boolean
+  brandLogoPath: string | null
+  brandAccentColor: string | null
 }
 
 export default function LeaseTemplatesPage() {
@@ -33,13 +34,19 @@ export default function LeaseTemplatesPage() {
 
   useEffect(() => {
     async function loadOrg() {
-      const orgRes = await fetch("/api/org/info")
-      if (orgRes.ok) {
-        const org = await orgRes.json()
+      const [infoRes, brandRes] = await Promise.all([
+        fetch("/api/org/info"),
+        fetch("/api/org/brand"),
+      ])
+      if (infoRes.ok) {
+        const org = await infoRes.json()
+        const brand = brandRes.ok ? await brandRes.json() : {}
         setOrgInfo({
           orgId: org.orgId,
           clauseEditConfirmedAt: org.clauseEditConfirmedAt ?? null,
           customTemplateActive: org.customTemplateActive ?? false,
+          brandLogoPath: brand.brand_logo_path ?? null,
+          brandAccentColor: brand.brand_accent_color ?? null,
         })
       }
     }
@@ -102,9 +109,6 @@ export default function LeaseTemplatesPage() {
         Changes to wording or org-level defaults cascade to all future leases. Unit profiles only override which optional clauses are included.
       </p>
 
-      {/* 1. Lease branding */}
-      <LeaseBrandingSection />
-
       {/* Confirmation status */}
       {orgInfo?.clauseEditConfirmedAt && (
         <div className="flex items-center justify-between mt-6 mb-4 text-xs text-muted-foreground border-b border-border/40 pb-3">
@@ -128,6 +132,18 @@ export default function LeaseTemplatesPage() {
       {/* 2. Clause configurator */}
       <div className={orgInfo?.clauseEditConfirmedAt ? "" : "mt-8"}>
         <Tabs value={clauseSubTab} onValueChange={setClauseSubTab}>
+          {orgInfo && !orgInfo.brandLogoPath && (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2.5 mb-3 text-xs text-amber-600/80">
+              <Info className="size-3.5 shrink-0 mt-0.5" />
+              <span>
+                Your branding isn&apos;t configured yet.{" "}
+                <Link href="/settings/branding" className="underline underline-offset-2 font-medium">
+                  Set up your logo and colours
+                </Link>
+                {" "}to see them on the preview.
+              </span>
+            </div>
+          )}
           <div className="flex items-center justify-between mb-1">
             <TabsList>
               <TabsTrigger value="residential">Residential</TabsTrigger>
