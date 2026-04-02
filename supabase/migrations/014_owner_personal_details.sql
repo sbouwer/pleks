@@ -6,7 +6,7 @@ ALTER TABLE organisations ADD COLUMN IF NOT EXISTS title         text;  -- Mr / 
 ALTER TABLE organisations ADD COLUMN IF NOT EXISTS first_name    text;
 ALTER TABLE organisations ADD COLUMN IF NOT EXISTS last_name     text;
 ALTER TABLE organisations ADD COLUMN IF NOT EXISTS initials      text;
-ALTER TABLE organisations ADD COLUMN IF NOT EXISTS gender        text CHECK (gender IN ('male', 'female', 'non_binary', 'prefer_not_to_say'));
+ALTER TABLE organisations ADD COLUMN IF NOT EXISTS gender        text CHECK (gender IN ('male', 'female', 'prefer_not_to_say'));
 ALTER TABLE organisations ADD COLUMN IF NOT EXISTS date_of_birth date;
 ALTER TABLE organisations ADD COLUMN IF NOT EXISTS id_number     text;  -- SA ID number (13 digits)
 ALTER TABLE organisations ADD COLUMN IF NOT EXISTS mobile        text;  -- separate from phone (landline)

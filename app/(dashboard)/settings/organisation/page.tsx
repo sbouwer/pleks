@@ -175,7 +175,7 @@ function PersonalSection({ form, set }: Readonly<{ form: FormState; set: (f: key
       <div className="grid grid-cols-3 gap-3">
         <F label="Gender" id="gender">
           <Sel id="gender" value={form.gender ?? ""} onChange={(v) => set("gender", v)}
-            options={["male", "female", "non_binary", "prefer_not_to_say"]}
+            options={["male", "female", "prefer_not_to_say"]}
             capitalize placeholder="Select…" />
         </F>
         <F label="Date of birth" id="date_of_birth">
