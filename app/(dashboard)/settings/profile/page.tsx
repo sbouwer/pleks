@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
 import { Info, Plus, X } from "lucide-react"
 
@@ -72,17 +73,18 @@ function Sel({ id, value, onChange, options, placeholder, capitalize, className 
   options: string[]; placeholder?: string; capitalize?: boolean; className?: string
 }>) {
   return (
-    <select
-      id={id}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className={`flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm font-sans shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${className ?? "w-full"}`}
-    >
-      <option value="">{placeholder ?? "Select…"}</option>
-      {options.map((o) => (
-        <option key={o} value={o}>{capitalize ? o.charAt(0).toUpperCase() + o.slice(1) : o}</option>
-      ))}
-    </select>
+    <Select value={value || undefined} onValueChange={onChange}>
+      <SelectTrigger id={id} className={`h-9 text-sm ${className ?? "w-full"}`}>
+        <SelectValue placeholder={placeholder ?? "Select…"} />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((o) => (
+          <SelectItem key={o} value={o}>
+            {capitalize ? o.charAt(0).toUpperCase() + o.slice(1) : o}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
 }
 
