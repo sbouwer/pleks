@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react"
 import { Sidebar, NAV_GROUPS } from "@/components/layout/Sidebar"
-import { Topbar } from "@/components/layout/Topbar"
+import { Topbar } from "@/components/layout/TopBar"
 import { MobileNav } from "@/components/layout/MobileNav"
 import { InactivityGuard } from "@/components/layout/InactivityGuard"
 
