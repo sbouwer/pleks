@@ -330,15 +330,48 @@ export async function buildDocx(
   type DocChild = InstanceType<typeof Paragraph> | InstanceType<typeof Table>
 
   // ─── Cover page ───────────────────────────────────────
+
+  // Helper: two-cell label/value row for the cover party table
+  function coverRow(label: string, value: string) {
+    return new TableRow({ children: [
+      new TableCell({ borders: borderNone, width: { size: 1800, type: WidthType.DXA }, children: [
+        new Paragraph({ children: [new TextRun({ text: label, bold: true, size: 18, font: "Calibri", color: "888888" })] }),
+      ]}),
+      new TableCell({ borders: borderNone, width: { size: 5200, type: WidthType.DXA }, children: [
+        new Paragraph({ children: [new TextRun({ text: value, size: 18, font: "Calibri" })] }),
+      ]}),
+    ]})
+  }
+
+  // Managing agent row: only show when agent differs from lessor (i.e. an agency manages on behalf)
+  const showAgent = variables.agent_name && variables.agent_name !== variables.lessor_name
+
+  // Lessee rows: primary lessee plus optional second lessee
+  const lesseeValue = variables.lessee2_name
+    ? `${variables.lessee_name}\n${variables.lessee2_name}`
+    : variables.lessee_name
+
+  const coverPartyRows = [
+    coverRow("LESSOR",   variables.lessor_name),
+    coverRow("",         variables.lessor_address),
+    ...(showAgent ? [
+      coverRow("AGENT",  variables.agent_name),
+      coverRow("",       [variables.lessor_contact, variables.lessor_email].filter(Boolean).join("  ·  ")),
+    ] : []),
+    coverRow("LESSEE",   lesseeValue),
+    coverRow("",         variables.lessee_address),
+    coverRow("",         [variables.lessee_contact, variables.lessee_email].filter(Boolean).join("  ·  ")),
+  ]
+
   const titleChildren: DocChild[] = [
-    new Paragraph({ spacing: { before: 3000 }, children: [] }),
+    new Paragraph({ spacing: { before: 2400 }, children: [] }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
       children: [new TextRun({ text: "LEASE AGREEMENT", bold: true, size: 28, font: "Calibri" })],
     }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      spacing: { after: 600 },
+      spacing: { after: 500 },
       children: [new TextRun({
         text: `${leaseType.charAt(0).toUpperCase() + leaseType.slice(1)} lease`,
         size: 22, font: "Calibri", italics: true, color: "999999",
@@ -346,40 +379,41 @@ export async function buildDocx(
     }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      spacing: { after: 100 },
+      spacing: { after: 80 },
       children: [new TextRun({ text: "─────────────────────────────────────", size: 20, font: "Calibri", color: "CCCCCC" })],
     }),
-    new Paragraph({ spacing: { after: 60 }, children: [] }),
+    new Paragraph({ spacing: { after: 40 }, children: [] }),
+
+    // Party details table
+    new Table({
+      width: { size: 7000, type: WidthType.DXA },
+      borders: borderNone,
+      rows: coverPartyRows,
+    }),
+
+    new Paragraph({ spacing: { after: 40 }, children: [] }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 80 },
+      children: [new TextRun({ text: "─────────────────────────────────────", size: 20, font: "Calibri", color: "CCCCCC" })],
+    }),
+
+    // Property + lease terms summary
     new Table({
       width: { size: 7000, type: WidthType.DXA },
       borders: borderNone,
       rows: [
-        new TableRow({ children: [
-          new TableCell({ borders: borderNone, width: { size: 2000, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: "LESSOR:", bold: true, size: 20, font: "Calibri", color: "666666" })] })] }),
-          new TableCell({ borders: borderNone, width: { size: 5000, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: variables.lessor_name, size: 20, font: "Calibri" })] })] }),
-        ]}),
-        new TableRow({ children: [
-          new TableCell({ borders: borderNone, width: { size: 2000, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: "LESSEE:", bold: true, size: 20, font: "Calibri", color: "666666" })] })] }),
-          new TableCell({ borders: borderNone, width: { size: 5000, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: variables.lessee_name, size: 20, font: "Calibri" })] })] }),
-        ]}),
-        new TableRow({ children: [
-          new TableCell({ borders: borderNone, width: { size: 2000, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: "PROPERTY:", bold: true, size: 20, font: "Calibri", color: "666666" })] })] }),
-          new TableCell({ borders: borderNone, width: { size: 5000, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: `${variables.property_address}, Unit ${variables.unit_number}`, size: 20, font: "Calibri" })] })] }),
-        ]}),
-        new TableRow({ children: [
-          new TableCell({ borders: borderNone, width: { size: 2000, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: "PERIOD:", bold: true, size: 20, font: "Calibri", color: "666666" })] })] }),
-          new TableCell({ borders: borderNone, width: { size: 5000, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: `${variables.commencement_date} – ${variables.end_date || "Month to month"}`, size: 20, font: "Calibri" })] })] }),
-        ]}),
-        new TableRow({ children: [
-          new TableCell({ borders: borderNone, width: { size: 2000, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: "RENTAL:", bold: true, size: 20, font: "Calibri", color: "666666" })] })] }),
-          new TableCell({ borders: borderNone, width: { size: 5000, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: `${variables.monthly_rent_formatted} per month`, size: 20, font: "Calibri" })] })] }),
-        ]}),
+        coverRow("PROPERTY", [variables.property_address, variables.unit_number ? `Unit ${variables.unit_number}` : ""].filter(Boolean).join(", ")),
+        coverRow("PERIOD",   `${variables.commencement_date} – ${variables.end_date || "Month to month"}`),
+        coverRow("RENTAL",   `${variables.monthly_rent_formatted} per month`),
+        coverRow("DEPOSIT",  variables.deposit_formatted),
       ],
     }),
-    new Paragraph({ spacing: { after: 60 }, children: [] }),
+
+    new Paragraph({ spacing: { after: 40 }, children: [] }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      spacing: { after: 3000 },
+      spacing: { after: 2000 },
       children: [new TextRun({ text: "─────────────────────────────────────", size: 20, font: "Calibri", color: "CCCCCC" })],
     }),
     new Paragraph({
