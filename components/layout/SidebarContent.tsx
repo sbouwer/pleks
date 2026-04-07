@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
@@ -17,12 +18,12 @@ export interface NavGroup {
 }
 
 interface SidebarContentProps {
-  groups: NavGroup[]
-  homeHref: string
-  collapsed: boolean
-  onToggleCollapse?: () => void
-  onNavClick?: () => void
-  badge?: string
+  readonly groups: NavGroup[]
+  readonly homeHref: string
+  readonly collapsed: boolean
+  readonly onToggleCollapse?: () => void
+  readonly onNavClick?: () => void
+  readonly badge?: string
 }
 
 export function SidebarContent({
@@ -34,10 +35,21 @@ export function SidebarContent({
   badge,
 }: SidebarContentProps) {
   const pathname = usePathname()
+  const [optimisticPath, setOptimisticPath] = useState<string | null>(null)
+
+  // Reset optimistic path when real navigation completes
+  useEffect(() => { setOptimisticPath(null) }, [pathname]) // eslint-disable-line react-hooks/set-state-in-effect
+
+  const activePath = optimisticPath ?? pathname
 
   function isActive(href: string) {
-    if (href === homeHref) return pathname === homeHref
-    return pathname.startsWith(href)
+    if (href === homeHref) return activePath === homeHref
+    return activePath.startsWith(href)
+  }
+
+  function handleNavClick(href: string) {
+    setOptimisticPath(href)
+    onNavClick?.()
   }
 
   return (
@@ -97,7 +109,7 @@ export function SidebarContent({
                   <li key={item.href}>
                     <Link
                       href={item.href}
-                      onClick={onNavClick}
+                      onClick={() => handleNavClick(item.href)}
                       title={collapsed ? item.label : undefined}
                       className={cn(
                         "flex items-center rounded-lg py-2 text-sm font-medium transition-colors",

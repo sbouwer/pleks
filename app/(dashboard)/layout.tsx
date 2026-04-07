@@ -5,17 +5,19 @@ import { Sidebar, NAV_GROUPS } from "@/components/layout/Sidebar"
 import { Topbar } from "@/components/layout/TopBar"
 import { MobileNav } from "@/components/layout/MobileNav"
 import { InactivityGuard } from "@/components/layout/InactivityGuard"
+import { NavigationProgress } from "@/components/layout/NavigationProgress"
 
 export default function DashboardLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode
-}) {
+}>) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const handleOpenChange = useCallback((open: boolean) => setMobileNavOpen(open), [])
 
   return (
     <div className="flex h-screen overflow-hidden">
+      <NavigationProgress />
       <Sidebar />
       <MobileNav
         open={mobileNavOpen}

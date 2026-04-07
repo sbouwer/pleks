@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
+import { getServerOrgMembership } from "@/lib/auth/server"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -17,10 +18,10 @@ const STATUS_MAP: Record<string, "draft" | "scheduled" | "active" | "completed">
 }
 
 export default async function StatementsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const membership = await getServerOrgMembership()
+  if (!membership) redirect("/login")
 
+  const supabase = await createClient()
   const { data: statements } = await supabase
     .from("owner_statements")
     .select("id, period_month, gross_income_cents, total_expenses_cents, management_fee_cents, net_to_owner_cents, status, owner_payment_status, properties(name)")

@@ -12,17 +12,16 @@ export default async function NewPropertyPage() {
   const membership = await getServerOrgMembership()
   if (!membership) redirect("/login")
 
-  const tier = await getOrgTier(membership.org_id)
+  const { org_id: orgId } = membership
+  const supabase = await createClient()
+
+  const [tier, countRes] = await Promise.all([
+    getOrgTier(orgId),
+    supabase.from("properties").select("id", { count: "exact", head: true }).eq("org_id", orgId).is("deleted_at", null),
+  ])
 
   if (tier === "owner") {
-    const supabase = await createClient()
-    const { count } = await supabase
-      .from("properties")
-      .select("id", { count: "exact", head: true })
-      .eq("org_id", membership.org_id)
-      .is("deleted_at", null)
-
-    if ((count ?? 0) >= 1) {
+    if ((countRes.count ?? 0) >= 1) {
       return (
         <div className="max-w-md mx-auto mt-12">
           <div className="rounded-xl border border-border/60 bg-surface-elevated px-6 py-6 text-center space-y-4">

@@ -68,7 +68,7 @@ export async function proxy(request: NextRequest) {
       const service = await createServiceClient()
       const { data: orgs } = await service
         .from("user_orgs")
-        .select("org_id")
+        .select("org_id, role")
         .eq("user_id", user.id)
         .is("deleted_at", null)
         .limit(1)
@@ -77,13 +77,15 @@ export async function proxy(request: NextRequest) {
         return NextResponse.redirect(new URL("/onboarding", request.url))
       }
 
-      // Set cookie so this DB check is skipped on subsequent requests
-      supabaseResponse.cookies.set("pleks_has_org", "1", {
-        maxAge: 60 * 60 * 24 * 7, // 1 week
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-      })
+      const cookieOpts = { httpOnly: true, sameSite: "lax" as const, path: "/" }
+      // 1-week flag so this DB check is skipped on subsequent requests
+      supabaseResponse.cookies.set("pleks_has_org", "1", { ...cookieOpts, maxAge: 60 * 60 * 24 * 7 })
+      // 1-hour org cache so getServerOrgMembership() skips its own DB call
+      supabaseResponse.cookies.set("pleks_org", JSON.stringify({
+        org_id: orgs[0].org_id,
+        role: orgs[0].role,
+        user_id: user.id,
+      }), { ...cookieOpts, maxAge: 3600 })
     }
   }
 

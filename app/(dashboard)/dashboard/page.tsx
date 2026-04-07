@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
+import { getServerOrgMembership, getServerUser } from "@/lib/auth/server"
 import Link from "next/link"
 import { Check, Circle } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -19,6 +20,41 @@ import { getActivityFeed } from "@/lib/dashboard/activityFeed"
 import { getExpiringLeases } from "@/lib/dashboard/leaseExpiry"
 import { computeTrialDaysLeft } from "@/lib/trial/utils"
 
+type SubRow = { tier: string; status: string; trial_tier: string | null; trial_ends_at: string | null; trial_converted: boolean | null } | null
+
+function getGreeting(): string {
+  const hour = new Date().getHours()
+  if (hour < 12) return "Good morning"
+  if (hour < 17) return "Good afternoon"
+  return "Good evening"
+}
+
+function deriveTier(sub: SubRow): string {
+  if (sub?.status === "trialing" && !sub.trial_converted && sub.trial_tier) return sub.trial_tier
+  return sub?.tier ?? "owner"
+}
+
+function deriveTrialInfo(sub: SubRow) {
+  const isTrialing = sub?.status === "trialing" && !sub?.trial_converted
+  return { isTrialing, trialEndsAt: isTrialing ? sub?.trial_ends_at : null }
+}
+
+type SupabaseClient = Awaited<ReturnType<typeof import("@/lib/supabase/server").createClient>>
+
+async function getPortfolioCounts(supabase: SupabaseClient, orgId: string) {
+  const [propRes, unitRes] = await Promise.all([
+    supabase.from("properties").select("id", { count: "exact", head: true }).eq("org_id", orgId).is("deleted_at", null),
+    supabase.from("units").select("status, is_archived").eq("org_id", orgId).is("deleted_at", null).eq("is_archived", false),
+  ])
+  const activeUnits = unitRes.data ?? []
+  return {
+    totalProperties: propRes.count ?? 0,
+    totalUnits: activeUnits.length,
+    occupiedUnits: activeUnits.filter((u) => u.status === "occupied").length,
+    vacantUnits: activeUnits.filter((u) => u.status === "vacant").length,
+  }
+}
+
 const CHECKLIST = [
   { key: "org", label: "Organisation created", done: true },
   { key: "property", label: "Add your first property", href: "/properties" },
@@ -29,84 +65,51 @@ const CHECKLIST = [
 ]
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const [membership, user] = await Promise.all([
+    getServerOrgMembership(),
+    getServerUser(),
+  ])
+  if (!membership || !user) redirect("/login")
 
-  // Auth + org + profile in parallel
-  const [membershipRes, profileRes] = await Promise.all([
+  const { org_id: orgId } = membership
+  const supabase = await createClient()
+
+  // Org details + profile + subscription all in parallel
+  const [orgRes, profileRes, subRes] = await Promise.all([
     supabase
-      .from("user_orgs")
-      .select("org_id, organisations(has_trust_account, has_deposit_account, management_scope, founding_agent, founding_agent_price_cents)")
-      .eq("user_id", user.id)
-      .is("deleted_at", null)
+      .from("organisations")
+      .select("has_trust_account, has_deposit_account, management_scope, founding_agent, founding_agent_price_cents")
+      .eq("id", orgId)
       .single(),
     supabase
       .from("user_profiles")
       .select("full_name")
       .eq("id", user.id)
       .single(),
+    supabase
+      .from("subscriptions")
+      .select("tier, status, trial_tier, trial_ends_at, trial_converted")
+      .eq("org_id", orgId)
+      .in("status", ["active", "trialing"])
+      .single(),
   ])
 
-  const orgId = membershipRes.data?.org_id
-  const org = membershipRes.data?.organisations as unknown as Record<string, unknown> | null
+  const org = orgRes.data as unknown as Record<string, unknown> | null
   const firstName = profileRes.data?.full_name?.split(" ")[0] ?? "there"
+  const sub = subRes.data as SubRow
 
-  // Greeting
-  const hour = new Date().getHours()
-  const greeting =
-    hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"
-  const dateStr = new Date().toLocaleDateString("en-ZA", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  })
+  const greeting = getGreeting()
+  const dateStr = new Date().toLocaleDateString("en-ZA", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+  const tier = deriveTier(sub)
+  const { isTrialing, trialEndsAt } = deriveTrialInfo(sub)
+  const trialDaysLeft = computeTrialDaysLeft(trialEndsAt ?? null)
 
-  // Subscription
-  const { data: sub } = orgId
-    ? await supabase
-        .from("subscriptions")
-        .select("tier, status, trial_tier, trial_ends_at, trial_converted")
-        .eq("org_id", orgId)
-        .in("status", ["active", "trialing"])
-        .single()
-    : { data: null }
+  // Portfolio counts — needed to determine isNewOrg before the main data load
+  const { totalProperties, totalUnits, occupiedUnits, vacantUnits } =
+    await getPortfolioCounts(supabase, orgId)
 
-  const isTrialing = sub?.status === "trialing" && !sub?.trial_converted
-  const trialEndsAt = isTrialing ? sub?.trial_ends_at : null
-  const trialDaysLeft = computeTrialDaysLeft(trialEndsAt)
-  const tier = isTrialing && sub?.trial_tier ? sub.trial_tier : (sub?.tier || "owner")
-
-  // Portfolio counts (lightweight — needed to determine isNewOrg before parallel load)
-  let totalProperties = 0
-  let totalUnits = 0
-  let occupiedUnits = 0
-  let vacantUnits = 0
-
-  if (orgId) {
-    const [propRes, unitRes] = await Promise.all([
-      supabase
-        .from("properties")
-        .select("id", { count: "exact", head: true })
-        .eq("org_id", orgId)
-        .is("deleted_at", null),
-      supabase
-        .from("units")
-        .select("status, is_archived")
-        .eq("org_id", orgId)
-        .is("deleted_at", null)
-        .eq("is_archived", false),
-    ])
-    totalProperties = propRes.count ?? 0
-    const activeUnits = unitRes.data ?? []
-    totalUnits = activeUnits.length
-    occupiedUnits = activeUnits.filter((u) => u.status === "occupied").length
-    vacantUnits = activeUnits.filter((u) => u.status === "vacant").length
-  }
-
-  const showTrustBanner = tier !== "owner" && org?.has_trust_account !== true
   const isNewOrg = totalProperties === 0
+  const showTrustBanner = tier !== "owner" && org?.has_trust_account !== true
   const occupancyPercent = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0
 
   // All dashboard data in one Promise.all — no waterfalls
@@ -119,8 +122,9 @@ export default async function DashboardPage() {
     activityItems,
     expiringLeases,
     landlordsCountRes,
-  ] = orgId && !isNewOrg
-    ? await Promise.all([
+  ] = isNewOrg
+    ? [null, null, null, null, [], [], [], { count: 0 }]
+    : await Promise.all([
         getCollectionRate(orgId),
         getFeesDue(orgId),
         getTrustBalance(orgId),
@@ -128,17 +132,10 @@ export default async function DashboardPage() {
         getAttentionItems(orgId),
         getActivityFeed(orgId),
         getExpiringLeases(orgId),
-        supabase
-          .from("landlord_view")
-          .select("id", { count: "exact", head: true })
-          .eq("org_id", orgId),
+        supabase.from("landlord_view").select("id", { count: "exact", head: true }).eq("org_id", orgId),
       ])
-    : [null, null, null, null, [], [], [], { count: 0 }]
 
-  const totalLandlords =
-    typeof landlordsCountRes === "object" && landlordsCountRes !== null && "count" in landlordsCountRes
-      ? (landlordsCountRes.count ?? 0)
-      : 0
+  const totalLandlords = (landlordsCountRes && "count" in landlordsCountRes) ? (landlordsCountRes.count ?? 0) : 0
 
   return (
     <div className="space-y-5">
