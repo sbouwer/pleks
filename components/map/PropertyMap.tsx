@@ -11,7 +11,7 @@ export function PropertyMap({ street, city, province, className }: PropertyMapPr
   return (
     <iframe
       src={`https://maps.google.com/maps?q=${query}&output=embed&z=16`}
-      className={className}
+      className={`w-full ${className ?? ""}`}
       loading="lazy"
       referrerPolicy="no-referrer-when-downgrade"
       title="Property location"

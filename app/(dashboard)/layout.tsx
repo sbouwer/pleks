@@ -6,6 +6,7 @@ import { Topbar } from "@/components/layout/TopBar"
 import { MobileNav } from "@/components/layout/MobileNav"
 import { InactivityGuard } from "@/components/layout/InactivityGuard"
 import { NavigationProgress } from "@/components/layout/NavigationProgress"
+import { PortfolioPrefetcher } from "@/components/providers/PortfolioPrefetcher"
 
 export default function DashboardLayout({
   children,
@@ -18,6 +19,7 @@ export default function DashboardLayout({
   return (
     <div className="flex h-screen overflow-hidden">
       <NavigationProgress />
+      <PortfolioPrefetcher />
       <Sidebar />
       <MobileNav
         open={mobileNavOpen}
