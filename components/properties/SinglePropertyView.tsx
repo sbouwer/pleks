@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Edit, Building2, MapPin, Phone, Mail, ArrowUpRight } from "lucide-react"
+import { Edit, Building2, MapPin, Phone, Mail } from "lucide-react"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { BodyCorporateCard } from "./BodyCorporateCard"
 import { OwnerMetrics } from "./PropertyMetrics"
@@ -52,15 +52,14 @@ export interface SinglePropertyData {
       start_date: string
       end_date: string | null
       escalation_percent?: number | null
-      escalation_date?: string | null
+      escalation_review_date?: string | null
       tenant: {
         id: string
         contact: {
           first_name: string
           last_name: string
-          phone?: string | null
-          mobile?: string | null
-          email?: string | null
+          primary_phone?: string | null
+          primary_email?: string | null
         } | null
       } | null
     }[]
@@ -75,8 +74,8 @@ export interface CurrentInvoice {
 
 interface Props {
   readonly property: SinglePropertyData
-  readonly attentionItems: AttentionItem[]
-  readonly recentActivity: ActivityItem[]
+  readonly attentionItems?: AttentionItem[]
+  readonly recentActivity?: ActivityItem[]
   readonly tier?: string
   readonly orgId?: string
   readonly tenantByUnit?: Record<string, { tenantId: string; contactId: string; name: string; initials: string }>
@@ -130,7 +129,7 @@ function TenantCard({ lease, unitId }: Readonly<{
 
   const name = `${contact.first_name} ${contact.last_name}`.trim()
   const initials = [contact.first_name[0], contact.last_name[0]].filter(Boolean).join("").toUpperCase()
-  const phone = contact.mobile || contact.phone
+  const phone = contact.primary_phone
   const since = lease?.start_date
     ? new Date(lease.start_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
     : null
@@ -153,9 +152,9 @@ function TenantCard({ lease, unitId }: Readonly<{
             <Phone className="size-3 shrink-0" /> {phone}
           </a>
         )}
-        {contact.email && (
-          <a href={`mailto:${contact.email}`} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
-            <Mail className="size-3 shrink-0" /> {contact.email}
+        {contact.primary_email && (
+          <a href={`mailto:${contact.primary_email}`} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+            <Mail className="size-3 shrink-0" /> {contact.primary_email}
           </a>
         )}
       </div>
@@ -212,12 +211,12 @@ function LeaseSummaryCard({ lease, unitId }: Readonly<{
           <span className="text-muted-foreground">Period</span>
           <span className="font-medium">{start} – {end}</span>
         </div>
-        {lease.escalation_percent != null && lease.escalation_date && (
+        {lease.escalation_percent != null && lease.escalation_review_date && (
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Escalation</span>
             <span className="font-medium">
               {lease.escalation_percent}% on{" "}
-              {new Date(lease.escalation_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
+              {new Date(lease.escalation_review_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
             </span>
           </div>
         )}
@@ -236,8 +235,7 @@ function LeaseSummaryCard({ lease, unitId }: Readonly<{
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function SinglePropertyView({ property, tier = "owner", orgId = "", tenantByUnit = {}, currentInvoice = null }: Props) {
-  const activeUnits = property.units.filter(u => !u.is_archived)
-  const activeUnit = activeUnits[0] ?? null
+  const activeUnit = property.units.find(u => !u.is_archived) ?? null
   const activeLease = activeUnit?.leases.find(l => l.status === "active" || l.status === "notice") ?? null
   const leaseEndDate = activeLease?.end_date ?? null
   const unitStatus = activeUnit?.status ?? null
@@ -270,7 +268,7 @@ export function SinglePropertyView({ property, tier = "owner", orgId = "", tenan
     { icon: "R", iconBg: "bg-green-500", label: "Record payment", sub: "Log this month's rent", href: `/payments/new?unit=${activeUnit?.id ?? ""}` },
     { icon: "I", iconBg: "bg-blue-500", label: "Schedule inspection", sub: "Routine or move-out", href: `/inspections/new?unit=${activeUnit?.id ?? ""}` },
     { icon: "M", iconBg: "bg-amber-500", label: "Log maintenance", sub: "Report a problem", href: `/maintenance/new?unit=${activeUnit?.id ?? ""}` },
-    { icon: "D", iconBg: "bg-purple-500", label: "View deposit", sub: activeLease?.deposit_amount_cents != null ? `${formatZAR(activeLease.deposit_amount_cents)} held` : "Deposit details", href: "/finance/deposits" },
+    { icon: "D", iconBg: "bg-purple-500", label: "View deposit", sub: activeLease?.deposit_amount_cents ? `${formatZAR(activeLease.deposit_amount_cents)} held` : "Deposit details", href: "/finance/deposits" },
     { icon: "S", iconBg: "bg-blue-400", label: "Send notice", sub: "Renewal or termination", href: activeLease ? `/leases/${activeLease.id}/notice` : "/leases" },
     { icon: "E", iconBg: "bg-green-400", label: "Export documents", sub: "Lease, statement, receipts", href: `/reports?property=${property.id}` },
   ]
@@ -279,7 +277,7 @@ export function SinglePropertyView({ property, tier = "owner", orgId = "", tenan
     { icon: "L", iconBg: "bg-blue-400", label: "Create lease", sub: "Draft a new agreement", href: `/leases/new?unit=${activeUnit?.id ?? ""}` },
     { icon: "I", iconBg: "bg-blue-300", label: "Schedule inspection", sub: "Pre-listing or move-in", href: `/inspections/new?unit=${activeUnit?.id ?? ""}` },
     { icon: "A", iconBg: "bg-amber-500", label: "Create listing", sub: "Advertise your unit", href: `/applications/new?unit=${activeUnit?.id ?? ""}` },
-    { icon: "P", iconBg: "bg-purple-500", label: "Set asking rent", sub: activeUnit?.asking_rent_cents != null ? `Currently ${formatZAR(activeUnit.asking_rent_cents)}` : "Not set", href: `/properties/${property.id}/units/${activeUnit?.id ?? ""}/edit` },
+    { icon: "P", iconBg: "bg-purple-500", label: "Set asking rent", sub: activeUnit?.asking_rent_cents ? `Currently ${formatZAR(activeUnit.asking_rent_cents)}` : "Not set", href: `/properties/${property.id}/units/${activeUnit?.id ?? ""}/edit` },
     { icon: "B", iconBg: "bg-green-500", label: "Update branding", sub: "Logo and document style", href: "/settings/branding" },
   ]
   const quickActions = isOccupied ? occupiedActions : vacantActions

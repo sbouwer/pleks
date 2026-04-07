@@ -27,17 +27,17 @@ export default async function PropertiesPage({
       .select(`
         id, name, type, address_line1, address_line2, suburb, city, province, postal_code,
         managing_agent_id, is_sectional_title, levy_amount_cents, levy_account_number,
-        managing_scheme:managing_schemes(id, company_name),
+        managing_scheme:contractors!managing_scheme_id(id, company_name),
         units(
           id, unit_number, status, is_archived,
           bedrooms, bathrooms, size_m2, floor, parking_bays, furnished,
           asking_rent_cents, deposit_amount_cents, features, assigned_agent_id,
           leases(
             id, status, rent_amount_cents, deposit_amount_cents,
-            start_date, end_date, escalation_percent, escalation_date,
+            start_date, end_date, escalation_percent, escalation_review_date,
             tenant:tenants!tenant_id(
               id,
-              contact:contacts(first_name, last_name, phone, mobile, email)
+              contact:contacts(first_name, last_name, primary_phone, primary_email)
             )
           )
         )
