@@ -2,8 +2,6 @@ import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { getServerOrgMembership } from "@/lib/auth/server"
 import { getOrgTier } from "@/lib/tier/getOrgTier"
-import { getAttentionItems } from "@/lib/dashboard/attentionItems"
-import { getActivityFeed } from "@/lib/dashboard/activityFeed"
 import { SinglePropertyView, NoPropertyYet } from "@/components/properties/SinglePropertyView"
 import { PropertyCards } from "@/components/properties/PropertyCards"
 import { PropertyListView } from "@/components/properties/PropertyListView"
@@ -28,14 +26,19 @@ export default async function PropertiesPage({
       .from("properties")
       .select(`
         id, name, type, address_line1, address_line2, suburb, city, province, postal_code,
-        managing_agent_id,
+        managing_agent_id, is_sectional_title, levy_amount_cents, levy_account_number,
+        managing_scheme:managing_schemes(id, company_name),
         units(
           id, unit_number, status, is_archived,
           bedrooms, bathrooms, size_m2, floor, parking_bays, furnished,
           asking_rent_cents, deposit_amount_cents, features, assigned_agent_id,
           leases(
-            id, status, rent_amount_cents, start_date, end_date,
-            tenant:tenants!tenant_id(id, contact:contacts(first_name, last_name))
+            id, status, rent_amount_cents, deposit_amount_cents,
+            start_date, end_date, escalation_percent, escalation_date,
+            tenant:tenants!tenant_id(
+              id,
+              contact:contacts(first_name, last_name, phone, mobile, email)
+            )
           )
         )
       `)
@@ -44,41 +47,30 @@ export default async function PropertiesPage({
 
     if (!rawProperty) return <NoPropertyYet />
 
-    // Build tenant map for PropertyUnitsSection
-    const tenantByUnit: Record<string, { tenantId: string; contactId: string; name: string; initials: string }> = {}
-    for (const unit of rawProperty.units ?? []) {
-      const leases = unit.leases as unknown as Array<{
-        status: string
-        tenant: { id: string; contact: { first_name: string; last_name: string } | null } | null
-      }>
-      const activeLease = leases?.find(l => l.status === "active" || l.status === "notice")
-      const contact = activeLease?.tenant?.contact
-      if (activeLease?.tenant && contact) {
-        const name = `${contact.first_name} ${contact.last_name}`.trim()
-        tenantByUnit[unit.id] = {
-          tenantId: activeLease.tenant.id,
-          contactId: activeLease.tenant.id,
-          name,
-          initials: [contact.first_name[0], contact.last_name[0]].filter(Boolean).join("").toUpperCase(),
-        }
-      }
-    }
+    // Fetch current month invoice and unit clauses in parallel
+    const activeUnit = (rawProperty.units ?? [])[0]
+    const now = new Date()
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
-    const [attentionItems, activityItems] = await Promise.all([
-      getAttentionItems(orgId),
-      getActivityFeed(orgId),
-    ])
+    const invoiceRes = activeUnit
+      ? await supabase
+          .from("rent_invoices")
+          .select("total_amount_cents, amount_paid_cents, due_date")
+          .eq("unit_id", activeUnit.id)
+          .gte("period_from", monthStart)
+          .maybeSingle()
+      : { data: null }
 
     const property = rawProperty as unknown as SinglePropertyData
 
     return (
       <SinglePropertyView
         property={property}
-        attentionItems={attentionItems}
-        recentActivity={activityItems}
+        attentionItems={[]}
+        recentActivity={[]}
         tier={tier}
         orgId={orgId}
-        tenantByUnit={tenantByUnit}
+        currentInvoice={invoiceRes.data ?? null}
       />
     )
   }

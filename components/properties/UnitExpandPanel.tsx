@@ -23,6 +23,8 @@ interface UnitExpandPanelProps {
   propertyId: string
   propertyType: string
   onArchive: () => void
+  hideArchive?: boolean
+  hasActiveLease?: boolean
 }
 
 function DetailRow({ label, value }: { label: string; value: string | number | null | undefined }) {
@@ -35,7 +37,7 @@ function DetailRow({ label, value }: { label: string; value: string | number | n
   )
 }
 
-export function UnitExpandPanel({ unit, propertyId, propertyType, onArchive }: UnitExpandPanelProps) {
+export function UnitExpandPanel({ unit, propertyId, propertyType, onArchive, hideArchive = false, hasActiveLease = false }: UnitExpandPanelProps) {
   const fields = getVisibleFields(propertyType as "residential" | "commercial" | "mixed")
 
   const floorLabel = unit.floor == null
@@ -85,25 +87,29 @@ export function UnitExpandPanel({ unit, propertyId, propertyType, onArchive }: U
         >
           Edit unit
         </Link>
-        <Link
-          href={`/leases/new?unit=${unit.id}`}
-          className="rounded-lg border border-border/60 px-3 py-1.5 text-xs hover:border-border transition-colors"
-        >
-          Create lease
-        </Link>
+        {!hasActiveLease && (
+          <Link
+            href={`/leases/new?unit=${unit.id}`}
+            className="rounded-lg border border-border/60 px-3 py-1.5 text-xs hover:border-border transition-colors"
+          >
+            Create lease
+          </Link>
+        )}
         <Link
           href={`/inspections/new?unit=${unit.id}`}
           className="rounded-lg border border-border/60 px-3 py-1.5 text-xs hover:border-border transition-colors"
         >
           Schedule inspection
         </Link>
-        <button
-          type="button"
-          onClick={onArchive}
-          className="rounded-lg border border-danger/30 px-3 py-1.5 text-xs text-danger hover:bg-danger/5 transition-colors ml-auto"
-        >
-          Archive
-        </button>
+        {!hideArchive && (
+          <button
+            type="button"
+            onClick={onArchive}
+            className="rounded-lg border border-danger/30 px-3 py-1.5 text-xs text-danger hover:bg-danger/5 transition-colors ml-auto"
+          >
+            Archive
+          </button>
+        )}
       </div>
     </div>
   )

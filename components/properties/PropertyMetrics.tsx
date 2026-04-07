@@ -24,15 +24,40 @@ function leaseRemainingLabel(endDate: string | null): string {
   if (!endDate) return "No active lease"
   const days = Math.ceil((new Date(endDate).getTime() - Date.now()) / 86400000)
   if (days < 0) return "Expired"
+  if (days === 0) return "Last day"
   if (days <= 31) return `${days} days`
-  return `${Math.ceil(days / 30)} months`
+  const months = Math.ceil(days / 30)
+  return `${months} month${months !== 1 ? "s" : ""}`
+}
+
+function thisMonthLabel(
+  invoice: { total_amount_cents: number; amount_paid_cents: number | null; due_date: string } | null,
+  unitStatus: string | null
+): { label: string; cls: string; sub?: string } {
+  if (!unitStatus || unitStatus === "vacant") return { label: "No income", cls: "text-muted-foreground" }
+  if (!invoice) return { label: "No invoice", cls: "text-muted-foreground" }
+  const total = invoice.total_amount_cents
+  const paid = invoice.amount_paid_cents ?? 0
+  const due = new Date(invoice.due_date)
+  if (paid >= total) return { label: `${formatZARAbbrev(total)} paid`, cls: "text-green-500" }
+  if (Date.now() > due.getTime()) return { label: `${formatZARAbbrev(total)} overdue`, cls: "text-red-500" }
+  return {
+    label: `${formatZARAbbrev(total)} due`,
+    cls: "text-amber-500",
+    sub: `on ${due.toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}`,
+  }
+}
+
+interface CurrentInvoice {
+  total_amount_cents: number
+  amount_paid_cents: number | null
+  due_date: string
 }
 
 interface OwnerMetricsProps {
   readonly unitStatus: string | null
-  readonly rentCents: number | null
   readonly leaseEndDate: string | null
-  readonly collectionPct: number | null
+  readonly currentInvoice: CurrentInvoice | null
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -45,31 +70,17 @@ const STATUS_CLASS: Record<string, string> = {
   notice: "text-amber-500",
 }
 
-function collectionLabel(pct: number | null): string {
-  if (pct == null) return "Pending"
-  if (pct >= 100) return "100%"
-  return `${pct}%`
-}
-
-function collectionClass(pct: number | null): string {
-  if (pct == null) return "text-amber-500"
-  if (pct >= 100) return "text-green-500"
-  return "text-red-500"
-}
-
-export function OwnerMetrics({ unitStatus, rentCents, leaseEndDate, collectionPct }: OwnerMetricsProps) {
+export function OwnerMetrics({ unitStatus, leaseEndDate, currentInvoice }: OwnerMetricsProps) {
   const statusLabel = (unitStatus && STATUS_LABEL[unitStatus]) ?? "—"
   const statusClass = (unitStatus && STATUS_CLASS[unitStatus]) ?? "text-red-500"
   const leaseLabel = leaseRemainingLabel(leaseEndDate)
-  const collLabel = collectionLabel(collectionPct)
-  const collClass = collectionClass(collectionPct)
+  const thisMonth = thisMonthLabel(currentInvoice, unitStatus)
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+    <div className="grid grid-cols-3 gap-3 mb-5">
       <MetricCard label="Status" value={statusLabel} valueClass={statusClass} />
-      <MetricCard label="Rent" value={rentCents ? formatZARAbbrev(rentCents) : "—"} sub="per month" />
+      <MetricCard label="This month" value={thisMonth.label} valueClass={thisMonth.cls} sub={thisMonth.sub} />
       <MetricCard label="Lease remaining" value={leaseLabel} />
-      <MetricCard label="Collection" value={collLabel} valueClass={collClass} sub="this month" />
     </div>
   )
 }
