@@ -6,28 +6,13 @@ import { createClient } from "@/lib/supabase/server"
  * Cached per-request server auth helpers.
  * React.cache() deduplicates identical calls within a single SSR render tree.
  *
- * getSession()  — reads JWT from cookie, zero network call.
- *   Safe for page loads: RLS validates the JWT on every PostgREST query anyway.
- *   The only thing getUser() adds is checking GoTrue for token revocation —
- *   a rare event (admin manually disabling a user) with a 1-hour impact window.
- *
- * getServerUserVerified() — makes a network call to GoTrue.
- *   Use ONLY for sensitive writes: password change, email change, payments.
+ * getServerUser() calls getUser() which verifies the token against GoTrue.
+ * This is the Supabase-recommended approach on the server — avoids the
+ * "insecure getSession()" warning and prevents spoofed cookie attacks.
+ * The React.cache() wrapper ensures only one GoTrue round-trip per render tree.
  */
 
-export const getServerSession = cache(async () => {
-  const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  return session
-})
-
 export const getServerUser = cache(async () => {
-  const session = await getServerSession()
-  return session?.user ?? null
-})
-
-/** Network call to GoTrue — use only for sensitive operations. */
-export const getServerUserVerified = cache(async () => {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   return user

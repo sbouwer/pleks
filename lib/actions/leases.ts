@@ -151,6 +151,26 @@ export async function createLease(formData: FormData) {
     } catch { /* ignore malformed */ }
   }
 
+  // Persist per-lease clause selections (overrides org defaults for this lease)
+  const clauseSelectionsRaw = formData.get("clause_selections") as string | null
+  if (clauseSelectionsRaw) {
+    try {
+      const clauseSelections = JSON.parse(clauseSelectionsRaw) as Record<string, boolean>
+      const rows = Object.entries(clauseSelections).map(([clause_key, enabled]) => ({
+        org_id: orgId,
+        lease_id: lease.id,
+        clause_key,
+        enabled,
+      }))
+      if (rows.length > 0) {
+        await supabase.from("lease_clause_selections").upsert(rows, {
+          onConflict: "org_id,lease_id,clause_key",
+          ignoreDuplicates: false,
+        })
+      }
+    } catch { /* ignore malformed */ }
+  }
+
   // Reflect draft tenant on the unit so the property page shows who is linked
   await supabase.from("units").update({
     prospective_tenant_id: tenantId,
