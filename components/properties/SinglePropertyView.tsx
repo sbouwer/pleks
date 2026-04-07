@@ -72,10 +72,6 @@ export interface CurrentInvoice {
 
 interface Props {
   readonly property: SinglePropertyData
-
-  readonly tier?: string
-  readonly orgId?: string
-  readonly tenantByUnit?: Record<string, { tenantId: string; contactId: string; name: string; initials: string }>
   readonly currentInvoice?: CurrentInvoice | null
 }
 
@@ -105,9 +101,8 @@ function QuickActionCard({ action }: Readonly<{ action: ActionCard }>) {
 
 // ── Tenant card ───────────────────────────────────────────────────────────────
 
-function TenantCard({ lease, unitId }: Readonly<{
+function TenantCard({ lease }: Readonly<{
   lease: SinglePropertyData["units"][0]["leases"][0] | null
-  unitId: string
 }>) {
   const tenant = lease?.tenant ?? null
   const contact = tenant?.contact ?? null
@@ -231,7 +226,7 @@ function LeaseSummaryCard({ lease, unitId }: Readonly<{
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function SinglePropertyView({ property, tier = "owner", orgId = "", tenantByUnit = {}, currentInvoice = null }: Props) {
+export function SinglePropertyView({ property, currentInvoice = null }: Props) {
   const activeUnit = property.units.find(u => !u.is_archived) ?? null
   const activeLease = activeUnit?.leases.find(l => l.status === "active" || l.status === "notice") ?? null
   const leaseEndDate = activeLease?.end_date ?? null
@@ -270,12 +265,12 @@ export function SinglePropertyView({ property, tier = "owner", orgId = "", tenan
     { icon: "E", iconBg: "bg-green-400", label: "Export documents", sub: "Lease, statement, receipts", href: `/reports?property=${property.id}` },
   ]
   const vacantActions: ActionCard[] = [
-    { icon: "T", iconBg: "bg-blue-500", label: "Add tenant", sub: "Start the rental process", href: "/tenants/new" },
-    { icon: "L", iconBg: "bg-blue-400", label: "Create lease", sub: "Draft a new agreement", href: `/leases/new?unit=${activeUnit?.id ?? ""}` },
-    { icon: "I", iconBg: "bg-blue-300", label: "Schedule inspection", sub: "Pre-listing or move-in", href: `/inspections/new?unit=${activeUnit?.id ?? ""}` },
+    { icon: "I", iconBg: "bg-blue-500", label: "Schedule inspection", sub: "Pre-listing or move-in", href: `/inspections/new?unit=${activeUnit?.id ?? ""}` },
     { icon: "A", iconBg: "bg-amber-500", label: "Create listing", sub: "Advertise your unit", href: `/applications/new?unit=${activeUnit?.id ?? ""}` },
     { icon: "P", iconBg: "bg-purple-500", label: "Set asking rent", sub: activeUnit?.asking_rent_cents ? `Currently ${formatZAR(activeUnit.asking_rent_cents)}` : "Not set", href: `/properties/${property.id}/units/${activeUnit?.id ?? ""}/edit` },
+    { icon: "M", iconBg: "bg-amber-400", label: "Log maintenance", sub: "Report a problem", href: `/maintenance/new?unit=${activeUnit?.id ?? ""}` },
     { icon: "B", iconBg: "bg-green-500", label: "Update branding", sub: "Logo and document style", href: "/settings/branding" },
+    { icon: "E", iconBg: "bg-green-400", label: "Edit property", sub: "Details and address", href: `/properties/${property.id}/edit` },
   ]
   const quickActions = isOccupied ? occupiedActions : vacantActions
 
@@ -354,7 +349,7 @@ export function SinglePropertyView({ property, tier = "owner", orgId = "", tenan
 
       {/* Tenant + Lease summary */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-        <TenantCard lease={activeLease} unitId={activeUnit?.id ?? ""} />
+        <TenantCard lease={activeLease} />
         <LeaseSummaryCard lease={activeLease} unitId={activeUnit?.id ?? ""} />
       </div>
 
