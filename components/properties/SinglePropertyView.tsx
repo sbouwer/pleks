@@ -48,9 +48,32 @@ export interface SinglePropertyData {
 }
 
 interface Props {
-  property: SinglePropertyData
-  attentionItems: AttentionItem[]
-  recentActivity: ActivityItem[]
+  readonly property: SinglePropertyData
+  readonly attentionItems: AttentionItem[]
+  readonly recentActivity: ActivityItem[]
+}
+
+function tenantDisplay(tenantName: string | null, tenantId: string | undefined) {
+  if (tenantName && tenantId) {
+    return <Link href={`/tenants/${tenantId}`} className="text-brand hover:underline underline-offset-2">{tenantName}</Link>
+  }
+  return <span className="text-muted-foreground">{tenantName ?? "Vacant"}</span>
+}
+
+function unitStatusBadge(status: string) {
+  const classMap: Record<string, string> = {
+    occupied: "bg-green-500/10 text-green-600",
+    notice: "bg-amber-500/10 text-amber-600",
+  }
+  const labelMap: Record<string, string> = {
+    occupied: "Occupied",
+    notice: "Notice given",
+  }
+  return (
+    <span className={cn("text-xs font-medium px-1.5 py-0.5 rounded", classMap[status] ?? "bg-red-500/10 text-red-600")}>
+      {labelMap[status] ?? "Vacant"}
+    </span>
+  )
 }
 
 export function SinglePropertyView({ property, attentionItems, recentActivity }: Props) {
@@ -116,30 +139,11 @@ export function SinglePropertyView({ property, attentionItems, recentActivity }:
               <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70 mb-2">Unit</p>
               <div className="flex items-center gap-4 text-sm">
                 <span className="font-medium">{activeUnit.unit_number ?? "Unit 1"}</span>
-                {tenantName && tenant?.id ? (
-                  <Link href={`/tenants/${tenant.id}`} className="text-brand hover:underline underline-offset-2">
-                    {tenantName}
-                  </Link>
-                ) : tenantName ? (
-                  <span className="text-muted-foreground">{tenantName}</span>
-                ) : (
-                  <span className="text-muted-foreground">Vacant</span>
-                )}
+                {tenantDisplay(tenantName, tenant?.id)}
                 {rentCents != null && rentCents > 0 && (
                   <span className="text-muted-foreground">{formatZAR(rentCents)}</span>
                 )}
-                {activeUnit.status && (
-                  <span className={cn(
-                    "text-xs font-medium px-1.5 py-0.5 rounded",
-                    activeUnit.status === "occupied" ? "bg-green-500/10 text-green-600"
-                    : activeUnit.status === "notice" ? "bg-amber-500/10 text-amber-600"
-                    : "bg-red-500/10 text-red-600"
-                  )}>
-                    {activeUnit.status === "occupied" ? "Occupied"
-                      : activeUnit.status === "notice" ? "Notice given"
-                      : "Vacant"}
-                  </span>
-                )}
+                {activeUnit.status && unitStatusBadge(activeUnit.status)}
               </div>
             </div>
           )}
@@ -158,8 +162,8 @@ export function SinglePropertyView({ property, attentionItems, recentActivity }:
             schemeName={property.managing_scheme?.company_name ?? null}
             managingAgentCompany={null}
             schemeId={property.managing_scheme?.id ?? null}
-            levyCents={property.levy_amount_cents}
-            levyAccount={property.levy_account_number}
+            levyCents={property.levy_amount_cents ?? null}
+            levyAccount={property.levy_account_number ?? null}
           />
         </div>
       )}
