@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
 import { Info } from "lucide-react"
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
 import type { WizardData } from "../LeaseWizard"
 
 interface Props {
@@ -156,6 +157,18 @@ export function LeaseTermsStep({ data, onBack, onNext }: Readonly<Props>) {
               className="accent-brand"
             />
             CPA s14 applies
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger>
+                  <Info className="size-3.5 text-muted-foreground cursor-help flex-shrink-0" />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-72 text-left leading-relaxed">
+                  <strong>Consumer Protection Act s14 — Fixed-term contracts</strong>
+                  <br />
+                  Applies to leases where the consumer (tenant) is a natural person. The tenant may cancel a fixed-term lease on 20 business days&apos; written notice, regardless of the remaining term. The landlord may charge a reasonable cancellation penalty. CPA protections cannot be waived by agreement.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </label>
         )}
       </div>
