@@ -8,7 +8,7 @@ import { OwnerUnitPanel } from "./OwnerUnitPanel"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { UpgradeCta } from "@/components/shared/UpgradeCta"
 import { AskingRentCard } from "./AskingRentCard"
-import { NoTenantCard } from "./NoTenantCard"
+import { VacantSection } from "./VacantSection"
 import { formatZAR } from "@/lib/constants"
 
 export interface SinglePropertyData {
@@ -282,7 +282,7 @@ export function SinglePropertyView({ property, currentInvoice = null, orgId = ""
     { icon: "E", iconBg: "bg-green-400", label: "Export documents", sub: "Lease, statement, receipts", href: `/reports?property=${property.id}` },
   ]
   const vacantActions: ActionCard[] = [
-    { icon: "I", iconBg: "bg-blue-500", label: "Schedule inspection", sub: "Pre-listing or move-in", href: `/inspections/new?unit=${activeUnit?.id ?? ""}` },
+    { icon: "I", iconBg: "bg-blue-500", label: "Schedule inspection", sub: "Pre-listing or move-in", href: `/inspections/new?property=${property.id}&unit=${activeUnit?.id ?? ""}` },
     { icon: "A", iconBg: "bg-amber-500", label: "Create listing", sub: "Advertise your unit", href: "", disabled: true },
     // "Set asking rent" rendered separately as AskingRentCard below
     { icon: "M", iconBg: "bg-amber-400", label: "Log maintenance", sub: "Report a problem", href: `/maintenance/new?unit=${activeUnit?.id ?? ""}` },
@@ -365,14 +365,16 @@ export function SinglePropertyView({ property, currentInvoice = null, orgId = ""
       )}
 
       {/* Tenant + Lease summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-        {activeLease ? (
+      {activeLease ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
           <TenantCard lease={activeLease} />
-        ) : (
-          <NoTenantCard unitId={activeUnit?.id ?? ""} propertyId={property.id} orgId={orgId} />
-        )}
-        <LeaseSummaryCard lease={activeLease} unitId={activeUnit?.id ?? ""} />
-      </div>
+          <LeaseSummaryCard lease={activeLease} unitId={activeUnit?.id ?? ""} />
+        </div>
+      ) : (
+        <div className="mb-4">
+          <VacantSection propertyId={property.id} unitId={activeUnit?.id ?? ""} orgId={orgId} />
+        </div>
+      )}
 
       {/* Quick actions — 2×3 contextual grid */}
       <div className="mb-4">
