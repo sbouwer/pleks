@@ -1,21 +1,19 @@
 import { createClient } from "@/lib/supabase/server"
+import { getServerOrgMembership } from "@/lib/auth/server"
 import { SettingsNav } from "./SettingsNav"
 
 type OrgType = "landlord" | "sole_prop" | "agency"
 
 async function getOrgType(): Promise<OrgType> {
+  const membership = await getServerOrgMembership()
+  if (!membership) return "agency"
+
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return "agency"
-
-  const { data } = await supabase
-    .from("user_orgs")
-    .select("organisations(type, user_type)")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
+  const { data: org } = await supabase
+    .from("organisations")
+    .select("type, user_type")
+    .eq("id", membership.org_id)
     .single()
-
-  const org = data && !Array.isArray(data.organisations) ? data.organisations : null
   if (!org) return "agency"
 
   if (org.type === "landlord" || org.user_type === "owner") return "landlord"
