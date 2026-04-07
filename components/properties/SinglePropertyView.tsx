@@ -7,6 +7,8 @@ import { OwnerMetrics } from "./PropertyMetrics"
 import { OwnerUnitPanel } from "./OwnerUnitPanel"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { UpgradeCta } from "@/components/shared/UpgradeCta"
+import { AskingRentCard } from "./AskingRentCard"
+import { NoTenantCard } from "./NoTenantCard"
 import { formatZAR } from "@/lib/constants"
 
 export interface SinglePropertyData {
@@ -73,6 +75,7 @@ export interface CurrentInvoice {
 interface Props {
   readonly property: SinglePropertyData
   readonly currentInvoice?: CurrentInvoice | null
+  readonly orgId?: string
 }
 
 // ── Quick action card ─────────────────────────────────────────────────────────
@@ -83,9 +86,23 @@ interface ActionCard {
   label: string
   sub: string
   href: string
+  disabled?: boolean
 }
 
 function QuickActionCard({ action }: Readonly<{ action: ActionCard }>) {
+  if (action.disabled) {
+    return (
+      <div className="flex items-start gap-3 rounded-xl border border-border/40 bg-surface-elevated/60 px-4 py-3 opacity-50 cursor-not-allowed">
+        <div className={`shrink-0 size-7 rounded-lg flex items-center justify-center text-xs font-bold text-white ${action.iconBg}`}>
+          {action.icon}
+        </div>
+        <div className="min-w-0">
+          <p className="text-[13px] font-medium leading-tight">{action.label}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">Coming soon</p>
+        </div>
+      </div>
+    )
+  }
   return (
     <Link href={action.href} className="flex items-start gap-3 rounded-xl border border-border/60 bg-surface-elevated px-4 py-3 hover:border-brand/40 transition-colors">
       <div className={`shrink-0 size-7 rounded-lg flex items-center justify-center text-xs font-bold text-white ${action.iconBg}`}>
@@ -226,7 +243,7 @@ function LeaseSummaryCard({ lease, unitId }: Readonly<{
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function SinglePropertyView({ property, currentInvoice = null }: Props) {
+export function SinglePropertyView({ property, currentInvoice = null, orgId = "" }: Props) {
   const activeUnit = property.units.find(u => !u.is_archived) ?? null
   const activeLease = activeUnit?.leases.find(l => l.status === "active" || l.status === "notice") ?? null
   const leaseEndDate = activeLease?.end_date ?? null
@@ -257,17 +274,17 @@ export function SinglePropertyView({ property, currentInvoice = null }: Props) {
   // Quick actions — contextual
   const isOccupied = unitStatus === "occupied" || unitStatus === "notice"
   const occupiedActions: ActionCard[] = [
-    { icon: "R", iconBg: "bg-green-500", label: "Record payment", sub: "Log this month's rent", href: `/payments/new?unit=${activeUnit?.id ?? ""}` },
+    { icon: "R", iconBg: "bg-green-500", label: "Record payment", sub: "Log this month's rent", href: "", disabled: true },
     { icon: "I", iconBg: "bg-blue-500", label: "Schedule inspection", sub: "Routine or move-out", href: `/inspections/new?unit=${activeUnit?.id ?? ""}` },
     { icon: "M", iconBg: "bg-amber-500", label: "Log maintenance", sub: "Report a problem", href: `/maintenance/new?unit=${activeUnit?.id ?? ""}` },
-    { icon: "D", iconBg: "bg-purple-500", label: "View deposit", sub: activeLease?.deposit_amount_cents ? `${formatZAR(activeLease.deposit_amount_cents)} held` : "Deposit details", href: "/finance/deposits" },
-    { icon: "S", iconBg: "bg-blue-400", label: "Send notice", sub: "Renewal or termination", href: activeLease ? `/leases/${activeLease.id}/notice` : "/leases" },
+    { icon: "D", iconBg: "bg-purple-500", label: "View deposit", sub: activeLease?.deposit_amount_cents ? `${formatZAR(activeLease.deposit_amount_cents)} held` : "Deposit details", href: "", disabled: true },
+    { icon: "S", iconBg: "bg-blue-400", label: "Send notice", sub: "Renewal or termination", href: "", disabled: true },
     { icon: "E", iconBg: "bg-green-400", label: "Export documents", sub: "Lease, statement, receipts", href: `/reports?property=${property.id}` },
   ]
   const vacantActions: ActionCard[] = [
     { icon: "I", iconBg: "bg-blue-500", label: "Schedule inspection", sub: "Pre-listing or move-in", href: `/inspections/new?unit=${activeUnit?.id ?? ""}` },
-    { icon: "A", iconBg: "bg-amber-500", label: "Create listing", sub: "Advertise your unit", href: `/applications/new?unit=${activeUnit?.id ?? ""}` },
-    { icon: "P", iconBg: "bg-purple-500", label: "Set asking rent", sub: activeUnit?.asking_rent_cents ? `Currently ${formatZAR(activeUnit.asking_rent_cents)}` : "Not set", href: `/properties/${property.id}/units/${activeUnit?.id ?? ""}/edit` },
+    { icon: "A", iconBg: "bg-amber-500", label: "Create listing", sub: "Advertise your unit", href: "", disabled: true },
+    // "Set asking rent" rendered separately as AskingRentCard below
     { icon: "M", iconBg: "bg-amber-400", label: "Log maintenance", sub: "Report a problem", href: `/maintenance/new?unit=${activeUnit?.id ?? ""}` },
     { icon: "B", iconBg: "bg-green-500", label: "Update branding", sub: "Logo and document style", href: "/settings/branding" },
     { icon: "E", iconBg: "bg-green-400", label: "Edit property", sub: "Details and address", href: `/properties/${property.id}/edit` },
@@ -349,7 +366,11 @@ export function SinglePropertyView({ property, currentInvoice = null }: Props) {
 
       {/* Tenant + Lease summary */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-        <TenantCard lease={activeLease} />
+        {activeLease ? (
+          <TenantCard lease={activeLease} />
+        ) : (
+          <NoTenantCard unitId={activeUnit?.id ?? ""} orgId={orgId} />
+        )}
         <LeaseSummaryCard lease={activeLease} unitId={activeUnit?.id ?? ""} />
       </div>
 
@@ -360,6 +381,12 @@ export function SinglePropertyView({ property, currentInvoice = null }: Props) {
           {quickActions.map(action => (
             <QuickActionCard key={action.label} action={action} />
           ))}
+          {!isOccupied && activeUnit && (
+            <AskingRentCard
+              unitId={activeUnit.id}
+              currentRentCents={activeUnit.asking_rent_cents ?? null}
+            />
+          )}
         </div>
       </div>
 

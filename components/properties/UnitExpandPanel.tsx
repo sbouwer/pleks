@@ -82,7 +82,7 @@ export function UnitExpandPanel({ unit, propertyId, propertyType, onArchive, hid
       {/* Action buttons */}
       <div className="flex flex-wrap items-center gap-2 border-t border-border/30 pt-3">
         <Link
-          href={`/properties/${propertyId}/units/${unit.id}/edit`}
+          href={`/properties/${propertyId}/units/${unit.id}`}
           className="rounded-lg border border-border/60 px-3 py-1.5 text-xs hover:border-border transition-colors"
         >
           Edit unit

@@ -141,6 +141,10 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="">— None —</SelectItem>
+              {/* If the saved agent is no longer in the members list, show a disabled placeholder */}
+              {managedBy && !members.some((m) => m.user_id === managedBy) && (
+                <SelectItem value={managedBy} disabled>Unknown agent (removed)</SelectItem>
+              )}
               {members.map((m) => (
                 <SelectItem key={m.user_id} value={m.user_id}>
                   {m.user_profiles?.full_name || "Unnamed"}{" "}

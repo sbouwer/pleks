@@ -120,6 +120,22 @@ export async function updateUnit(unitId: string, propertyId: string, formData: F
   redirect(`/properties/${propertyId}`)
 }
 
+export async function updateAskingRent(unitId: string, rentCents: number): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Not authenticated" }
+
+  const { error } = await supabase
+    .from("units")
+    .update({ asking_rent_cents: rentCents })
+    .eq("id", unitId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath("/properties")
+  return {}
+}
+
 export async function updateUnitStatus(
   unitId: string,
   propertyId: string,

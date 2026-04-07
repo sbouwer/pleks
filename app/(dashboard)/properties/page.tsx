@@ -67,6 +67,7 @@ export default async function PropertiesPage({
       <SinglePropertyView
         property={property}
         currentInvoice={invoiceRes.data ?? null}
+        orgId={orgId}
       />
     )
   }

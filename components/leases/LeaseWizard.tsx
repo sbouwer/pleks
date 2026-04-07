@@ -36,6 +36,8 @@ export interface WizardData {
   // Step 2
   tenantId: string
   tenantName: string
+  coTenantId: string
+  coTenantName: string
   // Step 3
   startDate: string
   endDate: string
@@ -95,6 +97,8 @@ export function LeaseWizard({
     bcLevyCents: null,
     tenantId: initialTenantId ?? "",
     tenantName: initialTenantName ?? "",
+    coTenantId: "",
+    coTenantName: "",
     startDate: "",
     endDate: "",
     isFixedTerm: true,
