@@ -1,4 +1,4 @@
-import { createServiceClient } from "@/lib/supabase/server"
+import { getCachedServiceClient } from "@/lib/supabase/server"
 
 export interface TrustBalanceSummary {
   total_in_trust_cents: number
@@ -9,7 +9,7 @@ export interface TrustBalanceSummary {
 }
 
 export async function getTrustBalance(orgId: string): Promise<TrustBalanceSummary> {
-  const supabase = await createServiceClient()
+  const supabase = await getCachedServiceClient()
 
   // Sum all trust transactions by type
   const { data: transactions } = await supabase

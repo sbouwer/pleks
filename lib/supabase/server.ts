@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
+import { cache } from "react"
 
 export async function createClient() {
   const cookieStore = await cookies()
@@ -34,3 +35,16 @@ export async function createServiceClient() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 }
+
+/**
+ * React.cache()-wrapped service client — deduplicates across all dashboard helper
+ * functions within a single SSR render tree (one import, one client per request).
+ * Do NOT use in API routes or cron jobs — those have their own request scope.
+ */
+export const getCachedServiceClient = cache(async () => {
+  const { createClient } = await import("@supabase/supabase-js")
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+})

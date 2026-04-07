@@ -1,4 +1,4 @@
-import { createServiceClient } from "@/lib/supabase/server"
+import { getCachedServiceClient } from "@/lib/supabase/server"
 
 export interface FeesDueWidget {
   total_fees_due_cents: number
@@ -9,7 +9,7 @@ export interface FeesDueWidget {
 }
 
 export async function getFeesDue(orgId: string): Promise<FeesDueWidget> {
-  const supabase = await createServiceClient()
+  const supabase = await getCachedServiceClient()
 
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)

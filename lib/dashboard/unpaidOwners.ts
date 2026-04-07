@@ -1,4 +1,4 @@
-import { createServiceClient } from "@/lib/supabase/server"
+import { getCachedServiceClient } from "@/lib/supabase/server"
 
 export interface UnpaidOwnerRow {
   statement_id: string
@@ -17,7 +17,7 @@ export interface UnpaidOwnersData {
 }
 
 export async function getUnpaidOwners(orgId: string, periodMonth?: Date): Promise<UnpaidOwnersData> {
-  const supabase = await createServiceClient()
+  const supabase = await getCachedServiceClient()
 
   const now = new Date()
   const month = periodMonth ?? new Date(now.getFullYear(), now.getMonth(), 1)

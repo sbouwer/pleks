@@ -1,4 +1,4 @@
-import { createServiceClient } from "@/lib/supabase/server"
+import { getCachedServiceClient } from "@/lib/supabase/server"
 
 export interface AttentionItem {
   id: string
@@ -13,7 +13,7 @@ export interface AttentionItem {
 }
 
 export async function getAttentionItems(orgId: string): Promise<AttentionItem[]> {
-  const supabase = await createServiceClient()
+  const supabase = await getCachedServiceClient()
   const now = new Date()
   const sixtyDaysOut = new Date(now)
   sixtyDaysOut.setDate(now.getDate() + 60)
