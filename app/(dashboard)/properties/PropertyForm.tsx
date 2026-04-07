@@ -1,6 +1,6 @@
 "use client"
 
-import { useActionState } from "react"
+import { useActionState, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -28,7 +28,61 @@ interface PropertyFormProps {
     erf_number?: string
     sectional_title_number?: string
     notes?: string
+    is_sectional_title?: boolean
+    levy_amount_cents?: number | null
+    levy_account_number?: string | null
   }
+}
+
+function BodyCorporateSection({ defaultValues }: Readonly<{ defaultValues: PropertyFormProps["defaultValues"] }>) {
+  const [isSectional, setIsSectional] = useState(defaultValues?.is_sectional_title ?? false)
+
+  function toggle() { setIsSectional(!isSectional) }
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-lg font-medium">Body corporate</h2>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={isSectional}
+          onClick={toggle}
+          className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors ${isSectional ? "bg-brand" : "bg-muted"}`}
+        >
+          <span className={`pointer-events-none block size-4 rounded-full bg-white shadow transition-transform ${isSectional ? "translate-x-4" : "translate-x-0"}`} />
+        </button>
+        <input type="hidden" name="is_sectional_title" value={isSectional ? "true" : "false"} />
+        <Label className="cursor-pointer" onClick={toggle}>
+          Part of a sectional title scheme
+        </Label>
+      </div>
+      {isSectional && (
+        <div className="grid grid-cols-2 gap-4 pl-1">
+          <div className="space-y-2">
+            <Label htmlFor="levy_amount">Monthly levy (R)</Label>
+            <Input
+              id="levy_amount"
+              name="levy_amount_cents_display"
+              type="number"
+              step="0.01"
+              placeholder="1850.00"
+              defaultValue={defaultValues?.levy_amount_cents != null ? defaultValues.levy_amount_cents / 100 : ""}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="levy_account_number">Levy account number</Label>
+            <Input
+              id="levy_account_number"
+              name="levy_account_number"
+              placeholder="BC-00412"
+              defaultValue={defaultValues?.levy_account_number ?? ""}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function PropertyForm({ action, defaultValues }: PropertyFormProps) {
@@ -120,6 +174,9 @@ export function PropertyForm({ action, defaultValues }: PropertyFormProps) {
           </div>
         </div>
       </div>
+
+      {/* Body corporate */}
+      <BodyCorporateSection defaultValues={defaultValues} />
 
       {/* Notes */}
       <div className="space-y-2">

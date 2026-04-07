@@ -86,6 +86,30 @@ export function NewLeaseForm() {
   // Step 5
   const [specialTerms, setSpecialTerms] = useState<SpecialTerm[]>([])
 
+  // Body corporate levy suggestion (fetched when propertyId is known)
+  const [bcLevyCents, setBcLevyCents] = useState<number | null>(null)
+  const [includeBCLevy, setIncludeBCLevy] = useState(false)
+
+  useEffect(() => {
+    if (!propertyId) return
+    let cancelled = false
+    async function fetchBC() {
+      const { createClient } = await import("@/lib/supabase/client")
+      const supabase = createClient()
+      const { data } = await supabase
+        .from("properties")
+        .select("is_sectional_title, levy_amount_cents")
+        .eq("id", propertyId)
+        .single()
+      if (!cancelled && data?.is_sectional_title && data.levy_amount_cents) {
+        setBcLevyCents(data.levy_amount_cents)
+        setIncludeBCLevy(true) // pre-checked, agent can uncheck
+      }
+    }
+    fetchBC()
+    return () => { cancelled = true }
+  }, [propertyId])
+
   function addSpecialTerm() {
     setSpecialTerms([...specialTerms, { type: "custom", detail: "" }])
   }
@@ -119,6 +143,9 @@ export function NewLeaseForm() {
     formData.set("escalation_type", escalationType)
     if (depositAmount) formData.set("deposit_amount", depositAmount)
     formData.set("deposit_interest_to", depositInterestTo)
+    if (includeBCLevy && bcLevyCents) {
+      formData.set("bc_levy_cents", String(bcLevyCents))
+    }
     formData.set("deposit_interest_rate", depositInterestRate)
     formData.set("arrears_interest_enabled", String(arrearsInterestEnabled))
     formData.set("arrears_interest_margin", arrearsMargin)
@@ -250,6 +277,26 @@ export function NewLeaseForm() {
               <Input type="number" min="0" max="25" step="0.5" value={escalationPercent} onChange={(e) => setEscalationPercent(e.target.value)} />
             </div>
           </div>
+          {bcLevyCents != null && bcLevyCents > 0 && (
+            <div className="flex items-start gap-3 rounded-lg border border-border/60 bg-muted/20 px-4 py-3 text-sm">
+              <input
+                type="checkbox"
+                id="include-bc-levy"
+                className="mt-0.5 cursor-pointer"
+                checked={includeBCLevy}
+                onChange={(e) => setIncludeBCLevy(e.target.checked)}
+              />
+              <label htmlFor="include-bc-levy" className="cursor-pointer leading-snug">
+                <span className="font-medium">Include body corporate levy</span>
+                <span className="text-muted-foreground ml-1">
+                  — R{(bcLevyCents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })}/mo
+                </span>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  This property is in a sectional title scheme. The levy will be added as an additional charge, deducted from the owner payout.
+                </p>
+              </label>
+            </div>
+          )}
           <div className="space-y-2">
             <Label>Deposit Amount (ZAR)</Label>
             <Input type="number" min="0" step="0.01" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} placeholder="Typically 1 month's rent" />

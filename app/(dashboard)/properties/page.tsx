@@ -1,104 +1,130 @@
-import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { StatusBadge } from "@/components/shared/StatusBadge"
-import { EmptyState } from "@/components/shared/EmptyState"
-import { Building2, Plus } from "lucide-react"
+import { createClient } from "@/lib/supabase/server"
+import { getServerOrgMembership } from "@/lib/auth/server"
+import { getOrgTier } from "@/lib/tier/getOrgTier"
+import { getAttentionItems } from "@/lib/dashboard/attentionItems"
+import { getActivityFeed } from "@/lib/dashboard/activityFeed"
+import { SinglePropertyView, NoPropertyYet } from "@/components/properties/SinglePropertyView"
+import { PropertyCards } from "@/components/properties/PropertyCards"
+import { PropertyListView } from "@/components/properties/PropertyListView"
+import type { SinglePropertyData } from "@/components/properties/SinglePropertyView"
+import type { PropertyListItem } from "@/components/properties/PropertyList"
 
-export default async function PropertiesPage() {
+export default async function PropertiesPage({
+  searchParams,
+}: Readonly<{
+  searchParams: Record<string, string>
+}>) {
+  const membership = await getServerOrgMembership()
+  if (!membership) redirect("/login")
+
+  const { org_id: orgId } = membership
+  const tier = await getOrgTier(orgId)
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
 
-  const { data: properties } = await supabase
+  // ── Owner tier: single property dashboard ──────────────────────────────────
+  if (tier === "owner") {
+    const { data: rawProperty } = await supabase
+      .from("properties")
+      .select(`
+        id, name, type, address_line1, address_line2, suburb, city, province, postal_code,
+        is_sectional_title, levy_amount_cents, levy_account_number,
+        managing_scheme:contractors!managing_scheme_id(id, company_name),
+        units(
+          id, unit_number, status, is_archived,
+          leases(
+            id, status, rent_amount_cents, start_date, end_date,
+            tenant:tenants!tenant_id(id, contact:contacts(first_name, last_name))
+          )
+        )
+      `)
+      .is("deleted_at", null)
+      .maybeSingle()
+
+    if (!rawProperty) return <NoPropertyYet />
+
+    const [attentionItems, activityItems] = await Promise.all([
+      getAttentionItems(orgId),
+      getActivityFeed(orgId),
+    ])
+
+    const property = rawProperty as unknown as SinglePropertyData
+
+    return (
+      <SinglePropertyView
+        property={property}
+        attentionItems={attentionItems}
+        recentActivity={activityItems}
+      />
+    )
+  }
+
+  // ── Steward tier: enriched card grid ──────────────────────────────────────
+  if (tier === "steward") {
+    const { data: rawProperties } = await supabase
+      .from("properties")
+      .select(`
+        id, name, type, address_line1, city, province, is_sectional_title,
+        units(id, status, is_archived, leases(id, status, rent_amount_cents))
+      `)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+
+    const properties = (rawProperties ?? []) as unknown as PropertyListItem[]
+    const totalUnitCount = properties.reduce(
+      (sum, p) => sum + p.units.filter(u => !u.is_archived).length, 0
+    )
+
+    return <PropertyCards properties={properties} tier={tier} totalUnitCount={totalUnitCount} />
+  }
+
+  // ── Portfolio / Firm tier: filterable list ────────────────────────────────
+  const q = searchParams.q?.toLowerCase() ?? ""
+  const statusFilter = searchParams.status ?? ""
+  const view = (searchParams.view ?? "list") as "list" | "cards"
+
+  const { data: rawProperties } = await supabase
     .from("properties")
-    .select("id, name, address_line1, city, province, type, units(id, status, is_archived)")
+    .select(`
+      id, name, type, address_line1, city, province, is_sectional_title,
+      units(id, status, is_archived, leases(id, status, rent_amount_cents))
+    `)
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
 
-  const props = properties || []
+  let properties = (rawProperties ?? []) as unknown as PropertyListItem[]
 
-  type UnitRow = { id: string; status: string; is_archived: boolean }
+  // Apply search filter (server-side on the fetched data)
+  if (q) {
+    properties = properties.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      p.address_line1.toLowerCase().includes(q) ||
+      p.city.toLowerCase().includes(q)
+    )
+  }
 
-  const totalUnits = props.reduce((sum, p) => {
-    const active = ((p.units as unknown as UnitRow[]) || []).filter((u) => !u.is_archived)
-    return sum + active.length
-  }, 0)
+  // Apply status filter
+  if (statusFilter === "vacancies") {
+    properties = properties.filter(p =>
+      p.units.some(u => !u.is_archived && u.status !== "occupied")
+    )
+  } else if (statusFilter === "occupied") {
+    properties = properties.filter(p => {
+      const active = p.units.filter(u => !u.is_archived)
+      return active.length > 0 && active.every(u => u.status === "occupied")
+    })
+  }
 
-  const occupiedUnits = props.reduce((sum, p) => {
-    const occupied = ((p.units as unknown as UnitRow[]) || []).filter((u) => u.status === "occupied" && !u.is_archived)
-    return sum + occupied.length
-  }, 0)
-
-  const occupancyRate = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0
+  const totalUnitCount = properties.reduce(
+    (sum, p) => sum + p.units.filter(u => !u.is_archived).length, 0
+  )
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="font-heading text-3xl">Properties</h1>
-          {props.length > 0 && (
-            <p className="text-sm text-muted-foreground mt-1">
-              {props.length} properties &middot; {totalUnits} active units &middot; {occupancyRate}% occupied
-            </p>
-          )}
-        </div>
-        <Button render={<Link href="/properties/new" />}>
-          <Plus className="h-4 w-4 mr-1" /> Add Property
-        </Button>
-      </div>
-
-      {props.length === 0 ? (
-        <EmptyState
-          icon={<Building2 className="h-8 w-8 text-muted-foreground" />}
-          title="No properties yet"
-          description="Add your first property to get started."
-          
-        />
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {props.map((property) => {
-            const units = (property.units as unknown as { id: string; status: string; is_archived: boolean }[]) || []
-            const activeUnits = units.filter((u) => !u.is_archived)
-            const occupied = activeUnits.filter((u) => u.status === "occupied").length
-
-            return (
-              <Link key={property.id} href={`/properties/${property.id}`}>
-                <Card className="hover:border-brand/50 transition-colors cursor-pointer h-full">
-                  <CardContent className="pt-4">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-medium truncate">{property.name}</h3>
-                        <p className="text-sm text-muted-foreground truncate">
-                          {property.address_line1}, {property.city}
-                        </p>
-                      </div>
-                      <span className="text-xs capitalize text-muted-foreground bg-surface-elevated px-2 py-0.5 rounded ml-2">
-                        {property.type}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3 mt-3">
-                      <span className="text-sm">{activeUnits.length} units</span>
-                      {activeUnits.length > 0 && (
-                        <StatusBadge
-                          status={occupied === activeUnits.length ? "active" : occupied > 0 ? "pending" : "open"}
-                        />
-                      )}
-                      {activeUnits.length > 0 && (
-                        <span className="text-xs text-muted-foreground">
-                          {occupied}/{activeUnits.length} occupied
-                        </span>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            )
-          })}
-        </div>
-      )}
-    </div>
+    <PropertyListView
+      properties={properties}
+      view={view}
+      tier={tier}
+      totalUnitCount={totalUnitCount}
+    />
   )
 }
