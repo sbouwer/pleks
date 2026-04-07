@@ -11,8 +11,11 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { markAsSigned, giveNotice } from "@/lib/actions/leases"
 import { useRouter } from "next/navigation"
+import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { ChevronDown, Download, Bell, RefreshCw, MoreHorizontal, Pencil, TrendingUp, FileText, ShieldCheck, Search, Clock } from "lucide-react"
+import { useOrg } from "@/hooks/useOrg"
+import { PORTFOLIO_QUERY_KEYS, DASHBOARD_QUERY_KEYS } from "@/lib/queries/portfolio"
 
 interface LeaseActionsProps {
   readonly leaseId: string
@@ -21,19 +24,35 @@ interface LeaseActionsProps {
 
 export function LeaseActions({ leaseId, status }: LeaseActionsProps) {
   const router = useRouter()
+  const queryClient = useQueryClient()
+  const { orgId } = useOrg()
   const isActive = status === "active" || status === "month_to_month"
   const isPendingSigning = status === "pending_signing"
 
   async function handleMarkSigned() {
     const result = await markAsSigned(leaseId)
     if (result?.error) toast.error(result.error)
-    else { toast.success("Lease activated"); router.refresh() }
+    else {
+      toast.success("Lease activated")
+      if (orgId) {
+        queryClient.invalidateQueries({ queryKey: PORTFOLIO_QUERY_KEYS.leases(orgId) })
+        queryClient.invalidateQueries({ queryKey: PORTFOLIO_QUERY_KEYS.properties(orgId) })
+        queryClient.invalidateQueries({ queryKey: DASHBOARD_QUERY_KEYS.metrics(orgId) })
+      }
+      router.refresh()
+    }
   }
 
   async function handleNotice(by: "tenant" | "landlord") {
     const result = await giveNotice(leaseId, by)
     if (result?.error) toast.error(result.error)
-    else { toast.success("Notice recorded"); router.refresh() }
+    else {
+      toast.success("Notice recorded")
+      if (orgId) {
+        queryClient.invalidateQueries({ queryKey: PORTFOLIO_QUERY_KEYS.leases(orgId) })
+      }
+      router.refresh()
+    }
   }
 
   return (
