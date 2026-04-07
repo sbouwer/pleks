@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { LeaseDisclaimerGate } from "@/components/leases/LeaseDisclaimerGate"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -89,6 +90,7 @@ export default function LeaseTemplatesPage() {
   }
 
   return (
+    <LeaseDisclaimerGate>
     <div>
       <h1 className="font-heading text-3xl mb-2">Master lease template</h1>
       <p className="text-muted-foreground text-sm mb-1">
@@ -313,5 +315,6 @@ export default function LeaseTemplatesPage() {
       {/* Lease preview dialog */}
       <LeasePreview open={showPreview} onOpenChange={setShowPreview} leaseType={leaseType} />
     </div>
+    </LeaseDisclaimerGate>
   )
 }
