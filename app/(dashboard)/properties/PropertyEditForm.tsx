@@ -2,8 +2,10 @@
 
 import { useActionState, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { useQueryClient } from "@tanstack/react-query"
 import Link from "next/link"
 import { toast } from "sonner"
+import { PORTFOLIO_QUERY_KEYS } from "@/lib/queries/portfolio"
 import { ChevronDown, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -249,6 +251,7 @@ export function PropertyEditForm({
   managingAgentId,
 }: PropertyEditFormProps) {
   const router = useRouter()
+  const queryClient = useQueryClient()
 
   const backHref =
     tier === "owner" ? "/properties" : `/properties/${propertyId}`
@@ -265,6 +268,7 @@ export function PropertyEditForm({
   useEffect(() => {
     if (state?.success === true) {
       toast.success("Property updated")
+      queryClient.invalidateQueries({ queryKey: PORTFOLIO_QUERY_KEYS.properties(orgId) })
       router.push(backHref)
     }
   }, [state]) // eslint-disable-line react-hooks/exhaustive-deps

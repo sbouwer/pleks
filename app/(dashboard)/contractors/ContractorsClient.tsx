@@ -8,12 +8,14 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import { useQueryClient } from "@tanstack/react-query"
 import Link from "next/link"
 import {
   Search, Trash2, X, Plus, Check,
   ArrowUpDown, ArrowUp, ArrowDown,
   Pencil,
 } from "lucide-react"
+import { PORTFOLIO_QUERY_KEYS } from "@/lib/queries/portfolio"
 
 export const SPECIALITY_OPTIONS = [
   "Plumbing",
@@ -102,8 +104,9 @@ function ColHeader({ col, label, sortKey, sortDir, onSort }: Readonly<{ col: Sor
   )
 }
 
-export function ContractorsClient({ contractors: initial, userRole }: Readonly<Props>) {
+export function ContractorsClient({ contractors: initial, userRole, orgId }: Readonly<Props>) {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [search, setSearch] = useState("")
   const [activeFilter, setActiveFilter] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -167,6 +170,7 @@ export function ContractorsClient({ contractors: initial, userRole }: Readonly<P
     setDeletingId(null)
     if (res.ok) {
       toast.success("Contractor removed")
+      queryClient.invalidateQueries({ queryKey: PORTFOLIO_QUERY_KEYS.contractors(orgId) })
       router.refresh()
     } else {
       const d = await res.json()
@@ -345,6 +349,7 @@ export function ContractorsClient({ contractors: initial, userRole }: Readonly<P
 
 export function AddContractorButton({ orgId, supplierType = "contractor" }: Readonly<{ orgId: string; supplierType?: string }>) {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
@@ -375,6 +380,7 @@ export function AddContractorButton({ orgId, supplierType = "contractor" }: Read
       setOpen(false)
       setFirstName(""); setLastName(""); setCompanyName("")
       setEmail(""); setPhone(""); setSpecialities([])
+      queryClient.invalidateQueries({ queryKey: PORTFOLIO_QUERY_KEYS.contractors(orgId) })
       router.refresh()
     } else {
       const d = await res.json()

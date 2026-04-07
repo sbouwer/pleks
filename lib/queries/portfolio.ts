@@ -5,6 +5,20 @@ export const PORTFOLIO_QUERY_KEYS = {
   landlords: (orgId: string) => ["landlords", orgId] as const,
   contractors: (orgId: string) => ["contractors", orgId] as const,
   leases: (orgId: string) => ["leases", orgId] as const,
+  properties: (orgId: string) => ["properties", orgId] as const,
+} as const
+
+export const DASHBOARD_QUERY_KEYS = {
+  metrics: (orgId: string) => ["dashboard-metrics", orgId] as const,
+  attentionItems: (orgId: string) => ["attention-items", orgId] as const,
+  activityFeed: (orgId: string) => ["activity-feed", orgId] as const,
+} as const
+
+export const OPERATIONAL_QUERY_KEYS = {
+  inspections: (orgId: string) => ["inspections", orgId] as const,
+  maintenance: (orgId: string) => ["maintenance", orgId] as const,
+  applications: (orgId: string) => ["applications", orgId] as const,
+  payments: (orgId: string) => ["payments", orgId] as const,
 } as const
 
 export const STALE_TIME = {
@@ -12,6 +26,10 @@ export const STALE_TIME = {
   landlords: 10 * 60 * 1000,
   contractors: 10 * 60 * 1000,
   leases: 5 * 60 * 1000,
+  inspections: 2 * 60 * 1000,
+  maintenance: 2 * 60 * 1000,
+  applications: 2 * 60 * 1000,
+  payments: 1 * 60 * 1000,
 } as const
 
 export async function fetchTenants(supabase: SupabaseClient, orgId: string) {
@@ -70,5 +88,39 @@ export async function fetchLeases(supabase: SupabaseClient, orgId: string) {
     .eq("org_id", orgId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
+  return data ?? []
+}
+
+export async function fetchInspections(supabase: SupabaseClient) {
+  const { data } = await supabase
+    .from("inspections")
+    .select("id, inspection_type, lease_type, status, scheduled_date, conducted_date, units(unit_number, properties(name)), tenant_view(first_name, last_name)")
+    .order("created_at", { ascending: false })
+  return data ?? []
+}
+
+export async function fetchMaintenance(supabase: SupabaseClient) {
+  const { data } = await supabase
+    .from("maintenance_requests")
+    .select("id, title, category, urgency, status, work_order_number, created_at, units(unit_number, properties(name))")
+    .order("created_at", { ascending: false })
+  return data ?? []
+}
+
+export async function fetchApplications(supabase: SupabaseClient) {
+  const { data } = await supabase
+    .from("applications")
+    .select("id, first_name, last_name, applicant_email, stage1_status, stage2_status, prescreen_score, fitscore, gross_monthly_income_cents, is_foreign_national, has_co_applicant, applicant_motivation, listings(asking_rent_cents, units(unit_number, properties(name)))")
+    .order("created_at", { ascending: false })
+    .limit(50)
+  return data ?? []
+}
+
+export async function fetchPayments(supabase: SupabaseClient) {
+  const { data } = await supabase
+    .from("supplier_invoices")
+    .select("id, invoice_number, description, amount_incl_vat_cents, invoice_date, status, payment_source, contractor_view(first_name, last_name, company_name), properties(name)")
+    .order("created_at", { ascending: false })
+    .limit(50)
   return data ?? []
 }

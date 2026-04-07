@@ -2,12 +2,15 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { useQueryClient } from "@tanstack/react-query"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { Search, X, ArrowUpDown, ArrowUp, ArrowDown, Trash2, Pencil } from "lucide-react"
 import Link from "next/link"
+import { useOrg } from "@/hooks/useOrg"
+import { PORTFOLIO_QUERY_KEYS } from "@/lib/queries/portfolio"
 
 interface Tenant {
   id: string
@@ -46,6 +49,8 @@ function ColHeader({ col, label, sortKey, sortDir, onSort }: Readonly<{ col: Sor
 
 export function TenantsClient({ tenants: initial, userRole }: Readonly<Props>) {
   const router = useRouter()
+  const queryClient = useQueryClient()
+  const { orgId } = useOrg()
   const [search, setSearch] = useState("")
   const [sortKey, setSortKey] = useState<SortKey>("name")
   const [sortDir, setSortDir] = useState<SortDir>("asc")
@@ -86,7 +91,11 @@ export function TenantsClient({ tenants: initial, userRole }: Readonly<Props>) {
       body: JSON.stringify({ tenantId: t.id, contactId: t.contact_id }),
     })
     setDeletingId(null)
-    if (res.ok) { toast.success("Tenant removed"); router.refresh() }
+    if (res.ok) {
+      toast.success("Tenant removed")
+      if (orgId) queryClient.invalidateQueries({ queryKey: PORTFOLIO_QUERY_KEYS.tenants(orgId) })
+      router.refresh()
+    }
     else { const d = await res.json(); toast.error(d.error || "Failed to delete") }
   }
 

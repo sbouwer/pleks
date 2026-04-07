@@ -3,7 +3,10 @@
 import { Button } from "@/components/ui/button"
 import { updateMaintenanceStatus } from "@/lib/actions/maintenance"
 import { useRouter } from "next/navigation"
+import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
+import { useOrg } from "@/hooks/useOrg"
+import { OPERATIONAL_QUERY_KEYS, DASHBOARD_QUERY_KEYS } from "@/lib/queries/portfolio"
 
 interface MaintenanceActionsProps {
   readonly requestId: string
@@ -12,6 +15,8 @@ interface MaintenanceActionsProps {
 
 export function MaintenanceActions({ requestId, status }: MaintenanceActionsProps) {
   const router = useRouter()
+  const queryClient = useQueryClient()
+  const { orgId } = useOrg()
 
   async function handleStatus(newStatus: string) {
     const result = await updateMaintenanceStatus(requestId, newStatus)
@@ -19,6 +24,10 @@ export function MaintenanceActions({ requestId, status }: MaintenanceActionsProp
       toast.error(result.error)
     } else {
       toast.success("Status updated")
+      if (orgId) {
+        queryClient.invalidateQueries({ queryKey: OPERATIONAL_QUERY_KEYS.maintenance(orgId) })
+        queryClient.invalidateQueries({ queryKey: DASHBOARD_QUERY_KEYS.attentionItems(orgId) })
+      }
       router.refresh()
     }
   }

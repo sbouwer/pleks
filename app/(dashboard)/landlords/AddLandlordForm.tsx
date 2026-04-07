@@ -8,6 +8,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Plus, X } from "lucide-react"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import { useQueryClient } from "@tanstack/react-query"
+import { PORTFOLIO_QUERY_KEYS } from "@/lib/queries/portfolio"
 
 interface AddLandlordFormProps {
   orgId: string
@@ -17,6 +19,7 @@ export function AddLandlordForm({ orgId }: Readonly<AddLandlordFormProps>) {
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
+  const queryClient = useQueryClient()
 
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
@@ -43,6 +46,8 @@ export function AddLandlordForm({ orgId }: Readonly<AddLandlordFormProps>) {
         setPhone("")
         setIdNumber("")
         setOpen(false)
+        queryClient.invalidateQueries({ queryKey: PORTFOLIO_QUERY_KEYS.landlords(orgId) })
+        queryClient.invalidateQueries({ queryKey: PORTFOLIO_QUERY_KEYS.properties(orgId) })
         router.refresh()
       } else {
         const data = await res.json()
