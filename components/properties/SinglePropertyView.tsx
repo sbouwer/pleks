@@ -10,6 +10,7 @@ import type { AttentionItem } from "@/lib/dashboard/attentionItems"
 import type { ActivityItem } from "@/lib/dashboard/activityFeed"
 import { relativeTime } from "@/lib/dashboard/activityFeed"
 import { cn } from "@/lib/utils"
+import { PropertyMap } from "@/components/map/PropertyMap"
 
 export interface SinglePropertyData {
   id: string
@@ -149,10 +150,10 @@ export function SinglePropertyView({ property, attentionItems, recentActivity }:
           )}
         </div>
 
-        {/* Map placeholder */}
-        <div className="rounded-xl border border-border/60 bg-muted/20 flex items-center justify-center min-h-44">
-          <p className="text-xs text-muted-foreground">Map</p>
-        </div>
+        <PropertyMap
+          address={fullAddress}
+          className="rounded-xl border border-border/60 overflow-hidden min-h-44"
+        />
       </div>
 
       {/* Body corporate */}
