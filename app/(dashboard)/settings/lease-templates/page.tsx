@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { LeaseDisclaimerGate } from "@/components/leases/LeaseDisclaimerGate"
+import { LeaseTemplateIntro } from "@/components/leases/LeaseTemplateIntro"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -32,12 +33,15 @@ export default function LeaseTemplatesPage() {
   const [file, setFile] = useState<File | null>(null)
   const [templateConfirmed, setTemplateConfirmed] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [tier, setTier] = useState<string | null>(null)
+  const [showIntro, setShowIntro] = useState(false)
 
   useEffect(() => {
     async function loadOrg() {
-      const [infoRes, brandRes] = await Promise.all([
+      const [infoRes, brandRes, prefRes] = await Promise.all([
         fetch("/api/org/info"),
         fetch("/api/org/brand"),
+        fetch("/api/user/preferences"),
       ])
       if (infoRes.ok) {
         const org = await infoRes.json()
@@ -50,9 +54,23 @@ export default function LeaseTemplatesPage() {
           brandAccentColor: brand.brand_accent_color ?? null,
         })
       }
+      if (prefRes.ok) {
+        const { preferences, tier: t } = await prefRes.json() as { preferences: Record<string, unknown>; tier: string | null }
+        setTier(t)
+        setShowIntro(!preferences.dismissed_lease_intro)
+      }
     }
     loadOrg()
   }, [])
+
+  async function handleDismissIntro() {
+    setShowIntro(false)
+    await fetch("/api/user/preferences", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: "dismissed_lease_intro", value: true }),
+    })
+  }
 
   const handleToggleSave = useCallback(async (selections: Record<string, boolean>): Promise<boolean> => {
     const updates = Object.entries(selections).map(([clause_key, enabled]) => ({ clause_key, enabled }))
@@ -99,6 +117,8 @@ export default function LeaseTemplatesPage() {
       <p className="text-muted-foreground text-xs mb-6">
         Changes to wording or org-level defaults cascade to all future leases. Unit profiles only override which optional clauses are included.
       </p>
+
+      {showIntro && <LeaseTemplateIntro tier={tier} onDismiss={handleDismissIntro} />}
 
       {/* Confirmation status bar */}
       {orgInfo?.clauseEditConfirmedAt && (
