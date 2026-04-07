@@ -76,6 +76,10 @@ interface Props {
   readonly property: SinglePropertyData
   readonly currentInvoice?: CurrentInvoice | null
   readonly orgId?: string
+  readonly prospectiveTenantId?: string | null
+  readonly prospectiveTenantName?: string | null
+  readonly prospectiveCoTenantId?: string | null
+  readonly prospectiveCoTenantName?: string | null
 }
 
 // ── Quick action card ─────────────────────────────────────────────────────────
@@ -243,7 +247,7 @@ function LeaseSummaryCard({ lease, unitId }: Readonly<{
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function SinglePropertyView({ property, currentInvoice = null, orgId = "" }: Props) {
+export function SinglePropertyView({ property, currentInvoice = null, orgId = "", prospectiveTenantId = null, prospectiveTenantName = null, prospectiveCoTenantId = null, prospectiveCoTenantName = null }: Props) {
   const activeUnit = property.units.find(u => !u.is_archived) ?? null
   const activeLease = activeUnit?.leases.find(l => l.status === "active" || l.status === "notice") ?? null
   const leaseEndDate = activeLease?.end_date ?? null
@@ -372,7 +376,15 @@ export function SinglePropertyView({ property, currentInvoice = null, orgId = ""
         </div>
       ) : (
         <div className="mb-4">
-          <VacantSection propertyId={property.id} unitId={activeUnit?.id ?? ""} orgId={orgId} />
+          <VacantSection
+            propertyId={property.id}
+            unitId={activeUnit?.id ?? ""}
+            orgId={orgId}
+            initialTenantId={prospectiveTenantId}
+            initialTenantName={prospectiveTenantName}
+            initialCoTenantId={prospectiveCoTenantId}
+            initialCoTenantName={prospectiveCoTenantName}
+          />
         </div>
       )}
 

@@ -4,12 +4,23 @@ import { useState } from "react"
 import Link from "next/link"
 import { TenantPicker } from "@/components/shared/TenantPicker"
 import type { PickedTenant } from "@/components/shared/TenantPicker"
-import { ChevronDown, UserRound, CheckCircle2, Plus, X } from "lucide-react"
+import { ChevronDown, UserRound, CheckCircle2, Plus, X, Clock } from "lucide-react"
+import { setProspectiveTenants } from "@/lib/actions/units"
+import { toast } from "sonner"
 
 interface Props {
   propertyId: string
   unitId: string
   orgId: string
+  initialTenantId?: string | null
+  initialTenantName?: string | null
+  initialCoTenantId?: string | null
+  initialCoTenantName?: string | null
+}
+
+function toPickedTenant(id: string | null | undefined, name: string | null | undefined): PickedTenant | null {
+  if (!id || !name) return null
+  return { id, name, phone: null }
 }
 
 function SelectedTenantRow({
@@ -48,44 +59,72 @@ function SelectedTenantRow({
   )
 }
 
-/** Tenant card + lease summary card for a unit with no active lease. Shares state so the lease link is pre-filled with selected tenants. */
-export function VacantSection({ propertyId, unitId, orgId }: Readonly<Props>) {
-  const [primary, setPrimary] = useState<PickedTenant | null>(null)
-  const [coTenant, setCoTenant] = useState<PickedTenant | null>(null)
+/** Tenant card + lease summary for a unit with no active lease. Persists prospective tenant selections to the DB so all team members see the same state. */
+export function VacantSection({
+  propertyId, unitId, orgId,
+  initialTenantId, initialTenantName,
+  initialCoTenantId, initialCoTenantName,
+}: Readonly<Props>) {
+  const [primary, setPrimary] = useState<PickedTenant | null>(() => toPickedTenant(initialTenantId, initialTenantName))
+  const [coTenant, setCoTenant] = useState<PickedTenant | null>(() => toPickedTenant(initialCoTenantId, initialCoTenantName))
   const [showCoPicker, setShowCoPicker] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
 
-  function handleSelectPrimary(t: PickedTenant) {
-    setPrimary(t)
-    setError("")
-    if (coTenant?.id === t.id) setCoTenant(null)
+  async function persist(newPrimary: PickedTenant | null, newCo: PickedTenant | null) {
+    setSaving(true)
+    const result = await setProspectiveTenants(unitId, newPrimary?.id ?? null, newCo?.id ?? null)
+    setSaving(false)
+    if (result.error) toast.error(result.error)
   }
 
-  function handleSelectCo(t: PickedTenant) {
+  async function handleSelectPrimary(t: PickedTenant) {
+    const newCo = coTenant?.id === t.id ? null : coTenant
+    setPrimary(t)
+    setCoTenant(newCo)
+    setError("")
+    await persist(t, newCo)
+  }
+
+  async function handleSelectCo(t: PickedTenant) {
     if (t.id === primary?.id) { setError("Co-tenant must be a different person"); return }
     setCoTenant(t)
     setShowCoPicker(false)
     setError("")
+    await persist(primary, t)
   }
 
-  function handleRemoveCo() {
+  async function handleRemovePrimary() {
+    setPrimary(null)
     setCoTenant(null)
     setShowCoPicker(false)
+    await persist(null, null)
+  }
+
+  async function handleRemoveCo() {
+    setCoTenant(null)
+    setShowCoPicker(false)
+    await persist(primary, null)
   }
 
   const coParam = coTenant ? `&co_tenant=${coTenant.id}` : ""
   const tenantParam = primary ? `&tenant=${primary.id}${coParam}` : ""
   const leaseHref = `/leases/new?property=${propertyId}&unit=${unitId}${tenantParam}`
 
+  const hasProspective = !!primary
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       {/* Tenant card */}
       <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 flex flex-col gap-3">
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">Tenant</p>
+        <div className="flex items-center justify-between">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">Tenant</p>
+          {saving && <span className="text-[10px] text-muted-foreground animate-pulse">Saving…</span>}
+        </div>
 
         {primary ? (
           <div className="flex flex-col gap-2">
-            <SelectedTenantRow label="Primary tenant" tenant={primary} orgId={orgId} onSelect={handleSelectPrimary} />
+            <SelectedTenantRow label="Primary tenant" tenant={primary} orgId={orgId} onSelect={handleSelectPrimary} onRemove={handleRemovePrimary} />
 
             {coTenant && (
               <SelectedTenantRow label="Co-tenant" tenant={coTenant} orgId={orgId} onSelect={handleSelectCo} onRemove={handleRemoveCo} />
@@ -133,10 +172,25 @@ export function VacantSection({ propertyId, unitId, orgId }: Readonly<Props>) {
       {/* Lease summary card */}
       <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 flex flex-col gap-3">
         <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">Lease</p>
-        <p className="text-sm text-muted-foreground">No active lease</p>
-        <Link href={leaseHref} className="text-sm text-brand hover:underline">
-          Create a lease →
-        </Link>
+        {hasProspective ? (
+          <>
+            <div className="flex items-center gap-1.5 text-sm text-amber-600 dark:text-amber-400">
+              <Clock className="size-3.5 flex-shrink-0" />
+              <span className="font-medium">Finalising lease</span>
+            </div>
+            <p className="text-xs text-muted-foreground">Tenant selected — complete the lease to activate.</p>
+            <Link href={leaseHref} className="text-sm text-brand hover:underline">
+              Create a lease →
+            </Link>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-muted-foreground">No active lease</p>
+            <Link href={leaseHref} className="text-sm text-brand hover:underline">
+              Create a lease →
+            </Link>
+          </>
+        )}
       </div>
     </div>
   )

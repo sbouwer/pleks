@@ -270,3 +270,25 @@ export async function updateUnitFeatures(unitId: string, propertyId: string, fea
   revalidatePath(`/properties/${propertyId}`)
   return {}
 }
+
+export async function setProspectiveTenants(
+  unitId: string,
+  tenantId: string | null,
+  coTenantId: string | null,
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Unauthorised" }
+
+  const { error } = await supabase
+    .from("units")
+    .update({
+      prospective_tenant_id: tenantId,
+      prospective_co_tenant_id: coTenantId,
+    })
+    .eq("id", unitId)
+
+  if (error) return { error: error.message }
+  revalidatePath("/properties")
+  return {}
+}

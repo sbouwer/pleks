@@ -32,6 +32,7 @@ export default async function PropertiesPage({
           id, unit_number, status, is_archived,
           bedrooms, bathrooms, size_m2, floor, parking_bays, furnished,
           asking_rent_cents, deposit_amount_cents, features, assigned_agent_id,
+          prospective_tenant_id, prospective_co_tenant_id,
           leases(
             id, status, rent_amount_cents, deposit_amount_cents,
             start_date, end_date, escalation_percent, escalation_review_date,
@@ -47,19 +48,36 @@ export default async function PropertiesPage({
 
     if (!rawProperty) return <NoPropertyYet />
 
-    // Fetch current month invoice and unit clauses in parallel
     const activeUnit = (rawProperty.units ?? [])[0]
     const now = new Date()
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
-    const invoiceRes = activeUnit
-      ? await supabase
-          .from("rent_invoices")
-          .select("total_amount_cents, amount_paid_cents, due_date")
-          .eq("unit_id", activeUnit.id)
-          .gte("period_from", monthStart)
-          .maybeSingle()
-      : { data: null }
+    const prospTenantId = (activeUnit as { prospective_tenant_id?: string | null })?.prospective_tenant_id ?? null
+    const prospCoTenantId = (activeUnit as { prospective_co_tenant_id?: string | null })?.prospective_co_tenant_id ?? null
+
+    const [invoiceRes, prospTenantRes, prospCoTenantRes] = await Promise.all([
+      activeUnit
+        ? supabase
+            .from("rent_invoices")
+            .select("total_amount_cents, amount_paid_cents, due_date")
+            .eq("unit_id", activeUnit.id)
+            .gte("period_from", monthStart)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+      prospTenantId
+        ? supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", prospTenantId).single()
+        : Promise.resolve({ data: null }),
+      prospCoTenantId
+        ? supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", prospCoTenantId).single()
+        : Promise.resolve({ data: null }),
+    ])
+
+    function tenantDisplayName(row: { first_name?: string | null; last_name?: string | null; company_name?: string | null; entity_type?: string | null } | null) {
+      if (!row) return null
+      return row.entity_type === "juristic"
+        ? (row.company_name ?? "Company")
+        : [row.first_name, row.last_name].filter(Boolean).join(" ") || null
+    }
 
     const property = rawProperty as unknown as SinglePropertyData
 
@@ -68,6 +86,10 @@ export default async function PropertiesPage({
         property={property}
         currentInvoice={invoiceRes.data ?? null}
         orgId={orgId}
+        prospectiveTenantId={prospTenantId}
+        prospectiveTenantName={tenantDisplayName(prospTenantRes.data)}
+        prospectiveCoTenantId={prospCoTenantId}
+        prospectiveCoTenantName={tenantDisplayName(prospCoTenantRes.data)}
       />
     )
   }
