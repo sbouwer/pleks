@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server"
 import { getServerOrgMembership } from "@/lib/auth/server"
 import { redirect } from "next/navigation"
 import { LeaseWizard } from "@/components/leases/LeaseWizard"
+import { LeaseDisclaimerGate } from "@/components/leases/LeaseDisclaimerGate"
+import { hasAcceptedLeaseDisclaimer } from "@/lib/leases/disclaimer"
 
 interface Props {
   searchParams: Promise<Record<string, string>>
@@ -20,6 +22,8 @@ function displayName(row: TenantRow): string | null {
 export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
   const membership = await getServerOrgMembership()
   if (!membership) redirect("/login")
+
+  const accepted = await hasAcceptedLeaseDisclaimer()
 
   const { org_id: orgId } = membership
   const supabase = await createClient()
@@ -112,20 +116,22 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
     : coTenantResults.map((r) => ({ id: r.id, name: displayName(r.data) ?? r.id }))
 
   return (
-    <div className="max-w-2xl">
-      <h1 className="font-heading text-2xl mb-6">Create lease</h1>
-      <Suspense fallback={<div className="text-sm text-muted-foreground">Loading…</div>}>
-        <LeaseWizard
-          initialPropertyId={propertyId}
-          initialPropertyName={propName}
-          initialUnitId={unitId}
-          initialUnitLabel={unitLabel}
-          initialTenantId={tenantId}
-          initialTenantName={finalTenantName}
-          initialCoTenants={finalCoTenants}
-          renewalOf={renewalOf}
-        />
-      </Suspense>
-    </div>
+    <LeaseDisclaimerGate initialAccepted={accepted}>
+      <div className="max-w-2xl">
+        <h1 className="font-heading text-2xl mb-6">Create lease</h1>
+        <Suspense fallback={<div className="text-sm text-muted-foreground">Loading…</div>}>
+          <LeaseWizard
+            initialPropertyId={propertyId}
+            initialPropertyName={propName}
+            initialUnitId={unitId}
+            initialUnitLabel={unitLabel}
+            initialTenantId={tenantId}
+            initialTenantName={finalTenantName}
+            initialCoTenants={finalCoTenants}
+            renewalOf={renewalOf}
+          />
+        </Suspense>
+      </div>
+    </LeaseDisclaimerGate>
   )
 }

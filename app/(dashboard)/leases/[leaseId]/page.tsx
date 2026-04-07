@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
+import { LeaseDisclaimerGate } from "@/components/leases/LeaseDisclaimerGate"
+import { hasAcceptedLeaseDisclaimer } from "@/lib/leases/disclaimer"
 import { Badge } from "@/components/ui/badge"
 import { LeaseActions } from "./LeaseActions"
 import { MigratedDocSection } from "./MigratedDocSection"
@@ -33,6 +35,8 @@ export default async function LeaseDetailPage({
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
+
+  const accepted = await hasAcceptedLeaseDisclaimer()
 
   // Main lease fetch — includes unit, property, and property owner_id for landlord
   const { data: lease } = await supabase
@@ -179,6 +183,7 @@ export default async function LeaseDetailPage({
   const areaLabel = [unit?.properties.suburb, unit?.properties.city].filter(Boolean).join(", ")
 
   return (
+    <LeaseDisclaimerGate initialAccepted={accepted}>
     <div>
       {/* Breadcrumb + header */}
       <div className="mb-6 flex items-start justify-between gap-4">
@@ -428,5 +433,6 @@ export default async function LeaseDetailPage({
         </div>
       </div>
     </div>
+    </LeaseDisclaimerGate>
   )
 }

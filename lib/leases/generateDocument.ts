@@ -662,6 +662,30 @@ export async function buildDocx(
     })
   )
 
+  // ─── Platform disclaimer (always present, non-editable) ─────────────────────
+  // Source: brief/build/ADDENDUM_44A_CREDIT_TERMS.md section 3 — attorney reviewed
+
+  const platformDisclaimer: Paragraph[] = [
+    new Paragraph({
+      pageBreakBefore: true,
+      spacing: { after: 200 },
+      children: [new TextRun({ text: "IMPORTANT NOTICE", bold: true, size: 18, font: "Calibri", color: "888888" })],
+    }),
+    ...[
+      "This lease agreement has been generated using the Pleks property management platform. The standard clauses contained herein have been drafted with reference to the Rental Housing Act 50 of 1999, the Consumer Protection Act 68 of 2008, and applicable South African law. However, this agreement does not constitute legal advice.",
+      "The Lessor is solely responsible for ensuring that the terms of this agreement are appropriate for the specific letting arrangement and comply with all applicable laws and regulations. Pleks (Pty) Ltd accepts no liability for any loss, damage, or legal consequence arising from the use of this agreement or any of its terms, including any property rules, annexures, or AI-assisted content contained herein.",
+      "The Lessor is advised to seek independent legal advice before entering into this agreement, particularly where the agreement has been customised or where AI-assisted formatting tools have been used to generate content.",
+      "By using this agreement, the Lessor acknowledges that Pleks (Pty) Ltd is a technology platform provider and not a legal services provider, law firm, or estate agency.",
+    ].map(
+      (text) =>
+        new Paragraph({
+          spacing: { after: 120 },
+          alignment: AlignmentType.JUSTIFIED,
+          children: [new TextRun({ text, size: 16, font: "Calibri", color: "888888" })],
+        })
+    ),
+  ]
+
   // ─── Assemble document ───────────────────────────────────
 
   const doc = new Document({
@@ -715,6 +739,7 @@ export async function buildDocx(
         ...annexureB,
         ...annexureC,
         ...annexureD,
+        ...platformDisclaimer,
       ],
     }],
     numbering: { config: [] },

@@ -162,7 +162,8 @@ CREATE TABLE consent_log (
   subject_email   text,
   consent_type    text NOT NULL CHECK (consent_type IN (
                     'credit_check', 'data_processing', 'marketing',
-                    'trust_account_notice', 'popia_application'
+                    'trust_account_notice', 'popia_application',
+                    'lease_template_disclaimer'
                   )),
   consent_given   boolean NOT NULL,
   consent_version text NOT NULL DEFAULT '1.0',
