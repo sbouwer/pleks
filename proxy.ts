@@ -57,19 +57,33 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Onboarding check — if no org, redirect to onboarding
-  // Use service client to bypass user_orgs RLS (which causes infinite recursion)
-  if (!pathname.startsWith("/onboarding") && !pathname.startsWith("/demo") && !pathname.startsWith("/contractor") && !pathname.startsWith("/portal")) {
-    const service = await createServiceClient()
-    const { data: orgs } = await service
-      .from("user_orgs")
-      .select("org_id")
-      .eq("user_id", user.id)
-      .is("deleted_at", null)
-      .limit(1)
+  // Onboarding check — skip if cookie already set (saves a DB call on every request)
+  const hasOrgCookie = request.cookies.get("pleks_has_org")?.value
+  const skipOrgCheck = pathname.startsWith("/onboarding") || pathname.startsWith("/demo") ||
+    pathname.startsWith("/contractor") || pathname.startsWith("/portal")
 
-    if (!orgs?.length) {
-      return NextResponse.redirect(new URL("/onboarding", request.url))
+  if (!skipOrgCheck) {
+    if (!hasOrgCookie) {
+      // Use service client to bypass user_orgs RLS (which causes infinite recursion)
+      const service = await createServiceClient()
+      const { data: orgs } = await service
+        .from("user_orgs")
+        .select("org_id")
+        .eq("user_id", user.id)
+        .is("deleted_at", null)
+        .limit(1)
+
+      if (!orgs?.length) {
+        return NextResponse.redirect(new URL("/onboarding", request.url))
+      }
+
+      // Set cookie so this DB check is skipped on subsequent requests
+      supabaseResponse.cookies.set("pleks_has_org", "1", {
+        maxAge: 60 * 60 * 24 * 7, // 1 week
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+      })
     }
   }
 
