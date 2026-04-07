@@ -29,11 +29,39 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
     : <ChevronDown className="size-3 text-foreground" />
 }
 
+interface ThProps {
+  readonly label: string
+  readonly sortable?: boolean
+  readonly id?: SortKey
+  readonly activeSortKey: SortKey
+  readonly sortDir: SortDir
+  readonly onSort: (key: SortKey) => void
+}
+
+function Th({ label, sortable, id, activeSortKey, sortDir, onSort }: ThProps) {
+  if (!sortable || !id) return (
+    <th className="text-left text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70 px-3 py-2.5">
+      {label}
+    </th>
+  )
+  return (
+    <th
+      className="text-left text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70 px-3 py-2.5 cursor-pointer select-none hover:text-foreground transition-colors"
+      onClick={() => onSort(id)}
+    >
+      <span className="flex items-center gap-1">
+        {label}
+        <SortIcon active={activeSortKey === id} dir={sortDir} />
+      </span>
+    </th>
+  )
+}
+
 interface Props {
-  properties: PropertyListItem[]
-  view: "list" | "cards"
-  tier: Tier
-  totalUnitCount: number
+  readonly properties: PropertyListItem[]
+  readonly view: "list" | "cards"
+  readonly tier: Tier
+  readonly totalUnitCount: number
 }
 
 export function PropertyList({ properties, view, tier, totalUnitCount }: Props) {
@@ -68,36 +96,17 @@ export function PropertyList({ properties, view, tier, totalUnitCount }: Props) 
     return sortDir === "asc" ? av - bv : bv - av
   })
 
-  function Th({ label, sortable, id }: { label: string; sortable?: boolean; id?: SortKey }) {
-    if (!sortable || !id) return (
-      <th className="text-left text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70 px-3 py-2.5">
-        {label}
-      </th>
-    )
-    return (
-      <th
-        className="text-left text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70 px-3 py-2.5 cursor-pointer select-none hover:text-foreground transition-colors"
-        onClick={() => toggleSort(id)}
-      >
-        <span className="flex items-center gap-1">
-          {label}
-          <SortIcon active={sortKey === id} dir={sortDir} />
-        </span>
-      </th>
-    )
-  }
-
   return (
     <div className="rounded-xl border border-border/60 overflow-hidden">
       <table className="w-full text-sm">
         <thead className="border-b border-border/60 bg-muted/30">
           <tr>
-            <Th label="Property" sortable id="name" />
-            <Th label="Landlord" />
-            <Th label="Units" sortable id="units" />
-            <Th label="Occupancy" sortable id="occupancy" />
-            <Th label="Rent roll" sortable id="rentRoll" />
-            <Th label="Collection" />
+            <Th label="Property" sortable id="name" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+            <Th label="Landlord" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+            <Th label="Units" sortable id="units" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+            <Th label="Occupancy" sortable id="occupancy" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+            <Th label="Rent roll" sortable id="rentRoll" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+            <Th label="Collection" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
           </tr>
         </thead>
         <tbody className="divide-y divide-border/40">

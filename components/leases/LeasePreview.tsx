@@ -335,7 +335,7 @@ export function LeasePreview({ open, onOpenChange, leaseType: initialLeaseType }
 
   useEffect(() => {
     if (!open) return
-    setLoading(true) // eslint-disable-line react-hooks/set-state-in-effect
+    setLoading(true)
     setError(false)
     fetch(`/api/leases/preview-template?leaseType=${localLeaseType}`)
       .then((r) => r.json())
@@ -540,7 +540,7 @@ export function LeasePreview({ open, onOpenChange, leaseType: initialLeaseType }
                     {downloading ? "Generating…" : "Download sample (.docx)"}
                   </Button>
                   <p className="text-xs text-muted-foreground">
-                    Watermarked "SAMPLE — NOT FOR SIGNING". Contains placeholder data only.
+                    Watermarked &quot;SAMPLE — NOT FOR SIGNING&quot;. Contains placeholder data only.
                   </p>
                 </>
               )}
