@@ -8,19 +8,14 @@ async function getOrgType(): Promise<OrgType> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return "agency"
 
-  const { data: membership } = await supabase
+  const { data } = await supabase
     .from("user_orgs")
-    .select("org_id")
+    .select("organisations(type, user_type)")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
-  if (!membership) return "agency"
 
-  const { data: org } = await supabase
-    .from("organisations")
-    .select("type, user_type")
-    .eq("id", membership.org_id)
-    .single()
+  const org = data && !Array.isArray(data.organisations) ? data.organisations : null
   if (!org) return "agency"
 
   if (org.type === "landlord" || org.user_type === "owner") return "landlord"
