@@ -105,6 +105,38 @@ export async function createLease(formData: FormData) {
     return { error: error?.message || "Failed to create lease" }
   }
 
+  // Insert additional charges if provided by the wizard
+  const chargesJsonRaw = formData.get("charges_json") as string | null
+  if (chargesJsonRaw) {
+    try {
+      const charges = JSON.parse(chargesJsonRaw) as {
+        description: string
+        charge_type: string
+        amount_cents: number
+        start_date: string
+        end_date: string | null
+        payable_to: string
+        deduct_from_owner_payment: boolean
+      }[]
+      if (charges.length > 0) {
+        await supabase.from("lease_charges").insert(
+          charges.map((c) => ({
+            org_id: orgId,
+            lease_id: lease.id,
+            description: c.description,
+            charge_type: c.charge_type,
+            amount_cents: c.amount_cents,
+            start_date: c.start_date,
+            end_date: c.end_date ?? null,
+            payable_to: c.payable_to,
+            deduct_from_owner_payment: c.deduct_from_owner_payment,
+            created_by: user.id,
+          }))
+        )
+      }
+    } catch { /* ignore malformed charges */ }
+  }
+
   await supabase.from("audit_log").insert({
     org_id: orgId,
     table_name: "leases",
