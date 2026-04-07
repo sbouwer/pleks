@@ -18,29 +18,29 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: "API_NINJAS_KEY not set" }, { status: 500 })
   }
 
-  // Fetch current prime rate from API Ninjas
+  // Fetch current SA repo rate from API Ninjas (prime rates are premium-only;
+  // SA prime = SARB repo rate + 3.5% spread, fixed by convention)
+  const PRIME_SPREAD = 3.5
   let fetchedRate: number
   try {
     const res = await fetch(
-      "https://api.api-ninjas.com/v1/interestrate?country=south%20africa",
+      "https://api.api-ninjas.com/v1/interestrate",
       { headers: { "X-Api-Key": apiKey }, next: { revalidate: 0 } }
     )
     if (!res.ok) {
       return Response.json({ error: `API Ninjas responded ${res.status}` }, { status: 502 })
     }
     const json = await res.json() as {
-      central_bank_rates?: { rate_pct: number; name: string }[]
-      loan_rates?: { rate_pct: number; name: string }[]
+      central_bank_rates?: { country: string; rate_pct: number; last_updated: string }[]
     }
-    // Look for prime / lending rate in loan_rates
-    const loanRates = json.loan_rates ?? []
-    const primeEntry = loanRates.find(
-      (r) => r.name.toLowerCase().includes("prime") || r.name.toLowerCase().includes("lending")
+    const saEntry = (json.central_bank_rates ?? []).find(
+      (r) => r.country === "South_Africa"
     )
-    if (!primeEntry) {
-      return Response.json({ error: "Prime rate not found in API response", json }, { status: 502 })
+    if (!saEntry) {
+      return Response.json({ error: "South Africa not found in API response" }, { status: 502 })
     }
-    fetchedRate = primeEntry.rate_pct
+    // Prime = repo + 3.5% (fixed SA convention)
+    fetchedRate = Math.round((saEntry.rate_pct + PRIME_SPREAD) * 100) / 100
   } catch (e) {
     return Response.json({ error: `Fetch failed: ${String(e)}` }, { status: 502 })
   }
