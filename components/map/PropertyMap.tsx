@@ -4,36 +4,37 @@ import { useEffect, useRef } from "react"
 import type { Map } from "leaflet"
 
 interface PropertyMapProps {
-  readonly address: string
+  readonly street: string        // e.g. "6 Boegoe Street"
+  readonly city: string          // e.g. "Paarl"
+  readonly province?: string     // e.g. "Western Cape"
   readonly className?: string
 }
 
-async function geocode(address: string): Promise<{ lat: number; lon: number } | null> {
-  // Try progressively shorter queries until we get a result
-  const queries = [
-    address + ", South Africa",
-    // Drop first component (unit/flat numbers) and retry
-    address.split(",").slice(1).join(",").trim() + ", South Africa",
+async function geocode(street: string, city: string, province?: string): Promise<{ lat: number; lon: number } | null> {
+  // Try structured search first (most accurate — Nominatim separates street from suburb)
+  const attempts = [
+    new URLSearchParams({ street, city, state: province ?? "", country: "South Africa", format: "json", limit: "1" }),
+    new URLSearchParams({ street, city, country: "South Africa", format: "json", limit: "1" }),
+    new URLSearchParams({ q: `${street}, ${city}, South Africa`, format: "json", limit: "1", countrycodes: "za" }),
   ]
 
-  for (const q of queries) {
+  for (const params of attempts) {
     try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=za`,
-        { headers: { "Accept-Language": "en" } }
-      )
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+        headers: { "Accept-Language": "en" },
+      })
       const results = await res.json() as { lat: string; lon: string }[]
       if (results[0]) {
         return { lat: Number.parseFloat(results[0].lat), lon: Number.parseFloat(results[0].lon) }
       }
     } catch {
-      // try next query
+      // try next attempt
     }
   }
   return null
 }
 
-export function PropertyMap({ address, className }: PropertyMapProps) {
+export function PropertyMap({ street, city, province, className }: PropertyMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<Map | null>(null)
   const initializedRef = useRef(false) // synchronous guard for StrictMode double-invoke
@@ -48,7 +49,6 @@ export function PropertyMap({ address, className }: PropertyMapProps) {
       const L = (await import("leaflet")).default
       await import("leaflet/dist/leaflet.css")
 
-      // Fix Webpack/Next.js asset path issue for default marker icons
       const iconProto = L.Icon.Default.prototype as L.Icon.Default & { _getIconUrl?: unknown }
       delete iconProto._getIconUrl
       L.Icon.Default.mergeOptions({
@@ -57,9 +57,7 @@ export function PropertyMap({ address, className }: PropertyMapProps) {
         shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
       })
 
-      if (!containerRef.current) return
-
-      const coords = await geocode(address)
+      const coords = await geocode(street, city, province)
       const lat = coords?.lat ?? -29
       const lon = coords?.lon ?? 25
       const zoom = coords ? 16 : 5
@@ -87,7 +85,7 @@ export function PropertyMap({ address, className }: PropertyMapProps) {
       mapRef.current?.remove()
       mapRef.current = null
     }
-  }, [address])
+  }, [street, city, province])
 
   return <div ref={containerRef} className={className} />
 }
