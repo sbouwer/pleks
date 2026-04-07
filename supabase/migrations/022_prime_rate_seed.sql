@@ -57,3 +57,4 @@ VALUES
   ('2025-11-20', 10.5, 'SARB MPC decision'),
   ('2026-04-07', 10.25, 'SARB MPC decision')
 ON CONFLICT DO NOTHING;
+instead of a tick box: perhaps just say Note: CPA S14 applies

@@ -65,9 +65,12 @@ export function TenantStep({ data, onBack, onNext }: Readonly<Props>) {
 
   const org = orgId ?? ""
 
+  const [tenantIsJuristic, setTenantIsJuristic] = useState(data.tenantIsJuristic)
+
   function handleSelectMain(t: PickedTenant) {
     setTenantId(t.id)
     setTenantName(t.name)
+    setTenantIsJuristic(t.entity_type === "juristic")
     // Remove co-tenant if same person
     setCoTenants((prev) => prev.filter((c) => c.id !== t.id))
     setError("")
@@ -88,7 +91,7 @@ export function TenantStep({ data, onBack, onNext }: Readonly<Props>) {
   function handleNext() {
     if (!tenantId) { setError("Please select a tenant"); return }
     setError("")
-    onNext({ tenantId, tenantName, coTenants })
+    onNext({ tenantId, tenantName, coTenants, tenantIsJuristic })
   }
 
   return (
