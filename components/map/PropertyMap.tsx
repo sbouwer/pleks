@@ -8,12 +8,39 @@ interface PropertyMapProps {
   readonly className?: string
 }
 
+async function geocode(address: string): Promise<{ lat: number; lon: number } | null> {
+  // Try progressively shorter queries until we get a result
+  const queries = [
+    address + ", South Africa",
+    // Drop first component (unit/flat numbers) and retry
+    address.split(",").slice(1).join(",").trim() + ", South Africa",
+  ]
+
+  for (const q of queries) {
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=za`,
+        { headers: { "Accept-Language": "en" } }
+      )
+      const results = await res.json() as { lat: string; lon: string }[]
+      if (results[0]) {
+        return { lat: Number.parseFloat(results[0].lat), lon: Number.parseFloat(results[0].lon) }
+      }
+    } catch {
+      // try next query
+    }
+  }
+  return null
+}
+
 export function PropertyMap({ address, className }: PropertyMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<Map | null>(null)
+  const initializedRef = useRef(false) // synchronous guard for StrictMode double-invoke
 
   useEffect(() => {
-    if (!containerRef.current || mapRef.current) return
+    if (initializedRef.current) return
+    initializedRef.current = true
 
     async function init() {
       if (!containerRef.current) return
@@ -30,25 +57,14 @@ export function PropertyMap({ address, className }: PropertyMapProps) {
         shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
       })
 
-      // Geocode via Nominatim (OpenStreetMap — free, no API key)
-      const encoded = encodeURIComponent(`${address}, South Africa`)
-      let lat = -29, lon = 25, zoom = 5
-      try {
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encoded}&format=json&limit=1`,
-          { headers: { "Accept-Language": "en" } }
-        )
-        const results = await res.json() as { lat: string; lon: string }[]
-        if (results[0]) {
-          lat = Number.parseFloat(results[0].lat)
-          lon = Number.parseFloat(results[0].lon)
-          zoom = 16
-        }
-      } catch {
-        // fall through to default SA centre
-      }
-
       if (!containerRef.current) return
+
+      const coords = await geocode(address)
+      const lat = coords?.lat ?? -29
+      const lon = coords?.lon ?? 25
+      const zoom = coords ? 16 : 5
+
+      if (!containerRef.current || mapRef.current) return
 
       const map = L.map(containerRef.current, { zoomControl: true, scrollWheelZoom: false })
         .setView([lat, lon], zoom)
@@ -59,7 +75,7 @@ export function PropertyMap({ address, className }: PropertyMapProps) {
         maxZoom: 19,
       }).addTo(map)
 
-      if (zoom === 16) {
+      if (coords) {
         L.marker([lat, lon]).addTo(map)
       }
     }
@@ -67,6 +83,7 @@ export function PropertyMap({ address, className }: PropertyMapProps) {
     void init()
 
     return () => {
+      initializedRef.current = false
       mapRef.current?.remove()
       mapRef.current = null
     }
