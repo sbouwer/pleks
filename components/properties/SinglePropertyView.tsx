@@ -2,7 +2,6 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Edit, Building2 } from "lucide-react"
 import { EmptyState } from "@/components/shared/EmptyState"
-import { UpgradeCta } from "@/components/shared/UpgradeCta"
 import { BodyCorporateCard } from "./BodyCorporateCard"
 import { OwnerMetrics } from "./PropertyMetrics"
 import { PropertyUnitsSection } from "./PropertyUnitsSection"
@@ -257,12 +256,6 @@ export function SinglePropertyView({ property, attentionItems, recentActivity, t
         </div>
       )}
 
-      {/* Upgrade CTA */}
-      <UpgradeCta
-        title="Managing more than one property?"
-        description="Upgrade to Steward to manage up to 20 units with digital signing, bank reconciliation, and more."
-        dismissKey="upgrade-cta-owner-properties"
-      />
     </div>
   )
 }
