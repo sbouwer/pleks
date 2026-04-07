@@ -80,6 +80,11 @@ export async function updateProperty(propertyId: string, formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
+  const isSectional = formData.get("is_sectional_title") === "true"
+  const levyDisplay = formData.get("levy_amount_cents_display") as string | null
+  const levyCents = levyDisplay && levyDisplay.trim() !== "" ? Math.round(Number.parseFloat(levyDisplay) * 100) : null
+  const managingSchemeRaw = formData.get("managing_scheme_id") as string | null
+
   const updates: Record<string, unknown> = {
     name: formData.get("name"),
     type: formData.get("type"),
@@ -90,7 +95,12 @@ export async function updateProperty(propertyId: string, formData: FormData) {
     province: formData.get("province"),
     postal_code: formData.get("postal_code") || null,
     erf_number: formData.get("erf_number") || null,
+    sectional_title_number: formData.get("sectional_title_number") || null,
     notes: formData.get("notes") || null,
+    is_sectional_title: isSectional,
+    managing_scheme_id: isSectional && managingSchemeRaw ? managingSchemeRaw : null,
+    levy_amount_cents: isSectional ? levyCents : null,
+    levy_account_number: isSectional ? (formData.get("levy_account_number") as string | null) || null : null,
   }
 
   const { error } = await supabase
@@ -120,7 +130,35 @@ export async function updateProperty(propertyId: string, formData: FormData) {
 
   revalidatePath(`/properties/${propertyId}`)
   revalidatePath("/properties")
-  redirect(`/properties/${propertyId}`)
+  return { success: true }
+}
+
+export async function archiveProperty(propertyId: string): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect("/login")
+
+  // Check for active leases first
+  const { count } = await supabase
+    .from("leases")
+    .select("id", { count: "exact", head: true })
+    .eq("property_id", propertyId)
+    .in("status", ["active", "notice", "month_to_month"])
+    .is("deleted_at", null)
+
+  if (count && count > 0) {
+    return { error: "Active leases must be terminated before archiving." }
+  }
+
+  const { error } = await supabase
+    .from("properties")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", propertyId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath("/properties")
+  return {}
 }
 
 export async function deleteProperty(propertyId: string) {
