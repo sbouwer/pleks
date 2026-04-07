@@ -1,15 +1,15 @@
 import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { getServerOrgMembership } from "@/lib/auth/server"
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { StatusBadge } from "@/components/shared/StatusBadge"
-import { EmptyState } from "@/components/shared/EmptyState"
-import { UnitRow } from "./UnitRow"
 import { LandlordPicker } from "./LandlordPicker"
 import { AgentPicker } from "./AgentPicker"
-import { DoorOpen, ExternalLink, Pencil, Plus, Upload } from "lucide-react"
+import { PropertyUnitsSection } from "@/components/properties/PropertyUnitsSection"
+import { QuickActionsCard } from "@/components/properties/QuickActionsCard"
+import { ExternalLink, Pencil } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 
@@ -31,8 +31,11 @@ export default async function PropertyDetailPage({
 }) {
   const { id } = await params
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+
+  const membership = await getServerOrgMembership()
+  if (!membership) redirect("/login")
+  const { org_id: orgId, role } = membership
+  const tier = membership.tier ?? "owner"
 
   const { data: property } = await supabase
     .from("properties")
@@ -44,16 +47,6 @@ export default async function PropertyDetailPage({
   if (!property) notFound()
 
   const service = await createServiceClient()
-
-  // Get org membership for landlord list and team members
-  const { data: membership } = await service
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-
-  if (!membership) redirect("/onboarding")
 
   const [
     { data: units },
@@ -81,7 +74,7 @@ export default async function PropertyDetailPage({
     service
       .from("landlord_view")
       .select("id, first_name, last_name, company_name, email, phone")
-      .eq("org_id", membership.org_id)
+      .eq("org_id", orgId)
       .is("deleted_at", null)
       .order("first_name"),
 
@@ -101,7 +94,7 @@ export default async function PropertyDetailPage({
     service
       .from("user_orgs")
       .select("user_id, role, user_profiles(id, full_name)")
-      .eq("org_id", membership.org_id)
+      .eq("org_id", orgId)
       .is("deleted_at", null),
   ])
 
@@ -159,11 +152,15 @@ export default async function PropertyDetailPage({
   const occupied = activeUnits.filter((u) => u.status === "occupied").length
   const vacantCount = activeUnits.filter((u) => u.status === "vacant").length
   const totalRentCents = activeUnits.reduce((sum, u) => sum + (u.asking_rent_cents || 0), 0)
+  const totalMaintenanceCount = Object.values(maintenanceByUnit).reduce((s, n) => s + n, 0)
 
   const addressParts = [property.address_line1, property.suburb, property.city, property.province].filter(Boolean)
   const fullAddress = addressParts.join(", ")
   const mapsQuery = encodeURIComponent([...addressParts, "South Africa"].join(", "))
   const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`
+
+  // Suppress unused variable warning — role available for future use
+  void role
 
   return (
     <div>
@@ -204,7 +201,7 @@ export default async function PropertyDetailPage({
           <CardContent className="pt-4">
             <LandlordPicker
               propertyId={id}
-              orgId={membership.org_id}
+              orgId={orgId}
               landlords={allLandlords ?? []}
               current={landlord}
             />
@@ -240,9 +237,8 @@ export default async function PropertyDetailPage({
           </CardContent>
         </Card>
 
-        {/* Card 3: Map — Card is relative, iframe absolute inset-0 */}
+        {/* Card 3: Map */}
         <Card className="relative overflow-hidden min-h-[220px]">
-          {/* Hidden div enforces minimum height for mobile */}
           <div className="hidden min-h-[220px]" aria-hidden="true" />
           <a
             href={googleMapsUrl}
@@ -264,64 +260,28 @@ export default async function PropertyDetailPage({
 
       </div>
 
-      {/* Units section header */}
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-medium">Units</h2>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" render={<Link href="/settings/import" />}>
-            <Upload className="h-4 w-4 mr-1" /> Import
-          </Button>
-          <Button size="sm" render={<Link href={`/properties/${id}/units/new`} />}>
-            <Plus className="h-4 w-4 mr-1" /> Add Unit
-          </Button>
-        </div>
-      </div>
+      {/* Units section */}
+      <PropertyUnitsSection
+        units={activeUnits}
+        archivedUnits={archivedUnits}
+        propertyId={id}
+        propertyType={property.type ?? "residential"}
+        tier={tier}
+        managingAgentId={property.managing_agent_id ?? null}
+        agentMap={agentMap}
+        tenantByUnit={tenantByUnit}
+        maintenanceByUnit={maintenanceByUnit}
+        orgId={orgId}
+      />
 
-      {/* Units list */}
-      {activeUnits.length === 0 ? (
-        <EmptyState
-          icon={<DoorOpen className="h-8 w-8 text-muted-foreground" />}
-          title="No units added yet"
-          description="Add units individually or import in bulk from a spreadsheet."
+      {/* Quick actions */}
+      <div className="mt-6">
+        <QuickActionsCard
+          propertyId={id}
+          tier={tier}
+          maintenanceCount={totalMaintenanceCount}
         />
-      ) : (
-        <div className="space-y-2">
-          {activeUnits.map((unit) => {
-            // Resolve effective agent: unit-level first, fallback to property PM
-            const effectiveAgent = unit.assigned_agent_id
-              ? (agentMap[unit.assigned_agent_id] ? { ...agentMap[unit.assigned_agent_id], inherited: false } : null)
-              : (property.managing_agent_id && agentMap[property.managing_agent_id]
-                  ? { ...agentMap[property.managing_agent_id], inherited: true }
-                  : null)
-
-            return (
-              <UnitRow
-                key={unit.id}
-                unit={unit}
-                propertyId={id}
-                tenant={tenantByUnit[unit.id] ?? null}
-                managingAgent={effectiveAgent}
-                maintenanceCount={maintenanceByUnit[unit.id] ?? 0}
-              />
-            )
-          })}
-        </div>
-      )}
-
-      {/* Archived units */}
-      {archivedUnits.length > 0 && (
-        <div className="mt-8">
-          <h3 className="text-sm font-medium text-muted-foreground mb-3">Archived ({archivedUnits.length})</h3>
-          <div className="space-y-2">
-            {archivedUnits.map((unit) => (
-              <div key={unit.id} className="flex items-center justify-between p-3 rounded-lg bg-surface text-muted-foreground">
-                <span className="text-sm">{unit.unit_number}</span>
-                <StatusBadge status="cancelled" />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   )
 }
