@@ -151,7 +151,9 @@ export function SinglePropertyView({ property, attentionItems, recentActivity }:
         </div>
 
         <PropertyMap
-          address={fullAddress}
+          street={property.address_line1}
+          city={property.city}
+          province={property.province}
           className="rounded-xl border border-border/60 overflow-hidden min-h-44"
         />
       </div>
