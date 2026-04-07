@@ -20,36 +20,49 @@ function MetricCard({ label, value, sub, valueClass }: MetricCardProps) {
 
 // ── Owner metrics (single unit) ───────────────────────────────────────────────
 
+function leaseRemainingLabel(endDate: string | null): string {
+  if (!endDate) return "No active lease"
+  const days = Math.ceil((new Date(endDate).getTime() - Date.now()) / 86400000)
+  if (days < 0) return "Expired"
+  if (days <= 31) return `${days} days`
+  return `${Math.ceil(days / 30)} months`
+}
+
 interface OwnerMetricsProps {
-  unitStatus: string | null
-  rentCents: number | null
-  leaseEndDate: string | null
-  collectionPct: number | null
+  readonly unitStatus: string | null
+  readonly rentCents: number | null
+  readonly leaseEndDate: string | null
+  readonly collectionPct: number | null
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  occupied: "Occupied",
+  notice: "Notice given",
+  vacant: "Vacant",
+}
+const STATUS_CLASS: Record<string, string> = {
+  occupied: "text-green-500",
+  notice: "text-amber-500",
+}
+
+function collectionLabel(pct: number | null): string {
+  if (pct == null) return "Pending"
+  if (pct >= 100) return "100%"
+  return `${pct}%`
+}
+
+function collectionClass(pct: number | null): string {
+  if (pct == null) return "text-amber-500"
+  if (pct >= 100) return "text-green-500"
+  return "text-red-500"
 }
 
 export function OwnerMetrics({ unitStatus, rentCents, leaseEndDate, collectionPct }: OwnerMetricsProps) {
-  const statusLabel = unitStatus === "occupied" ? "Occupied"
-    : unitStatus === "notice" ? "Notice given"
-    : unitStatus === "vacant" ? "Vacant"
-    : "—"
-  const statusClass = unitStatus === "occupied" ? "text-green-500"
-    : unitStatus === "notice" ? "text-amber-500"
-    : "text-red-500"
-
-  let leaseLabel = "No active lease"
-  if (leaseEndDate) {
-    const days = Math.ceil((new Date(leaseEndDate).getTime() - Date.now()) / 86400000)
-    if (days < 0) leaseLabel = "Expired"
-    else if (days <= 31) leaseLabel = `${days} days`
-    else leaseLabel = `${Math.ceil(days / 30)} months`
-  }
-
-  const collLabel = collectionPct == null ? "Pending"
-    : collectionPct >= 100 ? "100%"
-    : `${collectionPct}%`
-  const collClass = collectionPct == null ? "text-amber-500"
-    : collectionPct >= 100 ? "text-green-500"
-    : "text-red-500"
+  const statusLabel = (unitStatus && STATUS_LABEL[unitStatus]) ?? "—"
+  const statusClass = (unitStatus && STATUS_CLASS[unitStatus]) ?? "text-red-500"
+  const leaseLabel = leaseRemainingLabel(leaseEndDate)
+  const collLabel = collectionLabel(collectionPct)
+  const collClass = collectionClass(collectionPct)
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
@@ -63,17 +76,21 @@ export function OwnerMetrics({ unitStatus, rentCents, leaseEndDate, collectionPc
 
 // ── Steward metrics (portfolio summary) ──────────────────────────────────────
 
+function occupancyClass(pct: number): string {
+  if (pct >= 90) return "text-green-500"
+  if (pct >= 70) return "text-amber-500"
+  return "text-red-500"
+}
+
 interface PortfolioMetricsProps {
-  propertyCount: number
-  occupancyPct: number
-  rentRollCents: number
-  attentionCount: number
+  readonly propertyCount: number
+  readonly occupancyPct: number
+  readonly rentRollCents: number
+  readonly attentionCount: number
 }
 
 export function PortfolioMetrics({ propertyCount, occupancyPct, rentRollCents, attentionCount }: PortfolioMetricsProps) {
-  const occClass = occupancyPct >= 90 ? "text-green-500"
-    : occupancyPct >= 70 ? "text-amber-500"
-    : "text-red-500"
+  const occClass = occupancyClass(occupancyPct)
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">

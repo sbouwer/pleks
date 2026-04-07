@@ -1,32 +1,36 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { X, ArrowUpRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
+
+function shouldShow(dismissKey: string): boolean {
+  try {
+    const raw = localStorage.getItem(dismissKey)
+    if (raw) {
+      const { dismissedAt } = JSON.parse(raw) as { dismissedAt: number }
+      if (Date.now() - dismissedAt < THIRTY_DAYS_MS) return false
+    }
+  } catch {
+    // ignore parse errors
+  }
+  return true
+}
+
 interface UpgradeCtaProps {
-  title: string
-  description: string
-  dismissKey: string // localStorage key — 30-day expiry
+  readonly title: string
+  readonly description: string
+  readonly dismissKey: string // localStorage key — 30-day expiry
 }
 
 export function UpgradeCta({ title, description, dismissKey }: UpgradeCtaProps) {
-  const [visible, setVisible] = useState(false)
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(dismissKey)
-      if (raw) {
-        const { dismissedAt } = JSON.parse(raw) as { dismissedAt: number }
-        const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000
-        if (Date.now() - dismissedAt < thirtyDaysMs) return
-      }
-    } catch {
-      // ignore parse errors
-    }
-    setVisible(true)
-  }, [dismissKey])
+  const [visible, setVisible] = useState(() => {
+    if (globalThis.window === undefined) return false
+    return shouldShow(dismissKey)
+  })
 
   function dismiss() {
     try {
