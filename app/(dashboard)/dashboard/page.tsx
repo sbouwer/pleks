@@ -1,4 +1,5 @@
-import { createClient } from "@/lib/supabase/server"
+import { Suspense } from "react"
+import { createClient, getCachedServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { getServerOrgMembership, getServerUser } from "@/lib/auth/server"
 import Link from "next/link"
@@ -14,7 +15,7 @@ import { formatZARAbbrev } from "@/lib/constants"
 import { getFeesDue } from "@/lib/dashboard/feesDue"
 import { getTrustBalance } from "@/lib/dashboard/trustBalance"
 import { getUnpaidOwners } from "@/lib/dashboard/unpaidOwners"
-import { getCollectionRate } from "@/lib/dashboard/collectionRate"
+import { getCollectionRate, type CollectionRateData } from "@/lib/dashboard/collectionRate"
 import { getAttentionItems } from "@/lib/dashboard/attentionItems"
 import { getActivityFeed } from "@/lib/dashboard/activityFeed"
 import { getExpiringLeases } from "@/lib/dashboard/leaseExpiry"
@@ -39,22 +40,6 @@ function deriveTrialInfo(sub: SubRow) {
   return { isTrialing, trialEndsAt: isTrialing ? sub?.trial_ends_at : null }
 }
 
-type SupabaseClient = Awaited<ReturnType<typeof import("@/lib/supabase/server").createClient>>
-
-async function getPortfolioCounts(supabase: SupabaseClient, orgId: string) {
-  const [propRes, unitRes] = await Promise.all([
-    supabase.from("properties").select("id", { count: "exact", head: true }).eq("org_id", orgId).is("deleted_at", null),
-    supabase.from("units").select("status, is_archived").eq("org_id", orgId).is("deleted_at", null).eq("is_archived", false),
-  ])
-  const activeUnits = unitRes.data ?? []
-  return {
-    totalProperties: propRes.count ?? 0,
-    totalUnits: activeUnits.length,
-    occupiedUnits: activeUnits.filter((u) => u.status === "occupied").length,
-    vacantUnits: activeUnits.filter((u) => u.status === "vacant").length,
-  }
-}
-
 const CHECKLIST = [
   { key: "org", label: "Organisation created", done: true },
   { key: "property", label: "Add your first property", href: "/properties" },
@@ -63,6 +48,67 @@ const CHECKLIST = [
   { key: "lease", label: "Create a lease", href: "/leases" },
   { key: "inspection", label: "Schedule a move-in inspection", href: "/inspections" },
 ]
+
+// ── Heavy sections — streams in behind a Suspense boundary ───────────────────
+
+async function DashboardHeavySections({
+  orgId,
+  collectionRate,
+}: Readonly<{
+  orgId: string
+  collectionRate: CollectionRateData
+}>) {
+  const [feesDue, trustBalance, unpaidOwners, attentionItems, activityItems, expiringLeases, landlordsCountRes] =
+    await Promise.all([
+      getFeesDue(orgId),
+      getTrustBalance(orgId),
+      getUnpaidOwners(orgId),
+      getAttentionItems(orgId),
+      getActivityFeed(orgId),
+      getExpiringLeases(orgId),
+      getCachedServiceClient().then((c) =>
+        c.from("landlord_view").select("id", { count: "exact", head: true }).eq("org_id", orgId)
+      ),
+    ])
+
+  const totalLandlords = landlordsCountRes.count ?? 0
+
+  return (
+    <>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <AttentionQueue items={attentionItems} />
+        <FinancialsPanel
+          collection={collectionRate}
+          trustBalance={trustBalance}
+          feesDue={feesDue}
+          unpaidOwners={unpaidOwners}
+          totalLandlords={totalLandlords}
+        />
+      </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[3fr_2fr]">
+        <LeaseExpiryTimeline leases={expiringLeases} />
+        <ActivityFeed items={activityItems} />
+      </div>
+    </>
+  )
+}
+
+function DashboardSectionsSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="rounded-xl border border-border/60 bg-surface-elevated h-64 animate-pulse" />
+        <div className="rounded-xl border border-border/60 bg-surface-elevated h-64 animate-pulse" />
+      </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[3fr_2fr]">
+        <div className="rounded-xl border border-border/60 bg-surface-elevated h-56 animate-pulse" />
+        <div className="rounded-xl border border-border/60 bg-surface-elevated h-56 animate-pulse" />
+      </div>
+    </div>
+  )
+}
+
+// ── Main page — light queries render immediately ──────────────────────────────
 
 export default async function DashboardPage() {
   const [membership, user] = await Promise.all([
@@ -74,8 +120,8 @@ export default async function DashboardPage() {
   const { org_id: orgId } = membership
   const supabase = await createClient()
 
-  // Org details + profile + subscription + portfolio counts all in parallel (wave 2)
-  const [orgRes, profileRes, subRes, portfolioCounts] = await Promise.all([
+  // Light wave — all independent, renders greeting + metrics immediately
+  const [orgRes, profileRes, subRes, propCountRes, unitRes, collectionRate] = await Promise.all([
     supabase
       .from("organisations")
       .select("has_trust_account, has_deposit_account, management_scope, founding_agent, founding_agent_price_cents")
@@ -92,48 +138,37 @@ export default async function DashboardPage() {
       .eq("org_id", orgId)
       .in("status", ["active", "trialing"])
       .single(),
-    getPortfolioCounts(supabase, orgId),
+    supabase
+      .from("properties")
+      .select("id", { count: "exact", head: true })
+      .eq("org_id", orgId)
+      .is("deleted_at", null),
+    supabase
+      .from("units")
+      .select("status, is_archived")
+      .eq("org_id", orgId)
+      .is("deleted_at", null)
+      .eq("is_archived", false),
+    getCollectionRate(orgId),
   ])
 
   const org = orgRes.data as unknown as Record<string, unknown> | null
   const firstName = profileRes.data?.full_name?.split(" ")[0] ?? "there"
   const sub = subRes.data as SubRow
-  const { totalProperties, totalUnits, occupiedUnits, vacantUnits } = portfolioCounts
+  const totalProperties = propCountRes.count ?? 0
+  const activeUnits = unitRes.data ?? []
+  const totalUnits = activeUnits.length
+  const occupiedUnits = activeUnits.filter((u) => u.status === "occupied").length
+  const vacantUnits = activeUnits.filter((u) => u.status === "vacant").length
+  const occupancyPercent = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0
+  const isNewOrg = totalProperties === 0
 
   const greeting = getGreeting()
   const dateStr = new Date().toLocaleDateString("en-ZA", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
   const tier = deriveTier(sub)
   const { isTrialing, trialEndsAt } = deriveTrialInfo(sub)
   const trialDaysLeft = computeTrialDaysLeft(trialEndsAt ?? null)
-
-  const isNewOrg = totalProperties === 0
   const showTrustBanner = tier !== "owner" && org?.has_trust_account !== true
-  const occupancyPercent = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0
-
-  // All dashboard data in one Promise.all — no waterfalls
-  const [
-    collectionRate,
-    feesDue,
-    trustBalance,
-    unpaidOwners,
-    attentionItems,
-    activityItems,
-    expiringLeases,
-    landlordsCountRes,
-  ] = isNewOrg
-    ? [null, null, null, null, [], [], [], { count: 0 }]
-    : await Promise.all([
-        getCollectionRate(orgId),
-        getFeesDue(orgId),
-        getTrustBalance(orgId),
-        getUnpaidOwners(orgId),
-        getAttentionItems(orgId),
-        getActivityFeed(orgId),
-        getExpiringLeases(orgId),
-        supabase.from("landlord_view").select("id", { count: "exact", head: true }).eq("org_id", orgId),
-      ])
-
-  const totalLandlords = (landlordsCountRes && "count" in landlordsCountRes) ? (landlordsCountRes.count ?? 0) : 0
 
   return (
     <div className="space-y-5">
@@ -186,18 +221,10 @@ export default async function DashboardPage() {
         </Card>
       )}
 
-      {/* Five metric cards */}
+      {/* Five metric cards — immediate */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <MetricCard
-          label="Properties"
-          value={String(totalProperties)}
-          href="/properties"
-        />
-        <MetricCard
-          label="Units"
-          value={String(totalUnits)}
-          href="/properties"
-        />
+        <MetricCard label="Properties" value={String(totalProperties)} href="/properties" />
+        <MetricCard label="Units" value={String(totalUnits)} href="/properties" />
         <MetricCard
           label="Occupancy"
           value={`${occupancyPercent}%`}
@@ -218,26 +245,11 @@ export default async function DashboardPage() {
         />
       </div>
 
-      {/* Row 1: Attention queue + Financials */}
-      {!isNewOrg && collectionRate && feesDue && trustBalance && unpaidOwners && (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <AttentionQueue items={attentionItems ?? []} />
-          <FinancialsPanel
-            collection={collectionRate}
-            trustBalance={trustBalance}
-            feesDue={feesDue}
-            unpaidOwners={unpaidOwners}
-            totalLandlords={totalLandlords}
-          />
-        </div>
-      )}
-
-      {/* Row 2: Lease expiry + Activity feed */}
-      {!isNewOrg && (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[3fr_2fr]">
-          <LeaseExpiryTimeline leases={expiringLeases ?? []} />
-          <ActivityFeed items={activityItems ?? []} />
-        </div>
+      {/* Heavy sections — stream in via Suspense */}
+      {!isNewOrg && collectionRate && (
+        <Suspense fallback={<DashboardSectionsSkeleton />}>
+          <DashboardHeavySections orgId={orgId} collectionRate={collectionRate} />
+        </Suspense>
       )}
     </div>
   )
