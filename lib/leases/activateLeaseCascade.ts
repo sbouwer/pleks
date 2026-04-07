@@ -51,7 +51,11 @@ export async function activateLeaseCascade(
 
   // Step 2: Update unit → occupied
   try {
-    await supabase.from("units").update({ status: "occupied" }).eq("id", lease.unit_id)
+    await supabase.from("units").update({
+      status: "occupied",
+      prospective_tenant_id: null,
+      prospective_co_tenant_ids: [],
+    }).eq("id", lease.unit_id)
     await supabase.from("unit_status_history").insert({
       unit_id: lease.unit_id,
       org_id: orgId,

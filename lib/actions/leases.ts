@@ -139,9 +139,10 @@ export async function createLease(formData: FormData) {
 
   // Insert co-tenants if provided
   const coTenantsRaw = formData.get("co_tenants_json") as string | null
+  let coTenantIds: string[] = []
   if (coTenantsRaw) {
     try {
-      const coTenantIds = JSON.parse(coTenantsRaw) as string[]
+      coTenantIds = JSON.parse(coTenantsRaw) as string[]
       if (coTenantIds.length > 0) {
         await supabase.from("lease_co_tenants").insert(
           coTenantIds.map((tid) => ({ org_id: orgId, lease_id: lease.id, tenant_id: tid }))
@@ -149,6 +150,12 @@ export async function createLease(formData: FormData) {
       }
     } catch { /* ignore malformed */ }
   }
+
+  // Reflect draft tenant on the unit so the property page shows who is linked
+  await supabase.from("units").update({
+    prospective_tenant_id: tenantId,
+    prospective_co_tenant_ids: coTenantIds,
+  }).eq("id", unitId)
 
   await supabase.from("audit_log").insert({
     org_id: orgId,
