@@ -12,6 +12,7 @@ export function useUser() {
       const { data: { user } } = await supabase.auth.getUser()
       return user
     },
+    staleTime: 5 * 60 * 1000,
   })
 
   return { user: user ?? null, loading: isLoading }
