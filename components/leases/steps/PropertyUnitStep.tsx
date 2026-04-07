@@ -28,6 +28,8 @@ interface Unit {
   asking_rent_cents: number | null
   bedrooms: number | null
   bathrooms: number | null
+  prospective_tenant_id?: string | null
+  prospective_co_tenant_ids?: string[]
 }
 
 interface Props {
@@ -181,7 +183,7 @@ export function PropertyUnitStep({ data, onNext }: Readonly<Props>) {
       setLoadingUnits(true)
       const { data: rows } = await supabase
         .from("units")
-        .select("id, unit_number, status, asking_rent_cents, bedrooms, bathrooms")
+        .select("id, unit_number, status, asking_rent_cents, bedrooms, bathrooms, prospective_tenant_id, prospective_co_tenant_ids")
         .eq("property_id", propertyId)
         .is("deleted_at", null)
         .eq("is_archived", false)
@@ -203,7 +205,7 @@ export function PropertyUnitStep({ data, onNext }: Readonly<Props>) {
     setLeaseType(p.type === "commercial" ? "commercial" : "residential")
   }
 
-  function handleNext() {
+  async function handleNext() {
     if (!propertyId) { setError("Please select a property"); return }
     if (!unitId) { setError("Please select a unit"); return }
     setError("")
@@ -227,6 +229,38 @@ export function PropertyUnitStep({ data, onNext }: Readonly<Props>) {
       initialCharges = [bcCharge]
     }
 
+    // Look up prospective tenants if set on the unit (and not already pre-filled from URL)
+    let tenantId = data.tenantId
+    let tenantName = data.tenantName
+    let coTenants = data.coTenants
+
+    const prospTenantId = unit?.prospective_tenant_id
+    const prospCoIds = unit?.prospective_co_tenant_ids ?? []
+
+    if (!tenantId && prospTenantId) {
+      const supabase = createClient()
+
+      function rowToName(row: { first_name?: string | null; last_name?: string | null; company_name?: string | null; entity_type?: string | null } | null) {
+        if (!row) return ""
+        return row.entity_type === "juristic"
+          ? (row.company_name ?? "Company")
+          : [row.first_name, row.last_name].filter(Boolean).join(" ")
+      }
+
+      const [primaryRes, ...coResults] = await Promise.all([
+        supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", prospTenantId).single(),
+        ...prospCoIds.map((id) =>
+          supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", id).single()
+            .then((r) => ({ id, row: r.data }))
+        ),
+      ])
+
+      tenantId = prospTenantId
+      tenantName = rowToName(primaryRes.data)
+      coTenants = (coResults as { id: string; row: Parameters<typeof rowToName>[0] }[])
+        .map((r) => ({ id: r.id, name: rowToName(r.row) }))
+    }
+
     onNext({
       propertyId,
       propertyName: prop?.name ?? "",
@@ -236,6 +270,9 @@ export function PropertyUnitStep({ data, onNext }: Readonly<Props>) {
       askingRentCents: selectedUnit.asking_rent_cents,
       bcLevyCents: prop?.levy_amount_cents ?? null,
       charges: initialCharges,
+      tenantId,
+      tenantName,
+      coTenants,
     })
   }
 
