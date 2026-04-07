@@ -16,11 +16,37 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
   const supabase = await createClient()
 
   const sp = await searchParams
-  const propertyId = sp.property ?? null
-  const unitId = sp.unit ?? null
-  const tenantId = sp.tenant ?? null
-  const coTenantIds = sp.co_tenants ? sp.co_tenants.split(",").filter(Boolean) : []
   const renewalOf = sp.renewal_of ?? null
+  const coTenantIds = sp.co_tenants ? sp.co_tenants.split(",").filter(Boolean) : []
+
+  // Owner tier: 1 property + 1 unit — auto-prefill if no params provided
+  let propertyId = sp.property ?? null
+  let unitId = sp.unit ?? null
+  const tenantId = sp.tenant ?? null
+
+  if (!propertyId && membership.tier === "owner") {
+    const { data: ownerProp } = await supabase
+      .from("properties")
+      .select("id")
+      .eq("org_id", orgId)
+      .is("deleted_at", null)
+      .limit(1)
+      .single()
+    if (ownerProp) {
+      propertyId = ownerProp.id
+      if (!unitId) {
+        const { data: ownerUnit } = await supabase
+          .from("units")
+          .select("id")
+          .eq("property_id", ownerProp.id)
+          .is("deleted_at", null)
+          .eq("is_archived", false)
+          .limit(1)
+          .single()
+        if (ownerUnit) unitId = ownerUnit.id
+      }
+    }
+  }
 
   // Fetch display names for pre-filled IDs in parallel
   const [propRes, unitRes, tenantRes, ...coTenantResults] = await Promise.all([

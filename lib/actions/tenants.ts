@@ -52,7 +52,17 @@ export async function createTenant(formData: FormData) {
     contactData.company_name = formData.get("company_name") as string
     contactData.registration_number = formData.get("company_reg_number") as string || null
     contactData.vat_number = formData.get("vat_number") as string || null
-    contactData.contact_first_name = formData.get("contact_person") as string || null
+    // Mandated signatory / director FICA
+    contactData.contact_first_name = formData.get("contact_first_name") as string || null
+    contactData.contact_last_name = formData.get("contact_last_name") as string || null
+    const contactIdNum = formData.get("contact_id_number") as string || null
+    contactData.contact_id_type = formData.get("contact_id_type") as string || null
+    contactData.contact_id_number = contactIdNum
+    contactData.contact_id_number_hash = contactIdNum ? hashIdNumber(contactIdNum) : null
+    contactData.contact_date_of_birth = formData.get("contact_date_of_birth") as string || null
+    contactData.contact_phone = formData.get("contact_phone") as string || null
+    contactData.contact_email = formData.get("contact_email") as string || null
+    // primary_email / primary_phone for company = director's contact (set above in contactData already)
   }
 
   // Step 1: Create contact
@@ -64,6 +74,24 @@ export async function createTenant(formData: FormData) {
 
   if (contactError || !contact) {
     return { error: contactError?.message || "Failed to create contact" }
+  }
+
+  // Insert company address if provided
+  if (tenantType === "company") {
+    const addrLine1 = formData.get("company_addr_line1") as string || null
+    if (addrLine1) {
+      await supabase.from("contact_addresses").insert({
+        org_id: orgId,
+        contact_id: contact.id,
+        address_type: "physical",
+        street_line1: addrLine1,
+        suburb: formData.get("company_addr_suburb") as string || null,
+        city: formData.get("company_addr_city") as string || null,
+        province: formData.get("company_addr_province") as string || null,
+        postal_code: formData.get("company_addr_postal_code") as string || null,
+        is_primary: true,
+      })
+    }
   }
 
   // Step 2: Create tenant (thin record)

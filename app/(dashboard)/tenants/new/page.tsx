@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -19,10 +18,20 @@ import { toast } from "sonner"
 
 type Step = 1 | 2 | 3 | 4
 
+const SA_PROVINCES = [
+  "Eastern Cape", "Free State", "Gauteng", "KwaZulu-Natal",
+  "Limpopo", "Mpumalanga", "Northern Cape", "North West", "Western Cape",
+]
+
+function RequiredStar() {
+  return <span className="text-danger ml-0.5">*</span>
+}
+
 export default function NewTenantPage() {
   const [step, setStep] = useState<Step>(1)
   const [tenantType, setTenantType] = useState<"individual" | "company">("individual")
   const [loading, setLoading] = useState(false)
+  const [errors, setErrors] = useState<Record<string, string>>({})
 
   // Individual fields
   const [firstName, setFirstName] = useState("")
@@ -35,8 +44,21 @@ export default function NewTenantPage() {
 
   // Company fields
   const [companyName, setCompanyName] = useState("")
-  const [contactPerson, setContactPerson] = useState("")
   const [companyReg, setCompanyReg] = useState("")
+  // Director / mandated signatory
+  const [dirFirstName, setDirFirstName] = useState("")
+  const [dirLastName, setDirLastName] = useState("")
+  const [dirIdType, setDirIdType] = useState("sa_id")
+  const [dirIdNumber, setDirIdNumber] = useState("")
+  const [dirIdValidation, setDirIdValidation] = useState<ReturnType<typeof validateSAIdNumber> | null>(null)
+  const [dirPhone, setDirPhone] = useState("")
+  const [dirEmail, setDirEmail] = useState("")
+  // Company address
+  const [addrLine1, setAddrLine1] = useState("")
+  const [addrSuburb, setAddrSuburb] = useState("")
+  const [addrCity, setAddrCity] = useState("")
+  const [addrProvince, setAddrProvince] = useState("")
+  const [addrPostalCode, setAddrPostalCode] = useState("")
 
   // POPIA
   const [popiaConsent, setPopiaConsent] = useState(false)
@@ -55,6 +77,36 @@ export default function NewTenantPage() {
     }
   }
 
+  function handleDirIdNumberChange(value: string) {
+    setDirIdNumber(value)
+    if (dirIdType === "sa_id" && value.replace(/\s/g, "").length === 13) {
+      setDirIdValidation(validateSAIdNumber(value))
+    } else {
+      setDirIdValidation(null)
+    }
+  }
+
+  function validateStep2(): boolean {
+    const errs: Record<string, string> = {}
+    if (tenantType === "individual") {
+      if (!firstName.trim()) errs.firstName = "Required"
+      if (!lastName.trim()) errs.lastName = "Required"
+      if (!email.trim()) errs.email = "Required"
+      if (!phone.trim()) errs.phone = "Required"
+    } else {
+      if (!companyName.trim()) errs.companyName = "Required"
+      if (!dirFirstName.trim()) errs.dirFirstName = "Required"
+      if (!dirLastName.trim()) errs.dirLastName = "Required"
+      if (!dirIdNumber.trim()) errs.dirIdNumber = "Required"
+      if (!dirPhone.trim()) errs.dirPhone = "Required"
+      if (!dirEmail.trim()) errs.dirEmail = "Required"
+      if (!addrLine1.trim()) errs.addrLine1 = "Required"
+      if (!addrCity.trim()) errs.addrCity = "Required"
+    }
+    setErrors(errs)
+    return Object.keys(errs).length === 0
+  }
+
   async function handleSubmit() {
     if (!popiaConsent) {
       toast.error("POPIA consent is required")
@@ -62,23 +114,10 @@ export default function NewTenantPage() {
     }
     setLoading(true)
 
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    const { data: membership } = await supabase
-      .from("user_orgs")
-      .select("org_id")
-      .eq("user_id", user.id)
-      .is("deleted_at", null)
-      .single()
-
-    if (!membership) return
-
     const formData = new FormData()
     formData.set("tenant_type", tenantType)
-    formData.set("email", email)
-    formData.set("phone", phone)
+    formData.set("email", tenantType === "individual" ? email : dirEmail)
+    formData.set("phone", tenantType === "individual" ? phone : dirPhone)
     formData.set("popia_consent", "true")
     formData.set("notes", notes)
     formData.set("employer_name", employer)
@@ -94,11 +133,25 @@ export default function NewTenantPage() {
       }
     } else {
       formData.set("company_name", companyName)
-      formData.set("contact_person", contactPerson)
       formData.set("company_reg_number", companyReg)
+      // Director FICA
+      formData.set("contact_first_name", dirFirstName)
+      formData.set("contact_last_name", dirLastName)
+      formData.set("contact_id_type", dirIdType)
+      formData.set("contact_id_number", dirIdNumber)
+      if (dirIdValidation?.dob) {
+        formData.set("contact_date_of_birth", dirIdValidation.dob.toISOString().split("T")[0])
+      }
+      formData.set("contact_phone", dirPhone)
+      formData.set("contact_email", dirEmail)
+      // Company address
+      formData.set("company_addr_line1", addrLine1)
+      formData.set("company_addr_suburb", addrSuburb)
+      formData.set("company_addr_city", addrCity)
+      formData.set("company_addr_province", addrProvince)
+      formData.set("company_addr_postal_code", addrPostalCode)
     }
 
-    // Use fetch to call server action
     const { createTenant } = await import("@/lib/actions/tenants")
     const result = await createTenant(formData)
     if (result?.error) {
@@ -147,18 +200,32 @@ export default function NewTenantPage() {
             <>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>First Name *</Label>
-                  <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+                  <Label>First Name <RequiredStar /></Label>
+                  <Input
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    placeholder="e.g. Jane"
+                    className={errors.firstName ? "border-danger" : ""}
+                  />
+                  {errors.firstName && <p className="text-xs text-danger">{errors.firstName}</p>}
                 </div>
                 <div className="space-y-2">
-                  <Label>Last Name *</Label>
-                  <Input value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+                  <Label>Last Name <RequiredStar /></Label>
+                  <Input
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder="e.g. Smith"
+                    className={errors.lastName ? "border-danger" : ""}
+                  />
+                  {errors.lastName && <p className="text-xs text-danger">{errors.lastName}</p>}
                 </div>
               </div>
               <div className="space-y-2">
                 <Label>ID Type</Label>
                 <Select value={idType} onValueChange={(v) => setIdType(v ?? "sa_id")}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select ID type" />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="sa_id">SA ID Number</SelectItem>
                     <SelectItem value="passport">Passport</SelectItem>
@@ -168,7 +235,11 @@ export default function NewTenantPage() {
               </div>
               <div className="space-y-2">
                 <Label>ID / Passport Number</Label>
-                <Input value={idNumber} onChange={(e) => handleIdNumberChange(e.target.value)} />
+                <Input
+                  value={idNumber}
+                  onChange={(e) => handleIdNumberChange(e.target.value)}
+                  placeholder={idType === "sa_id" ? "13-digit SA ID number" : "Passport or permit number"}
+                />
                 {idValidation && (
                   <p className={`text-sm ${idValidation.valid ? "text-success" : "text-danger"}`}>
                     {idValidation.valid
@@ -177,39 +248,196 @@ export default function NewTenantPage() {
                   </p>
                 )}
               </div>
+              <div className="space-y-2">
+                <Label>Email <RequiredStar /></Label>
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="email@example.com"
+                  className={errors.email ? "border-danger" : ""}
+                />
+                {errors.email && <p className="text-xs text-danger">{errors.email}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label>Phone <RequiredStar /></Label>
+                <Input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="e.g. 082 000 0000"
+                  className={errors.phone ? "border-danger" : ""}
+                />
+                {errors.phone && <p className="text-xs text-danger">{errors.phone}</p>}
+              </div>
             </>
           ) : (
             <>
+              {/* Company identity */}
               <div className="space-y-2">
-                <Label>Company Name *</Label>
-                <Input value={companyName} onChange={(e) => setCompanyName(e.target.value)} required />
+                <Label>Company Name <RequiredStar /></Label>
+                <Input
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  placeholder="Legal entity name"
+                  className={errors.companyName ? "border-danger" : ""}
+                />
+                {errors.companyName && <p className="text-xs text-danger">{errors.companyName}</p>}
               </div>
               <div className="space-y-2">
-                <Label>Contact Person *</Label>
-                <Input value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} required />
+                <Label>CIPC Registration Number</Label>
+                <Input
+                  value={companyReg}
+                  onChange={(e) => setCompanyReg(e.target.value)}
+                  placeholder="e.g. 2023/123456/07"
+                />
               </div>
-              <div className="space-y-2">
-                <Label>Registration Number</Label>
-                <Input value={companyReg} onChange={(e) => setCompanyReg(e.target.value)} />
+
+              {/* Company address */}
+              <div className="pt-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Company Address</p>
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label>Street Address <RequiredStar /></Label>
+                    <Input
+                      value={addrLine1}
+                      onChange={(e) => setAddrLine1(e.target.value)}
+                      placeholder="e.g. 12 Main Road"
+                      className={errors.addrLine1 ? "border-danger" : ""}
+                    />
+                    {errors.addrLine1 && <p className="text-xs text-danger">{errors.addrLine1}</p>}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Suburb</Label>
+                      <Input value={addrSuburb} onChange={(e) => setAddrSuburb(e.target.value)} placeholder="e.g. Sandton" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>City <RequiredStar /></Label>
+                      <Input
+                        value={addrCity}
+                        onChange={(e) => setAddrCity(e.target.value)}
+                        placeholder="e.g. Johannesburg"
+                        className={errors.addrCity ? "border-danger" : ""}
+                      />
+                      {errors.addrCity && <p className="text-xs text-danger">{errors.addrCity}</p>}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Province</Label>
+                      <Select value={addrProvince} onValueChange={(v) => setAddrProvince(v ?? "")}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select province" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {SA_PROVINCES.map((p) => (
+                            <SelectItem key={p} value={p}>{p}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Postal Code</Label>
+                      <Input value={addrPostalCode} onChange={(e) => setAddrPostalCode(e.target.value)} placeholder="e.g. 2196" />
+                    </div>
+                  </div>
+                </div>
               </div>
+
+              {/* Mandated signatory FICA */}
+              <div className="pt-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Mandated Signatory (Director / Authorised Representative)</p>
+                <p className="text-xs text-muted-foreground mb-3">The person who will sign the lease on behalf of the company. Full FICA required.</p>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>First Name <RequiredStar /></Label>
+                      <Input
+                        value={dirFirstName}
+                        onChange={(e) => setDirFirstName(e.target.value)}
+                        placeholder="e.g. John"
+                        className={errors.dirFirstName ? "border-danger" : ""}
+                      />
+                      {errors.dirFirstName && <p className="text-xs text-danger">{errors.dirFirstName}</p>}
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Last Name <RequiredStar /></Label>
+                      <Input
+                        value={dirLastName}
+                        onChange={(e) => setDirLastName(e.target.value)}
+                        placeholder="e.g. Doe"
+                        className={errors.dirLastName ? "border-danger" : ""}
+                      />
+                      {errors.dirLastName && <p className="text-xs text-danger">{errors.dirLastName}</p>}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>ID Type</Label>
+                    <Select value={dirIdType} onValueChange={(v) => setDirIdType(v ?? "sa_id")}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select ID type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="sa_id">SA ID Number</SelectItem>
+                        <SelectItem value="passport">Passport</SelectItem>
+                        <SelectItem value="asylum_permit">Asylum Permit</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>ID / Passport Number <RequiredStar /></Label>
+                    <Input
+                      value={dirIdNumber}
+                      onChange={(e) => handleDirIdNumberChange(e.target.value)}
+                      placeholder={dirIdType === "sa_id" ? "13-digit SA ID number" : "Passport or permit number"}
+                      className={errors.dirIdNumber ? "border-danger" : ""}
+                    />
+                    {errors.dirIdNumber && <p className="text-xs text-danger">{errors.dirIdNumber}</p>}
+                    {dirIdValidation && (
+                      <p className={`text-sm ${dirIdValidation.valid ? "text-success" : "text-danger"}`}>
+                        {dirIdValidation.valid
+                          ? `Valid — DOB: ${dirIdValidation.dob?.toLocaleDateString("en-ZA")}, ${dirIdValidation.gender}, ${dirIdValidation.citizenship === "sa_citizen" ? "SA Citizen" : "Permanent Resident"}`
+                          : "Invalid SA ID number"}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Direct Phone <RequiredStar /></Label>
+                    <Input
+                      type="tel"
+                      value={dirPhone}
+                      onChange={(e) => setDirPhone(e.target.value)}
+                      placeholder="e.g. 082 000 0000"
+                      className={errors.dirPhone ? "border-danger" : ""}
+                    />
+                    {errors.dirPhone && <p className="text-xs text-danger">{errors.dirPhone}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Direct Email <RequiredStar /></Label>
+                    <Input
+                      type="email"
+                      value={dirEmail}
+                      onChange={(e) => setDirEmail(e.target.value)}
+                      placeholder="director@company.co.za"
+                      className={errors.dirEmail ? "border-danger" : ""}
+                    />
+                    {errors.dirEmail && <p className="text-xs text-danger">{errors.dirEmail}</p>}
+                  </div>
+                </div>
+              </div>
+
               <Card className="border-info/30 bg-info-bg">
                 <CardContent className="text-sm pt-4">
-                  Company tenants are typically not covered by the Rental Housing Act or CPA consumer protections. Lease terms will govern the tenancy.
+                  Company tenants are typically not covered by the Rental Housing Act or CPA consumer protections. Lease terms govern the tenancy.
                 </CardContent>
               </Card>
             </>
           )}
-          <div className="space-y-2">
-            <Label>Email *</Label>
-            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          </div>
-          <div className="space-y-2">
-            <Label>Phone *</Label>
-            <Input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required />
-          </div>
+
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
-            <Button className="flex-1" onClick={() => setStep(3)}>Continue</Button>
+            <Button className="flex-1" onClick={() => { if (validateStep2()) setStep(3) }}>Continue</Button>
           </div>
         </div>
       </div>
@@ -260,11 +488,11 @@ export default function NewTenantPage() {
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>Employer</Label>
-            <Input value={employer} onChange={(e) => setEmployer(e.target.value)} />
+            <Input value={employer} onChange={(e) => setEmployer(e.target.value)} placeholder="Company or employer name" />
           </div>
           <div className="space-y-2">
             <Label>Occupation</Label>
-            <Input value={occupation} onChange={(e) => setOccupation(e.target.value)} />
+            <Input value={occupation} onChange={(e) => setOccupation(e.target.value)} placeholder="e.g. Engineer" />
           </div>
         </div>
         <div className="space-y-2">
