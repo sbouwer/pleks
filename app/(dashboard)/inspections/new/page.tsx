@@ -1,85 +1,78 @@
-"use client"
+import { createClient } from "@/lib/supabase/server"
+import { getServerOrgMembership } from "@/lib/auth/server"
+import { redirect } from "next/navigation"
+import { NewInspectionForm } from "./NewInspectionForm"
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { createInspection } from "@/lib/actions/inspections"
-import { toast } from "sonner"
+interface Props {
+  searchParams: Record<string, string>
+}
 
-export default function NewInspectionPage() {
-  const [loading, setLoading] = useState(false)
+export default async function NewInspectionPage({ searchParams }: Readonly<Props>) {
+  const membership = await getServerOrgMembership()
+  if (!membership) redirect("/login")
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setLoading(true)
-    const formData = new FormData(e.currentTarget)
-    const result = await createInspection(formData)
-    if (result?.error) {
-      toast.error(result.error)
-      setLoading(false)
+  const { org_id: orgId } = membership
+  const supabase = await createClient()
+
+  const propertyId = searchParams.property ?? null
+  const unitId = searchParams.unit ?? null
+  const leaseId = searchParams.lease ?? null
+  const typeParam = searchParams.type ?? null
+
+  // Fetch display names for pre-filled IDs in parallel
+  const [propRes, unitRes, leaseRes] = await Promise.all([
+    propertyId
+      ? supabase.from("properties").select("name").eq("id", propertyId).single()
+      : Promise.resolve({ data: null }),
+    unitId
+      ? supabase.from("units").select("unit_number, bedrooms").eq("id", unitId).single()
+      : Promise.resolve({ data: null }),
+    leaseId
+      ? supabase.from("leases").select("tenant_id, lease_type").eq("id", leaseId).single()
+      : Promise.resolve({ data: null }),
+  ])
+
+  const propertyName = propRes.data?.name ?? null
+  const leaseType = leaseRes.data?.lease_type ?? null
+  const tenantId = leaseRes.data?.tenant_id ?? null
+
+  let unitLabel: string | null = null
+  if (unitRes.data) {
+    const base = unitRes.data.unit_number ? `Unit ${unitRes.data.unit_number}` : "Unit"
+    const beds = unitRes.data.bedrooms ? ` — ${unitRes.data.bedrooms} bed` : ""
+    unitLabel = base + beds
+  }
+
+  // Fetch tenant display name if we have one
+  let tenantName: string | null = null
+  if (tenantId) {
+    const { data: tv } = await supabase
+      .from("tenant_view")
+      .select("first_name, last_name, company_name, entity_type")
+      .eq("id", tenantId)
+      .single()
+    if (tv) {
+      tenantName = tv.entity_type === "juristic"
+        ? (tv.company_name ?? "Company")
+        : [tv.first_name, tv.last_name].filter(Boolean).join(" ")
     }
   }
 
   return (
-    <div className="max-w-xl">
-      <h1 className="font-heading text-3xl mb-6">Schedule Inspection</h1>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="space-y-2">
-          <Label>Unit ID *</Label>
-          <Input name="unit_id" placeholder="Paste unit UUID" required />
-        </div>
-        <div className="space-y-2">
-          <Label>Property ID *</Label>
-          <Input name="property_id" placeholder="Paste property UUID" required />
-        </div>
-        <div className="space-y-2">
-          <Label>Tenant ID</Label>
-          <Input name="tenant_id" placeholder="Paste tenant UUID (optional for pre-listing)" />
-        </div>
-        <div className="space-y-2">
-          <Label>Lease ID</Label>
-          <Input name="lease_id" placeholder="Paste lease UUID (optional)" />
-        </div>
-        <div className="space-y-2">
-          <Label>Inspection Type *</Label>
-          <Select name="inspection_type" defaultValue="move_in">
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="move_in">Move-in</SelectItem>
-              <SelectItem value="periodic">Periodic</SelectItem>
-              <SelectItem value="move_out">Move-out</SelectItem>
-              <SelectItem value="pre_listing">Pre-listing</SelectItem>
-              <SelectItem value="commercial_handover">Commercial Handover</SelectItem>
-              <SelectItem value="commercial_dilapidations">Commercial Dilapidations</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label>Lease Type *</Label>
-          <Select name="lease_type" defaultValue="residential">
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="residential">Residential</SelectItem>
-              <SelectItem value="commercial">Commercial</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label>Scheduled Date</Label>
-          <Input name="scheduled_date" type="datetime-local" />
-        </div>
-        <Button type="submit" className="w-full" disabled={loading}>
-          {loading ? "Creating..." : "Create Inspection"}
-        </Button>
-      </form>
+    <div className="max-w-2xl">
+      <h1 className="font-heading text-3xl mb-6">Schedule inspection</h1>
+      <NewInspectionForm
+        orgId={orgId}
+        initialPropertyId={propertyId}
+        initialPropertyName={propertyName}
+        initialUnitId={unitId}
+        initialUnitLabel={unitLabel}
+        initialLeaseId={leaseId}
+        initialLeaseType={leaseType as "residential" | "commercial" | null}
+        initialTenantId={tenantId}
+        initialTenantName={tenantName}
+        initialType={typeParam}
+      />
     </div>
   )
 }

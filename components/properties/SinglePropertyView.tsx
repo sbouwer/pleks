@@ -369,7 +369,7 @@ export function SinglePropertyView({ property, currentInvoice = null, orgId = ""
         {activeLease ? (
           <TenantCard lease={activeLease} />
         ) : (
-          <NoTenantCard unitId={activeUnit?.id ?? ""} orgId={orgId} />
+          <NoTenantCard unitId={activeUnit?.id ?? ""} propertyId={property.id} orgId={orgId} />
         )}
         <LeaseSummaryCard lease={activeLease} unitId={activeUnit?.id ?? ""} />
       </div>
