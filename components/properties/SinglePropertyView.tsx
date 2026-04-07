@@ -323,12 +323,6 @@ export function SinglePropertyView({ property, tier = "owner", orgId = "", tenan
         </div>
       )}
 
-      {/* Tenant + Lease summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-        <TenantCard lease={activeLease} unitId={activeUnit?.id ?? ""} />
-        <LeaseSummaryCard lease={activeLease} unitId={activeUnit?.id ?? ""} />
-      </div>
-
       {/* Your unit — always expanded */}
       {unitForPanel && (
         <div className="mb-4">
@@ -357,6 +351,12 @@ export function SinglePropertyView({ property, tier = "owner", orgId = "", tenan
           </div>
         </div>
       )}
+
+      {/* Tenant + Lease summary */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <TenantCard lease={activeLease} unitId={activeUnit?.id ?? ""} />
+        <LeaseSummaryCard lease={activeLease} unitId={activeUnit?.id ?? ""} />
+      </div>
 
       {/* Quick actions — 2×3 contextual grid */}
       <div className="mb-4">
