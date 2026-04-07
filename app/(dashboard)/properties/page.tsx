@@ -28,8 +28,11 @@ export default async function PropertiesPage({
       .from("properties")
       .select(`
         id, name, type, address_line1, address_line2, suburb, city, province, postal_code,
+        managing_agent_id,
         units(
           id, unit_number, status, is_archived,
+          bedrooms, bathrooms, size_m2, floor, parking_bays, furnished,
+          asking_rent_cents, deposit_amount_cents, features, assigned_agent_id,
           leases(
             id, status, rent_amount_cents, start_date, end_date,
             tenant:tenants!tenant_id(id, contact:contacts(first_name, last_name))
@@ -40,6 +43,26 @@ export default async function PropertiesPage({
       .maybeSingle()
 
     if (!rawProperty) return <NoPropertyYet />
+
+    // Build tenant map for PropertyUnitsSection
+    const tenantByUnit: Record<string, { tenantId: string; contactId: string; name: string; initials: string }> = {}
+    for (const unit of rawProperty.units ?? []) {
+      const leases = unit.leases as unknown as Array<{
+        status: string
+        tenant: { id: string; contact: { first_name: string; last_name: string } | null } | null
+      }>
+      const activeLease = leases?.find(l => l.status === "active" || l.status === "notice")
+      const contact = activeLease?.tenant?.contact
+      if (activeLease?.tenant && contact) {
+        const name = `${contact.first_name} ${contact.last_name}`.trim()
+        tenantByUnit[unit.id] = {
+          tenantId: activeLease.tenant.id,
+          contactId: activeLease.tenant.id,
+          name,
+          initials: [contact.first_name[0], contact.last_name[0]].filter(Boolean).join("").toUpperCase(),
+        }
+      }
+    }
 
     const [attentionItems, activityItems] = await Promise.all([
       getAttentionItems(orgId),
@@ -53,6 +76,9 @@ export default async function PropertiesPage({
         property={property}
         attentionItems={attentionItems}
         recentActivity={activityItems}
+        tier={tier}
+        orgId={orgId}
+        tenantByUnit={tenantByUnit}
       />
     )
   }

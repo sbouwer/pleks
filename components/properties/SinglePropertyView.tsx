@@ -5,7 +5,8 @@ import { EmptyState } from "@/components/shared/EmptyState"
 import { UpgradeCta } from "@/components/shared/UpgradeCta"
 import { BodyCorporateCard } from "./BodyCorporateCard"
 import { OwnerMetrics } from "./PropertyMetrics"
-import { formatZAR } from "@/lib/constants"
+import { PropertyUnitsSection } from "./PropertyUnitsSection"
+import { QuickActionsCard } from "./QuickActionsCard"
 import type { AttentionItem } from "@/lib/dashboard/attentionItems"
 import type { ActivityItem } from "@/lib/dashboard/activityFeed"
 import { relativeTime } from "@/lib/dashboard/activityFeed"
@@ -22,6 +23,7 @@ export interface SinglePropertyData {
   city: string
   province: string
   postal_code: string | null
+  managing_agent_id?: string | null
   is_sectional_title?: boolean | null
   levy_amount_cents?: number | null
   levy_account_number?: string | null
@@ -34,6 +36,16 @@ export interface SinglePropertyData {
     unit_number: string | null
     status: string
     is_archived: boolean
+    bedrooms?: number | null
+    bathrooms?: number | null
+    size_m2?: number | null
+    floor?: number | null
+    parking_bays?: number | null
+    furnished?: boolean | null
+    asking_rent_cents?: number | null
+    deposit_amount_cents?: number | null
+    features?: string[]
+    assigned_agent_id?: string | null
     leases: {
       id: string
       status: string
@@ -52,39 +64,18 @@ interface Props {
   readonly property: SinglePropertyData
   readonly attentionItems: AttentionItem[]
   readonly recentActivity: ActivityItem[]
+  readonly tier?: string
+  readonly orgId?: string
+  readonly tenantByUnit?: Record<string, { tenantId: string; contactId: string; name: string; initials: string }>
 }
 
-function tenantDisplay(tenantName: string | null, tenantId: string | undefined) {
-  if (tenantName && tenantId) {
-    return <Link href={`/tenants/${tenantId}`} className="text-brand hover:underline underline-offset-2">{tenantName}</Link>
-  }
-  return <span className="text-muted-foreground">{tenantName ?? "Vacant"}</span>
-}
+export function SinglePropertyView({ property, attentionItems, recentActivity, tier = "owner", orgId = "", tenantByUnit = {} }: Props) {
+  const activeUnits = property.units.filter(u => !u.is_archived)
+  const archivedUnits = property.units.filter(u => u.is_archived)
 
-function unitStatusBadge(status: string) {
-  const classMap: Record<string, string> = {
-    occupied: "bg-green-500/10 text-green-600",
-    notice: "bg-amber-500/10 text-amber-600",
-  }
-  const labelMap: Record<string, string> = {
-    occupied: "Occupied",
-    notice: "Notice given",
-  }
-  return (
-    <span className={cn("text-xs font-medium px-1.5 py-0.5 rounded", classMap[status] ?? "bg-red-500/10 text-red-600")}>
-      {labelMap[status] ?? "Vacant"}
-    </span>
-  )
-}
-
-export function SinglePropertyView({ property, attentionItems, recentActivity }: Props) {
-  const activeUnit = property.units.find(u => !u.is_archived) ?? null
+  // For the metrics strip, derive from first active unit's active lease
+  const activeUnit = activeUnits[0] ?? null
   const activeLease = activeUnit?.leases.find(l => l.status === "active") ?? null
-  const tenant = activeLease?.tenant ?? null
-  const tenantName = tenant?.contact
-    ? `${tenant.contact.first_name} ${tenant.contact.last_name}`
-    : null
-
   const statusLabel = activeUnit?.status ?? null
   const rentCents = activeLease?.rent_amount_cents ?? null
   const leaseEndDate = activeLease?.end_date ?? null
@@ -97,6 +88,47 @@ export function SinglePropertyView({ property, attentionItems, recentActivity }:
     property.province,
     property.postal_code,
   ].filter(Boolean).join(", ")
+
+  // Cast units to the shape PropertyUnitsSection expects
+  type UnitForSection = {
+    id: string; unit_number: string; status: string; is_archived: boolean
+    bedrooms: number | null; bathrooms: number | null; size_m2: number | null
+    floor: number | null; parking_bays: number | null; furnished: boolean | null
+    asking_rent_cents: number | null; deposit_amount_cents: number | null
+    features: string[]; assigned_agent_id: string | null
+  }
+  const unitsForSection: UnitForSection[] = activeUnits.map(u => ({
+    id: u.id,
+    unit_number: u.unit_number ?? "Unit 1",
+    status: u.status,
+    is_archived: u.is_archived,
+    bedrooms: u.bedrooms ?? null,
+    bathrooms: u.bathrooms ?? null,
+    size_m2: u.size_m2 ?? null,
+    floor: u.floor ?? null,
+    parking_bays: u.parking_bays ?? null,
+    furnished: u.furnished ?? null,
+    asking_rent_cents: u.asking_rent_cents ?? null,
+    deposit_amount_cents: u.deposit_amount_cents ?? null,
+    features: u.features ?? [],
+    assigned_agent_id: u.assigned_agent_id ?? null,
+  }))
+  const archivedForSection: UnitForSection[] = archivedUnits.map(u => ({
+    id: u.id,
+    unit_number: u.unit_number ?? "Unit 1",
+    status: u.status,
+    is_archived: u.is_archived,
+    bedrooms: u.bedrooms ?? null,
+    bathrooms: u.bathrooms ?? null,
+    size_m2: u.size_m2 ?? null,
+    floor: u.floor ?? null,
+    parking_bays: u.parking_bays ?? null,
+    furnished: u.furnished ?? null,
+    asking_rent_cents: u.asking_rent_cents ?? null,
+    deposit_amount_cents: u.deposit_amount_cents ?? null,
+    features: u.features ?? [],
+    assigned_agent_id: u.assigned_agent_id ?? null,
+  }))
 
   return (
     <div>
@@ -133,21 +165,6 @@ export function SinglePropertyView({ property, attentionItems, recentActivity }:
             </div>
             <p className="text-sm text-muted-foreground">{fullAddress}</p>
           </div>
-
-          {/* Unit row */}
-          {activeUnit && (
-            <div className="border-t border-border/40 pt-3">
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70 mb-2">Unit</p>
-              <div className="flex items-center gap-4 text-sm">
-                <span className="font-medium">{activeUnit.unit_number ?? "Unit 1"}</span>
-                {tenantDisplay(tenantName, tenant?.id)}
-                {rentCents != null && rentCents > 0 && (
-                  <span className="text-muted-foreground">{formatZAR(rentCents)}</span>
-                )}
-                {activeUnit.status && unitStatusBadge(activeUnit.status)}
-              </div>
-            </div>
-          )}
         </div>
 
         <PropertyMap
@@ -170,6 +187,31 @@ export function SinglePropertyView({ property, attentionItems, recentActivity }:
           />
         </div>
       )}
+
+      {/* Units — inline expandable panels */}
+      <div className="mb-4">
+        <PropertyUnitsSection
+          units={unitsForSection}
+          archivedUnits={archivedForSection}
+          propertyId={property.id}
+          propertyType={property.type ?? "residential"}
+          tier={tier}
+          managingAgentId={property.managing_agent_id ?? null}
+          agentMap={{}}
+          tenantByUnit={tenantByUnit}
+          maintenanceByUnit={{}}
+          orgId={orgId}
+        />
+      </div>
+
+      {/* Quick actions */}
+      <div className="mb-4">
+        <QuickActionsCard
+          propertyId={property.id}
+          tier={tier}
+          maintenanceCount={0}
+        />
+      </div>
 
       {/* Needs attention */}
       {attentionItems.length > 0 && (
