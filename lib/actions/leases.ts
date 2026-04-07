@@ -137,6 +137,16 @@ export async function createLease(formData: FormData) {
     } catch { /* ignore malformed charges */ }
   }
 
+  // Insert co-tenant if provided
+  const coTenantId = formData.get("co_tenant_id") as string | null
+  if (coTenantId) {
+    await supabase.from("lease_co_tenants").insert({
+      org_id: orgId,
+      lease_id: lease.id,
+      tenant_id: coTenantId,
+    })
+  }
+
   await supabase.from("audit_log").insert({
     org_id: orgId,
     table_name: "leases",
