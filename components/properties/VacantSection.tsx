@@ -8,30 +8,26 @@ import { ChevronDown, UserRound, CheckCircle2, Plus, X, Clock } from "lucide-rea
 import { setProspectiveTenants } from "@/lib/actions/units"
 import { toast } from "sonner"
 
+interface CoTenantEntry { id: string; name: string }
+
 interface Props {
   propertyId: string
   unitId: string
   orgId: string
   initialTenantId?: string | null
   initialTenantName?: string | null
-  initialCoTenantId?: string | null
-  initialCoTenantName?: string | null
-}
-
-function toPickedTenant(id: string | null | undefined, name: string | null | undefined): PickedTenant | null {
-  if (!id || !name) return null
-  return { id, name, phone: null }
+  initialCoTenants?: CoTenantEntry[]
 }
 
 function SelectedTenantRow({
   label,
-  tenant,
+  name,
   orgId,
   onSelect,
   onRemove,
 }: Readonly<{
   label: string
-  tenant: PickedTenant
+  name: string
   orgId: string
   onSelect: (t: PickedTenant) => void
   onRemove?: () => void
@@ -41,7 +37,7 @@ function SelectedTenantRow({
       <div className="flex items-center gap-2 min-w-0">
         <CheckCircle2 className="size-4 text-brand flex-shrink-0" />
         <div className="min-w-0">
-          <p className="text-sm font-medium truncate">{tenant.name}</p>
+          <p className="text-sm font-medium truncate">{name}</p>
           <p className="text-xs text-muted-foreground">{label}</p>
         </div>
       </div>
@@ -59,58 +55,69 @@ function SelectedTenantRow({
   )
 }
 
-/** Tenant card + lease summary for a unit with no active lease. Persists prospective tenant selections to the DB so all team members see the same state. */
 export function VacantSection({
   propertyId, unitId, orgId,
   initialTenantId, initialTenantName,
-  initialCoTenantId, initialCoTenantName,
+  initialCoTenants = [],
 }: Readonly<Props>) {
-  const [primary, setPrimary] = useState<PickedTenant | null>(() => toPickedTenant(initialTenantId, initialTenantName))
-  const [coTenant, setCoTenant] = useState<PickedTenant | null>(() => toPickedTenant(initialCoTenantId, initialCoTenantName))
-  const [showCoPicker, setShowCoPicker] = useState(false)
+  const [primary, setPrimary] = useState<PickedTenant | null>(
+    initialTenantId && initialTenantName ? { id: initialTenantId, name: initialTenantName, phone: null } : null
+  )
+  const [coTenants, setCoTenants] = useState<CoTenantEntry[]>(initialCoTenants)
+  const [addingCo, setAddingCo] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
 
-  async function persist(newPrimary: PickedTenant | null, newCo: PickedTenant | null) {
+  async function persist(newPrimary: PickedTenant | null, newCos: CoTenantEntry[]) {
     setSaving(true)
-    const result = await setProspectiveTenants(unitId, newPrimary?.id ?? null, newCo?.id ?? null)
+    const result = await setProspectiveTenants(unitId, newPrimary?.id ?? null, newCos.map((c) => c.id))
     setSaving(false)
     if (result.error) toast.error(result.error)
   }
 
   async function handleSelectPrimary(t: PickedTenant) {
-    const newCo = coTenant?.id === t.id ? null : coTenant
+    const newCos = coTenants.filter((c) => c.id !== t.id)
     setPrimary(t)
-    setCoTenant(newCo)
+    setCoTenants(newCos)
     setError("")
-    await persist(t, newCo)
-  }
-
-  async function handleSelectCo(t: PickedTenant) {
-    if (t.id === primary?.id) { setError("Co-tenant must be a different person"); return }
-    setCoTenant(t)
-    setShowCoPicker(false)
-    setError("")
-    await persist(primary, t)
+    await persist(t, newCos)
   }
 
   async function handleRemovePrimary() {
     setPrimary(null)
-    setCoTenant(null)
-    setShowCoPicker(false)
-    await persist(null, null)
+    setCoTenants([])
+    setAddingCo(false)
+    await persist(null, [])
   }
 
-  async function handleRemoveCo() {
-    setCoTenant(null)
-    setShowCoPicker(false)
-    await persist(primary, null)
+  async function handleSelectCo(t: PickedTenant) {
+    if (t.id === primary?.id) { setError("Co-tenant must be a different person"); return }
+    if (coTenants.some((c) => c.id === t.id)) { setError("This person is already added"); return }
+    const newCos = [...coTenants, { id: t.id, name: t.name }]
+    setCoTenants(newCos)
+    setAddingCo(false)
+    setError("")
+    await persist(primary, newCos)
   }
 
-  const coParam = coTenant ? `&co_tenant=${coTenant.id}` : ""
+  async function handleRemoveCo(id: string) {
+    const newCos = coTenants.filter((c) => c.id !== id)
+    setCoTenants(newCos)
+    await persist(primary, newCos)
+  }
+
+  async function handleChangeCo(oldId: string, t: PickedTenant) {
+    if (t.id === primary?.id) { setError("Co-tenant must be a different person"); return }
+    if (coTenants.some((c) => c.id === t.id && c.id !== oldId)) { setError("This person is already added"); return }
+    const newCos = coTenants.map((c) => c.id === oldId ? { id: t.id, name: t.name } : c)
+    setCoTenants(newCos)
+    setError("")
+    await persist(primary, newCos)
+  }
+
+  const coParam = coTenants.length > 0 ? `&co_tenants=${coTenants.map((c) => c.id).join(",")}` : ""
   const tenantParam = primary ? `&tenant=${primary.id}${coParam}` : ""
   const leaseHref = `/leases/new?property=${propertyId}&unit=${unitId}${tenantParam}`
-
   const hasProspective = !!primary
 
   return (
@@ -124,16 +131,27 @@ export function VacantSection({
 
         {primary ? (
           <div className="flex flex-col gap-2">
-            <SelectedTenantRow label="Primary tenant" tenant={primary} orgId={orgId} onSelect={handleSelectPrimary} onRemove={handleRemovePrimary} />
+            <SelectedTenantRow label="Primary tenant" name={primary.name} orgId={orgId} onSelect={handleSelectPrimary} onRemove={handleRemovePrimary} />
 
-            {coTenant && (
-              <SelectedTenantRow label="Co-tenant" tenant={coTenant} orgId={orgId} onSelect={handleSelectCo} onRemove={handleRemoveCo} />
-            )}
-            {!coTenant && showCoPicker && (
+            {coTenants.map((co, i) => {
+              const coLabel = coTenants.length > 1 ? `Co-tenant ${i + 1}` : "Co-tenant"
+              return (
+              <SelectedTenantRow
+                key={co.id}
+                label={coLabel}
+                name={co.name}
+                orgId={orgId}
+                onSelect={(t) => { void handleChangeCo(co.id, t) }}
+                onRemove={() => { void handleRemoveCo(co.id) }}
+              />
+              )
+            })}
+
+            {addingCo ? (
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-muted-foreground">Co-tenant (optional)</p>
-                  <button type="button" onClick={() => setShowCoPicker(false)} className="text-xs text-muted-foreground hover:text-foreground">Cancel</button>
+                  <button type="button" onClick={() => setAddingCo(false)} className="text-xs text-muted-foreground hover:text-foreground">Cancel</button>
                 </div>
                 <TenantPicker orgId={orgId} onSelect={handleSelectCo} returnTo="/properties"
                   trigger={
@@ -145,12 +163,12 @@ export function VacantSection({
                   }
                 />
               </div>
-            )}
-            {!coTenant && !showCoPicker && (
-              <button type="button" onClick={() => setShowCoPicker(true)} className="flex items-center gap-1.5 text-xs text-brand hover:underline self-start">
+            ) : (
+              <button type="button" onClick={() => setAddingCo(true)} className="flex items-center gap-1.5 text-xs text-brand hover:underline self-start">
                 <Plus className="size-3.5" /> Add co-tenant
               </button>
             )}
+
             {error && <p className="text-xs text-danger">{error}</p>}
           </div>
         ) : (
@@ -179,18 +197,13 @@ export function VacantSection({
               <span className="font-medium">Finalising lease</span>
             </div>
             <p className="text-xs text-muted-foreground">Tenant selected — complete the lease to activate.</p>
-            <Link href={leaseHref} className="text-sm text-brand hover:underline">
-              Create a lease →
-            </Link>
           </>
         ) : (
-          <>
-            <p className="text-sm text-muted-foreground">No active lease</p>
-            <Link href={leaseHref} className="text-sm text-brand hover:underline">
-              Create a lease →
-            </Link>
-          </>
+          <p className="text-sm text-muted-foreground">No active lease</p>
         )}
+        <Link href={leaseHref} className="text-sm text-brand hover:underline">
+          Create a lease →
+        </Link>
       </div>
     </div>
   )

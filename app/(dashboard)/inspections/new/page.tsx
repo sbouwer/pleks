@@ -4,7 +4,7 @@ import { redirect } from "next/navigation"
 import { NewInspectionForm } from "./NewInspectionForm"
 
 interface Props {
-  searchParams: Record<string, string>
+  searchParams: Promise<Record<string, string>>
 }
 
 export default async function NewInspectionPage({ searchParams }: Readonly<Props>) {
@@ -14,10 +14,11 @@ export default async function NewInspectionPage({ searchParams }: Readonly<Props
   const { org_id: orgId } = membership
   const supabase = await createClient()
 
-  const propertyId = searchParams.property ?? null
-  const unitId = searchParams.unit ?? null
-  const leaseId = searchParams.lease ?? null
-  const typeParam = searchParams.type ?? null
+  const sp = await searchParams
+  const propertyId = sp.property ?? null
+  const unitId = sp.unit ?? null
+  const leaseId = sp.lease ?? null
+  const typeParam = sp.type ?? null
 
   // Fetch display names for pre-filled IDs in parallel
   const [propRes, unitRes, leaseRes] = await Promise.all([

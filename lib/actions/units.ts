@@ -274,7 +274,7 @@ export async function updateUnitFeatures(unitId: string, propertyId: string, fea
 export async function setProspectiveTenants(
   unitId: string,
   tenantId: string | null,
-  coTenantId: string | null,
+  coTenantIds: string[],
 ): Promise<{ error?: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -284,7 +284,7 @@ export async function setProspectiveTenants(
     .from("units")
     .update({
       prospective_tenant_id: tenantId,
-      prospective_co_tenant_id: coTenantId,
+      prospective_co_tenant_ids: coTenantIds,
     })
     .eq("id", unitId)
 
