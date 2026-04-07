@@ -1,4 +1,4 @@
-import { createServiceClient } from "@/lib/supabase/server"
+import { getCachedServiceClient } from "@/lib/supabase/server"
 
 export interface ExpiringLease {
   id: string
@@ -14,7 +14,7 @@ export interface ExpiringLease {
 }
 
 export async function getExpiringLeases(orgId: string): Promise<ExpiringLease[]> {
-  const supabase = await createServiceClient()
+  const supabase = await getCachedServiceClient()
   const now = new Date()
   const twelveMonthsOut = new Date(now)
   twelveMonthsOut.setMonth(twelveMonthsOut.getMonth() + 12)

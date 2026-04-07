@@ -74,8 +74,8 @@ export default async function DashboardPage() {
   const { org_id: orgId } = membership
   const supabase = await createClient()
 
-  // Org details + profile + subscription all in parallel
-  const [orgRes, profileRes, subRes] = await Promise.all([
+  // Org details + profile + subscription + portfolio counts all in parallel (wave 2)
+  const [orgRes, profileRes, subRes, portfolioCounts] = await Promise.all([
     supabase
       .from("organisations")
       .select("has_trust_account, has_deposit_account, management_scope, founding_agent, founding_agent_price_cents")
@@ -92,21 +92,19 @@ export default async function DashboardPage() {
       .eq("org_id", orgId)
       .in("status", ["active", "trialing"])
       .single(),
+    getPortfolioCounts(supabase, orgId),
   ])
 
   const org = orgRes.data as unknown as Record<string, unknown> | null
   const firstName = profileRes.data?.full_name?.split(" ")[0] ?? "there"
   const sub = subRes.data as SubRow
+  const { totalProperties, totalUnits, occupiedUnits, vacantUnits } = portfolioCounts
 
   const greeting = getGreeting()
   const dateStr = new Date().toLocaleDateString("en-ZA", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
   const tier = deriveTier(sub)
   const { isTrialing, trialEndsAt } = deriveTrialInfo(sub)
   const trialDaysLeft = computeTrialDaysLeft(trialEndsAt ?? null)
-
-  // Portfolio counts — needed to determine isNewOrg before the main data load
-  const { totalProperties, totalUnits, occupiedUnits, vacantUnits } =
-    await getPortfolioCounts(supabase, orgId)
 
   const isNewOrg = totalProperties === 0
   const showTrustBanner = tier !== "owner" && org?.has_trust_account !== true

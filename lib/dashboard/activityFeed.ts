@@ -1,4 +1,4 @@
-import { createServiceClient } from "@/lib/supabase/server"
+import { getCachedServiceClient } from "@/lib/supabase/server"
 
 export interface ActivityItem {
   id: string
@@ -25,7 +25,7 @@ export function relativeTime(date: Date): string {
 }
 
 export async function getActivityFeed(orgId: string): Promise<ActivityItem[]> {
-  const supabase = await createServiceClient()
+  const supabase = await getCachedServiceClient()
   const sevenDaysAgo = new Date()
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
 

@@ -1,4 +1,4 @@
-import { createServiceClient } from "@/lib/supabase/server"
+import { getCachedServiceClient } from "@/lib/supabase/server"
 
 export interface CollectionRateData {
   totalExpected: number
@@ -8,7 +8,7 @@ export interface CollectionRateData {
 }
 
 export async function getCollectionRate(orgId: string): Promise<CollectionRateData> {
-  const supabase = await createServiceClient()
+  const supabase = await getCachedServiceClient()
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString()
