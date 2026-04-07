@@ -51,6 +51,25 @@ export function UnitClauseProfile({
   const [draft, setDraft] = useState<Record<string, TriState>>({})
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [showHint, setShowHint] = useState(false)
+
+  useEffect(() => {
+    fetch("/api/user/preferences")
+      .then((r) => r.ok ? r.json() : null)
+      .then((d: { preferences: Record<string, unknown> } | null) => {
+        if (d && !d.preferences.dismissed_clause_override_hint) setShowHint(true)
+      })
+      .catch(() => { /* non-critical */ })
+  }, [])
+
+  async function dismissHint() {
+    setShowHint(false)
+    await fetch("/api/user/preferences", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: "dismissed_clause_override_hint", value: true }),
+    })
+  }
 
   async function load() {
     setLoading(true)
@@ -135,6 +154,14 @@ export function UnitClauseProfile({
               Controls which optional clauses are included when creating a lease for this unit.
               Based on unit features — review and adjust if needed.
             </p>
+            {showHint && (
+              <div className="flex items-start justify-between gap-2 mt-2 text-xs text-muted-foreground bg-surface-elevated rounded-md px-3 py-2">
+                <span>This unit uses your organisation&apos;s default clauses. Only add overrides here if this unit needs something different from your standard.</span>
+                <button onClick={dismissHint} className="shrink-0 hover:text-foreground transition-colors" aria-label="Dismiss">
+                  <X className="size-3.5" />
+                </button>
+              </div>
+            )}
             {!isEmpty && !editing && (
               <p className="text-xs text-muted-foreground mt-1">
                 {clauses.filter((c) => c.enabled).length} of {clauses.length} optional clauses active
