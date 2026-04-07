@@ -4,12 +4,10 @@ import { Edit, Building2, MapPin, Phone, Mail } from "lucide-react"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { BodyCorporateCard } from "./BodyCorporateCard"
 import { OwnerMetrics } from "./PropertyMetrics"
-import { UnitExpandPanel } from "./UnitExpandPanel"
+import { OwnerUnitPanel } from "./OwnerUnitPanel"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { UpgradeCta } from "@/components/shared/UpgradeCta"
 import { formatZAR } from "@/lib/constants"
-import type { AttentionItem } from "@/lib/dashboard/attentionItems"
-import type { ActivityItem } from "@/lib/dashboard/activityFeed"
 
 export interface SinglePropertyData {
   id: string
@@ -27,7 +25,7 @@ export interface SinglePropertyData {
   levy_account_number?: string | null
   managing_scheme?: {
     id: string
-    company_name: string
+    contact: { company_name: string | null } | null
   } | null
   units: {
     id: string
@@ -74,8 +72,7 @@ export interface CurrentInvoice {
 
 interface Props {
   readonly property: SinglePropertyData
-  readonly attentionItems?: AttentionItem[]
-  readonly recentActivity?: ActivityItem[]
+
   readonly tier?: string
   readonly orgId?: string
   readonly tenantByUnit?: Record<string, { tenantId: string; contactId: string; name: string; initials: string }>
@@ -317,7 +314,7 @@ export function SinglePropertyView({ property, tier = "owner", orgId = "", tenan
       {property.is_sectional_title && (
         <div className="mb-4">
           <BodyCorporateCard
-            schemeName={property.managing_scheme?.company_name ?? null}
+            schemeName={property.managing_scheme?.contact?.company_name ?? null}
             managingAgentCompany={null}
             schemeId={property.managing_scheme?.id ?? null}
             levyCents={property.levy_amount_cents ?? null}
@@ -351,12 +348,10 @@ export function SinglePropertyView({ property, tier = "owner", orgId = "", tenan
               </div>
             </div>
             {/* Always-expanded panel */}
-            <UnitExpandPanel
+            <OwnerUnitPanel
               unit={unitForPanel}
               propertyId={property.id}
               propertyType={property.type ?? "residential"}
-              onArchive={() => {}}
-              hideArchive
               hasActiveLease={hasActiveLease}
             />
           </div>

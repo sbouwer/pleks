@@ -27,7 +27,7 @@ export default async function PropertiesPage({
       .select(`
         id, name, type, address_line1, address_line2, suburb, city, province, postal_code,
         managing_agent_id, is_sectional_title, levy_amount_cents, levy_account_number,
-        managing_scheme:contractors!managing_scheme_id(id, company_name),
+        managing_scheme:contractors!managing_scheme_id(id, contact:contacts(company_name)),
         units(
           id, unit_number, status, is_archived,
           bedrooms, bathrooms, size_m2, floor, parking_bays, furnished,
@@ -66,8 +66,6 @@ export default async function PropertiesPage({
     return (
       <SinglePropertyView
         property={property}
-        attentionItems={[]}
-        recentActivity={[]}
         tier={tier}
         orgId={orgId}
         currentInvoice={invoiceRes.data ?? null}
