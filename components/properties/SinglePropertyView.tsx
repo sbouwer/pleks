@@ -1,16 +1,15 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Edit, Building2 } from "lucide-react"
+import { Edit, Building2, MapPin, Phone, Mail, ArrowUpRight } from "lucide-react"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { BodyCorporateCard } from "./BodyCorporateCard"
 import { OwnerMetrics } from "./PropertyMetrics"
-import { PropertyUnitsSection } from "./PropertyUnitsSection"
-import { QuickActionsCard } from "./QuickActionsCard"
+import { UnitExpandPanel } from "./UnitExpandPanel"
+import { StatusBadge } from "@/components/shared/StatusBadge"
+import { UpgradeCta } from "@/components/shared/UpgradeCta"
+import { formatZAR } from "@/lib/constants"
 import type { AttentionItem } from "@/lib/dashboard/attentionItems"
 import type { ActivityItem } from "@/lib/dashboard/activityFeed"
-import { relativeTime } from "@/lib/dashboard/activityFeed"
-import { cn } from "@/lib/utils"
-import { PropertyMap } from "@/components/map/PropertyMap"
 
 export interface SinglePropertyData {
   id: string
@@ -49,14 +48,29 @@ export interface SinglePropertyData {
       id: string
       status: string
       rent_amount_cents: number
+      deposit_amount_cents?: number | null
       start_date: string
       end_date: string | null
+      escalation_percent?: number | null
+      escalation_date?: string | null
       tenant: {
         id: string
-        contact: { first_name: string; last_name: string } | null
+        contact: {
+          first_name: string
+          last_name: string
+          phone?: string | null
+          mobile?: string | null
+          email?: string | null
+        } | null
       } | null
     }[]
   }[]
+}
+
+export interface CurrentInvoice {
+  total_amount_cents: number
+  amount_paid_cents: number | null
+  due_date: string
 }
 
 interface Props {
@@ -66,68 +80,211 @@ interface Props {
   readonly tier?: string
   readonly orgId?: string
   readonly tenantByUnit?: Record<string, { tenantId: string; contactId: string; name: string; initials: string }>
+  readonly currentInvoice?: CurrentInvoice | null
 }
 
-export function SinglePropertyView({ property, attentionItems, recentActivity, tier = "owner", orgId = "", tenantByUnit = {} }: Props) {
-  const activeUnits = property.units.filter(u => !u.is_archived)
-  const archivedUnits = property.units.filter(u => u.is_archived)
+// ── Quick action card ─────────────────────────────────────────────────────────
 
-  // For the metrics strip, derive from first active unit's active lease
-  const activeUnit = activeUnits[0] ?? null
-  const activeLease = activeUnit?.leases.find(l => l.status === "active") ?? null
-  const statusLabel = activeUnit?.status ?? null
-  const rentCents = activeLease?.rent_amount_cents ?? null
-  const leaseEndDate = activeLease?.end_date ?? null
+interface ActionCard {
+  icon: string
+  iconBg: string
+  label: string
+  sub: string
+  href: string
+}
 
-  const fullAddress = [
-    property.address_line1,
-    property.address_line2,
-    property.suburb,
-    property.city,
-    property.province,
-    property.postal_code,
-  ].filter(Boolean).join(", ")
+function QuickActionCard({ action }: Readonly<{ action: ActionCard }>) {
+  return (
+    <Link href={action.href} className="flex items-start gap-3 rounded-xl border border-border/60 bg-surface-elevated px-4 py-3 hover:border-brand/40 transition-colors">
+      <div className={`shrink-0 size-7 rounded-lg flex items-center justify-center text-xs font-bold text-white ${action.iconBg}`}>
+        {action.icon}
+      </div>
+      <div className="min-w-0">
+        <p className="text-[13px] font-medium leading-tight">{action.label}</p>
+        <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">{action.sub}</p>
+      </div>
+    </Link>
+  )
+}
 
-  // Cast units to the shape PropertyUnitsSection expects
-  type UnitForSection = {
-    id: string; unit_number: string; status: string; is_archived: boolean
-    bedrooms: number | null; bathrooms: number | null; size_m2: number | null
-    floor: number | null; parking_bays: number | null; furnished: boolean | null
-    asking_rent_cents: number | null; deposit_amount_cents: number | null
-    features: string[]; assigned_agent_id: string | null
+// ── Tenant card ───────────────────────────────────────────────────────────────
+
+function TenantCard({ lease, unitId }: Readonly<{
+  lease: SinglePropertyData["units"][0]["leases"][0] | null
+  unitId: string
+}>) {
+  const tenant = lease?.tenant ?? null
+  const contact = tenant?.contact ?? null
+
+  if (!tenant || !contact) {
+    return (
+      <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 flex flex-col gap-3">
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">Tenant</p>
+        <p className="text-sm text-muted-foreground">No tenant assigned</p>
+        <Link href="/tenants/new" className="text-sm text-brand hover:underline">
+          Add a tenant →
+        </Link>
+      </div>
+    )
   }
-  const unitsForSection: UnitForSection[] = activeUnits.map(u => ({
-    id: u.id,
-    unit_number: u.unit_number ?? "Unit 1",
-    status: u.status,
-    is_archived: u.is_archived,
-    bedrooms: u.bedrooms ?? null,
-    bathrooms: u.bathrooms ?? null,
-    size_m2: u.size_m2 ?? null,
-    floor: u.floor ?? null,
-    parking_bays: u.parking_bays ?? null,
-    furnished: u.furnished ?? null,
-    asking_rent_cents: u.asking_rent_cents ?? null,
-    deposit_amount_cents: u.deposit_amount_cents ?? null,
-    features: u.features ?? [],
-    assigned_agent_id: u.assigned_agent_id ?? null,
-  }))
-  const archivedForSection: UnitForSection[] = archivedUnits.map(u => ({
-    id: u.id,
-    unit_number: u.unit_number ?? "Unit 1",
-    status: u.status,
-    is_archived: u.is_archived,
-    bedrooms: u.bedrooms ?? null,
-    bathrooms: u.bathrooms ?? null,
-    size_m2: u.size_m2 ?? null,
-    floor: u.floor ?? null,
-    parking_bays: u.parking_bays ?? null,
-    furnished: u.furnished ?? null,
-    asking_rent_cents: u.asking_rent_cents ?? null,
-    deposit_amount_cents: u.deposit_amount_cents ?? null,
-    features: u.features ?? [],
-    assigned_agent_id: u.assigned_agent_id ?? null,
-  }))
+
+  const name = `${contact.first_name} ${contact.last_name}`.trim()
+  const initials = [contact.first_name[0], contact.last_name[0]].filter(Boolean).join("").toUpperCase()
+  const phone = contact.mobile || contact.phone
+  const since = lease?.start_date
+    ? new Date(lease.start_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+    : null
+
+  return (
+    <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 flex flex-col gap-3">
+      <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">Tenant</p>
+      <div className="flex items-center gap-3">
+        <div className="size-9 rounded-full bg-brand/10 text-brand flex items-center justify-center text-sm font-semibold shrink-0">
+          {initials}
+        </div>
+        <div className="min-w-0">
+          <p className="font-medium text-sm">{name}</p>
+          {since && <p className="text-xs text-muted-foreground">Since {since}</p>}
+        </div>
+      </div>
+      <div className="space-y-1">
+        {phone && (
+          <a href={`tel:${phone}`} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+            <Phone className="size-3 shrink-0" /> {phone}
+          </a>
+        )}
+        {contact.email && (
+          <a href={`mailto:${contact.email}`} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+            <Mail className="size-3 shrink-0" /> {contact.email}
+          </a>
+        )}
+      </div>
+      <Link href={`/tenants/${tenant.id}`} className="text-xs text-brand hover:underline">
+        View profile →
+      </Link>
+    </div>
+  )
+}
+
+// ── Lease summary card ────────────────────────────────────────────────────────
+
+function LeaseSummaryCard({ lease, unitId }: Readonly<{
+  lease: SinglePropertyData["units"][0]["leases"][0] | null
+  unitId: string
+}>) {
+  if (!lease) {
+    return (
+      <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 flex flex-col gap-3">
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">Lease</p>
+        <p className="text-sm text-muted-foreground">No active lease</p>
+        <Link href={`/leases/new?unit=${unitId}`} className="text-sm text-brand hover:underline">
+          Create a lease →
+        </Link>
+      </div>
+    )
+  }
+
+  const start = new Date(lease.start_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "2-digit" })
+  const end = lease.end_date
+    ? new Date(lease.end_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "2-digit" })
+    : "Month to month"
+
+  // Next payment due: approximate as first of next month
+  const now = new Date()
+  const nextDue = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+  const nextDueLabel = nextDue.toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+
+  return (
+    <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 flex flex-col gap-3">
+      <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">Lease</p>
+      <div className="space-y-1.5">
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">Monthly rent</span>
+          <span className="font-medium">{formatZAR(lease.rent_amount_cents)}</span>
+        </div>
+        {lease.deposit_amount_cents != null && (
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Deposit held</span>
+            <span className="font-medium">{formatZAR(lease.deposit_amount_cents)}</span>
+          </div>
+        )}
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">Period</span>
+          <span className="font-medium">{start} – {end}</span>
+        </div>
+        {lease.escalation_percent != null && lease.escalation_date && (
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Escalation</span>
+            <span className="font-medium">
+              {lease.escalation_percent}% on{" "}
+              {new Date(lease.escalation_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
+            </span>
+          </div>
+        )}
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">Next due</span>
+          <span className="font-medium">{nextDueLabel}</span>
+        </div>
+      </div>
+      <Link href={`/leases/${lease.id}`} className="text-xs text-brand hover:underline">
+        View lease →
+      </Link>
+    </div>
+  )
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
+export function SinglePropertyView({ property, tier = "owner", orgId = "", tenantByUnit = {}, currentInvoice = null }: Props) {
+  const activeUnits = property.units.filter(u => !u.is_archived)
+  const activeUnit = activeUnits[0] ?? null
+  const activeLease = activeUnit?.leases.find(l => l.status === "active" || l.status === "notice") ?? null
+  const leaseEndDate = activeLease?.end_date ?? null
+  const unitStatus = activeUnit?.status ?? null
+  const hasActiveLease = activeLease != null
+
+  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+    [property.address_line1, property.suburb, property.city, property.province].filter(Boolean).join(", ")
+  )}`
+
+  // Unit shape for UnitExpandPanel
+  const unitForPanel = activeUnit ? {
+    id: activeUnit.id,
+    unit_number: activeUnit.unit_number ?? "Unit 1",
+    status: activeUnit.status,
+    bedrooms: activeUnit.bedrooms ?? null,
+    bathrooms: activeUnit.bathrooms ?? null,
+    size_m2: activeUnit.size_m2 ?? null,
+    floor: activeUnit.floor ?? null,
+    parking_bays: activeUnit.parking_bays ?? null,
+    furnished: activeUnit.furnished ?? null,
+    asking_rent_cents: activeUnit.asking_rent_cents ?? null,
+    deposit_amount_cents: activeUnit.deposit_amount_cents ?? null,
+    features: activeUnit.features ?? [],
+    assigned_agent_id: activeUnit.assigned_agent_id ?? null,
+  } : null
+
+  // Quick actions — contextual
+  const isOccupied = unitStatus === "occupied" || unitStatus === "notice"
+  const occupiedActions: ActionCard[] = [
+    { icon: "R", iconBg: "bg-green-500", label: "Record payment", sub: "Log this month's rent", href: `/payments/new?unit=${activeUnit?.id ?? ""}` },
+    { icon: "I", iconBg: "bg-blue-500", label: "Schedule inspection", sub: "Routine or move-out", href: `/inspections/new?unit=${activeUnit?.id ?? ""}` },
+    { icon: "M", iconBg: "bg-amber-500", label: "Log maintenance", sub: "Report a problem", href: `/maintenance/new?unit=${activeUnit?.id ?? ""}` },
+    { icon: "D", iconBg: "bg-purple-500", label: "View deposit", sub: activeLease?.deposit_amount_cents != null ? `${formatZAR(activeLease.deposit_amount_cents)} held` : "Deposit details", href: "/finance/deposits" },
+    { icon: "S", iconBg: "bg-blue-400", label: "Send notice", sub: "Renewal or termination", href: activeLease ? `/leases/${activeLease.id}/notice` : "/leases" },
+    { icon: "E", iconBg: "bg-green-400", label: "Export documents", sub: "Lease, statement, receipts", href: `/reports?property=${property.id}` },
+  ]
+  const vacantActions: ActionCard[] = [
+    { icon: "T", iconBg: "bg-blue-500", label: "Add tenant", sub: "Start the rental process", href: "/tenants/new" },
+    { icon: "L", iconBg: "bg-blue-400", label: "Create lease", sub: "Draft a new agreement", href: `/leases/new?unit=${activeUnit?.id ?? ""}` },
+    { icon: "I", iconBg: "bg-blue-300", label: "Schedule inspection", sub: "Pre-listing or move-in", href: `/inspections/new?unit=${activeUnit?.id ?? ""}` },
+    { icon: "A", iconBg: "bg-amber-500", label: "Create listing", sub: "Advertise your unit", href: `/applications/new?unit=${activeUnit?.id ?? ""}` },
+    { icon: "P", iconBg: "bg-purple-500", label: "Set asking rent", sub: activeUnit?.asking_rent_cents != null ? `Currently ${formatZAR(activeUnit.asking_rent_cents)}` : "Not set", href: `/properties/${property.id}/units/${activeUnit?.id ?? ""}/edit` },
+    { icon: "B", iconBg: "bg-green-500", label: "Update branding", sub: "Logo and document style", href: "/settings/branding" },
+  ]
+  const quickActions = isOccupied ? occupiedActions : vacantActions
+
+  const STATUS_MAP: Record<string, "active" | "pending" | "open"> = { occupied: "active", notice: "pending", vacant: "open" }
 
   return (
     <div>
@@ -135,8 +292,15 @@ export function SinglePropertyView({ property, attentionItems, recentActivity, t
       <div className="flex items-start justify-between mb-5">
         <div>
           <h1 className="font-heading text-3xl">My property</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {property.name} &middot; {property.address_line1}, {property.city}
+          <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1.5 flex-wrap">
+            <span>{property.name}</span>
+            <span className="text-muted-foreground/40">·</span>
+            <span>{property.address_line1}, {property.city}</span>
+            <span className="text-muted-foreground/40">·</span>
+            <span className="capitalize">{property.type}</span>
+            <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-brand transition-colors">
+              <MapPin className="size-3.5" />
+            </a>
           </p>
         </div>
         <Button variant="outline" size="sm" render={<Link href={`/properties/${property.id}/edit`} />}>
@@ -144,35 +308,12 @@ export function SinglePropertyView({ property, attentionItems, recentActivity, t
         </Button>
       </div>
 
-      {/* Metrics strip */}
+      {/* Metrics strip — 3 cards */}
       <OwnerMetrics
-        unitStatus={statusLabel}
-        rentCents={rentCents}
+        unitStatus={unitStatus}
         leaseEndDate={leaseEndDate}
-        collectionPct={null}
+        currentInvoice={currentInvoice}
       />
-
-      {/* Property detail + map */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4 mb-4">
-        <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 space-y-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <h2 className="font-medium">{property.name}</h2>
-              <span className="text-xs capitalize text-muted-foreground border border-border/60 px-1.5 py-0.5 rounded">
-                {property.type}
-              </span>
-            </div>
-            <p className="text-sm text-muted-foreground">{fullAddress}</p>
-          </div>
-        </div>
-
-        <PropertyMap
-          street={property.address_line1}
-          city={property.city}
-          province={property.province}
-          className="rounded-xl border border-border/60 overflow-hidden min-h-44"
-        />
-      </div>
 
       {/* Body corporate */}
       {property.is_sectional_title && (
@@ -187,75 +328,59 @@ export function SinglePropertyView({ property, attentionItems, recentActivity, t
         </div>
       )}
 
-      {/* Units — inline expandable panels */}
-      <div className="mb-4">
-        <PropertyUnitsSection
-          units={unitsForSection}
-          archivedUnits={archivedForSection}
-          propertyId={property.id}
-          propertyType={property.type ?? "residential"}
-          tier={tier}
-          managingAgentId={property.managing_agent_id ?? null}
-          agentMap={{}}
-          tenantByUnit={tenantByUnit}
-          maintenanceByUnit={{}}
-          orgId={orgId}
-        />
+      {/* Tenant + Lease summary */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+        <TenantCard lease={activeLease} unitId={activeUnit?.id ?? ""} />
+        <LeaseSummaryCard lease={activeLease} unitId={activeUnit?.id ?? ""} />
       </div>
 
-      {/* Quick actions */}
-      <div className="mb-4">
-        <QuickActionsCard
-          propertyId={property.id}
-          tier={tier}
-          maintenanceCount={0}
-        />
-      </div>
-
-      {/* Needs attention */}
-      {attentionItems.length > 0 && (
-        <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 mb-4">
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70 mb-3">
-            Needs attention
-          </p>
-          <div className="space-y-2">
-            {attentionItems.slice(0, 5).map(item => (
-              <div key={item.id} className="flex items-start gap-2.5 text-sm">
-                <span className={cn("mt-1.5 size-1.5 rounded-full shrink-0", item.dotColor)} />
-                <div>
-                  <Link href={item.href} className="hover:text-brand transition-colors">
-                    {item.title}
-                  </Link>
-                  {item.subtitle && <p className="text-xs text-muted-foreground">{item.subtitle}</p>}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Recent activity */}
-      {recentActivity.length > 0 && (
-        <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 mb-4">
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70 mb-3">
-            Recent activity
-          </p>
-          <div className="space-y-2">
-            {recentActivity.slice(0, 5).map(item => (
-              <div key={item.id} className="flex items-start gap-2.5 text-sm">
-                <span className={cn("mt-1.5 size-1.5 rounded-full shrink-0", item.dotColor)} />
-                <div className="flex-1 min-w-0">
-                  <span>{item.title}</span>
-                  <span className="ml-2 text-xs text-muted-foreground">
-                    {relativeTime(new Date(item.timestamp))}
+      {/* Your unit — always expanded */}
+      {unitForPanel && (
+        <div className="mb-4">
+          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70 mb-2">Your unit</p>
+          <div className="rounded-xl border border-border/60 bg-surface-elevated overflow-hidden">
+            {/* Unit header */}
+            <div className="flex items-center justify-between px-4 py-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="font-medium text-sm">{unitForPanel.unit_number}</span>
+                <StatusBadge status={STATUS_MAP[unitForPanel.status] ?? "open"} />
+                {unitForPanel.bedrooms != null && (
+                  <span className="text-xs text-muted-foreground">
+                    {unitForPanel.bedrooms} bed · {unitForPanel.bathrooms ?? "—"} bath
+                    {unitForPanel.size_m2 != null && ` · ${unitForPanel.size_m2} m²`}
                   </span>
-                </div>
+                )}
               </div>
-            ))}
+            </div>
+            {/* Always-expanded panel */}
+            <UnitExpandPanel
+              unit={unitForPanel}
+              propertyId={property.id}
+              propertyType={property.type ?? "residential"}
+              onArchive={() => {}}
+              hideArchive
+              hasActiveLease={hasActiveLease}
+            />
           </div>
         </div>
       )}
 
+      {/* Quick actions — 2×3 contextual grid */}
+      <div className="mb-4">
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70 mb-2">Quick actions</p>
+        <div className="grid grid-cols-2 gap-2">
+          {quickActions.map(action => (
+            <QuickActionCard key={action.label} action={action} />
+          ))}
+        </div>
+      </div>
+
+      {/* Upgrade CTA — compact horizontal bar */}
+      <UpgradeCta
+        title="Managing more properties?"
+        description="Upgrade to Steward for up to 20 units."
+        dismissKey="owner-upgrade-cta"
+      />
     </div>
   )
 }
