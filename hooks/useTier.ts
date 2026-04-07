@@ -18,13 +18,14 @@ export function useTier() {
       const { data } = await supabase
         .from("subscriptions")
         .select("tier, status, current_period_end, trial_tier, trial_ends_at, trial_converted")
-        .eq("org_id", orgId!)
+        .eq("org_id", orgId)
         .in("status", ["active", "trialing"])
         .limit(1)
         .single()
       return data
     },
     enabled: !!orgId,
+    staleTime: 5 * 60 * 1000,
   })
 
   const tier: Tier = data ? getEffectiveTier(data) : "owner"

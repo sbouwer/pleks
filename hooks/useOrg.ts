@@ -2,26 +2,26 @@
 
 import { useQuery } from "@tanstack/react-query"
 import { createClient } from "@/lib/supabase/client"
-import { useUser } from "./useUser"
 import { getOrgDisplayName, type OrgNameFields } from "@/lib/org/displayName"
 
 export function useOrg() {
-  const { user } = useUser()
   const supabase = createClient()
 
   const { data, isLoading } = useQuery({
-    queryKey: ["org", user?.id],
+    queryKey: ["org"],
     queryFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) return null
       const { data } = await supabase
         .from("user_orgs")
         .select("org_id, role, organisations(*)")
-        .eq("user_id", user!.id)
+        .eq("user_id", session.user.id)
         .is("deleted_at", null)
         .limit(1)
         .single()
       return data
     },
-    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
   })
 
   const org = (data?.organisations as unknown as Record<string, unknown>) ?? null
