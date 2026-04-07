@@ -21,10 +21,10 @@ export interface SinglePropertyData {
   city: string
   province: string
   postal_code: string | null
-  is_sectional_title: boolean
-  levy_amount_cents: number | null
-  levy_account_number: string | null
-  managing_scheme: {
+  is_sectional_title?: boolean | null
+  levy_amount_cents?: number | null
+  levy_account_number?: string | null
+  managing_scheme?: {
     id: string
     company_name: string
   } | null

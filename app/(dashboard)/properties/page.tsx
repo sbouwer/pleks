@@ -28,8 +28,6 @@ export default async function PropertiesPage({
       .from("properties")
       .select(`
         id, name, type, address_line1, address_line2, suburb, city, province, postal_code,
-        is_sectional_title, levy_amount_cents, levy_account_number,
-        managing_scheme:contractors!managing_scheme_id(id, company_name),
         units(
           id, unit_number, status, is_archived,
           leases(
@@ -64,7 +62,7 @@ export default async function PropertiesPage({
     const { data: rawProperties } = await supabase
       .from("properties")
       .select(`
-        id, name, type, address_line1, city, province, is_sectional_title,
+        id, name, type, address_line1, city, province,
         units(id, status, is_archived, leases(id, status, rent_amount_cents))
       `)
       .is("deleted_at", null)
@@ -86,7 +84,7 @@ export default async function PropertiesPage({
   const { data: rawProperties } = await supabase
     .from("properties")
     .select(`
-      id, name, type, address_line1, city, province, is_sectional_title,
+      id, name, type, address_line1, city, province,
       units(id, status, is_archived, leases(id, status, rent_amount_cents))
     `)
     .is("deleted_at", null)
