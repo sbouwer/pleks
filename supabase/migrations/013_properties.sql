@@ -1,5 +1,7 @@
--- Body corporate / sectional title attributes on properties
--- Managing scheme is a supplier (contractors table)
+-- 013_properties.sql
+-- Properties table enhancements: body corporate / sectional title attributes.
+-- Managing scheme is a supplier (contractors table).
+-- Idempotent: ADD COLUMN IF NOT EXISTS.
 
 ALTER TABLE properties
   ADD COLUMN IF NOT EXISTS is_sectional_title  boolean DEFAULT false,

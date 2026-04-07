@@ -1,7 +1,8 @@
--- 023_company_contact_fica.sql
--- Add FICA fields for the mandated signatory (director / authorised person)
+-- 014_contacts.sql
+-- FICA fields for the mandated signatory (director / authorised person)
 -- on juristic/company tenant records.
 -- contact_first_name / contact_last_name already exist in 002_contacts.sql.
+-- Idempotent: ADD COLUMN IF NOT EXISTS.
 
 ALTER TABLE contacts
   ADD COLUMN IF NOT EXISTS contact_id_type        text,

@@ -1,6 +1,7 @@
--- 017_org_assets_bucket.sql
+-- 011_org_storage.sql
 -- Creates the org-assets storage bucket for logos and other org-level files.
 -- Private bucket: signed URLs required for read access.
+-- Idempotent: ON CONFLICT DO NOTHING for bucket, policies wrapped in DO $$ IF NOT EXISTS $$.
 
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES (
@@ -21,12 +22,12 @@ BEGIN
     AND policyname = 'org members can upload org assets'
   ) THEN
     CREATE POLICY "org members can upload org assets"
-    ON storage.objects FOR INSERT
-    TO authenticated
-    WITH CHECK (
-      bucket_id = 'org-assets'
-      AND name LIKE 'org-%'
-    );
+      ON storage.objects FOR INSERT
+      TO authenticated
+      WITH CHECK (
+        bucket_id = 'org-assets'
+        AND name LIKE 'org-%'
+      );
   END IF;
 END $$;
 
@@ -39,11 +40,11 @@ BEGIN
     AND policyname = 'org members can manage org assets'
   ) THEN
     CREATE POLICY "org members can manage org assets"
-    ON storage.objects FOR ALL
-    TO authenticated
-    USING (
-      bucket_id = 'org-assets'
-      AND name LIKE 'org-%'
-    );
+      ON storage.objects FOR ALL
+      TO authenticated
+      USING (
+        bucket_id = 'org-assets'
+        AND name LIKE 'org-%'
+      );
   END IF;
 END $$;
