@@ -11,6 +11,7 @@ export interface PickedTenant {
   id: string
   name: string
   phone: string | null
+  entity_type: string | null
 }
 
 interface TenantRow {
@@ -71,7 +72,7 @@ export function TenantPicker({ orgId, onSelect, trigger, returnTo }: Readonly<Te
   }, [open])
 
   function handleSelect(t: TenantRow) {
-    onSelect({ id: t.id, name: displayName(t), phone: t.phone ?? null })
+    onSelect({ id: t.id, name: displayName(t), phone: t.phone ?? null, entity_type: t.entity_type })
     close()
   }
 

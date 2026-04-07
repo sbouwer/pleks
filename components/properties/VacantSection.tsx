@@ -61,7 +61,7 @@ export function VacantSection({
   initialCoTenants = [],
 }: Readonly<Props>) {
   const [primary, setPrimary] = useState<PickedTenant | null>(
-    initialTenantId && initialTenantName ? { id: initialTenantId, name: initialTenantName, phone: null } : null
+    initialTenantId && initialTenantName ? { id: initialTenantId, name: initialTenantName, phone: null, entity_type: null } : null
   )
   const [coTenants, setCoTenants] = useState<CoTenantEntry[]>(initialCoTenants)
   const [addingCo, setAddingCo] = useState(false)

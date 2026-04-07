@@ -28,7 +28,7 @@ export function LeaseTermsStep({ data, onBack, onNext }: Readonly<Props>) {
   const [startDate, setStartDate] = useState(data.startDate)
   const [endDate, setEndDate] = useState(data.endDate)
   const [isFixedTerm, setIsFixedTerm] = useState(data.isFixedTerm)
-  const [noticePeriod, setNoticePeriod] = useState(data.noticePeriod)
+  const [noticePeriod] = useState(data.noticePeriod)
   const [rent, setRent] = useState(data.rent || (data.askingRentCents ? (data.askingRentCents / 100).toFixed(2) : ""))
   const [deposit, setDeposit] = useState(data.deposit)
   const [paymentDueDay, setPaymentDueDay] = useState(data.paymentDueDay)
@@ -38,12 +38,12 @@ export function LeaseTermsStep({ data, onBack, onNext }: Readonly<Props>) {
   const [depositInterestRate, setDepositInterestRate] = useState(data.depositInterestRate)
   const [arrearsInterestEnabled, setArrearsInterestEnabled] = useState(data.arrearsInterestEnabled)
   const [arrearsMargin, setArrearsMargin] = useState(data.arrearsMargin)
-  const [cpaApplies, setCpaApplies] = useState(data.cpaApplies)
-  const [tenantIsJuristic, setTenantIsJuristic] = useState(data.tenantIsJuristic)
   const [showInterest, setShowInterest] = useState(false)
   const [error, setError] = useState("")
 
   const isResidential = data.leaseType === "residential"
+  const tenantIsJuristic = data.tenantIsJuristic
+  const cpaApplies = isResidential && !tenantIsJuristic
 
   function handleStartDateChange(value: string) {
     setStartDate(value)
@@ -63,11 +63,6 @@ export function LeaseTermsStep({ data, onBack, onNext }: Readonly<Props>) {
       const rentNum = Number.parseFloat(value)
       if (rentNum > 0) setDeposit((rentNum * 2).toFixed(2))
     }
-  }
-
-  function handleCpaChange(checked: boolean) {
-    setCpaApplies(checked)
-    if (isResidential && checked) setNoticePeriod("20")
   }
 
   const currentPrime = 11.25
@@ -93,7 +88,7 @@ export function LeaseTermsStep({ data, onBack, onNext }: Readonly<Props>) {
       depositInterestRate,
       arrearsInterestEnabled,
       arrearsMargin,
-      cpaApplies: isResidential ? cpaApplies : false,
+      cpaApplies,
       tenantIsJuristic,
     })
   }
@@ -149,28 +144,38 @@ export function LeaseTermsStep({ data, onBack, onNext }: Readonly<Props>) {
           Month-to-month
         </label>
         {isResidential && (
-          <label className="flex items-center gap-2 cursor-pointer text-sm ml-auto">
-            <input
-              type="checkbox"
-              checked={cpaApplies}
-              onChange={(e) => handleCpaChange(e.target.checked)}
-              className="accent-brand"
-            />
-            CPA s14 applies
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground ml-auto">
+            {cpaApplies ? "CPA s14 applies" : "CPA s14 n/a (juristic)"}
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger>
-                  <Info className="size-3.5 text-muted-foreground cursor-help flex-shrink-0" />
+                  <Info className="size-3.5 cursor-help flex-shrink-0" />
                 </TooltipTrigger>
                 <TooltipContent side="top" className="flex-col items-start max-w-72 gap-2 py-3 px-3.5 leading-relaxed">
                   <p className="font-semibold">CPA s14 — Fixed-term lease cancellation</p>
-                  <p>Applies when the tenant is a natural person. They may cancel at any time on 20 business days&apos; written notice, regardless of how much of the term remains.</p>
-                  <p><span className="font-medium">Cancellation penalty:</span> 20% × monthly rent × months remaining — payable within 7 days of notice. Falls away for any month the unit is successfully re-let.</p>
-                  <p className="opacity-60 border-t border-current/20 pt-1.5 w-full">See lease clause: <span className="font-medium opacity-100">Early Termination</span></p>
+                  {cpaApplies ? (
+                    <>
+                      <p>This tenant is a natural person on a residential lease — CPA s14 applies automatically. They may cancel at any time on 20 business days&apos; written notice.</p>
+                      <p><span className="font-medium">Cancellation penalty:</span> 20% × monthly rent × months remaining — payable within 7 days. Falls away for any month the unit is re-let.</p>
+                    </>
+                  ) : (
+                    <p>The tenant is a juristic person (company / CC / trust). CPA s14 does not apply — the lease terms govern cancellation.</p>
+                  )}
+                  <p className="opacity-60 border-t border-current/20 pt-1.5 w-full">
+                    See lease clause:{" "}
+                    <a
+                      href="/settings/lease-templates#early_termination"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium opacity-100 underline underline-offset-2"
+                    >
+                      Early Termination ↗
+                    </a>
+                  </p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-          </label>
+          </span>
         )}
       </div>
 
@@ -264,18 +269,6 @@ export function LeaseTermsStep({ data, onBack, onNext }: Readonly<Props>) {
         </div>
       )}
 
-      {/* Tenant type (commercial) */}
-      {!isResidential && (
-        <label className="flex items-center gap-2 cursor-pointer text-sm">
-          <input
-            type="checkbox"
-            checked={tenantIsJuristic}
-            onChange={(e) => setTenantIsJuristic(e.target.checked)}
-            className="accent-brand"
-          />
-          Tenant is a juristic person (company / CC / trust)
-        </label>
-      )}
 
       {/* Interest settings — collapsible */}
       <div>
