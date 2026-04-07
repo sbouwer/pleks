@@ -89,39 +89,34 @@ export async function generateLeaseDocument(
     .eq("id", orgId)
     .single()
 
-  // Load clause library for this lease type
+  // Load clause library + co-tenants in parallel
   const leaseType = lease.lease_type ?? "residential"
-  const { data: library } = await supabase
-    .from("lease_clause_library")
-    .select("*")
-    .in("lease_type", [leaseType, "both"])
-    .order("sort_order")
+  const [libraryRes, coTenantsRes, leaseSelectionsRes, orgCustomRes, orgDefaultsRes] = await Promise.all([
+    supabase.from("lease_clause_library").select("*").in("lease_type", [leaseType, "both"]).order("sort_order"),
+    supabase.from("lease_co_tenants").select("tenant_id", { count: "exact", head: true }).eq("lease_id", leaseId),
+    supabase.from("lease_clause_selections").select("clause_key, enabled, custom_body").eq("lease_id", leaseId),
+    supabase.from("lease_clause_selections").select("clause_key, enabled, custom_body").eq("org_id", orgId).is("lease_id", null),
+    supabase.from("org_lease_clause_defaults").select("clause_key, enabled").eq("org_id", orgId),
+  ])
 
-  // Load per-lease selections (highest priority)
-  const { data: leaseSelections } = await supabase
-    .from("lease_clause_selections")
-    .select("clause_key, enabled, custom_body")
-    .eq("lease_id", leaseId)
+  const library = libraryRes.data
+  const hasCoTenants = (coTenantsRes.count ?? 0) > 0
 
-  // Load org-level custom wording (lease_id IS NULL)
-  const { data: orgCustom } = await supabase
-    .from("lease_clause_selections")
-    .select("clause_key, enabled, custom_body")
-    .eq("org_id", orgId)
-    .is("lease_id", null)
+  // Evaluate a clause's condition field — returns true if the clause passes its condition
+  function conditionMet(condition: string | null): boolean {
+    if (!condition) return true
+    if (condition === "co_tenants_present") return hasCoTenants
+    return true // unknown conditions default to included
+  }
 
-  // Load org defaults (toggle preferences only)
-  const { data: orgDefaults } = await supabase
-    .from("org_lease_clause_defaults")
-    .select("clause_key, enabled")
-    .eq("org_id", orgId)
+  const leaseSelMap = new Map(leaseSelectionsRes.data?.map((s) => [s.clause_key, s]) ?? [])
+  const orgCustomMap = new Map(orgCustomRes.data?.map((s) => [s.clause_key, s]) ?? [])
+  const orgDefaultMap = new Map(orgDefaultsRes.data?.map((d) => [d.clause_key, d.enabled]) ?? [])
 
-  const leaseSelMap = new Map(leaseSelections?.map((s) => [s.clause_key, s]) ?? [])
-  const orgCustomMap = new Map(orgCustom?.map((s) => [s.clause_key, s]) ?? [])
-  const orgDefaultMap = new Map(orgDefaults?.map((d) => [d.clause_key, d.enabled]) ?? [])
-
-  // Determine which clauses are enabled (3-level priority)
+  // Determine which clauses are enabled (condition check first, then 3-level priority)
   const enabledClauses = (library ?? []).filter((clause) => {
+    // Condition gates inclusion entirely — if not met, clause is always excluded
+    if (!conditionMet(clause.condition as string | null)) return false
     if (clause.is_required) return true
     // 1. Per-lease selection
     const leaseSel = leaseSelMap.get(clause.clause_key)
