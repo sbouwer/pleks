@@ -66,8 +66,6 @@ export default async function PropertiesPage({
     return (
       <SinglePropertyView
         property={property}
-        tier={tier}
-        orgId={orgId}
         currentInvoice={invoiceRes.data ?? null}
       />
     )
