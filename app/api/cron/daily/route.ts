@@ -10,6 +10,7 @@ import { GET as levyGenerate } from "../levy-generate/route"
 import { GET as arrearsInterest } from "../arrears-interest/route"
 import { GET as trialExpiry } from "../trial-expiry/route"
 import { GET as purgeImportData } from "../purge-import-data/route"
+import { GET as primeRateSync } from "../prime-rate-sync/route"
 
 type CronHandler = (req: NextRequest) => Promise<Response>
 
@@ -53,6 +54,7 @@ export async function GET(req: NextRequest) {
   await runJob("arrears_interest", arrearsInterest, cronReq, results)
   await runJob("trial_expiry", trialExpiry, cronReq, results)
   await runJob("purge_import_data", purgeImportData, cronReq, results)
+  await runJob("prime_rate_sync", primeRateSync, cronReq, results)
 
   // Monthly jobs
   if (dayOfMonth === 1) {
