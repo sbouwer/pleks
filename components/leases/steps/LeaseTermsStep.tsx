@@ -162,10 +162,11 @@ export function LeaseTermsStep({ data, onBack, onNext }: Readonly<Props>) {
                 <TooltipTrigger>
                   <Info className="size-3.5 text-muted-foreground cursor-help flex-shrink-0" />
                 </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-72 text-left leading-relaxed">
-                  <strong>Consumer Protection Act s14 — Fixed-term contracts</strong>
-                  <br />
-                  Applies to leases where the consumer (tenant) is a natural person. The tenant may cancel a fixed-term lease on 20 business days&apos; written notice, regardless of the remaining term. The landlord may charge a reasonable cancellation penalty. CPA protections cannot be waived by agreement.
+                <TooltipContent side="top" className="flex-col items-start max-w-72 gap-2 py-3 px-3.5 leading-relaxed">
+                  <p className="font-semibold">CPA s14 — Fixed-term lease cancellation</p>
+                  <p>Applies when the tenant is a natural person. They may cancel at any time on 20 business days&apos; written notice, regardless of how much of the term remains.</p>
+                  <p><span className="font-medium">Cancellation penalty:</span> 20% × monthly rent × months remaining — payable within 7 days of notice. Falls away for any month the unit is successfully re-let.</p>
+                  <p className="opacity-60 border-t border-current/20 pt-1.5 w-full">See lease clause: <span className="font-medium opacity-100">Early Termination</span></p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
