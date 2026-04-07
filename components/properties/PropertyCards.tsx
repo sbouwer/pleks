@@ -1,8 +1,7 @@
 import Link from "next/link"
-import { Plus } from "lucide-react"
+import { Plus, Building2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/shared/EmptyState"
-import { Building2 } from "lucide-react"
 import { PortfolioMetrics } from "./PropertyMetrics"
 import { PropertyCard } from "./PropertyCard"
 import { TIER_LIMITS } from "@/lib/constants"
@@ -14,14 +13,14 @@ export interface PropertyCardData {
   type: string
   address_line1: string
   city: string
-  is_sectional_title: boolean
+  is_sectional_title?: boolean | null
   units: { id: string; status: string; is_archived: boolean; leases: { rent_amount_cents: number; status: string }[] }[]
 }
 
 interface Props {
-  properties: PropertyCardData[]
-  tier: Tier
-  totalUnitCount: number
+  readonly properties: PropertyCardData[]
+  readonly tier: Tier
+  readonly totalUnitCount: number
 }
 
 export function PropertyCards({ properties, tier, totalUnitCount }: Props) {
