@@ -87,8 +87,8 @@ export function ReviewStep({ data, onBack, onEdit }: Readonly<Props>) {
     if (data.charges.length > 0) {
       formData.set("charges_json", JSON.stringify(data.charges))
     }
-    if (data.coTenantId) {
-      formData.set("co_tenant_id", data.coTenantId)
+    if (data.coTenants.length > 0) {
+      formData.set("co_tenants_json", JSON.stringify(data.coTenants.map((c) => c.id)))
     }
 
     const result = await createLease(formData)
@@ -114,9 +114,10 @@ export function ReviewStep({ data, onBack, onEdit }: Readonly<Props>) {
           <Row label="Unit" value={data.unitLabel || data.unitId} />
           <SectionHeader title="Tenant" onEdit={() => onEdit(2)} />
           <Row label="Primary tenant" value={data.tenantName || data.tenantId} />
-          {data.coTenantId && (
-            <Row label="Co-tenant" value={data.coTenantName || data.coTenantId} />
-          )}
+          {data.coTenants.map((co, i) => {
+            const coLabel = data.coTenants.length > 1 ? `Co-tenant ${i + 1}` : "Co-tenant"
+            return <Row key={co.id} label={coLabel} value={co.name} />
+          })}
           <Row label="Lease type" value={`${data.leaseType === "residential" ? "Residential" : "Commercial"} · ${data.isFixedTerm ? "Fixed term" : "Month-to-month"}`} />
         </CardContent>
       </Card>

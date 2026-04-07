@@ -137,14 +137,17 @@ export async function createLease(formData: FormData) {
     } catch { /* ignore malformed charges */ }
   }
 
-  // Insert co-tenant if provided
-  const coTenantId = formData.get("co_tenant_id") as string | null
-  if (coTenantId) {
-    await supabase.from("lease_co_tenants").insert({
-      org_id: orgId,
-      lease_id: lease.id,
-      tenant_id: coTenantId,
-    })
+  // Insert co-tenants if provided
+  const coTenantsRaw = formData.get("co_tenants_json") as string | null
+  if (coTenantsRaw) {
+    try {
+      const coTenantIds = JSON.parse(coTenantsRaw) as string[]
+      if (coTenantIds.length > 0) {
+        await supabase.from("lease_co_tenants").insert(
+          coTenantIds.map((tid) => ({ org_id: orgId, lease_id: lease.id, tenant_id: tid }))
+        )
+      }
+    } catch { /* ignore malformed */ }
   }
 
   await supabase.from("audit_log").insert({

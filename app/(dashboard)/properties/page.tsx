@@ -32,7 +32,7 @@ export default async function PropertiesPage({
           id, unit_number, status, is_archived,
           bedrooms, bathrooms, size_m2, floor, parking_bays, furnished,
           asking_rent_cents, deposit_amount_cents, features, assigned_agent_id,
-          prospective_tenant_id, prospective_co_tenant_id,
+          prospective_tenant_id, prospective_co_tenant_ids,
           leases(
             id, status, rent_amount_cents, deposit_amount_cents,
             start_date, end_date, escalation_percent, escalation_review_date,
@@ -52,25 +52,10 @@ export default async function PropertiesPage({
     const now = new Date()
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
-    const prospTenantId = (activeUnit as { prospective_tenant_id?: string | null })?.prospective_tenant_id ?? null
-    const prospCoTenantId = (activeUnit as { prospective_co_tenant_id?: string | null })?.prospective_co_tenant_id ?? null
-
-    const [invoiceRes, prospTenantRes, prospCoTenantRes] = await Promise.all([
-      activeUnit
-        ? supabase
-            .from("rent_invoices")
-            .select("total_amount_cents, amount_paid_cents, due_date")
-            .eq("unit_id", activeUnit.id)
-            .gte("period_from", monthStart)
-            .maybeSingle()
-        : Promise.resolve({ data: null }),
-      prospTenantId
-        ? supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", prospTenantId).single()
-        : Promise.resolve({ data: null }),
-      prospCoTenantId
-        ? supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", prospCoTenantId).single()
-        : Promise.resolve({ data: null }),
-    ])
+    type UnitExtra = { prospective_tenant_id?: string | null; prospective_co_tenant_ids?: string[] }
+    const unitExtra = activeUnit as unknown as UnitExtra
+    const prospTenantId = unitExtra?.prospective_tenant_id ?? null
+    const prospCoTenantIds = unitExtra?.prospective_co_tenant_ids ?? []
 
     function tenantDisplayName(row: { first_name?: string | null; last_name?: string | null; company_name?: string | null; entity_type?: string | null } | null) {
       if (!row) return null
@@ -78,6 +63,22 @@ export default async function PropertiesPage({
         ? (row.company_name ?? "Company")
         : [row.first_name, row.last_name].filter(Boolean).join(" ") || null
     }
+
+    const [invoiceRes, prospTenantRes, ...coTenantResults] = await Promise.all([
+      activeUnit
+        ? supabase.from("rent_invoices").select("total_amount_cents, amount_paid_cents, due_date").eq("unit_id", activeUnit.id).gte("period_from", monthStart).maybeSingle()
+        : Promise.resolve({ data: null }),
+      prospTenantId
+        ? supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", prospTenantId).single()
+        : Promise.resolve({ data: null }),
+      ...prospCoTenantIds.map((id) =>
+        supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", id).single()
+          .then((res) => ({ id, data: res.data }))
+      ),
+    ])
+
+    const prospCoTenants = (coTenantResults as { id: string; data: Parameters<typeof tenantDisplayName>[0] }[])
+      .map((r) => ({ id: r.id, name: tenantDisplayName(r.data) ?? r.id }))
 
     const property = rawProperty as unknown as SinglePropertyData
 
@@ -88,8 +89,7 @@ export default async function PropertiesPage({
         orgId={orgId}
         prospectiveTenantId={prospTenantId}
         prospectiveTenantName={tenantDisplayName(prospTenantRes.data)}
-        prospectiveCoTenantId={prospCoTenantId}
-        prospectiveCoTenantName={tenantDisplayName(prospCoTenantRes.data)}
+        prospectiveCoTenants={prospCoTenants}
       />
     )
   }

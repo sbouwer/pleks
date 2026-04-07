@@ -5,7 +5,7 @@ import { redirect } from "next/navigation"
 import { LeaseWizard } from "@/components/leases/LeaseWizard"
 
 interface Props {
-  searchParams: Record<string, string>
+  searchParams: Promise<Record<string, string>>
 }
 
 export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
@@ -15,13 +15,15 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
   const { org_id: orgId } = membership
   const supabase = await createClient()
 
-  const propertyId = searchParams.property ?? null
-  const unitId = searchParams.unit ?? null
-  const tenantId = searchParams.tenant ?? null
-  const renewalOf = searchParams.renewal_of ?? null
+  const sp = await searchParams
+  const propertyId = sp.property ?? null
+  const unitId = sp.unit ?? null
+  const tenantId = sp.tenant ?? null
+  const coTenantIds = sp.co_tenants ? sp.co_tenants.split(",").filter(Boolean) : []
+  const renewalOf = sp.renewal_of ?? null
 
   // Fetch display names for pre-filled IDs in parallel
-  const [propRes, unitRes, tenantRes] = await Promise.all([
+  const [propRes, unitRes, tenantRes, ...coTenantResults] = await Promise.all([
     propertyId
       ? supabase.from("properties").select("name").eq("id", propertyId).eq("org_id", orgId).single()
       : Promise.resolve({ data: null }),
@@ -29,8 +31,12 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
       ? supabase.from("units").select("unit_number, bedrooms, bathrooms").eq("id", unitId).single()
       : Promise.resolve({ data: null }),
     tenantId
-      ? supabase.from("tenants").select("contact:contacts(first_name, last_name)").eq("id", tenantId).eq("org_id", orgId).single()
+      ? supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", tenantId).single()
       : Promise.resolve({ data: null }),
+    ...coTenantIds.map((id) =>
+      supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", id).single()
+        .then((res) => ({ id, data: res.data }))
+    ),
   ])
 
   const propName = propRes.data?.name ?? null
@@ -45,9 +51,16 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
         .join(" — ")
     : null
 
-  const tenantContact = (tenantRes.data as { contact: { first_name: string; last_name: string } | null } | null)
-    ?.contact
-  const tenantName = tenantContact ? `${tenantContact.first_name} ${tenantContact.last_name}`.trim() : null
+  type TenantRow = { first_name?: string | null; last_name?: string | null; company_name?: string | null; entity_type?: string | null } | null
+  function displayName(row: TenantRow) {
+    if (!row) return null
+    return row.entity_type === "juristic"
+      ? (row.company_name ?? "Company")
+      : [row.first_name, row.last_name].filter(Boolean).join(" ") || null
+  }
+
+  const coTenants = (coTenantResults as { id: string; data: TenantRow }[])
+    .map((r) => ({ id: r.id, name: displayName(r.data) ?? r.id }))
 
   return (
     <div className="max-w-2xl">
@@ -59,7 +72,8 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
           initialUnitId={unitId}
           initialUnitLabel={unitLabel}
           initialTenantId={tenantId}
-          initialTenantName={tenantName}
+          initialTenantName={displayName(tenantRes.data)}
+          initialCoTenants={coTenants}
           renewalOf={renewalOf}
         />
       </Suspense>

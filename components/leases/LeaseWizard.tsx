@@ -24,6 +24,11 @@ export interface SpecialTerm {
   detail: string
 }
 
+export interface CoTenant {
+  id: string
+  name: string
+}
+
 export interface WizardData {
   // Step 1
   propertyId: string
@@ -36,8 +41,7 @@ export interface WizardData {
   // Step 2
   tenantId: string
   tenantName: string
-  coTenantId: string
-  coTenantName: string
+  coTenants: CoTenant[]
   // Step 3
   startDate: string
   endDate: string
@@ -69,6 +73,7 @@ interface Props {
   initialUnitLabel?: string | null
   initialTenantId?: string | null
   initialTenantName?: string | null
+  initialCoTenants?: CoTenant[]
   renewalOf?: string | null
 }
 
@@ -79,6 +84,7 @@ export function LeaseWizard({
   initialUnitLabel,
   initialTenantId,
   initialTenantName,
+  initialCoTenants,
   renewalOf,
 }: Readonly<Props>) {
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4 | 5>(() => {
@@ -97,8 +103,7 @@ export function LeaseWizard({
     bcLevyCents: null,
     tenantId: initialTenantId ?? "",
     tenantName: initialTenantName ?? "",
-    coTenantId: "",
-    coTenantName: "",
+    coTenants: initialCoTenants ?? [],
     startDate: "",
     endDate: "",
     isFixedTerm: true,
