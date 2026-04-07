@@ -26,7 +26,7 @@ export default async function ProfilePage() {
 
   if (!org) redirect("/login")
 
-  const d = org as Record<string, unknown>
+  const d = org as unknown as Record<string, unknown>
   let type: OrgDetails["type"] = "agency"
   if (d.type === "landlord" || d.user_type === "owner") type = "landlord"
   else if (d.type === "sole_prop") type = "sole_prop"
