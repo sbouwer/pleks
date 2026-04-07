@@ -1,5 +1,6 @@
-import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
+import { getServerOrgMembership } from "@/lib/auth/server"
 import { ContractorsClient, AddContractorButton } from "./ContractorsClient"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -21,24 +22,16 @@ export default async function ContractorsPage({ searchParams }: Props) {
   const activeTab: SupplierTab =
     type === "managing_scheme" || type === "utility" ? type : "contractor"
 
+  const membership = await getServerOrgMembership()
+  if (!membership) redirect("/login")
+
+  const { org_id: orgId, role } = membership
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
-
-  const service = await createServiceClient()
-  const { data: membership } = await service
-    .from("user_orgs")
-    .select("org_id, role")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-
-  if (!membership) redirect("/onboarding")
 
   const { data: contractors } = await supabase
     .from("contractor_view")
     .select("id, contact_id, first_name, last_name, company_name, email, phone, specialities, is_active")
-    .eq("org_id", membership.org_id)
+    .eq("org_id", orgId)
     .eq("supplier_type", activeTab)
 
   const tabInfo = TABS.find((t) => t.key === activeTab)!
@@ -52,7 +45,7 @@ export default async function ContractorsPage({ searchParams }: Props) {
             {contractors?.length ?? 0} {tabInfo.plural}
           </p>
         </div>
-        <AddContractorButton orgId={membership.org_id} supplierType={activeTab} />
+        <AddContractorButton orgId={orgId} supplierType={activeTab} />
       </div>
 
       {/* Tabs */}
@@ -80,8 +73,8 @@ export default async function ContractorsPage({ searchParams }: Props) {
       ) : (
         <ContractorsClient
           contractors={contractors}
-          userRole={membership.role}
-          orgId={membership.org_id}
+          userRole={role}
+          orgId={orgId}
         />
       )}
     </div>

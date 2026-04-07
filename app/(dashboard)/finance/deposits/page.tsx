@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
+import { getServerOrgMembership } from "@/lib/auth/server"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -7,65 +8,47 @@ import { Button } from "@/components/ui/button"
 import { formatZAR } from "@/lib/constants"
 
 export default async function DepositsPage() {
+  const membership = await getServerOrgMembership()
+  if (!membership) redirect("/login")
+
+  const { org_id: orgId } = membership
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
 
-  const { data: membership } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-
-  if (!membership) redirect("/onboarding")
-  const orgId = membership.org_id
-
-  // Active deposits (leases with deposits)
-  const { data: activeLeases } = await supabase
-    .from("leases")
-    .select(`
-      id, deposit_amount_cents, status,
-      units(unit_number, properties(name)),
-      tenant_view(first_name, last_name)
-    `)
-    .eq("org_id", orgId)
-    .gt("deposit_amount_cents", 0)
-    .in("status", ["active", "notice", "expired"])
-    .order("created_at", { ascending: false })
-
-  // Pending reconciliations
-  const { data: recons } = await supabase
-    .from("deposit_reconciliations")
-    .select(`
-      id, lease_id, tenant_id, deposit_held_cents, interest_accrued_cents,
-      total_available_cents, refund_to_tenant_cents, total_deductions_cents, status,
-      leases(units(unit_number, properties(name)), tenant_view(first_name, last_name))
-    `)
-    .eq("org_id", orgId)
-    .in("status", ["draft", "pending_review", "sent_to_tenant", "disputed", "overdue"])
-    .order("created_at", { ascending: false })
-
-  // Overdue timers
-  const { data: overdueTimers } = await supabase
-    .from("deposit_timers")
-    .select("lease_id, deadline")
-    .eq("org_id", orgId)
-    .eq("status", "running")
-    .lt("deadline", new Date().toISOString().split("T")[0])
-
-  // Completed this month
   const monthStart = new Date()
   monthStart.setDate(1)
-  const { data: completedRecons } = await supabase
-    .from("deposit_reconciliations")
-    .select(`
-      id, lease_id, refund_to_tenant_cents, total_deductions_cents, status,
-      leases(units(unit_number, properties(name)), tenant_view(first_name, last_name))
-    `)
-    .eq("org_id", orgId)
-    .eq("status", "refunded")
-    .gte("tenant_refund_paid_at", monthStart.toISOString())
+
+  const [activeLeasesRes, reconsRes, overdueTimersRes, completedReconsRes] = await Promise.all([
+    supabase
+      .from("leases")
+      .select(`id, deposit_amount_cents, status, units(unit_number, properties(name)), tenant_view(first_name, last_name)`)
+      .eq("org_id", orgId)
+      .gt("deposit_amount_cents", 0)
+      .in("status", ["active", "notice", "expired"])
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("deposit_reconciliations")
+      .select(`id, lease_id, tenant_id, deposit_held_cents, interest_accrued_cents, total_available_cents, refund_to_tenant_cents, total_deductions_cents, status, leases(units(unit_number, properties(name)), tenant_view(first_name, last_name))`)
+      .eq("org_id", orgId)
+      .in("status", ["draft", "pending_review", "sent_to_tenant", "disputed", "overdue"])
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("deposit_timers")
+      .select("lease_id, deadline")
+      .eq("org_id", orgId)
+      .eq("status", "running")
+      .lt("deadline", new Date().toISOString().split("T")[0]),
+    supabase
+      .from("deposit_reconciliations")
+      .select(`id, lease_id, refund_to_tenant_cents, total_deductions_cents, status, leases(units(unit_number, properties(name)), tenant_view(first_name, last_name))`)
+      .eq("org_id", orgId)
+      .eq("status", "refunded")
+      .gte("tenant_refund_paid_at", monthStart.toISOString()),
+  ])
+
+  const activeLeases = activeLeasesRes.data
+  const recons = reconsRes.data
+  const overdueTimers = overdueTimersRes.data
+  const completedRecons = completedReconsRes.data
 
   const totalDepositsHeld = (activeLeases ?? []).reduce(
     (s, l) => s + (l.deposit_amount_cents ?? 0), 0

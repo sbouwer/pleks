@@ -1,7 +1,6 @@
 import type { Metadata } from "next"
 import { Plus_Jakarta_Sans, DM_Sans } from "next/font/google"
 import { Toaster } from "sonner"
-import { ThemeProvider } from "next-themes"
 import { QueryProvider } from "@/components/providers/QueryProvider"
 import "./globals.css"
 
@@ -38,21 +37,13 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      suppressHydrationWarning
-      className={`${plusJakartaSans.variable} ${dmSans.variable} h-full antialiased`}
+      className={`dark ${plusJakartaSans.variable} ${dmSans.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col" suppressHydrationWarning>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableSystem={false}
-          disableTransitionOnChange
-        >
-          <QueryProvider>
-            {children}
-          </QueryProvider>
-          <Toaster richColors position="top-right" />
-        </ThemeProvider>
+      <body className="min-h-full flex flex-col">
+        <QueryProvider>
+          {children}
+        </QueryProvider>
+        <Toaster richColors position="top-right" />
       </body>
     </html>
   )

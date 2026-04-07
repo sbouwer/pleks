@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { X, ArrowUpRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
@@ -27,10 +27,13 @@ interface UpgradeCtaProps {
 }
 
 export function UpgradeCta({ title, description, dismissKey }: UpgradeCtaProps) {
-  const [visible, setVisible] = useState(() => {
-    if (globalThis.window === undefined) return false
-    return shouldShow(dismissKey)
-  })
+  // Always start false so server and client render identically (no hydration mismatch).
+  // useEffect runs only on the client, after hydration, and sets visible from localStorage.
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    if (shouldShow(dismissKey)) setVisible(true) // eslint-disable-line react-hooks/set-state-in-effect
+  }, [dismissKey])
 
   function dismiss() {
     try {

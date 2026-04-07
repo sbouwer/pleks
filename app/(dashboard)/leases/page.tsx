@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
+import { getServerOrgMembership } from "@/lib/auth/server"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
@@ -7,19 +8,11 @@ import { LeaseListTabs } from "./LeaseListTabs"
 import type { SerializedLease } from "./LeaseRow"
 
 export default async function LeasesPage() {
+  const membership = await getServerOrgMembership()
+  if (!membership) redirect("/login")
+
+  const { org_id: orgId } = membership
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
-
-  const { data: membership } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-
-  const orgId = membership?.org_id
-  if (!orgId) redirect("/login")
 
   const { data: leases } = await supabase
     .from("leases")

@@ -1,29 +1,22 @@
-import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
+import { getServerOrgMembership } from "@/lib/auth/server"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 import { TenantsClient } from "./TenantsClient"
 
 export default async function TenantsPage() {
+  const membership = await getServerOrgMembership()
+  if (!membership) redirect("/login")
+
+  const { org_id: orgId } = membership
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
-
-  const service = await createServiceClient()
-  const { data: membership } = await service
-    .from("user_orgs")
-    .select("org_id, role")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-
-  if (!membership) redirect("/onboarding")
 
   const { data: tenants } = await supabase
     .from("tenant_view")
     .select("id, contact_id, entity_type, first_name, last_name, company_name, email, phone")
-    .eq("org_id", membership.org_id)
+    .eq("org_id", orgId)
     .is("deleted_at", null)
 
   const list = tenants || []
