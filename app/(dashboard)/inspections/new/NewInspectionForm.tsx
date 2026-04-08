@@ -88,6 +88,7 @@ export function NewInspectionForm({
   const [leaseType, setLeaseType] = useState<"residential" | "commercial">(initialLeaseType ?? "residential")
   const [tenantId, setTenantId] = useState(initialTenantId ?? "")
   const [tenantName, setTenantName] = useState(initialTenantName ?? "")
+  const [coTenantNames, setCoTenantNames] = useState<string[]>([])
   const [inspectionType, setInspectionType] = useState(initialType ?? "move_in")
   const [scheduledDate, setScheduledDate] = useState("")
   const [isPreFilled, setIsPreFilled] = useState(!!initialPropertyId && !!initialUnitId)
@@ -123,7 +124,7 @@ export function NewInspectionForm({
       setLoadingUnits(true)
       const { data: rows } = await supabase
         .from("units")
-        .select("id, unit_number, status, bedrooms")
+        .select("id, unit_number, status, bedrooms, prospective_tenant_id")
         .eq("property_id", propertyId)
         .is("deleted_at", null)
         .eq("is_archived", false)
@@ -154,22 +155,64 @@ export function NewInspectionForm({
         .eq("unit_id", unitId)
         .in("status", ["draft", "pending_signing", "active", "notice", "month_to_month"])
         .maybeSingle()
-      if (cancelled || !data) return
+      if (cancelled || !data) {
+        // No lease found — check prospective tenant on the unit
+        if (!cancelled) {
+          const { data: unitRow } = await supabase
+            .from("units")
+            .select("prospective_tenant_id")
+            .eq("id", unitId)
+            .single()
+          if (!cancelled && unitRow?.prospective_tenant_id) {
+            const { data: tv } = await supabase
+              .from("tenant_view")
+              .select("first_name, last_name, company_name, entity_type")
+              .eq("id", unitRow.prospective_tenant_id)
+              .single()
+            if (!cancelled && tv) {
+              const name = tv.entity_type === "juristic"
+                ? (tv.company_name ?? "Company")
+                : [tv.first_name, tv.last_name].filter(Boolean).join(" ")
+              setTenantId(unitRow.prospective_tenant_id)
+              setTenantName(name)
+            }
+          }
+        }
+        return
+      }
       const lease = data as ActiveLease
       setLeaseId(lease.id)
       setLeaseType(lease.lease_type === "commercial" ? "commercial" : "residential")
       if (lease.tenant_id) {
-        const { data: tv } = await supabase
-          .from("tenant_view")
-          .select("first_name, last_name, company_name, entity_type")
-          .eq("id", lease.tenant_id)
-          .single()
-        if (!cancelled && tv) {
+        const [tvResult, coResult] = await Promise.all([
+          supabase
+            .from("tenant_view")
+            .select("first_name, last_name, company_name, entity_type")
+            .eq("id", lease.tenant_id)
+            .single(),
+          supabase
+            .from("lease_co_tenants")
+            .select("tenant_id, tenant_view(first_name, last_name, company_name, entity_type)")
+            .eq("lease_id", lease.id),
+        ])
+        if (!cancelled && tvResult.data) {
+          const tv = tvResult.data
           const name = tv.entity_type === "juristic"
             ? (tv.company_name ?? "Company")
             : [tv.first_name, tv.last_name].filter(Boolean).join(" ")
           setTenantId(lease.tenant_id)
           setTenantName(name)
+        }
+        if (!cancelled && coResult.data) {
+          const coNames = coResult.data.flatMap((row) => {
+            const tv = Array.isArray(row.tenant_view) ? row.tenant_view[0] : row.tenant_view
+            if (!tv) return []
+            const n = (tv as { entity_type?: string; company_name?: string; first_name?: string; last_name?: string }).entity_type === "juristic"
+              ? ((tv as { company_name?: string }).company_name ?? "Company")
+              : [(tv as { first_name?: string }).first_name, (tv as { last_name?: string }).last_name].filter(Boolean).join(" ")
+            return n ? [n] : []
+          })
+          setCoTenantNames(coNames)
         }
       }
     }
@@ -199,6 +242,7 @@ export function NewInspectionForm({
     setLeaseId("")
     setTenantId("")
     setTenantName("")
+    setCoTenantNames([])
   }
 
   function handleSelectTenant(t: PickedTenant) {
@@ -317,6 +361,11 @@ export function NewInspectionForm({
                         <CheckCircle2 className="size-4 text-brand mt-0.5 shrink-0" />
                         <div>
                           <p className="font-medium text-sm">{tenantName}</p>
+                          {coTenantNames.length > 0 && (
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              + {coTenantNames.join(", ")}
+                            </p>
+                          )}
                           <p className="text-xs text-muted-foreground">From active lease</p>
                         </div>
                       </div>
@@ -331,7 +380,7 @@ export function NewInspectionForm({
                         />
                         <button
                           type="button"
-                          onClick={() => { setTenantId(""); setTenantName("") }}
+                          onClick={() => { setTenantId(""); setTenantName(""); setCoTenantNames([]) }}
                           className="text-xs text-muted-foreground hover:text-foreground"
                         >
                           Remove

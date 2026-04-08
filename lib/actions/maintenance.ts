@@ -74,6 +74,8 @@ export async function createMaintenanceRequest(formData: FormData) {
       work_order_number: workOrderNumber,
       access_instructions: formData.get("access_instructions") as string || null,
       special_instructions: formData.get("special_instructions") as string || null,
+      contact_name: formData.get("contact_name") as string || null,
+      contact_phone: formData.get("contact_phone") as string || null,
       estimated_cost_cents: formData.get("estimated_cost")
         ? Math.round(Number.parseFloat(formData.get("estimated_cost") as string) * 100)
         : null,
