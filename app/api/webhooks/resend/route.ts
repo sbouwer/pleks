@@ -62,11 +62,11 @@ export async function POST(req: NextRequest) {
   const payload = JSON.parse(body) as ResendWebhookPayload
   const service = getServiceClient()
 
-  // Find the log record by provider_id (Resend email_id)
+  // Find the log record by external_id (Resend email_id)
   const { data: logRecord } = await service
     .from("communication_log")
-    .select("id, recipient_email, org_id")
-    .eq("provider_id", payload.data.email_id)
+    .select("id, sent_to_email, org_id")
+    .eq("external_id", payload.data.email_id)
     .maybeSingle()
 
   if (!logRecord) {
@@ -95,13 +95,13 @@ export async function POST(req: NextRequest) {
   await service.from("communication_log").update(updates).eq("id", logRecord.id)
 
   // Permanent bounce → suppress future emails for this address
-  if (newStatus === "bounced" && payload.data.bounce?.type === "permanent" && logRecord.recipient_email) {
+  if (newStatus === "bounced" && payload.data.bounce?.type === "permanent" && logRecord.sent_to_email) {
     await service
       .from("communication_preferences")
       .upsert(
         {
           org_id: logRecord.org_id,
-          email: logRecord.recipient_email,
+          email: logRecord.sent_to_email,
           email_hard_bounced: true,
           email_hard_bounced_at: payload.created_at,
           updated_at: new Date().toISOString(),
@@ -111,13 +111,13 @@ export async function POST(req: NextRequest) {
   }
 
   // Complaint → full unsubscribe
-  if (newStatus === "unsubscribed" && logRecord.recipient_email) {
+  if (newStatus === "unsubscribed" && logRecord.sent_to_email) {
     await service
       .from("communication_preferences")
       .upsert(
         {
           org_id: logRecord.org_id,
-          email: logRecord.recipient_email,
+          email: logRecord.sent_to_email,
           unsubscribed_at: payload.created_at,
           updated_at: new Date().toISOString(),
         },

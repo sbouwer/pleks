@@ -102,16 +102,16 @@ async function logToDb(
     .insert({
       org_id: params.orgId,
       channel: "email",
-      recipient_contact_id: params.to.contactId ?? null,
-      recipient_email: params.to.email,
-      recipient_name: params.to.name,
-      template_key: params.templateKey,
+      contact_id: params.to.contactId ?? null,      // existing column name
+      sent_to_email: params.to.email,               // existing column name
+      recipient_name: params.to.name,               // added in migration 027
+      template_key: params.templateKey,             // added in migration 027
       subject: params.subject,
-      body_preview: params.bodyPreview?.slice(0, 200) ?? null,
+      body: params.bodyPreview?.slice(0, 200) ?? null,  // existing column name
       entity_type: params.entityType ?? null,
       entity_id: params.entityId ?? null,
       status: params.status,
-      provider_id: params.providerId ?? null,
+      external_id: params.providerId ?? null,       // existing column name
       failed_reason: params.failedReason ?? null,
       triggered_by: params.triggeredBy ?? null,
     })

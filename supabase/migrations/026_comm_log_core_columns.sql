@@ -1,17 +1,15 @@
 -- 026_comm_log_core_columns.sql
--- Adds core columns missing from the partially-created communication_log table.
--- Must run before 025 indexes (which reference these columns).
+-- Adds columns missing from the pre-existing communication_log table.
+-- Existing table uses: contact_id, sent_to_email, external_id, body, created_at.
+-- We only need to add: template_key, recipient_name.
+-- All indexes use IF NOT EXISTS — safe to re-run.
 
 ALTER TABLE communication_log
-  ADD COLUMN IF NOT EXISTS template_key  TEXT,
-  ADD COLUMN IF NOT EXISTS channel       TEXT,
-  ADD COLUMN IF NOT EXISTS status        TEXT NOT NULL DEFAULT 'sent',
-  ADD COLUMN IF NOT EXISTS sent_at       TIMESTAMPTZ NOT NULL DEFAULT now();
+  ADD COLUMN IF NOT EXISTS template_key   TEXT,
+  ADD COLUMN IF NOT EXISTS recipient_name TEXT;
 
--- Now safe to create the indexes from 025
 CREATE INDEX IF NOT EXISTS idx_comm_log_org       ON communication_log(org_id);
 CREATE INDEX IF NOT EXISTS idx_comm_log_entity    ON communication_log(entity_type, entity_id);
-CREATE INDEX IF NOT EXISTS idx_comm_log_recipient ON communication_log(recipient_contact_id);
+CREATE INDEX IF NOT EXISTS idx_comm_log_recipient ON communication_log(contact_id);
 CREATE INDEX IF NOT EXISTS idx_comm_log_template  ON communication_log(template_key, org_id);
-CREATE INDEX IF NOT EXISTS idx_comm_log_sent      ON communication_log(sent_at DESC);
-CREATE INDEX IF NOT EXISTS idx_comm_log_provider  ON communication_log(provider_id) WHERE provider_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_comm_log_provider  ON communication_log(external_id) WHERE external_id IS NOT NULL;
