@@ -152,7 +152,7 @@ export function NewInspectionForm({
         .from("leases")
         .select("id, tenant_id, lease_type")
         .eq("unit_id", unitId)
-        .in("status", ["active", "notice"])
+        .in("status", ["active", "signed", "notice"])
         .maybeSingle()
       if (cancelled || !data) return
       const lease = data as ActiveLease

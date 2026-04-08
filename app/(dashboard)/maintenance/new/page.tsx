@@ -21,6 +21,8 @@ async function fetchUnits(service: ServiceClient, propertyId: string | undefined
     .from("units")
     .select("id, unit_number, access_instructions")
     .eq("property_id", propertyId)
+    .eq("is_archived", false)
+    .is("deleted_at", null)
     .order("unit_number")
   return data ?? []
 }

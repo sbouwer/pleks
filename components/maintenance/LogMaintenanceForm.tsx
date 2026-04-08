@@ -151,15 +151,20 @@ export function LogMaintenanceForm({
   const effectiveCategory = overriding ? overrideCategory : triageResult?.category ?? ""
   const effectiveUrgency = overriding ? overrideUrgency : triageResult?.urgency ?? ""
 
-  // Fetch units when property changes
+  // Fetch units when property changes — auto-select if only one
   useEffect(() => {
     if (!propertyId) { setUnits([]); setUnitId(""); setTenant(null); setLeaseId(""); return }
     setLoadingUnits(true)
     fetch(`/api/properties/${propertyId}/units`)
       .then((r) => r.ok ? r.json() : null)
-      .then((d: { units: Unit[] } | null) => { if (d?.units) setUnits(d.units) })
+      .then((d: { units: Unit[] } | null) => {
+        if (!d?.units) return
+        setUnits(d.units)
+        if (!unitId && d.units.length === 1) setUnitId(d.units[0].id)
+      })
       .catch(() => { })
       .finally(() => setLoadingUnits(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [propertyId])
 
   // Fetch tenant when unit changes
