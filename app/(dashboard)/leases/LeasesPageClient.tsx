@@ -1,22 +1,20 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
-import { createClient } from "@/lib/supabase/client"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 import { LeaseListTabs } from "./LeaseListTabs"
 import type { SerializedLease } from "./LeaseRow"
-import { PORTFOLIO_QUERY_KEYS, STALE_TIME, fetchLeases } from "@/lib/queries/portfolio"
+import { PORTFOLIO_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
+import { fetchLeasesAction } from "@/lib/queries/portfolioActions"
 
 interface Props { orgId: string }
 
 export function LeasesPageClient({ orgId }: Props) {
-  const supabase = createClient()
   const { data: rawLeases = [] } = useQuery({
     queryKey: PORTFOLIO_QUERY_KEYS.leases(orgId),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    queryFn: () => fetchLeases(supabase as any, orgId),
+    queryFn: () => fetchLeasesAction(orgId),
     staleTime: STALE_TIME.leases,
   })
 

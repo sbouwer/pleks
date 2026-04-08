@@ -2,7 +2,7 @@
 // The gate text is what users accept before accessing lease features.
 // The document text is appended to every generated lease PDF.
 
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/server"
 import { getServerUser } from "@/lib/auth/server"
 
 export const DISCLAIMER_VERSION = "v1"
@@ -61,7 +61,7 @@ export async function hasAcceptedLeaseDisclaimer(): Promise<boolean> {
   const user = await getServerUser()
   if (!user) return false
 
-  const supabase = await createClient()
+  const supabase = await createServiceClient()
   const { data } = await supabase
     .from("consent_log")
     .select("id")

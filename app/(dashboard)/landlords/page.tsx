@@ -1,7 +1,7 @@
 import { HydrationBoundary, QueryClient, dehydrate } from "@tanstack/react-query"
 import { redirect } from "next/navigation"
 import { getServerOrgMembership } from "@/lib/auth/server"
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/server"
 import { PORTFOLIO_QUERY_KEYS, STALE_TIME, fetchLandlords } from "@/lib/queries/portfolio"
 import { LandlordsPageClient } from "./LandlordsPageClient"
 
@@ -11,7 +11,7 @@ export default async function LandlordsPage() {
 
   const { org_id: orgId, role } = membership
   const queryClient = new QueryClient()
-  const supabase = await createClient()
+  const supabase = await createServiceClient()
 
   await queryClient.prefetchQuery({
     queryKey: PORTFOLIO_QUERY_KEYS.landlords(orgId),

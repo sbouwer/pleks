@@ -1,14 +1,14 @@
 "use client"
 
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { createClient } from "@/lib/supabase/client"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { ClipboardCheck, Plus } from "lucide-react"
-import { OPERATIONAL_QUERY_KEYS, STALE_TIME, fetchInspections } from "@/lib/queries/portfolio"
+import { OPERATIONAL_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
+import { fetchInspectionsAction } from "@/lib/queries/portfolioActions"
 import { relativeTime } from "@/lib/utils"
 
 const STATUS_MAP: Record<string, "scheduled" | "pending" | "active" | "completed" | "arrears"> = {
@@ -24,13 +24,11 @@ const STATUS_MAP: Record<string, "scheduled" | "pending" | "active" | "completed
 interface Props { orgId: string }
 
 export function InspectionsPageClient({ orgId }: Readonly<Props>) {
-  const supabase = createClient()
   const queryClient = useQueryClient()
   const queryKey = OPERATIONAL_QUERY_KEYS.inspections(orgId)
   const { data: list = [], dataUpdatedAt } = useQuery({
     queryKey,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    queryFn: () => fetchInspections(supabase as any),
+    queryFn: () => fetchInspectionsAction(orgId),
     staleTime: STALE_TIME.inspections,
   })
 

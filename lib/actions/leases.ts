@@ -1,23 +1,13 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { gateway } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 
 export async function createLease(formData: FormData) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
-
-  const { data: membership } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-
-  if (!membership) redirect("/onboarding")
-  const orgId = membership.org_id
+  const gw = await gateway()
+  if (!gw) redirect("/login")
+  const { db, userId, orgId } = gw
 
   const unitId = formData.get("unit_id") as string
   const propertyId = formData.get("property_id") as string
@@ -46,9 +36,6 @@ export async function createLease(formData: FormData) {
   const arrearsInterestEnabled = formData.get("arrears_interest_enabled") !== "false"
   const arrearsInterestMarginPercent = Number.parseFloat(formData.get("arrears_interest_margin") as string) || 2
 
-  // Addendum C
-  const propertyRulesId = formData.get("property_rules_id") as string || null
-
   // Addendum D
   const specialTermsRaw = formData.get("special_terms") as string
   let specialTerms: unknown[] = []
@@ -67,7 +54,7 @@ export async function createLease(formData: FormData) {
     autoRenewalNoticeDue = endDateObj.toISOString().split("T")[0]
   }
 
-  const { data: lease, error } = await supabase
+  const { data: lease, error } = await db
     .from("leases")
     .insert({
       org_id: orgId,
@@ -88,7 +75,6 @@ export async function createLease(formData: FormData) {
       escalation_review_date: escalationReviewDate.toISOString().split("T")[0],
       deposit_amount_cents: depositCents,
       deposit_interest_to: depositInterestTo,
-      property_rules_id: propertyRulesId,
       special_terms: specialTerms,
       auto_renewal_notice_due: autoRenewalNoticeDue,
       deposit_interest_rate_percent: depositInterestRatePercent,
@@ -96,7 +82,7 @@ export async function createLease(formData: FormData) {
       arrears_interest_margin_percent: arrearsInterestMarginPercent,
       template_type: leaseType === "commercial" ? "pleks_commercial" : "pleks_residential",
       status: "draft",
-      created_by: user.id,
+      created_by: userId,
     })
     .select("id")
     .single()
@@ -119,7 +105,7 @@ export async function createLease(formData: FormData) {
         deduct_from_owner_payment: boolean
       }[]
       if (charges.length > 0) {
-        await supabase.from("lease_charges").insert(
+        await db.from("lease_charges").insert(
           charges.map((c) => ({
             org_id: orgId,
             lease_id: lease.id,
@@ -130,7 +116,7 @@ export async function createLease(formData: FormData) {
             end_date: c.end_date ?? null,
             payable_to: c.payable_to,
             deduct_from_owner_payment: c.deduct_from_owner_payment,
-            created_by: user.id,
+            created_by: userId,
           }))
         )
       }
@@ -144,7 +130,7 @@ export async function createLease(formData: FormData) {
     try {
       coTenantIds = JSON.parse(coTenantsRaw) as string[]
       if (coTenantIds.length > 0) {
-        await supabase.from("lease_co_tenants").insert(
+        await db.from("lease_co_tenants").insert(
           coTenantIds.map((tid) => ({ org_id: orgId, lease_id: lease.id, tenant_id: tid }))
         )
       }
@@ -163,7 +149,7 @@ export async function createLease(formData: FormData) {
         enabled,
       }))
       if (rows.length > 0) {
-        await supabase.from("lease_clause_selections").upsert(rows, {
+        await db.from("lease_clause_selections").upsert(rows, {
           onConflict: "org_id,lease_id,clause_key",
           ignoreDuplicates: false,
         })
@@ -172,14 +158,14 @@ export async function createLease(formData: FormData) {
   }
 
   // HOA supremacy clause — auto-insert (non-removable) for sectional title properties with a managing scheme
-  const { data: propMeta } = await supabase
+  const { data: propMeta } = await db
     .from("properties")
     .select("is_sectional_title, managing_scheme_id")
     .eq("id", propertyId)
     .single()
 
   if (propMeta?.is_sectional_title && propMeta.managing_scheme_id) {
-    await supabase.from("lease_clause_selections").upsert({
+    await db.from("lease_clause_selections").upsert({
       org_id: orgId,
       lease_id: lease.id,
       clause_key: "hoa_supremacy",
@@ -193,12 +179,12 @@ export async function createLease(formData: FormData) {
     try {
       const conflictIds = JSON.parse(acknowledgedConflictsRaw) as string[]
       if (conflictIds.length > 0) {
-        await supabase.from("audit_log").insert({
+        await db.from("audit_log").insert({
           org_id: orgId,
           table_name: "leases",
           record_id: lease.id,
           action: "CONFLICT_ACKNOWLEDGED",
-          changed_by: user.id,
+          changed_by: userId,
           new_values: { acknowledged_conflict_ids: conflictIds },
         })
       }
@@ -206,17 +192,17 @@ export async function createLease(formData: FormData) {
   }
 
   // Reflect draft tenant on the unit so the property page shows who is linked
-  await supabase.from("units").update({
+  await db.from("units").update({
     prospective_tenant_id: tenantId,
     prospective_co_tenant_ids: coTenantIds,
   }).eq("id", unitId)
 
-  await supabase.from("audit_log").insert({
+  await db.from("audit_log").insert({
     org_id: orgId,
     table_name: "leases",
     record_id: lease.id,
     action: "INSERT",
-    changed_by: user.id,
+    changed_by: userId,
     new_values: { tenant_id: tenantId, unit_id: unitId, lease_type: leaseType, rent_cents: rentCents },
   })
 
@@ -228,25 +214,17 @@ export async function markAsSigned(leaseId: string) {
   const { activateLeaseCascade } = await import("@/lib/leases/activateLeaseCascade")
   const { checkLeasePrerequisites } = await import("@/lib/leases/checkPrerequisites")
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const gw = await gateway()
+  if (!gw) redirect("/login")
+  const { db, userId, orgId } = gw
 
-  const { data: membership } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-  if (!membership) return { error: "No org" }
-
-  const prereqs = await checkLeasePrerequisites(supabase, leaseId, membership.org_id)
+  const prereqs = await checkLeasePrerequisites(db, leaseId, orgId)
   if (!prereqs.canProceed) {
     return { error: `${prereqs.failCount} prerequisite(s) not met` }
   }
 
   try {
-    const result = await activateLeaseCascade(supabase, leaseId, membership.org_id, "manual", user.id)
+    const result = await activateLeaseCascade(db, leaseId, orgId, "manual", userId)
     revalidatePath(`/leases/${leaseId}`)
     revalidatePath("/leases")
     return { success: true, steps: result.steps }
@@ -256,19 +234,11 @@ export async function markAsSigned(leaseId: string) {
 }
 
 export async function sendForSigning(leaseId: string) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const gw = await gateway()
+  if (!gw) redirect("/login")
+  const { db, userId, orgId } = gw
 
-  const { data: membership } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-  if (!membership) return { error: "No org" }
-
-  const { data: lease } = await supabase
+  const { data: lease } = await db
     .from("leases")
     .select("status, generated_doc_path")
     .eq("id", leaseId)
@@ -277,15 +247,15 @@ export async function sendForSigning(leaseId: string) {
   if (!lease) return { error: "Lease not found" }
   if (!lease.generated_doc_path) return { error: "Generate the lease document first" }
 
-  await supabase.from("leases").update({ status: "pending_signing" }).eq("id", leaseId)
+  await db.from("leases").update({ status: "pending_signing" }).eq("id", leaseId)
 
-  await supabase.from("lease_lifecycle_events").insert({
-    org_id: membership.org_id,
+  await db.from("lease_lifecycle_events").insert({
+    org_id: orgId,
     lease_id: leaseId,
     event_type: "lease_sent_for_signing",
     description: "Lease sent for digital signing via DocuSeal",
     triggered_by: "agent",
-    triggered_by_user: user.id,
+    triggered_by_user: userId,
   })
 
   revalidatePath(`/leases/${leaseId}`)
@@ -293,41 +263,41 @@ export async function sendForSigning(leaseId: string) {
 }
 
 export async function giveNotice(leaseId: string, givenBy: "tenant" | "landlord", reason?: string) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const gw = await gateway()
+  if (!gw) redirect("/login")
+  const { db, userId } = gw
 
-  const { data: lease } = await supabase.from("leases").select("*").eq("id", leaseId).single()
+  const { data: lease } = await db.from("leases").select("*").eq("id", leaseId).single()
   if (!lease) return { error: "Lease not found" }
 
   const noticeDate = new Date()
   const noticePeriodEnd = new Date(noticeDate)
   noticePeriodEnd.setDate(noticePeriodEnd.getDate() + (lease.notice_period_days || 20))
 
-  await supabase.from("leases").update({
+  await db.from("leases").update({
     status: "notice",
     notice_given_by: givenBy,
     notice_given_date: noticeDate.toISOString().split("T")[0],
     notice_period_end: noticePeriodEnd.toISOString().split("T")[0],
   }).eq("id", leaseId)
 
-  await supabase.from("units").update({ status: "notice" }).eq("id", lease.unit_id)
+  await db.from("units").update({ status: "notice" }).eq("id", lease.unit_id)
 
-  await supabase.from("unit_status_history").insert({
+  await db.from("unit_status_history").insert({
     unit_id: lease.unit_id,
     org_id: lease.org_id,
     from_status: "occupied",
     to_status: "notice",
-    changed_by: user.id,
+    changed_by: userId,
     reason: reason ? `Notice given by ${givenBy}: ${reason}` : `Notice given by ${givenBy}`,
   })
 
-  await supabase.from("audit_log").insert({
+  await db.from("audit_log").insert({
     org_id: lease.org_id,
     table_name: "leases",
     record_id: leaseId,
     action: "UPDATE",
-    changed_by: user.id,
+    changed_by: userId,
     new_values: { status: "notice", notice_given_by: givenBy, notice_given_date: noticeDate.toISOString() },
   })
 

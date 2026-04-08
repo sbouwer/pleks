@@ -2,11 +2,11 @@
 
 import { useQuery } from "@tanstack/react-query"
 import { useSearchParams } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { ContractorsClient, AddContractorButton, type Contractor } from "./ContractorsClient"
-import { PORTFOLIO_QUERY_KEYS, STALE_TIME, fetchContractors } from "@/lib/queries/portfolio"
+import { PORTFOLIO_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
+import { fetchContractorsAction } from "@/lib/queries/portfolioActions"
 
 type SupplierTab = "contractor" | "managing_scheme" | "utility"
 const TABS: { key: SupplierTab; label: string; plural: string }[] = [
@@ -18,7 +18,6 @@ const TABS: { key: SupplierTab; label: string; plural: string }[] = [
 interface Props { orgId: string; role: string }
 
 export function ContractorsPageClient({ orgId, role }: Props) {
-  const supabase = createClient()
   const searchParams = useSearchParams()
   const type = searchParams.get("type")
   const activeTab: SupplierTab = type === "managing_scheme" || type === "utility" ? type : "contractor"
@@ -26,8 +25,7 @@ export function ContractorsPageClient({ orgId, role }: Props) {
 
   const { data: allContractors = [] } = useQuery({
     queryKey: PORTFOLIO_QUERY_KEYS.contractors(orgId),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    queryFn: () => fetchContractors(supabase as any, orgId),
+    queryFn: () => fetchContractorsAction(orgId),
     staleTime: STALE_TIME.contractors,
   })
 

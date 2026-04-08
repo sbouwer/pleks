@@ -1,7 +1,6 @@
 "use client"
 
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { createClient } from "@/lib/supabase/client"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -9,7 +8,8 @@ import { StatusBadge } from "@/components/shared/StatusBadge"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { CreditCard, Plus } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
-import { OPERATIONAL_QUERY_KEYS, STALE_TIME, fetchPayments } from "@/lib/queries/portfolio"
+import { OPERATIONAL_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
+import { fetchPaymentsAction } from "@/lib/queries/portfolioActions"
 import { relativeTime } from "@/lib/utils"
 
 const STATUS_MAP: Record<string, "pending" | "active" | "completed" | "arrears"> = {
@@ -26,13 +26,11 @@ const STATUS_MAP: Record<string, "pending" | "active" | "completed" | "arrears">
 interface Props { orgId: string }
 
 export function PaymentsPageClient({ orgId }: Readonly<Props>) {
-  const supabase = createClient()
   const queryClient = useQueryClient()
   const queryKey = OPERATIONAL_QUERY_KEYS.payments(orgId)
   const { data: list = [], dataUpdatedAt } = useQuery({
     queryKey,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    queryFn: () => fetchPayments(supabase as any),
+    queryFn: () => fetchPaymentsAction(orgId),
     staleTime: STALE_TIME.payments,
   })
 

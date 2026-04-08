@@ -33,7 +33,6 @@ export async function recordLeaseDisclaimerAcceptance() {
     consent_version: DISCLAIMER_VERSION,
     ip_address: ip,
     user_agent: userAgent,
-    accepted_via: "web",
   })
 
   if (error) return { error: "Failed to record consent" }
