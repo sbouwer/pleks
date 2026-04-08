@@ -9,6 +9,7 @@ import { RelationshipCard } from "@/components/contacts/RelationshipCard"
 import { StatGrid } from "@/components/contacts/StatGrid"
 import { ActivityTimeline } from "@/components/contacts/ActivityTimeline"
 import { LandlordIdentitySection, LandlordContactSection, LandlordAddressSection, LandlordBankingSection } from "./LandlordSections"
+import { LandlordPortalSection } from "@/components/portal/LandlordPortalSection"
 import { formatZAR } from "@/lib/constants"
 
 interface Props {
@@ -125,6 +126,19 @@ export default async function LandlordDetailPage({ params }: Props) {
   const primaryPhone = phones?.[0]?.number ?? null
   const primaryEmail = emails?.[0]?.email ?? null
 
+  // Landlord portal status + org tier for portal gating
+  const { data: landlordPortal } = await service
+    .from("landlords")
+    .select("portal_status, portal_invited_at")
+    .eq("id", id)
+    .single()
+  const { data: sub } = await service
+    .from("subscriptions")
+    .select("tier")
+    .eq("org_id", membership.org_id)
+    .single()
+  const orgTier = sub?.tier ?? "steward"
+
   return (
     <ContactDetailLayout
       breadcrumb={{ label: "Landlords", href: "/landlords" }}
@@ -178,6 +192,13 @@ export default async function LandlordDetailPage({ params }: Props) {
             bankAccountType={landlord.bank_account_type}
             taxNumber={landlord.tax_number}
             paymentMethod={landlord.payment_method}
+          />
+          <LandlordPortalSection
+            landlordId={id}
+            tier={orgTier}
+            portalStatus={(landlordPortal?.portal_status ?? "none") as "none" | "invited" | "active" | "suspended"}
+            portalInvitedAt={landlordPortal?.portal_invited_at ?? null}
+            landlordEmail={primaryEmail}
           />
         </ContactSidebar>
       }
