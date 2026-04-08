@@ -665,7 +665,7 @@ export async function buildDocx(
   // ─── Platform disclaimer (always present, non-editable) ─────────────────────
   // Source: brief/build/ADDENDUM_44A_CREDIT_TERMS.md section 3 — attorney reviewed
 
-  const platformDisclaimer: Paragraph[] = [
+  const platformDisclaimer = [
     new Paragraph({
       pageBreakBefore: true,
       spacing: { after: 200 },
