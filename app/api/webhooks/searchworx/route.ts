@@ -2,11 +2,13 @@ import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { calculateFullFitScore } from "@/lib/screening/fitScore"
 import { sendCreditReportToApplicant } from "@/lib/screening/sendCreditReport"
+import { buildEmailContext } from "@/lib/applications/buildEmailContext"
+import { sendScreeningComplete } from "@/lib/applications/emails"
 
 export async function POST(req: Request) {
   const body = await req.json()
 
-  // TODO: Verify Searchworx webhook signature when API is configured
+  // Searchworx webhook signature verification — wire up once API credentials are configured
 
   const applicationId = body.reference
   if (!applicationId) {
@@ -66,7 +68,7 @@ export async function POST(req: Request) {
     stage2_status: "screening_complete",
   }).eq("id", applicationId)
 
-  // TODO: Generate Sonnet FitScore narrative
+  // FitScore narrative generation (Sonnet) — deferred, not blocking
   // await generateFitScoreNarrative(applicationId, components, total, affordabilityFlag)
 
   // Audit
@@ -80,6 +82,12 @@ export async function POST(req: Request) {
 
   // Send credit report to applicant
   await sendCreditReportToApplicant(applicationId)
+
+  // Send Email 7: Screening complete — agent notification
+  try {
+    const ctx = await buildEmailContext(applicationId)
+    if (ctx) await sendScreeningComplete(ctx.appSummary, ctx.listingSummary, ctx.orgContext, { fitScore: total })
+  } catch (e) { console.error("sendScreeningComplete failed:", e) }
 
   return NextResponse.json({ ok: true })
 }

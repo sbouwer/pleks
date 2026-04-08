@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { validatePayFastITN } from "@/lib/payfast/validate"
 import { createServiceClient } from "@/lib/supabase/server"
+import { buildEmailContext } from "@/lib/applications/buildEmailContext"
+import { sendPaymentReceived } from "@/lib/applications/emails"
 
 export async function POST(req: Request) {
   const rawBody = await req.text()
@@ -36,6 +38,18 @@ export async function POST(req: Request) {
     stage2_status: "screening_in_progress",
     searchworx_check_status: "pending",
   }).eq("id", applicationId)
+
+  // Send Email 6: Payment received
+  try {
+    const ctx = await buildEmailContext(applicationId)
+    if (ctx) await sendPaymentReceived(ctx.appSummary, ctx.listingSummary, ctx.orgContext, {
+      paymentRef: params.pf_payment_id || params.m_payment_id || "",
+      slug: ctx.listingSlug ?? "",
+      accessToken: ctx.accessToken ?? "",
+      amountCents: Math.round(Number.parseFloat(params.amount_gross || "0") * 100),
+      paidAt: new Date().toISOString(),
+    })
+  } catch (e) { console.error("sendPaymentReceived failed:", e) }
 
   // Audit log
   const { data: app } = await supabase

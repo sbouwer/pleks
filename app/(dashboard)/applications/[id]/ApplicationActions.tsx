@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { sendShortlistInvitation } from "@/lib/screening/sendShortlistInvitation"
+import { declineStage1Action, approveAction, declineStage2Action } from "@/lib/applications/applicationActions"
 import { createTenantFromApplication } from "@/lib/applications/createTenantFromApplication"
 import { useUser } from "@/hooks/useUser"
 import { useRouter } from "next/navigation"
@@ -38,47 +39,36 @@ export function ApplicationActions({
   }
 
   async function handleDecline() {
-    const supabase = createClient()
-    await supabase.from("applications").update({
-      stage1_status: "not_shortlisted",
-      not_shortlisted_reason: "Declined by agent",
-    }).eq("id", applicationId)
-    toast.success("Application declined")
-    router.refresh()
+    const result = await declineStage1Action(applicationId)
+    if (result?.error) toast.error(result.error)
+    else { toast.success("Application declined"); router.refresh() }
   }
 
   async function handleApprove() {
     if (!user) return
-    const supabase = createClient()
 
-    // Create tenant record from application
+    // Create tenant record from application first
     const result = await createTenantFromApplication(applicationId, user.id)
     if ("error" in result) {
       toast.error(result.error)
       return
     }
 
-    // Mark application as approved
-    await supabase.from("applications").update({
-      stage2_status: "approved",
-      reviewed_by: user.id,
-      reviewed_at: new Date().toISOString(),
-      tenant_id: result.tenantId,
-    }).eq("id", applicationId)
+    // Update status + send email
+    const actionResult = await approveAction(applicationId, user.id, result.tenantId)
+    if (actionResult?.error) {
+      toast.error(actionResult.error)
+      return
+    }
 
     toast.success("Application approved — tenant record created")
     router.push(`/tenants/${result.tenantId}`)
   }
 
   async function handleDeclineStage2() {
-    const supabase = createClient()
-    await supabase.from("applications").update({
-      stage2_status: "declined",
-      decline_reason: "Declined after screening",
-      reviewed_at: new Date().toISOString(),
-    }).eq("id", applicationId)
-    toast.success("Application declined")
-    router.refresh()
+    const result = await declineStage2Action(applicationId)
+    if (result?.error) toast.error(result.error)
+    else { toast.success("Application declined"); router.refresh() }
   }
 
   async function handleConfirmImmigration() {
