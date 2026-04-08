@@ -9,6 +9,7 @@ import { formatZAR } from "@/lib/constants"
 import { UnitStatusActions } from "./UnitStatusActions"
 import { UnitAgentPicker } from "./UnitAgentPicker"
 import { UnitClauseProfile } from "@/components/leases/UnitClauseProfile"
+import { ListingSection } from "./ListingSection"
 
 export default async function UnitDetailPage({
   params,
@@ -42,9 +43,12 @@ export default async function UnitDetailPage({
   if (!unit) notFound()
   if (!membershipResult.data) redirect("/onboarding")
 
+  const orgId = membershipResult.data.org_id
+
   const [
     { data: statusHistory },
     { data: teamMemberRows },
+    { data: activeListing },
   ] = await Promise.all([
     supabase
       .from("unit_status_history")
@@ -55,8 +59,16 @@ export default async function UnitDetailPage({
     service
       .from("user_orgs")
       .select("user_id, role, user_profiles(full_name)")
-      .eq("org_id", membershipResult.data.org_id)
+      .eq("org_id", orgId)
       .is("deleted_at", null),
+    service
+      .from("listings")
+      .select("id, public_slug, status, asking_rent_cents, available_from, views_count, applications_count, created_at")
+      .eq("unit_id", unitId)
+      .in("status", ["active", "paused", "draft"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ])
 
   const property = unit.properties as unknown as { name: string; managing_agent_id: string | null }
@@ -97,6 +109,16 @@ export default async function UnitDetailPage({
 
       {/* Status actions */}
       <UnitStatusActions unitId={unitId} propertyId={id} currentStatus={unit.status} />
+
+      {/* Listing */}
+      <div className="mt-6">
+        <ListingSection
+          unit={{ id: unitId, unit_number: unit.unit_number, asking_rent_cents: unit.asking_rent_cents }}
+          property={{ id, name: property.name, city: (unit.properties as unknown as { city?: string | null })?.city }}
+          orgId={orgId}
+          activeListing={activeListing ?? null}
+        />
+      </div>
 
       {/* Details */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
