@@ -9,6 +9,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge"
 import { UpgradeCta } from "@/components/shared/UpgradeCta"
 import { UnitExpandPanel } from "./UnitExpandPanel"
 import { AddUnitDialog } from "./AddUnitDialog"
+import { ListingCreateDialog } from "@/components/applications/ListingCreateDialog"
 import { updateUnitStatus } from "@/lib/actions/units"
 import { getUnitDescription } from "@/lib/units/typeAwareFields"
 import { formatZAR } from "@/lib/constants"
@@ -42,6 +43,8 @@ interface PropertyUnitsSectionProps {
   units: UnitData[]
   archivedUnits: UnitData[]
   propertyId: string
+  propertyName: string
+  propertyCity?: string | null
   propertyType: string
   tier: string
   managingAgentId: string | null
@@ -55,13 +58,17 @@ export function PropertyUnitsSection({
   units,
   archivedUnits,
   propertyId,
+  propertyName,
+  propertyCity,
   propertyType,
   tier,
   tenantByUnit,
   maintenanceByUnit,
+  orgId,
 }: PropertyUnitsSectionProps) {
   const [expandedUnitId, setExpandedUnitId] = useState<string | null>(null)
   const [archivingUnitId, setArchivingUnitId] = useState<string | null>(null)
+  const [listingUnit, setListingUnit] = useState<UnitData | null>(null)
   const [isPending, startTransition] = useTransition()
 
   function toggleUnit(unitId: string) {
@@ -188,6 +195,7 @@ export function PropertyUnitsSection({
                       propertyId={propertyId}
                       propertyType={propertyType}
                       onArchive={() => setArchivingUnitId(unit.id)}
+                      onCreateListing={() => setListingUnit(unit)}
                     />
 
                     {/* Archive confirmation */}
@@ -232,6 +240,17 @@ export function PropertyUnitsSection({
           title="Managing more properties?"
           description="Upgrade to Steward to manage up to 20 units."
           dismissKey="upgrade-cta-units"
+        />
+      )}
+
+      {/* Listing create dialog */}
+      {listingUnit && (
+        <ListingCreateDialog
+          open={true}
+          onOpenChange={(open) => { if (!open) setListingUnit(null) }}
+          unit={{ id: listingUnit.id, unit_number: listingUnit.unit_number, asking_rent_cents: listingUnit.asking_rent_cents }}
+          property={{ id: propertyId, name: propertyName, city: propertyCity }}
+          orgId={orgId}
         />
       )}
 

@@ -23,6 +23,7 @@ interface UnitExpandPanelProps {
   propertyId: string
   propertyType: string
   onArchive: () => void
+  onCreateListing?: () => void
   hideArchive?: boolean
   hasActiveLease?: boolean
 }
@@ -37,7 +38,7 @@ function DetailRow({ label, value }: { label: string; value: string | number | n
   )
 }
 
-export function UnitExpandPanel({ unit, propertyId, propertyType, onArchive, hideArchive = false, hasActiveLease = false }: UnitExpandPanelProps) {
+export function UnitExpandPanel({ unit, propertyId, propertyType, onArchive, onCreateListing, hideArchive = false, hasActiveLease = false }: UnitExpandPanelProps) {
   const fields = getVisibleFields(propertyType as "residential" | "commercial" | "mixed")
 
   const floorLabel = unit.floor == null
@@ -87,6 +88,15 @@ export function UnitExpandPanel({ unit, propertyId, propertyType, onArchive, hid
         >
           Edit unit
         </Link>
+        {unit.status === "vacant" && onCreateListing && (
+          <button
+            type="button"
+            onClick={onCreateListing}
+            className="rounded-lg border border-border/60 px-3 py-1.5 text-xs hover:border-border transition-colors"
+          >
+            Create listing
+          </button>
+        )}
         {!hasActiveLease && (
           <Link
             href={`/leases/new?unit=${unit.id}`}
