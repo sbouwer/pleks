@@ -10,6 +10,7 @@ import { toast } from "sonner"
 import { createMaintenanceRequest } from "@/lib/actions/maintenance"
 import { formatZAR } from "@/lib/constants"
 import { InlineCombobox } from "@/components/shared/InlineCombobox"
+import { createClient } from "@/lib/supabase/client"
 
 interface Property {
   id: string
@@ -22,6 +23,7 @@ interface Unit {
   id: string
   unit_number: string
   access_instructions: string | null
+  prospective_tenant_id: string | null
 }
 
 interface Tenant {
@@ -117,6 +119,22 @@ export function LogMaintenanceForm({
   const [leaseId, setLeaseId] = useState(initialLeaseId ?? "")
   const [loadingUnits, setLoadingUnits] = useState(false)
   const [loadingTenant, setLoadingTenant] = useState(false)
+  // Track user-initiated changes (vs server-provided initial state)
+  const [userChangedProperty, setUserChangedProperty] = useState(false)
+  const [userChangedUnit, setUserChangedUnit] = useState(false)
+
+  // Access contact state — dropdown of lease participants
+  interface ContactOption { label: string; name: string; phone: string; role: string }
+  const initialContactOptions: ContactOption[] = []
+  if (initialTenant) initialContactOptions.push({ label: `Tenant — ${initialTenant.name}`, name: initialTenant.name, phone: initialTenant.phone ?? "", role: "tenant" })
+  // TODO (Claude Code): server should also pass managingAgent + landlord for the property
+  // so we can add: { label: "Agent — Jane Bloggs", name: ..., phone: ..., role: "agent" }
+  //                { label: "Landlord — Johan Bouwer", name: ..., phone: ..., role: "landlord" }
+  const [contactOptions, setContactOptions] = useState<ContactOption[]>(initialContactOptions)
+  const [selectedContactRole, setSelectedContactRole] = useState(initialTenant ? "tenant" : "")
+  const [customContactName, setCustomContactName] = useState("")
+  const [customContactPhone, setCustomContactPhone] = useState("")
+  const [showCustomContact, setShowCustomContact] = useState(!initialTenant)
 
   // Problem state
   const [title, setTitle] = useState("")
@@ -151,38 +169,97 @@ export function LogMaintenanceForm({
   const effectiveCategory = overriding ? overrideCategory : triageResult?.category ?? ""
   const effectiveUrgency = overriding ? overrideUrgency : triageResult?.urgency ?? ""
 
-  // Fetch units when property changes — auto-select if only one
+  // Fetch units when property changes — only when USER changes it, not on mount
   useEffect(() => {
     if (!propertyId) { setUnits([]); setUnitId(""); setTenant(null); setLeaseId(""); return }
+    if (!userChangedProperty) return  // server already provided initialUnits
+    let cancelled = false
     setLoadingUnits(true)
-    fetch(`/api/properties/${propertyId}/units`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((d: { units: Unit[] } | null) => {
-        if (!d?.units) return
-        setUnits(d.units)
-        if (!unitId && d.units.length === 1) setUnitId(d.units[0].id)
-      })
-      .catch(() => { })
-      .finally(() => setLoadingUnits(false))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [propertyId])
+    setUnitId("")
+    setTenant(null)
+    setLeaseId("")
+    const supabase = createClient()
+    async function fetchUnits() {
+      try {
+        const { data: rows } = await supabase
+          .from("units")
+          .select("id, unit_number, access_instructions, prospective_tenant_id")
+          .eq("property_id", propertyId)
+          .eq("is_archived", false)
+          .is("deleted_at", null)
+          .order("unit_number")
+        if (cancelled) return
+        const list = (rows ?? []) as Unit[]
+        setUnits(list)
+        if (list.length === 1) setUnitId(list[0].id)
+      } finally {
+        if (!cancelled) setLoadingUnits(false)
+      }
+    }
+    void fetchUnits()
+    return () => { cancelled = true }
+  }, [propertyId, userChangedProperty])
 
-  // Fetch tenant when unit changes
+  // Fetch tenant + build contact options when unit changes
   useEffect(() => {
-    if (!unitId) { setTenant(null); setLeaseId(""); return }
+    if (!unitId) { setTenant(null); setLeaseId(""); setContactOptions([]); return }
     const unit = units.find((u) => u.id === unitId)
     if (unit?.access_instructions && !accessInstructions) {
       setAccessInstructions(unit.access_instructions)
     }
+    if (!userChangedUnit && initialTenant) return  // server already resolved tenant
+    let cancelled = false
     setLoadingTenant(true)
-    fetch(`/api/units/${unitId}/active-tenant`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((d: { tenant: Tenant | null; leaseId: string | null } | null) => {
-        setTenant(d?.tenant ?? null)
-        setLeaseId(d?.leaseId ?? "")
-      })
-      .catch(() => { })
-      .finally(() => setLoadingTenant(false))
+    const supabase = createClient()
+    const TENANT_STATUSES = ["draft", "pending_signing", "active", "notice", "month_to_month"]
+    async function fetchTenant() {
+      try {
+        const { data: lease } = await supabase
+          .from("leases")
+          .select("id, tenant_id")
+          .eq("unit_id", unitId)
+          .in("status", TENANT_STATUSES)
+          .order("start_date", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (cancelled) return
+        if (lease?.tenant_id) {
+          const { data: tv } = await supabase
+            .from("tenant_view")
+            .select("first_name, last_name, phone")
+            .eq("id", lease.tenant_id)
+            .single()
+          if (cancelled) return
+          const name = `${tv?.first_name ?? ""} ${tv?.last_name ?? ""}`.trim()
+          setTenant({ id: lease.tenant_id as string, name, phone: tv?.phone ?? null })
+          setLeaseId(lease.id)
+          const opts: ContactOption[] = []
+          if (tv) opts.push({ label: `Tenant — ${name}`, name, phone: tv.phone ?? "", role: "tenant" })
+          setContactOptions(opts)
+          setSelectedContactRole("tenant")
+        } else if (unit?.prospective_tenant_id) {
+          const { data: tv } = await supabase
+            .from("tenant_view")
+            .select("first_name, last_name, phone")
+            .eq("id", unit.prospective_tenant_id)
+            .single()
+          if (!cancelled && tv) {
+            const name = `${tv.first_name ?? ""} ${tv.last_name ?? ""}`.trim()
+            setTenant({ id: unit.prospective_tenant_id, name, phone: tv.phone ?? null })
+            setContactOptions([{ label: `Tenant — ${name}`, name, phone: tv.phone ?? "", role: "tenant" }])
+            setSelectedContactRole("tenant")
+          }
+          setLeaseId("")
+        } else {
+          setTenant(null)
+          setLeaseId("")
+        }
+      } finally {
+        if (!cancelled) setLoadingTenant(false)
+      }
+    }
+    void fetchTenant()
+    return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unitId])
 
@@ -273,6 +350,14 @@ export function LogMaintenanceForm({
     if (contractorId) formData.set("contractor_id", contractorId)
     if (accessInstructions.trim()) formData.set("access_instructions", accessInstructions)
     if (specialInstructions.trim()) formData.set("special_instructions", specialInstructions)
+    // Contact for access
+    if (showCustomContact) {
+      if (customContactName.trim()) formData.set("contact_name", customContactName)
+      if (customContactPhone.trim()) formData.set("contact_phone", customContactPhone)
+    } else {
+      const selected = contactOptions.find((c) => c.role === selectedContactRole)
+      if (selected) { formData.set("contact_name", selected.name); formData.set("contact_phone", selected.phone) }
+    }
     if (estimatedCostInput) formData.set("estimated_cost", estimatedCostInput)
 
     // Pass override classification if the user changed it
@@ -351,7 +436,7 @@ export function LogMaintenanceForm({
                     {p.city && <span className="text-muted-foreground ml-1 text-xs">{p.city}</span>}
                   </span>
                 )}
-                onSelect={(p) => { setPropertyId(p.id); setUnitId(""); setTenant(null) }}
+                onSelect={(p) => { setPropertyId(p.id); setUserChangedProperty(true); setUnitId(""); setTenant(null) }}
               />
             </div>
 
@@ -365,7 +450,7 @@ export function LogMaintenanceForm({
                   items={units}
                   getSearchText={(u) => u.unit_number}
                   renderItem={(u) => <span>{u.unit_number}</span>}
-                  onSelect={(u) => setUnitId(u.id)}
+                  onSelect={(u) => { setUnitId(u.id); setUserChangedUnit(true) }}
                   loading={loadingUnits}
                 />
                 {unitId && (
@@ -575,6 +660,58 @@ export function LogMaintenanceForm({
       {/* ─── Access ──────────────────────────────────────── */}
       <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 space-y-3">
         <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Access</p>
+
+        <div className="space-y-1.5">
+          <Label className="text-xs">Contact for access</Label>
+          {contactOptions.length > 0 && !showCustomContact ? (
+            <div className="space-y-2">
+              {contactOptions.map((opt) => (
+                <label key={opt.role} className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    name="access_contact"
+                    checked={selectedContactRole === opt.role}
+                    onChange={() => setSelectedContactRole(opt.role)}
+                    className="accent-brand"
+                  />
+                  <span>{opt.label}</span>
+                  {opt.phone && <span className="text-muted-foreground text-xs">{opt.phone}</span>}
+                </label>
+              ))}
+              <button
+                type="button"
+                onClick={() => setShowCustomContact(true)}
+                className="text-xs text-brand hover:underline"
+              >
+                Other contact
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                value={customContactName}
+                onChange={(e) => setCustomContactName(e.target.value)}
+                placeholder="Contact name"
+                className="text-sm"
+              />
+              <Input
+                value={customContactPhone}
+                onChange={(e) => setCustomContactPhone(e.target.value)}
+                placeholder="Phone number"
+                className="text-sm"
+              />
+            </div>
+          )}
+          {showCustomContact && contactOptions.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowCustomContact(false)}
+              className="text-xs text-brand hover:underline"
+            >
+              Use lease contact
+            </button>
+          )}
+        </div>
 
         <div className="space-y-1.5">
           <Label className="text-xs">Access instructions</Label>
