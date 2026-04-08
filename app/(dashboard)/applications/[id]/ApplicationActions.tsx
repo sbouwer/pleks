@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/client"
 
 interface ApplicationActionsProps {
   readonly applicationId: string
+  readonly orgId: string
   readonly stage1Status: string
   readonly stage2Status: string | null
   readonly isForeignNational: boolean
@@ -19,6 +20,7 @@ interface ApplicationActionsProps {
 
 export function ApplicationActions({
   applicationId,
+  orgId,
   stage1Status,
   stage2Status,
   isForeignNational,
@@ -80,7 +82,7 @@ export function ApplicationActions({
     }).eq("id", applicationId)
 
     await supabase.from("audit_log").insert({
-      org_id: "placeholder",
+      org_id: orgId,
       table_name: "applications",
       record_id: applicationId,
       action: "UPDATE",
