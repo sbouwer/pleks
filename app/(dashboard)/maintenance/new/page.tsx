@@ -1,63 +1,120 @@
-"use client"
+import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { redirect } from "next/navigation"
+import { LogMaintenanceForm } from "@/components/maintenance/LogMaintenanceForm"
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { createMaintenanceRequest } from "@/lib/actions/maintenance"
-import { toast } from "sonner"
+interface Props {
+  searchParams: Promise<{ property?: string; unit?: string }>
+}
 
-export default function NewMaintenancePage() {
-  const [loading, setLoading] = useState(false)
+export default async function NewMaintenancePage({ searchParams }: Props) {
+  const { property: propertyId, unit: unitId } = await searchParams
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setLoading(true)
-    const formData = new FormData(e.currentTarget)
-    const result = await createMaintenanceRequest(formData)
-    if (result?.error) {
-      toast.error(result.error)
-      setLoading(false)
-    }
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect("/login")
+
+  const service = await createServiceClient()
+
+  const { data: membership } = await service
+    .from("user_orgs")
+    .select("org_id")
+    .eq("user_id", user.id)
+    .is("deleted_at", null)
+    .single()
+
+  if (!membership) redirect("/onboarding")
+  const orgId = membership.org_id
+
+  // Fetch properties for picker
+  const { data: properties } = await service
+    .from("properties")
+    .select("id, name, address_line1, city")
+    .eq("org_id", orgId)
+    .is("deleted_at", null)
+    .order("name")
+
+  // Fetch units for selected property
+  let units: Array<{ id: string; unit_number: string; access_instructions: string | null }> = []
+  if (propertyId) {
+    const { data } = await service
+      .from("units")
+      .select("id, unit_number, access_instructions")
+      .eq("property_id", propertyId)
+      .order("unit_number")
+    units = data ?? []
   }
 
+  // Fetch tenant from active lease on selected unit
+  let prefillTenant: { id: string; name: string; phone: string | null } | null = null
+  let prefillLeaseId: string | null = null
+  let prefillAccessInstructions: string | null = null
+  if (unitId) {
+    const { data: lease } = await service
+      .from("leases")
+      .select("id, tenant_id, tenant_view(first_name, last_name, phone)")
+      .eq("unit_id", unitId)
+      .in("status", ["active", "signed"])
+      .order("start_date", { ascending: false })
+      .limit(1)
+      .single()
+
+    if (lease) {
+      prefillLeaseId = lease.id
+      const tv = lease.tenant_view as unknown as { first_name: string; last_name: string; phone: string } | null
+      if (tv && lease.tenant_id) {
+        prefillTenant = {
+          id: lease.tenant_id as string,
+          name: `${tv.first_name ?? ""} ${tv.last_name ?? ""}`.trim(),
+          phone: tv.phone ?? null,
+        }
+      }
+    }
+
+    // Access instructions from unit record
+    const unit = units.find((u) => u.id === unitId)
+    prefillAccessInstructions = unit?.access_instructions ?? null
+  }
+
+  // Org approval threshold
+  const { data: org } = await service
+    .from("organisations")
+    .select("maintenance_approval_threshold_cents")
+    .eq("id", orgId)
+    .single()
+  const approvalThresholdCents = (org?.maintenance_approval_threshold_cents as number | null) ?? 200000
+
+  // Active contractors
+  const { data: contractors } = await service
+    .from("contractor_view")
+    .select("id, first_name, last_name, company_name, specialities, is_active")
+    .eq("org_id", orgId)
+    .eq("is_active", true)
+    .order("company_name")
+
   return (
-    <div className="max-w-xl">
-      <h1 className="font-heading text-3xl mb-6">Log Maintenance Request</h1>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="space-y-2">
-          <Label>Unit ID *</Label>
-          <Input name="unit_id" placeholder="Paste unit UUID" required />
-        </div>
-        <div className="space-y-2">
-          <Label>Property ID *</Label>
-          <Input name="property_id" placeholder="Paste property UUID" required />
-        </div>
-        <div className="space-y-2">
-          <Label>Tenant ID</Label>
-          <Input name="tenant_id" placeholder="Paste tenant UUID (optional)" />
-        </div>
-        <div className="space-y-2">
-          <Label>Title *</Label>
-          <Input name="title" placeholder="Brief description of the issue" required />
-        </div>
-        <div className="space-y-2">
-          <Label>Description *</Label>
-          <Textarea name="description" rows={4} placeholder="Full details — what's happening, when it started, what was tried" required />
-        </div>
-        <div className="space-y-2">
-          <Label>Access Instructions</Label>
-          <Input name="access_instructions" placeholder="e.g. Key at reception, tenant home 9-5" />
-        </div>
-        <div className="space-y-2">
-          <Label>Estimated Cost (ZAR)</Label>
-          <Input name="estimated_cost" type="number" min="0" step="0.01" placeholder="Optional" />
-        </div>
-        <Button type="submit" className="w-full" disabled={loading}>
-          {loading ? "Logging..." : "Log Request"}
-        </Button>
-      </form>
+    <div className="max-w-2xl">
+      <div className="mb-6">
+        <h1 className="font-heading text-3xl">Log maintenance request</h1>
+        <p className="text-muted-foreground mt-1">
+          Describe the issue and we&apos;ll help classify and assign it.
+        </p>
+      </div>
+      <LogMaintenanceForm
+        orgId={orgId}
+        properties={properties ?? []}
+        initialPropertyId={propertyId ?? null}
+        initialUnits={units}
+        initialUnitId={unitId ?? null}
+        initialTenant={prefillTenant}
+        initialLeaseId={prefillLeaseId}
+        initialAccessInstructions={prefillAccessInstructions}
+        approvalThresholdCents={approvalThresholdCents}
+        contractors={(contractors ?? []).map((c) => ({
+          id: c.id,
+          name: (c.company_name || `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim()) || "Unnamed",
+          specialities: (c.specialities as string[] | null) ?? [],
+        }))}
+      />
     </div>
   )
 }
