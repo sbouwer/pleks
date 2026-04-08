@@ -12,7 +12,16 @@ import type { WizardData } from "../LeaseWizard"
 interface Props {
   data: WizardData
   onBack: () => void
-  onEdit: (step: 1 | 2 | 3 | 4 | 5) => void
+  onEdit: (step: 1 | 2 | 3 | 4 | 5 | 6 | 7) => void
+}
+
+function formatDueDay(v: string): string {
+  if (v === "last_day") return "Last day of each month"
+  if (v === "last_working_day") return "Last working day of each month"
+  let suffix = "th"
+  if (v === "1") suffix = "st"
+  else if (v === "3") suffix = "rd"
+  return `${v}${suffix} of each month`
 }
 
 function Row({ label, value }: Readonly<{ label: string; value: string }>) {
@@ -87,6 +96,9 @@ export function ReviewStep({ data, onBack, onEdit }: Readonly<Props>) {
     if (data.charges.length > 0) {
       formData.set("charges_json", JSON.stringify(data.charges))
     }
+    if (data.onceOffCharges.length > 0) {
+      formData.set("once_off_charges_json", JSON.stringify(data.onceOffCharges))
+    }
     if (data.coTenants.length > 0) {
       formData.set("co_tenants_json", JSON.stringify(data.coTenants.map((c) => c.id)))
     }
@@ -130,22 +142,21 @@ export function ReviewStep({ data, onBack, onEdit }: Readonly<Props>) {
           <Row label="Deposit" value={data.deposit ? formatZAR(Math.round(Number.parseFloat(data.deposit) * 100)) : "None"} />
           <Row label="Period" value={leasePeriod} />
           <Row label="Escalation" value={`${data.escalationPercent}% ${data.escalationType === "fixed" ? "fixed" : data.escalationType} on ${escalationReviewDate}`} />
-          <Row label="Payment due" value={`${data.paymentDueDay}${data.paymentDueDay === "1" ? "st" : "th"} of each month`} />
+          <Row label="Payment due" value={formatDueDay(data.paymentDueDay)} />
           {data.cpaApplies && <Row label="CPA s14" value="Applies — 20 business days' notice required" />}
         </CardContent>
       </Card>
 
       {/* Charges */}
-      {data.charges.length > 0 && (
+      {(data.charges.length > 0 || data.onceOffCharges.length > 0) && (
         <Card>
           <CardContent className="pt-4">
-            <SectionHeader title="Additional charges" onEdit={() => onEdit(4)} />
+            <SectionHeader title="Charges" onEdit={() => onEdit(4)} />
             {data.charges.map((c) => (
-              <Row
-                key={c.id}
-                label={c.description}
-                value={`${formatZAR(c.amount_cents)}/mo`}
-              />
+              <Row key={c.id} label={c.description} value={`${formatZAR(c.amount_cents)}/mo`} />
+            ))}
+            {data.onceOffCharges.map((c) => (
+              <Row key={c.id} label={`${c.description} (once-off)`} value={formatZAR(c.amount_cents)} />
             ))}
           </CardContent>
         </Card>
@@ -155,7 +166,7 @@ export function ReviewStep({ data, onBack, onEdit }: Readonly<Props>) {
       {data.specialTerms.some((t) => t.detail.trim()) && (
         <Card>
           <CardContent className="pt-4">
-            <SectionHeader title="Special agreements" onEdit={() => onEdit(4)} />
+            <SectionHeader title="Special agreements" onEdit={() => onEdit(6)} />
             {data.specialTerms.filter((t) => t.detail.trim()).map((t) => (
               <Row key={`${t.type}-${t.detail}`} label={t.type.replaceAll("_", " ")} value={t.detail} />
             ))}
