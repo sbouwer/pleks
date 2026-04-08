@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/select"
 import { SA_PROVINCES } from "@/lib/constants"
 import { PropertyEditSidebar } from "./[id]/PropertyEditSidebar"
+import { PropertyRulesEditor } from "@/components/properties/PropertyRulesEditor"
+import { RulesHierarchyCard } from "@/components/properties/RulesHierarchyCard"
 
 interface Landlord {
   id: string
@@ -76,10 +78,10 @@ interface PropertyEditFormProps {
 function BodyCorporateCard({
   defaultValues,
   managingSchemes,
-}: {
+}: Readonly<{
   defaultValues: PropertyEditFormProps["defaultValues"]
   managingSchemes: { id: string; company_name: string }[]
-}) {
+}>) {
   const [isSectional, setIsSectional] = useState(defaultValues.is_sectional_title ?? false)
   const [showSaReg, setShowSaReg] = useState(false)
 
@@ -89,7 +91,6 @@ function BodyCorporateCard({
         Body corporate
       </p>
 
-      {/* Toggle */}
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -110,7 +111,6 @@ function BodyCorporateCard({
 
       {isSectional && (
         <div className="space-y-3">
-          {/* Managing scheme */}
           <div className="space-y-1.5">
             <Label>Managing scheme</Label>
             <Select name="managing_scheme_id" defaultValue={defaultValues.managing_scheme_id ?? ""}>
@@ -128,7 +128,6 @@ function BodyCorporateCard({
             </Select>
           </div>
 
-          {/* Levy amount + account number */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>Monthly levy (R)</Label>
@@ -138,9 +137,9 @@ function BodyCorporateCard({
                 step="0.01"
                 placeholder="1850.00"
                 defaultValue={
-                  defaultValues.levy_amount_cents != null
-                    ? defaultValues.levy_amount_cents / 100
-                    : ""
+                  defaultValues.levy_amount_cents == null
+                    ? ""
+                    : defaultValues.levy_amount_cents / 100
                 }
               />
             </div>
@@ -155,10 +154,10 @@ function BodyCorporateCard({
           </div>
 
           <p className="text-xs text-muted-foreground">
-            The levy amount pre-fills as a lease charge when creating leases for units in this property.
+            The levy amount pre-fills as a lease charge when creating leases for units in this
+            property.
           </p>
 
-          {/* SA registration collapsible */}
           <div>
             <button
               type="button"
@@ -196,7 +195,6 @@ function BodyCorporateCard({
         </div>
       )}
 
-      {/* SA registration outside sectional toggle */}
       {!isSectional && (
         <div>
           <button
@@ -249,12 +247,11 @@ export function PropertyEditForm({
   units,
   teamMembers,
   managingAgentId,
-}: PropertyEditFormProps) {
+}: Readonly<PropertyEditFormProps>) {
   const router = useRouter()
   const queryClient = useQueryClient()
 
-  const backHref =
-    tier === "owner" ? "/properties" : `/properties/${propertyId}`
+  const backHref = tier === "owner" ? "/properties" : `/properties/${propertyId}`
 
   const [state, formAction, pending] = useActionState(
     async (_prev: { error?: string; success?: boolean } | null, formData: FormData) => {
@@ -264,7 +261,6 @@ export function PropertyEditForm({
     null
   )
 
-  // Redirect on success
   useEffect(() => {
     if (state?.success === true) {
       toast.success("Property updated")
@@ -278,20 +274,20 @@ export function PropertyEditForm({
 
   return (
     <form action={formAction}>
-      {/* Header */}
+      {/* ─── Header ───────────────────────────────────────────── */}
       <div className="mb-6">
         <Link
           href={backHref}
           className="text-sm text-muted-foreground hover:text-foreground mb-3 inline-block"
         >
-          {tier === "owner" ? "← Back to my property" : "← Back to property"}
+          {tier === "owner" ? "\u2190 Back to my property" : "\u2190 Back to property"}
         </Link>
 
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="font-heading text-2xl">{defaultValues.name}</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
-              {defaultValues.address_line1}, {defaultValues.city} · {defaultValues.type}
+              {defaultValues.address_line1}, {defaultValues.city} &middot; {defaultValues.type}
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -309,11 +305,13 @@ export function PropertyEditForm({
         )}
       </div>
 
-      {/* Two-column grid */}
+      {/* ─── ❶❷❸ Two-column: form fields + sidebar ────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
-        {/* Left column */}
+
+        {/* Left column: property details, address, body corporate */}
         <div className="space-y-4">
-          {/* Card 1: Property details */}
+
+          {/* ❶ Property details */}
           <div className={cardClass}>
             <p className={labelClass}>Property details</p>
             <div className="grid grid-cols-2 gap-4">
@@ -342,7 +340,7 @@ export function PropertyEditForm({
             </div>
           </div>
 
-          {/* Card 2: Address */}
+          {/* ❷ Address */}
           <div className={cardClass}>
             <p className={labelClass}>Address</p>
             <div className="space-y-3">
@@ -411,41 +409,63 @@ export function PropertyEditForm({
             </div>
           </div>
 
-          {/* Card 3: Bottom row — body corporate + notes side by side */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
-            <BodyCorporateCard
-              defaultValues={defaultValues}
-              managingSchemes={managingSchemes}
-            />
+          {/* ❸ Body corporate — full width of left column */}
+          <BodyCorporateCard
+            defaultValues={defaultValues}
+            managingSchemes={managingSchemes}
+          />
 
-            {/* Notes card */}
-            <div className={cardClass}>
-              <p className={labelClass}>Internal notes</p>
-              <p className="text-xs text-muted-foreground mb-2">
-                Not visible to tenants or applicants.
-              </p>
-              <Textarea
-                name="notes"
-                rows={4}
-                defaultValue={defaultValues.notes ?? ""}
-                className="resize-y"
-              />
-            </div>
-          </div>
         </div>
 
-        {/* Right column: sidebar */}
-        <PropertyEditSidebar
-          propertyId={propertyId}
-          orgId={orgId}
-          tier={tier}
-          currentLandlord={currentLandlord}
-          allLandlords={allLandlords}
-          units={units}
-          teamMembers={teamMembers}
-          managingAgentId={managingAgentId}
-        />
+        {/* Right column: sidebar + notes fills empty space below */}
+        <div className="space-y-3">
+          <PropertyEditSidebar
+            propertyId={propertyId}
+            orgId={orgId}
+            tier={tier}
+            currentLandlord={currentLandlord}
+            allLandlords={allLandlords}
+            units={units}
+            teamMembers={teamMembers}
+            managingAgentId={managingAgentId}
+          />
+          <div className="rounded-xl border border-border/60 bg-surface-elevated px-4 py-3">
+            <p className={labelClass}>Internal notes</p>
+            <p className="text-xs text-muted-foreground mb-2">
+              Not visible to tenants or applicants.
+            </p>
+            <Textarea
+              name="notes"
+              rows={5}
+              defaultValue={defaultValues.notes ?? ""}
+              className="resize-none text-sm"
+            />
+          </div>
+        </div>
       </div>
+
+      {/* ─── ❹ Property rules — full-width, saves independently ── */}
+      {/* Lives inside <form> DOM-wise but has no named inputs.     */}
+      {/* All rule changes use their own fetch/server action calls. */}
+      <div className="mt-8 pt-8 border-t border-border/40">
+        <div className="mb-4">
+          <p className="font-heading text-lg">Property rules</p>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            House rules for this property. These appear as an annexure in every lease for units
+            here.
+          </p>
+        </div>
+
+        <PropertyRulesEditor
+          propertyId={propertyId}
+          isSectionalTitle={defaultValues.is_sectional_title ?? false}
+          tier={tier}
+        />
+
+        <RulesHierarchyCard />
+      </div>
+
+
     </form>
   )
 }

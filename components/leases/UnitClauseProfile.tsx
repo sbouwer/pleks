@@ -156,7 +156,12 @@ export function UnitClauseProfile({
             </p>
             {showHint && (
               <div className="flex items-start justify-between gap-2 mt-2 text-xs text-muted-foreground bg-surface-elevated rounded-md px-3 py-2">
-                <span>This unit uses your organisation&apos;s default clauses. Only add overrides here if this unit needs something different from your standard.</span>
+                <span>
+                  Overrides here apply to this unit only. Property rules are set on the{" "}
+                  <a href={`/properties/${propertyId}/edit`} className="text-brand hover:underline">property edit page</a>.{" "}
+                  Organisation defaults are in{" "}
+                  <a href="/settings/lease-templates" className="text-brand hover:underline">Settings &rarr; Lease template</a>.
+                </span>
                 <button onClick={dismissHint} className="shrink-0 hover:text-foreground transition-colors" aria-label="Dismiss">
                   <X className="size-3.5" />
                 </button>
