@@ -1,5 +1,12 @@
 import { formatZAR } from "@/lib/constants"
 
+function formatDueDay(v: string): string {
+  if (v === "last_day") return "Last day of each month"
+  if (v === "last_working_day") return "Last working day of each month"
+  const suffixes: Record<string, string> = { "1": "st", "2": "nd", "3": "rd" }
+  return `${v}${suffixes[v] ?? "th"} of each month`
+}
+
 interface LeaseTermsGridProps {
   rentAmountCents: number
   depositAmountCents: number | null
@@ -7,7 +14,7 @@ interface LeaseTermsGridProps {
   escalationPercent: number | null
   escalationType: string | null
   escalationReviewDate: string | null
-  paymentDueDay: number | null
+  paymentDueDay: string | null
   debicheckStatus: string | null
 }
 
@@ -21,12 +28,7 @@ export function LeaseTermsGrid({
   paymentDueDay,
   debicheckStatus,
 }: LeaseTermsGridProps) {
-  const dueDay = paymentDueDay
-    ? paymentDueDay === 1 ? "1st of each month"
-    : paymentDueDay === 2 ? "2nd of each month"
-    : paymentDueDay === 3 ? "3rd of each month"
-    : `${paymentDueDay}th of each month`
-    : "—"
+  const dueDay = paymentDueDay ? formatDueDay(paymentDueDay) : "—"
 
   const escalationLabel = escalationPercent != null
     ? `${escalationPercent}% ${escalationType ?? ""}`.trim()
