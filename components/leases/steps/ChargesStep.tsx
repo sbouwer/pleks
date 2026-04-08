@@ -208,7 +208,7 @@ export function ChargesStep({ data, onBack, onNext }: Readonly<Props>) {
               <div className="space-y-1">
                 <Label className="text-xs">Charge type</Label>
                 <Select value={newChargeType} onValueChange={(v) => handleTypeChange(v ?? "other")}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger><SelectValue>{CHARGE_TYPES.find((t) => t.value === newChargeType)?.label}</SelectValue></SelectTrigger>
                   <SelectContent>
                     {CHARGE_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                   </SelectContent>
@@ -243,7 +243,7 @@ export function ChargesStep({ data, onBack, onNext }: Readonly<Props>) {
             <div className="space-y-1">
               <Label className="text-xs">Payable to</Label>
               <Select value={newPayableTo} onValueChange={(v) => setNewPayableTo(v ?? "landlord")}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger><SelectValue>{PAYABLE_TO.find((p) => p.value === newPayableTo)?.label}</SelectValue></SelectTrigger>
                 <SelectContent>
                   {PAYABLE_TO.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
                 </SelectContent>
@@ -316,7 +316,7 @@ export function ChargesStep({ data, onBack, onNext }: Readonly<Props>) {
               <div className="space-y-1">
                 <Label className="text-xs">Charge type</Label>
                 <Select value={ooChargeType} onValueChange={(v) => handleOoTypeChange(v ?? "contract_fee")}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger><SelectValue>{ONCE_OFF_CHARGE_TYPES.find((t) => t.value === ooChargeType)?.label}</SelectValue></SelectTrigger>
                   <SelectContent>
                     {ONCE_OFF_CHARGE_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                   </SelectContent>
@@ -341,7 +341,7 @@ export function ChargesStep({ data, onBack, onNext }: Readonly<Props>) {
             <div className="space-y-1">
               <Label className="text-xs">Payable to</Label>
               <Select value={ooPayableTo} onValueChange={(v) => setOoPayableTo(v ?? "agent")}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger><SelectValue>{PAYABLE_TO.find((p) => p.value === ooPayableTo)?.label}</SelectValue></SelectTrigger>
                 <SelectContent>
                   {PAYABLE_TO.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
                 </SelectContent>
