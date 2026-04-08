@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { SidebarContent, type NavGroup } from "./SidebarContent"
+import { useTier } from "@/hooks/useTier"
 import {
   LayoutDashboard,
   Building2,
@@ -18,6 +19,7 @@ import {
   Wallet,
   HardHat,
   UserSquare2,
+  CalendarDays,
 } from "lucide-react"
 
 const NAV_GROUPS: NavGroup[] = [
@@ -43,6 +45,7 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/applications", label: "Applications", icon: UserCheck },
       { href: "/maintenance", label: "Maintenance", icon: Wrench },
       { href: "/inspections", label: "Inspections", icon: ClipboardCheck },
+      { href: "/calendar", label: "Calendar", icon: CalendarDays },
     ],
   },
   {
@@ -64,6 +67,21 @@ const NAV_GROUPS: NavGroup[] = [
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false)
+  const { isPortfolio, isFirm } = useTier()
+
+  // Filter tier-gated nav items
+  const groups = NAV_GROUPS.map((group) => {
+    if (group.title === "Operations") {
+      return {
+        ...group,
+        items: group.items.filter((item) => {
+          if (item.href === "/calendar") return isPortfolio || isFirm
+          return true
+        }),
+      }
+    }
+    return group
+  })
 
   return (
     <aside
@@ -73,7 +91,7 @@ export function Sidebar() {
       )}
     >
       <SidebarContent
-        groups={NAV_GROUPS}
+        groups={groups}
         homeHref="/dashboard"
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed((c) => !c)}
