@@ -114,8 +114,13 @@ export default function LeaseTemplatesPage() {
       <p className="text-muted-foreground text-sm mb-1">
         Your approved lease with all clauses. Unit-specific clause toggles are configured on each unit&apos;s detail page.
       </p>
-      <p className="text-muted-foreground text-xs mb-6">
+      <p className="text-muted-foreground text-xs mb-3">
         Changes to wording or org-level defaults cascade to all future leases. Unit profiles only override which optional clauses are included.
+      </p>
+      <p className="text-xs text-muted-foreground mb-6">
+        For property-specific house rules, edit them on each{" "}
+        <Link href="/properties" className="text-brand hover:underline">property&rsquo;s edit page</Link>.
+        {" "}For unit-specific clause overrides, edit them on each unit&rsquo;s detail page.
       </p>
 
       {showIntro && <LeaseTemplateIntro tier={tier} onDismiss={handleDismissIntro} />}
