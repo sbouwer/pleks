@@ -28,12 +28,21 @@ export async function createMaintenanceRequest(formData: FormData) {
   const propertyId = formData.get("property_id") as string
   const tenantId = formData.get("tenant_id") as string || null
   const leaseId = formData.get("lease_id") as string || null
+  const contractorId = formData.get("contractor_id") as string || null
+  const categoryOverride = formData.get("category_override") as string || null
+  const urgencyOverride = formData.get("urgency_override") as string || null
 
   // AI triage — only for Steward+ (Owner tier gets manual defaults, zero API cost)
+  // If the form already ran triage client-side and agent overrode, use those values
   const tier = await getOrgTier(orgId)
-  const triage = hasFeature(tier, "ai_maintenance_triage")
-    ? await triageMaintenanceRequest(title, description)
-    : { category: "other", urgency: "routine", urgency_reason: "Manual — upgrade for AI triage", suggested_action: "" }
+  let triage: { category: string; urgency: string; urgency_reason: string; suggested_action: string }
+  if (categoryOverride) {
+    triage = { category: categoryOverride, urgency: urgencyOverride ?? "routine", urgency_reason: "Agent classification", suggested_action: "" }
+  } else if (hasFeature(tier, "ai_maintenance_triage")) {
+    triage = await triageMaintenanceRequest(title, description)
+  } else {
+    triage = { category: "other", urgency: "routine", urgency_reason: "Manual — upgrade for AI triage", suggested_action: "" }
+  }
 
   // Generate work order number
   const year = new Date().getFullYear()
@@ -53,6 +62,7 @@ export async function createMaintenanceRequest(formData: FormData) {
       property_id: propertyId,
       lease_id: leaseId,
       tenant_id: tenantId,
+      contractor_id: contractorId,
       title,
       description,
       logged_by: "agent",
@@ -65,7 +75,7 @@ export async function createMaintenanceRequest(formData: FormData) {
       access_instructions: formData.get("access_instructions") as string || null,
       special_instructions: formData.get("special_instructions") as string || null,
       estimated_cost_cents: formData.get("estimated_cost")
-        ? Math.round(parseFloat(formData.get("estimated_cost") as string) * 100)
+        ? Math.round(Number.parseFloat(formData.get("estimated_cost") as string) * 100)
         : null,
       status: "pending_review",
     })
