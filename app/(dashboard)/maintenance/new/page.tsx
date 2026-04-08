@@ -1,15 +1,61 @@
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { LogMaintenanceForm } from "@/components/maintenance/LogMaintenanceForm"
+import type { SupabaseClient } from "@supabase/supabase-js"
 
 interface Props {
   searchParams: Promise<{ property?: string; unit?: string }>
 }
 
-export default async function NewMaintenancePage({ searchParams }: Props) {
+type ServiceClient = SupabaseClient
+
+async function resolvePropertyId(service: ServiceClient, unitId: string | undefined, propertyId: string | undefined) {
+  if (propertyId ?? !unitId) return propertyId
+  const { data } = await service.from("units").select("property_id").eq("id", unitId).single()
+  return data?.property_id ?? propertyId
+}
+
+async function fetchUnits(service: ServiceClient, propertyId: string | undefined) {
+  if (!propertyId) return []
+  const { data } = await service
+    .from("units")
+    .select("id, unit_number, access_instructions")
+    .eq("property_id", propertyId)
+    .order("unit_number")
+  return data ?? []
+}
+
+async function fetchTenantPrefill(service: ServiceClient, unitId: string, units: Array<{ id: string; unit_number: string; access_instructions: string | null }>) {
+  const { data: lease } = await service
+    .from("leases")
+    .select("id, tenant_id, tenant_view(first_name, last_name, phone)")
+    .eq("unit_id", unitId)
+    .in("status", ["active", "signed"])
+    .order("start_date", { ascending: false })
+    .limit(1)
+    .single()
+
+  let prefillTenant: { id: string; name: string; phone: string | null } | null = null
+  let prefillLeaseId: string | null = null
+
+  if (lease) {
+    prefillLeaseId = lease.id
+    const tv = lease.tenant_view as unknown as { first_name: string; last_name: string; phone: string } | null
+    if (tv && lease.tenant_id) {
+      prefillTenant = {
+        id: lease.tenant_id as string,
+        name: `${tv.first_name ?? ""} ${tv.last_name ?? ""}`.trim(),
+        phone: tv.phone ?? null,
+      }
+    }
+  }
+
+  const prefillAccessInstructions = units.find((u) => u.id === unitId)?.access_instructions ?? null
+  return { prefillTenant, prefillLeaseId, prefillAccessInstructions }
+}
+
+export default async function NewMaintenancePage({ searchParams }: Readonly<Props>) {
   const sp = await searchParams
-  let propertyId = sp.property ?? undefined
-  const unitId = sp.unit ?? undefined
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -27,81 +73,31 @@ export default async function NewMaintenancePage({ searchParams }: Props) {
   if (!membership) redirect("/onboarding")
   const orgId = membership.org_id
 
-  // If only unit is given (e.g. from a property page quick-action), look up the property
-  if (unitId && !propertyId) {
-    const { data: unitRow } = await service
-      .from("units")
-      .select("property_id")
-      .eq("id", unitId)
-      .single()
-    if (unitRow) propertyId = unitRow.property_id
-  }
+  // Fetch properties + resolve property from unit if needed
+  const [{ data: properties }, rawPropertyId] = await Promise.all([
+    service.from("properties").select("id, name, address_line1, city").eq("org_id", orgId).is("deleted_at", null).order("name"),
+    resolvePropertyId(service, sp.unit, sp.property),
+  ])
 
-  // Fetch properties for picker
-  const { data: properties } = await service
-    .from("properties")
-    .select("id, name, address_line1, city")
-    .eq("org_id", orgId)
-    .is("deleted_at", null)
-    .order("name")
+  // Auto-select the only property (owner / single-property org)
+  const propList = properties ?? []
+  const propertyId = rawPropertyId ?? (propList.length === 1 ? propList[0].id : undefined)
 
-  // Fetch units for selected property
-  let units: Array<{ id: string; unit_number: string; access_instructions: string | null }> = []
-  if (propertyId) {
-    const { data } = await service
-      .from("units")
-      .select("id, unit_number, access_instructions")
-      .eq("property_id", propertyId)
-      .order("unit_number")
-    units = data ?? []
-  }
+  // Fetch units + auto-select if only one
+  const units = await fetchUnits(service, propertyId)
+  const unitId = sp.unit ?? (units.length === 1 ? units[0].id : undefined)
 
-  // Fetch tenant from active lease on selected unit
-  let prefillTenant: { id: string; name: string; phone: string | null } | null = null
-  let prefillLeaseId: string | null = null
-  let prefillAccessInstructions: string | null = null
-  if (unitId) {
-    const { data: lease } = await service
-      .from("leases")
-      .select("id, tenant_id, tenant_view(first_name, last_name, phone)")
-      .eq("unit_id", unitId)
-      .in("status", ["active", "signed"])
-      .order("start_date", { ascending: false })
-      .limit(1)
-      .single()
+  // Tenant prefill
+  const { prefillTenant, prefillLeaseId, prefillAccessInstructions } =
+    unitId ? await fetchTenantPrefill(service, unitId, units) : { prefillTenant: null, prefillLeaseId: null, prefillAccessInstructions: null }
 
-    if (lease) {
-      prefillLeaseId = lease.id
-      const tv = lease.tenant_view as unknown as { first_name: string; last_name: string; phone: string } | null
-      if (tv && lease.tenant_id) {
-        prefillTenant = {
-          id: lease.tenant_id as string,
-          name: `${tv.first_name ?? ""} ${tv.last_name ?? ""}`.trim(),
-          phone: tv.phone ?? null,
-        }
-      }
-    }
+  // Org settings + contractors in parallel
+  const [{ data: org }, { data: contractors }] = await Promise.all([
+    service.from("organisations").select("maintenance_approval_threshold_cents").eq("id", orgId).single(),
+    service.from("contractor_view").select("id, first_name, last_name, company_name, specialities, is_active").eq("org_id", orgId).eq("is_active", true).order("company_name"),
+  ])
 
-    // Access instructions from unit record
-    const unit = units.find((u) => u.id === unitId)
-    prefillAccessInstructions = unit?.access_instructions ?? null
-  }
-
-  // Org approval threshold
-  const { data: org } = await service
-    .from("organisations")
-    .select("maintenance_approval_threshold_cents")
-    .eq("id", orgId)
-    .single()
   const approvalThresholdCents = (org?.maintenance_approval_threshold_cents as number | null) ?? 200000
-
-  // Active contractors
-  const { data: contractors } = await service
-    .from("contractor_view")
-    .select("id, first_name, last_name, company_name, specialities, is_active")
-    .eq("org_id", orgId)
-    .eq("is_active", true)
-    .order("company_name")
 
   return (
     <div className="max-w-2xl">
@@ -113,7 +109,7 @@ export default async function NewMaintenancePage({ searchParams }: Props) {
       </div>
       <LogMaintenanceForm
         orgId={orgId}
-        properties={properties ?? []}
+        properties={propList}
         initialPropertyId={propertyId ?? null}
         initialUnits={units}
         initialUnitId={unitId ?? null}
