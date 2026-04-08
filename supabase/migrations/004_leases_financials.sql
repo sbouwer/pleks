@@ -11,29 +11,8 @@
 
 -- ─── Lease-related tables ────────────────────────────────────────────────────
 
--- Property rules (Addendum C) — set at property level
-CREATE TABLE property_rules (
-  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id          uuid NOT NULL REFERENCES organisations(id),
-  property_id     uuid NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
-  version         integer NOT NULL DEFAULT 1,
-  pets_allowed    boolean DEFAULT false,
-  pets_conditions text,
-  smoking_allowed boolean DEFAULT false,
-  parking_rules   text,
-  noise_rules     text,
-  visitor_rules   text,
-  common_area_rules text,
-  garden_rules    text,
-  braai_rules     text,
-  refuse_rules    text,
-  alterations_rule text,
-  additional_rules text[] DEFAULT '{}',
-  effective_from  date NOT NULL DEFAULT CURRENT_DATE,
-  created_by      uuid REFERENCES auth.users(id),
-  created_at      timestamptz NOT NULL DEFAULT now(),
-  updated_at      timestamptz NOT NULL DEFAULT now()
-);
+-- NOTE: property_rules table is defined in 018_property_rules.sql (template-based system).
+-- The old flat schema was replaced in BUILD_44.
 
 -- Lease templates (core document versions)
 CREATE TABLE lease_templates (
@@ -75,9 +54,6 @@ CREATE TABLE leases (
   deposit_amount_cents integer,
   deposit_interest_to text NOT NULL DEFAULT 'tenant'
                       CHECK (deposit_interest_to IN ('tenant', 'landlord')),
-  -- Addendum C
-  property_rules_id   uuid REFERENCES property_rules(id),
-  property_rules_version integer,
   -- Addendum D
   special_terms       jsonb DEFAULT '[]',
   -- Document assembly
@@ -950,13 +926,6 @@ CREATE INDEX idx_tenant_bank_accounts_hash ON tenant_bank_accounts(account_numbe
 -- ROW LEVEL SECURITY POLICIES
 -- =============================================================================
 
--- Property rules
-ALTER TABLE property_rules ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "org_property_rules" ON property_rules
-  FOR ALL USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
-  );
-
 -- Lease templates
 ALTER TABLE lease_templates ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "org_lease_templates" ON lease_templates
@@ -1207,10 +1176,6 @@ CREATE POLICY "org_tenant_bank" ON tenant_bank_accounts
 -- =============================================================================
 -- TRIGGERS
 -- =============================================================================
-
-CREATE TRIGGER update_property_rules_updated_at
-  BEFORE UPDATE ON property_rules
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_leases_updated_at
   BEFORE UPDATE ON leases

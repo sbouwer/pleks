@@ -458,7 +458,7 @@ export function PropertyEditForm({
         <PropertyRulesEditor
           propertyId={propertyId}
           isSectionalTitle={defaultValues.is_sectional_title ?? false}
-          tier={tier}
+          managingSchemeId={defaultValues.managing_scheme_id}
         />
 
         <RulesHierarchyCard />
