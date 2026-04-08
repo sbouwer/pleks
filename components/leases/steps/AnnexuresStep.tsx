@@ -17,12 +17,12 @@ interface Props {
 }
 
 const SPECIAL_TERM_TYPES = [
-  { value: "pet_permission", label: "Pet Permission" },
-  { value: "parking", label: "Parking Bay" },
-  { value: "storage", label: "Storage" },
-  { value: "repair_agreement", label: "Landlord Repair" },
-  { value: "early_termination", label: "Early Termination" },
-  { value: "custom", label: "Custom" },
+  { value: "pet_permission", label: "Pet Permission", defaultDetail: "Tenant is permitted to keep [describe pet] on the premises subject to the property rules." },
+  { value: "parking", label: "Parking Bay", defaultDetail: "Parking bay [number/description] is allocated to the Tenant at no additional charge." },
+  { value: "storage", label: "Storage", defaultDetail: "Storage unit [number/description] is allocated to the Tenant at no additional charge." },
+  { value: "repair_agreement", label: "Landlord Repair", defaultDetail: "The Landlord agrees to [describe repair/improvement] before/by [date]." },
+  { value: "early_termination", label: "Early Termination", defaultDetail: "The Tenant may terminate this lease on [X] calendar days' written notice, subject to a penalty of [amount/formula]." },
+  { value: "custom", label: "Custom", defaultDetail: "" },
 ]
 
 function AnnexureSection({
@@ -90,8 +90,13 @@ export function AnnexuresStep({ data, onBack, onNext }: Readonly<Props>) {
     setSpecialTerms((prev) => prev.filter((_, idx) => idx !== i))
   }
 
-  function updateSpecialTerm(i: number, field: keyof SpecialTerm, value: string) {
-    setSpecialTerms((prev) => prev.map((t, idx) => idx === i ? { ...t, [field]: value } : t))
+  function updateSpecialTermType(i: number, type: string) {
+    const defaultDetail = SPECIAL_TERM_TYPES.find((t) => t.value === type)?.defaultDetail ?? ""
+    setSpecialTerms((prev) => prev.map((t, idx) => idx === i ? { ...t, type, detail: t.detail || defaultDetail } : t))
+  }
+
+  function updateSpecialTermDetail(i: number, detail: string) {
+    setSpecialTerms((prev) => prev.map((t, idx) => idx === i ? { ...t, detail } : t))
   }
 
   // Rental calc values
@@ -175,8 +180,10 @@ export function AnnexuresStep({ data, onBack, onNext }: Readonly<Props>) {
         <div className="space-y-3">
           {specialTerms.map((term, i) => (
             <div key={`term-${i}`} className="flex gap-2">
-              <Select value={term.type} onValueChange={(v) => updateSpecialTerm(i, "type", v ?? "custom")}>
-                <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+              <Select value={term.type} onValueChange={(v) => updateSpecialTermType(i, v ?? "custom")}>
+                <SelectTrigger className="w-44">
+                  <SelectValue>{SPECIAL_TERM_TYPES.find((t) => t.value === term.type)?.label}</SelectValue>
+                </SelectTrigger>
                 <SelectContent>
                   {SPECIAL_TERM_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                 </SelectContent>
@@ -184,7 +191,7 @@ export function AnnexuresStep({ data, onBack, onNext }: Readonly<Props>) {
               <Input
                 className="flex-1"
                 value={term.detail}
-                onChange={(e) => updateSpecialTerm(i, "detail", e.target.value)}
+                onChange={(e) => updateSpecialTermDetail(i, e.target.value)}
                 placeholder="Details"
               />
               <button type="button" className="text-muted-foreground hover:text-danger" onClick={() => removeSpecialTerm(i)}>
