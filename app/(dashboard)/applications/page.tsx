@@ -13,16 +13,29 @@ export default async function ApplicationsPage() {
   const queryClient = new QueryClient()
   const supabase = await createClient()
 
-  await queryClient.prefetchQuery({
-    queryKey: OPERATIONAL_QUERY_KEYS.applications(orgId),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    queryFn: () => fetchApplications(supabase as any),
-    staleTime: STALE_TIME.applications,
-  })
+  const [, listingsResult] = await Promise.all([
+    queryClient.prefetchQuery({
+      queryKey: OPERATIONAL_QUERY_KEYS.applications(orgId),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      queryFn: () => fetchApplications(supabase as any),
+      staleTime: STALE_TIME.applications,
+    }),
+    supabase
+      .from("listings")
+      .select("id, public_slug, asking_rent_cents, applications_count, status, units(unit_number, properties(name))")
+      .eq("org_id", orgId)
+      .in("status", ["active", "paused"])
+      .order("created_at", { ascending: false }),
+  ])
+
+  const { data: listingsRaw, error: listingsError } = listingsResult
+  if (listingsError) console.error("fetchListings failed:", listingsError.message)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const listings = (listingsRaw ?? []) as any[]
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <ApplicationsPageClient orgId={orgId} />
+      <ApplicationsPageClient orgId={orgId} listings={listings ?? []} />
     </HydrationBoundary>
   )
 }
