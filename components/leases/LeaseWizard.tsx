@@ -183,7 +183,7 @@ export function LeaseWizard({
   }
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-3xl">
       {/* Step indicator */}
       <nav aria-label="Wizard steps" className="flex items-center mb-8">
         {STEP_LABELS.map((label, i) => {
