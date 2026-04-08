@@ -93,6 +93,9 @@ export function ReviewStep({ data, onBack, onEdit }: Readonly<Props>) {
     formData.set("arrears_interest_margin", data.arrearsMargin)
     formData.set("special_terms", JSON.stringify(data.specialTerms.filter((t) => t.detail.trim())))
     formData.set("clause_selections", JSON.stringify(data.clauseSelections))
+    if (data.acknowledgedConflicts.length > 0) {
+      formData.set("acknowledged_conflicts", JSON.stringify(data.acknowledgedConflicts))
+    }
     if (data.charges.length > 0) {
       formData.set("charges_json", JSON.stringify(data.charges))
     }

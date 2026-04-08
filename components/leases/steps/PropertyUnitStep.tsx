@@ -19,6 +19,7 @@ interface Property {
   type: string
   is_sectional_title: boolean
   levy_amount_cents: number | null
+  managing_scheme_id: string | null
 }
 
 interface Unit {
@@ -28,6 +29,7 @@ interface Unit {
   asking_rent_cents: number | null
   bedrooms: number | null
   bathrooms: number | null
+  parking_bays: number | null
   prospective_tenant_id?: string | null
   prospective_co_tenant_ids?: string[]
 }
@@ -165,7 +167,7 @@ export function PropertyUnitStep({ data, onNext }: Readonly<Props>) {
     const supabase = createClient()
     supabase
       .from("properties")
-      .select("id, name, address_line1, city, type, is_sectional_title, levy_amount_cents")
+      .select("id, name, address_line1, city, type, is_sectional_title, levy_amount_cents, managing_scheme_id")
       .eq("org_id", orgId)
       .is("deleted_at", null)
       .order("name")
@@ -183,7 +185,7 @@ export function PropertyUnitStep({ data, onNext }: Readonly<Props>) {
       setLoadingUnits(true)
       const { data: rows } = await supabase
         .from("units")
-        .select("id, unit_number, status, asking_rent_cents, bedrooms, bathrooms, prospective_tenant_id, prospective_co_tenant_ids")
+        .select("id, unit_number, status, asking_rent_cents, bedrooms, bathrooms, parking_bays, prospective_tenant_id, prospective_co_tenant_ids")
         .eq("property_id", propertyId)
         .is("deleted_at", null)
         .eq("is_archived", false)
@@ -269,6 +271,9 @@ export function PropertyUnitStep({ data, onNext }: Readonly<Props>) {
       leaseType,
       askingRentCents: selectedUnit.asking_rent_cents,
       bcLevyCents: prop?.levy_amount_cents ?? null,
+      isSectionalTitle: prop?.is_sectional_title ?? false,
+      parkingBays: unit?.parking_bays ?? 0,
+      hasSchemeRules: !!(prop?.managing_scheme_id),
       charges: initialCharges,
       tenantId,
       tenantName,

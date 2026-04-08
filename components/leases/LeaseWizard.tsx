@@ -76,14 +76,27 @@ export interface WizardData {
   arrearsMargin: string
   cpaApplies: boolean
   tenantIsJuristic: boolean
+  // Step 1 — metadata (not editable, from property/unit fetch)
+  isSectionalTitle: boolean
+  parkingBays: number
+  hasSchemeRules: boolean
   // Step 4
   charges: LocalCharge[]
   onceOffCharges: LocalOnceOffCharge[]
   // Step 5
   clauseSelections: Record<string, boolean>
+  acknowledgedConflicts: string[]
   // Step 6
   annexureCRules: AnnexureCRules
   specialTerms: SpecialTerm[]
+}
+
+export const DEFAULT_ANNEXURE_C_RULES: AnnexureCRules = {
+  pets: "No pets permitted without prior written consent of the Landlord.",
+  smoking: "Smoking is strictly prohibited inside the premises.",
+  parking: "One (1) parking bay allocated to the Tenant.",
+  noise: "No excessive noise after 22:00 or before 07:00 on weekdays, or after 23:00 on weekends.",
+  commonAreas: "Common areas must be kept clean and clear of personal belongings.",
 }
 
 const STEP_LABELS = ["Property", "Tenant", "Lease terms", "Charges", "Clauses", "Annexures", "Review"]
@@ -143,16 +156,14 @@ export function LeaseWizard({
     arrearsMargin: "2",
     cpaApplies: true,
     tenantIsJuristic: false,
+    isSectionalTitle: false,
+    parkingBays: 0,
+    hasSchemeRules: false,
     charges: [],
     onceOffCharges: [],
     clauseSelections: {},
-    annexureCRules: {
-      pets: "No pets permitted without prior written consent of the Landlord.",
-      smoking: "Smoking is strictly prohibited inside the premises.",
-      parking: "One (1) parking bay allocated to the Tenant.",
-      noise: "No excessive noise after 22:00 or before 07:00 on weekdays, or after 23:00 on weekends.",
-      commonAreas: "Common areas must be kept clean and clear of personal belongings.",
-    },
+    acknowledgedConflicts: [],
+    annexureCRules: { ...DEFAULT_ANNEXURE_C_RULES },
     specialTerms: [],
   })
 

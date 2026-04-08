@@ -29,14 +29,14 @@ export async function createLease(formData: FormData) {
   const startDate = formData.get("start_date") as string
   const endDate = formData.get("end_date") as string || null
   const isFixedTerm = formData.get("is_fixed_term") !== "false"
-  const noticePeriod = parseInt(formData.get("notice_period_days") as string) || 20
+  const noticePeriod = Number.parseInt(formData.get("notice_period_days") as string) || 20
 
-  const rentCents = Math.round(parseFloat(formData.get("rent_amount") as string) * 100)
-  const paymentDueDay = parseInt(formData.get("payment_due_day") as string) || 1
-  const escalationPercent = parseFloat(formData.get("escalation_percent") as string) || 10
+  const rentCents = Math.round(Number.parseFloat(formData.get("rent_amount") as string) * 100)
+  const paymentDueDay = (formData.get("payment_due_day") as string) || "1"
+  const escalationPercent = Number.parseFloat(formData.get("escalation_percent") as string) || 10
   const escalationType = formData.get("escalation_type") as string || "fixed"
   const depositCents = formData.get("deposit_amount")
-    ? Math.round(parseFloat(formData.get("deposit_amount") as string) * 100)
+    ? Math.round(Number.parseFloat(formData.get("deposit_amount") as string) * 100)
     : null
   const depositInterestTo = leaseType === "residential" ? "tenant" : (formData.get("deposit_interest_to") as string || "landlord")
 
@@ -171,6 +171,40 @@ export async function createLease(formData: FormData) {
     } catch { /* ignore malformed */ }
   }
 
+  // HOA supremacy clause — auto-insert (non-removable) for sectional title properties with a managing scheme
+  const { data: propMeta } = await supabase
+    .from("properties")
+    .select("is_sectional_title, managing_scheme_id")
+    .eq("id", propertyId)
+    .single()
+
+  if (propMeta?.is_sectional_title && propMeta.managing_scheme_id) {
+    await supabase.from("lease_clause_selections").upsert({
+      org_id: orgId,
+      lease_id: lease.id,
+      clause_key: "hoa_supremacy",
+      enabled: true,
+    }, { onConflict: "org_id,lease_id,clause_key", ignoreDuplicates: false })
+  }
+
+  // Log acknowledged conflicts to audit trail
+  const acknowledgedConflictsRaw = formData.get("acknowledged_conflicts") as string | null
+  if (acknowledgedConflictsRaw) {
+    try {
+      const conflictIds = JSON.parse(acknowledgedConflictsRaw) as string[]
+      if (conflictIds.length > 0) {
+        await supabase.from("audit_log").insert({
+          org_id: orgId,
+          table_name: "leases",
+          record_id: lease.id,
+          action: "CONFLICT_ACKNOWLEDGED",
+          changed_by: user.id,
+          new_values: { acknowledged_conflict_ids: conflictIds },
+        })
+      }
+    } catch { /* ignore malformed */ }
+  }
+
   // Reflect draft tenant on the unit so the property page shows who is linked
   await supabase.from("units").update({
     prospective_tenant_id: tenantId,
@@ -285,7 +319,7 @@ export async function giveNotice(leaseId: string, givenBy: "tenant" | "landlord"
     from_status: "occupied",
     to_status: "notice",
     changed_by: user.id,
-    reason: `Notice given by ${givenBy}${reason ? `: ${reason}` : ""}`,
+    reason: reason ? `Notice given by ${givenBy}: ${reason}` : `Notice given by ${givenBy}`,
   })
 
   await supabase.from("audit_log").insert({
