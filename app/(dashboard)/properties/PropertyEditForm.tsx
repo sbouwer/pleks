@@ -306,7 +306,7 @@ export function PropertyEditForm({
       </div>
 
       {/* ─── ❶❷❸ Two-column: form fields + sidebar ────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6 items-stretch">
 
         {/* Left column: property details, address, body corporate */}
         <div className="space-y-4">
@@ -417,8 +417,8 @@ export function PropertyEditForm({
 
         </div>
 
-        {/* Right column: sidebar + notes fills empty space below */}
-        <div className="space-y-3">
+        {/* Right column: flex column so notes card stretches to fill remaining height */}
+        <div className="flex flex-col gap-3 h-full">
           <PropertyEditSidebar
             propertyId={propertyId}
             orgId={orgId}
@@ -429,16 +429,15 @@ export function PropertyEditForm({
             teamMembers={teamMembers}
             managingAgentId={managingAgentId}
           />
-          <div className="rounded-xl border border-border/60 bg-surface-elevated px-4 py-3">
+          <div className="flex flex-col flex-1 rounded-xl border border-border/60 bg-surface-elevated px-4 py-3 min-h-0">
             <p className={labelClass}>Internal notes</p>
             <p className="text-xs text-muted-foreground mb-2">
               Not visible to tenants or applicants.
             </p>
             <Textarea
               name="notes"
-              rows={5}
               defaultValue={defaultValues.notes ?? ""}
-              className="resize-none text-sm"
+              className="flex-1 resize-none text-sm min-h-0"
             />
           </div>
         </div>
