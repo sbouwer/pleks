@@ -94,7 +94,7 @@ export function NewInspectionForm({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
-  // Load properties
+  // Load properties — auto-select if only one
   useEffect(() => {
     if (!orgId) return
     const supabase = createClient()
@@ -104,12 +104,17 @@ export function NewInspectionForm({
       .is("deleted_at", null)
       .order("name")
       .then(({ data: rows }) => {
-        setProperties((rows as Property[]) ?? [])
+        const list = (rows as Property[]) ?? []
+        setProperties(list)
         setLoadingProps(false)
+        if (!propertyId && list.length === 1) {
+          handlePropertyChange(list[0].id)
+        }
       })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgId])
 
-  // Load units when property selected
+  // Load units when property selected — auto-select if only one
   useEffect(() => {
     if (!propertyId) return
     let cancelled = false
@@ -124,12 +129,17 @@ export function NewInspectionForm({
         .eq("is_archived", false)
         .order("unit_number")
       if (!cancelled) {
-        setUnits((rows as Unit[]) ?? [])
+        const list = (rows as Unit[]) ?? []
+        setUnits(list)
         setLoadingUnits(false)
+        if (!unitId && list.length === 1) {
+          handleUnitChange(list[0].id)
+        }
       }
     }
     void fetchUnits()
     return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [propertyId])
 
   // Auto-fill tenant from active lease when unit is selected
