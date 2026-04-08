@@ -64,6 +64,7 @@ export default async function ApplicationDetailPage({
         </div>
         <ApplicationActions
           applicationId={id}
+          orgId={app.org_id}
           stage1Status={app.stage1_status}
           stage2Status={app.stage2_status}
           isForeignNational={app.is_foreign_national}
