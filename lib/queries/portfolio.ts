@@ -110,9 +110,9 @@ export async function fetchMaintenance(supabase: SupabaseClient) {
 export async function fetchApplications(supabase: SupabaseClient) {
   const { data } = await supabase
     .from("applications")
-    .select("id, first_name, last_name, applicant_email, stage1_status, stage2_status, prescreen_score, fitscore, gross_monthly_income_cents, is_foreign_national, has_co_applicant, applicant_motivation, listings(asking_rent_cents, units(unit_number, properties(name)))")
+    .select("id, first_name, last_name, applicant_email, stage1_status, stage2_status, prescreen_score, fitscore, gross_monthly_income_cents, is_foreign_national, has_co_applicant, applicant_motivation, created_at, listing_id, listings(id, public_slug, asking_rent_cents, applications_count, units(unit_number, properties(name)))")
     .order("created_at", { ascending: false })
-    .limit(50)
+    .limit(100)
   return data ?? []
 }
 

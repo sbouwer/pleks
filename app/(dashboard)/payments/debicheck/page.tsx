@@ -51,8 +51,6 @@ export default async function DebiCheckPage() {
 
   return (
     <div>
-      <h1 className="font-heading text-3xl mb-6">DebiCheck Collections</h1>
-
       {/* Summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Active Mandates</p><p className="font-heading text-2xl">{activeMandates.length}</p></CardContent></Card>
