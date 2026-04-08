@@ -1,6 +1,6 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { triageMaintenanceRequest } from "@/lib/ai/maintenanceTriage"
@@ -156,4 +156,127 @@ export async function updateMaintenanceStatus(
   revalidatePath(`/maintenance/${requestId}`)
   revalidatePath("/maintenance")
   return { success: true }
+}
+
+// ── Data-fetching server actions for the maintenance form ──────────
+
+async function getAuthedOrgId() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+  const service = await createServiceClient()
+  const { data } = await service
+    .from("user_orgs")
+    .select("org_id")
+    .eq("user_id", user.id)
+    .is("deleted_at", null)
+    .single()
+  return data?.org_id ?? null
+}
+
+export async function fetchUnitsForProperty(propertyId: string) {
+  const orgId = await getAuthedOrgId()
+  if (!orgId) return []
+  const service = await createServiceClient()
+  const { data } = await service
+    .from("units")
+    .select("id, unit_number, access_instructions, prospective_tenant_id")
+    .eq("property_id", propertyId)
+    .eq("org_id", orgId)
+    .eq("is_archived", false)
+    .is("deleted_at", null)
+    .order("unit_number")
+  return (data ?? []) as Array<{ id: string; unit_number: string; access_instructions: string | null; prospective_tenant_id: string | null }>
+}
+
+export async function fetchTenantForUnit(
+  unitId: string,
+  prospectiveTenantId: string | null
+): Promise<{ tenant: { id: string; name: string; phone: string | null } | null; leaseId: string | null }> {
+  const orgId = await getAuthedOrgId()
+  if (!orgId) return { tenant: null, leaseId: null }
+  const service = await createServiceClient()
+  const TENANT_STATUSES = ["draft", "pending_signing", "active", "notice", "month_to_month"]
+
+  const { data: lease } = await service
+    .from("leases")
+    .select("id, tenant_id")
+    .eq("unit_id", unitId)
+    .in("status", TENANT_STATUSES)
+    .order("start_date", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (lease?.tenant_id) {
+    const { data: tv } = await service
+      .from("tenant_view")
+      .select("first_name, last_name, phone")
+      .eq("id", lease.tenant_id)
+      .maybeSingle()
+    const name = `${tv?.first_name ?? ""} ${tv?.last_name ?? ""}`.trim()
+    return {
+      tenant: { id: lease.tenant_id as string, name, phone: (tv?.phone as string | null) ?? null },
+      leaseId: lease.id,
+    }
+  }
+
+  if (prospectiveTenantId) {
+    const { data: tv } = await service
+      .from("tenant_view")
+      .select("first_name, last_name, phone")
+      .eq("id", prospectiveTenantId)
+      .maybeSingle()
+    if (tv) {
+      const name = `${tv.first_name ?? ""} ${tv.last_name ?? ""}`.trim()
+      return { tenant: { id: prospectiveTenantId, name, phone: (tv.phone as string | null) ?? null }, leaseId: null }
+    }
+  }
+
+  return { tenant: null, leaseId: null }
+}
+
+export async function fetchPropertyContactsAction(propertyId: string) {
+  const orgId = await getAuthedOrgId()
+  if (!orgId) return []
+  const service = await createServiceClient()
+  const { data: prop } = await service
+    .from("properties")
+    .select("managing_agent_id, landlord_id")
+    .eq("id", propertyId)
+    .maybeSingle()
+  if (!prop) return []
+
+  const contacts: Array<{ role: string; label: string; name: string; phone: string }> = []
+
+  if (prop.managing_agent_id) {
+    const { data: profile } = await service
+      .from("user_profiles")
+      .select("full_name, phone")
+      .eq("id", prop.managing_agent_id)
+      .maybeSingle()
+    if (profile?.full_name) {
+      contacts.push({ role: "agent", label: `Agent \u2014 ${profile.full_name}`, name: profile.full_name as string, phone: (profile.phone as string | null) ?? "" })
+    }
+  }
+
+  if (prop.landlord_id) {
+    const { data: landlordRow } = await service
+      .from("landlords")
+      .select("contact_id")
+      .eq("id", prop.landlord_id)
+      .maybeSingle()
+    if (landlordRow?.contact_id) {
+      const { data: contact } = await service
+        .from("contacts")
+        .select("first_name, last_name, primary_phone")
+        .eq("id", landlordRow.contact_id)
+        .maybeSingle()
+      if (contact) {
+        const name = [contact.first_name, contact.last_name].filter(Boolean).join(" ")
+        if (name) contacts.push({ role: "landlord", label: `Landlord \u2014 ${name}`, name, phone: (contact.primary_phone as string | null) ?? "" })
+      }
+    }
+  }
+
+  return contacts
 }

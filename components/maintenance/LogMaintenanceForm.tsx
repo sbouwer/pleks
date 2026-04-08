@@ -7,10 +7,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
-import { createMaintenanceRequest } from "@/lib/actions/maintenance"
+import { createMaintenanceRequest, fetchUnitsForProperty, fetchTenantForUnit, fetchPropertyContactsAction } from "@/lib/actions/maintenance"
 import { formatZAR } from "@/lib/constants"
 import { InlineCombobox } from "@/components/shared/InlineCombobox"
-import { createClient } from "@/lib/supabase/client"
 
 interface Property {
   id: string
@@ -103,49 +102,6 @@ interface Props {
   contractors: Contractor[]
 }
 
-async function fetchPropertyContacts(supabase: ReturnType<typeof createClient>, propertyId: string): Promise<ContactOption[]> {
-  const { data: prop } = await supabase
-    .from("properties")
-    .select("managing_agent_id, landlord_id")
-    .eq("id", propertyId)
-    .maybeSingle()
-  if (!prop) return []
-
-  const contacts: ContactOption[] = []
-
-  if (prop.managing_agent_id) {
-    const { data: profile } = await supabase
-      .from("user_profiles")
-      .select("full_name, phone")
-      .eq("id", prop.managing_agent_id)
-      .maybeSingle()
-    if (profile?.full_name) {
-      contacts.push({ role: "agent", label: `Agent — ${profile.full_name}`, name: profile.full_name as string, phone: (profile.phone as string | null) ?? "" })
-    }
-  }
-
-  if (prop.landlord_id) {
-    const { data: landlordRow } = await supabase
-      .from("landlords")
-      .select("contact_id")
-      .eq("id", prop.landlord_id)
-      .maybeSingle()
-    if (landlordRow?.contact_id) {
-      const { data: contact } = await supabase
-        .from("contacts")
-        .select("first_name, last_name, primary_phone")
-        .eq("id", landlordRow.contact_id)
-        .maybeSingle()
-      if (contact) {
-        const name = [contact.first_name, contact.last_name].filter(Boolean).join(" ")
-        if (name) contacts.push({ role: "landlord", label: `Landlord — ${name}`, name, phone: (contact.primary_phone as string | null) ?? "" })
-      }
-    }
-  }
-
-  return contacts
-}
-
 export function LogMaintenanceForm({
   properties,
   initialPropertyId,
@@ -220,24 +176,15 @@ export function LogMaintenanceForm({
     setUnitId("")
     setTenant(null)
     setLeaseId("")
-    const supabase = createClient()
     async function run() {
       try {
-        const [unitsResult, propContacts] = await Promise.all([
-          supabase
-            .from("units")
-            .select("id, unit_number, access_instructions, prospective_tenant_id")
-            .eq("property_id", propertyId)
-            .eq("is_archived", false)
-            .is("deleted_at", null)
-            .order("unit_number"),
-          fetchPropertyContacts(supabase, propertyId),
+        const [unitList, propContacts] = await Promise.all([
+          fetchUnitsForProperty(propertyId),
+          fetchPropertyContactsAction(propertyId),
         ])
         if (cancelled) return
-        const list = (unitsResult.data ?? []) as Unit[]
-        setUnits(list)
-        if (list.length === 1) setUnitId(list[0].id)
-        // Reset contacts to just agent + landlord (tenant will be added when unit loads)
+        setUnits(unitList)
+        if (unitList.length === 1) setUnitId(unitList[0].id)
         setContactOptions(propContacts)
         setSelectedContactRole(propContacts[0]?.role ?? "")
         setShowCustomContact(propContacts.length === 0)
@@ -265,53 +212,22 @@ export function LogMaintenanceForm({
     if (!userChangedUnit && initialTenant) return  // server already resolved tenant
     let cancelled = false
     setLoadingTenant(true)
-    const supabase = createClient()
-    const TENANT_STATUSES = ["draft", "pending_signing", "active", "notice", "month_to_month"]
-    async function fetchTenant() {
+    async function run() {
       try {
-        const { data: lease } = await supabase
-          .from("leases")
-          .select("id, tenant_id")
-          .eq("unit_id", unitId)
-          .in("status", TENANT_STATUSES)
-          .order("start_date", { ascending: false })
-          .limit(1)
-          .maybeSingle()
+        const result = await fetchTenantForUnit(unitId, unit?.prospective_tenant_id ?? null)
         if (cancelled) return
 
         let tenantContact: ContactOption | null = null
 
-        if (lease?.tenant_id) {
-          const { data: tv } = await supabase
-            .from("tenant_view")
-            .select("first_name, last_name, phone")
-            .eq("id", lease.tenant_id)
-            .maybeSingle()
-          if (cancelled) return
-          const name = `${tv?.first_name ?? ""} ${tv?.last_name ?? ""}`.trim()
-          setTenant({ id: lease.tenant_id as string, name, phone: (tv?.phone as string | null) ?? null })
-          setLeaseId(lease.id)
-          if (tv) tenantContact = { label: `Tenant — ${name}`, name, phone: (tv.phone as string | null) ?? "", role: "tenant" }
-        } else if (unit?.prospective_tenant_id) {
-          const { data: tv } = await supabase
-            .from("tenant_view")
-            .select("first_name, last_name, phone")
-            .eq("id", unit.prospective_tenant_id)
-            .maybeSingle()
-          if (cancelled) return
-          if (tv) {
-            const name = `${tv.first_name ?? ""} ${tv.last_name ?? ""}`.trim()
-            setTenant({ id: unit.prospective_tenant_id, name, phone: (tv.phone as string | null) ?? null })
-            tenantContact = { label: `Tenant — ${name}`, name, phone: (tv.phone as string | null) ?? "", role: "tenant" }
-          }
-          setLeaseId("")
+        if (result.tenant) {
+          setTenant(result.tenant)
+          setLeaseId(result.leaseId ?? "")
+          tenantContact = { label: `Tenant \u2014 ${result.tenant.name}`, name: result.tenant.name, phone: result.tenant.phone ?? "", role: "tenant" }
         } else {
           setTenant(null)
           setLeaseId("")
         }
 
-        // Rebuild contact options: tenant first, then keep agent/landlord
-        // Read current contacts from closure (stable: property contacts don't change mid-fetch)
         setContactOptions((prev) => {
           const propertyContacts = prev.filter((c) => c.role !== "tenant")
           return tenantContact ? [tenantContact, ...propertyContacts] : propertyContacts
@@ -324,7 +240,7 @@ export function LogMaintenanceForm({
         if (!cancelled) setLoadingTenant(false)
       }
     }
-    void fetchTenant()
+    void run()
     return () => { cancelled = true }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unitId])
