@@ -1,10 +1,9 @@
 -- 023_communication_log.sql
--- Shared communication infrastructure: every outbound email/SMS logged here.
--- Used by all modules: applications, arrears, maintenance, inspections, leases, deposits, statements.
+-- Communications foundation: patches communication_log (pre-existing table)
+-- and creates communication_preferences.
+-- Fully idempotent — safe to re-run.
 
--- ── communication_log ────────────────────────────────────────────────────────
--- Immutable append-only log. Status updates come via provider webhooks (service role only).
-
+-- ── ENUMs ─────────────────────────────────────────────────────────────────────
 DO $$ BEGIN
   CREATE TYPE comm_channel AS ENUM ('email', 'sms', 'whatsapp_future');
 EXCEPTION WHEN duplicate_object THEN NULL;
@@ -15,49 +14,24 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
-CREATE TABLE IF NOT EXISTS communication_log (
-  id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id               UUID NOT NULL REFERENCES organisations(id),
-  channel              comm_channel NOT NULL,
+-- ── communication_log ─────────────────────────────────────────────────────────
+-- Table pre-existed with columns: id, org_id, tenant_id, contact_id, lease_id,
+-- channel, direction, subject, body, status, external_id, sent_by, sent_to_email,
+-- sent_to_phone, has_attachments, attachment_paths, created_at, entity_type,
+-- entity_id, metadata, provider_response, delivered_at, opened_at,
+-- failed_reason, triggered_by.
+-- We add only the missing columns our comms layer needs.
 
-  -- Recipient
-  recipient_contact_id UUID REFERENCES contacts(id),       -- null for applicants not yet in contacts
-  recipient_email      TEXT,                                -- denormalised (email channel)
-  recipient_phone      TEXT,                                -- denormalised (SMS channel)
-  recipient_name       TEXT,                                -- name at time of send
-
-  -- Message
-  template_key         TEXT NOT NULL,                       -- e.g. 'application.received'
-  subject              TEXT,                                -- email only
-  body_preview         TEXT,                                -- first 200 chars (never full body)
-
-  -- Context
-  entity_type          TEXT,                                -- 'application' | 'lease' | 'maintenance_request' | 'inspection' | 'arrears_case'
-  entity_id            UUID,
-  metadata             JSONB DEFAULT '{}',                  -- template variables snapshot
-
-  -- Delivery
-  status               comm_status NOT NULL DEFAULT 'sent',
-  provider_id          TEXT,                                -- Resend message ID or Africa's Talking SMS ID
-  provider_response    JSONB,                               -- raw webhook payload
-  sent_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
-  delivered_at         TIMESTAMPTZ,
-  opened_at            TIMESTAMPTZ,
-  failed_reason        TEXT,
-
-  -- Audit
-  triggered_by         UUID REFERENCES auth.users(id),      -- null = system / cron
-  created_at           TIMESTAMPTZ NOT NULL DEFAULT now()
-);
+ALTER TABLE communication_log
+  ADD COLUMN IF NOT EXISTS template_key   TEXT,
+  ADD COLUMN IF NOT EXISTS recipient_name TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_comm_log_org       ON communication_log(org_id);
 CREATE INDEX IF NOT EXISTS idx_comm_log_entity    ON communication_log(entity_type, entity_id);
-CREATE INDEX IF NOT EXISTS idx_comm_log_recipient ON communication_log(recipient_contact_id);
+CREATE INDEX IF NOT EXISTS idx_comm_log_recipient ON communication_log(contact_id);
 CREATE INDEX IF NOT EXISTS idx_comm_log_template  ON communication_log(template_key, org_id);
-CREATE INDEX IF NOT EXISTS idx_comm_log_sent      ON communication_log(sent_at DESC);
-CREATE INDEX IF NOT EXISTS idx_comm_log_provider  ON communication_log(provider_id) WHERE provider_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_comm_log_provider  ON communication_log(external_id) WHERE external_id IS NOT NULL;
 
--- Org members can read their org's log; INSERT/UPDATE via service role only (no RLS INSERT policy)
 ALTER TABLE communication_log ENABLE ROW LEVEL SECURITY;
 DO $$ BEGIN
   CREATE POLICY "comm_log_org_select" ON communication_log
@@ -70,19 +44,13 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
-
--- ── communication_preferences ────────────────────────────────────────────────
--- Per-recipient opt-out tracking. Mandatory templates (letter of demand, CPA s14,
--- deposit return, inspection dispute) cannot be suppressed.
-
+-- ── communication_preferences ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS communication_preferences (
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id                UUID NOT NULL REFERENCES organisations(id),
-  contact_id            UUID REFERENCES contacts(id),        -- null for applicants
-  email                 TEXT,                                 -- for non-contact recipients
+  contact_id            UUID REFERENCES contacts(id),
+  email                 TEXT,
   unsubscribe_token     TEXT UNIQUE DEFAULT encode(gen_random_bytes(24), 'hex'),
-
-  -- Per-category opt-out (default: all enabled)
   email_applications    BOOLEAN NOT NULL DEFAULT true,
   email_maintenance     BOOLEAN NOT NULL DEFAULT true,
   email_arrears         BOOLEAN NOT NULL DEFAULT true,
@@ -92,19 +60,46 @@ CREATE TABLE IF NOT EXISTS communication_preferences (
   sms_maintenance       BOOLEAN NOT NULL DEFAULT true,
   sms_arrears           BOOLEAN NOT NULL DEFAULT true,
   sms_inspections       BOOLEAN NOT NULL DEFAULT true,
-
-  -- Full opt-out
   unsubscribed_at       TIMESTAMPTZ,
-
-  -- Bounce suppression (Resend webhook updates this)
   email_hard_bounced    BOOLEAN NOT NULL DEFAULT false,
   email_hard_bounced_at TIMESTAMPTZ,
-
   updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
-
   UNIQUE(org_id, contact_id),
   UNIQUE(org_id, email)
 );
+
+-- Patch in case the table existed but was only partially created
+ALTER TABLE communication_preferences
+  ADD COLUMN IF NOT EXISTS contact_id            UUID REFERENCES contacts(id),
+  ADD COLUMN IF NOT EXISTS email                 TEXT,
+  ADD COLUMN IF NOT EXISTS unsubscribe_token     TEXT DEFAULT encode(gen_random_bytes(24), 'hex'),
+  ADD COLUMN IF NOT EXISTS email_applications    BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS email_maintenance     BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS email_arrears         BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS email_inspections     BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS email_lease           BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS email_statements      BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS sms_maintenance       BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS sms_arrears           BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS sms_inspections       BOOLEAN NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS unsubscribed_at       TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS email_hard_bounced    BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS email_hard_bounced_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS updated_at            TIMESTAMPTZ NOT NULL DEFAULT now();
+
+-- Unique constraints (no-op if already present)
+DO $$ BEGIN
+  ALTER TABLE communication_preferences ADD CONSTRAINT comm_prefs_token_unique UNIQUE (unsubscribe_token);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE communication_preferences ADD CONSTRAINT comm_prefs_org_contact UNIQUE (org_id, contact_id);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$ BEGIN
+  ALTER TABLE communication_preferences ADD CONSTRAINT comm_prefs_org_email UNIQUE (org_id, email);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_comm_prefs_contact ON communication_preferences(contact_id);
 CREATE INDEX IF NOT EXISTS idx_comm_prefs_email   ON communication_preferences(email);
