@@ -79,13 +79,14 @@ export function CustomRuleInput({
         </p>
         <div className="flex gap-2">
           <Button
+            type="button"
             size="sm"
             variant="outline"
             onClick={() => { setShowTopUpPrompt(false); setEditingFormatted(false) }}
           >
             Write manually
           </Button>
-          <Button size="sm" disabled className="opacity-50">
+          <Button type="button" size="sm" disabled className="opacity-50">
             Top up R50 (coming soon)
           </Button>
         </div>
