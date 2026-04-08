@@ -1,5 +1,11 @@
 import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
+import { buildBranding } from "@/lib/comms/send-email"
+import {
+  sendTrialExpired,
+  sendTrialEndingSoon,
+  sendFoundingExpiryWarning,
+} from "@/lib/subscriptions/emails"
 
 export async function GET(req: NextRequest) {
   if (req.headers.get("x-cron-secret") !== process.env.CRON_SECRET) {
@@ -10,6 +16,37 @@ export async function GET(req: NextRequest) {
   const now = new Date()
   let expired = 0
   let warned = 0
+
+  // Helper: fetch org branding + admin email for a given orgId
+  async function fetchOrgContact(orgId: string) {
+    const [{ data: org }, { data: adminRow }] = await Promise.all([
+      supabase
+        .from("organisations")
+        .select("name, email, phone, address_line1, city, brand_logo_url, brand_accent_color")
+        .eq("id", orgId)
+        .single(),
+      supabase
+        .from("user_orgs")
+        .select("user_profiles(email, full_name)")
+        .eq("org_id", orgId)
+        .in("role", ["owner", "agent"])
+        .is("deleted_at", null)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle(),
+    ])
+
+    const profile = adminRow?.user_profiles as unknown as { email: string; full_name?: string } | null
+    if (!profile?.email) return null
+
+    return {
+      orgId,
+      orgName: org?.name ?? "Pleks",
+      adminEmail: profile.email,
+      adminName: profile.full_name ?? undefined,
+      branding: buildBranding(org),
+    }
+  }
 
   // 1. Find expired trials
   const { data: expiredTrials } = await supabase
@@ -42,7 +79,11 @@ export async function GET(req: NextRequest) {
       },
     })
 
-    // TODO: Send trial_expired email via Resend
+    const contact = await fetchOrgContact(trial.org_id)
+    if (contact) {
+      void sendTrialExpired(contact, trial.trial_tier ?? "trial")
+    }
+
     expired++
   }
 
@@ -67,17 +108,11 @@ export async function GET(req: NextRequest) {
 
     if (priorSend && priorSend.length > 0) continue
 
-    // Log warning sent
-    await supabase.from("communication_log").insert({
-      org_id: trial.org_id,
-      channel: "email",
-      direction: "outbound",
-      subject: "trial_ending_soon",
-      body: `Trial ending in 2 days — upgrade CTA sent`,
-      status: "sent",
-    })
+    const contact = await fetchOrgContact(trial.org_id)
+    if (contact) {
+      void sendTrialEndingSoon(contact, trial.trial_ends_at)
+    }
 
-    // TODO: Send trial_ending_soon email via Resend
     warned++
   }
 
@@ -102,16 +137,11 @@ export async function GET(req: NextRequest) {
 
     if (priorFoundingSend && priorFoundingSend.length > 0) continue
 
-    await supabase.from("communication_log").insert({
-      org_id: org.id,
-      channel: "email",
-      direction: "outbound",
-      subject: "founding_expiry_warning",
-      body: `Founding agent pricing ending soon for ${org.name}. Expires: ${org.founding_agent_expires_at}`,
-      status: "sent",
-    })
+    const contact = await fetchOrgContact(org.id)
+    if (contact) {
+      void sendFoundingExpiryWarning(contact, org.founding_agent_expires_at)
+    }
 
-    // TODO: Send founding_expiry_warning email via Resend
     foundingWarned++
   }
 

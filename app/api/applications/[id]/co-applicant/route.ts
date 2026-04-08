@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
+import { buildEmailContext } from "@/lib/applications/buildEmailContext"
+import { sendCoApplicantInvited } from "@/lib/applications/emails"
 
 export async function POST(
   req: Request,
@@ -43,7 +45,19 @@ export async function POST(
     co_applicants_count: (application.co_applicants_count || 0) + 1,
   }).eq("id", applicationId)
 
-  // TODO: Send co-applicant invitation email with access_token link
+  // Send co-applicant invitation email
+  try {
+    const ctx = await buildEmailContext(applicationId)
+    if (ctx) {
+      const primaryName = [ctx.appSummary.firstName, ctx.appSummary.lastName].filter(Boolean).join(" ")
+      void sendCoApplicantInvited(
+        { firstName: body.first_name, email: body.email },
+        ctx.listingSummary,
+        ctx.orgContext,
+        { accessToken: coApplicant.access_token, primaryApplicantName: primaryName }
+      )
+    }
+  } catch (e) { console.error("sendCoApplicantInvited failed:", e) }
 
   return NextResponse.json({ ok: true, coApplicantId: coApplicant.id })
 }

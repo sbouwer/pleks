@@ -349,6 +349,95 @@ export async function sendApproved(
   })
 }
 
+// ── Email 10: Co-applicant invited ───────────────────────────────────────────
+
+export async function sendCoApplicantInvited(
+  coApplicant: { firstName: string; email: string },
+  listing: ListingSummary,
+  org: OrgContext,
+  opts: { accessToken: string; primaryApplicantName: string }
+) {
+  const inviteLink = `${APP_URL}/apply/co-applicant/${opts.accessToken}`
+
+  return sendEmail({
+    orgId: org.orgId,
+    templateKey: "application.co_applicant_invited",
+    to: { email: coApplicant.email, name: coApplicant.firstName },
+    subject: `You've been invited to a joint rental application — ${listing.unitLabel}, ${listing.propertyName}`,
+    emailElement: (
+      <EmailLayout preview={`Joint application invitation for ${listing.unitLabel} at ${listing.propertyName}`} branding={org.branding}>
+        <p style={S.greeting}>Hi {coApplicant.firstName},</p>
+        <p style={S.body}>
+          {opts.primaryApplicantName} has included you as a co-applicant on their rental
+          application for {listing.unitLabel} at {listing.propertyName}.
+        </p>
+        <EmailSectionHeading>What you need to do</EmailSectionHeading>
+        <p style={S.body}>
+          Click the button below to complete your portion of the joint application.
+          This includes your personal details, income, and consent to a credit check.
+        </p>
+        <EmailButton href={inviteLink} accentColor={org.branding.accentColor}>Complete your co-applicant details →</EmailButton>
+        <p style={S.footer}>
+          This link is personal to you — do not share it.
+          {org.orgPhone ? ` Questions? Contact ${org.orgName}: ${org.orgPhone}` : ""}
+        </p>
+      </EmailLayout>
+    ),
+    bodyPreview: `${opts.primaryApplicantName} has included you as a co-applicant for ${listing.unitLabel}, ${listing.propertyName}.`,
+    entityType: "application",
+  })
+}
+
+// ── Email 11: Credit report delivered ────────────────────────────────────────
+
+export async function sendCreditReportDelivered(
+  app: ApplicationSummary,
+  listing: ListingSummary,
+  org: OrgContext,
+  opts: { fitScore: number; components?: Record<string, number> }
+) {
+  return sendEmail({
+    orgId: org.orgId,
+    templateKey: "application.credit_report_delivered",
+    to: { email: app.email, name: `${app.firstName} ${app.lastName}` },
+    subject: `Your screening results — ${listing.unitLabel}, ${listing.propertyName}`,
+    emailElement: (
+      <EmailLayout preview={`Your FitScore: ${opts.fitScore}/100 — screening complete`} branding={org.branding}>
+        <p style={S.greeting}>Hi {app.firstName},</p>
+        <p style={S.body}>
+          Your tenant screening for {listing.unitLabel} at {listing.propertyName} is complete.
+        </p>
+        <EmailSectionHeading>Your FitScore</EmailSectionHeading>
+        <p style={{ fontSize: 28, fontWeight: 700, color: "#18181b", margin: "8px 0 4px" }}>
+          {opts.fitScore}<span style={{ fontSize: 16, color: "#71717a" }}>/100</span>
+        </p>
+        {opts.components && Object.keys(opts.components).length > 0 && (
+          <>
+            <EmailSectionHeading>Component breakdown</EmailSectionHeading>
+            {Object.entries(opts.components).map(([k, v]) => (
+              <EmailDetail key={k} label={k.replace(/_/g, " ")} value={`${v}/100`} />
+            ))}
+          </>
+        )}
+        <EmailSectionHeading>What was checked</EmailSectionHeading>
+        <p style={S.body}>Credit score · Income-to-rent ratio · Rental payment history (TPN) · Employment · Judgements · Identity verification</p>
+        <EmailSectionHeading>Your rights</EmailSectionHeading>
+        <p style={S.body}>
+          Under the National Credit Act, you may request a full copy of your credit report
+          from TransUnion (transunion.co.za) and XDS (xds.co.za) at no charge once per year.
+        </p>
+        <p style={S.footer}>
+          The agent for {listing.propertyName} has been notified.{" "}
+          {org.orgPhone ? `Contact: ${org.orgPhone}` : ""}
+        </p>
+      </EmailLayout>
+    ),
+    bodyPreview: `Your FitScore: ${opts.fitScore}/100. Screening complete for ${listing.unitLabel}.`,
+    entityType: "application",
+    entityId: app.id,
+  })
+}
+
 // ── Email 9: Declined Stage 2 ─────────────────────────────────────────────────
 
 export async function sendDeclinedStage2(

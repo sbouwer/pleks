@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
+import { buildBranding } from "@/lib/comms/send-email"
+import { sendLeaseRenewalNotice } from "@/lib/leases/emails"
 
 export async function GET(req: Request) {
   // Verify cron secret
@@ -15,7 +17,7 @@ export async function GET(req: Request) {
   // 1. CPA auto-renewal notices due
   const { data: needNotice } = await supabase
     .from("leases")
-    .select("id, org_id, tenant_id")
+    .select("id, org_id, tenant_id, end_date, unit_id, units(unit_number, properties(name))")
     .eq("is_fixed_term", true)
     .eq("cpa_applies", true)
     .is("auto_renewal_notice_sent_at", null)
@@ -35,7 +37,27 @@ export async function GET(req: Request) {
       new_values: { event: "cpa_renewal_notice_sent" },
     })
 
-    // TODO: Send email via Resend
+    // Send CPA s14 renewal notice to tenant
+    if (lease.tenant_id && lease.end_date) {
+      const [{ data: tenant }, { data: org }] = await Promise.all([
+        supabase.from("tenant_view").select("email, first_name, last_name").eq("id", lease.tenant_id).single(),
+        supabase.from("organisations").select("name, email, phone, brand_logo_url, brand_accent_color").eq("id", lease.org_id).single(),
+      ])
+      const unit = lease.units as unknown as { unit_number: string; properties: { name: string } } | null
+      if (tenant?.email) {
+        void sendLeaseRenewalNotice(
+          { email: tenant.email, name: [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant" },
+          {
+            id: lease.id,
+            endDate: lease.end_date,
+            propertyName: unit?.properties?.name ?? "",
+            unitLabel: unit?.unit_number ? `Unit ${unit.unit_number}` : "Unit",
+          },
+          { orgId: lease.org_id, orgName: org?.name ?? "Pleks", orgPhone: org?.phone ?? undefined, orgEmail: org?.email ?? undefined, branding: buildBranding(org) }
+        )
+      }
+    }
+
     processed++
   }
 

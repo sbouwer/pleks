@@ -5,7 +5,7 @@
  */
 
 export type TemplateChannel  = "email" | "sms" | "both"
-export type TemplateCategory = "applications" | "arrears" | "maintenance" | "inspections" | "leases" | "deposits" | "statements"
+export type TemplateCategory = "applications" | "arrears" | "maintenance" | "inspections" | "leases" | "deposits" | "statements" | "subscriptions"
 
 export interface TemplateEntry {
   key: string
@@ -172,6 +172,34 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
   "statement.ready": {
     key: "statement.ready", channel: "email", category: "statements", is_mandatory: false,
     description: "Monthly owner statement generated and available",
+  },
+
+  // ── Subscriptions ─────────────────────────────────────────────────
+  "subscription.activated": {
+    key: "subscription.activated", channel: "email", category: "subscriptions", is_mandatory: false,
+    description: "Subscription payment confirmed — welcome to paid tier",
+  },
+  "subscription.trial_expired": {
+    key: "subscription.trial_expired", channel: "email", category: "subscriptions", is_mandatory: false,
+    description: "Trial ended — reverted to Owner tier (cron)",
+  },
+  "subscription.trial_ending_soon": {
+    key: "subscription.trial_ending_soon", channel: "email", category: "subscriptions", is_mandatory: false,
+    description: "Trial expires in 2 days — upgrade CTA (cron)",
+  },
+  "subscription.founding_expiry_warning": {
+    key: "subscription.founding_expiry_warning", channel: "email", category: "subscriptions", is_mandatory: false,
+    description: "Founding agent pricing expires in 35 days — upgrade CTA (cron)",
+  },
+
+  // ── Application extras ────────────────────────────────────────────
+  "application.co_applicant_invited": {
+    key: "application.co_applicant_invited", channel: "email", category: "applications", is_mandatory: false,
+    description: "Co-applicant invited to complete joint application",
+  },
+  "application.credit_report_delivered": {
+    key: "application.credit_report_delivered", channel: "email", category: "applications", is_mandatory: false,
+    description: "Applicant receives their FitScore and screening summary",
   },
 }
 

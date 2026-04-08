@@ -1,5 +1,0 @@
--- 044_contractor_extended_fields.sql
--- SUPERSEDED — fields now part of contacts table (005_contacts.sql)
--- and contacts.entity_type / contacts.registration_number / contacts.vat_number
--- Contractor identity fields are in contacts, not in contractors.
--- This migration is intentionally empty.

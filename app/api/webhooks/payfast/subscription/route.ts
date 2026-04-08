@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server"
 import { validatePayFastITN } from "@/lib/payfast/validate"
 import { createServiceClient } from "@/lib/supabase/server"
+import { buildBranding } from "@/lib/comms/send-email"
+import { sendSubscriptionActivated } from "@/lib/subscriptions/emails"
 
 export async function POST(req: Request) {
   const rawBody = await req.text()
@@ -58,7 +60,38 @@ export async function POST(req: Request) {
     new_values: { tier, status: "active", billing_cycle: billingCycle },
   })
 
-  // TODO: Send welcome email via Resend
+  // Send subscription activated email to org admin
+  const [{ data: org }, { data: adminRow }] = await Promise.all([
+    supabase
+      .from("organisations")
+      .select("name, email, phone, address_line1, city, brand_logo_url, brand_accent_color")
+      .eq("id", orgId)
+      .single(),
+    supabase
+      .from("user_orgs")
+      .select("user_profiles(email, full_name)")
+      .eq("org_id", orgId)
+      .in("role", ["owner", "agent"])
+      .is("deleted_at", null)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+  ])
+
+  const profile = adminRow?.user_profiles as unknown as { email: string; full_name?: string } | null
+  if (profile?.email) {
+    void sendSubscriptionActivated(
+      {
+        orgId,
+        orgName: org?.name ?? "Pleks",
+        adminEmail: profile.email,
+        adminName: profile.full_name ?? undefined,
+        branding: buildBranding(org),
+      },
+      tier,
+      billingCycle
+    )
+  }
 
   return NextResponse.json({ ok: true })
 }
