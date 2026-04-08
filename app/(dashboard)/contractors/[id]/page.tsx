@@ -9,6 +9,7 @@ import { RelationshipCard } from "@/components/contacts/RelationshipCard"
 import { StatGrid } from "@/components/contacts/StatGrid"
 import { ActivityTimeline } from "@/components/contacts/ActivityTimeline"
 import { ContractorContactSection, ContractorRatesSection, ContractorBankingSection, ContractorAddressSection } from "./ContractorSections"
+import { ContractorPortalSection } from "@/components/contractors/ContractorPortalSection"
 import { formatZAR } from "@/lib/constants"
 
 interface Props {
@@ -43,13 +44,21 @@ export default async function ContractorDetailPage({ params }: Props) {
 
   if (!contractor) redirect("/contractors")
 
-  // Fetch banking info from contractors table
+  // Fetch banking + portal info from contractors table
   const { data: contractorBanking } = await service
     .from("contractors")
-    .select("banking_name, bank_name, bank_account_number, bank_branch_code, bank_account_type, vat_registered")
+    .select("banking_name, bank_name, bank_account_number, bank_branch_code, bank_account_type, vat_registered, portal_status, portal_invite_sent_at")
     .eq("id", id)
     .eq("org_id", membership.org_id)
     .single()
+
+  // Fetch org tier for portal gating
+  const { data: sub } = await service
+    .from("subscriptions")
+    .select("tier")
+    .eq("org_id", membership.org_id)
+    .single()
+  const orgTier = sub?.tier ?? "steward"
 
   // Fetch contact phones
   const { data: phones } = await service
@@ -176,6 +185,13 @@ export default async function ContractorDetailPage({ params }: Props) {
           bankAccountType={contractorBanking?.bank_account_type ?? null}
         />
         <ContractorAddressSection entityId={id} address={(addresses ?? [])[0] ?? null} />
+        <ContractorPortalSection
+          contractorId={id}
+          tier={orgTier}
+          portalStatus={(contractorBanking?.portal_status ?? "none") as "none" | "invited" | "active" | "suspended"}
+          portalInviteSentAt={contractorBanking?.portal_invite_sent_at ?? null}
+          contractorEmail={primaryEmail}
+        />
       </ContactSidebar>
     }>
 
