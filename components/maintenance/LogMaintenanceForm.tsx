@@ -161,7 +161,8 @@ export function LogMaintenanceForm({
   // Location state
   const [propertyId, setPropertyId] = useState(initialPropertyId ?? "")
   const [units, setUnits] = useState<Unit[]>(initialUnits)
-  const [unitId, setUnitId] = useState(initialUnitId ?? "")
+  // Client-side fallback: if server didn't auto-select (multiple units) but only 1 exists, pick it
+  const [unitId, setUnitId] = useState(initialUnitId ?? (initialUnits.length === 1 ? initialUnits[0].id : ""))
   const [tenant, setTenant] = useState<Tenant | null>(initialTenant)
   const [leaseId, setLeaseId] = useState(initialLeaseId ?? "")
   const [loadingUnits, setLoadingUnits] = useState(false)
@@ -310,14 +311,15 @@ export function LogMaintenanceForm({
         }
 
         // Rebuild contact options: tenant first, then keep agent/landlord
+        // Read current contacts from closure (stable: property contacts don't change mid-fetch)
         setContactOptions((prev) => {
           const propertyContacts = prev.filter((c) => c.role !== "tenant")
-          const next = tenantContact ? [tenantContact, ...propertyContacts] : propertyContacts
-          if (tenantContact) setSelectedContactRole("tenant")
-          else if (next.length > 0) setSelectedContactRole(next[0].role)
-          else setShowCustomContact(true)
-          return next
+          return tenantContact ? [tenantContact, ...propertyContacts] : propertyContacts
         })
+        if (tenantContact) {
+          setSelectedContactRole("tenant")
+          setShowCustomContact(false)
+        }
       } finally {
         if (!cancelled) setLoadingTenant(false)
       }
