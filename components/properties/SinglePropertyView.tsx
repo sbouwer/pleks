@@ -286,7 +286,7 @@ export function SinglePropertyView({ property, currentInvoice = null, orgId = ""
   ]
   const vacantActions: ActionCard[] = [
     { icon: "I", iconBg: "bg-blue-500", label: "Schedule inspection", sub: "Pre-listing or move-in", href: `/inspections/new?property=${property.id}&unit=${activeUnit?.id ?? ""}` },
-    { icon: "A", iconBg: "bg-amber-500", label: "Create listing", sub: "Advertise your unit", href: "", disabled: true },
+    { icon: "A", iconBg: "bg-amber-500", label: "Create listing", sub: "Advertise your unit", href: activeUnit ? `/properties/${property.id}/units/${activeUnit.id}` : `/properties/${property.id}` },
     // "Set asking rent" rendered separately as AskingRentCard below
     { icon: "M", iconBg: "bg-amber-400", label: "Log maintenance", sub: "Report a problem", href: `/maintenance/new?unit=${activeUnit?.id ?? ""}` },
     { icon: "B", iconBg: "bg-green-500", label: "Update branding", sub: "Logo and document style", href: "/settings/branding" },
