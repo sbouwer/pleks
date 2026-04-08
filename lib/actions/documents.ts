@@ -1,13 +1,13 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { gateway } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 
 export async function uploadPropertyDocument(formData: FormData) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const gw = await gateway()
+  if (!gw) redirect("/login")
+  const { db, userId } = gw
 
   const propertyId = formData.get("property_id") as string
   const documentType = formData.get("document_type") as string
@@ -20,7 +20,7 @@ export async function uploadPropertyDocument(formData: FormData) {
   }
 
   // Get org_id
-  const { data: property } = await supabase
+  const { data: property } = await db
     .from("properties")
     .select("org_id")
     .eq("id", propertyId)
@@ -32,13 +32,13 @@ export async function uploadPropertyDocument(formData: FormData) {
   const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_")
   const storagePath = `${orgId}/${propertyId}/${documentType}/${Date.now()}-${sanitizedName}`
 
-  const { error: uploadError } = await supabase.storage
+  const { error: uploadError } = await db.storage
     .from("property-documents")
     .upload(storagePath, file, { cacheControl: "3600", upsert: false })
 
   if (uploadError) return { error: uploadError.message }
 
-  const { error: dbError } = await supabase.from("property_documents").insert({
+  const { error: dbError } = await db.from("property_documents").insert({
     org_id: orgId,
     property_id: propertyId,
     name: file.name,
@@ -48,7 +48,7 @@ export async function uploadPropertyDocument(formData: FormData) {
     mime_type: file.type,
     expiry_date: expiryDate,
     notes,
-    uploaded_by: user.id,
+    uploaded_by: userId,
   })
 
   if (dbError) return { error: dbError.message }
@@ -58,11 +58,11 @@ export async function uploadPropertyDocument(formData: FormData) {
 }
 
 export async function deletePropertyDocument(documentId: string, propertyId: string) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const gw = await gateway()
+  if (!gw) redirect("/login")
+  const { db, userId } = gw
 
-  const { data: doc } = await supabase
+  const { data: doc } = await db
     .from("property_documents")
     .select("storage_path, org_id")
     .eq("id", documentId)
@@ -71,18 +71,18 @@ export async function deletePropertyDocument(documentId: string, propertyId: str
   if (!doc) return { error: "Document not found" }
 
   // Delete from storage
-  await supabase.storage.from("property-documents").remove([doc.storage_path])
+  await db.storage.from("property-documents").remove([doc.storage_path])
 
   // Delete record
-  await supabase.from("property_documents").delete().eq("id", documentId)
+  await db.from("property_documents").delete().eq("id", documentId)
 
   // Audit
-  await supabase.from("audit_log").insert({
+  await db.from("audit_log").insert({
     org_id: doc.org_id,
     table_name: "property_documents",
     record_id: documentId,
     action: "DELETE",
-    changed_by: user.id,
+    changed_by: userId,
   })
 
   revalidatePath(`/properties/${propertyId}`)
@@ -90,8 +90,11 @@ export async function deletePropertyDocument(documentId: string, propertyId: str
 }
 
 export async function getDocumentSignedUrl(storagePath: string) {
-  const supabase = await createClient()
-  const { data } = await supabase.storage
+  const gw = await gateway()
+  if (!gw) return null
+  const { db } = gw
+
+  const { data } = await db.storage
     .from("property-documents")
     .createSignedUrl(storagePath, 3600)
 

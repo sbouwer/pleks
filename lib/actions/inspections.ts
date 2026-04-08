@@ -1,24 +1,14 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { gateway } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { getRoomTemplate, getItemsForRoom } from "@/lib/inspections/roomTemplates"
 
 export async function createInspection(formData: FormData) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
-
-  const { data: membership } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-
-  if (!membership) redirect("/onboarding")
-  const orgId = membership.org_id
+  const gw = await gateway()
+  if (!gw) redirect("/login")
+  const { db, userId, orgId } = gw
 
   const unitId = formData.get("unit_id") as string
   const propertyId = formData.get("property_id") as string
@@ -28,7 +18,7 @@ export async function createInspection(formData: FormData) {
   const leaseType = formData.get("lease_type") as string || "residential"
   const scheduledDate = formData.get("scheduled_date") as string || null
 
-  const { data: inspection, error } = await supabase
+  const { data: inspection, error } = await db
     .from("inspections")
     .insert({
       org_id: orgId,
@@ -40,7 +30,7 @@ export async function createInspection(formData: FormData) {
       lease_type: leaseType,
       scheduled_date: scheduledDate,
       status: "scheduled",
-      conducted_by: user.id,
+      conducted_by: userId,
     })
     .select("id")
     .single()
@@ -53,7 +43,7 @@ export async function createInspection(formData: FormData) {
   const rooms = getRoomTemplate(leaseType)
   for (let i = 0; i < rooms.length; i++) {
     const room = rooms[i]
-    const { data: roomRecord } = await supabase
+    const { data: roomRecord } = await db
       .from("inspection_rooms")
       .insert({
         org_id: orgId,
@@ -70,7 +60,7 @@ export async function createInspection(formData: FormData) {
     // Pre-populate items for this room
     const items = getItemsForRoom(leaseType, room.type)
     for (let j = 0; j < items.length; j++) {
-      await supabase.from("inspection_items").insert({
+      await db.from("inspection_items").insert({
         org_id: orgId,
         inspection_id: inspection.id,
         room_id: roomRecord.id,
@@ -81,12 +71,12 @@ export async function createInspection(formData: FormData) {
     }
   }
 
-  await supabase.from("audit_log").insert({
+  await db.from("audit_log").insert({
     org_id: orgId,
     table_name: "inspections",
     record_id: inspection.id,
     action: "INSERT",
-    changed_by: user.id,
+    changed_by: userId,
     new_values: { inspection_type: inspectionType, lease_type: leaseType, unit_id: unitId },
   })
 
@@ -95,11 +85,11 @@ export async function createInspection(formData: FormData) {
 }
 
 export async function updateInspectionStatus(inspectionId: string, newStatus: string) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const gw = await gateway()
+  if (!gw) redirect("/login")
+  const { db, userId } = gw
 
-  const { data: inspection } = await supabase
+  const { data: inspection } = await db
     .from("inspections")
     .select("org_id, lease_type, status")
     .eq("id", inspectionId)
@@ -130,14 +120,14 @@ export async function updateInspectionStatus(inspectionId: string, newStatus: st
     updates.conducted_date = new Date().toISOString()
   }
 
-  await supabase.from("inspections").update(updates).eq("id", inspectionId)
+  await db.from("inspections").update(updates).eq("id", inspectionId)
 
-  await supabase.from("audit_log").insert({
+  await db.from("audit_log").insert({
     org_id: inspection.org_id,
     table_name: "inspections",
     record_id: inspectionId,
     action: "UPDATE",
-    changed_by: user.id,
+    changed_by: userId,
     new_values: updates,
   })
 
@@ -151,11 +141,11 @@ export async function updateItemCondition(
   condition: string,
   notes?: string
 ) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Not authenticated" }
+  const gw = await gateway()
+  if (!gw) return { error: "Not authenticated" }
+  const { db } = gw
 
-  await supabase.from("inspection_items").update({
+  await db.from("inspection_items").update({
     condition,
     condition_notes: notes || null,
   }).eq("id", itemId)

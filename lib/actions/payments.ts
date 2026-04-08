@@ -1,24 +1,14 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { gateway } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { allocatePayment } from "@/lib/finance/paymentAllocation"
 
 export async function recordPayment(formData: FormData) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
-
-  const { data: membership } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-
-  if (!membership) redirect("/onboarding")
-  const orgId = membership.org_id
+  const gw = await gateway()
+  if (!gw) redirect("/login")
+  const { db, userId, orgId } = gw
 
   const invoiceId = formData.get("invoice_id") as string
   const amountCents = Math.round(parseFloat(formData.get("amount") as string) * 100)
@@ -27,7 +17,7 @@ export async function recordPayment(formData: FormData) {
   const reference = formData.get("reference") as string || null
 
   // Get invoice details
-  const { data: invoice } = await supabase
+  const { data: invoice } = await db
     .from("rent_invoices")
     .select("id, lease_id, tenant_id, total_amount_cents, amount_paid_cents, balance_cents, org_id, unit_id")
     .eq("id", invoiceId)
@@ -49,7 +39,7 @@ export async function recordPayment(formData: FormData) {
   // Create payment record
   const receiptNumber = `REC-${new Date().getFullYear()}-${Date.now().toString().slice(-5)}`
 
-  const { data: payment, error } = await supabase
+  const { data: payment, error } = await db
     .from("payments")
     .insert({
       org_id: orgId,
@@ -61,7 +51,7 @@ export async function recordPayment(formData: FormData) {
       payment_method: paymentMethod,
       reference,
       receipt_number: receiptNumber,
-      recorded_by: user.id,
+      recorded_by: userId,
       surplus_cents: surplus,
       surplus_disposition: surplus > 0 ? "pending" : null,
       allocated_invoices: [{ invoice_id: invoiceId, amount_cents: Math.min(amountCents, currentBalance) }],
@@ -73,7 +63,7 @@ export async function recordPayment(formData: FormData) {
   if (error || !payment) return { error: error?.message || "Failed to record payment" }
 
   // Update invoice
-  await supabase.from("rent_invoices").update({
+  await db.from("rent_invoices").update({
     amount_paid_cents: newPaid,
     balance_cents: Math.max(0, newBalance),
     status: newStatus,
@@ -84,7 +74,7 @@ export async function recordPayment(formData: FormData) {
   const currentMonth = new Date()
   currentMonth.setDate(1)
 
-  await supabase.from("trust_transactions").insert({
+  await db.from("trust_transactions").insert({
     org_id: orgId,
     property_id: null,
     unit_id: invoice.unit_id,
@@ -96,7 +86,7 @@ export async function recordPayment(formData: FormData) {
     reference: receiptNumber,
     invoice_id: invoiceId,
     statement_month: currentMonth.toISOString().split("T")[0],
-    created_by: user.id,
+    created_by: userId,
   })
 
   // Allocate payment: interest first, then rent (lease clause 6.6)
@@ -105,12 +95,12 @@ export async function recordPayment(formData: FormData) {
   }
 
   // Audit
-  await supabase.from("audit_log").insert({
+  await db.from("audit_log").insert({
     org_id: orgId,
     table_name: "payments",
     record_id: payment.id,
     action: "INSERT",
-    changed_by: user.id,
+    changed_by: userId,
     new_values: { amount_cents: amountCents, method: paymentMethod, invoice_id: invoiceId },
   })
 

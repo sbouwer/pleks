@@ -1,24 +1,14 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { gateway } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { calculateVAT } from "@/lib/finance/vatCalculation"
 
 export async function createSupplierInvoice(formData: FormData) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
-
-  const { data: membership } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-
-  if (!membership) redirect("/onboarding")
-  const orgId = membership.org_id
+  const gw = await gateway()
+  if (!gw) redirect("/login")
+  const { db, userId, orgId } = gw
 
   const contractorId = formData.get("contractor_id") as string || null
   const amountExcl = Math.round(parseFloat(formData.get("amount_excl_vat") as string) * 100)
@@ -28,7 +18,7 @@ export async function createSupplierInvoice(formData: FormData) {
   const currentMonth = new Date()
   currentMonth.setDate(1)
 
-  const { data: invoice, error } = await supabase
+  const { data: invoice, error } = await db
     .from("supplier_invoices")
     .insert({
       org_id: orgId,
@@ -56,12 +46,12 @@ export async function createSupplierInvoice(formData: FormData) {
     return { error: error?.message || "Failed to create invoice" }
   }
 
-  await supabase.from("audit_log").insert({
+  await db.from("audit_log").insert({
     org_id: orgId,
     table_name: "supplier_invoices",
     record_id: invoice.id,
     action: "INSERT",
-    changed_by: user.id,
+    changed_by: userId,
     new_values: { amount: vat.inclVat, contractor_id: contractorId },
   })
 
@@ -70,15 +60,15 @@ export async function createSupplierInvoice(formData: FormData) {
 }
 
 export async function approveInvoice(invoiceId: string) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Not authenticated" }
+  const gw = await gateway()
+  if (!gw) return { error: "Not authenticated" }
+  const { db, userId } = gw
 
-  const { error } = await supabase
+  const { error } = await db
     .from("supplier_invoices")
     .update({
       status: "approved",
-      reviewed_by: user.id,
+      reviewed_by: userId,
       reviewed_at: new Date().toISOString(),
     })
     .eq("id", invoiceId)
@@ -90,11 +80,11 @@ export async function approveInvoice(invoiceId: string) {
 }
 
 export async function markInvoicePaid(invoiceId: string, reference?: string) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Not authenticated" }
+  const gw = await gateway()
+  if (!gw) return { error: "Not authenticated" }
+  const { db, userId } = gw
 
-  const { data: invoice } = await supabase
+  const { data: invoice } = await db
     .from("supplier_invoices")
     .select("org_id, payment_source")
     .eq("id", invoiceId)
@@ -104,24 +94,24 @@ export async function markInvoicePaid(invoiceId: string, reference?: string) {
 
   const newStatus = invoice.payment_source === "owner_direct" ? "owner_direct_recorded" : "paid"
 
-  const { error } = await supabase
+  const { error } = await db
     .from("supplier_invoices")
     .update({
       status: newStatus,
       paid_at: new Date().toISOString(),
-      paid_by: user.id,
+      paid_by: userId,
       payment_reference: reference || null,
     })
     .eq("id", invoiceId)
 
   if (error) return { error: error.message }
 
-  await supabase.from("audit_log").insert({
+  await db.from("audit_log").insert({
     org_id: invoice.org_id,
     table_name: "supplier_invoices",
     record_id: invoiceId,
     action: "UPDATE",
-    changed_by: user.id,
+    changed_by: userId,
     new_values: { status: newStatus, paid_at: new Date().toISOString() },
   })
 
@@ -130,15 +120,15 @@ export async function markInvoicePaid(invoiceId: string, reference?: string) {
 }
 
 export async function rejectInvoice(invoiceId: string, reason: string) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Not authenticated" }
+  const gw = await gateway()
+  if (!gw) return { error: "Not authenticated" }
+  const { db, userId } = gw
 
-  const { error } = await supabase
+  const { error } = await db
     .from("supplier_invoices")
     .update({
       status: "rejected",
-      reviewed_by: user.id,
+      reviewed_by: userId,
       reviewed_at: new Date().toISOString(),
       rejection_reason: reason,
     })

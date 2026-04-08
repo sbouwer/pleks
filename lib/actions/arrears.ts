@@ -1,6 +1,6 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { gateway } from "@/lib/supabase/gateway"
 import { revalidatePath } from "next/cache"
 
 export async function updateArrearsStatus(
@@ -8,15 +8,15 @@ export async function updateArrearsStatus(
   newStatus: string,
   notes?: string
 ) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Not authenticated" }
+  const gw = await gateway()
+  if (!gw) return { error: "Not authenticated" }
+  const { db, userId } = gw
 
   const updates: Record<string, unknown> = { status: newStatus }
 
   if (newStatus === "resolved") {
     updates.resolved_at = new Date().toISOString()
-    updates.resolved_by = user.id
+    updates.resolved_by = userId
     updates.resolution_notes = notes || null
   }
 
@@ -30,14 +30,14 @@ export async function updateArrearsStatus(
     updates.referred_at = new Date().toISOString()
   }
 
-  const { error } = await supabase.from("arrears_cases").update(updates).eq("id", caseId)
+  const { error } = await db.from("arrears_cases").update(updates).eq("id", caseId)
   if (error) return { error: error.message }
 
-  const { data: arrearsCase } = await supabase.from("arrears_cases").select("org_id").eq("id", caseId).single()
+  const { data: arrearsCase } = await db.from("arrears_cases").select("org_id").eq("id", caseId).single()
 
   if (arrearsCase) {
     // Log action
-    await supabase.from("arrears_actions").insert({
+    await db.from("arrears_actions").insert({
       org_id: arrearsCase.org_id,
       case_id: caseId,
       action_type: "status_change",
@@ -45,12 +45,12 @@ export async function updateArrearsStatus(
       body: notes || null,
     })
 
-    await supabase.from("audit_log").insert({
+    await db.from("audit_log").insert({
       org_id: arrearsCase.org_id,
       table_name: "arrears_cases",
       record_id: caseId,
       action: "UPDATE",
-      changed_by: user.id,
+      changed_by: userId,
       new_values: updates,
     })
   }
@@ -63,16 +63,16 @@ export async function recordPaymentArrangement(
   caseId: string,
   formData: FormData
 ) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Not authenticated" }
+  const gw = await gateway()
+  if (!gw) return { error: "Not authenticated" }
+  const { db } = gw
 
   const amountCents = Math.round(parseFloat(formData.get("amount") as string) * 100)
   const startDate = formData.get("start_date") as string
   const endDate = formData.get("end_date") as string || null
   const notes = formData.get("notes") as string || null
 
-  const { error } = await supabase.from("arrears_cases").update({
+  const { error } = await db.from("arrears_cases").update({
     status: "payment_arrangement",
     arrangement_amount_cents: amountCents,
     arrangement_start_date: startDate,
@@ -84,10 +84,10 @@ export async function recordPaymentArrangement(
 
   if (error) return { error: error.message }
 
-  const { data: arrearsCase } = await supabase.from("arrears_cases").select("org_id").eq("id", caseId).single()
+  const { data: arrearsCase } = await db.from("arrears_cases").select("org_id").eq("id", caseId).single()
 
   if (arrearsCase) {
-    await supabase.from("arrears_actions").insert({
+    await db.from("arrears_actions").insert({
       org_id: arrearsCase.org_id,
       case_id: caseId,
       action_type: "payment_arrangement",
