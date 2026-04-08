@@ -6,14 +6,13 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { CheckCircle2, Building2, ClipboardList } from "lucide-react"
+import { CheckCircle2, ClipboardList, ChevronDown, UserRound } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { createInspection } from "@/lib/actions/inspections"
 import { TenantPicker } from "@/components/shared/TenantPicker"
 import type { PickedTenant } from "@/components/shared/TenantPicker"
 import { toast } from "sonner"
-import { ChevronDown, UserRound } from "lucide-react"
+import { InlineCombobox } from "@/components/shared/InlineCombobox"
 
 interface Property {
   id: string
@@ -220,14 +219,16 @@ export function NewInspectionForm({
     // On success, createInspection redirects
   }
 
-  const selectedProp = properties.find((p) => p.id === propertyId)
+  const selectedPropertyName = properties.find((p) => p.id === propertyId)?.name ?? ""
+  const foundUnit = units.find((u) => u.id === unitId)
+  const selectedUnitLabel = unitLabel || (foundUnit ? unitDisplayLabel(foundUnit) : "")
 
   return (
     <div className="space-y-8">
 
-      {/* Property & Unit */}
+      {/* Property, Unit & Tenant — 2-column on larger screens */}
       <section className="space-y-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Property &amp; unit</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Property &amp; tenant</h2>
 
         {isPreFilled && initialPropertyName && initialUnitLabel ? (
           <Card className="border-brand/30 bg-brand/5">
@@ -247,65 +248,106 @@ export function NewInspectionForm({
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-3">
-            <div className="space-y-2">
-              <Label htmlFor="property-select">Property *</Label>
-              {loadingProps ? (
-                <div className="h-9 rounded-lg bg-muted animate-pulse" />
-              ) : (
-                <Select value={propertyId} onValueChange={(v) => handlePropertyChange(v ?? "")}>
-                  <SelectTrigger id="property-select">
-                    <SelectValue placeholder="Select a property…">
-                      {selectedProp ? (
-                        <span className="flex items-center gap-2">
-                          <Building2 className="size-4 text-muted-foreground" />
-                          {selectedProp.name}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Left column: property + unit */}
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label>Property *</Label>
+                <InlineCombobox
+                  value={propertyId}
+                  displayValue={selectedPropertyName}
+                  placeholder="Select a property…"
+                  items={properties}
+                  getSearchText={(p) => `${p.name} ${p.address_line1} ${p.city}`}
+                  renderItem={(p) => (
+                    <span>
+                      <span className="font-medium">{p.name}</span>
+                      <span className="text-muted-foreground ml-1 text-xs">{p.address_line1}, {p.city}</span>
+                    </span>
+                  )}
+                  onSelect={(p) => handlePropertyChange(p.id)}
+                  loading={loadingProps}
+                />
+              </div>
+
+              {propertyId && (
+                <div className="space-y-2">
+                  <Label>Unit *</Label>
+                  <InlineCombobox
+                    value={unitId}
+                    displayValue={selectedUnitLabel}
+                    placeholder="Select a unit…"
+                    items={units}
+                    getSearchText={(u) => unitDisplayLabel(u)}
+                    renderItem={(u) => (
+                      <span>
+                        <span>{unitDisplayLabel(u)}</span>
+                        <span className={cn("ml-1 text-xs capitalize", u.status === "occupied" ? "text-success" : "text-muted-foreground")}>
+                          · {u.status}
                         </span>
-                      ) : undefined}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {properties.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        <span className="font-medium">{p.name}</span>
-                        <span className="text-muted-foreground ml-1 text-xs">{p.address_line1}, {p.city}</span>
-                      </SelectItem>
-                    ))}
-                    {properties.length === 0 && (
-                      <SelectItem value="_none" disabled>No properties found</SelectItem>
+                      </span>
                     )}
-                  </SelectContent>
-                </Select>
+                    onSelect={(u) => handleUnitChange(u.id)}
+                    loading={loadingUnits}
+                  />
+                </div>
               )}
             </div>
 
-            {propertyId && (
-              <div className="space-y-2">
-                <Label htmlFor="unit-select">Unit *</Label>
-                {loadingUnits ? (
-                  <div className="h-9 rounded-lg bg-muted animate-pulse" />
-                ) : (
-                  <Select value={unitId} onValueChange={(v) => handleUnitChange(v ?? "")}>
-                    <SelectTrigger id="unit-select">
-                      <SelectValue placeholder="Select a unit…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {units.map((u) => (
-                        <SelectItem key={u.id} value={u.id}>
-                          <span>{unitDisplayLabel(u)}</span>
-                          <span className={cn("ml-1 text-xs capitalize", u.status === "occupied" ? "text-success" : "text-muted-foreground")}>
-                            · {u.status}
-                          </span>
-                        </SelectItem>
-                      ))}
-                      {units.length === 0 && (
-                        <SelectItem value="_none" disabled>No units found</SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-            )}
+            {/* Right column: tenant */}
+            <div className="space-y-2">
+              <Label>
+                Tenant <span className="font-normal text-muted-foreground">(optional)</span>
+              </Label>
+              {tenantId && tenantName ? (
+                <Card className="border-brand/30 bg-brand/5">
+                  <CardContent className="pt-3 pb-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start gap-2">
+                        <CheckCircle2 className="size-4 text-brand mt-0.5 shrink-0" />
+                        <div>
+                          <p className="font-medium text-sm">{tenantName}</p>
+                          <p className="text-xs text-muted-foreground">From active lease</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <TenantPicker
+                          orgId={orgId}
+                          onSelect={handleSelectTenant}
+                          returnTo="/inspections/new"
+                          trigger={
+                            <button type="button" className="text-xs text-brand hover:underline">Change</button>
+                          }
+                        />
+                        <button
+                          type="button"
+                          onClick={() => { setTenantId(""); setTenantName("") }}
+                          className="text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <TenantPicker
+                  orgId={orgId}
+                  onSelect={handleSelectTenant}
+                  returnTo="/inspections/new"
+                  trigger={
+                    <button
+                      type="button"
+                      className="w-full flex items-center gap-3 rounded-lg border border-border/60 bg-background px-3 py-2 text-left hover:border-brand/50 transition-colors"
+                    >
+                      <UserRound className="size-4 text-muted-foreground shrink-0" />
+                      <span className="flex-1 text-sm text-muted-foreground">Search tenants…</span>
+                      <ChevronDown className="size-4 text-muted-foreground" />
+                    </button>
+                  }
+                />
+              )}
+            </div>
           </div>
         )}
       </section>
@@ -354,61 +396,6 @@ export function NewInspectionForm({
             </button>
           ))}
         </div>
-      </section>
-
-      {/* Tenant (optional) */}
-      <section className="space-y-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Tenant <span className="normal-case font-normal text-muted-foreground">(optional)</span>
-        </h2>
-        {tenantId && tenantName ? (
-          <Card className="border-brand/30 bg-brand/5">
-            <CardContent className="pt-4">
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="size-5 text-brand mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="font-medium text-sm">{tenantName}</p>
-                    <p className="text-xs text-muted-foreground">Auto-filled from active lease</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <TenantPicker
-                    orgId={orgId}
-                    onSelect={handleSelectTenant}
-                    returnTo="/inspections/new"
-                    trigger={
-                      <button type="button" className="text-xs text-brand hover:underline">Change</button>
-                    }
-                  />
-                  <button
-                    type="button"
-                    onClick={() => { setTenantId(""); setTenantName("") }}
-                    className="text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <TenantPicker
-            orgId={orgId}
-            onSelect={handleSelectTenant}
-            returnTo="/inspections/new"
-            trigger={
-              <button
-                type="button"
-                className="w-full flex items-center gap-3 rounded-lg border border-border/60 bg-surface-elevated px-3 py-2.5 text-left hover:bg-muted/30 transition-colors"
-              >
-                <UserRound className="size-4 text-muted-foreground flex-shrink-0" />
-                <span className="flex-1 text-sm text-muted-foreground">Search tenants…</span>
-                <ChevronDown className="size-4 text-muted-foreground" />
-              </button>
-            }
-          />
-        )}
       </section>
 
       {/* Scheduled date */}
