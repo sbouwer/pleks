@@ -190,16 +190,25 @@ DELETE FROM communication_preferences a USING communication_preferences b
     AND a.email = b.email;
 
 DO $$ BEGIN
-  ALTER TABLE communication_preferences ADD CONSTRAINT comm_prefs_token_unique UNIQUE (unsubscribe_token);
-EXCEPTION WHEN duplicate_object THEN NULL;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'comm_prefs_token_unique' AND conrelid = 'communication_preferences'::regclass
+  ) THEN
+    ALTER TABLE communication_preferences ADD CONSTRAINT comm_prefs_token_unique UNIQUE (unsubscribe_token);
+  END IF;
 END $$;
 DO $$ BEGIN
-  ALTER TABLE communication_preferences ADD CONSTRAINT comm_prefs_org_contact UNIQUE (org_id, contact_id);
-EXCEPTION WHEN duplicate_object THEN NULL;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'comm_prefs_org_contact' AND conrelid = 'communication_preferences'::regclass
+  ) THEN
+    ALTER TABLE communication_preferences ADD CONSTRAINT comm_prefs_org_contact UNIQUE (org_id, contact_id);
+  END IF;
 END $$;
 DO $$ BEGIN
-  ALTER TABLE communication_preferences ADD CONSTRAINT comm_prefs_org_email UNIQUE (org_id, email);
-EXCEPTION WHEN duplicate_object THEN NULL;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'comm_prefs_org_email' AND conrelid = 'communication_preferences'::regclass
+  ) THEN
+    ALTER TABLE communication_preferences ADD CONSTRAINT comm_prefs_org_email UNIQUE (org_id, email);
+  END IF;
 END $$;
 
 CREATE INDEX IF NOT EXISTS idx_comm_prefs_contact ON communication_preferences(contact_id);
