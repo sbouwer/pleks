@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { EmptyState } from "@/components/shared/EmptyState"
-import { Users, Copy, Check, ExternalLink } from "lucide-react"
+import { Users, Copy, Check, ExternalLink, Plus } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import { OPERATIONAL_QUERY_KEYS, STALE_TIME, fetchApplications } from "@/lib/queries/portfolio"
 import { relativeTime } from "@/lib/utils"
@@ -36,7 +36,27 @@ const STAGE2_MAP: Record<string, "pending" | "active" | "completed" | "arrears">
   withdrawn: "arrears",
 }
 
-interface Props { orgId: string }
+interface ListingShape {
+  id: string
+  public_slug: string | null
+  asking_rent_cents: number
+  applications_count: number | null
+  units: { unit_number: string; properties: { name: string } }
+}
+
+interface ListingRow {
+  id: string
+  public_slug: string | null
+  asking_rent_cents: number
+  applications_count: number | null
+  status: string
+  units: { unit_number: string; properties: { name: string } } | { unit_number: string; properties: { name: string } }[]
+}
+
+interface Props {
+  orgId: string
+  listings: ListingRow[]
+}
 
 function CopyButton({ url }: { url: string }) {
   const [copied, setCopied] = useState(false)
@@ -52,7 +72,34 @@ function CopyButton({ url }: { url: string }) {
   )
 }
 
-export function ApplicationsPageClient({ orgId }: Readonly<Props>) {
+function ListingHeader({ listing, appCount }: { listing: ListingShape; appCount: number }) {
+  const listingUrl = listing.public_slug ? `${APP_URL}/apply/${listing.public_slug}` : null
+  return (
+    <div className="rounded-lg border border-border bg-card px-4 py-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="font-medium text-sm">
+          {listing.units.unit_number}, {listing.units.properties.name}
+        </p>
+        <p className="text-sm text-muted-foreground">
+          {formatZAR(listing.asking_rent_cents)}/mo
+          {" · "}
+          {appCount === 0 ? "No applicants yet" : `${appCount} applicant${appCount !== 1 ? "s" : ""}`}
+        </p>
+      </div>
+      {listingUrl && (
+        <div className="flex items-center gap-2">
+          <code className="flex-1 text-xs bg-muted px-2 py-1 rounded truncate">{listingUrl}</code>
+          <CopyButton url={listingUrl} />
+          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" render={<a href={listingUrl} target="_blank" rel="noreferrer" />}>
+            <ExternalLink className="size-3.5" />
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
   const supabase = createClient()
   const queryClient = useQueryClient()
   const queryKey = OPERATIONAL_QUERY_KEYS.applications(orgId)
@@ -66,32 +113,36 @@ export function ApplicationsPageClient({ orgId }: Readonly<Props>) {
   const prescreenReady = list.filter((a) => a.stage1_status === "pre_screen_complete")
   const screeningComplete = list.filter((a) => a.stage2_status === "screening_complete")
 
-  interface ListingShape {
-    id: string
-    public_slug: string | null
-    asking_rent_cents: number
-    applications_count: number | null
-    units: { unit_number: string; properties: { name: string } }
-  }
-
-  // Group by listing
+  // Group applications by listing id
   const grouped = new Map<string, { listing: ListingShape; apps: typeof list }>()
   const noListing: typeof list = []
 
   for (const app of list) {
     const raw = app.listings
-    // Supabase returns nested FK as array or object depending on schema types; cast defensively
     const listing = (Array.isArray(raw) ? raw[0] : raw) as unknown as ListingShape | null | undefined
-    if (!listing?.id) {
-      noListing.push(app)
-      continue
-    }
-    const key = listing.id
-    if (!grouped.has(key)) {
-      grouped.set(key, { listing, apps: [] })
-    }
-    grouped.get(key)!.apps.push(app)
+    if (!listing?.id) { noListing.push(app); continue }
+    if (!grouped.has(listing.id)) grouped.set(listing.id, { listing, apps: [] })
+    grouped.get(listing.id)!.apps.push(app)
   }
+
+  // Merge server listings (all active/paused) with grouped applications
+  const merged = new Map<string, { listing: ListingShape; apps: typeof list }>()
+  for (const sl of listings) {
+    const units = (Array.isArray(sl.units) ? sl.units[0] : sl.units) as { unit_number: string; properties: { name: string } | { name: string }[] } | undefined
+    const props = units ? (Array.isArray(units.properties) ? units.properties[0] : units.properties) : null
+    if (!units || !props) continue
+    merged.set(sl.id, {
+      listing: { id: sl.id, public_slug: sl.public_slug, asking_rent_cents: sl.asking_rent_cents, applications_count: sl.applications_count, units: { unit_number: units.unit_number, properties: { name: props.name } } },
+      apps: grouped.get(sl.id)?.apps ?? [],
+    })
+  }
+  // Add listings from applications that aren't in server list
+  for (const [id, entry] of grouped) {
+    if (!merged.has(id)) merged.set(id, entry)
+  }
+
+  const mergedList = Array.from(merged.values())
+  const hasContent = mergedList.length > 0 || noListing.length > 0
 
   return (
     <div>
@@ -106,93 +157,58 @@ export function ApplicationsPageClient({ orgId }: Readonly<Props>) {
           {dataUpdatedAt > 0 && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
               <span>Updated {relativeTime(new Date(dataUpdatedAt))}</span>
-              <button
-                onClick={() => queryClient.invalidateQueries({ queryKey })}
-                className="text-brand hover:underline"
-              >
+              <button onClick={() => queryClient.invalidateQueries({ queryKey })} className="text-brand hover:underline">
                 Refresh
               </button>
             </div>
           )}
         </div>
+        <Button render={<Link href="/properties" />}>
+          <Plus className="size-4 mr-1.5" />
+          New listing
+        </Button>
       </div>
 
-      {list.length === 0 ? (
+      {!hasContent ? (
         <EmptyState
           icon={<Users className="h-8 w-8 text-muted-foreground" />}
-          title="No applications yet"
-          description="Applications will appear when applicants apply to your listings."
+          title="No listings yet"
+          description="Go to a property, open a unit, and create a listing to start receiving applications."
         />
       ) : (
         <div className="space-y-6">
-          {Array.from(grouped.values()).map(({ listing, apps }) => {
-            const listingUrl = listing.public_slug ? `${APP_URL}/apply/${listing.public_slug}` : null
-            return (
-              <div key={listing.id} className="space-y-2">
-                {/* Listing header */}
-                <div className="rounded-lg border border-border bg-card px-4 py-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium text-sm">
-                      {listing.units.unit_number}, {listing.units.properties.name}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {formatZAR(listing.asking_rent_cents)}/mo · {apps.length} applicant{apps.length !== 1 ? "s" : ""}
-                    </p>
-                  </div>
-                  {listingUrl && (
-                    <div className="flex items-center gap-2">
-                      <code className="flex-1 text-xs bg-muted px-2 py-1 rounded truncate">
-                        {listingUrl}
-                      </code>
-                      <CopyButton url={listingUrl} />
-                      <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" render={<a href={listingUrl} target="_blank" rel="noreferrer" />}>
-                        <ExternalLink className="size-3.5" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Applications under this listing */}
-                {apps.map((app) => {
-                  const name = `${app.first_name || ""} ${app.last_name || ""}`.trim() || app.applicant_email
-                  return (
-                    <Link key={app.id} href={`/applications/${app.id}`}>
-                      <Card className="hover:border-brand/50 transition-colors cursor-pointer">
-                        <CardContent className="flex items-center justify-between pt-4">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium">{name}</p>
-                              {app.is_foreign_national && <span className="text-xs px-1.5 py-0.5 bg-info-bg text-info rounded">Foreign</span>}
-                              {app.has_co_applicant && <span className="text-xs px-1.5 py-0.5 bg-surface-elevated rounded">Joint</span>}
-                              {app.applicant_motivation && <span className="text-xs">📝</span>}
-                            </div>
-                            <p className="text-sm text-muted-foreground">
-                              {app.gross_monthly_income_cents ? `Income: ${formatZAR(app.gross_monthly_income_cents)}/mo` : ""}
-                            </p>
+          {mergedList.map(({ listing, apps }) => (
+            <div key={listing.id} className="space-y-2">
+              <ListingHeader listing={listing} appCount={apps.length} />
+              {apps.map((app) => {
+                const name = `${app.first_name || ""} ${app.last_name || ""}`.trim() || app.applicant_email
+                return (
+                  <Link key={app.id} href={`/applications/${app.id}`}>
+                    <Card className="hover:border-brand/50 transition-colors cursor-pointer">
+                      <CardContent className="flex items-center justify-between pt-4">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">{name}</p>
+                            {app.is_foreign_national && <span className="text-xs px-1.5 py-0.5 bg-info-bg text-info rounded">Foreign</span>}
+                            {app.has_co_applicant && <span className="text-xs px-1.5 py-0.5 bg-surface-elevated rounded">Joint</span>}
                           </div>
-                          <div className="flex items-center gap-3">
-                            {app.fitscore !== null && (
-                              <span className="font-heading text-lg">{app.fitscore}/100</span>
-                            )}
-                            {app.prescreen_score !== null && !app.fitscore && (
-                              <span className="text-sm text-muted-foreground">{app.prescreen_score}/45</span>
-                            )}
-                            <StatusBadge status={
-                              app.stage2_status
-                                ? (STAGE2_MAP[app.stage2_status] || "pending")
-                                : (STAGE1_MAP[app.stage1_status] || "pending")
-                            } />
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </Link>
-                  )
-                })}
-              </div>
-            )
-          })}
+                          <p className="text-sm text-muted-foreground">
+                            {app.gross_monthly_income_cents ? `Income: ${formatZAR(app.gross_monthly_income_cents)}/mo` : ""}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {app.fitscore !== null && <span className="font-heading text-lg">{app.fitscore}/100</span>}
+                          {app.prescreen_score !== null && !app.fitscore && <span className="text-sm text-muted-foreground">{app.prescreen_score}/45</span>}
+                          <StatusBadge status={app.stage2_status ? (STAGE2_MAP[app.stage2_status] || "pending") : (STAGE1_MAP[app.stage1_status] || "pending")} />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                )
+              })}
+            </div>
+          ))}
 
-          {/* Applications without a listing */}
           {noListing.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-1">Other</p>
@@ -209,17 +225,9 @@ export function ApplicationsPageClient({ orgId }: Readonly<Props>) {
                           </p>
                         </div>
                         <div className="flex items-center gap-3">
-                          {app.fitscore !== null && (
-                            <span className="font-heading text-lg">{app.fitscore}/100</span>
-                          )}
-                          {app.prescreen_score !== null && !app.fitscore && (
-                            <span className="text-sm text-muted-foreground">{app.prescreen_score}/45</span>
-                          )}
-                          <StatusBadge status={
-                            app.stage2_status
-                              ? (STAGE2_MAP[app.stage2_status] || "pending")
-                              : (STAGE1_MAP[app.stage1_status] || "pending")
-                          } />
+                          {app.fitscore !== null && <span className="font-heading text-lg">{app.fitscore}/100</span>}
+                          {app.prescreen_score !== null && !app.fitscore && <span className="text-sm text-muted-foreground">{app.prescreen_score}/45</span>}
+                          <StatusBadge status={app.stage2_status ? (STAGE2_MAP[app.stage2_status] || "pending") : (STAGE1_MAP[app.stage1_status] || "pending")} />
                         </div>
                       </CardContent>
                     </Card>
