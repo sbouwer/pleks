@@ -40,6 +40,7 @@ export function LeaseTermsStep({ data, onBack, onNext }: Readonly<Props>) {
   const [noticePeriod] = useState(data.noticePeriod)
   const [rent, setRent] = useState(data.rent || (data.askingRentCents ? (data.askingRentCents / 100).toFixed(2) : ""))
   const [deposit, setDeposit] = useState(data.deposit)
+  const [depositTouched, setDepositTouched] = useState(!!data.deposit)
   const [paymentDueDay, setPaymentDueDay] = useState(data.paymentDueDay)
   const [escalationPercent, setEscalationPercent] = useState(data.escalationPercent)
   const [escalationType, setEscalationType] = useState(data.escalationType)
@@ -67,10 +68,10 @@ export function LeaseTermsStep({ data, onBack, onNext }: Readonly<Props>) {
 
   function handleRentChange(value: string) {
     setRent(value)
-    // Auto-fill deposit as 2× rent if not already set
-    if (!deposit) {
+    // Keep deposit in sync with rent unless user has manually changed it
+    if (!depositTouched) {
       const rentNum = Number.parseFloat(value)
-      if (rentNum > 0) setDeposit((rentNum * 2).toFixed(2))
+      if (rentNum > 0) setDeposit(rentNum.toFixed(2))
     }
   }
 
@@ -210,7 +211,7 @@ export function LeaseTermsStep({ data, onBack, onNext }: Readonly<Props>) {
             min="0"
             step="0.01"
             value={deposit}
-            onChange={(e) => setDeposit(e.target.value)}
+            onChange={(e) => { setDeposit(e.target.value); setDepositTouched(true) }}
             placeholder="Defaults to 2× rent"
           />
         </div>
@@ -220,8 +221,10 @@ export function LeaseTermsStep({ data, onBack, onNext }: Readonly<Props>) {
       <div className="space-y-2">
         <Label>Payment due day</Label>
         <Select value={paymentDueDay} onValueChange={(v) => setPaymentDueDay(v ?? "1")}>
-          <SelectTrigger className="w-40">
-            <SelectValue />
+          <SelectTrigger className="w-64">
+            <SelectValue>
+              {DUE_DAY_OPTIONS.find((opt) => opt.value === paymentDueDay)?.label ?? paymentDueDay}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {DUE_DAY_OPTIONS.map((opt) => (

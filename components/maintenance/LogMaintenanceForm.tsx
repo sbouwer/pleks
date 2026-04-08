@@ -184,7 +184,10 @@ export function LogMaintenanceForm({
         ])
         if (cancelled) return
         setUnits(unitList)
-        if (unitList.length === 1) setUnitId(unitList[0].id)
+        if (unitList.length === 1) {
+          setUnitId(unitList[0].id)
+          setUserChangedUnit(true)  // trigger tenant fetch even though user didn't manually pick
+        }
         setContactOptions(propContacts)
         setSelectedContactRole(propContacts[0]?.role ?? "")
         setShowCustomContact(propContacts.length === 0)
