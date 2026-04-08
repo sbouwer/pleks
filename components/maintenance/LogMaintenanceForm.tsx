@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import { ChevronDown, Loader2, AlertTriangle, CheckCircle2, Pencil, RotateCcw } from "lucide-react"
+import { Loader2, AlertTriangle, CheckCircle2, Pencil, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import { createMaintenanceRequest } from "@/lib/actions/maintenance"
 import { formatZAR } from "@/lib/constants"
+import { InlineCombobox } from "@/components/shared/InlineCombobox"
 
 interface Property {
   id: string
@@ -333,43 +334,35 @@ export function LogMaintenanceForm({
           <div className="space-y-3">
             <div className="space-y-1.5">
               <Label className="text-xs">Property *</Label>
-              <div className="relative">
-                <select
-                  value={propertyId}
-                  onChange={(e) => { setPropertyId(e.target.value); setUnitId(""); setTenant(null) }}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm appearance-none pr-8"
-                  required
-                >
-                  <option value="">Select property…</option>
-                  {properties.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              </div>
+              <InlineCombobox
+                value={propertyId}
+                displayValue={properties.find((p) => p.id === propertyId)?.name ?? ""}
+                placeholder="Select property…"
+                items={properties}
+                getSearchText={(p) => `${p.name} ${p.city ?? ""}`}
+                renderItem={(p) => (
+                  <span>
+                    <span className="font-medium">{p.name}</span>
+                    {p.city && <span className="text-muted-foreground ml-1 text-xs">{p.city}</span>}
+                  </span>
+                )}
+                onSelect={(p) => { setPropertyId(p.id); setUnitId(""); setTenant(null) }}
+              />
             </div>
 
             {propertyId && (
               <div className="space-y-1.5">
                 <Label className="text-xs">Unit *</Label>
-                {loadingUnits ? (
-                  <p className="text-xs text-muted-foreground">Loading units…</p>
-                ) : (
-                  <div className="relative">
-                    <select
-                      value={unitId}
-                      onChange={(e) => setUnitId(e.target.value)}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm appearance-none pr-8"
-                      required
-                    >
-                      <option value="">Select unit…</option>
-                      {units.map((u) => (
-                        <option key={u.id} value={u.id}>{u.unit_number}</option>
-                      ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  </div>
-                )}
+                <InlineCombobox
+                  value={unitId}
+                  displayValue={units.find((u) => u.id === unitId)?.unit_number ?? ""}
+                  placeholder="Select unit…"
+                  items={units}
+                  getSearchText={(u) => u.unit_number}
+                  renderItem={(u) => <span>{u.unit_number}</span>}
+                  onSelect={(u) => setUnitId(u.id)}
+                  loading={loadingUnits}
+                />
                 {unitId && (
                   <div className="text-xs text-muted-foreground">
                     {loadingTenant ? "Loading tenant…" : tenant ? `Tenant: ${tenant.name}${tenant.phone ? ` · ${tenant.phone}` : ""}` : "No active tenant on this unit"}
@@ -435,33 +428,27 @@ export function LogMaintenanceForm({
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">
                       <Label className="text-xs">Category</Label>
-                      <div className="relative">
-                        <select
-                          value={overrideCategory || triageResult.category}
-                          onChange={(e) => setOverrideCategory(e.target.value)}
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm appearance-none pr-8"
-                        >
-                          {CATEGORIES.map((c) => (
-                            <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>
-                          ))}
-                        </select>
-                        <ChevronDown className="pointer-events-none absolute right-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                      </div>
+                      <InlineCombobox
+                        value={overrideCategory || triageResult.category}
+                        displayValue={CATEGORY_LABELS[overrideCategory || triageResult.category] ?? overrideCategory}
+                        placeholder="Select category…"
+                        items={CATEGORIES.map((c) => ({ id: c, name: CATEGORY_LABELS[c] ?? c, specialities: [] }))}
+                        getSearchText={(c) => c.name}
+                        renderItem={(c) => <span>{c.name}</span>}
+                        onSelect={(c) => setOverrideCategory(c.id)}
+                      />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Urgency</Label>
-                      <div className="relative">
-                        <select
-                          value={overrideUrgency || triageResult.urgency}
-                          onChange={(e) => setOverrideUrgency(e.target.value)}
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm appearance-none pr-8"
-                        >
-                          {URGENCIES.map((u) => (
-                            <option key={u} value={u}>{URGENCY_LABELS[u]}</option>
-                          ))}
-                        </select>
-                        <ChevronDown className="pointer-events-none absolute right-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                      </div>
+                      <InlineCombobox
+                        value={overrideUrgency || triageResult.urgency}
+                        displayValue={URGENCY_LABELS[overrideUrgency || triageResult.urgency] ?? overrideUrgency}
+                        placeholder="Select urgency…"
+                        items={URGENCIES.map((u) => ({ id: u, name: URGENCY_LABELS[u] ?? u, specialities: [] }))}
+                        getSearchText={(u) => u.name}
+                        renderItem={(u) => <span>{u.name}</span>}
+                        onSelect={(u) => setOverrideUrgency(u.id)}
+                      />
                     </div>
                   </div>
                   <div className="space-y-1">
@@ -538,19 +525,15 @@ export function LogMaintenanceForm({
           ) : (
             <div className="space-y-1.5">
               <Label className="text-xs">{preferredContractor ? "Choose different contractor" : "Contractor (optional)"}</Label>
-              <div className="relative">
-                <select
-                  value={contractorId}
-                  onChange={(e) => setContractorId(e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm appearance-none pr-8"
-                >
-                  <option value="">No contractor assigned yet</option>
-                  {pickableContractors.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              </div>
+              <InlineCombobox
+                value={contractorId}
+                displayValue={pickableContractors.find((c) => c.id === contractorId)?.name ?? ""}
+                placeholder="No contractor assigned yet"
+                items={[{ id: "", name: "No contractor assigned yet", specialities: [] }, ...pickableContractors]}
+                getSearchText={(c) => c.name}
+                renderItem={(c) => <span>{c.name || "No contractor assigned yet"}</span>}
+                onSelect={(c) => setContractorId(c.id)}
+              />
               {preferredContractor && (
                 <button type="button" onClick={() => { setContractorId(preferredContractor.id); setShowContractorPicker(false) }} className="text-xs text-brand hover:underline">
                   Use {preferredContractor.name}

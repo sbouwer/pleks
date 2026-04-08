@@ -7,7 +7,9 @@ interface Props {
 }
 
 export default async function NewMaintenancePage({ searchParams }: Props) {
-  const { property: propertyId, unit: unitId } = await searchParams
+  const sp = await searchParams
+  let propertyId = sp.property ?? undefined
+  const unitId = sp.unit ?? undefined
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -24,6 +26,16 @@ export default async function NewMaintenancePage({ searchParams }: Props) {
 
   if (!membership) redirect("/onboarding")
   const orgId = membership.org_id
+
+  // If only unit is given (e.g. from a property page quick-action), look up the property
+  if (unitId && !propertyId) {
+    const { data: unitRow } = await service
+      .from("units")
+      .select("property_id")
+      .eq("id", unitId)
+      .single()
+    if (unitRow) propertyId = unitRow.property_id
+  }
 
   // Fetch properties for picker
   const { data: properties } = await service

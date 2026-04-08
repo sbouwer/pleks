@@ -2,9 +2,36 @@ import { createClient } from "@/lib/supabase/server"
 import { getServerOrgMembership } from "@/lib/auth/server"
 import { redirect } from "next/navigation"
 import { NewInspectionForm } from "./NewInspectionForm"
+import type { SupabaseClient } from "@supabase/supabase-js"
 
 interface Props {
   searchParams: Promise<Record<string, string>>
+}
+
+async function resolvePropertyId(supabase: SupabaseClient, unitId: string | null, propertyId: string | null) {
+  if (propertyId || !unitId) return propertyId
+  const { data } = await supabase.from("units").select("property_id").eq("id", unitId).single()
+  return data?.property_id ?? null
+}
+
+function buildUnitLabel(unit: { unit_number: string | null; bedrooms: number | null } | null) {
+  if (!unit) return null
+  const base = unit.unit_number ? `Unit ${unit.unit_number}` : "Unit"
+  const beds = unit.bedrooms ? ` — ${unit.bedrooms} bed` : ""
+  return base + beds
+}
+
+async function resolveTenantName(supabase: SupabaseClient, tenantId: string | null) {
+  if (!tenantId) return null
+  const { data: tv } = await supabase
+    .from("tenant_view")
+    .select("first_name, last_name, company_name, entity_type")
+    .eq("id", tenantId)
+    .single()
+  if (!tv) return null
+  return tv.entity_type === "juristic"
+    ? (tv.company_name ?? "Company")
+    : [tv.first_name, tv.last_name].filter(Boolean).join(" ")
 }
 
 export default async function NewInspectionPage({ searchParams }: Readonly<Props>) {
@@ -15,10 +42,12 @@ export default async function NewInspectionPage({ searchParams }: Readonly<Props
   const supabase = await createClient()
 
   const sp = await searchParams
-  const propertyId = sp.property ?? null
   const unitId = sp.unit ?? null
   const leaseId = sp.lease ?? null
   const typeParam = sp.type ?? null
+
+  // If only unit is given (e.g. from a unit quick-action), look up the property
+  const propertyId = await resolvePropertyId(supabase, unitId, sp.property ?? null)
 
   // Fetch display names for pre-filled IDs in parallel
   const [propRes, unitRes, leaseRes] = await Promise.all([
@@ -33,31 +62,8 @@ export default async function NewInspectionPage({ searchParams }: Readonly<Props
       : Promise.resolve({ data: null }),
   ])
 
-  const propertyName = propRes.data?.name ?? null
-  const leaseType = leaseRes.data?.lease_type ?? null
   const tenantId = leaseRes.data?.tenant_id ?? null
-
-  let unitLabel: string | null = null
-  if (unitRes.data) {
-    const base = unitRes.data.unit_number ? `Unit ${unitRes.data.unit_number}` : "Unit"
-    const beds = unitRes.data.bedrooms ? ` — ${unitRes.data.bedrooms} bed` : ""
-    unitLabel = base + beds
-  }
-
-  // Fetch tenant display name if we have one
-  let tenantName: string | null = null
-  if (tenantId) {
-    const { data: tv } = await supabase
-      .from("tenant_view")
-      .select("first_name, last_name, company_name, entity_type")
-      .eq("id", tenantId)
-      .single()
-    if (tv) {
-      tenantName = tv.entity_type === "juristic"
-        ? (tv.company_name ?? "Company")
-        : [tv.first_name, tv.last_name].filter(Boolean).join(" ")
-    }
-  }
+  const tenantName = await resolveTenantName(supabase, tenantId)
 
   return (
     <div className="max-w-2xl">
@@ -65,11 +71,11 @@ export default async function NewInspectionPage({ searchParams }: Readonly<Props
       <NewInspectionForm
         orgId={orgId}
         initialPropertyId={propertyId}
-        initialPropertyName={propertyName}
+        initialPropertyName={propRes.data?.name ?? null}
         initialUnitId={unitId}
-        initialUnitLabel={unitLabel}
+        initialUnitLabel={buildUnitLabel(unitRes.data ?? null)}
         initialLeaseId={leaseId}
-        initialLeaseType={leaseType as "residential" | "commercial" | null}
+        initialLeaseType={(leaseRes.data?.lease_type ?? null) as "residential" | "commercial" | null}
         initialTenantId={tenantId}
         initialTenantName={tenantName}
         initialType={typeParam}
