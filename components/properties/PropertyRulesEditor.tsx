@@ -32,7 +32,7 @@ export function PropertyRulesEditor({
   const [templates, setTemplates] = useState<RuleTemplate[]>([])
   const [rules, setRules] = useState<PropertyRule[]>([])
   const [credits, setCredits] = useState<Credits>({ used: 0, total: 0, remaining: 0, tier_limit: 0 })
-  const [loading, setLoading] = useState(true)
+  const [initialLoading, setInitialLoading] = useState(true)
   const [showAddCustom, setShowAddCustom] = useState(false)
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null)
   const [editingText, setEditingText] = useState("")
@@ -43,7 +43,8 @@ export function PropertyRulesEditor({
   const [suggestionsAcknowledged, setSuggestionsAcknowledged] = useState(false)
 
   async function load() {
-    setLoading(true)
+    // Only show full skeleton on first load — subsequent refreshes update data in place
+    // so the page height stays stable and scroll position is preserved.
     const res = await fetch(`/api/properties/${propertyId}/rules`)
     if (res.ok) {
       const data = await res.json() as { rules: PropertyRule[]; templates: RuleTemplate[]; credits: Credits }
@@ -51,7 +52,7 @@ export function PropertyRulesEditor({
       setTemplates(data.templates)
       setCredits(data.credits)
     }
-    setLoading(false)
+    setInitialLoading(false)
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -191,7 +192,7 @@ export function PropertyRulesEditor({
   // Group templates by category
   const categories = Array.from(new Set(templates.map((t) => t.category)))
 
-  if (loading) {
+  if (initialLoading) {
     return (
       <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-6 text-sm text-muted-foreground">
         Loading rules...
