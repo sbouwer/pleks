@@ -68,8 +68,13 @@ export function LeaseDisclaimerGate({ children, initialAccepted }: Props) {
 
   async function handleAccept() {
     setAccepting(true)
-    await recordLeaseDisclaimerAcceptance()
+    const result = await recordLeaseDisclaimerAcceptance()
+    if (result && "error" in result) {
+      // DB write failed — log but still show the content (soft gate)
+      console.error("Failed to record disclaimer acceptance:", result.error)
+    }
     setStatus("accepted")
+    setAccepting(false)
   }
 
   if (status === "accepted") return <>{children}</>
