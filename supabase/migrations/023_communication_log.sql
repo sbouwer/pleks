@@ -5,10 +5,17 @@
 -- ── communication_log ────────────────────────────────────────────────────────
 -- Immutable append-only log. Status updates come via provider webhooks (service role only).
 
-CREATE TYPE comm_channel AS ENUM ('email', 'sms', 'whatsapp_future');
-CREATE TYPE comm_status  AS ENUM ('sent', 'delivered', 'bounced', 'failed', 'opened', 'clicked', 'unsubscribed');
+DO $$ BEGIN
+  CREATE TYPE comm_channel AS ENUM ('email', 'sms', 'whatsapp_future');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TABLE communication_log (
+DO $$ BEGIN
+  CREATE TYPE comm_status AS ENUM ('sent', 'delivered', 'bounced', 'failed', 'opened', 'clicked', 'unsubscribed');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS communication_log (
   id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id               UUID NOT NULL REFERENCES organisations(id),
   channel              comm_channel NOT NULL,
@@ -43,29 +50,32 @@ CREATE TABLE communication_log (
   created_at           TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_comm_log_org      ON communication_log(org_id);
-CREATE INDEX idx_comm_log_entity   ON communication_log(entity_type, entity_id);
-CREATE INDEX idx_comm_log_recipient ON communication_log(recipient_contact_id);
-CREATE INDEX idx_comm_log_template ON communication_log(template_key, org_id);
-CREATE INDEX idx_comm_log_sent     ON communication_log(sent_at DESC);
-CREATE INDEX idx_comm_log_provider ON communication_log(provider_id) WHERE provider_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_comm_log_org       ON communication_log(org_id);
+CREATE INDEX IF NOT EXISTS idx_comm_log_entity    ON communication_log(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_comm_log_recipient ON communication_log(recipient_contact_id);
+CREATE INDEX IF NOT EXISTS idx_comm_log_template  ON communication_log(template_key, org_id);
+CREATE INDEX IF NOT EXISTS idx_comm_log_sent      ON communication_log(sent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_comm_log_provider  ON communication_log(provider_id) WHERE provider_id IS NOT NULL;
 
 -- Org members can read their org's log; INSERT/UPDATE via service role only (no RLS INSERT policy)
 ALTER TABLE communication_log ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "comm_log_org_select" ON communication_log
-  FOR SELECT USING (
-    org_id IN (
-      SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
-    )
-  );
+DO $$ BEGIN
+  CREATE POLICY "comm_log_org_select" ON communication_log
+    FOR SELECT USING (
+      org_id IN (
+        SELECT org_id FROM user_orgs
+        WHERE user_id = auth.uid() AND deleted_at IS NULL
+      )
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 
 -- ── communication_preferences ────────────────────────────────────────────────
 -- Per-recipient opt-out tracking. Mandatory templates (letter of demand, CPA s14,
 -- deposit return, inspection dispute) cannot be suppressed.
 
-CREATE TABLE communication_preferences (
+CREATE TABLE IF NOT EXISTS communication_preferences (
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id                UUID NOT NULL REFERENCES organisations(id),
   contact_id            UUID REFERENCES contacts(id),        -- null for applicants
@@ -96,19 +106,21 @@ CREATE TABLE communication_preferences (
   UNIQUE(org_id, email)
 );
 
-CREATE INDEX idx_comm_prefs_contact ON communication_preferences(contact_id);
-CREATE INDEX idx_comm_prefs_email   ON communication_preferences(email);
-CREATE INDEX idx_comm_prefs_token   ON communication_preferences(unsubscribe_token);
+CREATE INDEX IF NOT EXISTS idx_comm_prefs_contact ON communication_preferences(contact_id);
+CREATE INDEX IF NOT EXISTS idx_comm_prefs_email   ON communication_preferences(email);
+CREATE INDEX IF NOT EXISTS idx_comm_prefs_token   ON communication_preferences(unsubscribe_token);
 
 ALTER TABLE communication_preferences ENABLE ROW LEVEL SECURITY;
--- Org members can read/update preferences for their org's contacts
-CREATE POLICY "comm_prefs_org" ON communication_preferences
-  FOR ALL USING (
-    org_id IN (
-      SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
-    )
-  );
+DO $$ BEGIN
+  CREATE POLICY "comm_prefs_org" ON communication_preferences
+    FOR ALL USING (
+      org_id IN (
+        SELECT org_id FROM user_orgs
+        WHERE user_id = auth.uid() AND deleted_at IS NULL
+      )
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 COMMENT ON TABLE communication_log         IS 'Immutable log of every outbound email/SMS. Status updated via provider webhooks.';
 COMMENT ON TABLE communication_preferences IS 'Per-recipient communication opt-out preferences. Mandatory templates bypass these checks.';
