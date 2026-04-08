@@ -1,10 +1,11 @@
 "use client"
 
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { signOffReconciliation } from "@/lib/actions/recon"
+import { signOffReconciliation, runAutoMatch } from "@/lib/actions/recon"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Check } from "lucide-react"
+import { Check, Wand2 } from "lucide-react"
 
 interface ReconActionsProps {
   readonly importId: string
@@ -14,6 +15,21 @@ interface ReconActionsProps {
 
 export function ReconActions({ importId, reconciled, unmatched }: ReconActionsProps) {
   const router = useRouter()
+  const [matching, setMatching] = useState(false)
+
+  async function handleAutoMatch() {
+    setMatching(true)
+    const result = await runAutoMatch(importId)
+    if ("error" in result) {
+      toast.error(result.error)
+    } else if (result.matched === 0) {
+      toast.info("No automatic matches found")
+    } else {
+      toast.success(`${result.matched} transaction${result.matched !== 1 ? "s" : ""} matched automatically`)
+      router.refresh()
+    }
+    setMatching(false)
+  }
 
   async function handleSignOff() {
     const result = await signOffReconciliation(importId)
@@ -34,8 +50,16 @@ export function ReconActions({ importId, reconciled, unmatched }: ReconActionsPr
   }
 
   return (
-    <Button size="sm" onClick={handleSignOff} disabled={unmatched > 0}>
-      {unmatched > 0 ? `${unmatched} unmatched — resolve first` : "Sign Off Reconciliation"}
-    </Button>
+    <div className="flex gap-2">
+      {unmatched > 0 && (
+        <Button size="sm" variant="outline" onClick={handleAutoMatch} disabled={matching}>
+          <Wand2 className="h-4 w-4 mr-1" />
+          {matching ? "Matching…" : "Auto-match"}
+        </Button>
+      )}
+      <Button size="sm" onClick={handleSignOff} disabled={unmatched > 0}>
+        {unmatched > 0 ? `${unmatched} unmatched` : "Sign Off Reconciliation"}
+      </Button>
+    </div>
   )
 }

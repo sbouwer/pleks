@@ -3,6 +3,7 @@
 import { gateway } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
+import { runMatchingPipeline } from "@/lib/recon/matchingEngine"
 
 export async function createBankImport(formData: FormData) {
   const gw = await gateway()
@@ -86,6 +87,68 @@ export async function resolveStatementLine(
 
   revalidatePath("/payments/reconciliation")
   return { success: true }
+}
+
+export async function runAutoMatch(importId: string) {
+  const gw = await gateway()
+  if (!gw) return { error: "Not authenticated" }
+  const { db, orgId } = gw
+
+  const { data: lines } = await db
+    .from("bank_statement_lines")
+    .select("id, reference_clean, description_clean, amount_cents, direction, transaction_date")
+    .eq("import_id", importId)
+    .eq("match_status", "unmatched")
+
+  if (!lines?.length) return { matched: 0 }
+
+  const ctx = { db, orgId }
+  let matched = 0
+
+  for (const line of lines) {
+    const result = await runMatchingPipeline(
+      {
+        reference_clean: line.reference_clean as string | null,
+        description_clean: line.description_clean as string | null,
+        amount_cents: line.amount_cents as number,
+        direction: line.direction as "credit" | "debit",
+        transaction_date: line.transaction_date as string,
+      },
+      ctx
+    )
+
+    if (!result) continue
+
+    await db
+      .from("bank_statement_lines")
+      .update({
+        match_status: result.matchType,
+        match_confidence: result.confidence,
+        matched_invoice_id: result.invoiceId ?? null,
+        matched_supplier_inv_id: result.supplierInvoiceId ?? null,
+      })
+      .eq("id", line.id)
+
+    matched++
+  }
+
+  // Refresh import counters
+  const { data: counts } = await db
+    .from("bank_statement_lines")
+    .select("match_status")
+    .eq("import_id", importId)
+
+  const total = counts?.length ?? 0
+  const matchedCount = counts?.filter((l) => l.match_status !== "unmatched" && l.match_status !== "ignored").length ?? 0
+  const unmatchedCount = counts?.filter((l) => l.match_status === "unmatched").length ?? 0
+
+  await db
+    .from("bank_statement_imports")
+    .update({ transaction_count: total, matched_count: matchedCount, unmatched_count: unmatchedCount })
+    .eq("id", importId)
+
+  revalidatePath("/payments/reconciliation")
+  return { matched }
 }
 
 export async function signOffReconciliation(importId: string) {
