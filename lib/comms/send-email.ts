@@ -20,7 +20,9 @@ import { canSend, ensurePreferences } from "./preferences"
 import type { OrgBranding } from "./templates/layout"
 import type { ReactElement } from "react"
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY)
+}
 
 const DEFAULT_FROM = "Pleks <notifications@pleks.co.za>"
 const REPLY_TO_DEFAULT = "no-reply@pleks.co.za"
@@ -161,7 +163,7 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailResul
   let logId = ""
 
   try {
-    const result = await resend.emails.send({
+    const result = await getResend().emails.send({
       from: fromAddress,
       to: [params.to.email],
       subject: params.subject,
