@@ -55,7 +55,7 @@ export function RuleTemplateToggle({
   }
 
   return (
-    <div className={`rounded-lg border transition-colors ${isEnabled ? "border-brand/30 bg-brand/5" : "border-border/50 bg-transparent"}`}>
+    <div className={`rounded-lg border transition-colors ${isEnabled ? "border-brand/30 bg-brand/5" : "border-border/50 bg-transparent hover:bg-surface-elevated/60"}`}>
       <div className="flex items-start gap-3 px-3 py-2.5">
         {/* Toggle */}
         <button
@@ -64,19 +64,24 @@ export function RuleTemplateToggle({
           aria-checked={isEnabled}
           onClick={handleToggle}
           disabled={saving}
-          className={`relative mt-0.5 inline-flex h-4 w-7 shrink-0 rounded-full border-2 border-transparent transition-colors ${isEnabled ? "bg-brand" : "bg-muted"}`}
+          className={`relative mt-0.5 inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors disabled:opacity-50 ${isEnabled ? "bg-brand" : "bg-muted"}`}
         >
           <span
             className={`pointer-events-none block size-3 rounded-full bg-white shadow transition-transform ${isEnabled ? "translate-x-3" : "translate-x-0"}`}
           />
         </button>
 
-        {/* Title + preview */}
+        {/* Title + preview — clicking label also toggles */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
-            <p className={`text-sm font-medium ${!isEnabled ? "text-muted-foreground" : ""}`}>
+            <button
+              type="button"
+              onClick={handleToggle}
+              disabled={saving}
+              className={`text-sm font-medium text-left cursor-pointer disabled:opacity-50 ${isEnabled ? "" : "text-muted-foreground"}`}
+            >
               {template.title}
-            </p>
+            </button>
             {isEnabled && hasParams && (
               <button
                 type="button"
@@ -115,11 +120,12 @@ export function RuleTemplateToggle({
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">{previewText}</p>
           <div className="flex gap-2">
-            <Button size="sm" className="h-7 text-xs" onClick={handleSaveParams} disabled={saving}>
+            <Button type="button" size="sm" className="h-7 text-xs" onClick={handleSaveParams} disabled={saving}>
               <Check className="h-3 w-3 mr-1" />
               {saving ? "Saving..." : "Save"}
             </Button>
             <Button
+              type="button"
               size="sm"
               variant="ghost"
               className="h-7 text-xs"
