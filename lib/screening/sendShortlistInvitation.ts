@@ -3,6 +3,8 @@
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { addDays } from "date-fns"
+import { buildEmailContext } from "@/lib/applications/buildEmailContext"
+import { sendShortlistInvitation as sendShortlistEmail } from "@/lib/applications/emails"
 
 export async function sendShortlistInvitation(
   applicationId: string,
@@ -41,8 +43,15 @@ export async function sendShortlistInvitation(
     prescreened_at: new Date().toISOString(),
   }).eq("id", applicationId)
 
-  // TODO: Send invitation email via Resend
-  // const inviteUrl = `${APP_URL}/apply/invite/${inviteToken.token}`
+  // Send Email 4: Shortlist invitation
+  try {
+    const ctx = await buildEmailContext(applicationId)
+    if (ctx) {
+      void sendShortlistEmail(ctx.appSummary, ctx.listingSummary, ctx.orgContext, {
+        inviteToken: inviteToken.token,
+      })
+    }
+  } catch (e) { console.error("sendShortlistEmail failed:", e) }
 
   // Log to communication_log
   await supabase.from("communication_log").insert({

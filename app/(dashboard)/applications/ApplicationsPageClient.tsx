@@ -7,11 +7,12 @@ import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { StatusBadge } from "@/components/shared/StatusBadge"
-import { EmptyState } from "@/components/shared/EmptyState"
+import { BulkDecidePanel } from "@/components/applications/BulkDecidePanel"
 import { Users, Copy, Check, ExternalLink, Plus } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import { OPERATIONAL_QUERY_KEYS, STALE_TIME, fetchApplications } from "@/lib/queries/portfolio"
 import { relativeTime } from "@/lib/utils"
+import { useUser } from "@/hooks/useUser"
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://pleks.co.za"
 
@@ -102,6 +103,7 @@ function ListingHeader({ listing, appCount }: { listing: ListingShape; appCount:
 export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
   const supabase = createClient()
   const queryClient = useQueryClient()
+  const { user } = useUser()
   const queryKey = OPERATIONAL_QUERY_KEYS.applications(orgId)
   const { data: list = [], dataUpdatedAt } = useQuery({
     queryKey,
@@ -170,14 +172,37 @@ export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
       </div>
 
       {!hasContent ? (
-        <EmptyState
-          icon={<Users className="h-8 w-8 text-muted-foreground" />}
-          title="No listings yet"
-          description="Go to a property, open a unit, and create a listing to start receiving applications."
-        />
+        <div className="max-w-lg mx-auto py-12 text-center space-y-6">
+          <div className="mx-auto w-12 h-12 rounded-full bg-brand/10 flex items-center justify-center">
+            <Users className="h-6 w-6 text-brand" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-xl font-heading">No active listings</h2>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Listings are created from a unit. Once published, applicants apply via a
+              shareable link and you&apos;ll manage everything here — review, shortlist,
+              screen, and approve.
+            </p>
+          </div>
+          <div className="rounded-lg border border-border/60 bg-surface-elevated p-4 text-left space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">How it works</p>
+            <ol className="text-sm text-muted-foreground space-y-2">
+              <li className="flex gap-2"><span className="text-brand font-medium shrink-0">1.</span> Go to a property and open a vacant unit</li>
+              <li className="flex gap-2"><span className="text-brand font-medium shrink-0">2.</span> Click &ldquo;Create listing&rdquo; — set the asking rent and requirements</li>
+              <li className="flex gap-2"><span className="text-brand font-medium shrink-0">3.</span> Share the link — applicants apply on their phone</li>
+              <li className="flex gap-2"><span className="text-brand font-medium shrink-0">4.</span> Come back here to review and decide</li>
+            </ol>
+          </div>
+          <Button render={<Link href="/properties" />}>
+            <Plus className="size-4 mr-1.5" />
+            Go to properties
+          </Button>
+        </div>
       ) : (
         <div className="space-y-6">
-          {mergedList.map(({ listing, apps }) => (
+          {mergedList.map(({ listing, apps }) => {
+            const bulkEligible = apps.filter((a) => a.stage1_status === "pre_screen_complete" && !a.stage2_status)
+            return (
             <div key={listing.id} className="space-y-2">
               <ListingHeader listing={listing} appCount={apps.length} />
               {apps.map((app) => {
@@ -206,8 +231,20 @@ export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
                   </Link>
                 )
               })}
+              {bulkEligible.length >= 2 && user && (
+                <BulkDecidePanel
+                  agentId={user.id}
+                  applicants={bulkEligible.map((a) => ({
+                    id: a.id,
+                    name: `${a.first_name || ""} ${a.last_name || ""}`.trim() || a.applicant_email,
+                    prescreenScore: a.prescreen_score ?? null,
+                  }))}
+                  onDone={() => queryClient.invalidateQueries({ queryKey })}
+                />
+              )}
             </div>
-          ))}
+            )
+          })}
 
           {noListing.length > 0 && (
             <div className="space-y-2">
