@@ -265,6 +265,8 @@ export default async function PropertyDetailPage({
         units={activeUnits}
         archivedUnits={archivedUnits}
         propertyId={id}
+        propertyName={property.name}
+        propertyCity={property.city ?? null}
         propertyType={property.type ?? "residential"}
         tier={tier}
         managingAgentId={property.managing_agent_id ?? null}
