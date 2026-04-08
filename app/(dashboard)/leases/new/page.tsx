@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/server"
 import { getServerOrgMembership } from "@/lib/auth/server"
 import { redirect } from "next/navigation"
 import { LeaseWizard } from "@/components/leases/LeaseWizard"
@@ -26,7 +26,7 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
   const accepted = await hasAcceptedLeaseDisclaimer()
 
   const { org_id: orgId } = membership
-  const supabase = await createClient()
+  const supabase = await createServiceClient()
 
   const sp = await searchParams
   const renewalOf = sp.renewal_of ?? null

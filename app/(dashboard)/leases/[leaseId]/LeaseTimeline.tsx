@@ -14,6 +14,13 @@ function fmt(d: Date) {
   return d.toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
 }
 
+function remainingLabel(isExpired: boolean, notStarted: boolean, endDate: string | null, totalDays: number, daysRemaining: number): string {
+  if (isExpired) return "Expired"
+  if (!endDate) return "—"
+  if (notStarted) return `${totalDays} days`
+  return `${daysRemaining} days`
+}
+
 export function LeaseTimeline({
   startDate,
   endDate,
@@ -26,6 +33,8 @@ export function LeaseTimeline({
 
   let progressPct = 0
   let daysRemaining = 0
+  let totalDays = 0
+  let notStarted = false
   let isExpired = false
   let color = "#378ADD"
   let s14DueDate: Date | null = null
@@ -34,14 +43,16 @@ export function LeaseTimeline({
   if (startDate && endDate) {
     const start = new Date(startDate)
     const end = new Date(endDate)
-    const total = Math.max(1, (end.getTime() - start.getTime()) / 86400000)
+    totalDays = Math.round((end.getTime() - start.getTime()) / 86400000)
+    notStarted = now < start
+    const total = Math.max(1, totalDays)
     const elapsed = Math.max(0, (now.getTime() - start.getTime()) / 86400000)
-    progressPct = Math.min(100, Math.round((elapsed / total) * 100))
+    progressPct = notStarted ? 0 : Math.min(100, Math.round((elapsed / total) * 100))
     daysRemaining = Math.max(0, Math.ceil((end.getTime() - now.getTime()) / 86400000))
     isExpired = end < now
 
     const urgency = getExpiryUrgency({ end_date: endDate, notice_period_days: noticePeriodDays })
-    color = getExpiryColor(urgency)
+    color = notStarted ? "#378ADD" : getExpiryColor(urgency)
 
     if (cpaApplies && isFixedTerm) {
       s14DueDate = new Date(end)
@@ -102,9 +113,9 @@ export function LeaseTimeline({
           <span>{endDate ? fmt(new Date(endDate)) : "Month to month"}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-muted-foreground">Remaining</span>
+          <span className="text-muted-foreground">{notStarted ? "Duration" : "Remaining"}</span>
           <span className="font-medium" style={{ color }}>
-            {isExpired ? "Expired" : endDate ? `${daysRemaining} days` : "—"}
+            {remainingLabel(isExpired, notStarted, endDate, totalDays, daysRemaining)}
           </span>
         </div>
         <div className="flex justify-between">

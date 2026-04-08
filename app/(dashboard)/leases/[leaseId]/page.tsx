@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { LeaseDisclaimerGate } from "@/components/leases/LeaseDisclaimerGate"
@@ -32,9 +32,12 @@ export default async function LeaseDetailPage({
   params: Promise<{ leaseId: string }>
 }) {
   const { leaseId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  // Auth check via cookie client; all data fetches via service client (bypasses RLS)
+  const cookieClient = await createClient()
+  const { data: { user } } = await cookieClient.auth.getUser()
   if (!user) redirect("/login")
+
+  const supabase = await createServiceClient()
 
   const accepted = await hasAcceptedLeaseDisclaimer()
 
