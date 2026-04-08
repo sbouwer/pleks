@@ -1,6 +1,6 @@
 "use server"
 
-import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { gateway } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { triageMaintenanceRequest } from "@/lib/ai/maintenanceTriage"
@@ -8,19 +8,9 @@ import { hasFeature } from "@/lib/tier/gates"
 import { getOrgTier } from "@/lib/tier/getOrgTier"
 
 export async function createMaintenanceRequest(formData: FormData) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
-
-  const { data: membership } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-
-  if (!membership) redirect("/onboarding")
-  const orgId = membership.org_id
+  const gw = await gateway()
+  if (!gw) redirect("/login")
+  const { db, userId, orgId } = gw
 
   const title = formData.get("title") as string
   const description = formData.get("description") as string
@@ -46,7 +36,7 @@ export async function createMaintenanceRequest(formData: FormData) {
 
   // Generate work order number
   const year = new Date().getFullYear()
-  const { count } = await supabase
+  const { count } = await db
     .from("maintenance_requests")
     .select("id", { count: "exact", head: true })
     .eq("org_id", orgId)
@@ -54,7 +44,7 @@ export async function createMaintenanceRequest(formData: FormData) {
   const seq = ((count || 0) + 1).toString().padStart(4, "0")
   const workOrderNumber = `WO-${year}-${seq}`
 
-  const { data: request, error } = await supabase
+  const { data: request, error } = await db
     .from("maintenance_requests")
     .insert({
       org_id: orgId,
@@ -66,7 +56,7 @@ export async function createMaintenanceRequest(formData: FormData) {
       title,
       description,
       logged_by: "agent",
-      logged_by_user: user.id,
+      logged_by_user: userId,
       category: triage.category,
       urgency: triage.urgency,
       ai_triage_notes: triage.urgency_reason,
@@ -88,12 +78,12 @@ export async function createMaintenanceRequest(formData: FormData) {
     return { error: error?.message || "Failed to create request" }
   }
 
-  await supabase.from("audit_log").insert({
+  await db.from("audit_log").insert({
     org_id: orgId,
     table_name: "maintenance_requests",
     record_id: request.id,
     action: "INSERT",
-    changed_by: user.id,
+    changed_by: userId,
     new_values: { title, category: triage.category, urgency: triage.urgency },
   })
 
@@ -106,49 +96,49 @@ export async function updateMaintenanceStatus(
   newStatus: string,
   notes?: string
 ) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Not authenticated" }
+  const gw = await gateway()
+  if (!gw) return { error: "Not authenticated" }
+  const { db, userId } = gw
 
   const updates: Record<string, unknown> = { status: newStatus }
 
   if (newStatus === "approved") {
-    updates.reviewed_by = user.id
+    updates.reviewed_by = userId
     updates.reviewed_at = new Date().toISOString()
   }
 
   if (newStatus === "completed") {
     updates.completed_at = new Date().toISOString()
     updates.agent_signoff_at = new Date().toISOString()
-    updates.agent_signoff_by = user.id
+    updates.agent_signoff_by = userId
   }
 
   if (newStatus === "rejected") {
-    updates.reviewed_by = user.id
+    updates.reviewed_by = userId
     updates.reviewed_at = new Date().toISOString()
     updates.rejection_reason = notes || null
   }
 
-  const { error } = await supabase
+  const { error } = await db
     .from("maintenance_requests")
     .update(updates)
     .eq("id", requestId)
 
   if (error) return { error: error.message }
 
-  const { data: req } = await supabase
+  const { data: req } = await db
     .from("maintenance_requests")
     .select("org_id")
     .eq("id", requestId)
     .single()
 
   if (req) {
-    await supabase.from("audit_log").insert({
+    await db.from("audit_log").insert({
       org_id: req.org_id,
       table_name: "maintenance_requests",
       record_id: requestId,
       action: "UPDATE",
-      changed_by: user.id,
+      changed_by: userId,
       new_values: updates,
     })
   }
@@ -160,25 +150,11 @@ export async function updateMaintenanceStatus(
 
 // ── Data-fetching server actions for the maintenance form ──────────
 
-async function getAuthedOrgId() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const service = await createServiceClient()
-  const { data } = await service
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-  return data?.org_id ?? null
-}
-
 export async function fetchUnitsForProperty(propertyId: string) {
-  const orgId = await getAuthedOrgId()
-  if (!orgId) return []
-  const service = await createServiceClient()
-  const { data } = await service
+  const gw = await gateway()
+  if (!gw) return []
+  const { db, orgId } = gw
+  const { data } = await db
     .from("units")
     .select("id, unit_number, access_instructions, prospective_tenant_id")
     .eq("property_id", propertyId)
@@ -193,12 +169,12 @@ export async function fetchTenantForUnit(
   unitId: string,
   prospectiveTenantId: string | null
 ): Promise<{ tenant: { id: string; name: string; phone: string | null } | null; leaseId: string | null }> {
-  const orgId = await getAuthedOrgId()
-  if (!orgId) return { tenant: null, leaseId: null }
-  const service = await createServiceClient()
+  const gw = await gateway()
+  if (!gw) return { tenant: null, leaseId: null }
+  const { db } = gw
   const TENANT_STATUSES = ["draft", "pending_signing", "active", "notice", "month_to_month"]
 
-  const { data: lease } = await service
+  const { data: lease } = await db
     .from("leases")
     .select("id, tenant_id")
     .eq("unit_id", unitId)
@@ -208,7 +184,7 @@ export async function fetchTenantForUnit(
     .maybeSingle()
 
   if (lease?.tenant_id) {
-    const { data: tv } = await service
+    const { data: tv } = await db
       .from("tenant_view")
       .select("first_name, last_name, phone")
       .eq("id", lease.tenant_id)
@@ -221,7 +197,7 @@ export async function fetchTenantForUnit(
   }
 
   if (prospectiveTenantId) {
-    const { data: tv } = await service
+    const { data: tv } = await db
       .from("tenant_view")
       .select("first_name, last_name, phone")
       .eq("id", prospectiveTenantId)
@@ -236,10 +212,10 @@ export async function fetchTenantForUnit(
 }
 
 export async function fetchPropertyContactsAction(propertyId: string) {
-  const orgId = await getAuthedOrgId()
-  if (!orgId) return []
-  const service = await createServiceClient()
-  const { data: prop } = await service
+  const gw = await gateway()
+  if (!gw) return []
+  const { db } = gw
+  const { data: prop } = await db
     .from("properties")
     .select("managing_agent_id, landlord_id")
     .eq("id", propertyId)
@@ -249,7 +225,7 @@ export async function fetchPropertyContactsAction(propertyId: string) {
   const contacts: Array<{ role: string; label: string; name: string; phone: string }> = []
 
   if (prop.managing_agent_id) {
-    const { data: profile } = await service
+    const { data: profile } = await db
       .from("user_profiles")
       .select("full_name, phone")
       .eq("id", prop.managing_agent_id)
@@ -260,13 +236,13 @@ export async function fetchPropertyContactsAction(propertyId: string) {
   }
 
   if (prop.landlord_id) {
-    const { data: landlordRow } = await service
+    const { data: landlordRow } = await db
       .from("landlords")
       .select("contact_id")
       .eq("id", prop.landlord_id)
       .maybeSingle()
     if (landlordRow?.contact_id) {
-      const { data: contact } = await service
+      const { data: contact } = await db
         .from("contacts")
         .select("first_name, last_name, primary_phone")
         .eq("id", landlordRow.contact_id)

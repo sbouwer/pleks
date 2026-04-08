@@ -1,25 +1,15 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { gateway } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { hashIdNumber } from "@/lib/crypto/idNumber"
 import { headers } from "next/headers"
 
 export async function createTenant(formData: FormData) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
-
-  const { data: membership } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-
-  if (!membership) redirect("/onboarding")
-  const orgId = membership.org_id
+  const gw = await gateway()
+  if (!gw) redirect("/login")
+  const { db, userId, orgId } = gw
 
   const tenantType = formData.get("tenant_type") as string || "individual"
   const idNumber = formData.get("id_number") as string || null
@@ -37,7 +27,7 @@ export async function createTenant(formData: FormData) {
     primary_email: formData.get("email") as string || null,
     primary_phone: formData.get("phone") as string || null,
     notes: formData.get("notes") as string || null,
-    created_by: user.id,
+    created_by: userId,
   }
 
   if (tenantType === "individual") {
@@ -66,7 +56,7 @@ export async function createTenant(formData: FormData) {
   }
 
   // Step 1: Create contact
-  const { data: contact, error: contactError } = await supabase
+  const { data: contact, error: contactError } = await db
     .from("contacts")
     .insert(contactData)
     .select("id")
@@ -80,7 +70,7 @@ export async function createTenant(formData: FormData) {
   if (tenantType === "company") {
     const addrLine1 = formData.get("company_addr_line1") as string || null
     if (addrLine1) {
-      await supabase.from("contact_addresses").insert({
+      await db.from("contact_addresses").insert({
         org_id: orgId,
         contact_id: contact.id,
         address_type: "physical",
@@ -101,13 +91,13 @@ export async function createTenant(formData: FormData) {
     preferred_contact: formData.get("preferred_contact") as string || "whatsapp",
     popia_consent_given: formData.get("popia_consent") === "true",
     popia_consent_given_at: formData.get("popia_consent") === "true" ? new Date().toISOString() : null,
-    created_by: user.id,
+    created_by: userId,
     employer_name: formData.get("employer_name") as string || null,
     employer_phone: formData.get("employer_phone") as string || null,
     occupation: formData.get("occupation") as string || null,
   }
 
-  const { data: tenant, error } = await supabase
+  const { data: tenant, error } = await db
     .from("tenants")
     .insert(tenantData)
     .select("id")
@@ -119,9 +109,9 @@ export async function createTenant(formData: FormData) {
 
   // Log POPIA consent
   if (tenantData.popia_consent_given && contactData.primary_email) {
-    await supabase.from("consent_log").insert({
+    await db.from("consent_log").insert({
       org_id: orgId,
-      user_id: user.id,
+      user_id: userId,
       subject_email: contactData.primary_email as string,
       consent_type: "data_processing",
       consent_given: true,
@@ -143,7 +133,7 @@ export async function createTenant(formData: FormData) {
 
   for (let i = 0; i < contactNames.length; i++) {
     if (!contactNames[i]?.trim()) continue
-    await supabase.from("tenant_next_of_kin").insert({
+    await db.from("tenant_next_of_kin").insert({
       org_id: orgId,
       tenant_id: tenant.id,
       full_name: contactNames[i].trim(),
@@ -154,12 +144,12 @@ export async function createTenant(formData: FormData) {
   }
 
   // Audit
-  await supabase.from("audit_log").insert({
+  await db.from("audit_log").insert({
     org_id: orgId,
     table_name: "tenants",
     record_id: tenant.id,
     action: "INSERT",
-    changed_by: user.id,
+    changed_by: userId,
     new_values: {
       tenant_type: tenantType,
       name: tenantType === "individual"
@@ -173,14 +163,14 @@ export async function createTenant(formData: FormData) {
 }
 
 export async function updateTenant(tenantId: string, formData: FormData) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const gw = await gateway()
+  if (!gw) redirect("/login")
+  const { db } = gw
 
   const tenantType = formData.get("tenant_type") as string
 
   // First get the tenant's contact_id
-  const { data: tenantRecord } = await supabase
+  const { data: tenantRecord } = await db
     .from("tenants")
     .select("contact_id")
     .eq("id", tenantId)
@@ -206,7 +196,7 @@ export async function updateTenant(tenantId: string, formData: FormData) {
     contactUpdates.vat_number = formData.get("vat_number") || null
   }
 
-  const { error: contactError } = await supabase.from("contacts").update(contactUpdates).eq("id", tenantRecord.contact_id)
+  const { error: contactError } = await db.from("contacts").update(contactUpdates).eq("id", tenantRecord.contact_id)
   if (contactError) return { error: contactError.message }
 
   // Update tenant-specific fields
@@ -217,7 +207,7 @@ export async function updateTenant(tenantId: string, formData: FormData) {
     preferred_contact: formData.get("preferred_contact") || "whatsapp",
   }
 
-  const { error } = await supabase.from("tenants").update(tenantUpdates).eq("id", tenantId)
+  const { error } = await db.from("tenants").update(tenantUpdates).eq("id", tenantId)
   if (error) return { error: error.message }
 
   revalidatePath(`/tenants/${tenantId}`)
@@ -226,28 +216,19 @@ export async function updateTenant(tenantId: string, formData: FormData) {
 }
 
 export async function logCommunication(formData: FormData) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const gw = await gateway()
+  if (!gw) redirect("/login")
+  const { db, userId, orgId } = gw
 
-  const { data: membership } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-
-  if (!membership) return { error: "No org" }
-
-  const { error } = await supabase.from("communication_log").insert({
-    org_id: membership.org_id,
+  const { error } = await db.from("communication_log").insert({
+    org_id: orgId,
     contact_id: formData.get("contact_id") as string,
     channel: formData.get("channel") as string,
     direction: formData.get("direction") as string || "internal",
     subject: formData.get("subject") as string || null,
     body: formData.get("body") as string,
     status: "logged",
-    sent_by: user.id,
+    sent_by: userId,
   })
 
   if (error) return { error: error.message }

@@ -1,28 +1,18 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { gateway } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { syncUnitClauseProfile } from "@/lib/leases/syncUnitClauseProfile"
 
 export async function createUnit(propertyId: string, formData: FormData) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
-
-  const { data: membership } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-
-  if (!membership) redirect("/onboarding")
-  const orgId = membership.org_id
+  const gw = await gateway()
+  if (!gw) redirect("/login")
+  const { db, userId, orgId } = gw
 
   const features = formData.getAll("features") as string[]
 
-  const { data: unit, error } = await supabase
+  const { data: unit, error } = await db
     .from("units")
     .insert({
       org_id: orgId,
@@ -48,25 +38,25 @@ export async function createUnit(propertyId: string, formData: FormData) {
     return { error: error?.message || "Failed to create unit" }
   }
 
-  await supabase.from("unit_status_history").insert({
+  await db.from("unit_status_history").insert({
     unit_id: unit.id,
     org_id: orgId,
     to_status: "vacant",
-    changed_by: user.id,
+    changed_by: userId,
     reason: "Unit created",
   })
 
-  await supabase.from("audit_log").insert({
+  await db.from("audit_log").insert({
     org_id: orgId,
     table_name: "units",
     record_id: unit.id,
     action: "INSERT",
-    changed_by: user.id,
+    changed_by: userId,
     new_values: { unit_number: formData.get("unit_number"), property_id: propertyId },
   })
 
   try {
-    await syncUnitClauseProfile(supabase, unit.id, orgId, features)
+    await syncUnitClauseProfile(db, unit.id, orgId, features)
   } catch (err) {
     console.error("[createUnit] syncUnitClauseProfile failed:", err)
   }
@@ -76,19 +66,9 @@ export async function createUnit(propertyId: string, formData: FormData) {
 }
 
 export async function updateUnit(unitId: string, propertyId: string, formData: FormData) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
-
-  const { data: membership } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-
-  if (!membership) redirect("/onboarding")
-  const orgId = membership.org_id
+  const gw = await gateway()
+  if (!gw) redirect("/login")
+  const { db, orgId } = gw
 
   const features = formData.getAll("features") as string[]
 
@@ -107,11 +87,11 @@ export async function updateUnit(unitId: string, propertyId: string, formData: F
     notes: formData.get("notes") as string || null,
   }
 
-  const { error } = await supabase.from("units").update(updates).eq("id", unitId)
+  const { error } = await db.from("units").update(updates).eq("id", unitId)
   if (error) return { error: error.message }
 
   try {
-    await syncUnitClauseProfile(supabase, unitId, orgId, features)
+    await syncUnitClauseProfile(db, unitId, orgId, features)
   } catch (err) {
     console.error("[updateUnit] syncUnitClauseProfile failed:", err)
   }
@@ -121,11 +101,11 @@ export async function updateUnit(unitId: string, propertyId: string, formData: F
 }
 
 export async function updateAskingRent(unitId: string, rentCents: number): Promise<{ error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Not authenticated" }
+  const gw = await gateway()
+  if (!gw) return { error: "Not authenticated" }
+  const { db } = gw
 
-  const { error } = await supabase
+  const { error } = await db
     .from("units")
     .update({ asking_rent_cents: rentCents })
     .eq("id", unitId)
@@ -142,11 +122,11 @@ export async function updateUnitStatus(
   newStatus: string,
   reason?: string
 ) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const gw = await gateway()
+  if (!gw) redirect("/login")
+  const { db, userId } = gw
 
-  const { data: unit } = await supabase
+  const { data: unit } = await db
     .from("units")
     .select("status, org_id")
     .eq("id", unitId)
@@ -154,7 +134,7 @@ export async function updateUnitStatus(
 
   if (!unit) return { error: "Unit not found" }
 
-  const { error } = await supabase
+  const { error } = await db
     .from("units")
     .update({
       status: newStatus,
@@ -164,21 +144,21 @@ export async function updateUnitStatus(
 
   if (error) return { error: error.message }
 
-  await supabase.from("unit_status_history").insert({
+  await db.from("unit_status_history").insert({
     unit_id: unitId,
     org_id: unit.org_id,
     from_status: unit.status,
     to_status: newStatus,
-    changed_by: user.id,
+    changed_by: userId,
     reason: reason || null,
   })
 
-  await supabase.from("audit_log").insert({
+  await db.from("audit_log").insert({
     org_id: unit.org_id,
     table_name: "units",
     record_id: unitId,
     action: "UPDATE",
-    changed_by: user.id,
+    changed_by: userId,
     old_values: { status: unit.status },
     new_values: { status: newStatus },
   })
@@ -188,23 +168,13 @@ export async function updateUnitStatus(
 
 // createUnitData — like createUnit but returns { unitId } or { error } instead of redirecting
 export async function createUnitData(propertyId: string, formData: FormData): Promise<{ unitId?: string; error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Unauthorised" }
-
-  const { data: membership } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-
-  if (!membership) return { error: "No org membership" }
-  const orgId = membership.org_id
+  const gw = await gateway()
+  if (!gw) return { error: "Unauthorised" }
+  const { db, userId, orgId } = gw
 
   const features = formData.getAll("features") as string[]
 
-  const { data: unit, error } = await supabase
+  const { data: unit, error } = await db
     .from("units")
     .insert({
       org_id: orgId,
@@ -230,25 +200,25 @@ export async function createUnitData(propertyId: string, formData: FormData): Pr
     return { error: error?.message || "Failed to create unit" }
   }
 
-  await supabase.from("unit_status_history").insert({
+  await db.from("unit_status_history").insert({
     unit_id: unit.id,
     org_id: orgId,
     to_status: "vacant",
-    changed_by: user.id,
+    changed_by: userId,
     reason: "Unit created",
   })
 
-  await supabase.from("audit_log").insert({
+  await db.from("audit_log").insert({
     org_id: orgId,
     table_name: "units",
     record_id: unit.id,
     action: "INSERT",
-    changed_by: user.id,
+    changed_by: userId,
     new_values: { unit_number: formData.get("unit_number"), property_id: propertyId },
   })
 
   try {
-    await syncUnitClauseProfile(supabase, unit.id, orgId, features)
+    await syncUnitClauseProfile(db, unit.id, orgId, features)
   } catch (err) {
     console.error("[createUnitData] syncUnitClauseProfile failed:", err)
   }
@@ -259,14 +229,15 @@ export async function createUnitData(propertyId: string, formData: FormData): Pr
 
 // updateUnitFeatures — PATCH just the features array on a unit
 export async function updateUnitFeatures(unitId: string, propertyId: string, features: string[]): Promise<{ error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Unauthorised" }
-  const { data: unit } = await supabase.from("units").select("org_id").eq("id", unitId).single()
+  const gw = await gateway()
+  if (!gw) return { error: "Unauthorised" }
+  const { db } = gw
+
+  const { data: unit } = await db.from("units").select("org_id").eq("id", unitId).single()
   if (!unit) return { error: "Unit not found" }
-  const { error } = await supabase.from("units").update({ features }).eq("id", unitId)
+  const { error } = await db.from("units").update({ features }).eq("id", unitId)
   if (error) return { error: error.message }
-  try { await syncUnitClauseProfile(supabase, unitId, unit.org_id, features) } catch {}
+  try { await syncUnitClauseProfile(db, unitId, unit.org_id, features) } catch {}
   revalidatePath(`/properties/${propertyId}`)
   return {}
 }
@@ -276,11 +247,11 @@ export async function setProspectiveTenants(
   tenantId: string | null,
   coTenantIds: string[],
 ): Promise<{ error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Unauthorised" }
+  const gw = await gateway()
+  if (!gw) return { error: "Unauthorised" }
+  const { db } = gw
 
-  const { error } = await supabase
+  const { error } = await db
     .from("units")
     .update({
       prospective_tenant_id: tenantId,

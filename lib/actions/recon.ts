@@ -1,23 +1,13 @@
 "use server"
 
-import { createClient } from "@/lib/supabase/server"
+import { gateway } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 
 export async function createBankImport(formData: FormData) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
-
-  const { data: membership } = await supabase
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-
-  if (!membership) redirect("/onboarding")
-  const orgId = membership.org_id
+  const gw = await gateway()
+  if (!gw) redirect("/login")
+  const { db, userId, orgId } = gw
 
   const bankAccountId = formData.get("bank_account_id") as string
   const file = formData.get("file") as File
@@ -34,13 +24,13 @@ export async function createBankImport(formData: FormData) {
   const filename = `${orgId}/${bankAccountId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`
   const buffer = await file.arrayBuffer()
 
-  const { error: uploadError } = await supabase.storage
+  const { error: uploadError } = await db.storage
     .from("bank-statements")
     .upload(filename, buffer, { contentType: "application/pdf" })
 
   if (uploadError) return { error: uploadError.message }
 
-  const { data: importRecord, error } = await supabase
+  const { data: importRecord, error } = await db
     .from("bank_statement_imports")
     .insert({
       org_id: orgId,
@@ -49,7 +39,7 @@ export async function createBankImport(formData: FormData) {
       storage_path: filename,
       file_size_bytes: file.size,
       extraction_status: "pending",
-      created_by: user.id,
+      created_by: userId,
     })
     .select("id")
     .single()
@@ -68,12 +58,12 @@ export async function resolveStatementLine(
   action: "match_manual" | "ignore",
   matchData?: { invoiceId?: string; supplierInvoiceId?: string; reason?: string }
 ) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Not authenticated" }
+  const gw = await gateway()
+  if (!gw) return { error: "Not authenticated" }
+  const { db, userId } = gw
 
   const updates: Record<string, unknown> = {
-    resolved_by: user.id,
+    resolved_by: userId,
     resolved_at: new Date().toISOString(),
   }
 
@@ -87,7 +77,7 @@ export async function resolveStatementLine(
     if (matchData?.supplierInvoiceId) updates.matched_supplier_inv_id = matchData.supplierInvoiceId
   }
 
-  const { error } = await supabase
+  const { error } = await db
     .from("bank_statement_lines")
     .update(updates)
     .eq("id", lineId)
@@ -99,12 +89,12 @@ export async function resolveStatementLine(
 }
 
 export async function signOffReconciliation(importId: string) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: "Not authenticated" }
+  const gw = await gateway()
+  if (!gw) return { error: "Not authenticated" }
+  const { db, userId } = gw
 
   // Check all lines are matched or ignored
-  const { data: unmatched } = await supabase
+  const { data: unmatched } = await db
     .from("bank_statement_lines")
     .select("id")
     .eq("import_id", importId)
@@ -115,11 +105,11 @@ export async function signOffReconciliation(importId: string) {
     return { error: "All transactions must be matched or ignored before sign-off" }
   }
 
-  const { error } = await supabase
+  const { error } = await db
     .from("bank_statement_imports")
     .update({
       reconciled: true,
-      reconciled_by: user.id,
+      reconciled_by: userId,
       reconciled_at: new Date().toISOString(),
       extraction_status: "complete",
     })
@@ -128,19 +118,19 @@ export async function signOffReconciliation(importId: string) {
   if (error) return { error: error.message }
 
   // Get org_id for audit
-  const { data: imp } = await supabase
+  const { data: imp } = await db
     .from("bank_statement_imports")
     .select("org_id")
     .eq("id", importId)
     .single()
 
   if (imp) {
-    await supabase.from("audit_log").insert({
+    await db.from("audit_log").insert({
       org_id: imp.org_id,
       table_name: "bank_statement_imports",
       record_id: importId,
       action: "UPDATE",
-      changed_by: user.id,
+      changed_by: userId,
       new_values: { reconciled: true },
     })
   }
