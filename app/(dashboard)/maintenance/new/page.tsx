@@ -32,7 +32,7 @@ async function fetchTenantPrefill(service: ServiceClient, unitId: string, units:
     .from("leases")
     .select("id, tenant_id, tenant_view(first_name, last_name, phone)")
     .eq("unit_id", unitId)
-    .in("status", ["active", "signed"])
+    .in("status", ["draft", "pending_signing", "active", "notice", "month_to_month"])
     .order("start_date", { ascending: false })
     .limit(1)
     .single()
