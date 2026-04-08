@@ -22,7 +22,16 @@ const ESCALATION_TYPES = [
   { value: "negotiable", label: "Negotiable" },
 ]
 
-const DUE_DAYS = [1, 3, 7, 15, 25, 28]
+const DUE_DAY_OPTIONS = [
+  { value: "1", label: "1st of the month" },
+  { value: "3", label: "3rd of the month" },
+  { value: "7", label: "7th of the month" },
+  { value: "15", label: "15th of the month" },
+  { value: "25", label: "25th of the month" },
+  { value: "28", label: "28th of the month" },
+  { value: "last_day", label: "Last day of the month" },
+  { value: "last_working_day", label: "Last working day of the month" },
+]
 
 export function LeaseTermsStep({ data, onBack, onNext }: Readonly<Props>) {
   const [startDate, setStartDate] = useState(data.startDate)
@@ -215,10 +224,8 @@ export function LeaseTermsStep({ data, onBack, onNext }: Readonly<Props>) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {DUE_DAYS.map((d) => (
-              <SelectItem key={d} value={String(d)}>
-                {d}{d === 1 ? "st" : d === 3 ? "rd" : "th"} of the month
-              </SelectItem>
+            {DUE_DAY_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>

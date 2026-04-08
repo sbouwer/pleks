@@ -6,6 +6,8 @@ import { PropertyUnitStep } from "./steps/PropertyUnitStep"
 import { TenantStep } from "./steps/TenantStep"
 import { LeaseTermsStep } from "./steps/LeaseTermsStep"
 import { ChargesStep } from "./steps/ChargesStep"
+import { ClausesStep } from "./steps/ClausesStep"
+import { AnnexuresStep } from "./steps/AnnexuresStep"
 import { ReviewStep } from "./steps/ReviewStep"
 
 export interface LocalCharge {
@@ -19,6 +21,14 @@ export interface LocalCharge {
   deduct_from_owner_payment: boolean
 }
 
+export interface LocalOnceOffCharge {
+  id: string
+  description: string
+  charge_type: string
+  amount_cents: number
+  payable_to: string
+}
+
 export interface SpecialTerm {
   type: string
   detail: string
@@ -27,6 +37,14 @@ export interface SpecialTerm {
 export interface CoTenant {
   id: string
   name: string
+}
+
+export interface AnnexureCRules {
+  pets: string
+  smoking: string
+  parking: string
+  noise: string
+  commonAreas: string
 }
 
 export interface WizardData {
@@ -60,11 +78,17 @@ export interface WizardData {
   tenantIsJuristic: boolean
   // Step 4
   charges: LocalCharge[]
+  onceOffCharges: LocalOnceOffCharge[]
+  // Step 5
   clauseSelections: Record<string, boolean>
+  // Step 6
+  annexureCRules: AnnexureCRules
   specialTerms: SpecialTerm[]
 }
 
-const STEP_LABELS = ["Property & unit", "Tenant", "Lease terms", "Charges", "Review"]
+const STEP_LABELS = ["Property", "Tenant", "Lease terms", "Charges", "Clauses", "Annexures", "Review"]
+
+type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7
 
 interface Props {
   initialPropertyId?: string | null
@@ -87,7 +111,7 @@ export function LeaseWizard({
   initialCoTenants,
   renewalOf,
 }: Readonly<Props>) {
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4 | 5>(() => {
+  const [currentStep, setCurrentStep] = useState<Step>(() => {
     if (initialPropertyId && initialUnitId && initialTenantId) return 3
     if (initialPropertyId && initialUnitId) return 2
     return 1
@@ -120,7 +144,15 @@ export function LeaseWizard({
     cpaApplies: true,
     tenantIsJuristic: false,
     charges: [],
+    onceOffCharges: [],
     clauseSelections: {},
+    annexureCRules: {
+      pets: "No pets permitted without prior written consent of the Landlord.",
+      smoking: "Smoking is strictly prohibited inside the premises.",
+      parking: "One (1) parking bay allocated to the Tenant.",
+      noise: "No excessive noise after 22:00 or before 07:00 on weekdays, or after 23:00 on weekends.",
+      commonAreas: "Common areas must be kept clean and clear of personal belongings.",
+    },
     specialTerms: [],
   })
 
@@ -155,7 +187,7 @@ export function LeaseWizard({
       {/* Step indicator */}
       <nav aria-label="Wizard steps" className="flex items-center mb-8">
         {STEP_LABELS.map((label, i) => {
-          const n = (i + 1) as 1 | 2 | 3 | 4 | 5
+          const n = (i + 1) as Step
           const isActive = n === currentStep
           const isDone = n < currentStep
           return (
@@ -165,23 +197,23 @@ export function LeaseWizard({
                 disabled={n > currentStep}
                 onClick={() => n < currentStep && setCurrentStep(n)}
                 className={cn(
-                  "flex items-center gap-1.5 px-2 py-1 rounded-full text-xs transition-colors",
+                  "flex items-center gap-1.5 px-1.5 py-1 rounded-full text-xs transition-colors",
                   isActive && "bg-brand text-white font-medium",
                   isDone && "text-brand cursor-pointer hover:bg-brand/10",
                   !isActive && !isDone && "text-muted-foreground"
                 )}
               >
-                <span className={cn("flex size-5 items-center justify-center rounded-full text-[11px] font-semibold",
+                <span className={cn("flex size-5 items-center justify-center rounded-full text-[11px] font-semibold shrink-0",
                   isActive && "bg-white/20",
                   isDone && "bg-brand/20",
                   !isActive && !isDone && "bg-muted"
                 )}>
                   {n}
                 </span>
-                <span className="hidden sm:inline">{label}</span>
+                <span className="hidden md:inline">{label}</span>
               </button>
               {i < STEP_LABELS.length - 1 && (
-                <div className={cn("flex-1 h-px mx-1 min-w-[8px]", isDone ? "bg-brand/40" : "bg-border")} />
+                <div className={cn("flex-1 h-px mx-0.5 min-w-[4px]", isDone ? "bg-brand/40" : "bg-border")} />
               )}
             </div>
           )
@@ -189,42 +221,25 @@ export function LeaseWizard({
       </nav>
 
       {currentStep === 1 && (
-        <PropertyUnitStep
-          data={data}
-          onNext={(updates) => { patch(updates); setCurrentStep(2) }}
-        />
+        <PropertyUnitStep data={data} onNext={(u) => { patch(u); setCurrentStep(2) }} />
       )}
-
       {currentStep === 2 && (
-        <TenantStep
-          data={data}
-          onBack={() => setCurrentStep(1)}
-          onNext={(updates) => { patch(updates); setCurrentStep(3) }}
-        />
+        <TenantStep data={data} onBack={() => setCurrentStep(1)} onNext={(u) => { patch(u); setCurrentStep(3) }} />
       )}
-
       {currentStep === 3 && (
-        <LeaseTermsStep
-          data={data}
-          onBack={() => setCurrentStep(2)}
-          onNext={(updates) => { patch(updates); setCurrentStep(4) }}
-        />
+        <LeaseTermsStep data={data} onBack={() => setCurrentStep(2)} onNext={(u) => { patch(u); setCurrentStep(4) }} />
       )}
-
       {currentStep === 4 && (
-        <ChargesStep
-          data={data}
-          onBack={() => setCurrentStep(3)}
-          onNext={(updates) => { patch(updates); setCurrentStep(5) }}
-        />
+        <ChargesStep data={data} onBack={() => setCurrentStep(3)} onNext={(u) => { patch(u); setCurrentStep(5) }} />
       )}
-
       {currentStep === 5 && (
-        <ReviewStep
-          data={data}
-          onBack={() => setCurrentStep(4)}
-          onEdit={(step) => setCurrentStep(step)}
-        />
+        <ClausesStep data={data} onBack={() => setCurrentStep(4)} onNext={(u) => { patch(u); setCurrentStep(6) }} />
+      )}
+      {currentStep === 6 && (
+        <AnnexuresStep data={data} onBack={() => setCurrentStep(5)} onNext={(u) => { patch(u); setCurrentStep(7) }} />
+      )}
+      {currentStep === 7 && (
+        <ReviewStep data={data} onBack={() => setCurrentStep(6)} onEdit={(s) => setCurrentStep(s)} />
       )}
     </div>
   )
