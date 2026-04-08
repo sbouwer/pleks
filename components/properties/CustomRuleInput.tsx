@@ -28,7 +28,9 @@ export function CustomRuleInput({
   const [saving, setSaving] = useState(false)
   const [showTopUpPrompt, setShowTopUpPrompt] = useState(false)
 
-  const canReformat = tierLimit > 0 && creditsRemaining > 0
+  const hasCredits = creditsRemaining > 0
+  const canReformat = hasCredits                        // anyone with credits can reformat
+  const showPurchaseCta = tierLimit === 0 && !hasCredits // owner with no purchased credits
 
   async function handleReformat() {
     if (!rawText.trim()) {
@@ -189,9 +191,23 @@ export function CustomRuleInput({
         )}
       </div>
 
-      {tierLimit > 0 && !canReformat && !formattedText && (
+      {/* Owner with no credits — purchase CTA */}
+      {showPurchaseCta && !formattedText && (
+        <div className="flex items-center justify-between gap-3 rounded-md border border-border/50 bg-surface-elevated/60 px-3 py-2">
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            <Sparkles className="h-3 w-3 inline mr-1 text-brand/70" />
+            Want rules that match your lease&apos;s professional tone? AI reformat: 5 credits for R50.
+          </p>
+          <Button type="button" size="sm" variant="outline" className="h-7 text-xs shrink-0" disabled>
+            Purchase (coming soon)
+          </Button>
+        </div>
+      )}
+
+      {/* Paid tier, credits exhausted */}
+      {tierLimit > 0 && !hasCredits && !formattedText && (
         <p className="text-xs text-muted-foreground">
-          No reformats remaining for this property. Save your rule as-is and edit the wording manually.
+          No reformats remaining. Save your rule as-is and edit the wording manually.
         </p>
       )}
     </div>

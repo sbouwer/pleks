@@ -375,7 +375,7 @@ export function PropertyRulesEditor({
           />
         )}
 
-        {credits.tier_limit > 0 && (
+        {credits.total > 0 && (
           <p className="text-xs text-muted-foreground mt-3">
             AI reformat: {credits.remaining} of {credits.total} credits remaining for this property.
           </p>
