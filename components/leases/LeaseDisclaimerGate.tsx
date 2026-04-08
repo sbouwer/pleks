@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { recordLeaseDisclaimerAcceptance } from "@/lib/actions/consent"
-import { DISCLAIMER_GATE_TEXT } from "@/lib/leases/disclaimer"
 
 // Structured sections for clean rendering
 const SECTIONS = [
