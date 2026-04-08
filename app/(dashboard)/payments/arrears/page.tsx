@@ -34,8 +34,6 @@ export default async function ArrearsPage() {
 
   return (
     <div>
-      <h1 className="font-heading text-3xl mb-6">Arrears</h1>
-
       {/* Summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Open Cases</p><p className="font-heading text-2xl">{openCases.length}</p></CardContent></Card>

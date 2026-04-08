@@ -43,7 +43,6 @@ export function PaymentsPageClient({ orgId }: Readonly<Props>) {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="font-heading text-3xl">Payments & Invoices</h1>
           {list.length > 0 && (
             <p className="text-sm text-muted-foreground mt-1">
               {pendingReview.length} pending review &middot; {unpaid.length} approved unpaid

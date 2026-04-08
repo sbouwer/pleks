@@ -81,8 +81,6 @@ export default function ReconciliationPage() {
 
   return (
     <div>
-      <h1 className="font-heading text-3xl mb-6">Bank Reconciliation</h1>
-
       {/* Upload */}
       <Card className="mb-6">
         <CardHeader><CardTitle className="text-lg">Upload Bank Statement</CardTitle></CardHeader>
