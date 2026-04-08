@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { createClient } from "@/lib/supabase/client"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -10,7 +9,8 @@ import { StatusBadge } from "@/components/shared/StatusBadge"
 import { BulkDecidePanel } from "@/components/applications/BulkDecidePanel"
 import { Users, Copy, Check, ExternalLink, Plus } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
-import { OPERATIONAL_QUERY_KEYS, STALE_TIME, fetchApplications } from "@/lib/queries/portfolio"
+import { OPERATIONAL_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
+import { fetchApplicationsAction } from "@/lib/queries/portfolioActions"
 import { relativeTime } from "@/lib/utils"
 import { useUser } from "@/hooks/useUser"
 
@@ -101,14 +101,12 @@ function ListingHeader({ listing, appCount }: { listing: ListingShape; appCount:
 }
 
 export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
-  const supabase = createClient()
   const queryClient = useQueryClient()
   const { user } = useUser()
   const queryKey = OPERATIONAL_QUERY_KEYS.applications(orgId)
   const { data: list = [], dataUpdatedAt } = useQuery({
     queryKey,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    queryFn: () => fetchApplications(supabase as any),
+    queryFn: () => fetchApplicationsAction(orgId),
     staleTime: STALE_TIME.applications,
   })
 

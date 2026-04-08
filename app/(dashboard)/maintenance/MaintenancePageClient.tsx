@@ -2,18 +2,18 @@
 
 import { useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { createClient } from "@/lib/supabase/client"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { Wrench, Plus, AlertTriangle, ChevronRight } from "lucide-react"
-import { OPERATIONAL_QUERY_KEYS, STALE_TIME, fetchMaintenance } from "@/lib/queries/portfolio"
+import { OPERATIONAL_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
+import { fetchMaintenanceAction } from "@/lib/queries/portfolioActions"
 import { relativeTime } from "@/lib/utils"
 import { formatZAR } from "@/lib/constants"
 
 // ── Types ─────────────────────────────────────────────────
 
-type MaintenanceItem = Awaited<ReturnType<typeof fetchMaintenance>>[number]
+type MaintenanceItem = Awaited<ReturnType<typeof fetchMaintenanceAction>>[number]
 
 // ── Constants ─────────────────────────────────────────────
 
@@ -160,15 +160,13 @@ function MaintenanceCard({ req }: Readonly<{ req: MaintenanceItem }>) {
 interface Props { orgId: string }
 
 export function MaintenancePageClient({ orgId }: Readonly<Props>) {
-  const supabase = createClient()
   const queryClient = useQueryClient()
   const queryKey = OPERATIONAL_QUERY_KEYS.maintenance(orgId)
   const [activeTab, setActiveTab] = useState<Tab>("all")
 
   const { data: list = [], dataUpdatedAt } = useQuery({
     queryKey,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    queryFn: () => fetchMaintenance(supabase as any),
+    queryFn: () => fetchMaintenanceAction(orgId),
     staleTime: STALE_TIME.maintenance,
   })
 

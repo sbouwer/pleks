@@ -85,12 +85,10 @@ export function LeaseActions({ leaseId, status }: LeaseActionsProps) {
 
       {/* More dropdown */}
       <DropdownMenu>
-        <DropdownMenuTrigger>
-          <Button size="sm" variant="outline">
+        <DropdownMenuTrigger render={<Button size="sm" variant="outline" />}>
             <MoreHorizontal className="mr-1 h-4 w-4" />
             More
             <ChevronDown className="ml-1 h-3 w-3" />
-          </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" side="bottom">
           <DropdownMenuItem render={<Link href={`/leases/${leaseId}/edit`} />}>

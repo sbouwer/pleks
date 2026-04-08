@@ -1,21 +1,19 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
-import { createClient } from "@/lib/supabase/client"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 import { TenantsClient } from "./TenantsClient"
-import { PORTFOLIO_QUERY_KEYS, STALE_TIME, fetchTenants } from "@/lib/queries/portfolio"
+import { PORTFOLIO_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
+import { fetchTenantsAction } from "@/lib/queries/portfolioActions"
 
 interface Props { orgId: string; role: string }
 
 export function TenantsPageClient({ orgId, role }: Props) {
-  const supabase = createClient()
   const { data: tenants = [], isLoading } = useQuery({
     queryKey: PORTFOLIO_QUERY_KEYS.tenants(orgId),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    queryFn: () => fetchTenants(supabase as any, orgId),
+    queryFn: () => fetchTenantsAction(orgId),
     staleTime: STALE_TIME.tenants,
   })
 

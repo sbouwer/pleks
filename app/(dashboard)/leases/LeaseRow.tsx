@@ -126,8 +126,13 @@ export function LeaseRow({ lease }: { lease: SerializedLease }) {
     const elapsed = Math.max(0, (now.getTime() - start.getTime()) / 86400000)
     progressPct = Math.min(100, Math.round((elapsed / total) * 100))
     daysRemaining = Math.max(0, Math.ceil((end.getTime() - now.getTime()) / 86400000))
+    const notStarted = now < start
     const fmt = (d: Date) => d.toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "2-digit" })
     termLabel = `${fmt(start)} → ${fmt(end)}`
+    if (notStarted) {
+      const daysUntilStart = Math.ceil((start.getTime() - now.getTime()) / 86400000)
+      termLabel = `${fmt(start)} → ${fmt(end)} · starts in ${daysUntilStart}d`
+    }
   }
 
   return (
@@ -200,7 +205,7 @@ export function LeaseRow({ lease }: { lease: SerializedLease }) {
               />
             </div>
             <p className="text-[11px] font-medium" style={{ color }}>
-              {urgency === "expired" ? "Expired" : `${daysRemaining}d remaining`}
+              {urgency === "expired" ? "Expired" : now < new Date(lease.start_date!) ? `${Math.round((new Date(lease.end_date!).getTime() - new Date(lease.start_date!).getTime()) / 86400000)}d term` : `${daysRemaining}d remaining`}
             </p>
           </>
         )}

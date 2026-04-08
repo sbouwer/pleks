@@ -1,7 +1,7 @@
 import { HydrationBoundary, QueryClient, dehydrate } from "@tanstack/react-query"
 import { redirect } from "next/navigation"
 import { getServerOrgMembership } from "@/lib/auth/server"
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/server"
 import { OPERATIONAL_QUERY_KEYS, STALE_TIME, fetchPayments } from "@/lib/queries/portfolio"
 import { PaymentsPageClient } from "./PaymentsPageClient"
 
@@ -11,7 +11,7 @@ export default async function PaymentsPage() {
 
   const { org_id: orgId } = membership
   const queryClient = new QueryClient()
-  const supabase = await createClient()
+  const supabase = await createServiceClient()
 
   await queryClient.prefetchQuery({
     queryKey: OPERATIONAL_QUERY_KEYS.payments(orgId),

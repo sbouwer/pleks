@@ -28,6 +28,46 @@ Common errors to watch for:
 - Missing imports after moving/renaming files
 - Type mismatches when component props change
 - Unused variables (ESLint)
+
+---
+
+## ⚠ MANDATORY: USE GATEWAY FOR ALL DB ACCESS
+
+Never use `createClient()` for database queries in server actions or server components.
+The cookie-based client does NOT propagate auth to Postgres RLS — `auth.uid()` returns null,
+causing silent empty results.
+
+**Always use the gateway helper:**
+
+```typescript
+import { gateway } from "@/lib/supabase/gateway"     // server actions
+import { gatewaySSR } from "@/lib/supabase/gateway"  // server components
+
+// Server action:
+export async function myAction() {
+  const gw = await gateway()
+  if (!gw) return { error: "Not authenticated" }
+  const { db, userId, orgId } = gw
+
+  // ALWAYS filter by orgId — RLS is not protecting you
+  const { data } = await db.from("units").select("*").eq("org_id", orgId)
+}
+
+// Server component:
+export default async function MyPage() {
+  const gw = await gatewaySSR()
+  if (!gw) redirect("/login")
+  const { db, orgId } = gw
+  // ...
+}
+```
+
+**Rules:**
+- `gateway()` for server actions (not cached — one-shot)
+- `gatewaySSR()` for server components (React.cache — deduplicates per render)
+- Every query MUST include `.eq("org_id", orgId)` — the service client bypasses RLS
+- The only valid use of `createClient()` is for `auth.getUser()` — never for data queries
+- Always check `{ data, error }` from Supabase queries — never use `(data ?? [])` without logging `error` first
 - `any` types leaking through (fix them, don't suppress)
 - Missing `key` props in .map() renders
 
