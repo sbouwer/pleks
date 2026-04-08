@@ -1,27 +1,29 @@
--- 025_pending_migrations_fix.sql
--- Consolidates migrations 021–024 that were not fully applied to the live DB,
--- plus fixes the payment_due_day CHECK constraint issue from 024.
--- Fully idempotent — safe to re-run.
+-- 021_landlord_portal_comms_payment.sql
+-- Consolidates: landlord portal access, maintenance contact fields,
+-- communication log/preferences, and payment_due_day type change.
+-- Fully idempotent — safe to re-run on any DB state.
 
 -- ═══════════════════════════════════════════════════════════════════════
--- FROM 021: Landlord portal access
+-- Landlord portal: auth + RLS
 -- ═══════════════════════════════════════════════════════════════════════
 
 ALTER TABLE landlords
-  ADD COLUMN IF NOT EXISTS auth_user_id          uuid REFERENCES auth.users(id),
+  ADD COLUMN IF NOT EXISTS auth_user_id         uuid REFERENCES auth.users(id),
   ADD COLUMN IF NOT EXISTS portal_access_enabled boolean NOT NULL DEFAULT false,
-  ADD COLUMN IF NOT EXISTS portal_status         text DEFAULT 'none'
+  ADD COLUMN IF NOT EXISTS portal_status        text DEFAULT 'none'
     CHECK (portal_status IN ('none', 'invited', 'active', 'suspended')),
-  ADD COLUMN IF NOT EXISTS portal_invited_at     timestamptz,
-  ADD COLUMN IF NOT EXISTS portal_last_login_at  timestamptz;
+  ADD COLUMN IF NOT EXISTS portal_invited_at    timestamptz,
+  ADD COLUMN IF NOT EXISTS portal_last_login_at timestamptz;
 
-CREATE INDEX IF NOT EXISTS idx_landlords_auth_user_id ON landlords(auth_user_id) WHERE auth_user_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_landlords_auth_user_id
+  ON landlords(auth_user_id) WHERE auth_user_id IS NOT NULL;
 
 ALTER TABLE landlords ENABLE ROW LEVEL SECURITY;
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'landlords' AND policyname = 'landlord_portal_self') THEN
-    CREATE POLICY "landlord_portal_self" ON landlords FOR SELECT USING (auth_user_id = auth.uid());
+    CREATE POLICY "landlord_portal_self" ON landlords
+      FOR SELECT USING (auth_user_id = auth.uid());
   END IF;
 END $$;
 
@@ -84,7 +86,7 @@ END $$;
 
 
 -- ═══════════════════════════════════════════════════════════════════════
--- FROM 022: Maintenance contact columns
+-- Maintenance: access contact fields
 -- ═══════════════════════════════════════════════════════════════════════
 
 ALTER TABLE maintenance_requests
@@ -97,7 +99,7 @@ COMMENT ON COLUMN maintenance_requests.contact_phone IS 'Phone number of the acc
 
 
 -- ═══════════════════════════════════════════════════════════════════════
--- FROM 023: Communication log + preferences
+-- Communication log: patch existing table + create preferences
 -- ═══════════════════════════════════════════════════════════════════════
 
 DO $$ BEGIN
@@ -111,8 +113,8 @@ EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 ALTER TABLE communication_log
-  ADD COLUMN IF NOT EXISTS template_key   TEXT,
-  ADD COLUMN IF NOT EXISTS recipient_name TEXT;
+  ADD COLUMN IF NOT EXISTS template_key   text,
+  ADD COLUMN IF NOT EXISTS recipient_name text;
 
 CREATE INDEX IF NOT EXISTS idx_comm_log_org       ON communication_log(org_id);
 CREATE INDEX IF NOT EXISTS idx_comm_log_entity    ON communication_log(entity_type, entity_id);
@@ -130,54 +132,62 @@ EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 CREATE TABLE IF NOT EXISTS communication_preferences (
-  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id                UUID NOT NULL REFERENCES organisations(id),
-  contact_id            UUID REFERENCES contacts(id),
-  email                 TEXT,
-  unsubscribe_token     TEXT DEFAULT encode(gen_random_bytes(24), 'hex'),
-  email_applications    BOOLEAN NOT NULL DEFAULT true,
-  email_maintenance     BOOLEAN NOT NULL DEFAULT true,
-  email_arrears         BOOLEAN NOT NULL DEFAULT true,
-  email_inspections     BOOLEAN NOT NULL DEFAULT true,
-  email_lease           BOOLEAN NOT NULL DEFAULT true,
-  email_statements      BOOLEAN NOT NULL DEFAULT true,
-  sms_maintenance       BOOLEAN NOT NULL DEFAULT true,
-  sms_arrears           BOOLEAN NOT NULL DEFAULT true,
-  sms_inspections       BOOLEAN NOT NULL DEFAULT true,
-  unsubscribed_at       TIMESTAMPTZ,
-  email_hard_bounced    BOOLEAN NOT NULL DEFAULT false,
-  email_hard_bounced_at TIMESTAMPTZ,
-  updated_at            TIMESTAMPTZ NOT NULL DEFAULT now()
+  id                    uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id                uuid        NOT NULL REFERENCES organisations(id),
+  contact_id            uuid        REFERENCES contacts(id),
+  email                 text,
+  unsubscribe_token     text        DEFAULT encode(gen_random_bytes(24), 'hex'),
+  email_applications    boolean     NOT NULL DEFAULT true,
+  email_maintenance     boolean     NOT NULL DEFAULT true,
+  email_arrears         boolean     NOT NULL DEFAULT true,
+  email_inspections     boolean     NOT NULL DEFAULT true,
+  email_lease           boolean     NOT NULL DEFAULT true,
+  email_statements      boolean     NOT NULL DEFAULT true,
+  sms_maintenance       boolean     NOT NULL DEFAULT true,
+  sms_arrears           boolean     NOT NULL DEFAULT true,
+  sms_inspections       boolean     NOT NULL DEFAULT true,
+  unsubscribed_at       timestamptz,
+  email_hard_bounced    boolean     NOT NULL DEFAULT false,
+  email_hard_bounced_at timestamptz,
+  updated_at            timestamptz NOT NULL DEFAULT now()
 );
 
--- Patch columns in case the table existed but was only partially created
+-- Patch columns in case the table existed but was partially created
 ALTER TABLE communication_preferences
-  ADD COLUMN IF NOT EXISTS contact_id            UUID REFERENCES contacts(id),
-  ADD COLUMN IF NOT EXISTS email                 TEXT,
-  ADD COLUMN IF NOT EXISTS unsubscribe_token     TEXT DEFAULT encode(gen_random_bytes(24), 'hex'),
-  ADD COLUMN IF NOT EXISTS email_applications    BOOLEAN NOT NULL DEFAULT true,
-  ADD COLUMN IF NOT EXISTS email_maintenance     BOOLEAN NOT NULL DEFAULT true,
-  ADD COLUMN IF NOT EXISTS email_arrears         BOOLEAN NOT NULL DEFAULT true,
-  ADD COLUMN IF NOT EXISTS email_inspections     BOOLEAN NOT NULL DEFAULT true,
-  ADD COLUMN IF NOT EXISTS email_lease           BOOLEAN NOT NULL DEFAULT true,
-  ADD COLUMN IF NOT EXISTS email_statements      BOOLEAN NOT NULL DEFAULT true,
-  ADD COLUMN IF NOT EXISTS sms_maintenance       BOOLEAN NOT NULL DEFAULT true,
-  ADD COLUMN IF NOT EXISTS sms_arrears           BOOLEAN NOT NULL DEFAULT true,
-  ADD COLUMN IF NOT EXISTS sms_inspections       BOOLEAN NOT NULL DEFAULT true,
-  ADD COLUMN IF NOT EXISTS unsubscribed_at       TIMESTAMPTZ,
-  ADD COLUMN IF NOT EXISTS email_hard_bounced    BOOLEAN NOT NULL DEFAULT false,
-  ADD COLUMN IF NOT EXISTS email_hard_bounced_at TIMESTAMPTZ,
-  ADD COLUMN IF NOT EXISTS updated_at            TIMESTAMPTZ NOT NULL DEFAULT now();
+  ADD COLUMN IF NOT EXISTS contact_id            uuid REFERENCES contacts(id),
+  ADD COLUMN IF NOT EXISTS email                 text,
+  ADD COLUMN IF NOT EXISTS unsubscribe_token     text DEFAULT encode(gen_random_bytes(24), 'hex'),
+  ADD COLUMN IF NOT EXISTS email_applications    boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS email_maintenance     boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS email_arrears         boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS email_inspections     boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS email_lease           boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS email_statements      boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS sms_maintenance       boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS sms_arrears           boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS sms_inspections       boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS unsubscribed_at       timestamptz,
+  ADD COLUMN IF NOT EXISTS email_hard_bounced    boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS email_hard_bounced_at timestamptz,
+  ADD COLUMN IF NOT EXISTS updated_at            timestamptz NOT NULL DEFAULT now();
 
--- Deduplicate before adding UNIQUE constraints (safe on empty/new table; guards against partial data)
+-- Deduplicate before adding UNIQUE constraints
 DELETE FROM communication_preferences a USING communication_preferences b
-  WHERE a.ctid < b.ctid AND a.unsubscribe_token IS NOT NULL AND a.unsubscribe_token = b.unsubscribe_token;
+  WHERE a.ctid < b.ctid
+    AND a.unsubscribe_token IS NOT NULL
+    AND a.unsubscribe_token = b.unsubscribe_token;
 
 DELETE FROM communication_preferences a USING communication_preferences b
-  WHERE a.ctid < b.ctid AND a.org_id = b.org_id AND a.contact_id IS NOT NULL AND a.contact_id = b.contact_id;
+  WHERE a.ctid < b.ctid
+    AND a.org_id = b.org_id
+    AND a.contact_id IS NOT NULL
+    AND a.contact_id = b.contact_id;
 
 DELETE FROM communication_preferences a USING communication_preferences b
-  WHERE a.ctid < b.ctid AND a.org_id = b.org_id AND a.email IS NOT NULL AND a.email = b.email;
+  WHERE a.ctid < b.ctid
+    AND a.org_id = b.org_id
+    AND a.email IS NOT NULL
+    AND a.email = b.email;
 
 DO $$ BEGIN
   ALTER TABLE communication_preferences ADD CONSTRAINT comm_prefs_token_unique UNIQUE (unsubscribe_token);
@@ -210,9 +220,7 @@ COMMENT ON TABLE communication_preferences IS 'Per-recipient communication opt-o
 
 
 -- ═══════════════════════════════════════════════════════════════════════
--- FROM 024 (fix): payment_due_day CHECK constraint drop + type change
--- 024 was already applied on this DB (column is already text), but the
--- DROP CONSTRAINT step was missing. This is now safe to run regardless.
+-- leases.payment_due_day: drop integer CHECK constraint, change to text
 -- ═══════════════════════════════════════════════════════════════════════
 
 DO $$
@@ -228,7 +236,6 @@ BEGIN
   END LOOP;
 END $$;
 
--- No-op if already text; included for completeness on any DB that still has integer type
 ALTER TABLE leases
   ALTER COLUMN payment_due_day TYPE text USING payment_due_day::text;
 
