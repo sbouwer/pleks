@@ -4,6 +4,7 @@ import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { SidebarContent, type NavGroup } from "./SidebarContent"
 import { useTier } from "@/hooks/useTier"
+import { useNavBadges } from "@/hooks/useNavBadges"
 import {
   LayoutDashboard,
   Building2,
@@ -68,20 +69,27 @@ const NAV_GROUPS: NavGroup[] = [
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false)
   const { isPortfolio, isFirm } = useTier()
+  const badges = useNavBadges()
 
-  // Filter tier-gated nav items
-  const groups = NAV_GROUPS.map((group) => {
-    if (group.title === "Operations") {
-      return {
-        ...group,
-        items: group.items.filter((item) => {
-          if (item.href === "/calendar") return isPortfolio || isFirm
-          return true
-        }),
-      }
-    }
-    return group
-  })
+  const BADGE_COUNTS: Record<string, number> = {
+    "/applications": badges.applications,
+    "/maintenance": badges.maintenance,
+  }
+  // Arrears lives under Finance → Payments hub, not a direct nav item — skip for now
+
+  // Filter tier-gated nav items, inject action-required counts
+  const groups = NAV_GROUPS.map((group) => ({
+    ...group,
+    items: group.items
+      .filter((item) => {
+        if (item.href === "/calendar") return isPortfolio || isFirm
+        return true
+      })
+      .map((item) => ({
+        ...item,
+        count: BADGE_COUNTS[item.href] ?? undefined,
+      })),
+  }))
 
   return (
     <aside

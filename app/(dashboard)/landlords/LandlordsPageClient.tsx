@@ -2,12 +2,14 @@
 
 import React from "react"
 import { useQuery } from "@tanstack/react-query"
+import { EmptyState } from "@/components/shared/EmptyState"
+import { UserSquare2 } from "lucide-react"
 import { LandlordsClient } from "./LandlordsClient"
 import { AddLandlordForm } from "./AddLandlordForm"
 import { PORTFOLIO_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchLandlordsAction } from "@/lib/queries/portfolioActions"
 
-interface Props { orgId: string; role: string }
+interface Props { readonly orgId: string; readonly role: string }
 
 export function LandlordsPageClient({ orgId, role }: Props) {
   const { data: landlords = [], isLoading } = useQuery({
@@ -20,9 +22,11 @@ export function LandlordsPageClient({ orgId, role }: Props) {
   if (!isLoading) {
     if (landlords.length === 0) {
       body = (
-        <p className="text-sm text-muted-foreground py-8 text-center">
-          No landlords yet. Import contacts or add one using the button above.
-        </p>
+        <EmptyState
+          icon={<UserSquare2 className="h-8 w-8 text-muted-foreground" />}
+          title="No landlords yet"
+          description="Import contacts from a CSV or add landlords manually using the button above."
+        />
       )
     } else {
       body = <LandlordsClient landlords={landlords} userRole={role} />
