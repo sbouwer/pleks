@@ -1,5 +1,6 @@
 import { differenceInDays, format, startOfMonth } from "date-fns"
 import { createServiceClient } from "@/lib/supabase/server"
+import { resolveDepositInterestConfig, resolveEffectiveRate } from "@/lib/deposits/interestConfig"
 
 /**
  * Pure calculation — used by both the server action and the cron route.
@@ -18,13 +19,11 @@ export function calculateDepositInterest(
 /**
  * Deposit interest accrual.
  *
- * Called by the monthly cron (1st of each month).
+ * Called by the monthly cron (last day of each month or 1st of next month).
  * Also called at lease end when finalising deposit reconciliation.
  *
- * Rate used: lease.deposit_interest_rate_percent
- *   Falls back to 5.00% if no per-lease or org default set.
- *   This is the rate PAID TO TENANT — typically lower than
- *   what the money market account actually earns.
+ * Rate is resolved via the config hierarchy: unit → property → org default.
+ * Falls back to lease.deposit_interest_rate_percent if no config found.
  */
 export async function accrueDepositInterest(
   leaseId: string,
@@ -40,7 +39,8 @@ export async function accrueDepositInterest(
   const { data: lease } = await supabase
     .from("leases")
     .select(`
-      id, org_id, tenant_id, deposit_amount_cents,
+      id, org_id, tenant_id, unit_id, property_id,
+      deposit_amount_cents,
       deposit_interest_rate_percent,
       deposit_interest_last_accrued_date,
       start_date
@@ -52,8 +52,6 @@ export async function accrueDepositInterest(
     return { interestCents: 0, fromDate: upToDate, toDate: upToDate, ratePercent: 0 }
   }
 
-  const ratePercent = lease.deposit_interest_rate_percent ?? 5
-
   const fromDate = lease.deposit_interest_last_accrued_date
     ? new Date(lease.deposit_interest_last_accrued_date)
     : new Date(lease.start_date)
@@ -61,7 +59,35 @@ export async function accrueDepositInterest(
   const daysElapsed = differenceInDays(upToDate, fromDate)
 
   if (daysElapsed <= 0) {
-    return { interestCents: 0, fromDate, toDate: upToDate, ratePercent }
+    return { interestCents: 0, fromDate, toDate: upToDate, ratePercent: 0 }
+  }
+
+  // Resolve config via hierarchy
+  const asOfDate = format(upToDate, "yyyy-MM-dd")
+  const config = await resolveDepositInterestConfig(
+    lease.org_id,
+    lease.property_id ?? null,
+    lease.unit_id ?? null,
+    asOfDate
+  )
+
+  let ratePercent: number
+  let rateConfigId: string | null = null
+
+  if (config) {
+    if (config.rate_type === "manual") {
+      // Manual mode — skip auto-accrual
+      return { interestCents: 0, fromDate, toDate: upToDate, ratePercent: 0 }
+    }
+    const resolved = await resolveEffectiveRate(config, asOfDate)
+    if (resolved === null || resolved <= 0) {
+      return { interestCents: 0, fromDate, toDate: upToDate, ratePercent: 0 }
+    }
+    ratePercent = resolved
+    rateConfigId = config.id
+  } else {
+    // Fall back to per-lease rate
+    ratePercent = lease.deposit_interest_rate_percent ?? 5
   }
 
   const interestCents = calculateDepositInterest(
@@ -80,8 +106,10 @@ export async function accrueDepositInterest(
     transaction_type: "interest_accrued",
     direction: "credit",
     amount_cents: interestCents,
-    description: `Deposit interest accrued: ${ratePercent}% p.a. for ${daysElapsed} days`,
+    description: `Deposit interest accrued: ${ratePercent.toFixed(2)}% p.a. for ${daysElapsed} days`,
     reference: `DEP-INT-${format(upToDate, "yyyy-MM")}`,
+    effective_rate_percent: ratePercent,
+    rate_config_id: rateConfigId,
   })
 
   // Also record to trust_transactions (main trust ledger)
@@ -91,7 +119,7 @@ export async function accrueDepositInterest(
     transaction_type: "deposit_interest",
     direction: "credit",
     amount_cents: interestCents,
-    description: `Deposit interest: ${ratePercent}% p.a. × ${daysElapsed} days`,
+    description: `Deposit interest: ${ratePercent.toFixed(2)}% p.a. × ${daysElapsed} days`,
     statement_month: startOfMonth(upToDate).toISOString(),
   })
 
@@ -110,6 +138,7 @@ export async function accrueDepositInterest(
       type: "deposit_interest_accrued",
       amount_cents: interestCents,
       rate_percent: ratePercent,
+      rate_config_id: rateConfigId,
       days: daysElapsed,
     },
   })
