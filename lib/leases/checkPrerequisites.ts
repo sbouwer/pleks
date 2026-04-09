@@ -171,6 +171,7 @@ export async function checkLeasePrerequisites(
   }
 
   // 7. Lease document (addendum rule)
+  const isUploadedLease = lease.template_source === "uploaded"
   const hasDocument =
     lease.generated_doc_path != null ||
     lease.external_document_path != null ||
@@ -189,20 +190,28 @@ export async function checkLeasePrerequisites(
       key: "document",
       label: "Lease document",
       status: "fail",
-      message: "No lease document generated or uploaded",
-      action: { label: "Generate →", href: `/leases/${leaseId}` },
+      message: isUploadedLease
+        ? "No lease document uploaded yet"
+        : "No lease document generated or uploaded",
+      action: {
+        label: isUploadedLease ? "Upload →" : "Generate →",
+        href: `/leases/${leaseId}`,
+      },
     })
   }
 
-  // 8. Clauses saved (addendum rule)
-  const isExternalOrMigrated = lease.external_document_path != null || lease.migrated === true
+  // 8. Clauses saved — skip for uploaded leases and external/migrated leases
+  const isExternalOrMigrated =
+    lease.external_document_path != null || lease.migrated === true || isUploadedLease
 
   if (isExternalOrMigrated) {
     items.push({
       key: "clauses",
       label: "Clauses saved",
       status: "pass",
-      message: "Not required for external documents",
+      message: isUploadedLease
+        ? "Not required for uploaded leases"
+        : "Not required for external documents",
     })
   } else {
     const { data: clauseSelections } = await supabase

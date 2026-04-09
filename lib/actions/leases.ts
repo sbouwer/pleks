@@ -81,6 +81,7 @@ export async function createLease(formData: FormData) {
       arrears_interest_enabled: arrearsInterestEnabled,
       arrears_interest_margin_percent: arrearsInterestMarginPercent,
       template_type: leaseType === "commercial" ? "pleks_commercial" : "pleks_residential",
+      template_source: "pleks",
       status: "draft",
       created_by: userId,
     })
@@ -208,6 +209,125 @@ export async function createLease(formData: FormData) {
 
   revalidatePath("/leases")
   redirect(`/leases/${lease.id}`)
+}
+
+export async function createUploadedLease(formData: FormData): Promise<{ error: string } | { leaseId: string }> {
+  const gw = await gateway()
+  if (!gw) redirect("/login")
+  const { db, userId, orgId } = gw
+
+  const unitId = formData.get("unit_id") as string
+  const propertyId = formData.get("property_id") as string
+  const tenantId = formData.get("tenant_id") as string
+  const leaseType = (formData.get("lease_type") as string) || "residential"
+  const tenantIsJuristic = formData.get("tenant_is_juristic") === "true"
+  const cpaApplies = formData.get("cpa_applies") !== "false"
+
+  const startDate = formData.get("start_date") as string
+  const endDate = (formData.get("end_date") as string) || null
+  const isFixedTerm = formData.get("is_fixed_term") !== "false"
+  const noticePeriod = Number.parseInt(formData.get("notice_period_days") as string) || 20
+
+  const rentCents = Math.round(Number.parseFloat(formData.get("rent_amount") as string) * 100)
+  const paymentDueDay = (formData.get("payment_due_day") as string) || "1"
+  const escalationPercent = Number.parseFloat(formData.get("escalation_percent") as string) || 8
+  const escalationType = (formData.get("escalation_type") as string) || "fixed"
+  const depositCents = formData.get("deposit_amount")
+    ? Math.round(Number.parseFloat(formData.get("deposit_amount") as string) * 100)
+    : null
+
+  const startDateObj = new Date(startDate)
+  const escalationReviewDate = new Date(startDateObj)
+  escalationReviewDate.setFullYear(escalationReviewDate.getFullYear() + 1)
+
+  let autoRenewalNoticeDue: string | null = null
+  if (endDate && cpaApplies && isFixedTerm) {
+    const endDateObj = new Date(endDate)
+    endDateObj.setDate(endDateObj.getDate() - 40)
+    autoRenewalNoticeDue = endDateObj.toISOString().split("T")[0]
+  }
+
+  const { data: lease, error } = await db
+    .from("leases")
+    .insert({
+      org_id: orgId,
+      unit_id: unitId,
+      property_id: propertyId,
+      tenant_id: tenantId,
+      lease_type: leaseType,
+      tenant_is_juristic: tenantIsJuristic,
+      cpa_applies: cpaApplies,
+      start_date: startDate,
+      end_date: endDate,
+      is_fixed_term: isFixedTerm,
+      notice_period_days: noticePeriod,
+      rent_amount_cents: rentCents,
+      payment_due_day: paymentDueDay,
+      escalation_percent: escalationPercent,
+      escalation_type: escalationType,
+      escalation_review_date: escalationReviewDate.toISOString().split("T")[0],
+      deposit_amount_cents: depositCents,
+      deposit_interest_to: leaseType === "residential" ? "tenant" : "landlord",
+      auto_renewal_notice_due: autoRenewalNoticeDue,
+      template_source: "uploaded",
+      template_type: leaseType === "commercial" ? "pleks_commercial" : "pleks_residential",
+      status: "draft",
+      created_by: userId,
+    })
+    .select("id")
+    .single()
+
+  if (error || !lease) {
+    return { error: error?.message || "Failed to create lease" }
+  }
+
+  const leaseId = lease.id
+
+  // Insert co-tenants
+  const coTenantsRaw = formData.get("co_tenants_json") as string | null
+  if (coTenantsRaw) {
+    try {
+      const coTenantIds = JSON.parse(coTenantsRaw) as string[]
+      if (coTenantIds.length > 0) {
+        await db.from("lease_co_tenants").insert(
+          coTenantIds.map((tid) => ({ org_id: orgId, lease_id: leaseId, tenant_id: tid }))
+        )
+        await db.from("units").update({
+          prospective_tenant_id: tenantId,
+          prospective_co_tenant_ids: coTenantIds,
+        }).eq("id", unitId)
+      }
+    } catch { /* ignore malformed */ }
+  } else {
+    await db.from("units").update({ prospective_tenant_id: tenantId }).eq("id", unitId)
+  }
+
+  // Upload PDF to storage if provided
+  const file = formData.get("document")
+  if (file instanceof File && file.size > 0) {
+    try {
+      const path = `lease-documents/${orgId}/${leaseId}/uploaded-lease.pdf`
+      const bytes = await file.arrayBuffer()
+      const { error: uploadError } = await db.storage
+        .from("lease-documents")
+        .upload(path, bytes, { contentType: "application/pdf", upsert: true })
+      if (!uploadError) {
+        await db.from("leases").update({ external_document_path: path }).eq("id", leaseId)
+      }
+    } catch { /* non-fatal — user can upload later */ }
+  }
+
+  await db.from("audit_log").insert({
+    org_id: orgId,
+    table_name: "leases",
+    record_id: leaseId,
+    action: "INSERT",
+    changed_by: userId,
+    new_values: { tenant_id: tenantId, unit_id: unitId, lease_type: leaseType, rent_cents: rentCents, template_source: "uploaded" },
+  })
+
+  revalidatePath("/leases")
+  return { leaseId }
 }
 
 export async function markAsSigned(leaseId: string) {
