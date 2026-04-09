@@ -9,6 +9,8 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "check": "tsc --noEmit && eslint . --max-warnings 0",
+    "security": "node scripts/security/audit.mjs",
+    "security:quick": "node scripts/security/audit.mjs --quick",
     "prebuild": "tsc --noEmit"
   },
   "dependencies": {
@@ -57,6 +59,7 @@
     "dotenv": "^17.3.1",
     "eslint": "^9",
     "eslint-config-next": "^16.2.2",
+    "eslint-plugin-sonarjs": "^4.0.2",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
     "typescript": "^5"

@@ -73,9 +73,13 @@ export async function sendApplicationReceived(
   opts: { slug: string; accessToken: string }
 ) {
   const ref = appRef(app.id)
-  const level = app.prescreenScore != null
-    ? app.prescreenScore >= 38 ? "Strong" : app.prescreenScore >= 30 ? "Good" : app.prescreenScore >= 22 ? "Borderline" : "Insufficient"
-    : null
+  let level: string | null = null
+  if (app.prescreenScore != null) {
+    if (app.prescreenScore >= 38) { level = "Strong" }
+    else if (app.prescreenScore >= 30) { level = "Good" }
+    else if (app.prescreenScore >= 22) { level = "Borderline" }
+    else { level = "Insufficient" }
+  }
 
   return sendEmail({
     orgId: org.orgId,

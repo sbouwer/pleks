@@ -74,10 +74,12 @@ export async function POST(req: NextRequest) {
       parsedBlocks,
       leaseMatches ?? {},
       propertyMatches ?? {},
-      dateFilter ?? { from: "2020-01-01", to: "2099-12-31" },
-      importDeposits ?? true,
-      membership.org_id,
-      user.id,
+      {
+        orgId: membership.org_id,
+        agentId: user.id,
+        importDeposits: importDeposits ?? true,
+        dateFilter: dateFilter ?? { from: "2020-01-01", to: "2099-12-31" },
+      },
       service
     )
 

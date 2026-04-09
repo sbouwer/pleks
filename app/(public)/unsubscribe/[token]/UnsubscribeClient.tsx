@@ -223,7 +223,11 @@ export function UnsubscribeClient({ token, orgName, prefs: initialPrefs }: Props
                 disabled={saving}
                 className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
               >
-                {saving ? "Saving…" : saved ? "Saved" : "Save preferences"}
+                {(() => {
+                  if (saving) return "Saving…"
+                  if (saved) return "Saved"
+                  return "Save preferences"
+                })()}
               </button>
 
               <button

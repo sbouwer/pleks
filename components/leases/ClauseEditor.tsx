@@ -18,8 +18,14 @@ interface ClauseEditorProps {
 
 const TOKEN_REGEX = /(\{\{(?:ref|self|var):[\w.]+\}\})/g
 
+function tokenTitle(className: string): string {
+  if (className === "token-ref") return "Auto-numbered clause reference"
+  if (className === "token-self") return "Sub-clause number"
+  return "Filled from lease data"
+}
+
 function tokenToHtml(body: string): string {
-  return body.replace(TOKEN_REGEX, (match) => {
+  return body.replaceAll(TOKEN_REGEX, (match) => {
     let label = match
     let className = "token-var"
     if (match.startsWith("{{ref:")) {
@@ -30,36 +36,32 @@ function tokenToHtml(body: string): string {
       className = "token-self"
     } else if (match.startsWith("{{var:")) {
       label = `{${match.slice(6, -2)}}`
-      className = "token-var"
+      // className remains "token-var" (default)
     }
-    return `<span class="${className}" data-token="${match}" contenteditable="false" title="${
-      className === "token-ref" ? "Auto-numbered clause reference"
-        : className === "token-self" ? "Sub-clause number"
-        : "Filled from lease data"
-    }">${label}</span>`
+    return `<span class="${className}" data-token="${match}" contenteditable="false" title="${tokenTitle(className)}">${label}</span>`
   })
 }
 
 function htmlToTokens(html: string): string {
   // Replace token spans with their data-token value
-  let text = html.replace(
+  let text = html.replaceAll(
     /<span[^>]*data-token="([^"]*)"[^>]*>[^<]*<\/span>/g,
     (_, token: string) => token
   )
   // Strip remaining HTML tags
-  text = text.replace(/<br\s*\/?>/gi, "\n")
-  text = text.replace(/<\/p>/gi, "\n")
-  text = text.replace(/<\/div>/gi, "\n")
-  text = text.replace(/<[^>]+>/g, "")
+  text = text.replaceAll(/<br\s*\/?>/gi, "\n")
+  text = text.replaceAll(/<\/p>/gi, "\n")
+  text = text.replaceAll(/<\/div>/gi, "\n")
+  text = text.replaceAll(/<[^>]{0,1000}>/g, "")
   // Decode HTML entities
-  text = text.replace(/&amp;/g, "&")
-  text = text.replace(/&lt;/g, "<")
-  text = text.replace(/&gt;/g, ">")
-  text = text.replace(/&quot;/g, '"')
-  text = text.replace(/&#39;/g, "'")
-  text = text.replace(/&nbsp;/g, " ")
+  text = text.replaceAll("&amp;", "&")
+  text = text.replaceAll("&lt;", "<")
+  text = text.replaceAll("&gt;", ">")
+  text = text.replaceAll("&quot;", '"')
+  text = text.replaceAll("&#39;", "'")
+  text = text.replaceAll("&nbsp;", " ")
   // Clean up excess newlines
-  text = text.replace(/\n{3,}/g, "\n\n")
+  text = text.replaceAll(/\n{3,}/g, "\n\n")
   return text.trim()
 }
 

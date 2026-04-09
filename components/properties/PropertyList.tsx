@@ -18,7 +18,10 @@ type SortDir = "asc" | "desc"
 
 function CollectionBadge({ pct }: { pct: number | null }) {
   if (pct == null) return <span className="text-muted-foreground text-xs">—</span>
-  const cls = pct >= 95 ? "text-green-500" : pct >= 85 ? "text-amber-500" : "text-red-500"
+  let cls: string
+  if (pct >= 95) { cls = "text-green-500" }
+  else if (pct >= 85) { cls = "text-amber-500" }
+  else { cls = "text-red-500" }
   return <span className={cn("text-xs font-medium", cls)}>{pct}%</span>
 }
 
@@ -115,7 +118,14 @@ export function PropertyList({ properties, view, tier, totalUnitCount }: Props) 
             const occupied = activeUnits.filter(u => u.status === "occupied").length
             const total = activeUnits.length
             const occPct = total > 0 ? Math.round((occupied / total) * 100) : 0
-            const occClass = occPct >= 90 ? "text-green-500" : occPct >= 70 ? "text-amber-500" : "text-red-500"
+            let occClass: string
+            if (occPct >= 90) { occClass = "text-green-500" }
+            else if (occPct >= 70) { occClass = "text-amber-500" }
+            else { occClass = "text-red-500" }
+            let occBarColor: string
+            if (occPct >= 90) { occBarColor = "bg-green-500" }
+            else if (occPct >= 70) { occBarColor = "bg-amber-500" }
+            else { occBarColor = "bg-red-500" }
             const rentRoll = activeUnits.reduce((s, u) =>
               s + (u.leases.find(l => l.status === "active")?.rent_amount_cents ?? 0), 0)
 
@@ -148,7 +158,7 @@ export function PropertyList({ properties, view, tier, totalUnitCount }: Props) 
                   <div className="flex items-center gap-2">
                     <div className="w-12 h-1.5 rounded-full bg-border overflow-hidden">
                       <div
-                        className={cn("h-full rounded-full", occPct >= 90 ? "bg-green-500" : occPct >= 70 ? "bg-amber-500" : "bg-red-500")}
+                        className={cn("h-full rounded-full", occBarColor)}
                         style={{ width: `${occPct}%` }}
                       />
                     </div>

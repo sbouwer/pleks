@@ -57,6 +57,7 @@ function parseMigrations() {
 
     // --- ALTER TABLE tablename ADD COLUMN [IF NOT EXISTS] colname ---
     // Also handles chained: ALTER TABLE t ADD COLUMN a …, ADD COLUMN b …
+    // eslint-disable-next-line sonarjs/slow-regex -- dev-only script; pattern complexity needed to match chained ADD COLUMN in a single pass
     const addColRe = /alter\s+table\s+(?:if\s+exists\s+)?(?:public\.)?(\w+)((?:\s+add\s+column\s+(?:if\s+not\s+exists\s+)?\w[^,;]*[,;]?)+)/g
     while ((m = addColRe.exec(clean)) !== null) {
       const tname = m[1]

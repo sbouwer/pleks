@@ -19,6 +19,82 @@ function displayName(row: TenantRow): string | null {
     : [row.first_name, row.last_name].filter(Boolean).join(" ") || null
 }
 
+type SupabaseService = Awaited<ReturnType<typeof createServiceClient>>
+
+interface OwnerPrefillResult {
+  propertyId: string
+  unitId: string
+  tenantId: string | null
+  resolvedTenantName: string | null
+  resolvedCoTenants: { id: string; name: string }[]
+}
+
+type ProspectiveTenantResult = { tenantId: string; resolvedTenantName: string | null; resolvedCoTenants: { id: string; name: string }[] } | null
+
+async function resolveProspectiveTenant(
+  supabase: SupabaseService,
+  prospectiveTenantId: string,
+  prospCoIds: string[],
+): Promise<ProspectiveTenantResult> {
+  const fetchCoTenant = (id: string) =>
+    supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", id).single()
+      .then((r) => ({ id, data: r.data as TenantRow }))
+
+  const [primRes, ...coResArr] = await Promise.all([
+    supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", prospectiveTenantId).single(),
+    ...prospCoIds.map(fetchCoTenant),
+  ])
+  if (!primRes.data) return null
+  return {
+    tenantId: prospectiveTenantId,
+    resolvedTenantName: displayName(primRes.data as TenantRow),
+    resolvedCoTenants: coResArr.map((r) => ({ id: r.id, name: displayName(r.data) ?? r.id })),
+  }
+}
+
+async function prefillOwnerTier(
+  supabase: SupabaseService,
+  orgId: string,
+  existingTenantId: string | null,
+): Promise<OwnerPrefillResult | null> {
+  const { data: ownerProp } = await supabase
+    .from("properties")
+    .select("id")
+    .eq("org_id", orgId)
+    .is("deleted_at", null)
+    .limit(1)
+    .single()
+  if (!ownerProp) return null
+
+  const { data: ownerUnit } = await supabase
+    .from("units")
+    .select("id, prospective_tenant_id, prospective_co_tenant_ids")
+    .eq("property_id", ownerProp.id)
+    .is("deleted_at", null)
+    .eq("is_archived", false)
+    .limit(1)
+    .single()
+
+  const u = ownerUnit as unknown as { id: string; prospective_tenant_id?: string | null; prospective_co_tenant_ids?: string[] } | null
+  const noTenantResult: OwnerPrefillResult = { propertyId: ownerProp.id, unitId: u?.id ?? "", tenantId: null, resolvedTenantName: null, resolvedCoTenants: [] }
+
+  if (!u) return noTenantResult
+  if (existingTenantId || !u.prospective_tenant_id) return noTenantResult
+
+  const resolved = await resolveProspectiveTenant(supabase, u.prospective_tenant_id, u.prospective_co_tenant_ids ?? [])
+  if (!resolved) return noTenantResult
+  return { propertyId: ownerProp.id, unitId: u.id, ...resolved }
+}
+
+function buildUnitLabel(unitData: { unit_number: string | null; bedrooms: number | null; bathrooms: number | null } | null): string | null {
+  if (!unitData) return null
+  return [
+    unitData.unit_number ? `Unit ${unitData.unit_number}` : "Unit",
+    unitData.bedrooms ? `${unitData.bedrooms} bed` : null,
+    unitData.bathrooms ? `${unitData.bathrooms} bath` : null,
+  ].filter(Boolean).join(" — ")
+}
+
 export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
   const membership = await getServerOrgMembership()
   if (!membership) redirect("/login")
@@ -40,46 +116,13 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
 
   // Owner tier: auto-prefill the single property + unit (and prospective tenant)
   if (!propertyId && membership.tier === "owner") {
-    const { data: ownerProp } = await supabase
-      .from("properties")
-      .select("id")
-      .eq("org_id", orgId)
-      .is("deleted_at", null)
-      .limit(1)
-      .single()
-
-    if (ownerProp) {
-      propertyId = ownerProp.id
-
-      const { data: ownerUnit } = await supabase
-        .from("units")
-        .select("id, prospective_tenant_id, prospective_co_tenant_ids")
-        .eq("property_id", ownerProp.id)
-        .is("deleted_at", null)
-        .eq("is_archived", false)
-        .limit(1)
-        .single()
-
-      if (ownerUnit) {
-        const u = ownerUnit as unknown as { id: string; prospective_tenant_id?: string | null; prospective_co_tenant_ids?: string[] }
-        unitId = u.id
-
-        if (!tenantId && u.prospective_tenant_id) {
-          const prospCoIds = u.prospective_co_tenant_ids ?? []
-          const [primRes, ...coResArr] = await Promise.all([
-            supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", u.prospective_tenant_id).single(),
-            ...prospCoIds.map((id) =>
-              supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", id).single()
-                .then((r) => ({ id, data: r.data as TenantRow }))
-            ),
-          ])
-          if (primRes.data) {
-            tenantId = u.prospective_tenant_id
-            resolvedTenantName = displayName(primRes.data as TenantRow)
-            resolvedCoTenants = coResArr.map((r) => ({ id: r.id, name: displayName(r.data) ?? r.id }))
-          }
-        }
-      }
+    const prefill = await prefillOwnerTier(supabase, orgId, tenantId)
+    if (prefill) {
+      propertyId = prefill.propertyId
+      if (prefill.unitId) unitId = prefill.unitId
+      if (prefill.tenantId) tenantId = prefill.tenantId
+      resolvedTenantName = prefill.resolvedTenantName
+      resolvedCoTenants = prefill.resolvedCoTenants
     }
   }
 
@@ -102,13 +145,7 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
 
   const propName = propRes.data?.name ?? null
   const unitData = unitRes.data as { unit_number: string | null; bedrooms: number | null; bathrooms: number | null } | null
-  const unitLabel = unitData
-    ? [
-        unitData.unit_number ? `Unit ${unitData.unit_number}` : "Unit",
-        unitData.bedrooms ? `${unitData.bedrooms} bed` : null,
-        unitData.bathrooms ? `${unitData.bathrooms} bath` : null,
-      ].filter(Boolean).join(" — ")
-    : null
+  const unitLabel = buildUnitLabel(unitData)
 
   const finalTenantName = resolvedTenantName ?? displayName(tenantRes.data as TenantRow)
   const finalCoTenants = resolvedCoTenants.length > 0

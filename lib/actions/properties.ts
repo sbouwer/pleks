@@ -38,9 +38,10 @@ export async function createProperty(formData: FormData) {
 
   // Auto-create default building (transparent for single-building properties)
   const propertyType = formData.get("type") as string || "residential"
-  const buildingType = propertyType === "residential" ? "residential"
-    : propertyType === "commercial" ? "commercial"
-    : "mixed_use"
+  let buildingType: string
+  if (propertyType === "residential") { buildingType = "residential" }
+  else if (propertyType === "commercial") { buildingType = "commercial" }
+  else { buildingType = "mixed_use" }
 
   await db.from("buildings").insert({
     org_id: orgId,

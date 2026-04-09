@@ -322,7 +322,7 @@ export function BatchPaymentEntry() {
         <Button
           size="sm"
           onClick={handleRecordAll}
-          disabled={isPending || rows.every((r) => !(Number.parseFloat(r.amount) > 0))}
+          disabled={isPending || rows.every((r) => Number.parseFloat(r.amount) <= 0)}
         >
           {isPending ? "Recording…" : "Record all payments"}
         </Button>

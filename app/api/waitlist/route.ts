@@ -4,7 +4,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 export async function POST(req: NextRequest) {
   const { email, role } = await req.json()
 
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  if (!email || !/^[^\s@]{1,64}@[^\s@]{1,253}\.[^\s@]{2,63}$/.test(email)) {
     return NextResponse.json({ error: "Valid email required" }, { status: 400 })
   }
 

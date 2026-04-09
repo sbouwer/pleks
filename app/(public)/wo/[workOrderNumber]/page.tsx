@@ -79,11 +79,17 @@ export default async function WorkOrderPage({ params, searchParams }: Props) {
         <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 space-y-3">
           <div className="flex items-start justify-between gap-3">
             <h2 className="font-semibold">{req.title}</h2>
-            {req.urgency && (
-              <span className={`text-xs font-bold shrink-0 ${req.urgency === "emergency" ? "text-danger" : req.urgency === "urgent" ? "text-warning" : "text-muted-foreground"}`}>
-                {URGENCY_LABEL[req.urgency] ?? req.urgency.toUpperCase()}
-              </span>
-            )}
+            {req.urgency && (() => {
+              let urgencyClass: string
+              if (req.urgency === "emergency") { urgencyClass = "text-danger" }
+              else if (req.urgency === "urgent") { urgencyClass = "text-warning" }
+              else { urgencyClass = "text-muted-foreground" }
+              return (
+                <span className={`text-xs font-bold shrink-0 ${urgencyClass}`}>
+                  {URGENCY_LABEL[req.urgency] ?? req.urgency.toUpperCase()}
+                </span>
+              )
+            })()}
           </div>
           {req.description && (
             <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">{req.description}</p>

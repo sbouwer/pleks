@@ -36,11 +36,8 @@ export async function syncUnitClauseProfile(
   // Auto-mapped clauses: ensure enabled with auto_set=true
   for (const clauseKey of autoClauses) {
     const entry = existingMap.get(clauseKey)
-    if (!entry) {
-      // New mapping — create
-      toUpsert.push({ unit_id: unitId, org_id: orgId, clause_key: clauseKey, enabled: true, auto_set: true })
-    } else if (entry.auto_set && !entry.enabled) {
-      // Was auto-set but disabled (feature removed then re-added) — re-enable
+    if (!entry || (entry.auto_set && !entry.enabled)) {
+      // New mapping, or was auto-set but disabled (feature removed then re-added) — create/re-enable
       toUpsert.push({ unit_id: unitId, org_id: orgId, clause_key: clauseKey, enabled: true, auto_set: true })
     }
     // entry.auto_set === false → manual override, never touch

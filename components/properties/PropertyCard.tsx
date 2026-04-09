@@ -17,14 +17,15 @@ interface PropertyCardProps {
 
 function OccupancyBar({ occupied, total }: { occupied: number; total: number }) {
   const pct = total > 0 ? (occupied / total) * 100 : 0
+  let barColor: string
+  if (pct >= 90) { barColor = "bg-green-500" }
+  else if (pct >= 70) { barColor = "bg-amber-500" }
+  else { barColor = "bg-red-500" }
   return (
     <div className="flex items-center gap-1.5">
       <div className="w-14 h-1.5 rounded-full bg-border overflow-hidden">
         <div
-          className={cn(
-            "h-full rounded-full transition-all",
-            pct >= 90 ? "bg-green-500" : pct >= 70 ? "bg-amber-500" : "bg-red-500"
-          )}
+          className={cn("h-full rounded-full transition-all", barColor)}
           style={{ width: `${pct}%` }}
         />
       </div>

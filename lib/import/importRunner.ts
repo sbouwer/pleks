@@ -602,6 +602,61 @@ async function linkTenantToLease(
   }
 }
 
+async function resolveTenantIdForHistory(
+  email: string,
+  entry: UnitGroupEntry,
+  ctx: ImportContext,
+): Promise<string | undefined> {
+  // 1. Check cache
+  const cached = ctx.tenantIdCache.get(email)
+  if (cached) return cached
+
+  // 2. Try existing contact → tenant
+  const { data: existingContact } = await ctx.supabase
+    .from("contacts").select("id").eq("org_id", ctx.orgId).ilike("primary_email", email).limit(1).single()
+
+  if (existingContact) {
+    const { data: existingTenant } = await ctx.supabase
+      .from("tenants").select("id").eq("contact_id", existingContact.id).limit(1).single()
+    if (existingTenant) {
+      const tenantId = String(existingTenant.id)
+      ctx.tenantIdCache.set(email, tenantId)
+      return tenantId
+    }
+  }
+
+  // 3. Create contact + tenant for the previous tenant
+  const { firstName, lastName, companyName: prevTenantCompany } = resolveName(entry.row, ctx.mapping)
+  const prevDisplay = prevTenantCompany || `${firstName} ${lastName}`.trim()
+  const { data: contact } = await ctx.supabase
+    .from("contacts")
+    .insert({
+      org_id: ctx.orgId,
+      entity_type: resolveEntityType(prevTenantCompany, prevDisplay),
+      primary_role: "tenant",
+      first_name: firstName || (prevTenantCompany ? null : "Unknown"),
+      last_name: lastName || (prevTenantCompany ? null : "Unknown"),
+      company_name: prevTenantCompany || null,
+      primary_email: email,
+    })
+    .select("id").single()
+
+  if (contact) {
+    const { data: tenant } = await ctx.supabase
+      .from("tenants")
+      .insert({ org_id: ctx.orgId, contact_id: contact.id })
+      .select("id").single()
+
+    if (tenant) {
+      const tenantId = String(tenant.id)
+      ctx.tenantIdCache.set(email, tenantId)
+      return tenantId
+    }
+  }
+
+  return undefined
+}
+
 async function createTenancyHistory(
   entry: UnitGroupEntry,
   unitId: string,
@@ -611,53 +666,8 @@ async function createTenancyHistory(
   const leaseStart = getField(entry.row, "lease_start", ctx.mapping)
   const leaseEnd = getField(entry.row, "lease_end", ctx.mapping)
 
-  // Need a tenant_id — check cache or create contact+tenant
-  let tenantId = email ? ctx.tenantIdCache.get(email) : undefined
-
-  if (!tenantId && email) {
-    // Try to find existing contact
-    const { data: existingContact } = await ctx.supabase
-      .from("contacts").select("id").eq("org_id", ctx.orgId).ilike("primary_email", email).limit(1).single()
-
-    if (existingContact) {
-      const { data: existingTenant } = await ctx.supabase
-        .from("tenants").select("id").eq("contact_id", existingContact.id).limit(1).single()
-      if (existingTenant) {
-        tenantId = String(existingTenant.id)
-        ctx.tenantIdCache.set(email, tenantId)
-      }
-    }
-
-    if (!tenantId) {
-      // Create contact + tenant for the previous tenant
-      const { firstName, lastName, companyName: prevTenantCompany } = resolveName(entry.row, ctx.mapping)
-      const prevDisplay = prevTenantCompany || `${firstName} ${lastName}`.trim()
-      const { data: contact } = await ctx.supabase
-        .from("contacts")
-        .insert({
-          org_id: ctx.orgId,
-          entity_type: resolveEntityType(prevTenantCompany, prevDisplay),
-          primary_role: "tenant",
-          first_name: firstName || (prevTenantCompany ? null : "Unknown"),
-          last_name: lastName || (prevTenantCompany ? null : "Unknown"),
-          company_name: prevTenantCompany || null,
-          primary_email: email,
-        })
-        .select("id").single()
-
-      if (contact) {
-        const { data: tenant } = await ctx.supabase
-          .from("tenants")
-          .insert({ org_id: ctx.orgId, contact_id: contact.id })
-          .select("id").single()
-
-        if (tenant) {
-          tenantId = String(tenant.id)
-          ctx.tenantIdCache.set(email, tenantId)
-        }
-      }
-    }
-  }
+  // Need a tenant_id — check cache or resolve/create
+  const tenantId = email ? await resolveTenantIdForHistory(email, entry, ctx) : undefined
 
   if (!tenantId) {
     ctx.result.errors.push({ rowIndex: entry.index, field: "tenancy_history", message: "Cannot create history without tenant email", severity: "warning" })
@@ -867,6 +877,58 @@ function buildBankNotes(
   return parts.length > 0 ? parts.join("\n") : null
 }
 
+function resolveSupplierType(row: Record<string, string>, mapping: ColumnMapping): string {
+  const normalizedType = getField(row, "__entity_type", mapping)
+    .toLowerCase().trim()
+    .replace(/\b(individual|person|company|organisation|organization|cc|pty\s*ltd|ltd|inc)\b/g, "")
+    .replace(/[-_]/g, " ").replace(/\s+/g, " ").trim()
+
+  if (normalizedType === "managing scheme" || normalizedType === "body corporate") {
+    return "managing_scheme"
+  }
+  if (
+    normalizedType === "utility" ||
+    normalizedType === "utilities" ||
+    normalizedType === "municipality" ||
+    normalizedType === "munisipaliteit" ||
+    normalizedType === "munisipalite"
+  ) {
+    return "utility"
+  }
+  return "contractor"
+}
+
+async function isExistingVendor(
+  email: string,
+  displayName: string,
+  orgId: string,
+  supabase: SupabaseClient,
+): Promise<boolean> {
+  if (email) {
+    const { data: byEmail } = await supabase
+      .from("contractor_view")
+      .select("id")
+      .eq("org_id", orgId)
+      .ilike("email", email)
+      .limit(1)
+      .single()
+    if (byEmail) return true
+  }
+
+  if (displayName) {
+    const { data: byName } = await supabase
+      .from("contractor_view")
+      .select("id")
+      .eq("org_id", orgId)
+      .ilike("company_name", displayName)
+      .limit(1)
+      .single()
+    if (byName) return true
+  }
+
+  return false
+}
+
 async function importVendors(
   vendorRows: Record<string, string>[],
   ctx: ImportContext
@@ -885,36 +947,9 @@ async function importVendors(
     if (email) seenEmails.add(email)
 
     try {
-      // Dedup by email against existing contractors
-      if (email) {
-        const { data: existingByEmail } = await ctx.supabase
-          .from("contractor_view")
-          .select("id")
-          .eq("org_id", ctx.orgId)
-          .ilike("email", email)
-          .limit(1)
-          .single()
-
-        if (existingByEmail) {
-          ctx.result.skipped++
-          continue
-        }
-      }
-
-      // Dedup by name against existing contractors
-      if (displayName) {
-        const { data: existingByName } = await ctx.supabase
-          .from("contractor_view")
-          .select("id")
-          .eq("org_id", ctx.orgId)
-          .ilike("company_name", displayName)
-          .limit(1)
-          .single()
-
-        if (existingByName) {
-          ctx.result.skipped++
-          continue
-        }
+      if (await isExistingVendor(email, displayName, ctx.orgId, ctx.supabase)) {
+        ctx.result.skipped++
+        continue
       }
 
       const phone = getField(row, "phone", ctx.mapping) || null
@@ -949,16 +984,7 @@ async function importVendors(
         continue
       }
 
-      const normalizedType = getField(row, "__entity_type", ctx.mapping)
-        .toLowerCase().trim()
-        .replace(/\b(individual|person|company|organisation|organization|cc|pty\s*ltd|ltd|inc)\b/g, "")
-        .replace(/[-_]/g, " ").replace(/\s+/g, " ").trim()
-      const supplierType =
-        normalizedType === "managing scheme" || normalizedType === "body corporate"
-          ? "managing_scheme"
-          : normalizedType === "utility" || normalizedType === "utilities" || normalizedType === "municipality" || normalizedType === "munisipaliteit" || normalizedType === "munisipalite"
-            ? "utility"
-            : "contractor"
+      const supplierType = resolveSupplierType(row, ctx.mapping)
 
       const { error } = await ctx.supabase.from("contractors").insert({
         org_id: ctx.orgId,

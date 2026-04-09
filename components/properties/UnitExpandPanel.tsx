@@ -41,11 +41,10 @@ function DetailRow({ label, value }: { label: string; value: string | number | n
 export function UnitExpandPanel({ unit, propertyId, propertyType, onArchive, onCreateListing, hideArchive = false, hasActiveLease = false }: UnitExpandPanelProps) {
   const fields = getVisibleFields(propertyType as "residential" | "commercial" | "mixed")
 
-  const floorLabel = unit.floor == null
-    ? null
-    : unit.floor === 0
-    ? "Ground floor"
-    : `Floor ${unit.floor}`
+  let floorLabel: string | null
+  if (unit.floor == null) { floorLabel = null }
+  else if (unit.floor === 0) { floorLabel = "Ground floor" }
+  else { floorLabel = `Floor ${unit.floor}` }
 
   return (
     <div className="border-t border-border/40 bg-surface/30 px-4 py-4">

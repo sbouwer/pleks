@@ -13,9 +13,10 @@ export function generateListingSlug(
     .filter(Boolean)
     .join("-")
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
+    .replaceAll(/[^a-z0-9]+/g, "-")
+    .replaceAll(/^-|-$/g, "")
 
-  const suffix = Math.random().toString(36).substring(2, 6)
+  const bytes = crypto.getRandomValues(new Uint8Array(2))
+  const suffix = Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("")
   return `${base}-${suffix}`
 }

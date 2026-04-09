@@ -1,5 +1,6 @@
 "use client"
 
+import React from "react"
 import { useQuery } from "@tanstack/react-query"
 import { LandlordsClient } from "./LandlordsClient"
 import { AddLandlordForm } from "./AddLandlordForm"
@@ -15,6 +16,19 @@ export function LandlordsPageClient({ orgId, role }: Props) {
     staleTime: STALE_TIME.landlords,
   })
 
+  let body: React.ReactNode = null
+  if (!isLoading) {
+    if (landlords.length === 0) {
+      body = (
+        <p className="text-sm text-muted-foreground py-8 text-center">
+          No landlords yet. Import contacts or add one using the button above.
+        </p>
+      )
+    } else {
+      body = <LandlordsClient landlords={landlords} userRole={role} />
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -24,13 +38,7 @@ export function LandlordsPageClient({ orgId, role }: Props) {
         </div>
         <AddLandlordForm orgId={orgId} />
       </div>
-      {!isLoading && landlords.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-8 text-center">
-          No landlords yet. Import contacts or add one using the button above.
-        </p>
-      ) : isLoading ? null : (
-        <LandlordsClient landlords={landlords} userRole={role} />
-      )}
+      {body}
     </div>
   )
 }

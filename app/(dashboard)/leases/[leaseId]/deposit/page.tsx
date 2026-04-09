@@ -73,6 +73,7 @@ export default async function DepositReconPage({
   const deadline = timer?.deadline ? new Date(timer.deadline) : null
   const daysRemaining = deadline ? Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null
   const isOverdue = daysRemaining !== null && daysRemaining < 0
+  const timerBadgeVariant: "destructive" | "secondary" = (isOverdue || (daysRemaining !== null && daysRemaining <= 3)) ? "destructive" : "secondary"
 
   const statusColors: Record<string, string> = {
     draft: "bg-gray-100 text-gray-700",
@@ -111,7 +112,7 @@ export default async function DepositReconPage({
             {recon.status.replace(/_/g, " ")}
           </Badge>
           {timer && (
-            <Badge variant={isOverdue ? "destructive" : daysRemaining! <= 3 ? "destructive" : "secondary"}>
+            <Badge variant={timerBadgeVariant}>
               {isOverdue
                 ? `OVERDUE by ${Math.abs(daysRemaining!)}d`
                 : `${daysRemaining}d remaining`

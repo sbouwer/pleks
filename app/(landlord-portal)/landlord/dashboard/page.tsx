@@ -61,7 +61,10 @@ export default async function LandlordDashboardPage() {
   const monthlyIncome = (leases ?? []).reduce((sum, l) => sum + (l.rent_amount_cents ?? 0), 0)
 
   const hour = new Date().getHours()
-  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening"
+  let greeting: string
+  if (hour < 12) { greeting = "Good morning" }
+  else if (hour < 17) { greeting = "Good afternoon" }
+  else { greeting = "Good evening" }
   const firstName = session.displayName.split(" ")[0]
 
   return (
@@ -145,10 +148,15 @@ export default async function LandlordDashboardPage() {
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Active maintenance</p>
             <Link href="/landlord/maintenance" className="text-xs text-brand hover:underline">View all</Link>
           </div>
-          {(activeMaintenance ?? []).map((req) => (
+          {(activeMaintenance ?? []).map((req) => {
+            let urgencyDot: string
+            if (req.urgency === "emergency") { urgencyDot = "bg-danger" }
+            else if (req.urgency === "urgent") { urgencyDot = "bg-warning" }
+            else { urgencyDot = "bg-info" }
+            return (
             <Link key={req.id} href={`/landlord/maintenance/${req.id}`} className="flex items-center justify-between gap-3 py-1.5 group">
               <div className="flex items-center gap-2 min-w-0">
-                <div className={`h-2 w-2 rounded-full shrink-0 ${req.urgency === "emergency" ? "bg-danger" : req.urgency === "urgent" ? "bg-warning" : "bg-info"}`} />
+                <div className={`h-2 w-2 rounded-full shrink-0 ${urgencyDot}`} />
                 <p className="text-sm truncate">{req.title}</p>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
@@ -156,7 +164,7 @@ export default async function LandlordDashboardPage() {
                 <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-muted-foreground" />
               </div>
             </Link>
-          ))}
+          )})}
         </div>
       )}
 

@@ -67,7 +67,7 @@ function estimatePageCount(clauses: PreviewClause[]): number {
   let totalChars = 0
   for (const clause of clauses) {
     totalChars += 50 // heading overhead
-    totalChars += clause.body.replaceAll(/<[^>]+>/g, "").length
+    totalChars += clause.body.replaceAll(/<[^>]{0,1000}>/g, "").length
   }
   return 1 + Math.ceil(totalChars / CHARS_PER_PAGE) + 4 // cover + body pages + 4 annexures
 }

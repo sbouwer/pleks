@@ -16,10 +16,10 @@ interface ArrearsCase {
 }
 
 interface PaymentStatusProps {
-  leaseId: string
-  balanceCents: number | null
-  recentPayments: Payment[]
-  arrearsCase: ArrearsCase | null
+  readonly leaseId: string
+  readonly balanceCents: number | null
+  readonly recentPayments: Payment[]
+  readonly arrearsCase: ArrearsCase | null
 }
 
 export function PaymentStatus({
@@ -31,6 +31,8 @@ export function PaymentStatus({
   const balance = balanceCents ?? 0
   const inArrears = balance > 0 || !!arrearsCase
   const months = arrearsCase?.months_in_arrears ?? 0
+  const monthPlural = months === 1 ? "" : "s"
+  const arrearsLabel = inArrears ? `${months} month${monthPlural} arrears` : "Good standing"
 
   return (
     <div className="rounded-xl border bg-card">
@@ -60,7 +62,7 @@ export function PaymentStatus({
                 : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
             }`}
           >
-            {inArrears ? `${months} month${months !== 1 ? "s" : ""} arrears` : "Good standing"}
+            {arrearsLabel}
           </span>
         </div>
 

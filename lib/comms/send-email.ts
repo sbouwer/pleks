@@ -147,11 +147,14 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailResul
   // 2. Fetch org settings for branding + from address
   const orgSettings = await fetchOrgSettings(params.orgId)
 
-  const fromAddress = orgSettings?.custom_from_address
-    ? `${orgSettings.name} <${orgSettings.custom_from_address}>`
-    : orgSettings?.name
-      ? `${orgSettings.name} via Pleks <notifications@pleks.co.za>`
-      : DEFAULT_FROM
+  let fromAddress: string
+  if (orgSettings?.custom_from_address) {
+    fromAddress = `${orgSettings.name} <${orgSettings.custom_from_address}>`
+  } else if (orgSettings?.name) {
+    fromAddress = `${orgSettings.name} via Pleks <notifications@pleks.co.za>`
+  } else {
+    fromAddress = DEFAULT_FROM
+  }
 
   const replyTo = params.replyTo ?? orgSettings?.reply_to_email ?? orgSettings?.email ?? REPLY_TO_DEFAULT
 

@@ -177,9 +177,10 @@ export async function matchAI(
 
   try {
     // Extract JSON — Haiku may wrap it in markdown fences
-    const jsonMatch = /\{[\s\S]*\}/.exec(rawText)
-    if (!jsonMatch) return null
-    const result = JSON.parse(jsonMatch[0]) as { match: number | null; confidence: number; reason: string }
+    const jsonStart = rawText.indexOf("{")
+    const jsonEnd = rawText.lastIndexOf("}")
+    if (jsonStart === -1 || jsonEnd <= jsonStart) return null
+    const result = JSON.parse(rawText.slice(jsonStart, jsonEnd + 1)) as { match: number | null; confidence: number; reason: string }
     if (!result.match || result.confidence < 0.65) return null
     const matched = invoices[result.match - 1]
     if (!matched) return null

@@ -240,6 +240,7 @@ export function AGMManager({ hoaId, initialRecords }: Readonly<Props>) {
           {records.map((agm) => {
             const isExpanded = expanded[agm.id]
             const nextStatus = STATUS_FLOW[STATUS_FLOW.indexOf(agm.status) + 1]
+            const quorumText = agm.quorum_achieved ? " — quorum achieved" : " — quorum not achieved"
             return (
               <Card key={agm.id}>
                 <CardContent className="pt-4">
@@ -257,7 +258,7 @@ export function AGMManager({ hoaId, initialRecords }: Readonly<Props>) {
                       {agm.attendees_count != null && (
                         <p className="text-xs text-muted-foreground">
                           {agm.attendees_count} attendees
-                          {agm.quorum_achieved != null ? (agm.quorum_achieved ? " — quorum achieved" : " — quorum not achieved") : ""}
+                          {agm.quorum_achieved != null ? quorumText : ""}
                         </p>
                       )}
                     </div>

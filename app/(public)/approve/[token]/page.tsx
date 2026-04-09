@@ -42,6 +42,10 @@ export default async function LandlordApprovalPage({ params }: Props) {
 
   // Already actioned
   if (req.status === "landlord_approved" || req.status === "landlord_rejected") {
+    const rejectionSuffix = req.landlord_rejection_reason ? `: ${req.landlord_rejection_reason}` : "."
+    const alreadyActionedMsg = req.status === "landlord_approved"
+      ? "You have already approved this maintenance request."
+      : `You have already rejected this request${rejectionSuffix}`
     return (
       <div className="min-h-screen bg-background">
         <div className="max-w-lg mx-auto px-4 py-8 space-y-6">
@@ -51,9 +55,7 @@ export default async function LandlordApprovalPage({ params }: Props) {
               {req.status === "landlord_approved" ? "✅ Approved" : "❌ Rejected"}
             </p>
             <p className="text-sm text-muted-foreground">
-              {req.status === "landlord_approved"
-                ? "You have already approved this maintenance request."
-                : `You have already rejected this request${req.landlord_rejection_reason ? `: ${req.landlord_rejection_reason}` : "."}`}
+              {alreadyActionedMsg}
             </p>
           </div>
         </div>

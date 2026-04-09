@@ -123,7 +123,7 @@ export async function GET(req: Request) {
       case_id: arrearsCase.id,
       step_number: nextStep,
       action_type: step.action_type,
-      channel: step.action_type === "sms" ? "sms" : step.action_type === "whatsapp" ? "whatsapp" : "email",
+      channel: step.action_type === "sms" || step.action_type === "whatsapp" ? step.action_type : "email",
       subject: `Arrears step ${nextStep}: ${step.action_type} (${step.tone})`,
       ai_drafted: step.ai_draft,
       // TODO: Generate AI draft via Sonnet/Opus and send

@@ -204,13 +204,11 @@ export default async function LeaseDetailPage({
           )}
           {/* Badges */}
           <div className="mt-2 flex flex-wrap gap-1.5">
-            <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${
-              ["active", "month_to_month"].includes(lease.status)
-                ? "bg-emerald-100 text-emerald-700"
-                : lease.status === "notice"
-                ? "bg-purple-100 text-purple-700"
-                : "bg-muted text-muted-foreground"
-            }`}>
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${(() => {
+              if (["active", "month_to_month"].includes(lease.status)) return "bg-emerald-100 text-emerald-700"
+              if (lease.status === "notice") return "bg-purple-100 text-purple-700"
+              return "bg-muted text-muted-foreground"
+            })()}`}>
               {lease.status.replaceAll("_", " ")}
             </span>
             <Badge variant="outline" className="text-xs capitalize">{lease.lease_type}</Badge>

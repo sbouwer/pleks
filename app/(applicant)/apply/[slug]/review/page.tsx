@@ -33,6 +33,20 @@ interface AppData {
   } | null
 }
 
+function getPrescreenLabel(score: number): string {
+  if (score >= 38) return "Strong"
+  if (score >= 30) return "Good"
+  if (score >= 22) return "Borderline"
+  return "Insufficient"
+}
+
+function getPrescreenBarColor(score: number): string {
+  if (score >= 38) return "bg-green-500"
+  if (score >= 30) return "bg-blue-500"
+  if (score >= 22) return "bg-yellow-500"
+  return "bg-red-500"
+}
+
 export default function ReviewPage() {
   const router = useRouter()
   const params = useParams()
@@ -100,9 +114,8 @@ export default function ReviewPage() {
   const unit = listing?.units as unknown as { unit_number: string; properties: { name: string; city: string | null } } | null
   const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "—"
   const prescreenScore = app.prescreen_score
-  const prescreenLabel = prescreenScore != null
-    ? prescreenScore >= 38 ? "Strong" : prescreenScore >= 30 ? "Good" : prescreenScore >= 22 ? "Borderline" : "Insufficient"
-    : null
+  const prescreenLabel = prescreenScore != null ? getPrescreenLabel(prescreenScore) : null
+  const prescreenBarColor = prescreenScore != null ? getPrescreenBarColor(prescreenScore) : "bg-red-500"
   const rentToIncome = app.gross_monthly_income_cents && listing?.asking_rent_cents
     ? ((listing.asking_rent_cents / app.gross_monthly_income_cents) * 100).toFixed(1)
     : null
@@ -174,7 +187,7 @@ export default function ReviewPage() {
             </div>
             <div className="h-2 rounded-full bg-muted overflow-hidden">
               <div
-                className={`h-full rounded-full transition-all ${prescreenScore >= 38 ? "bg-green-500" : prescreenScore >= 30 ? "bg-blue-500" : prescreenScore >= 22 ? "bg-yellow-500" : "bg-red-500"}`}
+                className={`h-full rounded-full transition-all ${prescreenBarColor}`}
                 style={{ width: `${(prescreenScore / 45) * 100}%` }}
               />
             </div>

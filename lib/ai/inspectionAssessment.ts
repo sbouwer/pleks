@@ -167,9 +167,10 @@ Return ONLY the JSON array.`,
     })
 
     const responseText = message.content[0].type === "text" ? message.content[0].text : ""
-    const jsonMatch = /\[[\s\S]*\]/.exec(responseText)
+    const jsonStart = responseText.indexOf("[")
+    const jsonEnd = responseText.lastIndexOf("]")
 
-    if (!jsonMatch) {
+    if (jsonStart === -1 || jsonEnd <= jsonStart) {
       return mapped.map((item) => ({
         item_id: item.id,
         classification: "requires_review",
@@ -178,7 +179,7 @@ Return ONLY the JSON array.`,
       }))
     }
 
-    const parsed = JSON.parse(jsonMatch[0]) as Array<{
+    const parsed = JSON.parse(responseText.slice(jsonStart, jsonEnd + 1)) as Array<{
       item_index: number
       classification: string
       deduction_cents: number

@@ -51,6 +51,7 @@ export default function CompliancePage() {
   if (!org) return null
 
   const isPractitioner = org.management_scope === "own_and_others" || org.management_scope === "others_only"
+  const hasAccount = isPractitioner ? org.has_trust_account : org.has_deposit_account
 
   return (
     <div>
@@ -112,7 +113,7 @@ export default function CompliancePage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {(isPractitioner ? org.has_trust_account : org.has_deposit_account) ? (
+          {hasAccount ? (
             <div className="flex items-center gap-2">
               <Check className="h-4 w-4 text-success" />
               <span className="text-sm">Confirmed</span>
@@ -124,10 +125,7 @@ export default function CompliancePage() {
             </div>
           )}
           <Button variant="outline" size="sm" className="mt-3">
-            {(isPractitioner ? org.has_trust_account : org.has_deposit_account)
-              ? "Update Account"
-              : "Add Account"
-            }
+            {hasAccount ? "Update Account" : "Add Account"}
           </Button>
         </CardContent>
       </Card>

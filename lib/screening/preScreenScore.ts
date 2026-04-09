@@ -33,14 +33,16 @@ export function calculatePreScreenScore(
     else if (ratio <= 0.30) incomeScore = 80
     else if (ratio <= 0.35) incomeScore = 50
     else if (ratio <= 0.40) incomeScore = 25
-    else incomeScore = 0
+    // else: incomeScore stays 0 (initialised above)
   }
 
   // Employment stability (15% weight)
   const employmentScore = EMPLOYMENT_SCORE_MAP[employmentType ?? "other"] ?? 50
 
   // References (5% weight)
-  const refsScore = referenceCount >= 2 ? 100 : referenceCount === 1 ? 60 : 0
+  let refsScore = 0
+  if (referenceCount >= 2) refsScore = 100
+  else if (referenceCount === 1) refsScore = 60
 
   // Partial score out of 45 max (25% + 15% + 5%)
   const prescreenScore = Math.round(

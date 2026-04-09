@@ -97,7 +97,10 @@ export async function buildPortfolioSummary(filters: ReportFilters): Promise<Por
   const overdueJobs = maintenance.filter((m) => {
     if (!["open", "in_progress", "scheduled"].includes(m.status)) return false
     const created = new Date(m.created_at).getTime()
-    const slaHours = m.urgency === "emergency" ? 4 : m.urgency === "urgent" ? 24 : 168
+    let slaHours: number
+    if (m.urgency === "emergency") { slaHours = 4 }
+    else if (m.urgency === "urgent") { slaHours = 24 }
+    else { slaHours = 168 }
     return now - created > slaHours * 3600000
   }).length
   const maintSpend = maintenance

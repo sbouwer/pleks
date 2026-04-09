@@ -118,8 +118,10 @@ export function ListingCreateDialog({ open, onOpenChange, unit, property, orgId 
   }
 
   const listingUrl = publishedSlug ? `${APP_URL}/apply/${publishedSlug}` : ""
+  const cityPart = property.city ? `, ${property.city}` : ""
+  const availablePart = form.available_from ? ` · Available ${new Date(form.available_from).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })}` : ""
   const whatsappText = publishedSlug
-    ? encodeURIComponent(`Available to rent: ${unit.unit_number} at ${property.name}${property.city ? `, ${property.city}` : ""}\n${formatRent(form.asking_rent)}/month${form.available_from ? ` · Available ${new Date(form.available_from).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })}` : ""}\nApply here: ${listingUrl}`)
+    ? encodeURIComponent(`Available to rent: ${unit.unit_number} at ${property.name}${cityPart}\n${formatRent(form.asking_rent)}/month${availablePart}\nApply here: ${listingUrl}`)
     : ""
 
   async function copyUrl() {

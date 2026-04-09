@@ -107,7 +107,11 @@ export function AnnexuresStep({ data, onBack, onNext }: Readonly<Props>) {
   function formatDueDay(v: string) {
     if (v === "last_day") return "Last day of the month"
     if (v === "last_working_day") return "Last working day of the month"
-    return `${v}${v === "1" ? "st" : v === "3" ? "rd" : "th"} of each month`
+    let ordinalSuffix: string
+    if (v === "1") { ordinalSuffix = "st" }
+    else if (v === "3") { ordinalSuffix = "rd" }
+    else { ordinalSuffix = "th" }
+    return `${v}${ordinalSuffix} of each month`
   }
 
   return (

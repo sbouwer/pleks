@@ -62,19 +62,25 @@ export function IncomeTab({ orgId, filters }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.invoices.map((inv, i) => (
+                  {data.invoices.map((inv, i) => {
+                    let statusClass: string
+                    if (inv.status === "paid") { statusClass = "text-emerald-600" }
+                    else if (inv.status === "overdue") { statusClass = "text-red-600" }
+                    else { statusClass = "text-amber-600" }
+                    return (
                     <tr key={i} className="border-b border-border/50">
                       <td className="py-2 pr-2 text-xs">{inv.unit_number}, {inv.property_name}</td>
                       <td className="py-2 pr-2">{inv.tenant_name ?? "VACANT"}</td>
                       <td className="text-right py-2 px-2">{formatZAR(inv.total_amount_cents)}</td>
                       <td className="text-right py-2 px-2">{formatZAR(inv.amount_paid_cents)}</td>
                       <td className="py-2 px-2">
-                        <span className={`text-xs ${inv.status === "paid" ? "text-emerald-600" : inv.status === "overdue" ? "text-red-600" : "text-amber-600"}`}>
+                        <span className={`text-xs ${statusClass}`}>
                           {inv.status}
                         </span>
                       </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
               </table>
             </CardContent>

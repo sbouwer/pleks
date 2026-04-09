@@ -205,7 +205,11 @@ export function LeaseRow({ lease }: { lease: SerializedLease }) {
               />
             </div>
             <p className="text-[11px] font-medium" style={{ color }}>
-              {urgency === "expired" ? "Expired" : now < new Date(lease.start_date!) ? `${Math.round((new Date(lease.end_date!).getTime() - new Date(lease.start_date!).getTime()) / 86400000)}d term` : `${daysRemaining}d remaining`}
+              {(() => {
+                if (urgency === "expired") return "Expired"
+                if (now < new Date(lease.start_date!)) return `${Math.round((new Date(lease.end_date).getTime() - new Date(lease.start_date!).getTime()) / 86400000)}d term`
+                return `${daysRemaining}d remaining`
+              })()}
             </p>
           </>
         )}

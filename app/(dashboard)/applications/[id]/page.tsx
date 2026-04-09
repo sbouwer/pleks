@@ -30,8 +30,9 @@ export default async function ApplicationDetailPage({
   const bankData = app.bank_statement_extracted as Record<string, unknown> | null
 
   // Deposit recommendation for foreign nationals
+  const permitExpiry = app.permit_expiry_date ? new Date(app.permit_expiry_date) : null
   const depositRec = app.is_foreign_national
-    ? getDepositRecommendation(true, app.applicant_nationality_type, app.permit_expiry_date ? new Date(app.permit_expiry_date) : null)
+    ? getDepositRecommendation(true, app.applicant_nationality_type, permitExpiry)
     : null
 
   // Visa-lease alignment

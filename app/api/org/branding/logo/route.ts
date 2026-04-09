@@ -31,7 +31,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Max 2 MB" }, { status: 400 })
   }
 
-  const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg"
+  let ext: string
+  if (file.type === "image/png") { ext = "png" }
+  else if (file.type === "image/webp") { ext = "webp" }
+  else { ext = "jpg" }
   const storagePath = `${membership.org_id}/lease-branding/logo.${ext}`
   const bytes = await file.arrayBuffer()
 
