@@ -1,6 +1,7 @@
 // Bank reconciliation matching engine (D-014)
 // Order: exact reference → fuzzy amount+date → AI (Haiku) → manual
 
+import Anthropic from "@anthropic-ai/sdk"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 export interface MatchResult {
@@ -120,16 +121,78 @@ export async function matchFuzzy(
 
 // Tier 3: Claude Haiku AI match
 export async function matchAI(
-  _line: {
+  line: {
     reference_clean: string | null
     description_clean: string | null
     amount_cents: number
     transaction_date: string
   },
-  _ctx: MatchContext,
+  ctx: MatchContext,
 ): Promise<MatchResult | null> {
-  // TODO: Implement with Anthropic API (Haiku 4.5)
-  return null
+  const { data: invoices } = await ctx.db
+    .from("rent_invoices")
+    .select("id, invoice_number, balance_cents, due_date")
+    .eq("org_id", ctx.orgId)
+    .in("status", ["open", "partial", "overdue"])
+    .limit(50)
+
+  if (!invoices?.length) return null
+
+  const candidates = invoices
+    .map((inv, i) =>
+      `${i + 1}. Invoice ${inv.invoice_number} | Due: ${inv.due_date} | Balance: R${(Math.round(inv.balance_cents as number) / 100).toFixed(2)}`
+    )
+    .join("\n")
+
+  const client = new Anthropic()
+  let rawText: string
+  try {
+    const msg = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 128,
+      system:
+        'You are a bank reconciliation assistant. Given a bank transaction and open invoices, determine if the transaction matches one. Respond with JSON only: {"match":<1-based index or null>,"confidence":<0.0-1.0>,"reason":"<short>"}. Only match if confidence ≥ 0.65.',
+      messages: [
+        {
+          role: "user",
+          content: [
+            `Transaction:`,
+            `  Reference: ${line.reference_clean ?? "(none)"}`,
+            `  Description: ${line.description_clean ?? "(none)"}`,
+            `  Amount: R${(line.amount_cents / 100).toFixed(2)}`,
+            `  Date: ${line.transaction_date}`,
+            ``,
+            `Open invoices:`,
+            candidates,
+          ].join("\n"),
+        },
+      ],
+    })
+    const block = msg.content[0]
+    if (block.type !== "text") return null
+    rawText = block.text
+  } catch {
+    return null
+  }
+
+  try {
+    // Extract JSON — Haiku may wrap it in markdown fences
+    const jsonMatch = /\{[\s\S]*\}/.exec(rawText)
+    if (!jsonMatch) return null
+    const result = JSON.parse(jsonMatch[0]) as { match: number | null; confidence: number; reason: string }
+    if (!result.match || result.confidence < 0.65) return null
+    const matched = invoices[result.match - 1]
+    if (!matched) return null
+    return {
+      matchType: "matched_ai",
+      confidence: result.confidence,
+      invoiceId: matched.id as string,
+      description: `Invoice ${matched.invoice_number} — AI: ${result.reason}`,
+      requiresConfirmation: true,
+    }
+  } catch {
+    return null
+  }
 }
 
 // Run all tiers in order for a single bank statement line
