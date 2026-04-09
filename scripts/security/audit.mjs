@@ -47,6 +47,14 @@ const APP_URL = ENV.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
 const CRON_SECRET = ENV.CRON_SECRET
 const ADMIN_SECRET = ENV.ADMIN_SECRET
 
+// Cross-org test: optional env vars for authenticated JWT isolation test.
+// Set in .env.local when a second test org is available:
+//   TEST_ORG1_JWT=<supabase JWT for a user belonging to org 1 only>
+//   TEST_ORG2_ID=<UUID of org 2>
+// Without these, Cat 2 authenticated test is skipped with a notice.
+const TEST_ORG1_JWT = ENV.TEST_ORG1_JWT || null
+const TEST_ORG2_ID  = ENV.TEST_ORG2_ID  || null
+
 // ─── CLI flags ───────────────────────────────────────────────
 const args = process.argv.slice(2)
 const singleCategory = args.includes("--category") ? parseInt(args[args.indexOf("--category") + 1]) : null
@@ -250,6 +258,50 @@ async function cat1_unauthenticatedAccess() {
   }
 }
 
+// ─── Cat 2 helpers ───────────────────────────────────────────
+
+async function cat2_checkAnonLeakage() {
+  test("Anon key cross-org SELECT on leases")
+  const anonLeases = await supaRest("leases?select=id,org_id&limit=10")
+  if (!Array.isArray(anonLeases.json) || anonLeases.json.length === 0) {
+    ok("no data visible")
+    pass(2, "cross-org leases")
+    return
+  }
+  const distinctOrgs = new Set(anonLeases.json.map(r => r.org_id))
+  if (distinctOrgs.size > 1) {
+    fail(`CROSS-ORG LEAK: ${distinctOrgs.size} orgs visible!`)
+    finding(2, "CRITICAL", "Cross-org data visible via anon key", `${distinctOrgs.size} distinct org_ids returned`, "RLS must filter by org_id")
+  } else {
+    fail("Anon can see data (but single org)")
+    finding(2, "HIGH", "Anon key returns lease data", "Data returned without auth", "RLS should block anon entirely")
+  }
+}
+
+async function cat2_checkAuthenticatedIsolation() {
+  // Requires TEST_ORG1_JWT + TEST_ORG2_ID in .env.local.
+  // Setup: create a second org in Supabase, seed it with data, add a test
+  // user belonging only to org 1, copy their JWT here.
+  if (!TEST_ORG1_JWT || !TEST_ORG2_ID) {
+    console.log("  ├─ ⏭️  Authenticated cross-org test skipped — set TEST_ORG1_JWT + TEST_ORG2_ID in .env.local to enable")
+    return
+  }
+  const TABLES = ["leases", "tenants", "properties", "units", "payments", "maintenance_requests", "rent_invoices", "contacts"]
+  for (const table of TABLES) {
+    test(`Org1 JWT cannot read ${table} belonging to Org2`)
+    const res = await supaRest(`${table}?select=id&org_id=eq.${TEST_ORG2_ID}&limit=1`, { key: TEST_ORG1_JWT })
+    if (Array.isArray(res.json) && res.json.length > 0) {
+      fail(`CROSS-ORG LEAK on ${table}`)
+      finding(2, "CRITICAL", `Authenticated user can read another org's ${table}`,
+        `${res.json.length} row(s) from org ${TEST_ORG2_ID} visible with org1 JWT`,
+        "RLS USING clause is not enforcing org isolation")
+    } else {
+      ok("blocked (0 rows)")
+      pass(2, `cross-org-auth-${table}`)
+    }
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════
 // CATEGORY 2: Cross-Org Data Leakage (via service role audit)
 // ═══════════════════════════════════════════════════════════════
@@ -257,7 +309,6 @@ async function cat2_crossOrgLeakage() {
   console.log("\n📋 Category 2: Cross-Org Data Leakage")
   console.log("─".repeat(50))
 
-  // Check how many orgs exist
   test("Count distinct organisations")
   const orgs = await supaRest("organisations?select=id", { key: SERVICE_KEY })
   const orgCount = Array.isArray(orgs.json) ? orgs.json.length : 0
@@ -268,17 +319,11 @@ async function cat2_crossOrgLeakage() {
     return
   }
 
-  // Check if any table has rows from multiple orgs (service role can see all)
   const MULTI_ORG_TABLES = ["leases", "tenants", "properties", "units", "payments", "maintenance_requests"]
   for (const table of MULTI_ORG_TABLES) {
     test(`Distinct org_ids in ${table}`)
-    const res = await supaRest(`rpc/count_distinct_orgs`, {
-      key: SERVICE_KEY,
-      method: "POST",
-      body: { target_table: table },
-    })
+    const res = await supaRest(`rpc/count_distinct_orgs`, { key: SERVICE_KEY, method: "POST", body: { target_table: table } })
     if (res.status === 404) {
-      // Function doesn't exist — skip
       skip("rpc not available")
     } else if (res.json && res.json > 1) {
       ok(`${res.json} orgs — cross-org isolation testable`)
@@ -287,22 +332,8 @@ async function cat2_crossOrgLeakage() {
     }
   }
 
-  // Test: Can anon key see data from ANY org?
-  test("Anon key cross-org SELECT on leases")
-  const anonLeases = await supaRest("leases?select=id,org_id&limit=10")
-  if (Array.isArray(anonLeases.json) && anonLeases.json.length > 0) {
-    const distinctOrgs = new Set(anonLeases.json.map(r => r.org_id))
-    if (distinctOrgs.size > 1) {
-      fail(`CROSS-ORG LEAK: ${distinctOrgs.size} orgs visible!`)
-      finding(2, "CRITICAL", "Cross-org data visible via anon key", `${distinctOrgs.size} distinct org_ids returned`, "RLS must filter by org_id")
-    } else {
-      fail("Anon can see data (but single org)")
-      finding(2, "HIGH", "Anon key returns lease data", "Data returned without auth", "RLS should block anon entirely")
-    }
-  } else {
-    ok("no data visible")
-    pass(2, "cross-org leases")
-  }
+  await cat2_checkAnonLeakage()
+  await cat2_checkAuthenticatedIsolation()
 }
 
 // ═══════════════════════════════════════════════════════════════
