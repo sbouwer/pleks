@@ -93,13 +93,15 @@ export default async function ReconDetailPage({
             <p className="text-sm text-muted-foreground">No transactions extracted yet. Extraction runs automatically after upload.</p>
           ) : (
             <div className="space-y-1">
-              {allLines.map((line) => (
+              {allLines.map((line) => {
+                let lineClass: string
+                if (line.match_status === "unmatched") { lineClass = "bg-danger-bg" }
+                else if (line.match_status === "ignored") { lineClass = "opacity-50" }
+                else { lineClass = "" }
+                return (
                 <div
                   key={line.id}
-                  className={`flex items-center justify-between py-2 px-2 rounded text-sm ${
-                    line.match_status === "unmatched" ? "bg-danger-bg" :
-                    line.match_status === "ignored" ? "opacity-50" : ""
-                  }`}
+                  className={`flex items-center justify-between py-2 px-2 rounded text-sm ${lineClass}`}
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -117,7 +119,7 @@ export default async function ReconDetailPage({
                     <StatusBadge status={MATCH_STATUS_MAP[line.match_status] || "pending"} />
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
           )}
         </CardContent>

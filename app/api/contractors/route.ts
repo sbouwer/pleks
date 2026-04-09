@@ -48,6 +48,50 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true })
 }
 
+interface ContractorPatchBody {
+  contractorId: string; contactId: string
+  entityType?: string; firstName?: string; lastName?: string; companyName?: string
+  tradingAs?: string; registrationNumber?: string; vatNumber?: string
+  email?: string; phone?: string; notes?: string
+  specialities?: string[]; isActive?: boolean
+  callOutRateCents?: number; hourlyRateCents?: number
+  heritageApproved?: boolean; heritageSpecialities?: string[]
+  bankingName?: string; bankName?: string; bankAccountNumber?: string
+  bankBranchCode?: string; bankAccountType?: string; vatRegistered?: boolean
+}
+
+function buildContractorContactUpdate(body: ContractorPatchBody): Record<string, unknown> {
+  const u: Record<string, unknown> = {}
+  if (body.entityType !== undefined) u.entity_type = body.entityType
+  if (body.firstName !== undefined) u.first_name = body.firstName?.trim() || null
+  if (body.lastName !== undefined) u.last_name = body.lastName?.trim() || null
+  if (body.companyName !== undefined) u.company_name = body.companyName?.trim() || null
+  if (body.tradingAs !== undefined) u.trading_as = body.tradingAs?.trim() || null
+  if (body.registrationNumber !== undefined) u.registration_number = body.registrationNumber?.trim() || null
+  if (body.vatNumber !== undefined) u.vat_number = body.vatNumber?.trim() || null
+  if (body.email !== undefined) u.primary_email = body.email?.trim() || null
+  if (body.phone !== undefined) u.primary_phone = body.phone?.trim() || null
+  if (body.notes !== undefined) u.notes = body.notes?.trim() || null
+  return u
+}
+
+function buildContractorUpdate(body: ContractorPatchBody): Record<string, unknown> {
+  const u: Record<string, unknown> = {}
+  if (body.specialities !== undefined) u.specialities = body.specialities ?? []
+  if (body.isActive !== undefined) u.is_active = body.isActive
+  if (body.callOutRateCents !== undefined) u.call_out_rate_cents = body.callOutRateCents
+  if (body.hourlyRateCents !== undefined) u.hourly_rate_cents = body.hourlyRateCents
+  if (body.bankingName !== undefined) u.banking_name = body.bankingName?.trim() || null
+  if (body.bankName !== undefined) u.bank_name = body.bankName?.trim() || null
+  if (body.bankAccountNumber !== undefined) u.bank_account_number = body.bankAccountNumber?.trim() || null
+  if (body.bankBranchCode !== undefined) u.bank_branch_code = body.bankBranchCode?.trim() || null
+  if (body.bankAccountType !== undefined) u.bank_account_type = body.bankAccountType || null
+  if (body.vatRegistered !== undefined) u.vat_registered = body.vatRegistered
+  if (body.heritageApproved !== undefined) u.heritage_approved = body.heritageApproved
+  if (body.heritageSpecialities !== undefined) u.heritage_specialities = body.heritageSpecialities
+  return u
+}
+
 export async function PATCH(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -57,60 +101,23 @@ export async function PATCH(req: NextRequest) {
   const membership = await getMembership(service, user.id)
   if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
 
-  const {
-    contractorId, contactId,
-    // Contact fields
-    entityType, firstName, lastName, companyName, tradingAs, registrationNumber, vatNumber,
-    email, phone, notes,
-    // Contractor fields
-    specialities, isActive,
-    callOutRateCents, hourlyRateCents,
-    heritageApproved, heritageSpecialities,
-    // Banking fields
-    bankingName, bankName, bankAccountNumber, bankBranchCode, bankAccountType, vatRegistered,
-  } = await req.json()
-  if (!contractorId || !contactId) return NextResponse.json({ error: "Missing ids" }, { status: 400 })
+  const body = await req.json() as ContractorPatchBody
+  if (!body.contractorId || !body.contactId) return NextResponse.json({ error: "Missing ids" }, { status: 400 })
 
-  // Build contact update (only include defined fields)
-  const contactUpdate: Record<string, unknown> = {}
-  if (entityType !== undefined) contactUpdate.entity_type = entityType
-  if (firstName !== undefined) contactUpdate.first_name = firstName?.trim() || null
-  if (lastName !== undefined) contactUpdate.last_name = lastName?.trim() || null
-  if (companyName !== undefined) contactUpdate.company_name = companyName?.trim() || null
-  if (tradingAs !== undefined) contactUpdate.trading_as = tradingAs?.trim() || null
-  if (registrationNumber !== undefined) contactUpdate.registration_number = registrationNumber?.trim() || null
-  if (vatNumber !== undefined) contactUpdate.vat_number = vatNumber?.trim() || null
-  if (email !== undefined) contactUpdate.primary_email = email?.trim() || null
-  if (phone !== undefined) contactUpdate.primary_phone = phone?.trim() || null
-  if (notes !== undefined) contactUpdate.notes = notes?.trim() || null
-
+  const contactUpdate = buildContractorContactUpdate(body)
   if (Object.keys(contactUpdate).length > 0) {
     const { error: contactError } = await service.from("contacts")
       .update(contactUpdate)
-      .eq("id", contactId)
+      .eq("id", body.contactId)
       .eq("org_id", membership.org_id)
     if (contactError) return NextResponse.json({ error: contactError.message }, { status: 500 })
   }
 
-  // Build contractor update
-  const contractorUpdate: Record<string, unknown> = {}
-  if (specialities !== undefined) contractorUpdate.specialities = specialities ?? []
-  if (isActive !== undefined) contractorUpdate.is_active = isActive
-  if (callOutRateCents !== undefined) contractorUpdate.call_out_rate_cents = callOutRateCents
-  if (hourlyRateCents !== undefined) contractorUpdate.hourly_rate_cents = hourlyRateCents
-  if (bankingName !== undefined) contractorUpdate.banking_name = bankingName?.trim() || null
-  if (bankName !== undefined) contractorUpdate.bank_name = bankName?.trim() || null
-  if (bankAccountNumber !== undefined) contractorUpdate.bank_account_number = bankAccountNumber?.trim() || null
-  if (bankBranchCode !== undefined) contractorUpdate.bank_branch_code = bankBranchCode?.trim() || null
-  if (bankAccountType !== undefined) contractorUpdate.bank_account_type = bankAccountType || null
-  if (vatRegistered !== undefined) contractorUpdate.vat_registered = vatRegistered
-  if (heritageApproved !== undefined) contractorUpdate.heritage_approved = heritageApproved
-  if (heritageSpecialities !== undefined) contractorUpdate.heritage_specialities = heritageSpecialities
-
+  const contractorUpdate = buildContractorUpdate(body)
   if (Object.keys(contractorUpdate).length > 0) {
     const { error: conError } = await service.from("contractors")
       .update(contractorUpdate)
-      .eq("id", contractorId)
+      .eq("id", body.contractorId)
       .eq("org_id", membership.org_id)
     if (conError) return NextResponse.json({ error: conError.message }, { status: 500 })
   }

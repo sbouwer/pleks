@@ -102,13 +102,20 @@ export function buildRentRollHTML(data: RentRollData, org: OrgInfo): string {
     </div>
     <table>
       <tr><th>Property</th><th>Unit</th><th>Tenant</th><th class="text-right">Rent/mo</th><th>Dates</th><th>Method</th><th>Status</th><th class="text-right">Arrears</th></tr>
-      ${data.rows.map((r) => `<tr>
+      ${data.rows.map((r) => {
+        let leaseDateSuffix: string
+        if (r.lease_end) { leaseDateSuffix = ` – ${formatDateShort(r.lease_end)}` }
+        else if (r.lease_start) { leaseDateSuffix = " (M2M)" }
+        else { leaseDateSuffix = "" }
+        const leaseDates = r.lease_start ? `${formatDateShort(r.lease_start)}${leaseDateSuffix}` : "—"
+        return `<tr>
         <td>${r.property_name}</td><td>${r.unit_number}</td><td>${r.tenant_name ?? "VACANT"}</td>
         <td class="text-right">${r.monthly_rent_cents ? formatZAR(r.monthly_rent_cents) : "—"}</td>
-        <td>${r.lease_start ? formatDateShort(r.lease_start) : "—"}${r.lease_end ? ` – ${formatDateShort(r.lease_end)}` : r.lease_start ? " (M2M)" : ""}</td>
+        <td>${leaseDates}</td>
         <td>${r.payment_method || "—"}</td><td>${r.status}</td>
         <td class="text-right${r.arrears_cents > 0 ? " text-danger" : ""}">${r.arrears_cents ? formatZAR(r.arrears_cents) : "—"}</td>
-      </tr>`).join("")}
+      </tr>`
+      }).join("")}
     </table>
   `
   return wrapHTML("Rent Roll", org, body)

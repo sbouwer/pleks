@@ -36,7 +36,10 @@ function OwnerStatementSVG() {
       {/* Bars */}
       {barX.map((x, i) => {
         const h = barHeights[i]
-        const opacity = i < 2 ? 0.25 : i < 4 ? 0.5 : 0.8
+        let opacity: number
+        if (i < 2) { opacity = 0.25 }
+        else if (i < 4) { opacity = 0.5 }
+        else { opacity = 0.8 }
         return (
           <rect key={i} x={x} y={baseY - h} width={30} height={h} rx={3}
             stroke="var(--brand)" strokeOpacity={opacity} strokeWidth={1.2} />

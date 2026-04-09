@@ -121,7 +121,13 @@ export function DepositInterestConfig({ propertyId = null, unitId = null, curren
     })
   }
 
-  const heading = title ?? (unitId ? "Deposit interest — Unit" : propertyId ? "Deposit interest — Property" : "Deposit interest — Organisation default")
+  const scopeHeading = unitId ? "Deposit interest — Unit" : "Deposit interest — Property"
+  const defaultHeading = (unitId ?? propertyId) ? scopeHeading : "Deposit interest — Organisation default"
+  const heading = title ?? defaultHeading
+  const activeRateLabel = active ? "Update rate" : "Set up"
+  const toggleButtonLabel = showForm ? "Cancel" : activeRateLabel
+  const saveActionLabel = active ? "Update rate" : "Set up interest config"
+  const saveButtonLabel = isPending ? "Saving…" : saveActionLabel
 
   return (
     <Card>
@@ -139,7 +145,7 @@ export function DepositInterestConfig({ propertyId = null, unitId = null, curren
             )}
           </div>
           <Button variant="outline" size="sm" onClick={showForm ? () => setShowForm(false) : openForm}>
-            {showForm ? "Cancel" : active ? "Update rate" : "Set up"}
+            {toggleButtonLabel}
           </Button>
         </div>
       </CardHeader>
@@ -223,7 +229,7 @@ export function DepositInterestConfig({ propertyId = null, unitId = null, curren
           </div>
 
           <Button size="sm" onClick={handleSave} disabled={isPending}>
-            {isPending ? "Saving…" : active ? "Update rate" : "Set up interest config"}
+            {saveButtonLabel}
           </Button>
         </CardContent>
       )}

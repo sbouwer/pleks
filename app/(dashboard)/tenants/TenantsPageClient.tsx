@@ -1,5 +1,6 @@
 "use client"
 
+import React from "react"
 import { useQuery } from "@tanstack/react-query"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -17,6 +18,19 @@ export function TenantsPageClient({ orgId, role }: Props) {
     staleTime: STALE_TIME.tenants,
   })
 
+  let body: React.ReactNode = null
+  if (!isLoading) {
+    if (tenants.length === 0) {
+      body = (
+        <p className="text-sm text-muted-foreground py-8 text-center">
+          No tenants yet. Import contacts or add one using the button above.
+        </p>
+      )
+    } else {
+      body = <TenantsClient tenants={tenants} userRole={role} />
+    }
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -28,13 +42,7 @@ export function TenantsPageClient({ orgId, role }: Props) {
           <Plus className="h-4 w-4 mr-1" /> Add Tenant
         </Button>
       </div>
-      {!isLoading && tenants.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-8 text-center">
-          No tenants yet. Import contacts or add one using the button above.
-        </p>
-      ) : isLoading ? null : (
-        <TenantsClient tenants={tenants} userRole={role} />
-      )}
+      {body}
     </div>
   )
 }

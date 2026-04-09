@@ -56,10 +56,10 @@ export async function getExpiringLeases(orgId: string): Promise<ExpiringLease[]>
     const daysRemaining = Math.max(0, Math.ceil((end.getTime() - now.getTime()) / 86400000))
     const isExpired = end < now
 
-    const color =
-      isExpired || daysRemaining < 30 ? "#E24B4A"
-      : daysRemaining < 90 ? "#EF9F27"
-      : "#378ADD"
+    let color: string
+    if (isExpired || daysRemaining < 30) { color = "#E24B4A" }
+    else if (daysRemaining < 90) { color = "#EF9F27" }
+    else { color = "#378ADD" }
 
     const fmt = (d: Date) =>
       d.toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })

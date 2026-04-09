@@ -72,11 +72,17 @@ export default async function LandlordMaintenanceDetailPage({ params }: Props) {
         </Link>
         <div className="flex items-start justify-between gap-3">
           <h1 className="font-heading text-2xl">{req.title}</h1>
-          {req.urgency && (
-            <span className={`text-xs font-bold shrink-0 mt-1 ${req.urgency === "emergency" ? "text-danger" : req.urgency === "urgent" ? "text-warning" : "text-muted-foreground"}`}>
-              {URGENCY_LABEL[req.urgency]}
-            </span>
-          )}
+          {req.urgency && (() => {
+            let urgencyClass: string
+            if (req.urgency === "emergency") { urgencyClass = "text-danger" }
+            else if (req.urgency === "urgent") { urgencyClass = "text-warning" }
+            else { urgencyClass = "text-muted-foreground" }
+            return (
+              <span className={`text-xs font-bold shrink-0 mt-1 ${urgencyClass}`}>
+                {URGENCY_LABEL[req.urgency]}
+              </span>
+            )
+          })()}
         </div>
         <p className="text-muted-foreground text-sm mt-1">
           {unit.unit_number}, {unit.properties.name}

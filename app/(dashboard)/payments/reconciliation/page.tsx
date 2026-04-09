@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import React, { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useOrg } from "@/hooks/useOrg"
 import { Button } from "@/components/ui/button"
@@ -105,7 +105,17 @@ export default function ReconciliationPage() {
         <EmptyState icon={<Upload className="h-8 w-8 text-muted-foreground" />} title="No statements uploaded" description="Upload a bank statement PDF to start reconciling." />
       ) : (
         <div className="space-y-2">
-          {imports.map((imp) => (
+          {imports.map((imp) => {
+            const extractionStatus = imp.extraction_status === "complete" ? "completed" : "pending"
+            let statusNode: React.ReactNode
+            if (imp.reconciled) {
+              statusNode = <div className="flex items-center gap-1 text-success text-sm"><Check className="h-4 w-4" /> Reconciled</div>
+            } else if (imp.unmatched_count > 0) {
+              statusNode = <div className="flex items-center gap-1 text-warning text-sm"><AlertTriangle className="h-4 w-4" /> {imp.unmatched_count} unmatched</div>
+            } else {
+              statusNode = <StatusBadge status={extractionStatus} />
+            }
+            return (
             <Link key={imp.id} href={`/payments/reconciliation/${imp.id}`}>
               <Card className="hover:border-brand/50 transition-colors cursor-pointer">
                 <CardContent className="flex items-center justify-between pt-4">
@@ -118,22 +128,13 @@ export default function ReconciliationPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
-                    {imp.reconciled ? (
-                      <div className="flex items-center gap-1 text-success text-sm">
-                        <Check className="h-4 w-4" /> Reconciled
-                      </div>
-                    ) : imp.unmatched_count > 0 ? (
-                      <div className="flex items-center gap-1 text-warning text-sm">
-                        <AlertTriangle className="h-4 w-4" /> {imp.unmatched_count} unmatched
-                      </div>
-                    ) : (
-                      <StatusBadge status={imp.extraction_status === "complete" ? "completed" : "pending"} />
-                    )}
+                    {statusNode}
                   </div>
                 </CardContent>
               </Card>
             </Link>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

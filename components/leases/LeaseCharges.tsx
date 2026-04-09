@@ -153,6 +153,36 @@ export function LeaseCharges({ leaseId }: Readonly<LeaseChargesProps>) {
 
   const totalCharges = charges.reduce((sum, c) => sum + c.amount_cents, 0)
 
+  const chargesContent = charges.length === 0 ? (
+    <p className="text-sm text-muted-foreground">No additional charges on this lease.</p>
+  ) : (
+    <div className="space-y-3">
+      {charges.map((c) => (
+        <div key={c.id} className="flex items-start justify-between border-b border-border/50 pb-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium">{c.description}</p>
+              <Badge variant="secondary" className="text-[10px]">
+                {PAYABLE_TO.find((p) => p.value === c.payable_to)?.label?.split(" ")[0] ?? c.payable_to}
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {formatZAR(c.amount_cents)}/mo · from {c.start_date}
+              {c.end_date ? ` to ${c.end_date}` : ""}
+              {c.contractor_view ? ` · ${c.contractor_view.company_name || `${c.contractor_view.first_name} ${c.contractor_view.last_name}`.trim()}` : ""}
+            </p>
+            {c.deduct_from_owner_payment && (
+              <p className="text-xs text-amber-500">Deducted from owner payment</p>
+            )}
+          </div>
+          <Button variant="ghost" size="icon" className="size-7 text-muted-foreground hover:text-danger" onClick={() => handleRemove(c.id)}>
+            <Trash2 className="size-3.5" />
+          </Button>
+        </div>
+      ))}
+    </div>
+  )
+
   return (
     <Card className="mt-6">
       <CardHeader className="flex flex-row items-center justify-between">
@@ -171,35 +201,7 @@ export function LeaseCharges({ leaseId }: Readonly<LeaseChargesProps>) {
       <CardContent>
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading...</p>
-        ) : charges.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No additional charges on this lease.</p>
-        ) : (
-          <div className="space-y-3">
-            {charges.map((c) => (
-              <div key={c.id} className="flex items-start justify-between border-b border-border/50 pb-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium">{c.description}</p>
-                    <Badge variant="secondary" className="text-[10px]">
-                      {PAYABLE_TO.find((p) => p.value === c.payable_to)?.label?.split(" ")[0] ?? c.payable_to}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {formatZAR(c.amount_cents)}/mo · from {c.start_date}
-                    {c.end_date ? ` to ${c.end_date}` : ""}
-                    {c.contractor_view ? ` · ${c.contractor_view.company_name || `${c.contractor_view.first_name} ${c.contractor_view.last_name}`.trim()}` : ""}
-                  </p>
-                  {c.deduct_from_owner_payment && (
-                    <p className="text-xs text-amber-500">Deducted from owner payment</p>
-                  )}
-                </div>
-                <Button variant="ghost" size="icon" className="size-7 text-muted-foreground hover:text-danger" onClick={() => handleRemove(c.id)}>
-                  <Trash2 className="size-3.5" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
+        ) : chargesContent}
 
         {/* Add charge dialog */}
         <Dialog open={showAdd} onOpenChange={setShowAdd}>

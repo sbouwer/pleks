@@ -100,6 +100,18 @@ function MaintenanceCard({ req }: Readonly<{ req: MaintenanceItem }>) {
   const slaAge = getSlaAge(req)
   const isTerminal = ["completed", "closed", "tenant_notified", "rejected", "cancelled"].includes(req.status)
 
+  let urgencyClass = "text-muted-foreground"
+  if (req.urgency === "emergency") urgencyClass = "text-danger"
+  else if (req.urgency === "urgent") urgencyClass = "text-warning"
+
+  let slaClass = "text-muted-foreground"
+  if (slaAge === "breached") slaClass = "text-danger font-medium"
+  else if (slaAge === "warning") slaClass = "text-warning"
+
+  let slaPrefix = ""
+  if (slaAge === "breached") slaPrefix = "⚠ SLA breached · "
+  else if (slaAge === "warning") slaPrefix = "⏱ SLA at risk · "
+
   return (
     <Link href={`/maintenance/${req.id}`} className="block">
       <div className="group rounded-xl border border-border/60 bg-surface-elevated px-4 py-3.5 hover:border-brand/40 transition-colors">
@@ -135,15 +147,15 @@ function MaintenanceCard({ req }: Readonly<{ req: MaintenanceItem }>) {
 
               {/* Urgency (only show if non-routine or non-terminal) */}
               {req.urgency && req.urgency !== "routine" && !isTerminal && (
-                <span className={`text-xs font-medium uppercase ${req.urgency === "emergency" ? "text-danger" : req.urgency === "urgent" ? "text-warning" : "text-muted-foreground"}`}>
+                <span className={`text-xs font-medium uppercase ${urgencyClass}`}>
                   {URGENCY_LABEL[req.urgency]}
                 </span>
               )}
 
               {/* SLA indicator (only for open requests) */}
               {!isTerminal && (
-                <span className={`text-xs ${slaAge === "breached" ? "text-danger font-medium" : slaAge === "warning" ? "text-warning" : "text-muted-foreground"}`}>
-                  {slaAge === "breached" ? "⚠ SLA breached · " : slaAge === "warning" ? "⏱ SLA at risk · " : ""}
+                <span className={`text-xs ${slaClass}`}>
+                  {slaPrefix}
                   {relativeTime(new Date(req.created_at))}
                 </span>
               )}
@@ -238,7 +250,10 @@ export function MaintenancePageClient({ orgId }: Readonly<Props>) {
       {list.length > 0 && (
         <div className="flex gap-1 mb-4 border-b border-border/60">
           {TABS.map((tab) => {
-            const badge = tab.id === "action" ? actionCount : tab.id === "awaiting" ? awaitingCount : 0
+            let badge: number
+            if (tab.id === "action") { badge = actionCount }
+            else if (tab.id === "awaiting") { badge = awaitingCount }
+            else { badge = 0 }
             return (
               <button
                 key={tab.id}
@@ -263,19 +278,25 @@ export function MaintenancePageClient({ orgId }: Readonly<Props>) {
       )}
 
       {/* ─── List ─── */}
-      {list.length === 0 ? (
-        <EmptyState
-          icon={<Wrench className="h-8 w-8 text-muted-foreground" />}
-          title="No maintenance requests"
-          description="Log a maintenance request to get started."
-        />
-      ) : filtered.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-4">No requests in this category.</p>
-      ) : (
-        <div className="space-y-2">
-          {filtered.map((req) => <MaintenanceCard key={req.id} req={req} />)}
-        </div>
-      )}
+      {(() => {
+        if (list.length === 0) {
+          return (
+            <EmptyState
+              icon={<Wrench className="h-8 w-8 text-muted-foreground" />}
+              title="No maintenance requests"
+              description="Log a maintenance request to get started."
+            />
+          )
+        }
+        if (filtered.length === 0) {
+          return <p className="text-sm text-muted-foreground py-4">No requests in this category.</p>
+        }
+        return (
+          <div className="space-y-2">
+            {filtered.map((req) => <MaintenanceCard key={req.id} req={req} />)}
+          </div>
+        )
+      })()}
 
       {/* Cost summary for completed tab */}
       {activeTab === "completed" && filtered.length > 0 && (() => {

@@ -171,13 +171,14 @@ export default function DocumentsPage() {
       <Card>
         <CardHeader><CardTitle>Required documents</CardTitle></CardHeader>
         <CardContent className="space-y-2">
-          {documents.map((doc, i) => (
+          {documents.map((doc, i) => {
+            const docErrorIcon = doc.error ? <AlertCircle className="size-5 text-destructive" /> : <Upload className="size-5 text-muted-foreground" />
+            const docUploadedIcon = doc.uploaded ? <CheckCircle2 className="size-5 text-green-500" /> : docErrorIcon
+            const docStatusIcon = doc.uploading ? <Loader2 className="size-5 text-primary animate-spin" /> : docUploadedIcon
+            return (
             <label key={doc.key} className="flex items-start gap-3 rounded-lg border border-border p-3 cursor-pointer hover:bg-muted/50 transition-colors">
               <div className="mt-0.5 shrink-0">
-                {doc.uploading ? <Loader2 className="size-5 text-primary animate-spin" />
-                  : doc.uploaded ? <CheckCircle2 className="size-5 text-green-500" />
-                  : doc.error ? <AlertCircle className="size-5 text-destructive" />
-                  : <Upload className="size-5 text-muted-foreground" />}
+                {docStatusIcon}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium">{doc.label}</p>
@@ -194,7 +195,7 @@ export default function DocumentsPage() {
                 onChange={(e) => handleFileChange(i, "required", e.target.files?.[0] ?? null)}
               />
             </label>
-          ))}
+          )})}
         </CardContent>
       </Card>
 
@@ -202,12 +203,13 @@ export default function DocumentsPage() {
       <Card>
         <CardHeader><CardTitle>Additional documents <span className="text-sm font-normal text-muted-foreground">(optional)</span></CardTitle></CardHeader>
         <CardContent className="space-y-2">
-          {optionalDocs.map((doc, i) => (
+          {optionalDocs.map((doc, i) => {
+            const optUploadedIcon = doc.uploaded ? <CheckCircle2 className="size-5 text-green-500" /> : <Upload className="size-5 text-muted-foreground" />
+            const optStatusIcon = doc.uploading ? <Loader2 className="size-5 text-primary animate-spin" /> : optUploadedIcon
+            return (
             <label key={doc.key} className="flex items-start gap-3 rounded-lg border border-dashed border-border p-3 cursor-pointer hover:bg-muted/50 transition-colors">
               <div className="mt-0.5 shrink-0">
-                {doc.uploading ? <Loader2 className="size-5 text-primary animate-spin" />
-                  : doc.uploaded ? <CheckCircle2 className="size-5 text-green-500" />
-                  : <Upload className="size-5 text-muted-foreground" />}
+                {optStatusIcon}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium">{doc.label}</p>
@@ -220,7 +222,7 @@ export default function DocumentsPage() {
                 onChange={(e) => handleFileChange(i, "optional", e.target.files?.[0] ?? null)}
               />
             </label>
-          ))}
+          )})}
         </CardContent>
       </Card>
 

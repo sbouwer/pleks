@@ -50,6 +50,174 @@ const EVENT_PRIORITY: Record<EventType, number> = {
   move_out: 7,
 }
 
+type UnitRef = { unit_number: string; properties: { name: string } } | null
+
+function unitSuffix(leaseUnit: UnitRef): string {
+  return leaseUnit ? ` — ${leaseUnit.unit_number}` : ""
+}
+
+function leaseExpiryColour(daysUntil: number): string {
+  if (daysUntil <= 7) return "#ef4444"
+  if (daysUntil <= 30) return "#f59e0b"
+  return "#8b5cf6"
+}
+
+function makeLeaseExpiryEvent(lease: { id: string; end_date: string }, leaseUnit: UnitRef): CalendarEvent {
+  const daysUntil = Math.ceil((new Date(lease.end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+  return {
+    id: `lease-exp-${lease.id}`,
+    title: `Lease expiry${unitSuffix(leaseUnit)}`,
+    date: lease.end_date,
+    eventType: "lease_expiry",
+    colour: leaseExpiryColour(daysUntil),
+    propertyName: leaseUnit?.properties.name ?? "",
+    unitNumber: leaseUnit?.unit_number,
+    link: `/leases/${lease.id}`,
+    priority: EVENT_PRIORITY.lease_expiry,
+    allDay: true,
+    sourceId: lease.id,
+  }
+}
+
+function makeCpaDeadlineEvent(leaseId: string, noticeDateStr: string, leaseUnit: UnitRef): CalendarEvent {
+  return {
+    id: `cpa-${leaseId}`,
+    title: `CPA notice due${unitSuffix(leaseUnit)}`,
+    date: noticeDateStr,
+    eventType: "cpa_deadline",
+    colour: EVENT_COLOURS.cpa_deadline,
+    propertyName: leaseUnit?.properties.name ?? "",
+    unitNumber: leaseUnit?.unit_number,
+    link: `/leases/${leaseId}`,
+    priority: EVENT_PRIORITY.cpa_deadline,
+    allDay: true,
+    sourceId: leaseId,
+  }
+}
+
+function makeMoveInEvent(lease: { id: string; start_date: string }, leaseUnit: UnitRef): CalendarEvent {
+  return {
+    id: `move-in-${lease.id}`,
+    title: `Move-in${unitSuffix(leaseUnit)}`,
+    date: lease.start_date,
+    eventType: "move_in",
+    colour: EVENT_COLOURS.move_in,
+    propertyName: leaseUnit?.properties.name ?? "",
+    unitNumber: leaseUnit?.unit_number,
+    link: `/leases/${lease.id}`,
+    priority: EVENT_PRIORITY.move_in,
+    allDay: true,
+    sourceId: lease.id,
+  }
+}
+
+async function buildLeaseEvents(
+  service: SupabaseClient,
+  lease: { id: string; start_date: string; end_date: string | null; cpa_applies: boolean; auto_renewal_notice_sent_at: string | null },
+  rangeStart: string,
+  rangeEnd: string,
+  today: string
+): Promise<CalendarEvent[]> {
+  if (!lease.end_date) return []
+  const leaseResult2 = await service
+    .from("leases")
+    .select("id, units(unit_number, properties(name)), tenants(contacts(first_name, last_name))")
+    .eq("id", lease.id)
+    .single()
+  const leaseUnit = (leaseResult2.data?.units as unknown as UnitRef)
+  const events: CalendarEvent[] = []
+
+  if (lease.end_date >= rangeStart && lease.end_date <= rangeEnd) {
+    events.push(makeLeaseExpiryEvent(lease as { id: string; end_date: string }, leaseUnit))
+  }
+
+  if (lease.cpa_applies && !lease.auto_renewal_notice_sent_at) {
+    const noticeDeadline = subtractBusinessDays(new Date(lease.end_date), 20)
+    const noticeDateStr = noticeDeadline.toISOString().split("T")[0]
+    if (noticeDateStr >= rangeStart && noticeDateStr <= rangeEnd) {
+      events.push(makeCpaDeadlineEvent(lease.id, noticeDateStr, leaseUnit))
+    }
+  }
+
+  if (lease.start_date >= today && lease.start_date >= rangeStart && lease.start_date <= rangeEnd) {
+    events.push(makeMoveInEvent(lease as { id: string; start_date: string }, leaseUnit))
+  }
+
+  return events
+}
+
+function buildInspectionEvents(
+  inspections: { id: string; type: string | null; scheduled_date: string; scheduled_time_from: string | null; scheduled_time_to: string | null; units: unknown }[],
+  today: string
+): CalendarEvent[] {
+  return inspections.map((insp) => {
+    const unit = insp.units as UnitRef
+    const eventType: EventType = insp.scheduled_date < today ? "inspection_overdue" : "inspection"
+    const label = insp.type?.replaceAll("_", " ") ?? "Inspection"
+    const unitNum = unit?.unit_number ?? ""
+    return {
+      id: `insp-${insp.id}`,
+      title: unit ? `${label} — ${unitNum}` : label,
+      date: insp.scheduled_date,
+      time: insp.scheduled_time_from ?? undefined,
+      endTime: insp.scheduled_time_to ?? undefined,
+      eventType,
+      colour: EVENT_COLOURS[eventType],
+      propertyName: unit?.properties.name ?? "",
+      unitNumber: unit?.unit_number,
+      link: `/inspections/${insp.id}`,
+      priority: EVENT_PRIORITY[eventType],
+      allDay: !insp.scheduled_time_from,
+      sourceId: insp.id,
+    }
+  })
+}
+
+function buildMaintenanceEvents(
+  requests: { id: string; title: string; scheduled_date: string; scheduled_time_from: string | null; scheduled_time_to: string | null; units: unknown }[]
+): CalendarEvent[] {
+  return requests.map((req) => {
+    const unit = req.units as UnitRef
+    return {
+      id: `maint-${req.id}`,
+      title: req.title,
+      date: req.scheduled_date,
+      time: req.scheduled_time_from ?? undefined,
+      endTime: req.scheduled_time_to ?? undefined,
+      eventType: "maintenance" satisfies EventType,
+      colour: EVENT_COLOURS.maintenance,
+      propertyName: unit?.properties.name ?? "",
+      unitNumber: unit?.unit_number,
+      link: `/maintenance/${req.id}`,
+      priority: EVENT_PRIORITY.maintenance,
+      allDay: !req.scheduled_time_from,
+      sourceId: req.id,
+    }
+  })
+}
+
+function buildDepositEvents(
+  timers: { id: string; deadline: string; leases: unknown }[]
+): CalendarEvent[] {
+  return timers.map((timer) => {
+    const unit = (timer.leases as { units: UnitRef } | null)?.units ?? null
+    const unitNum = unit?.unit_number ?? ""
+    return {
+      id: `deposit-${timer.id}`,
+      title: unit ? `Deposit return deadline — ${unitNum}` : "Deposit return deadline",
+      date: timer.deadline,
+      eventType: "deposit_deadline" satisfies EventType,
+      colour: EVENT_COLOURS.deposit_deadline,
+      propertyName: unit?.properties.name ?? "",
+      unitNumber: unit?.unit_number,
+      link: `/finance/deposits`,
+      priority: EVENT_PRIORITY.deposit_deadline,
+      allDay: true,
+      sourceId: timer.id,
+    }
+  })
+}
+
 export async function fetchCalendarEvents(
   service: SupabaseClient,
   orgId: string,
@@ -101,138 +269,16 @@ export async function fetchCalendarEvents(
       .lte("deadline", rangeEnd),
   ])
 
-  const events: CalendarEvent[] = []
-
-  // Inspections
-  for (const insp of inspectionsResult.data ?? []) {
-    const unit = insp.units as unknown as { unit_number: string; properties: { name: string } } | null
-    const isOverdue = insp.scheduled_date < today
-    const eventType: EventType = isOverdue ? "inspection_overdue" : "inspection"
-    const label = (insp.type as string)?.replace(/_/g, " ") ?? "Inspection"
-    events.push({
-      id: `insp-${insp.id}`,
-      title: `${label}${unit ? ` — ${unit.unit_number}` : ""}`,
-      date: insp.scheduled_date,
-      time: insp.scheduled_time_from ?? undefined,
-      endTime: insp.scheduled_time_to ?? undefined,
-      eventType,
-      colour: EVENT_COLOURS[eventType],
-      propertyName: unit?.properties.name ?? "",
-      unitNumber: unit?.unit_number,
-      link: `/inspections/${insp.id}`,
-      priority: EVENT_PRIORITY[eventType],
-      allDay: !insp.scheduled_time_from,
-      sourceId: insp.id,
-    })
-  }
-
-  // Maintenance visits
-  for (const req of maintenanceResult.data ?? []) {
-    const unit = req.units as unknown as { unit_number: string; properties: { name: string } } | null
-    events.push({
-      id: `maint-${req.id}`,
-      title: req.title,
-      date: req.scheduled_date as string,
-      time: req.scheduled_time_from ?? undefined,
-      endTime: req.scheduled_time_to ?? undefined,
-      eventType: "maintenance",
-      colour: EVENT_COLOURS.maintenance,
-      propertyName: unit?.properties.name ?? "",
-      unitNumber: unit?.unit_number,
-      link: `/maintenance/${req.id}`,
-      priority: EVENT_PRIORITY.maintenance,
-      allDay: !req.scheduled_time_from,
-      sourceId: req.id,
-    })
-  }
+  const events: CalendarEvent[] = [
+    ...buildInspectionEvents(inspectionsResult.data ?? [], today),
+    ...buildMaintenanceEvents(maintenanceResult.data ?? []),
+    ...buildDepositEvents(depositResult.data ?? []),
+  ]
 
   // Leases: expiry + CPA deadlines + move events
   for (const lease of leasesResult.data ?? []) {
-    if (!lease.end_date) continue
-    const leaseResult2 = await service
-      .from("leases")
-      .select("id, units(unit_number, properties(name)), tenants(contacts(first_name, last_name))")
-      .eq("id", lease.id)
-      .single()
-    const leaseUnit = (leaseResult2.data?.units as unknown as { unit_number: string; properties: { name: string } } | null)
-
-    // Lease expiry — only if within display range
-    if (lease.end_date >= rangeStart && lease.end_date <= rangeEnd) {
-      // Colour urgency: purple >30d, amber <=30d, red <=7d
-      const daysUntil = Math.ceil((new Date(lease.end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-      const colour = daysUntil <= 7 ? "#ef4444" : daysUntil <= 30 ? "#f59e0b" : "#8b5cf6"
-      events.push({
-        id: `lease-exp-${lease.id}`,
-        title: `Lease expiry${leaseUnit ? ` — ${leaseUnit.unit_number}` : ""}`,
-        date: lease.end_date,
-        eventType: "lease_expiry",
-        colour,
-        propertyName: leaseUnit?.properties.name ?? "",
-        unitNumber: leaseUnit?.unit_number,
-        link: `/leases/${lease.id}`,
-        priority: EVENT_PRIORITY.lease_expiry,
-        allDay: true,
-        sourceId: lease.id,
-      })
-    }
-
-    // CPA s14 notice deadline
-    if (lease.cpa_applies && !lease.auto_renewal_notice_sent_at) {
-      const endDate = new Date(lease.end_date)
-      const noticeDeadline = subtractBusinessDays(endDate, 20)
-      const noticeDateStr = noticeDeadline.toISOString().split("T")[0]
-      if (noticeDateStr >= rangeStart && noticeDateStr <= rangeEnd) {
-        events.push({
-          id: `cpa-${lease.id}`,
-          title: `CPA notice due${leaseUnit ? ` — ${leaseUnit.unit_number}` : ""}`,
-          date: noticeDateStr,
-          eventType: "cpa_deadline",
-          colour: EVENT_COLOURS.cpa_deadline,
-          propertyName: leaseUnit?.properties.name ?? "",
-          unitNumber: leaseUnit?.unit_number,
-          link: `/leases/${lease.id}`,
-          priority: EVENT_PRIORITY.cpa_deadline,
-          allDay: true,
-          sourceId: lease.id,
-        })
-      }
-    }
-
-    // Move-in (start_date in future, within range)
-    if (lease.start_date >= today && lease.start_date >= rangeStart && lease.start_date <= rangeEnd) {
-      events.push({
-        id: `move-in-${lease.id}`,
-        title: `Move-in${leaseUnit ? ` — ${leaseUnit.unit_number}` : ""}`,
-        date: lease.start_date,
-        eventType: "move_in",
-        colour: EVENT_COLOURS.move_in,
-        propertyName: leaseUnit?.properties.name ?? "",
-        unitNumber: leaseUnit?.unit_number,
-        link: `/leases/${lease.id}`,
-        priority: EVENT_PRIORITY.move_in,
-        allDay: true,
-        sourceId: lease.id,
-      })
-    }
-  }
-
-  // Deposit return deadlines
-  for (const timer of depositResult.data ?? []) {
-    const leaseData = timer.leases as unknown as { units: { unit_number: string; properties: { name: string } } | null } | null
-    const unit = leaseData?.units
-    events.push({
-      id: `deposit-${timer.id}`,
-      title: `Deposit return deadline${unit ? ` — ${unit.unit_number}` : ""}`,
-      date: timer.deadline,
-      eventType: "deposit_deadline",
-      colour: EVENT_COLOURS.deposit_deadline,
-      propertyName: unit?.properties.name ?? "",
-      unitNumber: unit?.unit_number,
-      link: `/finance/deposits`,
-      priority: EVENT_PRIORITY.deposit_deadline,
-      allDay: true,
-      sourceId: timer.id,
-    })
+    const leaseEvents = await buildLeaseEvents(service, lease, rangeStart, rangeEnd, today)
+    events.push(...leaseEvents)
   }
 
   // Sort by date then priority
@@ -279,10 +325,11 @@ export async function fetchOverdueAlerts(
   const alerts: CalendarEvent[] = []
 
   for (const insp of overdueInspections.data ?? []) {
-    const unit = insp.units as unknown as { unit_number: string; properties: { name: string } } | null
+    const unit = insp.units as unknown as UnitRef
+    const unitNum = unit?.unit_number ?? ""
     alerts.push({
       id: `insp-overdue-${insp.id}`,
-      title: `Overdue inspection — ${unit?.unit_number ?? ""}`,
+      title: unit ? `Overdue inspection — ${unitNum}` : "Overdue inspection",
       date: insp.scheduled_date,
       eventType: "inspection_overdue",
       colour: EVENT_COLOURS.inspection_overdue,
@@ -296,11 +343,12 @@ export async function fetchOverdueAlerts(
   }
 
   for (const timer of overdueDeposits.data ?? []) {
-    const leaseData = timer.leases as unknown as { units: { unit_number: string; properties: { name: string } } | null } | null
-    const unit = leaseData?.units
+    const leaseData = timer.leases as unknown as { units: UnitRef } | null
+    const unit = leaseData?.units ?? null
+    const unitNum = unit?.unit_number ?? ""
     alerts.push({
       id: `deposit-overdue-${timer.id}`,
-      title: `Deposit return overdue — ${unit?.unit_number ?? ""}`,
+      title: unit ? `Deposit return overdue — ${unitNum}` : "Deposit return overdue",
       date: timer.deadline,
       eventType: "deposit_deadline",
       colour: EVENT_COLOURS.deposit_deadline,
@@ -322,10 +370,11 @@ export async function fetchOverdueAlerts(
         .select("units(unit_number, properties(name))")
         .eq("id", lease.id)
         .single()
-      const unit = (leaseData2.data?.units as unknown as { unit_number: string; properties: { name: string } } | null)
+      const unit = (leaseData2.data?.units as unknown as UnitRef)
+      const unitNum = unit?.unit_number ?? ""
       alerts.push({
         id: `cpa-missed-${lease.id}`,
-        title: `CPA notice MISSED — ${unit?.unit_number ?? ""}`,
+        title: unit ? `CPA notice MISSED — ${unitNum}` : "CPA notice MISSED",
         date: noticeDeadline.toISOString().split("T")[0],
         eventType: "cpa_deadline",
         colour: EVENT_COLOURS.cpa_deadline,

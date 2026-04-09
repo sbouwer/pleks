@@ -125,25 +125,177 @@ async function fetchLeaseDetails(
 
 // ── Main import function ───────────────────────────────────────────────
 
+export interface GLImportOptions {
+  orgId: string
+  agentId: string
+  importDeposits: boolean
+  dateFilter: { from: string; to: string }
+}
+
+interface GLImportContext {
+  leaseMatches: Record<string, string>
+  propertyMatches: Record<string, string>
+  dateFilter: { from: string; to: string }
+  orgId: string
+  agentId: string
+  supabase: SupabaseClient
+  result: GLImportResult
+}
+
+async function importArTransaction(
+  tx: GLTransaction,
+  propertyKey: string,
+  ctx: GLImportContext,
+): Promise<void> {
+  if (!isWithinDateFilter(tx.date, ctx.dateFilter)) {
+    ctx.result.skipped++
+    return
+  }
+
+  // Resolve leaseId: try unitRef first, then property key
+  let leaseId: string | undefined
+  if (tx.unitRef) {
+    leaseId = ctx.leaseMatches[tx.unitRef]
+  }
+  if (!leaseId) {
+    leaseId = ctx.propertyMatches[propertyKey]
+  }
+
+  if (!leaseId) {
+    ctx.result.errors.push({
+      description: tx.rawDescription,
+      message: `No lease match found for unit ref "${tx.unitRef ?? "none"}" in property "${propertyKey}"`,
+    })
+    ctx.result.skipped++
+    return
+  }
+
+  const duplicate = await isDuplicate(ctx.supabase, leaseId, tx.amountCents, tx.date)
+  if (duplicate) {
+    ctx.result.skipped++
+    return
+  }
+
+  const details = await fetchLeaseDetails(ctx.supabase, leaseId)
+  if (!details) {
+    ctx.result.errors.push({
+      description: tx.rawDescription,
+      message: `Could not fetch lease details for lease "${leaseId}"`,
+    })
+    ctx.result.skipped++
+    return
+  }
+
+  const { error } = await ctx.supabase.from("trust_transactions").insert({
+    org_id: ctx.orgId,
+    property_id: details.propertyId,
+    unit_id: details.unitId,
+    lease_id: leaseId,
+    transaction_type: mapTransactionType(tx.type),
+    direction: mapDirection(tx.type),
+    amount_cents: tx.amountCents,
+    description: `${tx.description} (imported from TPN GL)`,
+    is_opening_balance: true,
+    created_by: ctx.agentId,
+  })
+
+  if (error) {
+    ctx.result.errors.push({
+      description: tx.rawDescription,
+      message: `Insert failed: ${error.message}`,
+    })
+  } else {
+    ctx.result.transactionsCreated++
+  }
+}
+
+async function importDepositTransaction(
+  dep: GLDepositTransaction,
+  propertyKey: string,
+  ctx: GLImportContext,
+): Promise<void> {
+  if (!isWithinDateFilter(dep.date, ctx.dateFilter)) {
+    ctx.result.skipped++
+    return
+  }
+
+  // For deposits, resolve via property key (no unit ref available)
+  const leaseId = ctx.propertyMatches[propertyKey]
+  if (!leaseId) {
+    ctx.result.errors.push({
+      description: dep.rawDescription,
+      message: `No lease match found for deposit in property "${propertyKey}"`,
+    })
+    ctx.result.skipped++
+    return
+  }
+
+  const amount = mapDepositAmount(dep)
+  const duplicate = await isDuplicate(ctx.supabase, leaseId, amount, dep.date)
+  if (duplicate) {
+    ctx.result.skipped++
+    return
+  }
+
+  const details = await fetchLeaseDetails(ctx.supabase, leaseId)
+  if (!details) {
+    ctx.result.errors.push({
+      description: dep.rawDescription,
+      message: `Could not fetch lease details for lease "${leaseId}"`,
+    })
+    ctx.result.skipped++
+    return
+  }
+
+  const { error } = await ctx.supabase.from("trust_transactions").insert({
+    org_id: ctx.orgId,
+    property_id: details.propertyId,
+    unit_id: details.unitId,
+    lease_id: leaseId,
+    transaction_type: mapDepositTransactionType(dep.type),
+    direction: mapDepositDirection(dep),
+    amount_cents: amount,
+    description: `${dep.rawDescription} (imported from TPN GL)`,
+    is_opening_balance: true,
+    created_by: ctx.agentId,
+  })
+
+  if (error) {
+    ctx.result.errors.push({
+      description: dep.rawDescription,
+      message: `Deposit insert failed: ${error.message}`,
+    })
+  } else {
+    ctx.result.depositsCreated++
+  }
+}
+
 export async function runGLImport(
   blocks: GLPropertyBlock[],
   leaseMatches: Record<string, string>,
   propertyMatches: Record<string, string>,
-  dateFilter: { from: string; to: string },
-  importDeposits: boolean,
-  orgId: string,
-  agentId: string,
+  options: GLImportOptions,
   supabase: SupabaseClient,
 ): Promise<GLImportResult> {
+  const { orgId, agentId, importDeposits, dateFilter } = options
+
   // Clear lease details cache for each import run
   leaseDetailsCache.clear()
 
-  const result: GLImportResult = {
-    transactionsCreated: 0,
-    depositsCreated: 0,
-    skipped: 0,
-    errors: [],
-    outstandingBalances: [],
+  const ctx: GLImportContext = {
+    leaseMatches,
+    propertyMatches,
+    dateFilter,
+    orgId,
+    agentId,
+    supabase,
+    result: {
+      transactionsCreated: 0,
+      depositsCreated: 0,
+      skipped: 0,
+      errors: [],
+      outstandingBalances: [],
+    },
   }
 
   for (const block of blocks) {
@@ -151,138 +303,24 @@ export async function runGLImport(
 
     // Process AR transactions
     for (const tx of block.arTransactions) {
-      if (!isWithinDateFilter(tx.date, dateFilter)) {
-        result.skipped++
-        continue
-      }
-
-      // Resolve leaseId: try unitRef first, then property key
-      let leaseId: string | undefined
-      if (tx.unitRef) {
-        leaseId = leaseMatches[tx.unitRef]
-      }
-      if (!leaseId) {
-        leaseId = propertyMatches[propertyKey]
-      }
-
-      if (!leaseId) {
-        result.errors.push({
-          description: tx.rawDescription,
-          message: `No lease match found for unit ref "${tx.unitRef ?? "none"}" in property "${propertyKey}"`,
-        })
-        result.skipped++
-        continue
-      }
-
-      // Duplicate check
-      const duplicate = await isDuplicate(supabase, leaseId, tx.amountCents, tx.date)
-      if (duplicate) {
-        result.skipped++
-        continue
-      }
-
-      // Fetch lease details
-      const details = await fetchLeaseDetails(supabase, leaseId)
-      if (!details) {
-        result.errors.push({
-          description: tx.rawDescription,
-          message: `Could not fetch lease details for lease "${leaseId}"`,
-        })
-        result.skipped++
-        continue
-      }
-
-      const { error } = await supabase.from("trust_transactions").insert({
-        org_id: orgId,
-        property_id: details.propertyId,
-        unit_id: details.unitId,
-        lease_id: leaseId,
-        transaction_type: mapTransactionType(tx.type),
-        direction: mapDirection(tx.type),
-        amount_cents: tx.amountCents,
-        description: `${tx.description} (imported from TPN GL)`,
-        is_opening_balance: true,
-        created_by: agentId,
-      })
-
-      if (error) {
-        result.errors.push({
-          description: tx.rawDescription,
-          message: `Insert failed: ${error.message}`,
-        })
-      } else {
-        result.transactionsCreated++
-      }
+      await importArTransaction(tx, propertyKey, ctx)
     }
 
     // Process deposit transactions
     if (importDeposits) {
       for (const dep of block.depositTransactions) {
-        if (!isWithinDateFilter(dep.date, dateFilter)) {
-          result.skipped++
-          continue
-        }
-
-        // For deposits, resolve via property key (no unit ref available)
-        const leaseId = propertyMatches[propertyKey]
-        if (!leaseId) {
-          result.errors.push({
-            description: dep.rawDescription,
-            message: `No lease match found for deposit in property "${propertyKey}"`,
-          })
-          result.skipped++
-          continue
-        }
-
-        const amount = mapDepositAmount(dep)
-        const duplicate = await isDuplicate(supabase, leaseId, amount, dep.date)
-        if (duplicate) {
-          result.skipped++
-          continue
-        }
-
-        const details = await fetchLeaseDetails(supabase, leaseId)
-        if (!details) {
-          result.errors.push({
-            description: dep.rawDescription,
-            message: `Could not fetch lease details for lease "${leaseId}"`,
-          })
-          result.skipped++
-          continue
-        }
-
-        const { error } = await supabase.from("trust_transactions").insert({
-          org_id: orgId,
-          property_id: details.propertyId,
-          unit_id: details.unitId,
-          lease_id: leaseId,
-          transaction_type: mapDepositTransactionType(dep.type),
-          direction: mapDepositDirection(dep),
-          amount_cents: amount,
-          description: `${dep.rawDescription} (imported from TPN GL)`,
-          is_opening_balance: true,
-          created_by: agentId,
-        })
-
-        if (error) {
-          result.errors.push({
-            description: dep.rawDescription,
-            message: `Deposit insert failed: ${error.message}`,
-          })
-        } else {
-          result.depositsCreated++
-        }
+        await importDepositTransaction(dep, propertyKey, ctx)
       }
     }
 
     // Track outstanding balances
     if (block.closingBalance > 0) {
-      result.outstandingBalances.push({
+      ctx.result.outstandingBalances.push({
         propertyName: block.propertyName,
         balance: block.closingBalance,
       })
     }
   }
 
-  return result
+  return ctx.result
 }

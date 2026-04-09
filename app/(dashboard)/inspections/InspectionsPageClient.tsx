@@ -82,11 +82,11 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
                         {tenant ? ` · ${tenant.first_name} ${tenant.last_name}` : ""}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {insp.scheduled_date
-                          ? `Scheduled: ${new Date(insp.scheduled_date).toLocaleDateString("en-ZA")}`
-                          : insp.conducted_date
-                            ? `Conducted: ${new Date(insp.conducted_date).toLocaleDateString("en-ZA")}`
-                            : ""}
+                        {(() => {
+                          if (insp.scheduled_date) return `Scheduled: ${new Date(insp.scheduled_date).toLocaleDateString("en-ZA")}`
+                          if (insp.conducted_date) return `Conducted: ${new Date(insp.conducted_date).toLocaleDateString("en-ZA")}`
+                          return ""
+                        })()}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">

@@ -61,9 +61,10 @@ export async function POST(
         })
 
         const responseText = message.content[0].type === "text" ? message.content[0].text : ""
-        const jsonMatch = /\{[\s\S]*\}/.exec(responseText)
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0])
+        const jsonStart = responseText.indexOf("{")
+        const jsonEnd = responseText.lastIndexOf("}")
+        if (jsonStart !== -1 && jsonEnd > jsonStart) {
+          const parsed = JSON.parse(responseText.slice(jsonStart, jsonEnd + 1))
           extractedIncome = parsed.avg_monthly_income_cents ?? null
         }
       }

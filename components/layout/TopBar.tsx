@@ -33,11 +33,10 @@ export function Topbar({
   const router = useRouter()
 
   const fullName = user?.user_metadata?.full_name as string | undefined
+  const emailInitials = user?.email ? user.email.substring(0, 2).toUpperCase() : "?"
   const initials = fullName
     ? fullName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)
-    : user?.email
-      ? user.email.substring(0, 2).toUpperCase()
-      : "?"
+    : emailInitials
 
   async function handleSignOut() {
     const supabase = createClient()

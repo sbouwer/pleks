@@ -53,7 +53,7 @@ export function calculateFullFitScore(
     else if (ratio <= 0.30) incomeScore = 80
     else if (ratio <= 0.35) incomeScore = 50
     else if (ratio <= 0.40) incomeScore = 25
-    else incomeScore = 0
+    // else: incomeScore stays 0 (initialised above)
   }
 
   // 3. TPN rental history (20%)
@@ -64,10 +64,16 @@ export function calculateFullFitScore(
 
   // 5. Judgements & adverse (10%)
   const totalAdverse = judgementsCount + adverseCount
-  const judgementScore = totalAdverse === 0 ? 100 : totalAdverse === 1 ? 30 : 0
+  let judgementScore: number
+  if (totalAdverse === 0) { judgementScore = 100 }
+  else if (totalAdverse === 1) { judgementScore = 30 }
+  else { judgementScore = 0 }
 
   // 6. References (5%)
-  const refScore = referenceCount >= 2 ? 100 : referenceCount === 1 ? 60 : 0
+  let refScore: number
+  if (referenceCount >= 2) { refScore = 100 }
+  else if (referenceCount === 1) { refScore = 60 }
+  else { refScore = 0 }
 
   const components: FitScoreComponents = {
     credit_score: { raw: creditScore, score: creditScoreValue, weight: 0.25 },

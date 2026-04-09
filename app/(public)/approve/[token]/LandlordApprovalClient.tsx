@@ -29,7 +29,11 @@ export function LandlordApprovalClient({ requestId, token }: Readonly<Props>) {
         toast.error("Could not submit — please try again")
         return
       }
-      setDone(decision === "approve" ? "approved" : decision === "reject" ? "rejected" : "quote_requested")
+      let doneState: "approved" | "rejected" | "quote_requested"
+      if (decision === "approve") { doneState = "approved" }
+      else if (decision === "reject") { doneState = "rejected" }
+      else { doneState = "quote_requested" }
+      setDone(doneState)
     } catch {
       toast.error("Could not submit — please check your connection")
     } finally {

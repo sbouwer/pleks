@@ -136,6 +136,8 @@ export default function DetailsPage() {
   }
 
   const isForeign = form.id_type === "passport" || form.id_type === "asylum_permit"
+  const nonSaIdLabel = form.id_type === "passport" ? "Passport number" : "Permit number"
+  const idFieldLabel = form.id_type === "sa_id" ? "SA ID number" : nonSaIdLabel
 
   return (
     <div className="space-y-6">
@@ -179,7 +181,7 @@ export default function DetailsPage() {
               </SelectContent>
             </Select>
           </Field>
-          <Field label={form.id_type === "sa_id" ? "SA ID number" : form.id_type === "passport" ? "Passport number" : "Permit number"} error={errors.id_number}>
+          <Field label={idFieldLabel} error={errors.id_number}>
             <Input className="h-12" value={form.id_number} onChange={(e) => update("id_number", e.target.value)} maxLength={form.id_type === "sa_id" ? 13 : undefined} />
             {form.id_type === "sa_id" && idValidation && (
               <p className={`text-xs mt-1 ${idValidation.valid ? "text-green-600" : "text-destructive"}`}>

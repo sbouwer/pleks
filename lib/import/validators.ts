@@ -36,7 +36,7 @@ export function validateTenantRow(row: ParsedRow, index: number): ParseError[] {
   }
   if (!row.email?.trim()) {
     errors.push({ row: rowNum, field: "email", message: "Email is required" })
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email)) {
+  } else if (!/^[^\s@]{1,64}@[^\s@]{1,253}\.[^\s@]{2,63}$/.test(row.email)) {
     errors.push({ row: rowNum, field: "email", message: "Invalid email format" })
   }
 
@@ -88,7 +88,7 @@ export function validateSAID(idNumber: string): boolean {
  * Basic email format validation.
  */
 export function validateEmail(email: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+  return /^[^\s@]{1,64}@[^\s@]{1,253}\.[^\s@]{2,63}$/.test(email.trim())
 }
 
 export function normaliseBranchCode(raw: string | null): string | null {

@@ -75,6 +75,9 @@ function CopyButton({ url }: { url: string }) {
 
 function ListingHeader({ listing, appCount }: { listing: ListingShape; appCount: number }) {
   const listingUrl = listing.public_slug ? `${APP_URL}/apply/${listing.public_slug}` : null
+  let applicantLabel: string
+  if (appCount === 0) { applicantLabel = "No applicants yet" }
+  else { applicantLabel = `${appCount} applicant${appCount !== 1 ? "s" : ""}` }
   return (
     <div className="rounded-lg border border-border bg-card px-4 py-3 space-y-2">
       <div className="flex items-center justify-between">
@@ -84,7 +87,7 @@ function ListingHeader({ listing, appCount }: { listing: ListingShape; appCount:
         <p className="text-sm text-muted-foreground">
           {formatZAR(listing.asking_rent_cents)}/mo
           {" · "}
-          {appCount === 0 ? "No applicants yet" : `${appCount} applicant${appCount !== 1 ? "s" : ""}`}
+          {applicantLabel}
         </p>
       </div>
       {listingUrl && (
@@ -129,7 +132,10 @@ export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
   const merged = new Map<string, { listing: ListingShape; apps: typeof list }>()
   for (const sl of listings) {
     const units = (Array.isArray(sl.units) ? sl.units[0] : sl.units) as { unit_number: string; properties: { name: string } | { name: string }[] } | undefined
-    const props = units ? (Array.isArray(units.properties) ? units.properties[0] : units.properties) : null
+    let props: { name: string } | null = null
+    if (units) {
+      props = Array.isArray(units.properties) ? units.properties[0] : units.properties
+    }
     if (!units || !props) continue
     merged.set(sl.id, {
       listing: { id: sl.id, public_slug: sl.public_slug, asking_rent_cents: sl.asking_rent_cents, applications_count: sl.applications_count, units: { unit_number: units.unit_number, properties: { name: props.name } } },

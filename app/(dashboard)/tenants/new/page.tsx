@@ -27,6 +27,394 @@ function RequiredStar() {
   return <span className="text-danger ml-0.5">*</span>
 }
 
+// ─── Validation helpers ───────────────────────────────────────────────────────
+
+function validateIndividualFields(
+  firstName: string,
+  lastName: string,
+  email: string,
+  phone: string,
+): Record<string, string> {
+  const errs: Record<string, string> = {}
+  if (!firstName.trim()) errs.firstName = "Required"
+  if (!lastName.trim()) errs.lastName = "Required"
+  if (!email.trim()) errs.email = "Required"
+  if (!phone.trim()) errs.phone = "Required"
+  return errs
+}
+
+function validateCompanyFields(
+  companyName: string,
+  dirFirstName: string,
+  dirLastName: string,
+  dirIdNumber: string,
+  dirPhone: string,
+  dirEmail: string,
+  addrLine1: string,
+  addrCity: string,
+): Record<string, string> {
+  const errs: Record<string, string> = {}
+  if (!companyName.trim()) errs.companyName = "Required"
+  if (!dirFirstName.trim()) errs.dirFirstName = "Required"
+  if (!dirLastName.trim()) errs.dirLastName = "Required"
+  if (!dirIdNumber.trim()) errs.dirIdNumber = "Required"
+  if (!dirPhone.trim()) errs.dirPhone = "Required"
+  if (!dirEmail.trim()) errs.dirEmail = "Required"
+  if (!addrLine1.trim()) errs.addrLine1 = "Required"
+  if (!addrCity.trim()) errs.addrCity = "Required"
+  return errs
+}
+
+// ─── FormData builders ────────────────────────────────────────────────────────
+
+function buildIndividualFormData(
+  formData: FormData,
+  firstName: string,
+  lastName: string,
+  idType: string,
+  idNumber: string,
+  idValidation: ReturnType<typeof validateSAIdNumber> | null,
+) {
+  formData.set("first_name", firstName)
+  formData.set("last_name", lastName)
+  formData.set("id_type", idType)
+  formData.set("id_number", idNumber)
+  if (idValidation?.dob) {
+    formData.set("date_of_birth", idValidation.dob.toISOString().split("T")[0])
+  }
+}
+
+function buildCompanyFormData(
+  formData: FormData,
+  companyName: string,
+  companyReg: string,
+  dirFirstName: string,
+  dirLastName: string,
+  dirIdType: string,
+  dirIdNumber: string,
+  dirIdValidation: ReturnType<typeof validateSAIdNumber> | null,
+  dirPhone: string,
+  dirEmail: string,
+  addrLine1: string,
+  addrSuburb: string,
+  addrCity: string,
+  addrProvince: string,
+  addrPostalCode: string,
+) {
+  formData.set("company_name", companyName)
+  formData.set("company_reg_number", companyReg)
+  formData.set("contact_first_name", dirFirstName)
+  formData.set("contact_last_name", dirLastName)
+  formData.set("contact_id_type", dirIdType)
+  formData.set("contact_id_number", dirIdNumber)
+  if (dirIdValidation?.dob) {
+    formData.set("contact_date_of_birth", dirIdValidation.dob.toISOString().split("T")[0])
+  }
+  formData.set("contact_phone", dirPhone)
+  formData.set("contact_email", dirEmail)
+  formData.set("company_addr_line1", addrLine1)
+  formData.set("company_addr_suburb", addrSuburb)
+  formData.set("company_addr_city", addrCity)
+  formData.set("company_addr_province", addrProvince)
+  formData.set("company_addr_postal_code", addrPostalCode)
+}
+
+// ─── Step 2 sub-components ────────────────────────────────────────────────────
+
+interface IndividualFieldsProps {
+  firstName: string; setFirstName: (v: string) => void
+  lastName: string; setLastName: (v: string) => void
+  idType: string; setIdType: (v: string) => void
+  idNumber: string
+  idValidation: ReturnType<typeof validateSAIdNumber> | null
+  onIdNumberChange: (v: string) => void
+  email: string; setEmail: (v: string) => void
+  phone: string; setPhone: (v: string) => void
+  errors: Record<string, string>
+}
+
+function IndividualFields({
+  firstName, setFirstName, lastName, setLastName,
+  idType, setIdType, idNumber, idValidation, onIdNumberChange,
+  email, setEmail, phone, setPhone, errors,
+}: Readonly<IndividualFieldsProps>) {
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>First Name <RequiredStar /></Label>
+          <Input
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            placeholder="e.g. Jane"
+            className={errors.firstName ? "border-danger" : ""}
+          />
+          {errors.firstName && <p className="text-xs text-danger">{errors.firstName}</p>}
+        </div>
+        <div className="space-y-2">
+          <Label>Last Name <RequiredStar /></Label>
+          <Input
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            placeholder="e.g. Smith"
+            className={errors.lastName ? "border-danger" : ""}
+          />
+          {errors.lastName && <p className="text-xs text-danger">{errors.lastName}</p>}
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label>ID Type</Label>
+        <Select value={idType} onValueChange={(v) => setIdType(v ?? "sa_id")}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select ID type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="sa_id">SA ID Number</SelectItem>
+            <SelectItem value="passport">Passport</SelectItem>
+            <SelectItem value="asylum_permit">Asylum Permit</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>ID / Passport Number</Label>
+        <Input
+          value={idNumber}
+          onChange={(e) => onIdNumberChange(e.target.value)}
+          placeholder={idType === "sa_id" ? "13-digit SA ID number" : "Passport or permit number"}
+        />
+        {idValidation && (
+          <p className={`text-sm ${idValidation.valid ? "text-success" : "text-danger"}`}>
+            {(() => {
+              if (!idValidation.valid) return "Invalid SA ID number"
+              const residency = idValidation.citizenship === "sa_citizen" ? "SA Citizen" : "Permanent Resident"
+              return `Valid — DOB: ${idValidation.dob?.toLocaleDateString("en-ZA")}, ${idValidation.gender}, ${residency}`
+            })()}
+          </p>
+        )}
+      </div>
+      <div className="space-y-2">
+        <Label>Email <RequiredStar /></Label>
+        <Input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="email@example.com"
+          className={errors.email ? "border-danger" : ""}
+        />
+        {errors.email && <p className="text-xs text-danger">{errors.email}</p>}
+      </div>
+      <div className="space-y-2">
+        <Label>Phone <RequiredStar /></Label>
+        <Input
+          type="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="e.g. 082 000 0000"
+          className={errors.phone ? "border-danger" : ""}
+        />
+        {errors.phone && <p className="text-xs text-danger">{errors.phone}</p>}
+      </div>
+    </>
+  )
+}
+
+interface CompanyFieldsProps {
+  companyName: string; setCompanyName: (v: string) => void
+  companyReg: string; setCompanyReg: (v: string) => void
+  addrLine1: string; setAddrLine1: (v: string) => void
+  addrSuburb: string; setAddrSuburb: (v: string) => void
+  addrCity: string; setAddrCity: (v: string) => void
+  addrProvince: string; setAddrProvince: (v: string) => void
+  addrPostalCode: string; setAddrPostalCode: (v: string) => void
+  dirFirstName: string; setDirFirstName: (v: string) => void
+  dirLastName: string; setDirLastName: (v: string) => void
+  dirIdType: string; setDirIdType: (v: string) => void
+  dirIdNumber: string
+  dirIdValidation: ReturnType<typeof validateSAIdNumber> | null
+  onDirIdNumberChange: (v: string) => void
+  dirPhone: string; setDirPhone: (v: string) => void
+  dirEmail: string; setDirEmail: (v: string) => void
+  errors: Record<string, string>
+}
+
+function CompanyFields({
+  companyName, setCompanyName, companyReg, setCompanyReg,
+  addrLine1, setAddrLine1, addrSuburb, setAddrSuburb,
+  addrCity, setAddrCity, addrProvince, setAddrProvince, addrPostalCode, setAddrPostalCode,
+  dirFirstName, setDirFirstName, dirLastName, setDirLastName,
+  dirIdType, setDirIdType, dirIdNumber, dirIdValidation, onDirIdNumberChange,
+  dirPhone, setDirPhone, dirEmail, setDirEmail,
+  errors,
+}: Readonly<CompanyFieldsProps>) {
+  return (
+    <>
+      {/* Company identity */}
+      <div className="space-y-2">
+        <Label>Company Name <RequiredStar /></Label>
+        <Input
+          value={companyName}
+          onChange={(e) => setCompanyName(e.target.value)}
+          placeholder="Legal entity name"
+          className={errors.companyName ? "border-danger" : ""}
+        />
+        {errors.companyName && <p className="text-xs text-danger">{errors.companyName}</p>}
+      </div>
+      <div className="space-y-2">
+        <Label>CIPC Registration Number</Label>
+        <Input
+          value={companyReg}
+          onChange={(e) => setCompanyReg(e.target.value)}
+          placeholder="e.g. 2023/123456/07"
+        />
+      </div>
+
+      {/* Company address */}
+      <div className="pt-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Company Address</p>
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <Label>Street Address <RequiredStar /></Label>
+            <Input
+              value={addrLine1}
+              onChange={(e) => setAddrLine1(e.target.value)}
+              placeholder="e.g. 12 Main Road"
+              className={errors.addrLine1 ? "border-danger" : ""}
+            />
+            {errors.addrLine1 && <p className="text-xs text-danger">{errors.addrLine1}</p>}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Suburb</Label>
+              <Input value={addrSuburb} onChange={(e) => setAddrSuburb(e.target.value)} placeholder="e.g. Sandton" />
+            </div>
+            <div className="space-y-2">
+              <Label>City <RequiredStar /></Label>
+              <Input
+                value={addrCity}
+                onChange={(e) => setAddrCity(e.target.value)}
+                placeholder="e.g. Johannesburg"
+                className={errors.addrCity ? "border-danger" : ""}
+              />
+              {errors.addrCity && <p className="text-xs text-danger">{errors.addrCity}</p>}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Province</Label>
+              <Select value={addrProvince} onValueChange={(v) => setAddrProvince(v ?? "")}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select province" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SA_PROVINCES.map((p) => (
+                    <SelectItem key={p} value={p}>{p}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Postal Code</Label>
+              <Input value={addrPostalCode} onChange={(e) => setAddrPostalCode(e.target.value)} placeholder="e.g. 2196" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Mandated signatory FICA */}
+      <div className="pt-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Mandated Signatory (Director / Authorised Representative)</p>
+        <p className="text-xs text-muted-foreground mb-3">The person who will sign the lease on behalf of the company. Full FICA required.</p>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>First Name <RequiredStar /></Label>
+              <Input
+                value={dirFirstName}
+                onChange={(e) => setDirFirstName(e.target.value)}
+                placeholder="e.g. John"
+                className={errors.dirFirstName ? "border-danger" : ""}
+              />
+              {errors.dirFirstName && <p className="text-xs text-danger">{errors.dirFirstName}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label>Last Name <RequiredStar /></Label>
+              <Input
+                value={dirLastName}
+                onChange={(e) => setDirLastName(e.target.value)}
+                placeholder="e.g. Doe"
+                className={errors.dirLastName ? "border-danger" : ""}
+              />
+              {errors.dirLastName && <p className="text-xs text-danger">{errors.dirLastName}</p>}
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>ID Type</Label>
+            <Select value={dirIdType} onValueChange={(v) => setDirIdType(v ?? "sa_id")}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select ID type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="sa_id">SA ID Number</SelectItem>
+                <SelectItem value="passport">Passport</SelectItem>
+                <SelectItem value="asylum_permit">Asylum Permit</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>ID / Passport Number <RequiredStar /></Label>
+            <Input
+              value={dirIdNumber}
+              onChange={(e) => onDirIdNumberChange(e.target.value)}
+              placeholder={dirIdType === "sa_id" ? "13-digit SA ID number" : "Passport or permit number"}
+              className={errors.dirIdNumber ? "border-danger" : ""}
+            />
+            {errors.dirIdNumber && <p className="text-xs text-danger">{errors.dirIdNumber}</p>}
+            {dirIdValidation && (
+              <p className={`text-sm ${dirIdValidation.valid ? "text-success" : "text-danger"}`}>
+                {(() => {
+                  if (!dirIdValidation.valid) return "Invalid SA ID number"
+                  const residency = dirIdValidation.citizenship === "sa_citizen" ? "SA Citizen" : "Permanent Resident"
+                  return `Valid — DOB: ${dirIdValidation.dob?.toLocaleDateString("en-ZA")}, ${dirIdValidation.gender}, ${residency}`
+                })()}
+              </p>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label>Direct Phone <RequiredStar /></Label>
+            <Input
+              type="tel"
+              value={dirPhone}
+              onChange={(e) => setDirPhone(e.target.value)}
+              placeholder="e.g. 082 000 0000"
+              className={errors.dirPhone ? "border-danger" : ""}
+            />
+            {errors.dirPhone && <p className="text-xs text-danger">{errors.dirPhone}</p>}
+          </div>
+          <div className="space-y-2">
+            <Label>Direct Email <RequiredStar /></Label>
+            <Input
+              type="email"
+              value={dirEmail}
+              onChange={(e) => setDirEmail(e.target.value)}
+              placeholder="director@company.co.za"
+              className={errors.dirEmail ? "border-danger" : ""}
+            />
+            {errors.dirEmail && <p className="text-xs text-danger">{errors.dirEmail}</p>}
+          </div>
+        </div>
+      </div>
+
+      <Card className="border-info/30 bg-info-bg">
+        <CardContent className="text-sm pt-4">
+          Company tenants are typically not covered by the Rental Housing Act or CPA consumer protections. Lease terms govern the tenancy.
+        </CardContent>
+      </Card>
+    </>
+  )
+}
+
+// ─── Main page component ──────────────────────────────────────────────────────
+
 export default function NewTenantPage() {
   const [step, setStep] = useState<Step>(1)
   const [tenantType, setTenantType] = useState<"individual" | "company">("individual")
@@ -87,22 +475,9 @@ export default function NewTenantPage() {
   }
 
   function validateStep2(): boolean {
-    const errs: Record<string, string> = {}
-    if (tenantType === "individual") {
-      if (!firstName.trim()) errs.firstName = "Required"
-      if (!lastName.trim()) errs.lastName = "Required"
-      if (!email.trim()) errs.email = "Required"
-      if (!phone.trim()) errs.phone = "Required"
-    } else {
-      if (!companyName.trim()) errs.companyName = "Required"
-      if (!dirFirstName.trim()) errs.dirFirstName = "Required"
-      if (!dirLastName.trim()) errs.dirLastName = "Required"
-      if (!dirIdNumber.trim()) errs.dirIdNumber = "Required"
-      if (!dirPhone.trim()) errs.dirPhone = "Required"
-      if (!dirEmail.trim()) errs.dirEmail = "Required"
-      if (!addrLine1.trim()) errs.addrLine1 = "Required"
-      if (!addrCity.trim()) errs.addrCity = "Required"
-    }
+    const errs = tenantType === "individual"
+      ? validateIndividualFields(firstName, lastName, email, phone)
+      : validateCompanyFields(companyName, dirFirstName, dirLastName, dirIdNumber, dirPhone, dirEmail, addrLine1, addrCity)
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -124,32 +499,9 @@ export default function NewTenantPage() {
     formData.set("occupation", occupation)
 
     if (tenantType === "individual") {
-      formData.set("first_name", firstName)
-      formData.set("last_name", lastName)
-      formData.set("id_type", idType)
-      formData.set("id_number", idNumber)
-      if (idValidation?.dob) {
-        formData.set("date_of_birth", idValidation.dob.toISOString().split("T")[0])
-      }
+      buildIndividualFormData(formData, firstName, lastName, idType, idNumber, idValidation)
     } else {
-      formData.set("company_name", companyName)
-      formData.set("company_reg_number", companyReg)
-      // Director FICA
-      formData.set("contact_first_name", dirFirstName)
-      formData.set("contact_last_name", dirLastName)
-      formData.set("contact_id_type", dirIdType)
-      formData.set("contact_id_number", dirIdNumber)
-      if (dirIdValidation?.dob) {
-        formData.set("contact_date_of_birth", dirIdValidation.dob.toISOString().split("T")[0])
-      }
-      formData.set("contact_phone", dirPhone)
-      formData.set("contact_email", dirEmail)
-      // Company address
-      formData.set("company_addr_line1", addrLine1)
-      formData.set("company_addr_suburb", addrSuburb)
-      formData.set("company_addr_city", addrCity)
-      formData.set("company_addr_province", addrProvince)
-      formData.set("company_addr_postal_code", addrPostalCode)
+      buildCompanyFormData(formData, companyName, companyReg, dirFirstName, dirLastName, dirIdType, dirIdNumber, dirIdValidation, dirPhone, dirEmail, addrLine1, addrSuburb, addrCity, addrProvince, addrPostalCode)
     }
 
     const { createTenant } = await import("@/lib/actions/tenants")
@@ -197,242 +549,34 @@ export default function NewTenantPage() {
         </h1>
         <div className="space-y-4">
           {tenantType === "individual" ? (
-            <>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>First Name <RequiredStar /></Label>
-                  <Input
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    placeholder="e.g. Jane"
-                    className={errors.firstName ? "border-danger" : ""}
-                  />
-                  {errors.firstName && <p className="text-xs text-danger">{errors.firstName}</p>}
-                </div>
-                <div className="space-y-2">
-                  <Label>Last Name <RequiredStar /></Label>
-                  <Input
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    placeholder="e.g. Smith"
-                    className={errors.lastName ? "border-danger" : ""}
-                  />
-                  {errors.lastName && <p className="text-xs text-danger">{errors.lastName}</p>}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>ID Type</Label>
-                <Select value={idType} onValueChange={(v) => setIdType(v ?? "sa_id")}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select ID type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="sa_id">SA ID Number</SelectItem>
-                    <SelectItem value="passport">Passport</SelectItem>
-                    <SelectItem value="asylum_permit">Asylum Permit</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>ID / Passport Number</Label>
-                <Input
-                  value={idNumber}
-                  onChange={(e) => handleIdNumberChange(e.target.value)}
-                  placeholder={idType === "sa_id" ? "13-digit SA ID number" : "Passport or permit number"}
-                />
-                {idValidation && (
-                  <p className={`text-sm ${idValidation.valid ? "text-success" : "text-danger"}`}>
-                    {idValidation.valid
-                      ? `Valid — DOB: ${idValidation.dob?.toLocaleDateString("en-ZA")}, ${idValidation.gender}, ${idValidation.citizenship === "sa_citizen" ? "SA Citizen" : "Permanent Resident"}`
-                      : "Invalid SA ID number"}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label>Email <RequiredStar /></Label>
-                <Input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="email@example.com"
-                  className={errors.email ? "border-danger" : ""}
-                />
-                {errors.email && <p className="text-xs text-danger">{errors.email}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label>Phone <RequiredStar /></Label>
-                <Input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="e.g. 082 000 0000"
-                  className={errors.phone ? "border-danger" : ""}
-                />
-                {errors.phone && <p className="text-xs text-danger">{errors.phone}</p>}
-              </div>
-            </>
+            <IndividualFields
+              firstName={firstName} setFirstName={setFirstName}
+              lastName={lastName} setLastName={setLastName}
+              idType={idType} setIdType={setIdType}
+              idNumber={idNumber} idValidation={idValidation}
+              onIdNumberChange={handleIdNumberChange}
+              email={email} setEmail={setEmail}
+              phone={phone} setPhone={setPhone}
+              errors={errors}
+            />
           ) : (
-            <>
-              {/* Company identity */}
-              <div className="space-y-2">
-                <Label>Company Name <RequiredStar /></Label>
-                <Input
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
-                  placeholder="Legal entity name"
-                  className={errors.companyName ? "border-danger" : ""}
-                />
-                {errors.companyName && <p className="text-xs text-danger">{errors.companyName}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label>CIPC Registration Number</Label>
-                <Input
-                  value={companyReg}
-                  onChange={(e) => setCompanyReg(e.target.value)}
-                  placeholder="e.g. 2023/123456/07"
-                />
-              </div>
-
-              {/* Company address */}
-              <div className="pt-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Company Address</p>
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    <Label>Street Address <RequiredStar /></Label>
-                    <Input
-                      value={addrLine1}
-                      onChange={(e) => setAddrLine1(e.target.value)}
-                      placeholder="e.g. 12 Main Road"
-                      className={errors.addrLine1 ? "border-danger" : ""}
-                    />
-                    {errors.addrLine1 && <p className="text-xs text-danger">{errors.addrLine1}</p>}
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label>Suburb</Label>
-                      <Input value={addrSuburb} onChange={(e) => setAddrSuburb(e.target.value)} placeholder="e.g. Sandton" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>City <RequiredStar /></Label>
-                      <Input
-                        value={addrCity}
-                        onChange={(e) => setAddrCity(e.target.value)}
-                        placeholder="e.g. Johannesburg"
-                        className={errors.addrCity ? "border-danger" : ""}
-                      />
-                      {errors.addrCity && <p className="text-xs text-danger">{errors.addrCity}</p>}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label>Province</Label>
-                      <Select value={addrProvince} onValueChange={(v) => setAddrProvince(v ?? "")}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select province" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {SA_PROVINCES.map((p) => (
-                            <SelectItem key={p} value={p}>{p}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Postal Code</Label>
-                      <Input value={addrPostalCode} onChange={(e) => setAddrPostalCode(e.target.value)} placeholder="e.g. 2196" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Mandated signatory FICA */}
-              <div className="pt-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Mandated Signatory (Director / Authorised Representative)</p>
-                <p className="text-xs text-muted-foreground mb-3">The person who will sign the lease on behalf of the company. Full FICA required.</p>
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <Label>First Name <RequiredStar /></Label>
-                      <Input
-                        value={dirFirstName}
-                        onChange={(e) => setDirFirstName(e.target.value)}
-                        placeholder="e.g. John"
-                        className={errors.dirFirstName ? "border-danger" : ""}
-                      />
-                      {errors.dirFirstName && <p className="text-xs text-danger">{errors.dirFirstName}</p>}
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Last Name <RequiredStar /></Label>
-                      <Input
-                        value={dirLastName}
-                        onChange={(e) => setDirLastName(e.target.value)}
-                        placeholder="e.g. Doe"
-                        className={errors.dirLastName ? "border-danger" : ""}
-                      />
-                      {errors.dirLastName && <p className="text-xs text-danger">{errors.dirLastName}</p>}
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>ID Type</Label>
-                    <Select value={dirIdType} onValueChange={(v) => setDirIdType(v ?? "sa_id")}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select ID type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="sa_id">SA ID Number</SelectItem>
-                        <SelectItem value="passport">Passport</SelectItem>
-                        <SelectItem value="asylum_permit">Asylum Permit</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>ID / Passport Number <RequiredStar /></Label>
-                    <Input
-                      value={dirIdNumber}
-                      onChange={(e) => handleDirIdNumberChange(e.target.value)}
-                      placeholder={dirIdType === "sa_id" ? "13-digit SA ID number" : "Passport or permit number"}
-                      className={errors.dirIdNumber ? "border-danger" : ""}
-                    />
-                    {errors.dirIdNumber && <p className="text-xs text-danger">{errors.dirIdNumber}</p>}
-                    {dirIdValidation && (
-                      <p className={`text-sm ${dirIdValidation.valid ? "text-success" : "text-danger"}`}>
-                        {dirIdValidation.valid
-                          ? `Valid — DOB: ${dirIdValidation.dob?.toLocaleDateString("en-ZA")}, ${dirIdValidation.gender}, ${dirIdValidation.citizenship === "sa_citizen" ? "SA Citizen" : "Permanent Resident"}`
-                          : "Invalid SA ID number"}
-                      </p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Direct Phone <RequiredStar /></Label>
-                    <Input
-                      type="tel"
-                      value={dirPhone}
-                      onChange={(e) => setDirPhone(e.target.value)}
-                      placeholder="e.g. 082 000 0000"
-                      className={errors.dirPhone ? "border-danger" : ""}
-                    />
-                    {errors.dirPhone && <p className="text-xs text-danger">{errors.dirPhone}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Direct Email <RequiredStar /></Label>
-                    <Input
-                      type="email"
-                      value={dirEmail}
-                      onChange={(e) => setDirEmail(e.target.value)}
-                      placeholder="director@company.co.za"
-                      className={errors.dirEmail ? "border-danger" : ""}
-                    />
-                    {errors.dirEmail && <p className="text-xs text-danger">{errors.dirEmail}</p>}
-                  </div>
-                </div>
-              </div>
-
-              <Card className="border-info/30 bg-info-bg">
-                <CardContent className="text-sm pt-4">
-                  Company tenants are typically not covered by the Rental Housing Act or CPA consumer protections. Lease terms govern the tenancy.
-                </CardContent>
-              </Card>
-            </>
+            <CompanyFields
+              companyName={companyName} setCompanyName={setCompanyName}
+              companyReg={companyReg} setCompanyReg={setCompanyReg}
+              addrLine1={addrLine1} setAddrLine1={setAddrLine1}
+              addrSuburb={addrSuburb} setAddrSuburb={setAddrSuburb}
+              addrCity={addrCity} setAddrCity={setAddrCity}
+              addrProvince={addrProvince} setAddrProvince={setAddrProvince}
+              addrPostalCode={addrPostalCode} setAddrPostalCode={setAddrPostalCode}
+              dirFirstName={dirFirstName} setDirFirstName={setDirFirstName}
+              dirLastName={dirLastName} setDirLastName={setDirLastName}
+              dirIdType={dirIdType} setDirIdType={setDirIdType}
+              dirIdNumber={dirIdNumber} dirIdValidation={dirIdValidation}
+              onDirIdNumberChange={handleDirIdNumberChange}
+              dirPhone={dirPhone} setDirPhone={setDirPhone}
+              dirEmail={dirEmail} setDirEmail={setDirEmail}
+              errors={errors}
+            />
           )}
 
           <div className="flex gap-3">

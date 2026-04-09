@@ -4,6 +4,123 @@ import { createClient } from "@/lib/supabase/server"
 import { parseCSV, type ImportResult } from "./csvParser"
 import { validateLeaseRow } from "./validators"
 
+// ── Helpers ────────────────────────────────────────────────────────────
+
+type SupabaseClient = Awaited<ReturnType<typeof import("@/lib/supabase/server").createClient>>
+
+type UnitRow = { id: string; property_id: string; properties: unknown }
+
+async function resolveUnitByAddress(
+  supabase: SupabaseClient,
+  orgId: string,
+  unitAddress: string,
+): Promise<{ unitId: string; propertyId: string } | null> {
+  const parts = unitAddress.split(",").map((p) => p.trim())
+  const unitNum = parts[0] ?? ""
+  const propertyAddr = parts.slice(1).join(", ").trim()
+
+  if (unitNum) {
+    const { data: matchedUnits } = await supabase
+      .from("units")
+      .select("id, property_id, properties(address_line1)")
+      .eq("org_id", orgId)
+      .ilike("unit_number", unitNum)
+      .is("deleted_at", null)
+
+    if (matchedUnits?.length === 1) {
+      const u = matchedUnits[0] as UnitRow
+      return { unitId: u.id, propertyId: u.property_id }
+    }
+
+    if (matchedUnits && matchedUnits.length > 1 && propertyAddr) {
+      const match = (matchedUnits as UnitRow[]).find((u) => {
+        const prop = u.properties as { address_line1: string } | null
+        return prop?.address_line1?.toLowerCase().includes(propertyAddr.toLowerCase().slice(0, 10))
+      })
+      if (match) return { unitId: match.id, propertyId: match.property_id }
+    }
+  }
+
+  // Fallback: broader search by unit number only
+  const { data: unitByNumber } = await supabase
+    .from("units")
+    .select("id, property_id")
+    .eq("org_id", orgId)
+    .ilike("unit_number", `%${unitNum}%`)
+    .is("deleted_at", null)
+    .limit(1)
+    .single()
+
+  if (unitByNumber) {
+    return { unitId: unitByNumber.id, propertyId: unitByNumber.property_id }
+  }
+
+  return null
+}
+
+async function createOpeningBalances(
+  supabase: SupabaseClient,
+  params: {
+    orgId: string
+    agentId: string
+    propertyId: string
+    unitId: string
+    leaseId: string
+    tenantId: string
+    depositCents: number
+    leaseType: string
+    row: Record<string, string>
+  },
+): Promise<void> {
+  const { orgId, agentId, propertyId, unitId, leaseId, tenantId, depositCents, leaseType, row } = params
+
+  if (depositCents > 0) {
+    await supabase.from("trust_transactions").insert({
+      org_id: orgId,
+      property_id: propertyId,
+      unit_id: unitId,
+      lease_id: leaseId,
+      transaction_type: "deposit_received",
+      direction: "credit",
+      amount_cents: depositCents,
+      description: `Opening balance — deposit migrated`,
+      reference: `MIGRATION-${new Date().toISOString().slice(0, 10)}`,
+      is_opening_balance: true,
+      created_by: agentId,
+    })
+
+    await supabase.from("deposit_transactions").insert({
+      org_id: orgId,
+      lease_id: leaseId,
+      tenant_id: tenantId,
+      transaction_type: "deposit_received",
+      direction: "credit",
+      amount_cents: depositCents,
+      description: `Opening balance — deposit migrated`,
+      created_by: agentId,
+    })
+  }
+
+  const arrearsCents = Number.parseInt(row.current_arrears_cents) || 0
+  if (arrearsCents > 0) {
+    await supabase.from("arrears_cases").insert({
+      org_id: orgId,
+      lease_id: leaseId,
+      tenant_id: tenantId,
+      unit_id: unitId,
+      property_id: propertyId,
+      lease_type: leaseType,
+      total_arrears_cents: arrearsCents,
+      oldest_outstanding_date: new Date().toISOString(),
+      months_in_arrears: 1,
+      status: "open",
+      current_step: 0,
+    })
+  }
+}
+
+// ── Main import function ───────────────────────────────────────────────
+
 export async function importLeases(
   csvText: string,
   orgId: string,
@@ -44,62 +161,10 @@ export async function importLeases(
     }
 
     // Match unit by unit_address field ("Flat 1, 3 Salford Street")
-    // Parse: first part before comma = unit number
     const unitAddress = row.unit_address ?? ""
-    const parts = unitAddress.split(",").map((p) => p.trim())
-    const unitNum = parts[0] ?? ""
-    const propertyAddr = parts.slice(1).join(", ").trim()
+    const unitMatch = await resolveUnitByAddress(supabase, orgId, unitAddress)
 
-    let unitId: string | null = null
-    let propertyId: string | null = null
-
-    // Try exact unit_number match first
-    if (unitNum) {
-      const query = supabase
-        .from("units")
-        .select("id, property_id, properties(address_line1)")
-        .eq("org_id", orgId)
-        .ilike("unit_number", unitNum)
-        .is("deleted_at", null)
-
-      const { data: matchedUnits } = await query
-
-      if (matchedUnits && matchedUnits.length === 1) {
-        // Unique match
-        unitId = matchedUnits[0].id
-        propertyId = matchedUnits[0].property_id
-      } else if (matchedUnits && matchedUnits.length > 1 && propertyAddr) {
-        // Multiple units with same number — disambiguate by property address
-        const match = matchedUnits.find((u) => {
-          const prop = u.properties as unknown as { address_line1: string } | null
-          return prop?.address_line1?.toLowerCase().includes(propertyAddr.toLowerCase().slice(0, 10))
-        })
-        if (match) {
-          unitId = match.id
-          propertyId = match.property_id
-        }
-      }
-    }
-
-    // Fallback: no match found
-    if (!unitId) {
-      // Try broader search by unit number only
-      const { data: unitByNumber } = await supabase
-        .from("units")
-        .select("id, property_id")
-        .eq("org_id", orgId)
-        .ilike("unit_number", `%${unitNum}%`)
-        .is("deleted_at", null)
-        .limit(1)
-        .single()
-
-      if (unitByNumber) {
-        unitId = unitByNumber.id
-        propertyId = unitByNumber.property_id
-      }
-    }
-
-    if (!unitId || !propertyId) {
+    if (!unitMatch) {
       results.errors.push({
         row: index + 2,
         field: "unit_address",
@@ -109,10 +174,12 @@ export async function importLeases(
       continue
     }
 
+    const { unitId, propertyId } = unitMatch
+
     // Create lease
-    const rentCents = parseInt(row.monthly_rent_cents) || 0
-    const depositCents = parseInt(row.deposit_held_cents) || 0
-    const escalation = parseFloat(row.escalation_percent) || 10
+    const rentCents = Number.parseInt(row.monthly_rent_cents) || 0
+    const depositCents = Number.parseInt(row.deposit_held_cents) || 0
+    const escalation = Number.parseFloat(row.escalation_percent) || 10
 
     const { data: lease } = await supabase
       .from("leases")
@@ -159,52 +226,18 @@ export async function importLeases(
       status: "active",
     })
 
-    // Opening balances
-    if (depositCents > 0) {
-      await supabase.from("trust_transactions").insert({
-        org_id: orgId,
-        property_id: propertyId,
-        unit_id: unitId,
-        lease_id: lease.id,
-        transaction_type: "deposit_received",
-        direction: "credit",
-        amount_cents: depositCents,
-        description: `Opening balance — deposit migrated`,
-        reference: `MIGRATION-${new Date().toISOString().slice(0, 10)}`,
-        is_opening_balance: true,
-        created_by: agentId,
-      })
-
-      // Also create deposit_transaction for the deposit engine
-      await supabase.from("deposit_transactions").insert({
-        org_id: orgId,
-        lease_id: lease.id,
-        tenant_id: tenant.id,
-        transaction_type: "deposit_received",
-        direction: "credit",
-        amount_cents: depositCents,
-        description: `Opening balance — deposit migrated`,
-        created_by: agentId,
-      })
-    }
-
-    // Opening arrears
-    const arrearsCents = parseInt(row.current_arrears_cents) || 0
-    if (arrearsCents > 0) {
-      await supabase.from("arrears_cases").insert({
-        org_id: orgId,
-        lease_id: lease.id,
-        tenant_id: tenant.id,
-        unit_id: unitId,
-        property_id: propertyId,
-        lease_type: row.lease_type ?? "residential",
-        total_arrears_cents: arrearsCents,
-        oldest_outstanding_date: new Date().toISOString(),
-        months_in_arrears: 1,
-        status: "open",
-        current_step: 0,
-      })
-    }
+    // Opening balances and arrears
+    await createOpeningBalances(supabase, {
+      orgId,
+      agentId,
+      propertyId,
+      unitId,
+      leaseId: lease.id,
+      tenantId: tenant.id,
+      depositCents,
+      leaseType: row.lease_type ?? "residential",
+      row,
+    })
 
     results.created++
   }

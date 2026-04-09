@@ -52,25 +52,34 @@ export function RentRollTab({ orgId, filters }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.rows.map((r, i) => (
+                  {data.rows.map((r, i) => {
+                    let leasePeriod: string
+                    if (!r.lease_start) {
+                      leasePeriod = "—"
+                    } else {
+                      const startStr = new Date(r.lease_start).toLocaleDateString("en-ZA", { month: "short", year: "2-digit" })
+                      const endStr = r.lease_end
+                        ? `–${new Date(r.lease_end).toLocaleDateString("en-ZA", { month: "short", year: "2-digit" })}`
+                        : " (M2M)"
+                      leasePeriod = `${startStr}${endStr}`
+                    }
+                    let statusClass: string
+                    if (r.status === "occupied") { statusClass = "text-emerald-600" }
+                    else if (r.status === "notice") { statusClass = "text-amber-600" }
+                    else if (r.status === "vacant") { statusClass = "text-red-600" }
+                    else { statusClass = "" }
+                    return (
                     <tr key={i} className="border-b border-border/50">
                       <td className="py-2 pr-2 text-xs">{r.property_name}</td>
                       <td className="py-2 pr-2">{r.unit_number}</td>
                       <td className="py-2 pr-2">{r.tenant_name ?? <span className="text-muted-foreground">VACANT</span>}</td>
                       <td className="text-right py-2 px-2">{r.monthly_rent_cents ? formatZAR(r.monthly_rent_cents) : "—"}</td>
                       <td className="py-2 px-2 text-xs">
-                        {r.lease_start
-                          ? `${new Date(r.lease_start).toLocaleDateString("en-ZA", { month: "short", year: "2-digit" })}${r.lease_end ? `–${new Date(r.lease_end).toLocaleDateString("en-ZA", { month: "short", year: "2-digit" })}` : " (M2M)"}`
-                          : "—"
-                        }
+                        {leasePeriod}
                       </td>
                       <td className="py-2 px-2 text-xs capitalize">{r.payment_method || "—"}</td>
                       <td className="py-2 px-2">
-                        <span className={`text-xs ${
-                          r.status === "occupied" ? "text-emerald-600" :
-                          r.status === "notice" ? "text-amber-600" :
-                          r.status === "vacant" ? "text-red-600" : ""
-                        }`}>
+                        <span className={`text-xs ${statusClass}`}>
                           {r.status}
                         </span>
                       </td>
@@ -78,7 +87,7 @@ export function RentRollTab({ orgId, filters }: Props) {
                         {r.arrears_cents ? formatZAR(r.arrears_cents) : "—"}
                       </td>
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
               </table>
             </CardContent>

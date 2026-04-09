@@ -298,7 +298,11 @@ export function BuildingForm({ propertyId, building }: Readonly<Props>) {
 
       <div className="flex items-center gap-3 pt-2">
         <Button type="submit" disabled={loading}>
-          {loading ? "Saving…" : isEditing ? "Save changes" : "Add building"}
+          {(() => {
+            if (loading) return "Saving…"
+            if (isEditing) return "Save changes"
+            return "Add building"
+          })()}
         </Button>
         <Button type="button" variant="outline" onClick={() => router.push(`/properties/${propertyId}`)} disabled={loading}>
           Cancel

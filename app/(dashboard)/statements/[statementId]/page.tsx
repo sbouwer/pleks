@@ -30,6 +30,11 @@ export default async function StatementDetailPage({
   const expenseLines = (stmt.expense_lines as { description: string; contractor: string; invoice_ref: string; amount_cents: number }[]) || []
   const arrearsLines = (stmt.arrears_lines as { unit: string; tenant: string; overdue_amount_cents: number }[]) || []
 
+  let stmtBadgeStatus: "active" | "completed" | "draft"
+  if (stmt.status === "sent") { stmtBadgeStatus = "active" }
+  else if (stmt.status === "viewed") { stmtBadgeStatus = "completed" }
+  else { stmtBadgeStatus = "draft" }
+
   return (
     <div>
       <div className="mb-6">
@@ -38,7 +43,7 @@ export default async function StatementDetailPage({
         </p>
         <div className="flex items-center gap-3">
           <h1 className="font-heading text-3xl">{property?.name} — {periodLabel}</h1>
-          <StatusBadge status={stmt.status === "sent" ? "active" : stmt.status === "viewed" ? "completed" : "draft"} />
+          <StatusBadge status={stmtBadgeStatus} />
         </div>
         <p className="text-muted-foreground">
           {property?.owner_name && `Prepared for: ${property.owner_name}`}
@@ -58,7 +63,12 @@ export default async function StatementDetailPage({
         <CardHeader><CardTitle className="text-lg">Rental Income</CardTitle></CardHeader>
         <CardContent>
           <div className="space-y-2">
-            {incomeLines.map((line, i) => (
+            {incomeLines.map((line, i) => {
+              let lineBadgeStatus: "paid" | "pending" | "overdue"
+              if (line.status === "paid") { lineBadgeStatus = "paid" }
+              else if (line.status === "partial") { lineBadgeStatus = "pending" }
+              else { lineBadgeStatus = "overdue" }
+              return (
               <div key={i} className="flex items-center justify-between text-sm py-1 border-b border-border last:border-0">
                 <div>
                   <span className="font-medium">{line.unit}</span>
@@ -66,10 +76,11 @@ export default async function StatementDetailPage({
                 </div>
                 <div className="flex items-center gap-2">
                   <span>{formatZAR(line.amount_paid_cents)}</span>
-                  <StatusBadge status={line.status === "paid" ? "paid" : line.status === "partial" ? "pending" : "overdue"} />
+                  <StatusBadge status={lineBadgeStatus} />
                 </div>
               </div>
-            ))}
+              )
+            })}
             <div className="flex justify-between font-medium pt-2">
               <span>Total Income</span>
               <span>{formatZAR(stmt.gross_income_cents)}</span>

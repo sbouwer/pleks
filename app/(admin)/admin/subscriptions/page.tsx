@@ -110,13 +110,7 @@ export default async function AdminSubscriptionsPage() {
                     <td className="py-2 capitalize text-xs">{s.tier}</td>
                     <td className="py-2 text-xs">
                       <Badge
-                        variant={
-                          s.status === "active"
-                            ? "default"
-                            : s.status === "trialing"
-                              ? "secondary"
-                              : "secondary"
-                        }
+                        variant={s.status === "active" ? "default" : "secondary"}
                       >
                         {s.status}
                       </Badge>

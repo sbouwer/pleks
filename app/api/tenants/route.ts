@@ -11,6 +11,46 @@ async function getMembership(service: Awaited<ReturnType<typeof createServiceCli
   return data
 }
 
+interface TenantPatchBody {
+  tenantId: string; contactId: string
+  entityType?: string; firstName?: string; lastName?: string; companyName?: string
+  registrationNumber?: string; vatNumber?: string
+  email?: string; phone?: string; notes?: string
+  nationality?: string; idNumber?: string; idType?: string; dateOfBirth?: string
+  employerName?: string; employerPhone?: string; occupation?: string; employmentType?: string
+  preferredContact?: string; blacklisted?: boolean; blacklistedReason?: string
+}
+
+function buildTenantContactUpdate(body: TenantPatchBody): Record<string, unknown> {
+  const u: Record<string, unknown> = {}
+  if (body.firstName !== undefined) u.first_name = body.firstName?.trim() || null
+  if (body.lastName !== undefined) u.last_name = body.lastName?.trim() || null
+  if (body.entityType !== undefined) u.entity_type = body.entityType
+  if (body.companyName !== undefined) u.company_name = body.companyName?.trim() || null
+  if (body.registrationNumber !== undefined) u.registration_number = body.registrationNumber?.trim() || null
+  if (body.vatNumber !== undefined) u.vat_number = body.vatNumber?.trim() || null
+  if (body.email !== undefined) u.primary_email = body.email?.trim() || null
+  if (body.phone !== undefined) u.primary_phone = body.phone?.trim() || null
+  if (body.notes !== undefined) u.notes = body.notes?.trim() || null
+  if (body.nationality !== undefined) u.nationality = body.nationality?.trim() || null
+  if (body.idNumber !== undefined) u.id_number = body.idNumber?.trim() || null
+  if (body.idType !== undefined) u.id_type = body.idType || null
+  if (body.dateOfBirth !== undefined) u.date_of_birth = body.dateOfBirth || null
+  return u
+}
+
+function buildTenantUpdate(body: TenantPatchBody): Record<string, unknown> {
+  const u: Record<string, unknown> = {}
+  if (body.employerName !== undefined) u.employer_name = body.employerName?.trim() || null
+  if (body.employerPhone !== undefined) u.employer_phone = body.employerPhone?.trim() || null
+  if (body.occupation !== undefined) u.occupation = body.occupation?.trim() || null
+  if (body.employmentType !== undefined) u.employment_type = body.employmentType || null
+  if (body.preferredContact !== undefined) u.preferred_contact = body.preferredContact || null
+  if (body.blacklisted !== undefined) u.blacklisted = body.blacklisted
+  if (body.blacklistedReason !== undefined) u.blacklisted_reason = body.blacklistedReason?.trim() || null
+  return u
+}
+
 export async function PATCH(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -20,56 +60,23 @@ export async function PATCH(req: NextRequest) {
   const membership = await getMembership(service, user.id)
   if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
 
-  const {
-    tenantId, contactId,
-    // Contact fields
-    entityType, firstName, lastName, companyName, registrationNumber, vatNumber,
-    email, phone, notes, nationality, idNumber, idType, dateOfBirth,
-    // Tenant fields
-    employerName, employerPhone, occupation, employmentType,
-    preferredContact, blacklisted, blacklistedReason,
-  } = await req.json()
+  const body = await req.json() as TenantPatchBody
+  if (!body.tenantId || !body.contactId) return NextResponse.json({ error: "Missing ids" }, { status: 400 })
 
-  if (!tenantId || !contactId) return NextResponse.json({ error: "Missing ids" }, { status: 400 })
-
-  // Build contact update (only include defined fields)
-  const contactUpdate: Record<string, unknown> = {}
-  if (firstName !== undefined) contactUpdate.first_name = firstName?.trim() || null
-  if (lastName !== undefined) contactUpdate.last_name = lastName?.trim() || null
-  if (entityType !== undefined) contactUpdate.entity_type = entityType
-  if (companyName !== undefined) contactUpdate.company_name = companyName?.trim() || null
-  if (registrationNumber !== undefined) contactUpdate.registration_number = registrationNumber?.trim() || null
-  if (vatNumber !== undefined) contactUpdate.vat_number = vatNumber?.trim() || null
-  if (email !== undefined) contactUpdate.primary_email = email?.trim() || null
-  if (phone !== undefined) contactUpdate.primary_phone = phone?.trim() || null
-  if (notes !== undefined) contactUpdate.notes = notes?.trim() || null
-  if (nationality !== undefined) contactUpdate.nationality = nationality?.trim() || null
-  if (idNumber !== undefined) contactUpdate.id_number = idNumber?.trim() || null
-  if (idType !== undefined) contactUpdate.id_type = idType || null
-  if (dateOfBirth !== undefined) contactUpdate.date_of_birth = dateOfBirth || null
-
+  const contactUpdate = buildTenantContactUpdate(body)
   if (Object.keys(contactUpdate).length > 0) {
     const { error: contactError } = await service.from("contacts")
       .update(contactUpdate)
-      .eq("id", contactId)
+      .eq("id", body.contactId)
       .eq("org_id", membership.org_id)
     if (contactError) return NextResponse.json({ error: contactError.message }, { status: 500 })
   }
 
-  // Build tenant update
-  const tenantUpdate: Record<string, unknown> = {}
-  if (employerName !== undefined) tenantUpdate.employer_name = employerName?.trim() || null
-  if (employerPhone !== undefined) tenantUpdate.employer_phone = employerPhone?.trim() || null
-  if (occupation !== undefined) tenantUpdate.occupation = occupation?.trim() || null
-  if (employmentType !== undefined) tenantUpdate.employment_type = employmentType || null
-  if (preferredContact !== undefined) tenantUpdate.preferred_contact = preferredContact || null
-  if (blacklisted !== undefined) tenantUpdate.blacklisted = blacklisted
-  if (blacklistedReason !== undefined) tenantUpdate.blacklisted_reason = blacklistedReason?.trim() || null
-
+  const tenantUpdate = buildTenantUpdate(body)
   if (Object.keys(tenantUpdate).length > 0) {
     const { error: tenantError } = await service.from("tenants")
       .update(tenantUpdate)
-      .eq("id", tenantId)
+      .eq("id", body.tenantId)
       .eq("org_id", membership.org_id)
     if (tenantError) return NextResponse.json({ error: tenantError.message }, { status: 500 })
   }

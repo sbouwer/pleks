@@ -28,6 +28,20 @@ const STEPS = [
   { key: "decision",  label: "Final decision" },
 ]
 
+function getPrescreenLabel(score: number): string {
+  if (score >= 38) return "Strong"
+  if (score >= 30) return "Good"
+  if (score >= 22) return "Borderline"
+  return "Insufficient"
+}
+
+function getPrescreenBarColor(score: number): string {
+  if (score >= 38) return "bg-green-500"
+  if (score >= 30) return "bg-blue-500"
+  if (score >= 22) return "bg-yellow-500"
+  return "bg-red-500"
+}
+
 function statusToStep(s: string): number {
   switch (s) {
     case "pending_documents":   return 0
@@ -104,9 +118,7 @@ export default function StatusPage() {
   const isShortlisted = app.stage1_status === "shortlisted"
   const isDeclined = app.stage1_status === "not_shortlisted"
   const prescreenScore = app.prescreen_score
-  const prescreenLabel = prescreenScore != null
-    ? prescreenScore >= 38 ? "Strong" : prescreenScore >= 30 ? "Good" : prescreenScore >= 22 ? "Borderline" : "Insufficient"
-    : null
+  const prescreenLabel = prescreenScore != null ? getPrescreenLabel(prescreenScore) : null
 
   const listing = app.listings
   const unit = listing?.units as unknown as { unit_number: string; properties: { name: string } } | null
@@ -148,16 +160,22 @@ export default function StatusPage() {
         <CardHeader><CardTitle>What happens next</CardTitle></CardHeader>
         <CardContent>
           <div className="space-y-0">
-            {STEPS.map((step, i) => (
+            {STEPS.map((step, i) => {
+              let stepIcon: React.ReactNode
+              if (i < currentStep) {
+                stepIcon = <CheckCircle2 className="size-5 text-green-500 shrink-0" />
+              } else if (i === currentStep) {
+                stepIcon = <Clock className="size-5 text-yellow-500 animate-pulse shrink-0" />
+              } else {
+                stepIcon = <Circle className="size-5 text-muted-foreground shrink-0" />
+              }
+              const stepLabelClass = i <= currentStep ? "text-sm font-medium" : "text-sm text-muted-foreground"
+              return (
               <div key={step.key} className="flex items-center gap-3 py-3 border-b border-border last:border-0">
-                {i < currentStep
-                  ? <CheckCircle2 className="size-5 text-green-500 shrink-0" />
-                  : i === currentStep
-                  ? <Clock className="size-5 text-yellow-500 animate-pulse shrink-0" />
-                  : <Circle className="size-5 text-muted-foreground shrink-0" />}
-                <span className={i <= currentStep ? "text-sm font-medium" : "text-sm text-muted-foreground"}>{step.label}</span>
+                {stepIcon}
+                <span className={stepLabelClass}>{step.label}</span>
               </div>
-            ))}
+            )})}
           </div>
         </CardContent>
       </Card>
@@ -172,7 +190,7 @@ export default function StatusPage() {
             </div>
             <div className="h-2 rounded-full bg-muted overflow-hidden">
               <div
-                className={`h-full rounded-full ${prescreenScore >= 38 ? "bg-green-500" : prescreenScore >= 30 ? "bg-blue-500" : prescreenScore >= 22 ? "bg-yellow-500" : "bg-red-500"}`}
+                className={`h-full rounded-full ${getPrescreenBarColor(prescreenScore)}`}
                 style={{ width: `${(prescreenScore / 45) * 100}%` }}
               />
             </div>

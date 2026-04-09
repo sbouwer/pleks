@@ -22,7 +22,8 @@ function formatWaNumber(phone: string): string {
 }
 
 export function QuickActions({ primaryPhone, primaryEmail, waNumber, moreItems = [] }: Readonly<QuickActionsProps>) {
-  const waFormatted = waNumber ? formatWaNumber(waNumber) : primaryPhone ? formatWaNumber(primaryPhone) : null
+  const waSource = waNumber ?? primaryPhone ?? null
+  const waFormatted = waSource ? formatWaNumber(waSource) : null
 
   return (
     <div className="grid grid-cols-4 gap-1">

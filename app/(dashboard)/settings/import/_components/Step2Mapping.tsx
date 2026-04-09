@@ -177,6 +177,10 @@ export function Step2Mapping({
                 return "matched"
               }
               const status = getStatus()
+              let badgeClass: string
+              if (status === "matched") { badgeClass = "bg-green-500/10 text-green-400" }
+              else if (status === "extra") { badgeClass = "bg-amber-500/10 text-amber-400" }
+              else { badgeClass = "bg-surface-elevated text-muted-foreground" }
 
               return (
                 <tr key={col} className="border-b border-border/50">
@@ -206,11 +210,7 @@ export function Step2Mapping({
                     </Select>
                   </td>
                   <td className="px-3 py-2">
-                    <Badge variant="secondary" className={`text-[10px] ${
-                      status === "matched" ? "bg-green-500/10 text-green-400"
-                        : status === "extra" ? "bg-amber-500/10 text-amber-400"
-                        : "bg-surface-elevated text-muted-foreground"
-                    }`}>
+                    <Badge variant="secondary" className={`text-[10px] ${badgeClass}`}>
                       {getStatus() === "unmapped" && "Skip"}
                       {getStatus() === "extra" && "Extra"}
                       {getStatus() === "matched" && "Matched"}
