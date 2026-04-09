@@ -79,6 +79,13 @@ export function LeaseDisclaimerGate({ children, initialAccepted }: Props) {
 
   if (status === "accepted") return <>{children}</>
 
+  // Don't flash the disclaimer while checking acceptance status
+  if (status === "loading") return (
+    <div className="pointer-events-none select-none opacity-40 blur-[2px]" aria-hidden>
+      {children}
+    </div>
+  )
+
   return (
     <>
       {/* Page content — rendered but non-interactive behind the modal */}

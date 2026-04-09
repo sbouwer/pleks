@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { getOrgDisplayName } from "@/lib/org/displayName"
 
 const BRANDING_FIELDS = [
   "lease_logo_path",
@@ -40,6 +41,13 @@ export async function GET() {
     .select(
       [
         "name",
+        "type",
+        "user_type",
+        "trading_as",
+        "title",
+        "first_name",
+        "last_name",
+        "initials",
         ...BRANDING_FIELDS,
       ].join(", ")
     )
@@ -50,9 +58,15 @@ export async function GET() {
     return NextResponse.json({ error: "Failed to fetch branding" }, { status: 500 })
   }
 
-  // Cast to known shape (columns added via migration, not yet in generated types)
   const orgData = org as unknown as {
-    name: string | null
+    name: string
+    type: string
+    user_type: string | null
+    trading_as: string | null
+    title: string | null
+    first_name: string | null
+    last_name: string | null
+    initials: string | null
     lease_logo_path: string | null
     lease_display_name: string | null
     lease_registration_number: string | null
@@ -73,7 +87,7 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    orgName: orgData.name ?? "",
+    orgName: getOrgDisplayName(orgData),
     logoUrl,
     lease_logo_path: orgData.lease_logo_path ?? null,
     lease_display_name: orgData.lease_display_name ?? null,
