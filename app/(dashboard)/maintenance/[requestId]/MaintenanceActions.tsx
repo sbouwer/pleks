@@ -1,6 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import { SignOffCard } from "@/components/maintenance/SignOffCard"
 import { updateMaintenanceStatus } from "@/lib/actions/maintenance"
 import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
@@ -11,9 +12,10 @@ import { OPERATIONAL_QUERY_KEYS, DASHBOARD_QUERY_KEYS } from "@/lib/queries/port
 interface MaintenanceActionsProps {
   readonly requestId: string
   readonly status: string
+  readonly actualCostCents: number | null
 }
 
-export function MaintenanceActions({ requestId, status }: MaintenanceActionsProps) {
+export function MaintenanceActions({ requestId, status, actualCostCents }: MaintenanceActionsProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const { orgId } = useOrg()
@@ -44,7 +46,7 @@ export function MaintenanceActions({ requestId, status }: MaintenanceActionsProp
         <Button size="sm" onClick={() => handleStatus("work_order_sent")}>Send Work Order</Button>
       )}
       {status === "pending_completion" && (
-        <Button size="sm" onClick={() => handleStatus("completed")}>Sign Off</Button>
+        <SignOffCard requestId={requestId} actualCostCents={actualCostCents} />
       )}
       {status === "completed" && (
         <Button size="sm" variant="outline" onClick={() => handleStatus("closed")}>Close</Button>

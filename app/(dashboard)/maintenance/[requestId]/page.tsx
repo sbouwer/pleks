@@ -28,9 +28,9 @@ const STATUS_MAP: Record<string, "pending" | "active" | "completed" | "arrears" 
 
 export default async function MaintenanceDetailPage({
   params,
-}: {
+}: Readonly<{
   params: Promise<{ requestId: string }>
-}) {
+}>) {
   const { requestId } = await params
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -48,12 +48,19 @@ export default async function MaintenanceDetailPage({
   const tenant = request.tenant_view as unknown as { first_name: string; last_name: string; phone: string } | null
   const contractor = request.contractor_view as unknown as { first_name: string; last_name: string; company_name: string; email: string; phone: string } | null
 
-  // Get contractor updates timeline
-  const { data: updates } = await supabase
-    .from("contractor_updates")
-    .select("*")
-    .eq("request_id", requestId)
-    .order("created_at", { ascending: false })
+  // Get contractor updates timeline + cost allocations
+  const [{ data: updates }, { data: allocations }] = await Promise.all([
+    supabase
+      .from("contractor_updates")
+      .select("*")
+      .eq("request_id", requestId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("maintenance_cost_allocations")
+      .select("id, allocation_type, amount_cents, description, lease_clause_ref, collection_method, added_to_invoice_at")
+      .eq("request_id", requestId)
+      .order("created_at"),
+  ])
 
   return (
     <div>
@@ -71,7 +78,7 @@ export default async function MaintenanceDetailPage({
             {request.category && ` · ${request.category}`}
           </p>
         </div>
-        <MaintenanceActions requestId={requestId} status={request.status} />
+        <MaintenanceActions requestId={requestId} status={request.status} actualCostCents={request.actual_cost_cents ?? null} />
       </div>
 
       {/* Urgency + AI triage */}
@@ -152,6 +159,38 @@ export default async function MaintenanceDetailPage({
             )}
             {!contractor && !request.estimated_cost_cents && (
               <p className="text-muted-foreground">No contractor assigned yet.</p>
+            )}
+
+            {/* Allocation breakdown (after sign-off) */}
+            {(allocations ?? []).length > 0 && (
+              <div className="pt-3 border-t border-border space-y-3">
+                {(allocations ?? []).map((a) => (
+                  <div key={a.id} className="space-y-0.5">
+                    <div className="flex justify-between items-baseline">
+                      <span className={`text-xs font-medium uppercase tracking-wide ${a.allocation_type === "landlord_expense" ? "text-muted-foreground" : "text-warning"}`}>
+                        {a.allocation_type === "landlord_expense" ? "Landlord expense" : "Tenant charge"}
+                      </span>
+                      <span className="font-medium">{formatZAR(a.amount_cents)}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{a.description}</p>
+                    {a.lease_clause_ref && (
+                      <p className="text-xs text-muted-foreground">Clause {a.lease_clause_ref}</p>
+                    )}
+                    {a.allocation_type === "tenant_charge" && a.collection_method && (
+                      <p className="text-xs text-muted-foreground">
+                        {a.collection_method === "next_invoice" && "→ Next rent invoice"}
+                        {a.collection_method === "separate_invoice" && "→ Separate invoice"}
+                        {a.collection_method === "deposit_deduction" && "→ Deduct from deposit at lease end"}
+                        {a.collection_method === "already_paid" && "→ Paid on-site"}
+                        {a.added_to_invoice_at && ` (added ${new Date(a.added_to_invoice_at).toLocaleDateString("en-ZA")})`}
+                      </p>
+                    )}
+                    {a.allocation_type === "landlord_expense" && (
+                      <p className="text-xs text-muted-foreground">→ Owner statement</p>
+                    )}
+                  </div>
+                ))}
+              </div>
             )}
           </CardContent>
         </Card>
