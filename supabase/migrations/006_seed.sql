@@ -477,4 +477,5 @@ $$Each party shall bear his/its own cost incidental to the negotiation, drafting
 $$The lessee hereby warrants that it shall at all times comply with all applicable laws, regulations, by-laws, and statutory requirements relevant to the operation of its business from the leased premises, including but not limited to the Protection of Personal Information Act 4 of 2013, the National Credit Act 34 of 2005, the Consumer Protection Act 68 of 2008, the Financial Intelligence Centre Act 38 of 2001, and all applicable sector-specific legislation. The lessee shall at its own cost obtain and maintain all licences, permits, and authorisations required for the conduct of its business and shall immediately notify the lessor of any failure to comply or any investigation by any regulatory authority.$$,
 'commercial', false, true, 3010, '{}',
 'Covers regulatory and legal compliance obligations specific to commercial tenants.',
-'Include regulatory compliance clause');
+'Include regulatory compliance clause')
+ON CONFLICT (clause_key) DO NOTHING;
