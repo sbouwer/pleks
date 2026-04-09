@@ -5,7 +5,7 @@
 -- =============================================================
 -- MAINTENANCE: Contractors
 -- =============================================================
-CREATE TABLE contractors (
+CREATE TABLE IF NOT EXISTS contractors (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL REFERENCES organisations(id),
   contact_id      uuid NOT NULL REFERENCES contacts(id),
@@ -52,7 +52,7 @@ CREATE TABLE contractors (
 -- =============================================================
 -- MAINTENANCE: Contractor preferences
 -- =============================================================
-CREATE TABLE contractor_preferences (
+CREATE TABLE IF NOT EXISTS contractor_preferences (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL REFERENCES organisations(id),
   property_id     uuid REFERENCES properties(id),
@@ -67,7 +67,7 @@ CREATE TABLE contractor_preferences (
 -- =============================================================
 -- MAINTENANCE: Maintenance requests
 -- =============================================================
-CREATE TABLE maintenance_requests (
+CREATE TABLE IF NOT EXISTS maintenance_requests (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id            uuid NOT NULL REFERENCES organisations(id),
   unit_id           uuid NOT NULL REFERENCES units(id),
@@ -133,7 +133,7 @@ CREATE TABLE maintenance_requests (
 -- =============================================================
 -- MAINTENANCE: Maintenance photos
 -- =============================================================
-CREATE TABLE maintenance_photos (
+CREATE TABLE IF NOT EXISTS maintenance_photos (
   id                     uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id                 uuid NOT NULL,
   request_id             uuid NOT NULL REFERENCES maintenance_requests(id) ON DELETE CASCADE,
@@ -153,7 +153,7 @@ CREATE TABLE maintenance_photos (
 -- =============================================================
 -- MAINTENANCE: Contractor updates (immutable)
 -- =============================================================
-CREATE TABLE contractor_updates (
+CREATE TABLE IF NOT EXISTS contractor_updates (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id        uuid NOT NULL,
   request_id    uuid NOT NULL REFERENCES maintenance_requests(id),
@@ -167,7 +167,7 @@ CREATE TABLE contractor_updates (
 -- =============================================================
 -- MAINTENANCE: Maintenance quotes
 -- =============================================================
-CREATE TABLE maintenance_quotes (
+CREATE TABLE IF NOT EXISTS maintenance_quotes (
   id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id                uuid NOT NULL REFERENCES organisations(id),
   request_id            uuid NOT NULL REFERENCES maintenance_requests(id),
@@ -205,7 +205,7 @@ CREATE TABLE maintenance_quotes (
 -- =============================================================
 -- SUPPLIER INVOICES: Supplier schedules
 -- =============================================================
-CREATE TABLE supplier_schedules (
+CREATE TABLE IF NOT EXISTS supplier_schedules (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL REFERENCES organisations(id),
   contractor_id   uuid NOT NULL REFERENCES contractors(id),
@@ -226,7 +226,7 @@ CREATE TABLE supplier_schedules (
 -- =============================================================
 -- SUPPLIER INVOICES: Supplier invoices
 -- =============================================================
-CREATE TABLE supplier_invoices (
+CREATE TABLE IF NOT EXISTS supplier_invoices (
   id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id              uuid NOT NULL REFERENCES organisations(id),
   contractor_id       uuid REFERENCES contractors(id),
@@ -272,7 +272,7 @@ CREATE TABLE supplier_invoices (
 -- =============================================================
 -- APPLICATIONS: Listings
 -- =============================================================
-CREATE TABLE listings (
+CREATE TABLE IF NOT EXISTS listings (
   id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id                uuid NOT NULL REFERENCES organisations(id),
   unit_id               uuid NOT NULL REFERENCES units(id),
@@ -302,7 +302,7 @@ CREATE TABLE listings (
 -- =============================================================
 -- APPLICATIONS: Applications (two-stage model)
 -- =============================================================
-CREATE TABLE applications (
+CREATE TABLE IF NOT EXISTS applications (
   id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id                uuid NOT NULL REFERENCES organisations(id),
   listing_id            uuid NOT NULL REFERENCES listings(id),
@@ -467,7 +467,7 @@ ALTER TABLE applications ADD CONSTRAINT fk_applications_reused_from
 -- =============================================================
 -- APPLICATIONS: Access tokens
 -- =============================================================
-CREATE TABLE application_tokens (
+CREATE TABLE IF NOT EXISTS application_tokens (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   application_id  uuid NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
   token           text NOT NULL UNIQUE DEFAULT encode(gen_random_bytes(32), 'hex'),
@@ -482,7 +482,7 @@ CREATE TABLE application_tokens (
 -- =============================================================
 -- APPLICATIONS: Co-applicants
 -- =============================================================
-CREATE TABLE application_co_applicants (
+CREATE TABLE IF NOT EXISTS application_co_applicants (
   id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id                uuid NOT NULL,
   primary_application_id uuid NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
@@ -534,7 +534,7 @@ CREATE TABLE application_co_applicants (
 -- =============================================================
 -- APPLICATIONS: Guarantors
 -- =============================================================
-CREATE TABLE application_guarantors (
+CREATE TABLE IF NOT EXISTS application_guarantors (
   id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id                uuid NOT NULL,
   application_id        uuid NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
@@ -565,7 +565,7 @@ CREATE TABLE application_guarantors (
 -- =============================================================
 -- APPLICATIONS: Additional financial documents
 -- =============================================================
-CREATE TABLE application_additional_docs (
+CREATE TABLE IF NOT EXISTS application_additional_docs (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id            uuid NOT NULL,
   application_id    uuid NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
@@ -589,7 +589,7 @@ CREATE TABLE application_additional_docs (
 -- =============================================================
 -- MUNICIPAL: Municipal accounts
 -- =============================================================
-CREATE TABLE municipal_accounts (
+CREATE TABLE IF NOT EXISTS municipal_accounts (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id            uuid NOT NULL REFERENCES organisations(id),
   property_id       uuid NOT NULL REFERENCES properties(id),
@@ -614,7 +614,7 @@ CREATE TABLE municipal_accounts (
 -- =============================================================
 -- MUNICIPAL: Municipal bills
 -- =============================================================
-CREATE TABLE municipal_bills (
+CREATE TABLE IF NOT EXISTS municipal_bills (
   id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id              uuid NOT NULL REFERENCES organisations(id),
   property_id         uuid NOT NULL REFERENCES properties(id),
@@ -673,7 +673,7 @@ CREATE TABLE municipal_bills (
 -- =============================================================
 -- MUNICIPAL: Per-unit allocations
 -- =============================================================
-CREATE TABLE municipal_bill_allocations (
+CREATE TABLE IF NOT EXISTS municipal_bill_allocations (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL,
   bill_id         uuid NOT NULL REFERENCES municipal_bills(id) ON DELETE CASCADE,
@@ -702,7 +702,7 @@ CREATE TABLE municipal_bill_allocations (
 -- =============================================================
 -- HOA: HOA / Body Corporate entity
 -- =============================================================
-CREATE TABLE hoa_entities (
+CREATE TABLE IF NOT EXISTS hoa_entities (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id            uuid NOT NULL REFERENCES organisations(id),
   property_id       uuid NOT NULL REFERENCES properties(id),
@@ -726,7 +726,7 @@ CREATE TABLE hoa_entities (
 -- =============================================================
 -- HOA: Unit owners
 -- =============================================================
-CREATE TABLE hoa_unit_owners (
+CREATE TABLE IF NOT EXISTS hoa_unit_owners (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL REFERENCES organisations(id),
   hoa_id          uuid NOT NULL REFERENCES hoa_entities(id),
@@ -753,7 +753,7 @@ CREATE TABLE hoa_unit_owners (
 -- =============================================================
 -- HOA: Levy schedules
 -- =============================================================
-CREATE TABLE levy_schedules (
+CREATE TABLE IF NOT EXISTS levy_schedules (
   id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id              uuid NOT NULL REFERENCES organisations(id),
   hoa_id              uuid NOT NULL REFERENCES hoa_entities(id),
@@ -783,7 +783,7 @@ CREATE TABLE levy_schedules (
 -- =============================================================
 -- HOA: Levy unit amounts (cache)
 -- =============================================================
-CREATE TABLE levy_unit_amounts (
+CREATE TABLE IF NOT EXISTS levy_unit_amounts (
   id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id              uuid NOT NULL REFERENCES organisations(id),
   schedule_id         uuid NOT NULL REFERENCES levy_schedules(id) ON DELETE CASCADE,
@@ -807,7 +807,7 @@ CREATE TABLE levy_unit_amounts (
 -- =============================================================
 -- HOA: Levy invoices
 -- =============================================================
-CREATE TABLE levy_invoices (
+CREATE TABLE IF NOT EXISTS levy_invoices (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL REFERENCES organisations(id),
   hoa_id          uuid NOT NULL REFERENCES hoa_entities(id),
@@ -837,7 +837,7 @@ CREATE TABLE levy_invoices (
 -- =============================================================
 -- HOA: AGM records
 -- =============================================================
-CREATE TABLE agm_records (
+CREATE TABLE IF NOT EXISTS agm_records (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL REFERENCES organisations(id),
   hoa_id          uuid NOT NULL REFERENCES hoa_entities(id),
@@ -868,7 +868,7 @@ CREATE TABLE agm_records (
 -- =============================================================
 -- HOA: AGM resolutions
 -- =============================================================
-CREATE TABLE agm_resolutions (
+CREATE TABLE IF NOT EXISTS agm_resolutions (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL REFERENCES organisations(id),
   agm_id          uuid NOT NULL REFERENCES agm_records(id),
@@ -886,7 +886,7 @@ CREATE TABLE agm_resolutions (
 -- =============================================================
 -- HOA: Reserve fund entries (immutable)
 -- =============================================================
-CREATE TABLE reserve_fund_entries (
+CREATE TABLE IF NOT EXISTS reserve_fund_entries (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL REFERENCES organisations(id),
   hoa_id          uuid NOT NULL REFERENCES hoa_entities(id),
@@ -910,7 +910,7 @@ ALTER TABLE levy_schedules ADD CONSTRAINT fk_levy_agm_resolution
 -- =============================================================
 -- REPORTS: Report configurations
 -- =============================================================
-CREATE TABLE report_configs (
+CREATE TABLE IF NOT EXISTS report_configs (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL REFERENCES organisations(id),
   report_type     text NOT NULL CHECK (report_type IN (
@@ -943,7 +943,7 @@ CREATE TABLE report_configs (
 -- =============================================================
 -- IMPORT: Import sessions
 -- =============================================================
-CREATE TABLE import_sessions (
+CREATE TABLE IF NOT EXISTS import_sessions (
   id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id                uuid NOT NULL REFERENCES organisations(id),
   created_by            uuid NOT NULL REFERENCES auth.users(id),
@@ -985,66 +985,66 @@ ALTER TABLE organisations ADD COLUMN IF NOT EXISTS maintenance_approval_threshol
 -- #############################################################
 
 -- Maintenance
-CREATE INDEX idx_contractors_org_id     ON contractors(org_id);
-CREATE INDEX idx_contractors_contact_id ON contractors(contact_id);
-CREATE INDEX idx_maintenance_org_id     ON maintenance_requests(org_id);
-CREATE INDEX idx_maintenance_unit_id    ON maintenance_requests(unit_id);
-CREATE INDEX idx_maintenance_status     ON maintenance_requests(status);
-CREATE INDEX idx_maintenance_urgency    ON maintenance_requests(urgency);
-CREATE INDEX idx_maintenance_photos_request ON maintenance_photos(request_id);
-CREATE INDEX idx_quotes_request         ON maintenance_quotes(request_id);
-CREATE INDEX idx_quotes_contractor      ON maintenance_quotes(contractor_id);
-CREATE INDEX idx_quotes_status          ON maintenance_quotes(status);
+CREATE INDEX IF NOT EXISTS idx_contractors_org_id     ON contractors(org_id);
+CREATE INDEX IF NOT EXISTS idx_contractors_contact_id ON contractors(contact_id);
+CREATE INDEX IF NOT EXISTS idx_maintenance_org_id     ON maintenance_requests(org_id);
+CREATE INDEX IF NOT EXISTS idx_maintenance_unit_id    ON maintenance_requests(unit_id);
+CREATE INDEX IF NOT EXISTS idx_maintenance_status     ON maintenance_requests(status);
+CREATE INDEX IF NOT EXISTS idx_maintenance_urgency    ON maintenance_requests(urgency);
+CREATE INDEX IF NOT EXISTS idx_maintenance_photos_request ON maintenance_photos(request_id);
+CREATE INDEX IF NOT EXISTS idx_quotes_request         ON maintenance_quotes(request_id);
+CREATE INDEX IF NOT EXISTS idx_quotes_contractor      ON maintenance_quotes(contractor_id);
+CREATE INDEX IF NOT EXISTS idx_quotes_status          ON maintenance_quotes(status);
 
 -- Supplier invoices
-CREATE INDEX idx_supplier_invoices_org       ON supplier_invoices(org_id);
-CREATE INDEX idx_supplier_invoices_request   ON supplier_invoices(maintenance_request_id);
-CREATE INDEX idx_supplier_invoices_property  ON supplier_invoices(property_id);
-CREATE INDEX idx_supplier_invoices_status    ON supplier_invoices(status);
-CREATE INDEX idx_supplier_invoices_statement_month ON supplier_invoices(statement_month);
+CREATE INDEX IF NOT EXISTS idx_supplier_invoices_org       ON supplier_invoices(org_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_invoices_request   ON supplier_invoices(maintenance_request_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_invoices_property  ON supplier_invoices(property_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_invoices_status    ON supplier_invoices(status);
+CREATE INDEX IF NOT EXISTS idx_supplier_invoices_statement_month ON supplier_invoices(statement_month);
 
 -- Applications
-CREATE INDEX idx_listings_org           ON listings(org_id);
-CREATE INDEX idx_listings_unit          ON listings(unit_id);
-CREATE INDEX idx_listings_status        ON listings(status);
-CREATE INDEX idx_listings_slug          ON listings(public_slug);
-CREATE INDEX idx_applications_org       ON applications(org_id);
-CREATE INDEX idx_applications_listing   ON applications(listing_id);
-CREATE INDEX idx_applications_stage1    ON applications(stage1_status);
-CREATE INDEX idx_applications_stage2    ON applications(stage2_status);
-CREATE INDEX idx_applications_fitscore  ON applications(fitscore DESC NULLS LAST);
-CREATE INDEX idx_app_tokens_token       ON application_tokens(token);
-CREATE INDEX idx_co_applicants_primary  ON application_co_applicants(primary_application_id);
-CREATE INDEX idx_guarantors_application ON application_guarantors(application_id);
-CREATE INDEX idx_additional_docs_application ON application_additional_docs(application_id);
+CREATE INDEX IF NOT EXISTS idx_listings_org           ON listings(org_id);
+CREATE INDEX IF NOT EXISTS idx_listings_unit          ON listings(unit_id);
+CREATE INDEX IF NOT EXISTS idx_listings_status        ON listings(status);
+CREATE INDEX IF NOT EXISTS idx_listings_slug          ON listings(public_slug);
+CREATE INDEX IF NOT EXISTS idx_applications_org       ON applications(org_id);
+CREATE INDEX IF NOT EXISTS idx_applications_listing   ON applications(listing_id);
+CREATE INDEX IF NOT EXISTS idx_applications_stage1    ON applications(stage1_status);
+CREATE INDEX IF NOT EXISTS idx_applications_stage2    ON applications(stage2_status);
+CREATE INDEX IF NOT EXISTS idx_applications_fitscore  ON applications(fitscore DESC NULLS LAST);
+CREATE INDEX IF NOT EXISTS idx_app_tokens_token       ON application_tokens(token);
+CREATE INDEX IF NOT EXISTS idx_co_applicants_primary  ON application_co_applicants(primary_application_id);
+CREATE INDEX IF NOT EXISTS idx_guarantors_application ON application_guarantors(application_id);
+CREATE INDEX IF NOT EXISTS idx_additional_docs_application ON application_additional_docs(application_id);
 
 -- Municipal
-CREATE INDEX idx_municipal_accounts_property ON municipal_accounts(property_id);
-CREATE INDEX idx_municipal_accounts_org      ON municipal_accounts(org_id);
-CREATE INDEX idx_municipal_bills_property    ON municipal_bills(property_id);
-CREATE INDEX idx_municipal_bills_period      ON municipal_bills(billing_month);
-CREATE INDEX idx_municipal_bills_status      ON municipal_bills(extraction_status);
-CREATE INDEX idx_municipal_allocs_bill       ON municipal_bill_allocations(bill_id);
-CREATE INDEX idx_municipal_allocs_unit       ON municipal_bill_allocations(unit_id);
+CREATE INDEX IF NOT EXISTS idx_municipal_accounts_property ON municipal_accounts(property_id);
+CREATE INDEX IF NOT EXISTS idx_municipal_accounts_org      ON municipal_accounts(org_id);
+CREATE INDEX IF NOT EXISTS idx_municipal_bills_property    ON municipal_bills(property_id);
+CREATE INDEX IF NOT EXISTS idx_municipal_bills_period      ON municipal_bills(billing_month);
+CREATE INDEX IF NOT EXISTS idx_municipal_bills_status      ON municipal_bills(extraction_status);
+CREATE INDEX IF NOT EXISTS idx_municipal_allocs_bill       ON municipal_bill_allocations(bill_id);
+CREATE INDEX IF NOT EXISTS idx_municipal_allocs_unit       ON municipal_bill_allocations(unit_id);
 
 -- HOA
-CREATE INDEX idx_hoa_org                ON hoa_entities(org_id);
-CREATE INDEX idx_hoa_property           ON hoa_entities(property_id);
-CREATE INDEX idx_hoa_owners_hoa         ON hoa_unit_owners(hoa_id);
-CREATE INDEX idx_hoa_owners_unit        ON hoa_unit_owners(unit_id);
-CREATE INDEX idx_levy_unit_amounts_schedule ON levy_unit_amounts(schedule_id);
-CREATE INDEX idx_levy_unit_amounts_owner    ON levy_unit_amounts(owner_id);
-CREATE INDEX idx_levy_invoices_hoa      ON levy_invoices(hoa_id);
-CREATE INDEX idx_levy_invoices_owner    ON levy_invoices(owner_id);
-CREATE INDEX idx_levy_invoices_status   ON levy_invoices(status);
-CREATE INDEX idx_reserve_fund_hoa       ON reserve_fund_entries(hoa_id);
+CREATE INDEX IF NOT EXISTS idx_hoa_org                ON hoa_entities(org_id);
+CREATE INDEX IF NOT EXISTS idx_hoa_property           ON hoa_entities(property_id);
+CREATE INDEX IF NOT EXISTS idx_hoa_owners_hoa         ON hoa_unit_owners(hoa_id);
+CREATE INDEX IF NOT EXISTS idx_hoa_owners_unit        ON hoa_unit_owners(unit_id);
+CREATE INDEX IF NOT EXISTS idx_levy_unit_amounts_schedule ON levy_unit_amounts(schedule_id);
+CREATE INDEX IF NOT EXISTS idx_levy_unit_amounts_owner    ON levy_unit_amounts(owner_id);
+CREATE INDEX IF NOT EXISTS idx_levy_invoices_hoa      ON levy_invoices(hoa_id);
+CREATE INDEX IF NOT EXISTS idx_levy_invoices_owner    ON levy_invoices(owner_id);
+CREATE INDEX IF NOT EXISTS idx_levy_invoices_status   ON levy_invoices(status);
+CREATE INDEX IF NOT EXISTS idx_reserve_fund_hoa       ON reserve_fund_entries(hoa_id);
 
 -- Reports
-CREATE INDEX idx_report_configs_org ON report_configs(org_id);
-CREATE INDEX idx_report_configs_scheduled ON report_configs(is_scheduled, schedule_day) WHERE is_scheduled = true;
+CREATE INDEX IF NOT EXISTS idx_report_configs_org ON report_configs(org_id);
+CREATE INDEX IF NOT EXISTS idx_report_configs_scheduled ON report_configs(is_scheduled, schedule_day) WHERE is_scheduled = true;
 
 -- Import
-CREATE INDEX idx_import_sessions_org_id ON import_sessions(org_id);
+CREATE INDEX IF NOT EXISTS idx_import_sessions_org_id ON import_sessions(org_id);
 
 
 -- #############################################################
@@ -1053,6 +1053,7 @@ CREATE INDEX idx_import_sessions_org_id ON import_sessions(org_id);
 
 -- Maintenance: contractors
 ALTER TABLE contractors ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_contractors" ON contractors;
 CREATE POLICY "org_contractors" ON contractors
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1060,6 +1061,7 @@ CREATE POLICY "org_contractors" ON contractors
 
 -- Maintenance: contractor_preferences
 ALTER TABLE contractor_preferences ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_contractor_prefs" ON contractor_preferences;
 CREATE POLICY "org_contractor_prefs" ON contractor_preferences
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1067,25 +1069,30 @@ CREATE POLICY "org_contractor_prefs" ON contractor_preferences
 
 -- Maintenance: maintenance_requests
 ALTER TABLE maintenance_requests ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_maintenance" ON maintenance_requests;
 CREATE POLICY "org_maintenance" ON maintenance_requests
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
   );
+DROP POLICY IF EXISTS "tenant_own_requests" ON maintenance_requests;
 CREATE POLICY "tenant_own_requests" ON maintenance_requests
   FOR SELECT USING (
     tenant_id IN (SELECT tenant_id FROM user_orgs_tenants WHERE user_id = auth.uid())
   );
+DROP POLICY IF EXISTS "tenant_create_requests" ON maintenance_requests;
 CREATE POLICY "tenant_create_requests" ON maintenance_requests
   FOR INSERT WITH CHECK (
     tenant_id IN (SELECT tenant_id FROM user_orgs_tenants WHERE user_id = auth.uid())
     AND logged_by = 'tenant' AND status = 'pending_review'
   );
+DROP POLICY IF EXISTS "contractor_assigned_jobs" ON maintenance_requests;
 CREATE POLICY "contractor_assigned_jobs" ON maintenance_requests
   FOR SELECT USING (
     contractor_id IN (
       SELECT id FROM contractors WHERE auth_user_id = auth.uid()
     )
   );
+DROP POLICY IF EXISTS "contractor_update_own_jobs" ON maintenance_requests;
 CREATE POLICY "contractor_update_own_jobs" ON maintenance_requests
   FOR UPDATE USING (
     contractor_id IN (
@@ -1095,6 +1102,7 @@ CREATE POLICY "contractor_update_own_jobs" ON maintenance_requests
 
 -- Maintenance: maintenance_photos
 ALTER TABLE maintenance_photos ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_maintenance_photos" ON maintenance_photos;
 CREATE POLICY "org_maintenance_photos" ON maintenance_photos
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1102,6 +1110,7 @@ CREATE POLICY "org_maintenance_photos" ON maintenance_photos
 
 -- Maintenance: contractor_updates
 ALTER TABLE contractor_updates ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_contractor_updates_read" ON contractor_updates;
 CREATE POLICY "org_contractor_updates_read" ON contractor_updates
   FOR SELECT USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1109,10 +1118,12 @@ CREATE POLICY "org_contractor_updates_read" ON contractor_updates
 
 -- Maintenance: maintenance_quotes
 ALTER TABLE maintenance_quotes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_quotes" ON maintenance_quotes;
 CREATE POLICY "org_quotes" ON maintenance_quotes
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
   );
+DROP POLICY IF EXISTS "contractor_own_quotes" ON maintenance_quotes;
 CREATE POLICY "contractor_own_quotes" ON maintenance_quotes
   FOR ALL USING (
     contractor_id IN (
@@ -1122,6 +1133,7 @@ CREATE POLICY "contractor_own_quotes" ON maintenance_quotes
 
 -- Supplier: supplier_schedules
 ALTER TABLE supplier_schedules ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_supplier_schedules" ON supplier_schedules;
 CREATE POLICY "org_supplier_schedules" ON supplier_schedules
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1129,6 +1141,7 @@ CREATE POLICY "org_supplier_schedules" ON supplier_schedules
 
 -- Supplier: supplier_invoices
 ALTER TABLE supplier_invoices ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_supplier_invoices" ON supplier_invoices;
 CREATE POLICY "org_supplier_invoices" ON supplier_invoices
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1136,15 +1149,18 @@ CREATE POLICY "org_supplier_invoices" ON supplier_invoices
 
 -- Applications: listings
 ALTER TABLE listings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_listings" ON listings;
 CREATE POLICY "org_listings" ON listings
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
   );
+DROP POLICY IF EXISTS "public_listing_view" ON listings;
 CREATE POLICY "public_listing_view" ON listings
   FOR SELECT USING (status = 'active');
 
 -- Applications: applications
 ALTER TABLE applications ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_applications" ON applications;
 CREATE POLICY "org_applications" ON applications
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1152,6 +1168,7 @@ CREATE POLICY "org_applications" ON applications
 
 -- Applications: application_tokens
 ALTER TABLE application_tokens ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_app_tokens" ON application_tokens;
 CREATE POLICY "org_app_tokens" ON application_tokens
   FOR ALL USING (
     application_id IN (SELECT id FROM applications WHERE org_id IN (
@@ -1161,6 +1178,7 @@ CREATE POLICY "org_app_tokens" ON application_tokens
 
 -- Applications: co_applicants
 ALTER TABLE application_co_applicants ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_co_applicants" ON application_co_applicants;
 CREATE POLICY "org_co_applicants" ON application_co_applicants
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1168,6 +1186,7 @@ CREATE POLICY "org_co_applicants" ON application_co_applicants
 
 -- Applications: guarantors
 ALTER TABLE application_guarantors ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_guarantors" ON application_guarantors;
 CREATE POLICY "org_guarantors" ON application_guarantors
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1175,6 +1194,7 @@ CREATE POLICY "org_guarantors" ON application_guarantors
 
 -- Applications: additional_docs
 ALTER TABLE application_additional_docs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_additional_docs" ON application_additional_docs;
 CREATE POLICY "org_additional_docs" ON application_additional_docs
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1182,6 +1202,7 @@ CREATE POLICY "org_additional_docs" ON application_additional_docs
 
 -- Municipal: municipal_accounts
 ALTER TABLE municipal_accounts ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_municipal_accounts" ON municipal_accounts;
 CREATE POLICY "org_municipal_accounts" ON municipal_accounts
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1189,6 +1210,7 @@ CREATE POLICY "org_municipal_accounts" ON municipal_accounts
 
 -- Municipal: municipal_bills
 ALTER TABLE municipal_bills ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_municipal_bills" ON municipal_bills;
 CREATE POLICY "org_municipal_bills" ON municipal_bills
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1196,6 +1218,7 @@ CREATE POLICY "org_municipal_bills" ON municipal_bills
 
 -- Municipal: municipal_bill_allocations
 ALTER TABLE municipal_bill_allocations ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_municipal_allocs" ON municipal_bill_allocations;
 CREATE POLICY "org_municipal_allocs" ON municipal_bill_allocations
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1203,6 +1226,7 @@ CREATE POLICY "org_municipal_allocs" ON municipal_bill_allocations
 
 -- HOA: hoa_entities
 ALTER TABLE hoa_entities ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_hoa" ON hoa_entities;
 CREATE POLICY "org_hoa" ON hoa_entities
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1210,6 +1234,7 @@ CREATE POLICY "org_hoa" ON hoa_entities
 
 -- HOA: hoa_unit_owners
 ALTER TABLE hoa_unit_owners ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_hoa_owners" ON hoa_unit_owners;
 CREATE POLICY "org_hoa_owners" ON hoa_unit_owners
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1217,6 +1242,7 @@ CREATE POLICY "org_hoa_owners" ON hoa_unit_owners
 
 -- HOA: levy_schedules
 ALTER TABLE levy_schedules ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_levy_schedules" ON levy_schedules;
 CREATE POLICY "org_levy_schedules" ON levy_schedules
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1224,6 +1250,7 @@ CREATE POLICY "org_levy_schedules" ON levy_schedules
 
 -- HOA: levy_unit_amounts
 ALTER TABLE levy_unit_amounts ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_levy_unit_amounts" ON levy_unit_amounts;
 CREATE POLICY "org_levy_unit_amounts" ON levy_unit_amounts
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1231,6 +1258,7 @@ CREATE POLICY "org_levy_unit_amounts" ON levy_unit_amounts
 
 -- HOA: levy_invoices
 ALTER TABLE levy_invoices ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_levy_invoices" ON levy_invoices;
 CREATE POLICY "org_levy_invoices" ON levy_invoices
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1238,6 +1266,7 @@ CREATE POLICY "org_levy_invoices" ON levy_invoices
 
 -- HOA: agm_records
 ALTER TABLE agm_records ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_agm" ON agm_records;
 CREATE POLICY "org_agm" ON agm_records
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1245,6 +1274,7 @@ CREATE POLICY "org_agm" ON agm_records
 
 -- HOA: agm_resolutions
 ALTER TABLE agm_resolutions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_agm_resolutions" ON agm_resolutions;
 CREATE POLICY "org_agm_resolutions" ON agm_resolutions
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1252,10 +1282,12 @@ CREATE POLICY "org_agm_resolutions" ON agm_resolutions
 
 -- HOA: reserve_fund_entries
 ALTER TABLE reserve_fund_entries ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_reserve_select" ON reserve_fund_entries;
 CREATE POLICY "org_reserve_select" ON reserve_fund_entries
   FOR SELECT USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
   );
+DROP POLICY IF EXISTS "org_reserve_insert" ON reserve_fund_entries;
 CREATE POLICY "org_reserve_insert" ON reserve_fund_entries
   FOR INSERT WITH CHECK (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1263,6 +1295,7 @@ CREATE POLICY "org_reserve_insert" ON reserve_fund_entries
 
 -- Reports: report_configs
 ALTER TABLE report_configs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_report_configs" ON report_configs;
 CREATE POLICY "org_report_configs" ON report_configs
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1270,6 +1303,7 @@ CREATE POLICY "org_report_configs" ON report_configs
 
 -- Import: import_sessions
 ALTER TABLE import_sessions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_import_sessions" ON import_sessions;
 CREATE POLICY "org_import_sessions" ON import_sessions
   FOR ALL USING (
     org_id IN (
@@ -1283,34 +1317,42 @@ CREATE POLICY "org_import_sessions" ON import_sessions
 -- TRIGGERS
 -- #############################################################
 
+DROP TRIGGER IF EXISTS update_contractors_updated_at ON contractors;
 CREATE TRIGGER update_contractors_updated_at
   BEFORE UPDATE ON contractors
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_maintenance_requests_updated_at ON maintenance_requests;
 CREATE TRIGGER update_maintenance_requests_updated_at
   BEFORE UPDATE ON maintenance_requests
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_supplier_schedules_updated_at ON supplier_schedules;
 CREATE TRIGGER update_supplier_schedules_updated_at
   BEFORE UPDATE ON supplier_schedules
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_supplier_invoices_updated_at ON supplier_invoices;
 CREATE TRIGGER update_supplier_invoices_updated_at
   BEFORE UPDATE ON supplier_invoices
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_listings_updated_at ON listings;
 CREATE TRIGGER update_listings_updated_at
   BEFORE UPDATE ON listings
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_applications_updated_at ON applications;
 CREATE TRIGGER update_applications_updated_at
   BEFORE UPDATE ON applications
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_municipal_accounts_updated_at ON municipal_accounts;
 CREATE TRIGGER update_municipal_accounts_updated_at
   BEFORE UPDATE ON municipal_accounts
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_municipal_bills_updated_at ON municipal_bills;
 CREATE TRIGGER update_municipal_bills_updated_at
   BEFORE UPDATE ON municipal_bills
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

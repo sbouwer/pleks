@@ -252,3 +252,39 @@ COMMENT ON COLUMN organisations.lease_logo_path           IS 'Storage path to or
 COMMENT ON COLUMN organisations.lease_display_name        IS 'Trading name shown on lease cover page (falls back to name)';
 COMMENT ON COLUMN organisations.lease_registration_number IS 'EAAB / company reg number shown on lease cover page';
 COMMENT ON COLUMN organisations.lease_accent_color        IS 'Hex accent colour for divider lines on generated lease PDF';
+
+-- ---------------------------------------------------------------------------
+-- 016: Schema drift fixes
+-- ---------------------------------------------------------------------------
+
+-- lease_charges: rename payable_to_contractor_id → payable_to_supplier_id
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'lease_charges'
+      AND column_name = 'payable_to_contractor_id'
+  ) THEN
+    ALTER TABLE lease_charges RENAME COLUMN payable_to_contractor_id TO payable_to_supplier_id;
+  END IF;
+END $$;
+ALTER TABLE lease_charges
+  ADD COLUMN IF NOT EXISTS payable_to_supplier_id uuid;
+
+-- deposit_interest_config: UNIQUE constraint skipped on existing tables
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE table_schema = 'public' AND table_name = 'deposit_interest_config'
+      AND constraint_name = 'no_overlapping_configs'
+  ) THEN
+    ALTER TABLE deposit_interest_config
+      ADD CONSTRAINT no_overlapping_configs
+      UNIQUE (org_id, property_id, unit_id, effective_from);
+  END IF;
+END $$;
+
+-- units: prospective_co_tenant_id (singular) — FK mirror of prospective_co_tenant_ids array
+ALTER TABLE units
+  ADD COLUMN IF NOT EXISTS prospective_co_tenant_id uuid REFERENCES tenants(id) ON DELETE SET NULL;
