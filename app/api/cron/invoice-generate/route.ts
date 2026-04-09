@@ -2,6 +2,20 @@ import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { startOfMonth, endOfMonth, setDate } from "date-fns"
 
+function buildPaymentReference(lastName: string | null, unitNumber: string | null): string {
+  const surname = (lastName ?? "TENANT")
+    .toUpperCase()
+    .replaceAll(/\s+/g, "")
+    .replaceAll(/[^A-Z0-9]/g, "")
+    .slice(0, 10)
+  const unit = (unitNumber ?? "U1")
+    .toUpperCase()
+    .replaceAll(/\s+/g, "")
+    .replaceAll(/[^A-Z0-9]/g, "")
+    .slice(0, 6)
+  return `${surname}-${unit}`
+}
+
 export async function GET(req: Request) {
   const cronSecret = req.headers.get("x-cron-secret") || new URL(req.url).searchParams.get("secret")
   if (cronSecret !== process.env.CRON_SECRET) {
@@ -14,10 +28,10 @@ export async function GET(req: Request) {
   const periodTo = endOfMonth(today).toISOString().split("T")[0]
   let generated = 0
 
-  // Get all active leases
+  // Get all active leases with tenant + unit for payment reference
   const { data: leases } = await supabase
     .from("leases")
-    .select("id, org_id, unit_id, property_id, tenant_id, rent_amount_cents, payment_due_day")
+    .select("id, org_id, unit_id, property_id, tenant_id, rent_amount_cents, payment_due_day, tenant_view(last_name), units(unit_number)")
     .in("status", ["active", "month_to_month", "notice"])
 
   for (const lease of leases || []) {
@@ -43,6 +57,10 @@ export async function GET(req: Request) {
     const dueDay = Math.min(lease.payment_due_day || 1, 28)
     const dueDate = setDate(today, dueDay).toISOString().split("T")[0]
 
+    const tenantView = lease.tenant_view as unknown as { last_name: string | null } | null
+    const unit = lease.units as unknown as { unit_number: string | null } | null
+    const paymentReference = buildPaymentReference(tenantView?.last_name ?? null, unit?.unit_number ?? null)
+
     await supabase.from("rent_invoices").insert({
       org_id: lease.org_id,
       lease_id: lease.id,
@@ -56,6 +74,7 @@ export async function GET(req: Request) {
       rent_amount_cents: lease.rent_amount_cents,
       total_amount_cents: lease.rent_amount_cents,
       balance_cents: lease.rent_amount_cents,
+      payment_reference: paymentReference,
       status: "open",
     })
 
