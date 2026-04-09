@@ -54,7 +54,7 @@ export async function uploadMunicipalBill(formData: FormData) {
 
   if (!property) return { error: "Property not found" }
 
-  const sanitized = file.name.replace(/[^a-zA-Z0-9.-]/g, "_")
+  const sanitized = file.name.replaceAll(/[^a-zA-Z0-9.-]/g, "_")
   const storagePath = `${propertyId}/${municipalAccountId}/${Date.now()}-${sanitized}`
   const buffer = await file.arrayBuffer()
 
@@ -81,7 +81,23 @@ export async function uploadMunicipalBill(formData: FormData) {
 
   if (error || !bill) return { error: error?.message || "Failed to create bill record" }
 
-  // TODO: Trigger Sonnet extraction via Edge Function
+  // Run Sonnet extraction synchronously — update status before and after
+  await db.from("municipal_bills").update({ extraction_status: "extracting" }).eq("id", bill.id)
+  try {
+    const { extractMunicipalBill } = await import("@/lib/ai/municipalBillExtraction")
+    const extracted = await extractMunicipalBill(buffer)
+    await db.from("municipal_bills").update({
+      extraction_status: "extracted",
+      extracted_at: new Date().toISOString(),
+      ...extracted,
+    }).eq("id", bill.id)
+  } catch (err) {
+    console.error("[uploadMunicipalBill] extraction failed:", err)
+    await db.from("municipal_bills").update({
+      extraction_status: "failed",
+      extraction_notes: String(err),
+    }).eq("id", bill.id)
+  }
 
   revalidatePath("/payments/municipal")
   return { success: true, billId: bill.id }
