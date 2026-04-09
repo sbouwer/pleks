@@ -60,15 +60,62 @@ export async function matchExact(
 
 // Tier 2: Fuzzy match — amount within R50 tolerance, date within 14 days
 export async function matchFuzzy(
-  _line: {
+  line: {
     amount_cents: number
     transaction_date: string
     direction: "credit" | "debit"
   },
-  _ctx: MatchContext,
+  ctx: MatchContext,
 ): Promise<MatchResult | null> {
-  // TODO: Implement with Supabase range queries
-  return null
+  // Only credits are tenant payments
+  if (line.direction !== "credit") return null
+
+  const AMOUNT_TOLERANCE = 5000  // ±R50 in cents
+  const DATE_WINDOW_DAYS = 14
+
+  const txDate = new Date(line.transaction_date)
+  const dateFrom = new Date(txDate)
+  dateFrom.setDate(txDate.getDate() - DATE_WINDOW_DAYS)
+  const dateTo = new Date(txDate)
+  dateTo.setDate(txDate.getDate() + DATE_WINDOW_DAYS)
+
+  const { data: invoices } = await ctx.db
+    .from("rent_invoices")
+    .select("id, invoice_number, balance_cents, total_amount_cents, due_date")
+    .eq("org_id", ctx.orgId)
+    .in("status", ["open", "partial", "overdue"])
+    .gte("balance_cents", line.amount_cents - AMOUNT_TOLERANCE)
+    .lte("balance_cents", line.amount_cents + AMOUNT_TOLERANCE)
+    .gte("due_date", dateFrom.toISOString().split("T")[0])
+    .lte("due_date", dateTo.toISOString().split("T")[0])
+
+  if (!invoices?.length) return null
+
+  // Score each candidate — pick highest confidence
+  let best: MatchResult | null = null
+
+  for (const inv of invoices) {
+    const amountDiff = Math.abs((inv.balance_cents as number) - line.amount_cents)
+    const invDueDate = new Date(inv.due_date as string)
+    const daysDiff = Math.abs((txDate.getTime() - invDueDate.getTime()) / (1000 * 60 * 60 * 24))
+
+    // Base confidence 0.80; penalise R10 increments and each day off
+    const amountPenalty = Math.floor(amountDiff / 1000) * 0.02
+    const datePenalty   = Math.floor(daysDiff) * 0.01
+    const confidence    = Math.max(0.55, 0.80 - amountPenalty - datePenalty)
+
+    if (!best || confidence > best.confidence) {
+      best = {
+        matchType: "matched_fuzzy",
+        confidence,
+        invoiceId: inv.id as string,
+        description: `Invoice ${inv.invoice_number} matched by amount ±R${Math.round(amountDiff / 100)} / ${Math.round(daysDiff)}d`,
+        requiresConfirmation: true,
+      }
+    }
+  }
+
+  return best
 }
 
 // Tier 3: Claude Haiku AI match
