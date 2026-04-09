@@ -616,7 +616,7 @@ CREATE TABLE IF NOT EXISTS public.contractor_contacts (
   UNIQUE(contractor_id, contact_id)
 );
 ALTER TABLE public.contractor_contacts ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "org_contractor_contacts" ON public;
+DROP POLICY IF EXISTS "org_contractor_contacts" ON public.contractor_contacts;
 CREATE POLICY "org_contractor_contacts" ON public.contractor_contacts
   FOR ALL USING (org_id IN (
     SELECT org_id FROM public.user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL
