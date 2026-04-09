@@ -7,6 +7,7 @@
 
 import { createServiceClient } from "@/lib/supabase/server"
 import { buildBranding } from "@/lib/comms/send-email"
+import { getOrgDisplayName } from "@/lib/org/displayName"
 
 export interface AppEmailContext {
   appSummary: {
@@ -66,7 +67,7 @@ export async function buildEmailContext(applicationId: string): Promise<AppEmail
   // Fetch org
   const { data: org } = await service
     .from("organisations")
-    .select("name, email, phone, address_line1, city, brand_logo_url, brand_accent_color, reply_to_email")
+    .select("name, type, trading_as, first_name, last_name, title, initials, email, phone, address_line1, city, brand_logo_url, brand_accent_color, reply_to_email")
     .eq("id", app.org_id as string)
     .single()
 
@@ -121,7 +122,7 @@ export async function buildEmailContext(applicationId: string): Promise<AppEmail
     },
     orgContext: {
       orgId: app.org_id as string,
-      orgName: org?.name ?? "Pleks",
+      orgName: org ? getOrgDisplayName(org) : "Pleks",
       orgEmail: org?.email as string | undefined,
       orgPhone: org?.phone as string | undefined,
       agentEmail,
