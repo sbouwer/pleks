@@ -1,7 +1,48 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from "next"
+
+const securityHeaders = [
+  // Prevent clickjacking
+  { key: "X-Frame-Options", value: "DENY" },
+  // Prevent MIME-type sniffing
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  // Limit referrer information
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  // Restrict browser feature access
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+  // Enforce HTTPS (2 years, include subdomains)
+  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+  // Content Security Policy
+  // Note: 'unsafe-inline' + 'unsafe-eval' required by Next.js App Router hydration.
+  // Nonce-based CSP can be added once streaming/hydration patterns are confirmed stable.
+  {
+    key: "Content-Security-Policy",
+    value: [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: https:",
+      "font-src 'self' data:",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.resend.com",
+      "frame-src 'none'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join("; "),
+  },
+]
 
 const nextConfig: NextConfig = {
-  /* config options here */
-};
+  // Remove X-Powered-By: Next.js header
+  poweredByHeader: false,
 
-export default nextConfig;
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: securityHeaders,
+      },
+    ]
+  },
+}
+
+export default nextConfig

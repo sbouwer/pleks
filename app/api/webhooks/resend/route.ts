@@ -34,7 +34,7 @@ interface ResendWebhookPayload {
 }
 
 async function verifyResendSignature(req: NextRequest, body: string): Promise<boolean> {
-  if (!RESEND_WEBHOOK_SECRET) return true // skip verification in dev if not configured
+  if (!RESEND_WEBHOOK_SECRET) return false // secret must be configured — reject if missing
   const signature = req.headers.get("svix-signature")
   const msgId = req.headers.get("svix-id")
   const timestamp = req.headers.get("svix-timestamp")
