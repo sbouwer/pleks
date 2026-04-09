@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { gatewaySSR } from "@/lib/supabase/gateway"
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -18,18 +18,19 @@ const STATUS_MAP: Record<string, "pending" | "completed" | "arrears" | "schedule
 
 export default async function InvoiceDetailPage({
   params,
-}: {
+}: Readonly<{
   params: Promise<{ invoiceId: string }>
-}) {
+}>) {
   const { invoiceId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const gw = await gatewaySSR()
+  if (!gw) redirect("/login")
+  const { db, orgId } = gw
 
-  const { data: invoice } = await supabase
+  const { data: invoice } = await db
     .from("supplier_invoices")
     .select("*, contractor_view(first_name, last_name, company_name, email, phone, vat_number), properties(name, address_line1), maintenance_requests(title, work_order_number)")
     .eq("id", invoiceId)
+    .eq("org_id", orgId)
     .single()
 
   if (!invoice) notFound()

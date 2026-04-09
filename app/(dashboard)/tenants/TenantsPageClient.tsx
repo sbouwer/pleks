@@ -4,7 +4,8 @@ import React from "react"
 import { useQuery } from "@tanstack/react-query"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Plus } from "lucide-react"
+import { EmptyState } from "@/components/shared/EmptyState"
+import { Users, Plus } from "lucide-react"
 import { TenantsClient } from "./TenantsClient"
 import { PORTFOLIO_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchTenantsAction } from "@/lib/queries/portfolioActions"
@@ -22,9 +23,11 @@ export function TenantsPageClient({ orgId, role }: Props) {
   if (!isLoading) {
     if (tenants.length === 0) {
       body = (
-        <p className="text-sm text-muted-foreground py-8 text-center">
-          No tenants yet. Import contacts or add one using the button above.
-        </p>
+        <EmptyState
+          icon={<Users className="h-8 w-8 text-muted-foreground" />}
+          title="No tenants yet"
+          description="Import contacts from a CSV or add tenants manually using the button above."
+        />
       )
     } else {
       body = <TenantsClient tenants={tenants} userRole={role} />

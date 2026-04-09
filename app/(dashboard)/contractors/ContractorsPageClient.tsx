@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
+import { EmptyState } from "@/components/shared/EmptyState"
+import { HardHat } from "lucide-react"
 import { ContractorsClient, AddContractorButton, type Contractor } from "./ContractorsClient"
 import { PORTFOLIO_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchContractorsAction } from "@/lib/queries/portfolioActions"
@@ -53,7 +55,11 @@ export function ContractorsPageClient({ orgId, role }: Props) {
         ))}
       </div>
       {contractors.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-8 text-center">No {tabInfo.plural} yet. Add one using the button above.</p>
+        <EmptyState
+          icon={<HardHat className="h-8 w-8 text-muted-foreground" />}
+          title={`No ${tabInfo.plural} yet`}
+          description={`Add your first ${tabInfo.label.toLowerCase().slice(0, -1)} using the button above.`}
+        />
       ) : (
         <ContractorsClient contractors={contractors} userRole={role} orgId={orgId} />
       )}

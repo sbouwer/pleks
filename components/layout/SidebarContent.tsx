@@ -14,6 +14,7 @@ export interface NavGroup {
     href: string
     label: string
     icon: LucideIcon
+    count?: number
   }[]
 }
 
@@ -121,6 +122,11 @@ export function SidebarContent({
                     >
                       <Icon className="h-4 w-4 shrink-0" />
                       {!collapsed && item.label}
+                      {!collapsed && item.count != null && item.count > 0 && (
+                        <span className="ml-auto text-[10px] font-bold leading-none bg-danger text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                          {item.count > 99 ? "99+" : item.count}
+                        </span>
+                      )}
                     </Link>
                   </li>
                 )
