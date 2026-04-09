@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { buildBranding } from "@/lib/comms/send-email"
+import { getOrgDisplayName } from "@/lib/org/displayName"
 import { sendLeaseRenewalNotice } from "@/lib/leases/emails"
 
 export async function GET(req: Request) {
@@ -41,7 +42,7 @@ export async function GET(req: Request) {
     if (lease.tenant_id && lease.end_date) {
       const [{ data: tenant }, { data: org }] = await Promise.all([
         supabase.from("tenant_view").select("email, first_name, last_name").eq("id", lease.tenant_id).single(),
-        supabase.from("organisations").select("name, email, phone, brand_logo_url, brand_accent_color").eq("id", lease.org_id).single(),
+        supabase.from("organisations").select("name, type, trading_as, first_name, last_name, title, initials, email, phone, brand_logo_url, brand_accent_color").eq("id", lease.org_id).single(),
       ])
       const unit = lease.units as unknown as { unit_number: string; properties: { name: string } } | null
       if (tenant?.email) {
@@ -53,7 +54,7 @@ export async function GET(req: Request) {
             propertyName: unit?.properties?.name ?? "",
             unitLabel: unit?.unit_number ? `Unit ${unit.unit_number}` : "Unit",
           },
-          { orgId: lease.org_id, orgName: org?.name ?? "Pleks", orgPhone: org?.phone ?? undefined, orgEmail: org?.email ?? undefined, branding: buildBranding(org) }
+          { orgId: lease.org_id, orgName: org ? getOrgDisplayName(org) : "Pleks", orgPhone: org?.phone ?? undefined, orgEmail: org?.email ?? undefined, branding: buildBranding(org) }
         )
       }
     }

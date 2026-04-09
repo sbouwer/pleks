@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
+import { getOrgDisplayName } from "@/lib/org/displayName"
 import { resolvePeriod } from "@/lib/reports/periods"
 import { buildPortfolioSummary } from "@/lib/reports/portfolioSummary"
 import { buildRentRoll } from "@/lib/reports/rentRoll"
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
   // Find scheduled reports due today, Firm tier only
   const { data: configs } = await supabase
     .from("report_configs")
-    .select("*, organisations(name, logo_url, address_line1, phone, email, id)")
+    .select("*, organisations(name, type, trading_as, first_name, last_name, title, initials, logo_url, address_line1, phone, email, id)")
     .eq("is_scheduled", true)
     .eq("schedule_day", dayOfMonth)
 
@@ -55,7 +56,7 @@ export async function GET(req: NextRequest) {
     }
 
     const orgInfo = {
-      name: (org.name as string) ?? "",
+      name: getOrgDisplayName(org as unknown as Parameters<typeof getOrgDisplayName>[0]),
       logo_url: org.logo_url as string | null,
       address: org.address_line1 as string | null,
       phone: org.phone as string | null,
