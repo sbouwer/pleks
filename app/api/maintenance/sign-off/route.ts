@@ -116,6 +116,31 @@ export async function POST(req: NextRequest) {
     })
   }
 
+  // For tenant_charge allocations with next_invoice or separate_invoice:
+  // create a lease_charge record so it appears on the next rent invoice run.
+  // deposit_deduction is deferred to lease-end; already_paid needs no record.
+  if (request.lease_id) {
+    const today = new Date().toISOString().split("T")[0]
+    for (const input of allocations) {
+      if (
+        input.type === "tenant_charge" &&
+        (input.collectionMethod === "next_invoice" || input.collectionMethod === "separate_invoice")
+      ) {
+        await service.from("lease_charges").insert({
+          org_id: membership.org_id,
+          lease_id: request.lease_id,
+          description: input.description.trim(),
+          charge_type: "maintenance_recovery",
+          amount_cents: input.amountCents,
+          start_date: today,
+          payable_to: "landlord",
+          is_active: true,
+          created_by: user.id,
+        })
+      }
+    }
+  }
+
   // Audit
   await service.from("audit_log").insert({
     org_id: membership.org_id,
