@@ -21,6 +21,7 @@ interface SigningOptionsProps {
   depositAmountCents: number | null
   startDate: string | null
   rentAmountCents: number
+  isUploaded?: boolean
 }
 
 export function SigningOptions({
@@ -34,6 +35,7 @@ export function SigningOptions({
   depositAmountCents,
   startDate,
   rentAmountCents,
+  isUploaded = false,
 }: Readonly<SigningOptionsProps>) {
   const router = useRouter()
 
@@ -102,6 +104,82 @@ export function SigningOptions({
 
   function handleActivated() {
     router.refresh()
+  }
+
+  // Uploaded leases: show only document upload + mark as signed
+  if (isUploaded) {
+    return (
+      <div className="space-y-4">
+        {/* Document upload / replace */}
+        <div className="rounded-lg border border-border/60 bg-muted/30 px-4 py-4">
+          <div className="flex items-start gap-3 mb-3">
+            <Upload className="size-5 shrink-0 text-muted-foreground mt-0.5" />
+            <div>
+              <p className="text-sm font-medium">Lease document</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {hasExternalDoc
+                  ? "Document uploaded. You can replace it below."
+                  : "Upload the signed lease document (optional — you can do this later)."}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Input
+              type="file"
+              accept=".pdf"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) handleUpload(f, setUploadingC)
+              }}
+              disabled={uploadingC}
+              className="max-w-xs"
+            />
+            {uploadingC && <span className="text-xs text-muted-foreground">Uploading…</span>}
+            {hasExternalDoc && !uploadingC && (
+              <span className="text-xs text-green-600 dark:text-green-400 font-medium">✓ Uploaded</span>
+            )}
+          </div>
+        </div>
+
+        {/* Mark as signed */}
+        <div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/30 px-4 py-3">
+          {hasExternalDoc ? (
+            <>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="size-4 text-green-600 dark:text-green-400" />
+                <span className="text-sm font-medium">Document on file</span>
+              </div>
+              {canProceed ? (
+                <Button size="sm" onClick={() => setActivationOpen(true)}>
+                  Mark as signed →
+                </Button>
+              ) : (
+                <p className="text-xs text-muted-foreground">Complete prerequisites above to activate</p>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Mark as signed once all parties have signed the lease.
+              </p>
+              {canProceed && (
+                <Button size="sm" onClick={() => setActivationOpen(true)}>
+                  Mark as signed →
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+
+        <ActivationDialog
+          leaseId={leaseId}
+          leaseData={{ tenantName, unitLabel, depositAmountCents, startDate, rentAmountCents, debiCheckEnabled: false }}
+          open={activationOpen}
+          onOpenChange={setActivationOpen}
+          onActivated={handleActivated}
+        />
+      </div>
+    )
   }
 
   return (

@@ -2,7 +2,7 @@ import { Suspense } from "react"
 import { createServiceClient } from "@/lib/supabase/server"
 import { getServerOrgMembership } from "@/lib/auth/server"
 import { redirect } from "next/navigation"
-import { LeaseWizard } from "@/components/leases/LeaseWizard"
+import { LeasePathFork } from "@/components/leases/LeasePathFork"
 import { LeaseDisclaimerGate } from "@/components/leases/LeaseDisclaimerGate"
 import { hasAcceptedLeaseDisclaimer } from "@/lib/leases/disclaimer"
 
@@ -120,7 +120,7 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
       <div>
         <h1 className="font-heading text-2xl mb-6">Create lease</h1>
         <Suspense fallback={<div className="text-sm text-muted-foreground">Loading…</div>}>
-          <LeaseWizard
+          <LeasePathFork
             initialPropertyId={propertyId}
             initialPropertyName={propName}
             initialUnitId={unitId}

@@ -272,6 +272,7 @@ export default async function LeaseDetailPage({
             depositAmountCents={lease.deposit_amount_cents ?? null}
             startDate={lease.start_date ?? null}
             rentAmountCents={lease.rent_amount_cents ?? 0}
+            isUploaded={lease.template_source === "uploaded"}
           />
         </div>
       )}
