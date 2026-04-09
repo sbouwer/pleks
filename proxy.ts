@@ -19,7 +19,10 @@ function isPublicRoute(pathname: string) {
     pathname.startsWith("/apply") || pathname.startsWith("/demo") ||
     pathname.startsWith("/api/payfast") || pathname.startsWith("/api/payments") ||
     pathname.startsWith("/api/import") || pathname.startsWith("/api/reports") ||
-    pathname.startsWith("/api/auth")
+    pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/applications/") ||
+    pathname.startsWith("/api/unsubscribe") ||
+    pathname.startsWith("/api/approve")
   )
 }
 
