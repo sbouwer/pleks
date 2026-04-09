@@ -263,9 +263,18 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_trialing
   WHERE status = 'trialing';
 
 -- user_orgs → user_profiles FK (enables PostgREST embedded joins)
-ALTER TABLE public.user_orgs
-  ADD CONSTRAINT user_orgs_user_id_profile_fkey
-  FOREIGN KEY (user_id) REFERENCES public.user_profiles(id) ON DELETE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE table_schema = 'public' AND table_name = 'user_orgs'
+      AND constraint_name = 'user_orgs_user_id_profile_fkey'
+  ) THEN
+    ALTER TABLE public.user_orgs
+      ADD CONSTRAINT user_orgs_user_id_profile_fkey
+      FOREIGN KEY (user_id) REFERENCES public.user_profiles(id) ON DELETE CASCADE;
+  END IF;
+END $$;
 
 -- User orgs
 CREATE INDEX IF NOT EXISTS idx_user_orgs_user_id ON user_orgs(user_id);
