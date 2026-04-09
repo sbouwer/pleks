@@ -5,8 +5,8 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { describeRate } from "@/lib/deposits/interestConfig"
-import type { DepositInterestConfig as Config } from "@/lib/deposits/interestConfig"
+import { describeRate } from "@/lib/deposits/rateUtils"
+import type { DepositInterestConfig as Config } from "@/lib/deposits/rateUtils"
 import { ChevronDown, ChevronUp } from "lucide-react"
 
 interface Props {

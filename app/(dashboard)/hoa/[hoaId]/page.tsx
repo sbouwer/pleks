@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatZAR } from "@/lib/constants"
 import { formatDateShort } from "@/lib/reports/periods"
+import { LevyScheduleManager } from "@/components/hoa/LevyScheduleManager"
 
 export default async function HOADetailPage({
   params,
@@ -249,50 +250,33 @@ async function HOAOwnersTab({ hoaId }: { hoaId: string }) {
 
 async function HOALeviesTab({ hoaId }: { hoaId: string }) {
   const supabase = await createClient()
-  const { data: schedules } = await supabase
-    .from("levy_schedules")
-    .select("*, buildings(id, name)")
-    .eq("hoa_id", hoaId)
-    .order("effective_from", { ascending: false })
+
+  const [schedulesRes, ownersRes] = await Promise.all([
+    supabase
+      .from("levy_schedules")
+      .select("id, description, schedule_type, calculation_method, total_budget_cents, effective_from, effective_to, is_active, include_vacant_units")
+      .eq("hoa_id", hoaId)
+      .order("effective_from", { ascending: false }),
+    supabase
+      .from("hoa_unit_owners")
+      .select("unit_id, units(unit_number)")
+      .eq("hoa_id", hoaId)
+      .eq("is_active", true),
+  ])
+
+  // Build unit_id → unit_number map for the client component
+  const unitOwnerMap: Record<string, string> = {}
+  for (const o of ownersRes.data ?? []) {
+    const unit = o.units as unknown as { unit_number: string } | null
+    if (unit?.unit_number) unitOwnerMap[o.unit_id] = unit.unit_number
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="font-heading text-sm">Levy Schedules</h3>
-      </div>
-      {(schedules ?? []).length === 0 ? (
-        <Card>
-          <CardContent className="pt-6 text-center">
-            <p className="text-sm text-muted-foreground">No levy schedules configured.</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          {(schedules ?? []).map((s) => (
-            <Card key={s.id}>
-              <CardContent className="pt-4 flex items-center justify-between">
-                <div>
-                  <p className="font-semibold text-sm">{s.description}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {s.schedule_type.replace(/_/g, " ")} — {s.calculation_method.replace(/_/g, " ")} — Budget: {formatZAR(s.total_budget_cents)}/mo
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    From: {formatDateShort(new Date(s.effective_from))}
-                    {s.effective_to ? ` to ${formatDateShort(new Date(s.effective_to))}` : " (ongoing)"}
-                  </p>
-                  {s.buildings && (
-                    <p className="text-xs text-muted-foreground">Building: {(s.buildings as { name: string }).name}</p>
-                  )}
-                </div>
-                <Badge variant={s.is_active ? "default" : "secondary"}>
-                  {s.is_active ? "Active" : "Inactive"}
-                </Badge>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
+    <LevyScheduleManager
+      hoaId={hoaId}
+      initialSchedules={schedulesRes.data ?? []}
+      unitOwnerMap={unitOwnerMap}
+    />
   )
 }
 
