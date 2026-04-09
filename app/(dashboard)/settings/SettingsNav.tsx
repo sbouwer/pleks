@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Users, CreditCard, User, Building2, Palette, Shield, FileText, Upload, Landmark } from "lucide-react"
+import { Users, CreditCard, User, Building2, Palette, Shield, FileText, Upload, Landmark, Bell } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 type OrgType = "landlord" | "sole_prop" | "agency"
@@ -19,6 +19,7 @@ function getSettingsTabs(type: OrgType) {
     { href: "/settings/compliance",      label: "Compliance",     icon: Shield,    show: true },
     { href: "/settings/lease-templates", label: "Lease Templates",icon: FileText,  show: true },
     { href: "/settings/finance",          label: "Finance",        icon: Landmark,  show: true },
+    { href: "/settings/notifications",   label: "Notifications",  icon: Bell,      show: true },
     { href: "/settings/billing",         label: "Billing",        icon: CreditCard,show: true },
     { href: "/settings/import",          label: "Import",         icon: Upload,    show: showImport },
   ].filter((t) => t.show)
