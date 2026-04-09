@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
-import { FileSignature, PenLine, Upload, CheckCircle2 } from "lucide-react"
+import { FileSignature, PenLine, Upload, CheckCircle2, FileText, Loader2 } from "lucide-react"
 import { ActivationDialog } from "./ActivationDialog"
 import { sendForSigning } from "@/lib/actions/leases"
 
@@ -50,8 +50,33 @@ export function SigningOptions({
   const [showReplaceC, setShowReplaceC] = useState(false)
   const [uploadingC, setUploadingC] = useState(false)
 
+  // Generate document state
+  const [generating, setGenerating] = useState(false)
+
   // Activation dialog
   const [activationOpen, setActivationOpen] = useState(false)
+
+  async function handleGenerate() {
+    setGenerating(true)
+    try {
+      const res = await fetch(`/api/leases/generate-docx`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leaseId }),
+      })
+      if (res.ok) {
+        toast.success("Document generated")
+        router.refresh()
+      } else {
+        const data = await res.json().catch(() => ({})) as { error?: string }
+        toast.error(data.error ?? "Failed to generate document")
+      }
+    } catch {
+      toast.error("Failed to generate document")
+    } finally {
+      setGenerating(false)
+    }
+  }
 
   const hasSignedDoc = hasExternalDoc || hasDocusealDoc
 
@@ -184,6 +209,24 @@ export function SigningOptions({
 
   return (
     <div className="space-y-6">
+      {/* Generate document banner — shown when no doc exists yet */}
+      {!hasGeneratedDoc && !hasExternalDoc && !hasDocusealDoc && (
+        <div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/30 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <FileText className="size-5 shrink-0 text-muted-foreground" />
+            <div>
+              <p className="text-sm font-medium">Lease document</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Generate the lease document before sending for signing or downloading.
+              </p>
+            </div>
+          </div>
+          <Button size="sm" onClick={handleGenerate} disabled={generating || !canProceed}>
+            {generating ? <><Loader2 className="size-3.5 mr-1.5 animate-spin" />Generating…</> : "Generate document"}
+          </Button>
+        </div>
+      )}
+
       {/* Three signing path cards */}
       <div className="grid gap-4 sm:grid-cols-3">
         {/* Path A — Digital signing */}
