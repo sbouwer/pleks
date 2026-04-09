@@ -10,10 +10,11 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ClauseConfigurator } from "@/components/leases/ClauseConfigurator"
+import { LeaseBrandingSection } from "@/components/leases/LeaseBrandingSection"
 import { LeasePreview } from "@/components/leases/LeasePreview"
 import Link from "next/link"
 import { toast } from "sonner"
-import { Eye, ExternalLink, Info } from "lucide-react"
+import { Eye, ExternalLink } from "lucide-react"
 
 interface OrgInfo {
   orgId: string
@@ -141,19 +142,9 @@ export default function LeaseTemplatesPage() {
       )}
 
       <div className={orgInfo?.clauseEditConfirmedAt ? "" : "mt-8"}>
-        {/* Branding warning */}
-        {orgInfo && !orgInfo.brandLogoPath && (
-          <div className="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2.5 mb-3 text-xs text-amber-600/80">
-            <Info className="size-3.5 shrink-0 mt-0.5" />
-            <span>
-              Your branding isn&apos;t configured yet.{" "}
-              <Link href="/settings/branding" className="underline underline-offset-2 font-medium">
-                Set up your logo and colours
-              </Link>
-              {" "}to see them on the preview.
-            </span>
-          </div>
-        )}
+        {/* Lease branding */}
+        <LeaseBrandingSection />
+
 
         {/* Lease type toggle + preview button — above sub-tabs */}
         <div className="flex items-center justify-between mb-4">

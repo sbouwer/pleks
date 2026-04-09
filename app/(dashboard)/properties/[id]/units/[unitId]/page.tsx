@@ -10,6 +10,7 @@ import { UnitStatusActions } from "./UnitStatusActions"
 import { UnitAgentPicker } from "./UnitAgentPicker"
 import { UnitClauseProfile } from "@/components/leases/UnitClauseProfile"
 import { ListingSection } from "./ListingSection"
+import { DepositInterestConfig } from "@/components/deposits/DepositInterestConfig"
 
 export default async function UnitDetailPage({
   params,
@@ -49,6 +50,7 @@ export default async function UnitDetailPage({
     { data: statusHistory },
     { data: teamMemberRows },
     { data: activeListing },
+    { data: primeRateRow },
   ] = await Promise.all([
     supabase
       .from("unit_status_history")
@@ -67,6 +69,12 @@ export default async function UnitDetailPage({
       .eq("unit_id", unitId)
       .in("status", ["active", "paused", "draft"])
       .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("prime_rates")
+      .select("rate_percent")
+      .order("effective_date", { ascending: false })
       .limit(1)
       .maybeSingle(),
   ])
@@ -173,6 +181,15 @@ export default async function UnitDetailPage({
             )}
           </CardContent>
         </Card>
+      </div>
+
+      {/* Deposit interest config */}
+      <div className="mt-6">
+        <DepositInterestConfig
+          unitId={unitId}
+          currentPrime={primeRateRow?.rate_percent ?? null}
+          title="Deposit interest — Unit override"
+        />
       </div>
 
       {/* Assigned agent */}
