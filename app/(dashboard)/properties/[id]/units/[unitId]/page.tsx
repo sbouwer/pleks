@@ -191,6 +191,14 @@ export default async function UnitDetailPage({
 
       {/* Clause profile */}
       <div className="mt-6">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs text-muted-foreground">
+            Unit clause overrides apply on top of the{" "}
+            <Link href="/settings/lease-templates" className="underline underline-offset-2 hover:text-foreground">
+              master lease template
+            </Link>.
+          </p>
+        </div>
         <UnitClauseProfile
           unitId={unitId}
           propertyId={id}

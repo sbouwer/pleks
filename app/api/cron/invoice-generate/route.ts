@@ -16,6 +16,13 @@ function buildPaymentReference(lastName: string | null, unitNumber: string | nul
   return `${surname}-${unit}`
 }
 
+interface ChargeRow {
+  lease_id: string
+  charge_type: string
+  description: string
+  amount_cents: number
+}
+
 export async function GET(req: Request) {
   const cronSecret = req.headers.get("x-cron-secret") || new URL(req.url).searchParams.get("secret")
   if (cronSecret !== process.env.CRON_SECRET) {
@@ -33,6 +40,27 @@ export async function GET(req: Request) {
     .from("leases")
     .select("id, org_id, unit_id, property_id, tenant_id, rent_amount_cents, payment_due_day, tenant_view(last_name), units(unit_number)")
     .in("status", ["active", "month_to_month", "notice"])
+
+  const leaseIds = (leases ?? []).map((l) => l.id)
+
+  // Batch-fetch all active lease_charges applicable to this period.
+  // A charge applies if started by period_to and not ended before period_from.
+  const { data: allCharges } = leaseIds.length > 0
+    ? await supabase
+        .from("lease_charges")
+        .select("lease_id, charge_type, description, amount_cents")
+        .in("lease_id", leaseIds)
+        .eq("is_active", true)
+        .lte("start_date", periodTo)
+        .or(`end_date.is.null,end_date.gte.${periodFrom}`)
+    : { data: [] }
+
+  const chargesByLease = new Map<string, ChargeRow[]>()
+  for (const c of (allCharges ?? []) as ChargeRow[]) {
+    const rows = chargesByLease.get(c.lease_id) ?? []
+    rows.push(c)
+    chargesByLease.set(c.lease_id, rows)
+  }
 
   for (const lease of leases || []) {
     // Check no duplicate
@@ -61,6 +89,15 @@ export async function GET(req: Request) {
     const unit = lease.units as unknown as { unit_number: string | null } | null
     const paymentReference = buildPaymentReference(tenantView?.last_name ?? null, unit?.unit_number ?? null)
 
+    const leaseCharges = chargesByLease.get(lease.id) ?? []
+    const otherChargesCents = leaseCharges.reduce((s, c) => s + c.amount_cents, 0)
+    const chargesBreakdown = leaseCharges.map((c) => ({
+      type: c.charge_type,
+      description: c.description,
+      amount_cents: c.amount_cents,
+    }))
+    const totalAmountCents = lease.rent_amount_cents + otherChargesCents
+
     await supabase.from("rent_invoices").insert({
       org_id: lease.org_id,
       lease_id: lease.id,
@@ -72,8 +109,10 @@ export async function GET(req: Request) {
       period_from: periodFrom,
       period_to: periodTo,
       rent_amount_cents: lease.rent_amount_cents,
-      total_amount_cents: lease.rent_amount_cents,
-      balance_cents: lease.rent_amount_cents,
+      other_charges_cents: otherChargesCents,
+      charges_breakdown: chargesBreakdown.length > 0 ? chargesBreakdown : null,
+      total_amount_cents: totalAmountCents,
+      balance_cents: totalAmountCents,
       payment_reference: paymentReference,
       status: "open",
     })

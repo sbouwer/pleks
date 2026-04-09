@@ -50,6 +50,14 @@ export default async function DepositReconPage({
     .eq("id", leaseId)
     .single()
 
+  // Interest accrual history — RHA s5(3)(d) per-deposit statement
+  const { data: interestTxns } = await supabase
+    .from("deposit_transactions")
+    .select("id, transaction_date, amount_cents, effective_rate_percent, description, statement_month")
+    .eq("lease_id", leaseId)
+    .eq("transaction_type", "interest_accrued")
+    .order("transaction_date", { ascending: true })
+
   const unit = lease?.units as unknown as { unit_number: string; properties: { name: string } | null } | null
   const tenant = lease?.tenant_view as unknown as { first_name: string; last_name: string } | null
   const tenantName = tenant ? `${tenant.first_name} ${tenant.last_name}` : "Tenant"
@@ -224,6 +232,51 @@ export default async function DepositReconPage({
                 <p className="text-xs text-muted-foreground mt-1">Tenant notes: {item.dispute_notes ?? "No notes"}</p>
               </div>
             ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Interest accrual history — RHA s5(3)(d) */}
+      {(interestTxns ?? []).length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Interest Accrual History</CardTitle>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-xs text-muted-foreground">
+                  <th className="text-left py-2 pr-2">Period</th>
+                  <th className="text-left py-2 pr-2">Description</th>
+                  <th className="text-right py-2 px-2">Rate (p.a.)</th>
+                  <th className="text-right py-2">Interest</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(interestTxns ?? []).map((txn) => (
+                  <tr key={txn.id} className="border-b border-border/50">
+                    <td className="py-2 pr-2 text-xs">
+                      {txn.statement_month
+                        ? formatDateShort(new Date(txn.statement_month))
+                        : formatDateShort(new Date(txn.transaction_date))}
+                    </td>
+                    <td className="py-2 pr-2 text-xs text-muted-foreground">{txn.description ?? "Interest accrued"}</td>
+                    <td className="text-right py-2 px-2 text-xs">
+                      {txn.effective_rate_percent == null ? "—" : `${Number(txn.effective_rate_percent).toFixed(2)}%`}
+                    </td>
+                    <td className="text-right py-2 font-medium">{formatZAR(txn.amount_cents)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="font-semibold">
+                  <td colSpan={3} className="pt-2">Total interest</td>
+                  <td className="text-right pt-2">
+                    {formatZAR((interestTxns ?? []).reduce((s, t) => s + t.amount_cents, 0))}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
           </CardContent>
         </Card>
       )}

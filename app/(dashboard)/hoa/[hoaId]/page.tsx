@@ -8,6 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatZAR } from "@/lib/constants"
 import { formatDateShort } from "@/lib/reports/periods"
 import { LevyScheduleManager } from "@/components/hoa/LevyScheduleManager"
+import { AGMManager } from "@/components/hoa/AGMManager"
+import { ReserveFundManager } from "@/components/hoa/ReserveFundManager"
 
 export default async function HOADetailPage({
   params,
@@ -162,7 +164,7 @@ export default async function HOADetailPage({
         </TabsContent>
 
         <TabsContent value="financials" className="mt-4">
-          <HOAFinancialsTab reserveBalance={reserveBalance} />
+          <HOAFinancialsTab hoaId={hoaId} reserveBalance={reserveBalance} />
         </TabsContent>
 
         <TabsContent value="settings" className="mt-4">
@@ -282,112 +284,29 @@ async function HOALeviesTab({ hoaId }: { hoaId: string }) {
 
 async function HOAAGMTab({ hoaId }: { hoaId: string }) {
   const supabase = await createClient()
-  const { data: agms } = await supabase
+  const { data: records } = await supabase
     .from("agm_records")
-    .select("*")
+    .select("*, agm_resolutions(*)")
     .eq("hoa_id", hoaId)
     .order("meeting_date", { ascending: false })
 
-  const { data: resolutions } = await supabase
-    .from("agm_resolutions")
-    .select("*, agm_records(meeting_date)")
-    .eq("org_id", (await supabase.from("hoa_entities").select("org_id").eq("id", hoaId).single()).data?.org_id ?? "")
-    .order("created_at", { ascending: false })
-    .limit(10)
-
-  return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader><CardTitle className="text-sm">Meetings</CardTitle></CardHeader>
-        <CardContent>
-          {(agms ?? []).length === 0 ? (
-            <p className="text-sm text-muted-foreground">No meetings recorded.</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-xs text-muted-foreground">
-                  <th className="text-left py-2 pr-2">Date</th>
-                  <th className="text-left py-2 pr-2">Type</th>
-                  <th className="text-left py-2 px-2">Status</th>
-                  <th className="text-right py-2">Attendees</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(agms ?? []).map((a) => (
-                  <tr key={a.id} className="border-b border-border/50">
-                    <td className="py-2 pr-2">{formatDateShort(new Date(a.meeting_date))}</td>
-                    <td className="py-2 pr-2 uppercase text-xs">{a.agm_type}</td>
-                    <td className="py-2 px-2">
-                      <Badge variant="secondary">{a.status.replace(/_/g, " ")}</Badge>
-                    </td>
-                    <td className="text-right py-2">{a.attendees_count ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </CardContent>
-      </Card>
-
-      {(resolutions ?? []).length > 0 && (
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Recent Resolutions</CardTitle></CardHeader>
-          <CardContent>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-xs text-muted-foreground">
-                  <th className="text-left py-2 pr-2">Resolution</th>
-                  <th className="text-left py-2 pr-2">Type</th>
-                  <th className="text-left py-2 px-2">Result</th>
-                  <th className="text-right py-2">Votes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(resolutions ?? []).map((r) => (
-                  <tr key={r.id} className="border-b border-border/50">
-                    <td className="py-2 pr-2">{r.description}</td>
-                    <td className="py-2 pr-2 capitalize text-xs">{r.resolution_type}</td>
-                    <td className="py-2 px-2">
-                      <Badge variant={r.result === "passed" ? "default" : "secondary"}>
-                        {r.result}
-                      </Badge>
-                    </td>
-                    <td className="text-right py-2 text-xs">
-                      {r.votes_for ?? 0}/{(r.votes_for ?? 0) + (r.votes_against ?? 0)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  )
+  return <AGMManager hoaId={hoaId} initialRecords={records ?? []} />
 }
 
-function HOAFinancialsTab({ reserveBalance }: { reserveBalance: number }) {
+async function HOAFinancialsTab({ hoaId, reserveBalance }: Readonly<{ hoaId: string; reserveBalance: number }>) {
+  const supabase = await createClient()
+  const { data: entries } = await supabase
+    .from("reserve_fund_entries")
+    .select("*")
+    .eq("hoa_id", hoaId)
+    .order("created_at", { ascending: false })
+
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Admin Fund</CardTitle></CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Financial statements are generated monthly. View detailed income/expenditure
-              in the Reports section.
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Reserve Fund</CardTitle></CardHeader>
-          <CardContent>
-            <p className="font-heading text-2xl text-emerald-600">{formatZAR(reserveBalance)}</p>
-            <p className="text-xs text-muted-foreground mt-1">Running balance</p>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+    <ReserveFundManager
+      hoaId={hoaId}
+      initialEntries={entries ?? []}
+      initialBalance={reserveBalance}
+    />
   )
 }
 
