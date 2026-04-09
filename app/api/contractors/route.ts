@@ -65,6 +65,7 @@ export async function PATCH(req: NextRequest) {
     // Contractor fields
     specialities, isActive,
     callOutRateCents, hourlyRateCents,
+    heritageApproved, heritageSpecialities,
     // Banking fields
     bankingName, bankName, bankAccountNumber, bankBranchCode, bankAccountType, vatRegistered,
   } = await req.json()
@@ -103,6 +104,8 @@ export async function PATCH(req: NextRequest) {
   if (bankBranchCode !== undefined) contractorUpdate.bank_branch_code = bankBranchCode?.trim() || null
   if (bankAccountType !== undefined) contractorUpdate.bank_account_type = bankAccountType || null
   if (vatRegistered !== undefined) contractorUpdate.vat_registered = vatRegistered
+  if (heritageApproved !== undefined) contractorUpdate.heritage_approved = heritageApproved
+  if (heritageSpecialities !== undefined) contractorUpdate.heritage_specialities = heritageSpecialities
 
   if (Object.keys(contractorUpdate).length > 0) {
     const { error: conError } = await service.from("contractors")

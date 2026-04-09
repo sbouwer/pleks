@@ -16,11 +16,34 @@ export async function createMaintenanceRequest(formData: FormData) {
   const description = formData.get("description") as string
   const unitId = formData.get("unit_id") as string
   const propertyId = formData.get("property_id") as string
+  const buildingId = (formData.get("building_id") as string) || null
   const tenantId = formData.get("tenant_id") as string || null
   const leaseId = formData.get("lease_id") as string || null
   const contractorId = formData.get("contractor_id") as string || null
   const categoryOverride = formData.get("category_override") as string || null
   const urgencyOverride = formData.get("urgency_override") as string || null
+
+  // Fetch building maintenance_rhythm to inform SLA notes
+  let buildingRhythm: string | null = null
+  if (buildingId) {
+    const { data: bld } = await db
+      .from("buildings")
+      .select("maintenance_rhythm, heritage_pre_approval_required, heritage_approved_contractors_only")
+      .eq("id", buildingId)
+      .single()
+    buildingRhythm = bld?.maintenance_rhythm ?? null
+    // Warn on heritage pre-approval requirement in special_instructions
+    if (bld?.heritage_pre_approval_required) {
+      const existing = (formData.get("special_instructions") as string) || ""
+      const note = "[Heritage building] Pre-approval from heritage authority required before dispatching work."
+      formData.set("special_instructions", existing ? `${existing}\n${note}` : note)
+    }
+    if (bld?.heritage_approved_contractors_only) {
+      const existing = (formData.get("special_instructions") as string) || ""
+      const note = "[Heritage building] Use approved heritage contractors only."
+      formData.set("special_instructions", existing ? `${existing}\n${note}` : note)
+    }
+  }
 
   // AI triage — only for Steward+ (Owner tier gets manual defaults, zero API cost)
   // If the form already ran triage client-side and agent overrode, use those values
@@ -50,6 +73,7 @@ export async function createMaintenanceRequest(formData: FormData) {
       org_id: orgId,
       unit_id: unitId,
       property_id: propertyId,
+      building_id: buildingId,
       lease_id: leaseId,
       tenant_id: tenantId,
       contractor_id: contractorId,
@@ -59,7 +83,9 @@ export async function createMaintenanceRequest(formData: FormData) {
       logged_by_user: userId,
       category: triage.category,
       urgency: triage.urgency,
-      ai_triage_notes: triage.urgency_reason,
+      ai_triage_notes: buildingRhythm && buildingRhythm !== "standard"
+        ? `${triage.urgency_reason} [Building rhythm: ${buildingRhythm}]`
+        : triage.urgency_reason,
       ai_triage_at: new Date().toISOString(),
       work_order_number: workOrderNumber,
       access_instructions: formData.get("access_instructions") as string || null,

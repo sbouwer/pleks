@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import { createMaintenanceRequest, fetchUnitsForProperty, fetchTenantForUnit, fetchPropertyContactsAction } from "@/lib/actions/maintenance"
+import { fetchBuildingsForProperty } from "@/lib/actions/buildings"
 import { formatZAR } from "@/lib/constants"
 import { InlineCombobox } from "@/components/shared/InlineCombobox"
 
@@ -126,6 +127,9 @@ export function LogMaintenanceForm({
   // Track user-initiated changes (vs server-provided initial state)
   const [userChangedProperty, setUserChangedProperty] = useState(false)
   const [userChangedUnit, setUserChangedUnit] = useState(false)
+  // Building state (multi-building properties only)
+  const [buildings, setBuildings] = useState<{ id: string; name: string }[]>([])
+  const [buildingId, setBuildingId] = useState("")
 
   // Access contact state — tenant + agent + landlord from server; tenant updates on unit change
   const [contactOptions, setContactOptions] = useState<ContactOption[]>(initialContacts)
@@ -167,21 +171,24 @@ export function LogMaintenanceForm({
   const effectiveCategory = overriding ? overrideCategory : triageResult?.category ?? ""
   const effectiveUrgency = overriding ? overrideUrgency : triageResult?.urgency ?? ""
 
-  // Fetch units + property contacts when property changes — only when USER changes it, not on mount
+  // Fetch units + property contacts + buildings when property changes — only when USER changes it, not on mount
   useEffect(() => {
-    if (!propertyId) { setUnits([]); setUnitId(""); setTenant(null); setLeaseId(""); setContactOptions([]); return }
+    if (!propertyId) { setUnits([]); setUnitId(""); setTenant(null); setLeaseId(""); setContactOptions([]); setBuildings([]); setBuildingId(""); return }
     if (!userChangedProperty) return  // server already provided initialUnits
     let cancelled = false
     setLoadingUnits(true)
     setUnitId("")
     setTenant(null)
     setLeaseId("")
+    setBuildingId("")
     async function run() {
       try {
-        const [unitList, propContacts] = await Promise.all([
+        const [unitList, propContacts, bldList] = await Promise.all([
           fetchUnitsForProperty(propertyId),
           fetchPropertyContactsAction(propertyId),
+          fetchBuildingsForProperty(propertyId),
         ])
+        if (!cancelled) setBuildings(bldList.filter((b) => b.is_visible_in_ui))
         if (cancelled) return
         setUnits(unitList)
         if (unitList.length === 1) {
@@ -328,6 +335,7 @@ export function LogMaintenanceForm({
     const formData = new FormData()
     formData.set("unit_id", unitId)
     formData.set("property_id", propertyId)
+    if (buildingId) formData.set("building_id", buildingId)
     formData.set("title", title)
     formData.set("description", description)
     if (leaseId) formData.set("lease_id", leaseId)
@@ -424,6 +432,22 @@ export function LogMaintenanceForm({
                 onSelect={(p) => { setPropertyId(p.id); setUserChangedProperty(true); setUnitId(""); setTenant(null) }}
               />
             </div>
+
+            {propertyId && buildings.length > 1 && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Building</Label>
+                <select
+                  value={buildingId}
+                  onChange={(e) => setBuildingId(e.target.value)}
+                  className="w-full h-8 rounded-md border border-input bg-background px-2 text-sm"
+                >
+                  <option value="">All buildings / not specific</option>
+                  {buildings.map((b) => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {propertyId && (
               <div className="space-y-1.5">

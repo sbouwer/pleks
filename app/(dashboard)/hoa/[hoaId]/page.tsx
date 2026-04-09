@@ -251,7 +251,7 @@ async function HOALeviesTab({ hoaId }: { hoaId: string }) {
   const supabase = await createClient()
   const { data: schedules } = await supabase
     .from("levy_schedules")
-    .select("*")
+    .select("*, buildings(id, name)")
     .eq("hoa_id", hoaId)
     .order("effective_from", { ascending: false })
 
@@ -280,6 +280,9 @@ async function HOALeviesTab({ hoaId }: { hoaId: string }) {
                     From: {formatDateShort(new Date(s.effective_from))}
                     {s.effective_to ? ` to ${formatDateShort(new Date(s.effective_to))}` : " (ongoing)"}
                   </p>
+                  {s.buildings && (
+                    <p className="text-xs text-muted-foreground">Building: {(s.buildings as { name: string }).name}</p>
+                  )}
                 </div>
                 <Badge variant={s.is_active ? "default" : "secondary"}>
                   {s.is_active ? "Active" : "Inactive"}
