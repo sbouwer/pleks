@@ -461,8 +461,17 @@ CREATE TABLE IF NOT EXISTS applications (
 );
 
 -- Self-referencing FK for credit report reuse (deferred to avoid forward reference)
-ALTER TABLE applications ADD CONSTRAINT fk_applications_reused_from
-  FOREIGN KEY (reused_from_application_id) REFERENCES applications(id);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE table_schema = 'public' AND table_name = 'applications'
+      AND constraint_name = 'fk_applications_reused_from'
+  ) THEN
+    ALTER TABLE applications ADD CONSTRAINT fk_applications_reused_from
+      FOREIGN KEY (reused_from_application_id) REFERENCES applications(id);
+  END IF;
+END $$;
 
 -- =============================================================
 -- APPLICATIONS: Access tokens
@@ -904,8 +913,17 @@ CREATE TABLE IF NOT EXISTS reserve_fund_entries (
 );
 
 -- Deferred FK: levy_schedules.agm_resolution_id -> agm_resolutions
-ALTER TABLE levy_schedules ADD CONSTRAINT fk_levy_agm_resolution
-  FOREIGN KEY (agm_resolution_id) REFERENCES agm_resolutions(id);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE table_schema = 'public' AND table_name = 'levy_schedules'
+      AND constraint_name = 'fk_levy_agm_resolution'
+  ) THEN
+    ALTER TABLE levy_schedules ADD CONSTRAINT fk_levy_agm_resolution
+      FOREIGN KEY (agm_resolution_id) REFERENCES agm_resolutions(id);
+  END IF;
+END $$;
 
 -- =============================================================
 -- REPORTS: Report configurations
