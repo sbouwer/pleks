@@ -73,6 +73,54 @@ export default async function MyPage() {
 
 ---
 
+## ⚠ MANDATORY: SECURITY AUDIT BEFORE DEPLOYMENT
+
+Before every deployment to production, run the full security audit:
+
+```bash
+npm run security
+```
+
+This runs 282 tests across 12 security categories:
+1. Unauthenticated table access (SELECT/INSERT/DELETE on all sensitive tables)
+2. Cross-org data leakage
+3. Gateway bypass / org_id injection
+4. Public route token security
+5. File storage access (bucket listing, predictable paths)
+6. Security headers (CSP, X-Frame-Options, HSTS, etc.)
+7. RLS policy audit (queries pg_policies — flags USING(true), missing WITH CHECK, RLS disabled)
+8. Server action / API route auth (hits every route without cookies)
+9. Rate limiting on public routes
+10. Webhook signature verification (sends forged payloads)
+11. Secrets exposure (service key in NEXT_PUBLIC_, secrets in HTML)
+12. IDOR (fake UUIDs on parameterised routes)
+
+**Exit code 1 = CRITICAL findings = deployment blocked.**
+
+**Workflow:**
+- First time or after security fixes: `npm run security` (full — ~30s)
+- Routine pre-deploy check: `npm run security:quick` (skips INSERT/DELETE and rate limit flood tests — ~10s)
+- Single category debug: `node scripts/security/audit.mjs --category 7`
+
+**Rules:**
+- Zero critical findings before any deployment. No exceptions.
+- If a finding is a false positive (e.g. `prime_rates` intentionally has no RLS because it's read-only public data), the correct fix is to add a read-only RLS policy (`USING (true)` for SELECT, block INSERT/UPDATE/DELETE) — not to remove the test.
+- Never disable or skip categories to pass the audit.
+- When adding new tables: add RLS + org_id policy immediately. The Category 7 audit will catch you if you forget.
+- When adding new API routes: the Category 8 test list in `scripts/security/audit.mjs` must be updated to include the new route.
+- When adding new webhook handlers: add signature verification from day one. Category 10 sends forged payloads.
+- When adding new public routes: add them to the Category 9 rate limit test list.
+
+**Prerequisites:**
+- `npm run dev` must be running (Categories 3, 4, 6, 8–12 test localhost)
+- The `get_rls_audit()` SQL function must exist in Supabase (see `scripts/security/setup-rls-audit.sql`)
+
+Quick commands:
+- `npm run security` — full audit (run before deploy)
+- `npm run security:quick` — quick audit (routine check)
+
+---
+
 ## BUILD PHASE IS COMPLETE — DO NOT MODIFY CORE SCHEMAS
 
 All 19 build segments are done. Do not run new migrations or alter
@@ -367,6 +415,7 @@ Opus 4.6:   Tribunal submissions, LODs, eviction notices (Firm tier only)
 
 ## DO NOT DO
 
+- Do not deploy without running `npm run security:quick` first
 - Do not commit without running `npm run check` first
 - Do not add new migrations without explicit instruction
 - Do not modify 001–022 migration files
