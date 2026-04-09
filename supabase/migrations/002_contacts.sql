@@ -21,7 +21,7 @@
 -- ─────────────────────────────────────────────────────────────
 -- 1. CONTACTS — master identity record
 -- ─────────────────────────────────────────────────────────────
-CREATE TABLE contacts (
+CREATE TABLE IF NOT EXISTS contacts (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL REFERENCES organisations(id),
 
@@ -85,19 +85,21 @@ CREATE TABLE contacts (
   deleted_at      timestamptz
 );
 
+DROP TRIGGER IF EXISTS update_contacts_updated_at ON contacts;
 CREATE TRIGGER update_contacts_updated_at
   BEFORE UPDATE ON contacts
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE INDEX idx_contacts_org_id       ON contacts(org_id);
-CREATE INDEX idx_contacts_primary_role ON contacts(org_id, primary_role) WHERE deleted_at IS NULL;
-CREATE INDEX idx_contacts_email        ON contacts(primary_email) WHERE primary_email IS NOT NULL;
-CREATE INDEX idx_contacts_dedup        ON contacts(org_id, dedup_hash);
-CREATE INDEX idx_contacts_name        ON contacts(org_id, name_normalised);
-CREATE INDEX idx_contacts_id_hash      ON contacts(id_number_hash) WHERE id_number_hash IS NOT NULL;
-CREATE INDEX idx_contacts_deleted      ON contacts(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_contacts_org_id       ON contacts(org_id);
+CREATE INDEX IF NOT EXISTS idx_contacts_primary_role ON contacts(org_id, primary_role) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_contacts_email        ON contacts(primary_email) WHERE primary_email IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_contacts_dedup        ON contacts(org_id, dedup_hash);
+CREATE INDEX IF NOT EXISTS idx_contacts_name        ON contacts(org_id, name_normalised);
+CREATE INDEX IF NOT EXISTS idx_contacts_id_hash      ON contacts(id_number_hash) WHERE id_number_hash IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_contacts_deleted      ON contacts(deleted_at);
 
 ALTER TABLE contacts ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_contacts" ON contacts;
 CREATE POLICY "org_contacts" ON contacts
   FOR ALL USING (
     org_id IN (
@@ -138,6 +140,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS contacts_dedup_hash ON contacts;
 CREATE TRIGGER contacts_dedup_hash
   BEFORE INSERT OR UPDATE ON contacts
   FOR EACH ROW EXECUTE FUNCTION compute_contact_dedup_hash();
@@ -146,7 +149,7 @@ CREATE TRIGGER contacts_dedup_hash
 -- ─────────────────────────────────────────────────────────────
 -- 2. CONTACT_PHONES — normalised phone numbers
 -- ─────────────────────────────────────────────────────────────
-CREATE TABLE contact_phones (
+CREATE TABLE IF NOT EXISTS contact_phones (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id        uuid NOT NULL REFERENCES organisations(id),
   contact_id    uuid NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
@@ -161,11 +164,12 @@ CREATE TABLE contact_phones (
   created_at    timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_contact_phones_contact ON contact_phones(contact_id);
-CREATE UNIQUE INDEX idx_contact_phones_primary
+CREATE INDEX IF NOT EXISTS idx_contact_phones_contact ON contact_phones(contact_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_contact_phones_primary
   ON contact_phones(contact_id) WHERE is_primary = true;
 
 ALTER TABLE contact_phones ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_contact_phones" ON contact_phones;
 CREATE POLICY "org_contact_phones" ON contact_phones
   FOR ALL USING (
     org_id IN (
@@ -178,7 +182,7 @@ CREATE POLICY "org_contact_phones" ON contact_phones
 -- ─────────────────────────────────────────────────────────────
 -- 3. CONTACT_EMAILS — normalised email addresses
 -- ─────────────────────────────────────────────────────────────
-CREATE TABLE contact_emails (
+CREATE TABLE IF NOT EXISTS contact_emails (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id        uuid NOT NULL REFERENCES organisations(id),
   contact_id    uuid NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
@@ -191,12 +195,13 @@ CREATE TABLE contact_emails (
   created_at    timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_contact_emails_contact ON contact_emails(contact_id);
-CREATE INDEX idx_contact_emails_email   ON contact_emails(email);
-CREATE UNIQUE INDEX idx_contact_emails_primary
+CREATE INDEX IF NOT EXISTS idx_contact_emails_contact ON contact_emails(contact_id);
+CREATE INDEX IF NOT EXISTS idx_contact_emails_email   ON contact_emails(email);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_contact_emails_primary
   ON contact_emails(contact_id) WHERE is_primary = true;
 
 ALTER TABLE contact_emails ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_contact_emails" ON contact_emails;
 CREATE POLICY "org_contact_emails" ON contact_emails
   FOR ALL USING (
     org_id IN (
@@ -209,7 +214,7 @@ CREATE POLICY "org_contact_emails" ON contact_emails
 -- ─────────────────────────────────────────────────────────────
 -- 4. CONTACT_ADDRESSES — normalised addresses (polymorphic on contacts.id)
 -- ─────────────────────────────────────────────────────────────
-CREATE TABLE contact_addresses (
+CREATE TABLE IF NOT EXISTS contact_addresses (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL REFERENCES organisations(id),
   contact_id      uuid NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
@@ -233,13 +238,15 @@ CREATE TABLE contact_addresses (
   updated_at      timestamptz NOT NULL DEFAULT now()
 );
 
+DROP TRIGGER IF EXISTS update_contact_addresses_updated_at ON contact_addresses;
 CREATE TRIGGER update_contact_addresses_updated_at
   BEFORE UPDATE ON contact_addresses
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE INDEX idx_contact_addresses_contact ON contact_addresses(contact_id);
+CREATE INDEX IF NOT EXISTS idx_contact_addresses_contact ON contact_addresses(contact_id);
 
 ALTER TABLE contact_addresses ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_contact_addresses" ON contact_addresses;
 CREATE POLICY "org_contact_addresses" ON contact_addresses
   FOR ALL USING (
     org_id IN (
@@ -255,7 +262,7 @@ CREATE POLICY "org_contact_addresses" ON contact_addresses
 -- Example: Johan Bouwer is both a Landlord and a Guarantor on different leases.
 -- primary_role on contacts = the most common role (for display/filtering).
 -- contact_roles = the full set.
-CREATE TABLE contact_roles (
+CREATE TABLE IF NOT EXISTS contact_roles (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id        uuid NOT NULL REFERENCES organisations(id),
   contact_id    uuid NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
@@ -267,10 +274,11 @@ CREATE TABLE contact_roles (
   UNIQUE(contact_id, role)
 );
 
-CREATE INDEX idx_contact_roles_contact ON contact_roles(contact_id);
-CREATE INDEX idx_contact_roles_org_role ON contact_roles(org_id, role);
+CREATE INDEX IF NOT EXISTS idx_contact_roles_contact ON contact_roles(contact_id);
+CREATE INDEX IF NOT EXISTS idx_contact_roles_org_role ON contact_roles(org_id, role);
 
 ALTER TABLE contact_roles ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_contact_roles" ON contact_roles;
 CREATE POLICY "org_contact_roles" ON contact_roles
   FOR ALL USING (
     org_id IN (
@@ -285,7 +293,7 @@ CREATE POLICY "org_contact_roles" ON contact_roles
 -- ─────────────────────────────────────────────────────────────
 -- Example: Dean Wyld (individual contact) → DW Plumbing PTY LTD (org contact)
 -- Also used for: tenant employer lookup, guarantor employment verification
-CREATE TABLE contact_employment (
+CREATE TABLE IF NOT EXISTS contact_employment (
   id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id              uuid NOT NULL REFERENCES organisations(id),
   individual_id       uuid NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
@@ -309,14 +317,16 @@ CREATE TABLE contact_employment (
   UNIQUE(individual_id, organisation_id)
 );
 
+DROP TRIGGER IF EXISTS update_contact_employment_updated_at ON contact_employment;
 CREATE TRIGGER update_contact_employment_updated_at
   BEFORE UPDATE ON contact_employment
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE INDEX idx_contact_employment_individual ON contact_employment(individual_id);
-CREATE INDEX idx_contact_employment_org        ON contact_employment(organisation_id);
+CREATE INDEX IF NOT EXISTS idx_contact_employment_individual ON contact_employment(individual_id);
+CREATE INDEX IF NOT EXISTS idx_contact_employment_org        ON contact_employment(organisation_id);
 
 ALTER TABLE contact_employment ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_contact_employment" ON contact_employment;
 CREATE POLICY "org_contact_employment" ON contact_employment
   FOR ALL USING (
     org_id IN (
@@ -333,7 +343,7 @@ CREATE POLICY "org_contact_employment" ON contact_employment
 -- This table holds: the contact_id FK + fields specific to being a tenant.
 -- tenants.id is the PK that all downstream tables (leases, inspections,
 -- payments, etc.) reference via tenant_id FK — unchanged.
-CREATE TABLE tenants (
+CREATE TABLE IF NOT EXISTS tenants (
   id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id                uuid NOT NULL REFERENCES organisations(id),
   contact_id            uuid NOT NULL REFERENCES contacts(id),
@@ -376,15 +386,17 @@ CREATE TABLE tenants (
   UNIQUE(org_id, contact_id)    -- a contact can only be a tenant once per org
 );
 
+DROP TRIGGER IF EXISTS update_tenants_updated_at ON tenants;
 CREATE TRIGGER update_tenants_updated_at
   BEFORE UPDATE ON tenants
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE INDEX idx_tenants_org_id    ON tenants(org_id);
-CREATE INDEX idx_tenants_contact_id ON tenants(contact_id);
-CREATE INDEX idx_tenants_deleted    ON tenants(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_tenants_org_id    ON tenants(org_id);
+CREATE INDEX IF NOT EXISTS idx_tenants_contact_id ON tenants(contact_id);
+CREATE INDEX IF NOT EXISTS idx_tenants_deleted    ON tenants(deleted_at);
 
 ALTER TABLE tenants ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_tenants" ON tenants;
 CREATE POLICY "org_tenants" ON tenants
   FOR ALL USING (
     org_id IN (
@@ -402,7 +414,7 @@ CREATE POLICY "org_tenants" ON tenants
 -- A landlord record links to properties via properties.landlord_id.
 -- properties.owner_name / owner_email / owner_phone remain as a denormalised
 -- cache for owner statement generation (populated when landlord is linked).
-CREATE TABLE landlords (
+CREATE TABLE IF NOT EXISTS landlords (
   id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id                uuid NOT NULL REFERENCES organisations(id),
   contact_id            uuid NOT NULL REFERENCES contacts(id),
@@ -433,14 +445,16 @@ CREATE TABLE landlords (
   UNIQUE(org_id, contact_id)
 );
 
+DROP TRIGGER IF EXISTS update_landlords_updated_at ON landlords;
 CREATE TRIGGER update_landlords_updated_at
   BEFORE UPDATE ON landlords
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE INDEX idx_landlords_org_id     ON landlords(org_id);
-CREATE INDEX idx_landlords_contact_id ON landlords(contact_id);
+CREATE INDEX IF NOT EXISTS idx_landlords_org_id     ON landlords(org_id);
+CREATE INDEX IF NOT EXISTS idx_landlords_contact_id ON landlords(contact_id);
 
 ALTER TABLE landlords ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_landlords" ON landlords;
 CREATE POLICY "org_landlords" ON landlords
   FOR ALL USING (
     org_id IN (
@@ -457,7 +471,7 @@ CREATE POLICY "org_landlords" ON landlords
 -- Next of kin / emergency contacts for a tenant
 -- Note: these are NOT contacts records — they are informal references
 -- that don't need the full contact lifecycle (no dedup, no roles, no portal)
-CREATE TABLE tenant_next_of_kin (
+CREATE TABLE IF NOT EXISTS tenant_next_of_kin (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id        uuid NOT NULL REFERENCES organisations(id),
   tenant_id     uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -471,6 +485,7 @@ CREATE TABLE tenant_next_of_kin (
 );
 
 ALTER TABLE tenant_next_of_kin ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_tenant_next_of_kin" ON tenant_next_of_kin;
 CREATE POLICY "org_tenant_next_of_kin" ON tenant_next_of_kin
   FOR ALL USING (
     org_id IN (
@@ -480,7 +495,7 @@ CREATE POLICY "org_tenant_next_of_kin" ON tenant_next_of_kin
   );
 
 -- Tenant documents vault
-CREATE TABLE tenant_documents (
+CREATE TABLE IF NOT EXISTS tenant_documents (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL REFERENCES organisations(id),
   tenant_id       uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -502,9 +517,10 @@ CREATE TABLE tenant_documents (
   created_at      timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_tenant_documents_tenant_id ON tenant_documents(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_tenant_documents_tenant_id ON tenant_documents(tenant_id);
 
 ALTER TABLE tenant_documents ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_tenant_docs" ON tenant_documents;
 CREATE POLICY "org_tenant_docs" ON tenant_documents
   FOR ALL USING (
     org_id IN (
@@ -514,7 +530,7 @@ CREATE POLICY "org_tenant_docs" ON tenant_documents
   );
 
 -- Communication log (immutable — no UPDATE/DELETE)
-CREATE TABLE communication_log (
+CREATE TABLE IF NOT EXISTS communication_log (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL REFERENCES organisations(id),
   -- Can reference a tenant OR any contact (not both required)
@@ -541,12 +557,13 @@ CREATE TABLE communication_log (
   created_at      timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_comms_tenant_id  ON communication_log(tenant_id);
-CREATE INDEX idx_comms_contact_id ON communication_log(contact_id);
-CREATE INDEX idx_comms_org_id     ON communication_log(org_id);
-CREATE INDEX idx_comms_channel    ON communication_log(channel);
+CREATE INDEX IF NOT EXISTS idx_comms_tenant_id  ON communication_log(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_comms_contact_id ON communication_log(contact_id);
+CREATE INDEX IF NOT EXISTS idx_comms_org_id     ON communication_log(org_id);
+CREATE INDEX IF NOT EXISTS idx_comms_channel    ON communication_log(channel);
 
 ALTER TABLE communication_log ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_comms_read" ON communication_log;
 CREATE POLICY "org_comms_read" ON communication_log
   FOR SELECT USING (
     org_id IN (
@@ -554,6 +571,7 @@ CREATE POLICY "org_comms_read" ON communication_log
       WHERE user_id = auth.uid() AND deleted_at IS NULL
     )
   );
+DROP POLICY IF EXISTS "org_comms_insert" ON communication_log;
 CREATE POLICY "org_comms_insert" ON communication_log
   FOR INSERT WITH CHECK (
     org_id IN (
@@ -563,7 +581,7 @@ CREATE POLICY "org_comms_insert" ON communication_log
   );
 
 -- Tenancy history
-CREATE TABLE tenancy_history (
+CREATE TABLE IF NOT EXISTS tenancy_history (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id        uuid NOT NULL REFERENCES organisations(id),
   tenant_id     uuid NOT NULL REFERENCES tenants(id),
@@ -576,10 +594,11 @@ CREATE TABLE tenancy_history (
   created_at    timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_tenancy_history_tenant ON tenancy_history(tenant_id);
-CREATE INDEX idx_tenancy_history_unit   ON tenancy_history(unit_id);
+CREATE INDEX IF NOT EXISTS idx_tenancy_history_tenant ON tenancy_history(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_tenancy_history_unit   ON tenancy_history(unit_id);
 
 ALTER TABLE tenancy_history ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_tenancy_history" ON tenancy_history;
 CREATE POLICY "org_tenancy_history" ON tenancy_history
   FOR ALL USING (
     org_id IN (
@@ -589,7 +608,7 @@ CREATE POLICY "org_tenancy_history" ON tenancy_history
   );
 
 -- Tenant portal user link
-CREATE TABLE user_orgs_tenants (
+CREATE TABLE IF NOT EXISTS user_orgs_tenants (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id     uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   tenant_id   uuid NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -599,6 +618,7 @@ CREATE TABLE user_orgs_tenants (
 );
 
 ALTER TABLE user_orgs_tenants ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "own_tenant_link" ON user_orgs_tenants;
 CREATE POLICY "own_tenant_link" ON user_orgs_tenants
   FOR SELECT USING (user_id = auth.uid());
 

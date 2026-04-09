@@ -15,7 +15,7 @@
 -- The old flat schema was replaced in BUILD_44.
 
 -- Lease templates (core document versions)
-CREATE TABLE lease_templates (
+CREATE TABLE IF NOT EXISTS lease_templates (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid,
   template_type   text NOT NULL CHECK (template_type IN ('residential', 'commercial')),
@@ -28,7 +28,7 @@ CREATE TABLE lease_templates (
 );
 
 -- Leases (merged from 007 + 015 + 029 + 032 + 036 + 040)
-CREATE TABLE leases (
+CREATE TABLE IF NOT EXISTS leases (
   id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id              uuid NOT NULL REFERENCES organisations(id),
   unit_id             uuid NOT NULL REFERENCES units(id),
@@ -105,7 +105,7 @@ CREATE TABLE leases (
 );
 
 -- Lease amendments
-CREATE TABLE lease_amendments (
+CREATE TABLE IF NOT EXISTS lease_amendments (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL REFERENCES organisations(id),
   lease_id        uuid NOT NULL REFERENCES leases(id),
@@ -126,7 +126,7 @@ CREATE TABLE lease_amendments (
 );
 
 -- Lease lifecycle events (immutable)
-CREATE TABLE lease_lifecycle_events (
+CREATE TABLE IF NOT EXISTS lease_lifecycle_events (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL,
   lease_id        uuid NOT NULL REFERENCES leases(id),
@@ -146,7 +146,7 @@ CREATE TABLE lease_lifecycle_events (
 );
 
 -- Lease renewal offers
-CREATE TABLE lease_renewal_offers (
+CREATE TABLE IF NOT EXISTS lease_renewal_offers (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL,
   lease_id        uuid NOT NULL REFERENCES leases(id),
@@ -169,7 +169,7 @@ CREATE TABLE lease_renewal_offers (
 );
 
 -- Lease clause library (platform-level, read-only)
-CREATE TABLE lease_clause_library (
+CREATE TABLE IF NOT EXISTS lease_clause_library (
   id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   clause_key            text NOT NULL UNIQUE,
   title                 text NOT NULL,
@@ -186,7 +186,7 @@ CREATE TABLE lease_clause_library (
 );
 
 -- Org clause defaults
-CREATE TABLE org_lease_clause_defaults (
+CREATE TABLE IF NOT EXISTS org_lease_clause_defaults (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id      uuid NOT NULL REFERENCES organisations(id),
   clause_key  text NOT NULL
@@ -197,7 +197,7 @@ CREATE TABLE org_lease_clause_defaults (
 );
 
 -- Per-lease clause selections (lease_id nullable per 034; unique index per 034)
-CREATE TABLE lease_clause_selections (
+CREATE TABLE IF NOT EXISTS lease_clause_selections (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id      uuid NOT NULL REFERENCES organisations(id),
   lease_id    uuid REFERENCES leases(id),
@@ -209,7 +209,7 @@ CREATE TABLE lease_clause_selections (
 );
 
 -- Lease charges — recurring additional charges on leases (from 046)
-CREATE TABLE lease_charges (
+CREATE TABLE IF NOT EXISTS lease_charges (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL REFERENCES organisations(id),
   lease_id        uuid NOT NULL REFERENCES leases(id),
@@ -225,7 +225,7 @@ CREATE TABLE lease_charges (
   end_date        date,
   payable_to      text NOT NULL DEFAULT 'landlord'
                   CHECK (payable_to IN ('landlord', 'body_corporate', 'agent', 'third_party')),
-  payable_to_contractor_id uuid,  -- FK to contractors added after 005
+  payable_to_supplier_id uuid,    -- FK to contractors/suppliers added after 005
   deduct_from_owner_payment boolean NOT NULL DEFAULT false,
   vat_applicable  boolean NOT NULL DEFAULT false,
   vat_rate_percent numeric(5,2) DEFAULT 15.00,
@@ -236,7 +236,7 @@ CREATE TABLE lease_charges (
 );
 
 -- Prime rates (from 029)
-CREATE TABLE prime_rates (
+CREATE TABLE IF NOT EXISTS prime_rates (
   id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   rate_percent   numeric(5,2) NOT NULL,
   effective_date date NOT NULL,
@@ -261,7 +261,7 @@ ALTER TABLE organisations ADD COLUMN IF NOT EXISTS management_fee_vat_applicable
 ALTER TABLE organisations ADD COLUMN IF NOT EXISTS deposit_interest_rate_percent numeric(5,2) DEFAULT 5.00;
 
 -- Trust ledger (immutable — NO update/delete) (merged from 010 + 023)
-CREATE TABLE trust_transactions (
+CREATE TABLE IF NOT EXISTS trust_transactions (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL REFERENCES organisations(id),
   property_id     uuid REFERENCES properties(id),
@@ -287,7 +287,7 @@ CREATE TABLE trust_transactions (
 );
 
 -- Rent invoices (merged from 010 + 047)
-CREATE TABLE rent_invoices (
+CREATE TABLE IF NOT EXISTS rent_invoices (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL REFERENCES organisations(id),
   lease_id        uuid NOT NULL REFERENCES leases(id),
@@ -316,7 +316,7 @@ CREATE TABLE rent_invoices (
 );
 
 -- Payments (merged from 010 + 031)
-CREATE TABLE payments (
+CREATE TABLE IF NOT EXISTS payments (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL REFERENCES organisations(id),
   invoice_id      uuid REFERENCES rent_invoices(id),
@@ -345,7 +345,7 @@ CREATE TABLE payments (
 );
 
 -- Management fee invoices
-CREATE TABLE management_fee_invoices (
+CREATE TABLE IF NOT EXISTS management_fee_invoices (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL REFERENCES organisations(id),
   property_id     uuid REFERENCES properties(id),
@@ -363,7 +363,7 @@ CREATE TABLE management_fee_invoices (
 );
 
 -- Property annual summaries (SARS ITR12 aligned)
-CREATE TABLE property_annual_summaries (
+CREATE TABLE IF NOT EXISTS property_annual_summaries (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL REFERENCES organisations(id),
   property_id     uuid NOT NULL REFERENCES properties(id),
@@ -389,7 +389,7 @@ CREATE TABLE property_annual_summaries (
 );
 
 -- Owner statements (from 011 — table only, ALTER properties went into 003)
-CREATE TABLE owner_statements (
+CREATE TABLE IF NOT EXISTS owner_statements (
   id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id              uuid NOT NULL REFERENCES organisations(id),
   property_id         uuid NOT NULL REFERENCES properties(id),
@@ -429,7 +429,7 @@ CREATE TABLE owner_statements (
 );
 
 -- Deposit timers (from 020)
-CREATE TABLE deposit_timers (
+CREATE TABLE IF NOT EXISTS deposit_timers (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL REFERENCES organisations(id),
   lease_id        uuid NOT NULL REFERENCES leases(id),
@@ -444,7 +444,7 @@ CREATE TABLE deposit_timers (
 );
 
 -- Deposit deduction items (from 020)
-CREATE TABLE deposit_deduction_items (
+CREATE TABLE IF NOT EXISTS deposit_deduction_items (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id            uuid NOT NULL REFERENCES organisations(id),
   lease_id          uuid NOT NULL REFERENCES leases(id),
@@ -480,7 +480,7 @@ CREATE TABLE deposit_deduction_items (
 );
 
 -- Deposit transactions (from 020 — immutable)
-CREATE TABLE deposit_transactions (
+CREATE TABLE IF NOT EXISTS deposit_transactions (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL REFERENCES organisations(id),
   lease_id        uuid NOT NULL REFERENCES leases(id),
@@ -505,7 +505,7 @@ CREATE TABLE deposit_transactions (
 );
 
 -- Deposit reconciliations (from 020 — one per lease at lease end)
-CREATE TABLE deposit_reconciliations (
+CREATE TABLE IF NOT EXISTS deposit_reconciliations (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id            uuid NOT NULL REFERENCES organisations(id),
   lease_id          uuid NOT NULL UNIQUE REFERENCES leases(id),
@@ -545,7 +545,7 @@ CREATE TABLE deposit_reconciliations (
 );
 
 -- Arrears cases (merged from 014 + 029)
-CREATE TABLE arrears_cases (
+CREATE TABLE IF NOT EXISTS arrears_cases (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id            uuid NOT NULL REFERENCES organisations(id),
   lease_id          uuid NOT NULL REFERENCES leases(id),
@@ -590,7 +590,7 @@ CREATE TABLE arrears_cases (
 );
 
 -- Arrears sequences (configurable per org)
-CREATE TABLE arrears_sequences (
+CREATE TABLE IF NOT EXISTS arrears_sequences (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL REFERENCES organisations(id),
   name            text NOT NULL DEFAULT 'Default Sequence',
@@ -600,7 +600,7 @@ CREATE TABLE arrears_sequences (
 );
 
 -- Arrears sequence steps
-CREATE TABLE arrears_sequence_steps (
+CREATE TABLE IF NOT EXISTS arrears_sequence_steps (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL,
   sequence_id     uuid NOT NULL REFERENCES arrears_sequences(id) ON DELETE CASCADE,
@@ -619,7 +619,7 @@ CREATE TABLE arrears_sequence_steps (
 );
 
 -- Arrears actions log (immutable)
-CREATE TABLE arrears_actions (
+CREATE TABLE IF NOT EXISTS arrears_actions (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL,
   case_id         uuid NOT NULL REFERENCES arrears_cases(id),
@@ -643,7 +643,7 @@ CREATE TABLE arrears_actions (
 );
 
 -- Arrears interest charges (immutable, from 029)
-CREATE TABLE arrears_interest_charges (
+CREATE TABLE IF NOT EXISTS arrears_interest_charges (
   id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id                uuid NOT NULL REFERENCES organisations(id),
   arrears_case_id       uuid NOT NULL REFERENCES arrears_cases(id),
@@ -664,7 +664,7 @@ CREATE TABLE arrears_interest_charges (
 );
 
 -- Bank statement imports (from 012)
-CREATE TABLE bank_statement_imports (
+CREATE TABLE IF NOT EXISTS bank_statement_imports (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id            uuid NOT NULL REFERENCES organisations(id),
   bank_account_id   uuid NOT NULL,  -- plain uuid, FK to bank_accounts in 001
@@ -703,7 +703,7 @@ CREATE TABLE bank_statement_imports (
 );
 
 -- Bank statement lines (from 012)
-CREATE TABLE bank_statement_lines (
+CREATE TABLE IF NOT EXISTS bank_statement_lines (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id            uuid NOT NULL,
   import_id         uuid NOT NULL REFERENCES bank_statement_imports(id) ON DELETE CASCADE,
@@ -738,7 +738,7 @@ CREATE TABLE bank_statement_lines (
 );
 
 -- DebiCheck mandates (from 013)
-CREATE TABLE debicheck_mandates (
+CREATE TABLE IF NOT EXISTS debicheck_mandates (
   id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id                uuid NOT NULL REFERENCES organisations(id),
   lease_id              uuid NOT NULL REFERENCES leases(id),
@@ -774,7 +774,7 @@ CREATE TABLE debicheck_mandates (
 );
 
 -- DebiCheck collections (from 013)
-CREATE TABLE debicheck_collections (
+CREATE TABLE IF NOT EXISTS debicheck_collections (
   id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id                uuid NOT NULL,
   mandate_id            uuid NOT NULL REFERENCES debicheck_mandates(id),
@@ -804,7 +804,7 @@ CREATE TABLE debicheck_collections (
 );
 
 -- Tenant bank accounts (merged from 013 + 042)
-CREATE TABLE tenant_bank_accounts (
+CREATE TABLE IF NOT EXISTS tenant_bank_accounts (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id          uuid NOT NULL REFERENCES organisations(id),
   tenant_id       uuid NOT NULL REFERENCES tenants(id),
@@ -834,91 +834,91 @@ CREATE TABLE tenant_bank_accounts (
 -- =============================================================================
 
 -- Leases
-CREATE INDEX idx_leases_org_id ON leases(org_id);
-CREATE INDEX idx_leases_unit_id ON leases(unit_id);
-CREATE INDEX idx_leases_tenant_id ON leases(tenant_id);
-CREATE INDEX idx_leases_status ON leases(status);
-CREATE INDEX idx_leases_end_date ON leases(end_date);
+CREATE INDEX IF NOT EXISTS idx_leases_org_id ON leases(org_id);
+CREATE INDEX IF NOT EXISTS idx_leases_unit_id ON leases(unit_id);
+CREATE INDEX IF NOT EXISTS idx_leases_tenant_id ON leases(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_leases_status ON leases(status);
+CREATE INDEX IF NOT EXISTS idx_leases_end_date ON leases(end_date);
 
 -- Lease amendments
-CREATE INDEX idx_lease_amendments_lease_id ON lease_amendments(lease_id);
+CREATE INDEX IF NOT EXISTS idx_lease_amendments_lease_id ON lease_amendments(lease_id);
 
 -- Lease lifecycle events
-CREATE INDEX idx_lifecycle_lease ON lease_lifecycle_events(lease_id);
-CREATE INDEX idx_lifecycle_org ON lease_lifecycle_events(org_id);
+CREATE INDEX IF NOT EXISTS idx_lifecycle_lease ON lease_lifecycle_events(lease_id);
+CREATE INDEX IF NOT EXISTS idx_lifecycle_org ON lease_lifecycle_events(org_id);
 
 -- Lease clause selections (unique index from 034 — handles nullable lease_id)
-CREATE UNIQUE INDEX lease_clause_selections_unique
+CREATE UNIQUE INDEX IF NOT EXISTS lease_clause_selections_unique
   ON lease_clause_selections (
     org_id, clause_key,
     COALESCE(lease_id, '00000000-0000-0000-0000-000000000000')
   );
 
 -- Lease charges
-CREATE INDEX idx_lease_charges_lease ON lease_charges(lease_id);
-CREATE INDEX idx_lease_charges_org ON lease_charges(org_id);
-CREATE INDEX idx_lease_charges_active ON lease_charges(lease_id, is_active) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_lease_charges_lease ON lease_charges(lease_id);
+CREATE INDEX IF NOT EXISTS idx_lease_charges_org ON lease_charges(org_id);
+CREATE INDEX IF NOT EXISTS idx_lease_charges_active ON lease_charges(lease_id, is_active) WHERE is_active = true;
 
 -- Trust transactions
-CREATE INDEX idx_trust_tx_org ON trust_transactions(org_id);
-CREATE INDEX idx_trust_tx_property ON trust_transactions(property_id);
-CREATE INDEX idx_trust_tx_statement_month ON trust_transactions(statement_month);
-CREATE INDEX idx_trust_txn_opening_balance ON trust_transactions(is_opening_balance) WHERE is_opening_balance = true;
+CREATE INDEX IF NOT EXISTS idx_trust_tx_org ON trust_transactions(org_id);
+CREATE INDEX IF NOT EXISTS idx_trust_tx_property ON trust_transactions(property_id);
+CREATE INDEX IF NOT EXISTS idx_trust_tx_statement_month ON trust_transactions(statement_month);
+CREATE INDEX IF NOT EXISTS idx_trust_txn_opening_balance ON trust_transactions(is_opening_balance) WHERE is_opening_balance = true;
 
 -- Rent invoices
-CREATE INDEX idx_rent_invoices_org ON rent_invoices(org_id);
-CREATE INDEX idx_rent_invoices_lease ON rent_invoices(lease_id);
-CREATE INDEX idx_rent_invoices_due_date ON rent_invoices(due_date);
-CREATE INDEX idx_rent_invoices_status ON rent_invoices(status);
+CREATE INDEX IF NOT EXISTS idx_rent_invoices_org ON rent_invoices(org_id);
+CREATE INDEX IF NOT EXISTS idx_rent_invoices_lease ON rent_invoices(lease_id);
+CREATE INDEX IF NOT EXISTS idx_rent_invoices_due_date ON rent_invoices(due_date);
+CREATE INDEX IF NOT EXISTS idx_rent_invoices_status ON rent_invoices(status);
 
 -- Payments
-CREATE INDEX idx_payments_org ON payments(org_id);
-CREATE INDEX idx_payments_lease ON payments(lease_id);
-CREATE INDEX idx_payments_tenant ON payments(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_payments_org ON payments(org_id);
+CREATE INDEX IF NOT EXISTS idx_payments_lease ON payments(lease_id);
+CREATE INDEX IF NOT EXISTS idx_payments_tenant ON payments(tenant_id);
 
 -- Owner statements
-CREATE INDEX idx_owner_statements_org      ON owner_statements(org_id);
-CREATE INDEX idx_owner_statements_property ON owner_statements(property_id);
-CREATE INDEX idx_owner_statements_period   ON owner_statements(period_month);
-CREATE INDEX idx_owner_statements_token    ON owner_statements(portal_token);
+CREATE INDEX IF NOT EXISTS idx_owner_statements_org      ON owner_statements(org_id);
+CREATE INDEX IF NOT EXISTS idx_owner_statements_property ON owner_statements(property_id);
+CREATE INDEX IF NOT EXISTS idx_owner_statements_period   ON owner_statements(period_month);
+CREATE INDEX IF NOT EXISTS idx_owner_statements_token    ON owner_statements(portal_token);
 
 -- Deposit recon
-CREATE INDEX idx_deposit_timers_lease ON deposit_timers(lease_id);
-CREATE INDEX idx_deposit_timers_status ON deposit_timers(status) WHERE status IN ('running', 'overdue');
-CREATE INDEX idx_deduction_items_lease ON deposit_deduction_items(lease_id);
-CREATE INDEX idx_deposit_txns_lease ON deposit_transactions(lease_id);
+CREATE INDEX IF NOT EXISTS idx_deposit_timers_lease ON deposit_timers(lease_id);
+CREATE INDEX IF NOT EXISTS idx_deposit_timers_status ON deposit_timers(status) WHERE status IN ('running', 'overdue');
+CREATE INDEX IF NOT EXISTS idx_deduction_items_lease ON deposit_deduction_items(lease_id);
+CREATE INDEX IF NOT EXISTS idx_deposit_txns_lease ON deposit_transactions(lease_id);
 
 -- Arrears
-CREATE INDEX idx_arrears_org ON arrears_cases(org_id);
-CREATE INDEX idx_arrears_lease ON arrears_cases(lease_id);
-CREATE INDEX idx_arrears_status ON arrears_cases(status);
-CREATE INDEX idx_arrears_tenant ON arrears_cases(tenant_id);
-CREATE INDEX idx_arrears_actions_case ON arrears_actions(case_id);
+CREATE INDEX IF NOT EXISTS idx_arrears_org ON arrears_cases(org_id);
+CREATE INDEX IF NOT EXISTS idx_arrears_lease ON arrears_cases(lease_id);
+CREATE INDEX IF NOT EXISTS idx_arrears_status ON arrears_cases(status);
+CREATE INDEX IF NOT EXISTS idx_arrears_tenant ON arrears_cases(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_arrears_actions_case ON arrears_actions(case_id);
 
 -- Arrears interest charges
-CREATE INDEX idx_interest_charges_case ON arrears_interest_charges(arrears_case_id);
-CREATE INDEX idx_interest_charges_date ON arrears_interest_charges(charge_date);
-CREATE INDEX idx_interest_charges_org ON arrears_interest_charges(org_id);
+CREATE INDEX IF NOT EXISTS idx_interest_charges_case ON arrears_interest_charges(arrears_case_id);
+CREATE INDEX IF NOT EXISTS idx_interest_charges_date ON arrears_interest_charges(charge_date);
+CREATE INDEX IF NOT EXISTS idx_interest_charges_org ON arrears_interest_charges(org_id);
 
 -- Bank recon
-CREATE INDEX idx_bank_imports_org ON bank_statement_imports(org_id);
-CREATE INDEX idx_bank_imports_account ON bank_statement_imports(bank_account_id);
-CREATE INDEX idx_stmt_lines_import ON bank_statement_lines(import_id);
-CREATE INDEX idx_stmt_lines_match_status ON bank_statement_lines(match_status);
-CREATE INDEX idx_stmt_lines_date ON bank_statement_lines(transaction_date);
-CREATE INDEX idx_stmt_lines_reference ON bank_statement_lines(reference_clean);
+CREATE INDEX IF NOT EXISTS idx_bank_imports_org ON bank_statement_imports(org_id);
+CREATE INDEX IF NOT EXISTS idx_bank_imports_account ON bank_statement_imports(bank_account_id);
+CREATE INDEX IF NOT EXISTS idx_stmt_lines_import ON bank_statement_lines(import_id);
+CREATE INDEX IF NOT EXISTS idx_stmt_lines_match_status ON bank_statement_lines(match_status);
+CREATE INDEX IF NOT EXISTS idx_stmt_lines_date ON bank_statement_lines(transaction_date);
+CREATE INDEX IF NOT EXISTS idx_stmt_lines_reference ON bank_statement_lines(reference_clean);
 
 -- DebiCheck
-CREATE INDEX idx_debicheck_org ON debicheck_mandates(org_id);
-CREATE INDEX idx_debicheck_lease ON debicheck_mandates(lease_id);
-CREATE INDEX idx_debicheck_status ON debicheck_mandates(status);
-CREATE INDEX idx_collections_mandate ON debicheck_collections(mandate_id);
-CREATE INDEX idx_collections_lease ON debicheck_collections(lease_id);
-CREATE INDEX idx_collections_status ON debicheck_collections(status);
-CREATE INDEX idx_collections_date ON debicheck_collections(collection_date);
+CREATE INDEX IF NOT EXISTS idx_debicheck_org ON debicheck_mandates(org_id);
+CREATE INDEX IF NOT EXISTS idx_debicheck_lease ON debicheck_mandates(lease_id);
+CREATE INDEX IF NOT EXISTS idx_debicheck_status ON debicheck_mandates(status);
+CREATE INDEX IF NOT EXISTS idx_collections_mandate ON debicheck_collections(mandate_id);
+CREATE INDEX IF NOT EXISTS idx_collections_lease ON debicheck_collections(lease_id);
+CREATE INDEX IF NOT EXISTS idx_collections_status ON debicheck_collections(status);
+CREATE INDEX IF NOT EXISTS idx_collections_date ON debicheck_collections(collection_date);
 
 -- Tenant bank accounts
-CREATE INDEX idx_tenant_bank_accounts_hash ON tenant_bank_accounts(account_number_hash)
+CREATE INDEX IF NOT EXISTS idx_tenant_bank_accounts_hash ON tenant_bank_accounts(account_number_hash)
   WHERE account_number_hash IS NOT NULL;
 
 
@@ -928,6 +928,7 @@ CREATE INDEX idx_tenant_bank_accounts_hash ON tenant_bank_accounts(account_numbe
 
 -- Lease templates
 ALTER TABLE lease_templates ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_lease_templates" ON lease_templates;
 CREATE POLICY "org_lease_templates" ON lease_templates
   FOR ALL USING (
     org_id IS NULL OR org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -935,10 +936,12 @@ CREATE POLICY "org_lease_templates" ON lease_templates
 
 -- Leases
 ALTER TABLE leases ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_leases" ON leases;
 CREATE POLICY "org_leases" ON leases
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
   );
+DROP POLICY IF EXISTS "tenant_own_lease" ON leases;
 CREATE POLICY "tenant_own_lease" ON leases
   FOR SELECT USING (
     tenant_id IN (SELECT tenant_id FROM user_orgs_tenants WHERE user_id = auth.uid())
@@ -947,6 +950,7 @@ CREATE POLICY "tenant_own_lease" ON leases
 
 -- Lease amendments
 ALTER TABLE lease_amendments ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_lease_amendments" ON lease_amendments;
 CREATE POLICY "org_lease_amendments" ON lease_amendments
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -954,10 +958,12 @@ CREATE POLICY "org_lease_amendments" ON lease_amendments
 
 -- Lease lifecycle events
 ALTER TABLE lease_lifecycle_events ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_lifecycle_events_select" ON lease_lifecycle_events;
 CREATE POLICY "org_lifecycle_events_select" ON lease_lifecycle_events
   FOR SELECT USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
   );
+DROP POLICY IF EXISTS "org_lifecycle_events_insert" ON lease_lifecycle_events;
 CREATE POLICY "org_lifecycle_events_insert" ON lease_lifecycle_events
   FOR INSERT WITH CHECK (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -965,6 +971,7 @@ CREATE POLICY "org_lifecycle_events_insert" ON lease_lifecycle_events
 
 -- Lease renewal offers
 ALTER TABLE lease_renewal_offers ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_renewal_offers" ON lease_renewal_offers;
 CREATE POLICY "org_renewal_offers" ON lease_renewal_offers
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -972,6 +979,7 @@ CREATE POLICY "org_renewal_offers" ON lease_renewal_offers
 
 -- Org lease clause defaults
 ALTER TABLE org_lease_clause_defaults ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_clause_defaults" ON org_lease_clause_defaults;
 CREATE POLICY "org_clause_defaults" ON org_lease_clause_defaults
   FOR ALL USING (
     org_id IN (
@@ -982,6 +990,7 @@ CREATE POLICY "org_clause_defaults" ON org_lease_clause_defaults
 
 -- Lease clause selections
 ALTER TABLE lease_clause_selections ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_lease_selections" ON lease_clause_selections;
 CREATE POLICY "org_lease_selections" ON lease_clause_selections
   FOR ALL USING (
     org_id IN (
@@ -992,6 +1001,7 @@ CREATE POLICY "org_lease_selections" ON lease_clause_selections
 
 -- Lease charges
 ALTER TABLE lease_charges ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_lease_charges" ON lease_charges;
 CREATE POLICY "org_lease_charges" ON lease_charges
   FOR ALL USING (
     org_id IN (
@@ -1002,10 +1012,12 @@ CREATE POLICY "org_lease_charges" ON lease_charges
 
 -- Trust transactions
 ALTER TABLE trust_transactions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_trust_tx_select" ON trust_transactions;
 CREATE POLICY "org_trust_tx_select" ON trust_transactions
   FOR SELECT USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
   );
+DROP POLICY IF EXISTS "org_trust_tx_insert" ON trust_transactions;
 CREATE POLICY "org_trust_tx_insert" ON trust_transactions
   FOR INSERT WITH CHECK (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1013,10 +1025,12 @@ CREATE POLICY "org_trust_tx_insert" ON trust_transactions
 
 -- Rent invoices
 ALTER TABLE rent_invoices ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_rent_invoices" ON rent_invoices;
 CREATE POLICY "org_rent_invoices" ON rent_invoices
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
   );
+DROP POLICY IF EXISTS "tenant_own_invoices" ON rent_invoices;
 CREATE POLICY "tenant_own_invoices" ON rent_invoices
   FOR SELECT USING (
     tenant_id IN (SELECT tenant_id FROM user_orgs_tenants WHERE user_id = auth.uid())
@@ -1024,10 +1038,12 @@ CREATE POLICY "tenant_own_invoices" ON rent_invoices
 
 -- Payments
 ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_payments" ON payments;
 CREATE POLICY "org_payments" ON payments
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
   );
+DROP POLICY IF EXISTS "tenant_own_payments" ON payments;
 CREATE POLICY "tenant_own_payments" ON payments
   FOR SELECT USING (
     tenant_id IN (SELECT tenant_id FROM user_orgs_tenants WHERE user_id = auth.uid())
@@ -1035,6 +1051,7 @@ CREATE POLICY "tenant_own_payments" ON payments
 
 -- Management fee invoices
 ALTER TABLE management_fee_invoices ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_mgmt_fee_invoices" ON management_fee_invoices;
 CREATE POLICY "org_mgmt_fee_invoices" ON management_fee_invoices
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1042,6 +1059,7 @@ CREATE POLICY "org_mgmt_fee_invoices" ON management_fee_invoices
 
 -- Property annual summaries
 ALTER TABLE property_annual_summaries ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_annual_summaries" ON property_annual_summaries;
 CREATE POLICY "org_annual_summaries" ON property_annual_summaries
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1049,6 +1067,7 @@ CREATE POLICY "org_annual_summaries" ON property_annual_summaries
 
 -- Owner statements
 ALTER TABLE owner_statements ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_owner_statements" ON owner_statements;
 CREATE POLICY "org_owner_statements" ON owner_statements
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1056,6 +1075,7 @@ CREATE POLICY "org_owner_statements" ON owner_statements
 
 -- Deposit timers
 ALTER TABLE deposit_timers ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_deposit_timers" ON deposit_timers;
 CREATE POLICY "org_deposit_timers" ON deposit_timers
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1063,6 +1083,7 @@ CREATE POLICY "org_deposit_timers" ON deposit_timers
 
 -- Deposit deduction items
 ALTER TABLE deposit_deduction_items ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_deduction_items" ON deposit_deduction_items;
 CREATE POLICY "org_deduction_items" ON deposit_deduction_items
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1070,10 +1091,12 @@ CREATE POLICY "org_deduction_items" ON deposit_deduction_items
 
 -- Deposit transactions
 ALTER TABLE deposit_transactions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_deposit_txns_select" ON deposit_transactions;
 CREATE POLICY "org_deposit_txns_select" ON deposit_transactions
   FOR SELECT USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
   );
+DROP POLICY IF EXISTS "org_deposit_txns_insert" ON deposit_transactions;
 CREATE POLICY "org_deposit_txns_insert" ON deposit_transactions
   FOR INSERT WITH CHECK (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1081,6 +1104,7 @@ CREATE POLICY "org_deposit_txns_insert" ON deposit_transactions
 
 -- Deposit reconciliations
 ALTER TABLE deposit_reconciliations ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_deposit_recons" ON deposit_reconciliations;
 CREATE POLICY "org_deposit_recons" ON deposit_reconciliations
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1088,6 +1112,7 @@ CREATE POLICY "org_deposit_recons" ON deposit_reconciliations
 
 -- Arrears cases
 ALTER TABLE arrears_cases ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_arrears" ON arrears_cases;
 CREATE POLICY "org_arrears" ON arrears_cases
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1095,6 +1120,7 @@ CREATE POLICY "org_arrears" ON arrears_cases
 
 -- Arrears sequences
 ALTER TABLE arrears_sequences ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_arrears_sequences" ON arrears_sequences;
 CREATE POLICY "org_arrears_sequences" ON arrears_sequences
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1102,6 +1128,7 @@ CREATE POLICY "org_arrears_sequences" ON arrears_sequences
 
 -- Arrears sequence steps
 ALTER TABLE arrears_sequence_steps ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_arrears_steps" ON arrears_sequence_steps;
 CREATE POLICY "org_arrears_steps" ON arrears_sequence_steps
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1109,10 +1136,12 @@ CREATE POLICY "org_arrears_steps" ON arrears_sequence_steps
 
 -- Arrears actions
 ALTER TABLE arrears_actions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_arrears_actions_read" ON arrears_actions;
 CREATE POLICY "org_arrears_actions_read" ON arrears_actions
   FOR SELECT USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
   );
+DROP POLICY IF EXISTS "org_arrears_actions_insert" ON arrears_actions;
 CREATE POLICY "org_arrears_actions_insert" ON arrears_actions
   FOR INSERT WITH CHECK (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1120,14 +1149,17 @@ CREATE POLICY "org_arrears_actions_insert" ON arrears_actions
 
 -- Arrears interest charges
 ALTER TABLE arrears_interest_charges ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_interest_charges_select" ON arrears_interest_charges;
 CREATE POLICY "org_interest_charges_select" ON arrears_interest_charges
   FOR SELECT USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
   );
+DROP POLICY IF EXISTS "org_interest_charges_insert" ON arrears_interest_charges;
 CREATE POLICY "org_interest_charges_insert" ON arrears_interest_charges
   FOR INSERT WITH CHECK (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
   );
+DROP POLICY IF EXISTS "org_interest_charges_waive" ON arrears_interest_charges;
 CREATE POLICY "org_interest_charges_waive" ON arrears_interest_charges
   FOR UPDATE USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1135,6 +1167,7 @@ CREATE POLICY "org_interest_charges_waive" ON arrears_interest_charges
 
 -- Bank statement imports
 ALTER TABLE bank_statement_imports ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_bank_imports" ON bank_statement_imports;
 CREATE POLICY "org_bank_imports" ON bank_statement_imports
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1142,6 +1175,7 @@ CREATE POLICY "org_bank_imports" ON bank_statement_imports
 
 -- Bank statement lines
 ALTER TABLE bank_statement_lines ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_stmt_lines" ON bank_statement_lines;
 CREATE POLICY "org_stmt_lines" ON bank_statement_lines
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1149,10 +1183,12 @@ CREATE POLICY "org_stmt_lines" ON bank_statement_lines
 
 -- DebiCheck mandates
 ALTER TABLE debicheck_mandates ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_mandates" ON debicheck_mandates;
 CREATE POLICY "org_mandates" ON debicheck_mandates
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
   );
+DROP POLICY IF EXISTS "tenant_own_mandate" ON debicheck_mandates;
 CREATE POLICY "tenant_own_mandate" ON debicheck_mandates
   FOR SELECT USING (
     tenant_id IN (SELECT tenant_id FROM user_orgs_tenants WHERE user_id = auth.uid())
@@ -1160,6 +1196,7 @@ CREATE POLICY "tenant_own_mandate" ON debicheck_mandates
 
 -- DebiCheck collections
 ALTER TABLE debicheck_collections ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_collections" ON debicheck_collections;
 CREATE POLICY "org_collections" ON debicheck_collections
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1167,6 +1204,7 @@ CREATE POLICY "org_collections" ON debicheck_collections
 
 -- Tenant bank accounts
 ALTER TABLE tenant_bank_accounts ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_tenant_bank" ON tenant_bank_accounts;
 CREATE POLICY "org_tenant_bank" ON tenant_bank_accounts
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
@@ -1177,34 +1215,42 @@ CREATE POLICY "org_tenant_bank" ON tenant_bank_accounts
 -- TRIGGERS
 -- =============================================================================
 
+DROP TRIGGER IF EXISTS update_leases_updated_at ON leases;
 CREATE TRIGGER update_leases_updated_at
   BEFORE UPDATE ON leases
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_lease_renewal_offers_updated_at ON lease_renewal_offers;
 CREATE TRIGGER update_lease_renewal_offers_updated_at
   BEFORE UPDATE ON lease_renewal_offers
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_lease_charges_updated_at ON lease_charges;
 CREATE TRIGGER update_lease_charges_updated_at
   BEFORE UPDATE ON lease_charges
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_rent_invoices_updated_at ON rent_invoices;
 CREATE TRIGGER update_rent_invoices_updated_at
   BEFORE UPDATE ON rent_invoices
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_owner_statements_updated_at ON owner_statements;
 CREATE TRIGGER update_owner_statements_updated_at
   BEFORE UPDATE ON owner_statements
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_arrears_cases_updated_at ON arrears_cases;
 CREATE TRIGGER update_arrears_cases_updated_at
   BEFORE UPDATE ON arrears_cases
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_bank_statement_imports_updated_at ON bank_statement_imports;
 CREATE TRIGGER update_bank_statement_imports_updated_at
   BEFORE UPDATE ON bank_statement_imports
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_debicheck_mandates_updated_at ON debicheck_mandates;
 CREATE TRIGGER update_debicheck_mandates_updated_at
   BEFORE UPDATE ON debicheck_mandates
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
