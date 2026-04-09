@@ -1,12 +1,14 @@
 "use client"
 
+import { useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { EmptyState } from "@/components/shared/EmptyState"
-import { CreditCard, Plus } from "lucide-react"
+import { BatchPaymentEntry } from "@/components/payments/BatchPaymentEntry"
+import { CreditCard, Plus, List, LayoutList } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import { OPERATIONAL_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchPaymentsAction } from "@/lib/queries/portfolioActions"
@@ -33,6 +35,7 @@ export function PaymentsPageClient({ orgId }: Readonly<Props>) {
     queryFn: () => fetchPaymentsAction(orgId),
     staleTime: STALE_TIME.payments,
   })
+  const [mode, setMode] = useState<"single" | "batch">("batch")
 
   const pendingReview = list.filter((i) => ["submitted", "under_review"].includes(i.status))
   const unpaid = list.filter((i) => ["approved", "pending_payment"].includes(i.status))
@@ -58,50 +61,84 @@ export function PaymentsPageClient({ orgId }: Readonly<Props>) {
             </div>
           )}
         </div>
-        <Button render={<Link href="/payments/invoices/new" />}>
-          <Plus className="h-4 w-4 mr-1" /> Add Invoice
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Mode toggle */}
+          <div className="flex items-center border border-border rounded-md overflow-hidden text-xs">
+            <button
+              type="button"
+              onClick={() => setMode("batch")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 transition-colors ${mode === "batch" ? "bg-brand text-white" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              <LayoutList className="size-3.5" /> Quick entry
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("single")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 transition-colors ${mode === "single" ? "bg-brand text-white" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              <List className="size-3.5" /> Invoices
+            </button>
+          </div>
+          <Button render={<Link href="/payments/invoices/new" />}>
+            <Plus className="h-4 w-4 mr-1" /> Add Invoice
+          </Button>
+        </div>
       </div>
 
-      {list.length === 0 ? (
-        <EmptyState
-          icon={<CreditCard className="h-8 w-8 text-muted-foreground" />}
-          title="No invoices yet"
-          description="Invoices from contractors and suppliers will appear here."
-        />
-      ) : (
-        <div className="space-y-2">
-          {list.map((inv) => {
-            const contractor = inv.contractor_view as unknown as { first_name: string; last_name: string; company_name: string | null } | null
-            const property = inv.properties as unknown as { name: string } | null
+      {/* Batch rent payment entry */}
+      {mode === "batch" && (
+        <Card className="mb-6">
+          <CardContent className="pt-4">
+            <p className="text-xs text-muted-foreground mb-4">
+              Record received rent payments against open invoices. Amounts pre-fill from outstanding balances — edit if needed.
+            </p>
+            <BatchPaymentEntry />
+          </CardContent>
+        </Card>
+      )}
 
-            return (
-              <Link key={inv.id} href={`/payments/invoices/${inv.id}`}>
-                <Card className="hover:border-brand/50 transition-colors cursor-pointer">
-                  <CardContent className="flex items-center justify-between pt-4">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium">{inv.description}</p>
-                        {inv.invoice_number && (
-                          <span className="text-xs text-muted-foreground">{inv.invoice_number}</span>
-                        )}
+      {/* Supplier invoice list */}
+      {mode === "single" && (
+        list.length === 0 ? (
+          <EmptyState
+            icon={<CreditCard className="h-8 w-8 text-muted-foreground" />}
+            title="No invoices yet"
+            description="Invoices from contractors and suppliers will appear here."
+          />
+        ) : (
+          <div className="space-y-2">
+            {list.map((inv) => {
+              const contractor = inv.contractor_view as unknown as { first_name: string; last_name: string; company_name: string | null } | null
+              const property = inv.properties as unknown as { name: string } | null
+
+              return (
+                <Link key={inv.id} href={`/payments/invoices/${inv.id}`}>
+                  <Card className="hover:border-brand/50 transition-colors cursor-pointer">
+                    <CardContent className="flex items-center justify-between pt-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{inv.description}</p>
+                          {inv.invoice_number && (
+                            <span className="text-xs text-muted-foreground">{inv.invoice_number}</span>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {contractor ? contractor.company_name || `${contractor.first_name} ${contractor.last_name}`.trim() : "Unknown"}
+                          {property ? ` · ${property.name}` : ""}
+                          {` · ${inv.invoice_date}`}
+                        </p>
                       </div>
-                      <p className="text-sm text-muted-foreground">
-                        {contractor ? contractor.company_name || `${contractor.first_name} ${contractor.last_name}`.trim() : "Unknown"}
-                        {property ? ` · ${property.name}` : ""}
-                        {` · ${inv.invoice_date}`}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-heading">{formatZAR(inv.amount_incl_vat_cents)}</span>
-                      <StatusBadge status={STATUS_MAP[inv.status] || "pending"} />
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            )
-          })}
-        </div>
+                      <div className="flex items-center gap-3">
+                        <span className="font-heading">{formatZAR(inv.amount_incl_vat_cents)}</span>
+                        <StatusBadge status={STATUS_MAP[inv.status] || "pending"} />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              )
+            })}
+          </div>
+        )
       )}
     </div>
   )
