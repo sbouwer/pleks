@@ -1,14 +1,35 @@
 import { NextResponse } from "next/server"
+import { createHmac, timingSafeEqual } from "node:crypto"
 import { createServiceClient } from "@/lib/supabase/server"
 
-export async function POST(req: Request) {
-  const body = await req.json()
+async function verifyDocuSealSignature(req: Request, rawBody: string): Promise<boolean> {
+  const secret = process.env.DOCUSEAL_WEBHOOK_SECRET
+  if (!secret) return false
 
-  // TODO: Verify DocuSeal webhook signature when self-hosted is configured
-  // const signature = req.headers.get('x-docuseal-signature')
+  const signature = req.headers.get("x-docuseal-signature")
+  if (!signature) return false
+
+  const expected = createHmac("sha256", secret).update(rawBody).digest("hex")
+  try {
+    return timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
+  } catch {
+    return false
+  }
+}
+
+export async function POST(req: Request) {
+  const rawBody = await req.text()
+
+  const valid = await verifyDocuSealSignature(req, rawBody)
+  if (!valid) {
+    return NextResponse.json({ error: "Invalid signature" }, { status: 401 })
+  }
+
+  const body = JSON.parse(rawBody) as Record<string, unknown>
+  const data = body.data as Record<string, unknown> | undefined
 
   if (body.event_type === "submission.completed") {
-    const submissionId = body.data?.id
+    const submissionId = typeof data?.id === "string" || typeof data?.id === "number" ? data.id : null
     if (!submissionId) return NextResponse.json({ ok: true })
 
     const supabase = await createServiceClient()
@@ -23,7 +44,8 @@ export async function POST(req: Request) {
     if (!lease) return NextResponse.json({ ok: true })
 
     // Download and store signed PDF
-    const pdfUrl = body.data?.documents?.[0]?.url
+    const documents = data?.documents as Array<Record<string, unknown>> | undefined
+    const pdfUrl = typeof documents?.[0]?.url === "string" ? documents[0].url : null
     if (pdfUrl) {
       try {
         const pdfResponse = await fetch(pdfUrl)
