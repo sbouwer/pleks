@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Check, AlertTriangle, Loader2 } from "lucide-react"
+import { toast } from "sonner"
 
 const SCOPE_OPTIONS = [
   { value: "own_only", label: "Private landlord — I manage my own properties" },
@@ -425,16 +426,20 @@ export default function CompliancePage() {
     if (!orgId) return
     setSavingScope(true)
     const supabase = createClient()
-    await supabase.from("organisations").update({ management_scope: scope }).eq("id", orgId)
+    const { error } = await supabase.from("organisations").update({ management_scope: scope }).eq("id", orgId)
     setSavingScope(false)
+    if (error) { toast.error("Failed to save role"); return }
+    toast.success("Role saved")
   }
 
   async function saveTypes() {
     if (!orgId) return
     setSavingTypes(true)
     const supabase = createClient()
-    await supabase.from("organisations").update({ property_types: propertyTypes }).eq("id", orgId)
+    const { error } = await supabase.from("organisations").update({ property_types: propertyTypes }).eq("id", orgId)
     setSavingTypes(false)
+    if (error) { toast.error("Failed to save property types"); return }
+    toast.success("Property types saved")
   }
 
   async function savePpra() {
@@ -445,8 +450,10 @@ export default function CompliancePage() {
     if (ppraStatus === "registered" || ppraStatus === "pending") {
       update.ppra_ffc_number = ppraFfc || null
     }
-    await supabase.from("organisations").update(update).eq("id", orgId)
+    const { error } = await supabase.from("organisations").update(update).eq("id", orgId)
     setSavingPpra(false)
+    if (error) { toast.error("Failed to save PPRA status"); return }
+    toast.success("PPRA status saved")
   }
 
   if (!org || !orgId) return null
