@@ -102,7 +102,7 @@ export async function fetchInspections(supabase: SupabaseClient) {
 export async function fetchMaintenance(supabase: SupabaseClient) {
   const { data } = await supabase
     .from("maintenance_requests")
-    .select("id, title, category, urgency, status, work_order_number, created_at, units(unit_number, properties(name))")
+    .select("id, title, category, urgency, status, work_order_number, logged_by, reported_via, created_at, units(unit_number, properties(name))")
     .order("created_at", { ascending: false })
   return data ?? []
 }

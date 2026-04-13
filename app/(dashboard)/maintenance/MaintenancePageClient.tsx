@@ -14,6 +14,7 @@ import { formatZAR } from "@/lib/constants"
 // ── Types ─────────────────────────────────────────────────
 
 type MaintenanceItem = Awaited<ReturnType<typeof fetchMaintenanceAction>>[number]
+type MaintenanceItemExtended = MaintenanceItem & { logged_by?: string; reported_via?: string }
 
 // ── Constants ─────────────────────────────────────────────
 
@@ -56,7 +57,7 @@ const SLA_HOURS: Record<string, number> = {
   cosmetic: 720, // 30 days
 }
 
-type Tab = "all" | "action" | "in_progress" | "awaiting" | "completed"
+type Tab = "all" | "action" | "in_progress" | "awaiting" | "completed" | "tenant"
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "all", label: "All" },
@@ -64,6 +65,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "in_progress", label: "In progress" },
   { id: "awaiting", label: "Awaiting approval" },
   { id: "completed", label: "Completed" },
+  { id: "tenant", label: "Tenant reported" },
 ]
 
 function matchesTab(req: MaintenanceItem, tab: Tab): boolean {
@@ -72,6 +74,7 @@ function matchesTab(req: MaintenanceItem, tab: Tab): boolean {
   if (tab === "in_progress") return ["work_order_sent", "acknowledged", "in_progress"].includes(req.status)
   if (tab === "awaiting") return req.status === "pending_landlord"
   if (tab === "completed") return ["completed", "closed", "tenant_notified", "rejected", "cancelled"].includes(req.status)
+  if (tab === "tenant") return (req as MaintenanceItemExtended).logged_by === "tenant"
   return true
 }
 
@@ -95,7 +98,7 @@ function sortRequests(list: MaintenanceItem[]) {
 
 // ── Card ──────────────────────────────────────────────────
 
-function MaintenanceCard({ req }: Readonly<{ req: MaintenanceItem }>) {
+function MaintenanceCard({ req }: Readonly<{ req: MaintenanceItemExtended }>) {
   const unit = req.units as unknown as { unit_number: string; properties: { name: string } } | null
   const slaAge = getSlaAge(req)
   const isTerminal = ["completed", "closed", "tenant_notified", "rejected", "cancelled"].includes(req.status)
@@ -128,6 +131,11 @@ function MaintenanceCard({ req }: Readonly<{ req: MaintenanceItem }>) {
                   <p className="font-medium text-sm truncate">{req.title}</p>
                   {req.work_order_number && (
                     <span className="text-xs text-muted-foreground shrink-0">{req.work_order_number}</span>
+                  )}
+                  {req.reported_via === "portal" && (
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-brand/10 text-brand border border-brand/20 shrink-0">
+                      via portal
+                    </span>
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
@@ -189,6 +197,7 @@ export function MaintenancePageClient({ orgId }: Readonly<Props>) {
   const filtered = sortRequests(list.filter((r) => matchesTab(r, activeTab)))
   const actionCount = list.filter((r) => matchesTab(r, "action")).length
   const awaitingCount = list.filter((r) => matchesTab(r, "awaiting")).length
+  const tenantCount = list.filter((r) => matchesTab(r, "tenant")).length
 
   const overdueSlaCount = list.filter((r) => {
     const terminal = ["completed", "closed", "tenant_notified", "rejected", "cancelled"]
@@ -253,6 +262,7 @@ export function MaintenancePageClient({ orgId }: Readonly<Props>) {
             let badge: number
             if (tab.id === "action") { badge = actionCount }
             else if (tab.id === "awaiting") { badge = awaitingCount }
+            else if (tab.id === "tenant") { badge = tenantCount }
             else { badge = 0 }
             return (
               <button
@@ -293,7 +303,7 @@ export function MaintenancePageClient({ orgId }: Readonly<Props>) {
         }
         return (
           <div className="space-y-2">
-            {filtered.map((req) => <MaintenanceCard key={req.id} req={req} />)}
+            {filtered.map((req) => <MaintenanceCard key={req.id} req={req as MaintenanceItemExtended} />)}
           </div>
         )
       })()}

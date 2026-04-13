@@ -16,6 +16,72 @@ interface Props {
   params: Promise<{ id: string }>
 }
 
+function initials(name: string) {
+  return name.split(" ").map((w) => w[0]).filter(Boolean).join("").slice(0, 2).toUpperCase()
+}
+
+async function fetchInvoiceData(service: Awaited<ReturnType<typeof createServiceClient>>, contractorId: string) {
+  const [{ data: invData }, { data: invTotal }] = await Promise.all([
+    service
+      .from("supplier_invoices")
+      .select("id, invoice_number, amount_incl_vat_cents, status, invoice_date")
+      .eq("contractor_id", contractorId)
+      .order("invoice_date", { ascending: false })
+      .limit(5),
+    service
+      .from("supplier_invoices")
+      .select("amount_incl_vat_cents")
+      .eq("contractor_id", contractorId)
+      .eq("status", "paid"),
+  ])
+  return {
+    recentInvoices: (invData ?? []) as Array<{ id: string; invoice_number: string | null; amount_incl_vat_cents: number; status: string; invoice_date: string }>,
+    totalInvoiced: (invTotal ?? []).reduce((sum, i) => sum + (i.amount_incl_vat_cents || 0), 0),
+  }
+}
+
+async function fetchContractorDelayStats(
+  service: Awaited<ReturnType<typeof createServiceClient>>,
+  jobIds: string[],
+  orgId: string,
+) {
+  if (jobIds.length === 0) return { noShowCount: 0, contractorRescheduleCount: 0, incompleteCount: 0, avgResponseHours: null }
+
+  const [{ data: delayData }, { data: jobTiming }, { data: firstUpdates }] = await Promise.all([
+    service.from("maintenance_delay_events").select("delay_type").in("maintenance_id", jobIds).eq("attributed_to", "contractor").eq("org_id", orgId),
+    service.from("maintenance_requests").select("id, work_order_sent_at").in("id", jobIds).not("work_order_sent_at", "is", null),
+    service.from("contractor_updates").select("request_id, created_at").in("request_id", jobIds).order("created_at", { ascending: true }),
+  ])
+
+  const delays = delayData ?? []
+  return {
+    noShowCount: delays.filter((d) => d.delay_type === "contractor_no_show").length,
+    contractorRescheduleCount: delays.filter((d) => d.delay_type === "contractor_rescheduled").length,
+    incompleteCount: delays.filter((d) => d.delay_type === "contractor_returned_incomplete").length,
+    avgResponseHours: jobTiming && firstUpdates ? computeAvgResponseHours(jobTiming, firstUpdates) : null,
+  }
+}
+
+function computeAvgResponseHours(
+  jobTiming: Array<{ id: string; work_order_sent_at: string | null }>,
+  firstUpdates: Array<{ request_id: string; created_at: string }>,
+): number | null {
+  const firstUpdateMap = new Map<string, string>()
+  for (const u of firstUpdates) {
+    if (!firstUpdateMap.has(u.request_id)) firstUpdateMap.set(u.request_id, u.created_at)
+  }
+  const responseTimes = jobTiming
+    .filter((j) => j.work_order_sent_at && firstUpdateMap.has(j.id))
+    .map((j) => {
+      const sentMs = new Date(j.work_order_sent_at!).getTime()
+      const respondedMs = new Date(firstUpdateMap.get(j.id) ?? "").getTime()
+      return (respondedMs - sentMs) / (1000 * 60 * 60)
+    })
+    .filter((h) => h >= 0)
+  if (responseTimes.length === 0) return null
+  return Math.round(responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length * 10) / 10
+}
+
 export default async function ContractorDetailPage({ params }: Props) {
   const { id } = await params
 
@@ -103,25 +169,16 @@ export default async function ContractorDetailPage({ params }: Props) {
     .eq("contractor_id", id)
     .eq("status", "completed")
 
-  // Recent invoices (may not exist)
-  let recentInvoices: Array<{ id: string; invoice_number: string | null; amount_incl_vat_cents: number; status: string; invoice_date: string }> = []
-  let totalInvoiced = 0
-  try {
-    const { data: invData } = await service
-      .from("supplier_invoices")
-      .select("id, invoice_number, amount_incl_vat_cents, status, invoice_date")
-      .eq("contractor_id", id)
-      .order("invoice_date", { ascending: false })
-      .limit(5)
-    recentInvoices = invData ?? []
+  // Recent invoices
+  const { recentInvoices, totalInvoiced } = await fetchInvoiceData(service, id)
 
-    const { data: invTotal } = await service
-      .from("supplier_invoices")
-      .select("amount_incl_vat_cents")
-      .eq("contractor_id", id)
-      .eq("status", "paid")
-    totalInvoiced = (invTotal ?? []).reduce((sum, i) => sum + (i.amount_incl_vat_cents || 0), 0)
-  } catch { recentInvoices = []; totalInvoiced = 0 }
+  // Delay event + response time stats
+  const allContractorJobIds = [
+    ...(activeJobs ?? []).map((j) => j.id),
+    ...(completedJobs ?? []).map((j) => j.id),
+  ]
+  const { noShowCount, contractorRescheduleCount, incompleteCount, avgResponseHours } =
+    await fetchContractorDelayStats(service, allContractorJobIds, membership.org_id)
 
   // Performance stats
   const totalCompleted = completedJobs?.length ?? 0
@@ -152,8 +209,6 @@ export default async function ContractorDetailPage({ params }: Props) {
     "Unnamed Contractor"
   const primaryPhone = phones?.[0]?.number ?? null
   const primaryEmail = emails?.[0]?.email ?? null
-  const initials = (name: string) => name.split(" ").map((w: string) => w[0]).filter(Boolean).join("").slice(0, 2).toUpperCase()
-
   void contractorContacts
 
   return (
@@ -226,7 +281,11 @@ export default async function ContractorDetailPage({ params }: Props) {
         <StatGrid stats={[
           { label: "Jobs completed", value: String(totalCompleted) },
           { label: "Avg completion", value: totalCompleted > 0 ? `${avgCompletionDays} days` : "—" },
+          { label: "Avg response", value: avgResponseHours === null ? "—" : `${avgResponseHours}h` },
           { label: "Avg rating", value: avgRating != null ? `${avgRating}/5` : "—" },
+          { label: "No-shows", value: noShowCount > 0 ? String(noShowCount) : "—" },
+          { label: "Reschedules", value: contractorRescheduleCount > 0 ? String(contractorRescheduleCount) : "—" },
+          { label: "Incomplete returns", value: incompleteCount > 0 ? String(incompleteCount) : "—" },
           { label: "Total invoiced", value: formatZAR(totalInvoiced) },
         ]} />
       </SectionCard>

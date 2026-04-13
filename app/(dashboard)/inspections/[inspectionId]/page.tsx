@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
+import { gatewaySSR } from "@/lib/supabase/gateway"
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -6,6 +7,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge"
 import { formatZAR } from "@/lib/constants"
 import { InspectionActions } from "./InspectionActions"
 import { CONDITION_OPTIONS } from "@/lib/inspections/roomTemplates"
+import { RescheduleRequestsPanel, type RescheduleRequest } from "./RescheduleRequestsPanel"
 
 const STATUS_MAP: Record<string, "scheduled" | "pending" | "active" | "completed" | "arrears"> = {
   scheduled: "scheduled",
@@ -40,6 +42,16 @@ export default async function InspectionDetailPage({
     .select("*, inspection_items(*)")
     .eq("inspection_id", inspectionId)
     .order("display_order")
+
+  const gw = await gatewaySSR()
+  const rescheduleRequests = gw
+    ? ((await gw.db
+        .from("inspection_reschedule_requests")
+        .select("id, tenant_id, reason, proposed_dates, note, status, agent_response, resolved_date, created_at")
+        .eq("inspection_id", inspectionId)
+        .eq("org_id", gw.orgId)
+        .order("created_at", { ascending: false })).data ?? [])
+    : []
 
   const unit = inspection.units as unknown as { unit_number: string; properties: { name: string; address_line1: string } } | null
   const tenant = inspection.tenant_view as unknown as { first_name: string; last_name: string } | null
@@ -162,6 +174,12 @@ export default async function InspectionDetailPage({
           )
         })}
       </div>
+
+      {/* Reschedule requests */}
+      <RescheduleRequestsPanel
+        inspectionId={inspectionId}
+        requests={rescheduleRequests as RescheduleRequest[]}
+      />
 
       {/* Deduction summary (move-out) */}
       {inspection.recommended_deductions_cents > 0 && (
