@@ -10,7 +10,7 @@ type OrgType = "landlord" | "sole_prop" | "agency"
 function getSettingsTabs(type: OrgType) {
   const isPersonal = type === "landlord" || type === "sole_prop"
   const showTeam   = type !== "landlord"
-  const showImport = type !== "landlord"
+  const showImport = true
 
   return [
     { href: "/settings/profile",         label: isPersonal ? "Your details" : "Organisation", icon: isPersonal ? User : Building2, show: true },
@@ -25,7 +25,7 @@ function getSettingsTabs(type: OrgType) {
   ].filter((t) => t.show)
 }
 
-export function SettingsNav({ orgType }: { orgType: OrgType }) {
+export function SettingsNav({ orgType }: Readonly<{ orgType: OrgType }>) {
   const pathname = usePathname()
   const tabs = getSettingsTabs(orgType)
 
