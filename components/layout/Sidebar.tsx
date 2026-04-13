@@ -21,6 +21,7 @@ import {
   HardHat,
   UserSquare2,
   CalendarDays,
+  Receipt,
 } from "lucide-react"
 
 const NAV_GROUPS: NavGroup[] = [
@@ -54,6 +55,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/finance/deposits", label: "Deposits", icon: Wallet },
       { href: "/payments", label: "Payments", icon: CreditCard },
+      { href: "/statements", label: "Statements", icon: Receipt },
       { href: "/reports", label: "Reports", icon: BarChart3 },
     ],
   },

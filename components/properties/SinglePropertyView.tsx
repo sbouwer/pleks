@@ -301,11 +301,9 @@ export function SinglePropertyView({ property, currentInvoice = null, orgId = ""
       {/* Header */}
       <div className="flex items-start justify-between mb-5">
         <div>
-          <h1 className="font-heading text-3xl">My property</h1>
+          <h1 className="font-heading text-3xl">{property.name}</h1>
           <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1.5 flex-wrap">
-            <span>{property.name}</span>
-            <span className="text-muted-foreground/40">·</span>
-            <span>{property.address_line1}, {property.city}</span>
+            <span>{property.address_line1}{property.city ? `, ${property.city}` : ""}</span>
             <span className="text-muted-foreground/40">·</span>
             <span className="capitalize">{property.type}</span>
             <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-brand transition-colors">

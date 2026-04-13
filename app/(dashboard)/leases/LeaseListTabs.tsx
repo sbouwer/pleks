@@ -62,6 +62,15 @@ export function LeaseListTabs({ leases }: LeaseListTabsProps) {
 
   const filtered = useMemo(() => filterLeases(leases, activeTab), [leases, activeTab])
 
+  const hasDraftHint = activeTab === "active" && counts.draft > 0
+  const draftWord = counts.draft === 1 ? "lease" : "leases"
+  const emptyDescription = hasDraftHint
+    ? `You have ${counts.draft} draft ${draftWord}`
+    : "No leases match this filter."
+  const emptyAction = hasDraftHint
+    ? { label: "View drafts", onClick: () => setActiveTab("draft") }
+    : undefined
+
   // Footer metrics — based on filtered set
   const footerMetrics = useMemo(() => {
     const active = filtered.filter((l) => ["active", "month_to_month", "notice"].includes(l.status))
@@ -119,7 +128,8 @@ export function LeaseListTabs({ leases }: LeaseListTabsProps) {
         <EmptyState
           icon={<FileText className="h-8 w-8 text-muted-foreground" />}
           title="No leases"
-          description="No leases match this filter."
+          description={emptyDescription}
+          action={emptyAction}
         />
       ) : (
         <div className="space-y-1.5">
