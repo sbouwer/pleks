@@ -118,6 +118,60 @@ function resolveEntityType(companyField: string, displayName: string): "organisa
   return "individual"
 }
 
+function normaliseBoolean(raw: string): boolean {
+  const s = raw.toLowerCase().trim()
+  return s === "true" || s === "yes" || s === "1" || s === "ja"
+}
+
+function normaliseLeaseType(raw: string): "residential" | "commercial" {
+  return raw.toLowerCase().includes("comm") ? "commercial" : "residential"
+}
+
+function normaliseEscalationType(raw: string): "fixed" | "cpi" | "prime_plus" {
+  const s = raw.toLowerCase().trim()
+  if (s === "cpi" || s.includes("cpi")) return "cpi"
+  if (s.includes("prime")) return "prime_plus"
+  return "fixed"
+}
+
+function normalisePropertyType(raw: string): "residential" | "commercial" | "mixed" | null {
+  const s = raw.toLowerCase().trim()
+  if (s.includes("comm")) return "commercial"
+  if (s.includes("mix")) return "mixed"
+  if (s.includes("res")) return "residential"
+  return null
+}
+
+function normaliseOwnerBankType(raw: string): "cheque" | "savings" | "transmission" | null {
+  const s = raw.toLowerCase().trim()
+  if (s.includes("cheque") || s.includes("check") || s.includes("current")) return "cheque"
+  if (s.includes("sav")) return "savings"
+  if (s.includes("trans")) return "transmission"
+  return null
+}
+
+function normaliseEmploymentType(raw: string): string | null {
+  const s = raw.toLowerCase().trim()
+  if (!s) return null
+  if (s === "permanent" || s.includes("perm")) return "permanent"
+  if (s === "contract" || s.includes("temp")) return "contract"
+  if (s.includes("self") || s.includes("freelance")) return "self_employed"
+  if (s === "student") return "student"
+  if (s === "unemployed" || s === "none") return "unemployed"
+  if (s === "retired") return "retired"
+  return "other"
+}
+
+function normalisePreferredContact(raw: string): string | null {
+  const s = raw.toLowerCase().trim()
+  if (!s) return null
+  if (s.includes("whats")) return "whatsapp"
+  if (s === "sms" || s.includes("text")) return "sms"
+  if (s === "email") return "email"
+  if (s === "call" || s.includes("phone")) return "call"
+  return null
+}
+
 function resolveName(row: Record<string, string>, mapping: ColumnMapping): { firstName: string; lastName: string; companyName: string } {
   const firstName = getField(row, "first_name", mapping)
   const lastName = getField(row, "last_name", mapping)
@@ -136,6 +190,14 @@ function getExtraColumns(
 ): Record<string, string> {
   const mappedColumns = new Set(Object.keys(mapping))
   const extras: Record<string, string> = {}
+  // Include columns explicitly routed to notes (they're in the mapping but have no schema column)
+  for (const [col, m] of Object.entries(mapping)) {
+    if (m.field === "tenant_notes" || m.field === "unit_notes" || m.field === "lease_notes") {
+      const val = (row[col] ?? "").trim()
+      if (val) extras[col] = val
+    }
+  }
+  // Plus all unmapped columns
   for (const [col, value] of Object.entries(row)) {
     if (!mappedColumns.has(col) && value.trim()) {
       extras[col] = value.trim()
@@ -223,6 +285,11 @@ async function upsertProperty(
     return id
   }
 
+  const rawPropertyType = getField(row, "property_type_import", ctx.mapping)
+  const normPropertyType = rawPropertyType ? normalisePropertyType(rawPropertyType) : null
+  const rawOwnerBankType = getField(row, "owner_bank_type", ctx.mapping)
+  const normOwnerBankType = rawOwnerBankType ? normaliseOwnerBankType(rawOwnerBankType) : null
+
   const { data: created, error } = await ctx.supabase
     .from("properties")
     .insert({
@@ -232,6 +299,16 @@ async function upsertProperty(
       suburb: getField(row, "suburb", ctx.mapping) || null,
       city: getField(row, "city", ctx.mapping) || null,
       province: getField(row, "province", ctx.mapping) || null,
+      postal_code: getField(row, "postal_code", ctx.mapping) || null,
+      erf_number: getField(row, "erf_number", ctx.mapping) || null,
+      ...(normPropertyType ? { type: normPropertyType } : {}),
+      owner_name: getField(row, "owner_name", ctx.mapping) || null,
+      owner_email: getField(row, "owner_email", ctx.mapping) || null,
+      owner_phone: getField(row, "owner_phone", ctx.mapping) || null,
+      owner_bank_name: getField(row, "owner_bank_name", ctx.mapping) || null,
+      owner_bank_account: getField(row, "owner_bank_account", ctx.mapping) || null,
+      owner_bank_branch: getField(row, "owner_bank_branch", ctx.mapping) || null,
+      ...(normOwnerBankType ? { owner_bank_type: normOwnerBankType } : {}),
     })
     .select("id").single()
 
@@ -264,6 +341,10 @@ async function upsertUnit(
   const row = group.rows[0]?.row ?? {}
   const bedrooms = getField(row, "bedrooms", ctx.mapping)
   const bathrooms = getField(row, "bathrooms", ctx.mapping)
+  const floorRaw = getField(row, "unit_floor", ctx.mapping)
+  const sizeRaw = getField(row, "unit_size_m2", ctx.mapping)
+  const parkingRaw = getField(row, "parking_bays", ctx.mapping)
+  const furnishedRaw = getField(row, "furnished", ctx.mapping)
 
   const { data: created, error } = await ctx.supabase
     .from("units")
@@ -272,7 +353,11 @@ async function upsertUnit(
       org_id: ctx.orgId,
       unit_number: group.unitNumber || "1",
       bedrooms: bedrooms ? Number.parseInt(bedrooms, 10) || null : null,
-      bathrooms: bathrooms ? Number.parseInt(bathrooms, 10) || null : null,
+      bathrooms: bathrooms ? Number.parseFloat(bathrooms) || null : null,
+      floor: floorRaw ? Number.parseInt(floorRaw, 10) || null : null,
+      size_m2: sizeRaw ? Number.parseFloat(sizeRaw) || null : null,
+      parking_bays: parkingRaw ? Number.parseInt(parkingRaw, 10) || null : null,
+      ...(furnishedRaw ? { furnished: normaliseBoolean(furnishedRaw) } : {}),
     })
     .select("id").single()
 
@@ -384,6 +469,10 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
     const { firstName, lastName, companyName: tenantCompany } = resolveName(entry.row, ctx.mapping)
     const displayForTenant = tenantCompany || `${firstName} ${lastName}`.trim()
 
+    const dobRaw = getField(entry.row, "date_of_birth", ctx.mapping)
+    const idTypeRaw = getField(entry.row, "id_type", ctx.mapping)
+    const normIdType = ["sa_id", "passport", "asylum_permit"].includes(idTypeRaw) ? idTypeRaw : null
+
     const { data: contact, error: contactError } = await ctx.supabase
       .from("contacts")
       .insert({
@@ -395,7 +484,13 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
         company_name: tenantCompany || null,
         primary_email: email,
         primary_phone: getField(entry.row, "phone", ctx.mapping) || null,
+        work_phone: getField(entry.row, "work_phone", ctx.mapping) || null,
         id_number: getField(entry.row, "id_number", ctx.mapping) || null,
+        ...(normIdType ? { id_type: normIdType } : {}),
+        date_of_birth: dobRaw ? normaliseDate(dobRaw) : null,
+        nationality: getField(entry.row, "nationality", ctx.mapping) || null,
+        registration_number: getField(entry.row, "registration_number", ctx.mapping) || null,
+        vat_number: getField(entry.row, "vat_number", ctx.mapping) || null,
       })
       .select("id").single()
 
@@ -404,12 +499,18 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
       return
     }
 
+    const normEmploymentType = normaliseEmploymentType(getField(entry.row, "employment_type", ctx.mapping))
+    const normPreferredContact = normalisePreferredContact(getField(entry.row, "preferred_contact", ctx.mapping))
+
     const { data: created, error } = await ctx.supabase
       .from("tenants")
       .insert({
         org_id: ctx.orgId,
         contact_id: contact.id,
         employer_name: getField(entry.row, "employer_name", ctx.mapping) || null,
+        occupation: getField(entry.row, "occupation", ctx.mapping) || null,
+        ...(normEmploymentType ? { employment_type: normEmploymentType } : {}),
+        ...(normPreferredContact ? { preferred_contact: normPreferredContact } : {}),
       })
       .select("id").single()
 
@@ -420,9 +521,46 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
 
     ctx.tenantIdCache.set(email, String(created.id))
     ctx.result.tenantsCreated++
+    await insertNextOfKin(String(created.id), entry.row, ctx.mapping, ctx.orgId, ctx.supabase)
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error"
     ctx.result.errors.push({ rowIndex: entry.index, field: "email", message: `Tenant error: ${msg}`, severity: "error" })
+  }
+}
+
+async function insertNextOfKin(
+  tenantId: string,
+  row: Record<string, string>,
+  mapping: ColumnMapping,
+  orgId: string,
+  supabase: SupabaseClient,
+): Promise<void> {
+  const nokName = getField(row, "next_of_kin_name", mapping)
+  const nokPhone = getField(row, "next_of_kin_phone", mapping)
+  const nokRelationship = getField(row, "next_of_kin_relationship", mapping)
+  const emergencyName = getField(row, "emergency_contact_name", mapping)
+  const emergencyPhone = getField(row, "emergency_contact_phone", mapping)
+
+  if (nokName) {
+    const isAlsoEmergency = emergencyName === nokName
+    await supabase.from("tenant_next_of_kin").insert({
+      org_id: orgId,
+      tenant_id: tenantId,
+      full_name: nokName,
+      relationship: nokRelationship || null,
+      phone: nokPhone || null,
+      is_emergency: isAlsoEmergency,
+    })
+  }
+
+  if (emergencyName && emergencyName !== nokName) {
+    await supabase.from("tenant_next_of_kin").insert({
+      org_id: orgId,
+      tenant_id: tenantId,
+      full_name: emergencyName,
+      phone: emergencyPhone || null,
+      is_emergency: true,
+    })
   }
 }
 
@@ -519,6 +657,16 @@ function buildLeaseData(
   const depositRaw = getField(row, "deposit_amount_cents", ctx.mapping)
   const escalationRaw = getField(row, "escalation_percent", ctx.mapping)
   const escalation = escalationRaw ? Number.parseFloat(escalationRaw) : null
+  const leaseTypeRaw = getField(row, "lease_type", ctx.mapping)
+  const isFixedTermRaw = getField(row, "is_fixed_term", ctx.mapping)
+  const noticeDaysRaw = getField(row, "notice_period_days", ctx.mapping)
+  const noticeDays = noticeDaysRaw ? Number.parseInt(noticeDaysRaw, 10) : null
+  const cpaAppliesRaw = getField(row, "cpa_applies", ctx.mapping)
+  const escalationTypeRaw = getField(row, "escalation_type", ctx.mapping)
+  const escalationReviewRaw = getField(row, "escalation_review_date", ctx.mapping)
+  const paymentDueDayRaw = getField(row, "payment_due_day", ctx.mapping)
+  const paymentDueDay = paymentDueDayRaw ? Number.parseInt(paymentDueDayRaw, 10) : null
+  const leaseConditions = getField(row, "lease_conditions", ctx.mapping)
 
   return {
     unit_id: unitId,
@@ -530,6 +678,14 @@ function buildLeaseData(
     escalation_percent: escalation !== null && !Number.isNaN(escalation) ? escalation : null,
     payment_method: getField(row, "payment_method", ctx.mapping) || null,
     status: isExpired ? "expired" : "active",
+    ...(leaseTypeRaw ? { lease_type: normaliseLeaseType(leaseTypeRaw) } : {}),
+    ...(isFixedTermRaw ? { is_fixed_term: normaliseBoolean(isFixedTermRaw) } : {}),
+    ...(noticeDays !== null && !Number.isNaN(noticeDays) ? { notice_period_days: noticeDays } : {}),
+    ...(cpaAppliesRaw ? { cpa_applies: normaliseBoolean(cpaAppliesRaw) } : {}),
+    ...(escalationTypeRaw ? { escalation_type: normaliseEscalationType(escalationTypeRaw) } : {}),
+    escalation_review_date: escalationReviewRaw ? normaliseDate(escalationReviewRaw) : null,
+    ...(paymentDueDay !== null && !Number.isNaN(paymentDueDay) ? { payment_due_day: paymentDueDay } : {}),
+    notes: leaseConditions || null,
   }
 }
 
