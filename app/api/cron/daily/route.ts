@@ -12,6 +12,7 @@ import { GET as trialExpiry } from "../trial-expiry/route"
 import { GET as purgeImportData } from "../purge-import-data/route"
 import { GET as primeRateSync } from "../prime-rate-sync/route"
 import { GET as maintenanceDelayCheck } from "../maintenance-delay-check/route"
+import { GET as bankFeedSync } from "../bank-feed-sync/route"
 
 type CronHandler = (req: NextRequest) => Promise<Response>
 
@@ -57,6 +58,7 @@ export async function GET(req: NextRequest) {
   await runJob("purge_import_data", purgeImportData, cronReq, results)
   await runJob("prime_rate_sync", primeRateSync, cronReq, results)
   await runJob("maintenance_delay_check", maintenanceDelayCheck, cronReq, results)
+  await runJob("bank_feed_sync", bankFeedSync, cronReq, results)
 
   // Monthly jobs
   if (dayOfMonth === 1) {

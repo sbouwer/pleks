@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useOrg } from "@/hooks/useOrg"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { DepositInterestConfig } from "@/components/deposits/DepositInterestConfig"
+import { BankFeedSection } from "@/components/finance/BankFeedSection"
 
 interface Property {
   id: string
@@ -11,15 +13,16 @@ interface Property {
 }
 
 export default function FinanceSettingsPage() {
-  const { orgId } = useOrg()
+  const { orgId, org } = useOrg()
   const [currentPrime, setCurrentPrime] = useState<number | null>(null)
   const [properties, setProperties] = useState<Property[]>([])
+
+  const tier = (org as Record<string, unknown> | null)?.tier as string | null | undefined
 
   useEffect(() => {
     if (!orgId) return
     const supabase = createClient()
 
-    // Fetch latest prime rate
     supabase
       .from("prime_rates")
       .select("rate_percent")
@@ -30,7 +33,6 @@ export default function FinanceSettingsPage() {
         if (data) setCurrentPrime(data.rate_percent)
       })
 
-    // Fetch properties that have overrides
     supabase
       .from("properties")
       .select("id, name")
@@ -46,7 +48,7 @@ export default function FinanceSettingsPage() {
     <div>
       <h1 className="font-heading text-3xl mb-2">Finance</h1>
       <p className="text-sm text-muted-foreground mb-6">
-        Configure deposit interest rates. The org default applies to all properties unless overridden per property.
+        Configure deposit interest rates and live bank feeds.
       </p>
 
       <DepositInterestConfig
@@ -72,6 +74,18 @@ export default function FinanceSettingsPage() {
           </div>
         </div>
       )}
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="text-lg">Bank Feeds</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-4">
+            Connect your trust or business account for automatic daily transaction sync. Transactions are matched automatically using the reconciliation engine.
+          </p>
+          <BankFeedSection tier={tier ?? null} />
+        </CardContent>
+      </Card>
     </div>
   )
 }
