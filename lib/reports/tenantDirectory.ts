@@ -7,7 +7,7 @@ export async function buildTenantDirectory(filters: ReportFilters): Promise<Tena
 
   const query = db
     .from("leases")
-    .select("id, end_date, monthly_rent_cents, tenant_id, unit_id, tenants(contact_id, contacts(first_name, last_name, company_name, entity_type, email, phone)), units(unit_number, property_id, properties(name))")
+    .select("id, end_date, monthly_rent_cents, tenant_id, unit_id, tenants(contacts(first_name, last_name, company_name, entity_type, primary_email, primary_phone)), units(unit_number, property_id, properties(name))")
     .eq("org_id", orgId)
     .in("status", ["active", "notice", "month_to_month"])
     .order("end_date", { ascending: true })
@@ -22,7 +22,7 @@ export async function buildTenantDirectory(filters: ReportFilters): Promise<Tena
       return propertyIds.includes(unitRaw?.property_id ?? "")
     })
     .map((l) => {
-      const tRaw = l.tenants as unknown as { contacts: { first_name: string | null; last_name: string | null; company_name: string | null; entity_type: string; email: string | null; phone: string | null } | null } | null
+      const tRaw = l.tenants as unknown as { contacts: { first_name: string | null; last_name: string | null; company_name: string | null; entity_type: string; primary_email: string | null; primary_phone: string | null } | null } | null
       const c = tRaw?.contacts
       const tenantName = c?.entity_type === "company"
         ? (c.company_name ?? "Tenant")
@@ -30,8 +30,8 @@ export async function buildTenantDirectory(filters: ReportFilters): Promise<Tena
       const unitRaw = l.units as unknown as { unit_number: string; properties: { name: string } | null } | null
       return {
         tenant_name: tenantName,
-        email: c?.email ?? null,
-        phone: c?.phone ?? null,
+        email: c?.primary_email ?? null,
+        phone: c?.primary_phone ?? null,
         unit_number: unitRaw?.unit_number ?? "—",
         property_name: unitRaw?.properties?.name ?? "—",
         lease_end: (l.end_date as string | null) ?? null,
