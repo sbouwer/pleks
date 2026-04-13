@@ -11,9 +11,9 @@ export async function buildInspectionSchedule(filters: ReportFilters): Promise<I
 
   let query = db
     .from("inspections")
-    .select("id, type, status, scheduled_date, property_id, unit_id, units(unit_number, properties(name))")
+    .select("id, inspection_type, status, scheduled_date, property_id, unit_id, units(unit_number, properties(name))")
     .eq("org_id", orgId)
-    .in("status", ["scheduled", "pending", "overdue"])
+    .in("status", ["scheduled", "in_progress"])
     .lte("scheduled_date", cutoff.toISOString().slice(0, 10))
     .order("scheduled_date", { ascending: true })
   if (propertyIds?.length) query = query.in("property_id", propertyIds)
@@ -30,7 +30,7 @@ export async function buildInspectionSchedule(filters: ReportFilters): Promise<I
     return {
       unit_number: unitRaw?.unit_number ?? "—",
       property_name: unitRaw?.properties?.name ?? "—",
-      type: i.type as string,
+      type: i.inspection_type as string,
       scheduled_date: i.scheduled_date as string,
       status: i.status as string,
       days_overdue: daysOverdue,
