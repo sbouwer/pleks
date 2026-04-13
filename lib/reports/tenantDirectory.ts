@@ -9,7 +9,7 @@ export async function buildTenantDirectory(filters: ReportFilters): Promise<Tena
     .from("leases")
     .select("id, end_date, rent_amount_cents, tenant_id, unit_id, tenants(contacts(first_name, last_name, company_name, entity_type, primary_email, primary_phone)), units(unit_number, property_id, properties(name))")
     .eq("org_id", orgId)
-    .in("status", ["active", "notice", "month_to_month"])
+    .in("status", ["active", "notice", "month_to_month", "pending_signing"])
     .order("end_date", { ascending: true })
 
   const { data, error } = await query
