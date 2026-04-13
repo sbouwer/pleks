@@ -6,6 +6,22 @@ import type {
   RentRollData,
   OccupancyData,
   OwnerPortfolioData,
+  DepositRegisterData,
+  ManagementFeeSummaryData,
+  ExpenseReportData,
+  VatSummaryData,
+  TrustReconciliationData,
+  TenantPaymentHistoryData,
+  DebitOrderReportData,
+  TenantDirectoryData,
+  PropertyPerformanceData,
+  VacancyAnalysisData,
+  MunicipalCostsData,
+  CpaNoticeScheduleData,
+  InspectionScheduleData,
+  PopiaConsentAuditData,
+  ContractorPerformanceData,
+  MaintenanceSlaData,
 } from "./types"
 
 function formatCentsForCSV(cents: number): string {
@@ -122,12 +138,240 @@ export function exportOwnerPortfolioCSV(data: OwnerPortfolioData): string {
   )
 }
 
+// ── New BUILD_52 CSV exports ─────────────────────────────────────────────────
+
+export function exportDepositRegisterCSV(data: DepositRegisterData): string {
+  return toCSV(
+    ["Tenant", "Unit", "Property", "Amount Held", "Date Received", "Status"],
+    data.rows.map((r) => [
+      r.tenant_name,
+      r.unit_number,
+      r.property_name,
+      formatCentsForCSV(r.amount_cents),
+      r.date_received,
+      r.status,
+    ])
+  )
+}
+
+export function exportManagementFeeSummaryCSV(data: ManagementFeeSummaryData): string {
+  return toCSV(
+    ["Property", "Period", "Fee", "VAT", "Total", "Status"],
+    data.rows.map((r) => [
+      r.property_name,
+      r.period,
+      formatCentsForCSV(r.fee_cents),
+      formatCentsForCSV(r.vat_cents),
+      formatCentsForCSV(r.total_cents),
+      r.status,
+    ])
+  )
+}
+
+export function exportExpenseReportCSV(data: ExpenseReportData): string {
+  return toCSV(
+    ["Date", "Description", "Property", "Category", "SARS Code", "Supplier", "Amount"],
+    data.rows.map((r) => [
+      r.date,
+      r.description,
+      r.property_name,
+      r.category,
+      r.sars_code,
+      r.supplier,
+      formatCentsForCSV(r.amount_cents),
+    ])
+  )
+}
+
+export function exportVatSummaryCSV(data: VatSummaryData): string {
+  const outputRows = data.output_lines.map((l) => ["Output", l.description, formatCentsForCSV(l.net_cents), formatCentsForCSV(l.vat_cents)])
+  const inputRows = data.input_lines.map((l) => ["Input", l.description, formatCentsForCSV(l.net_cents), formatCentsForCSV(l.vat_cents)])
+  return toCSV(
+    ["Type", "Description", "Net Amount", "VAT Amount"],
+    [...outputRows, ...inputRows]
+  )
+}
+
+export function exportTrustReconciliationCSV(data: TrustReconciliationData): string {
+  return toCSV(
+    ["Date", "Description", "Type", "Credit", "Debit", "Reference"],
+    data.rows.map((r) => [
+      r.date,
+      r.description,
+      r.type,
+      formatCentsForCSV(r.credit_cents),
+      formatCentsForCSV(r.debit_cents),
+      r.reference ?? "",
+    ])
+  )
+}
+
+export function exportTenantPaymentHistoryCSV(data: TenantPaymentHistoryData): string {
+  return toCSV(
+    ["Tenant", "Unit", "Property", "Invoiced", "Paid", "Balance", "Last Payment", "Payment Count"],
+    data.rows.map((r) => [
+      r.tenant_name,
+      r.unit_number,
+      r.property_name,
+      formatCentsForCSV(r.total_invoiced_cents),
+      formatCentsForCSV(r.total_paid_cents),
+      formatCentsForCSV(r.balance_cents),
+      r.last_payment_date ?? "",
+      String(r.payment_count),
+    ])
+  )
+}
+
+export function exportDebitOrderReportCSV(data: DebitOrderReportData): string {
+  return toCSV(
+    ["Tenant", "Unit", "Property", "Amount", "Status", "Last Collection", "Next Collection"],
+    data.rows.map((r) => [
+      r.tenant_name,
+      r.unit_number,
+      r.property_name,
+      formatCentsForCSV(r.amount_cents),
+      r.status,
+      r.last_collection_date ?? "",
+      r.next_collection_date ?? "",
+    ])
+  )
+}
+
+export function exportTenantDirectoryCSV(data: TenantDirectoryData): string {
+  return toCSV(
+    ["Tenant", "Email", "Phone", "Unit", "Property", "Lease End", "Monthly Rent"],
+    data.rows.map((r) => [
+      r.tenant_name,
+      r.email ?? "",
+      r.phone ?? "",
+      r.unit_number,
+      r.property_name,
+      r.lease_end ?? "",
+      formatCentsForCSV(r.monthly_rent_cents),
+    ])
+  )
+}
+
+export function exportPropertyPerformanceCSV(data: PropertyPerformanceData): string {
+  return toCSV(
+    ["Property", "Units", "Occupied", "Occupancy %", "Gross Income", "Expenses", "Net Income", "Maintenance"],
+    data.rows.map((r) => [
+      r.property_name,
+      String(r.units),
+      String(r.occupied_units),
+      `${r.occupancy_rate}%`,
+      formatCentsForCSV(r.gross_income_cents),
+      formatCentsForCSV(r.total_expenses_cents),
+      formatCentsForCSV(r.net_income_cents),
+      formatCentsForCSV(r.maintenance_spend_cents),
+    ])
+  )
+}
+
+export function exportVacancyAnalysisCSV(data: VacancyAnalysisData): string {
+  return toCSV(
+    ["Unit", "Property", "Days Vacant", "Monthly Rent", "Est. Lost Income"],
+    data.currently_vacant.map((r) => [
+      r.unit_number,
+      r.property_name,
+      String(r.days_vacant),
+      formatCentsForCSV(r.monthly_rent_cents),
+      formatCentsForCSV(r.estimated_lost_cents),
+    ])
+  )
+}
+
+export function exportMunicipalCostsCSV(data: MunicipalCostsData): string {
+  return toCSV(
+    ["Property", "Period", "Water", "Electricity", "Rates", "Refuse", "Total"],
+    data.rows.map((r) => [
+      r.property_name,
+      r.period,
+      formatCentsForCSV(r.water_cents),
+      formatCentsForCSV(r.electricity_cents),
+      formatCentsForCSV(r.rates_cents),
+      formatCentsForCSV(r.refuse_cents),
+      formatCentsForCSV(r.total_cents),
+    ])
+  )
+}
+
+export function exportCpaNoticeScheduleCSV(data: CpaNoticeScheduleData): string {
+  return toCSV(
+    ["Tenant", "Unit", "Property", "Lease End", "Days Remaining", "Notice Due By", "Status"],
+    data.rows.map((r) => [
+      r.tenant_name,
+      r.unit_number,
+      r.property_name,
+      r.lease_end,
+      String(r.days_remaining),
+      r.notice_due_by,
+      r.status,
+    ])
+  )
+}
+
+export function exportInspectionScheduleCSV(data: InspectionScheduleData): string {
+  return toCSV(
+    ["Unit", "Property", "Type", "Scheduled Date", "Status", "Days Overdue"],
+    data.rows.map((r) => [
+      r.unit_number,
+      r.property_name,
+      r.type,
+      r.scheduled_date,
+      r.status,
+      String(r.days_overdue),
+    ])
+  )
+}
+
+export function exportPopiaConsentAuditCSV(data: PopiaConsentAuditData): string {
+  return toCSV(
+    ["Tenant", "Consent Type", "Granted At", "Version"],
+    data.rows.map((r) => [
+      r.tenant_name,
+      r.consent_type,
+      r.granted_at,
+      r.version ?? "",
+    ])
+  )
+}
+
+export function exportContractorPerformanceCSV(data: ContractorPerformanceData): string {
+  return toCSV(
+    ["Contractor", "Trade", "Jobs Assigned", "Jobs Completed", "Total Spend"],
+    data.rows.map((r) => [
+      r.contractor_name,
+      r.trade ?? "",
+      String(r.jobs_assigned),
+      String(r.jobs_completed),
+      formatCentsForCSV(r.total_spend_cents),
+    ])
+  )
+}
+
+export function exportMaintenanceSlaCSV(data: MaintenanceSlaData): string {
+  return toCSV(
+    ["Work Order", "Property", "Category", "Urgency", "SLA Target (h)", "Actual (h)", "Met SLA", "Created At"],
+    data.all_rows.map((r) => [
+      r.work_order_number,
+      r.property_name,
+      r.category,
+      r.urgency,
+      String(r.sla_target_hours),
+      r.actual_hours !== null ? String(r.actual_hours) : "",
+      r.met_sla ? "Yes" : "No",
+      r.created_at,
+    ])
+  )
+}
+
 // Xero-ready exports (Firm tier)
 export function exportXeroIncome(data: IncomeCollectionData): string {
   return toCSV(
     ["*ContactName", "*InvoiceNumber", "*InvoiceDate", "*DueDate", "Description", "*Quantity", "*UnitAmount", "*AccountCode", "TaxType"],
-    data.invoices.filter((inv) => inv.tenant_name).map((inv) => [
-      inv.tenant_name!,
+    data.invoices.filter((inv) => inv.tenant_name !== null && inv.tenant_name !== undefined).map((inv) => [
+      inv.tenant_name ?? "",
       inv.invoice_number,
       formatDateShort(inv.period_from),
       formatDateShort(inv.period_to),

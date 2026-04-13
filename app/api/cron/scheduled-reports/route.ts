@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
-import { getOrgDisplayName } from "@/lib/org/displayName"
+import { getReportBranding } from "@/lib/reports/reportBranding"
 import { resolvePeriod } from "@/lib/reports/periods"
 import { buildPortfolioSummary } from "@/lib/reports/portfolioSummary"
 import { buildRentRoll } from "@/lib/reports/rentRoll"
@@ -27,16 +27,13 @@ export async function GET(req: NextRequest) {
   // Find scheduled reports due today, Firm tier only
   const { data: configs } = await supabase
     .from("report_configs")
-    .select("*, organisations(name, type, trading_as, first_name, last_name, title, initials, logo_url, address_line1, phone, email, id)")
+    .select("*")
     .eq("is_scheduled", true)
     .eq("schedule_day", dayOfMonth)
 
   let sent = 0
 
   for (const config of configs ?? []) {
-    const org = config.organisations as Record<string, unknown> | null
-    if (!org) continue
-
     // Verify Firm tier
     const { data: sub } = await supabase
       .from("subscriptions")
@@ -55,13 +52,7 @@ export async function GET(req: NextRequest) {
       propertyIds: config.property_ids?.length ? config.property_ids : undefined,
     }
 
-    const orgInfo = {
-      name: getOrgDisplayName(org as unknown as Parameters<typeof getOrgDisplayName>[0]),
-      logo_url: org.logo_url as string | null,
-      address: org.address_line1 as string | null,
-      phone: org.phone as string | null,
-      email: org.email as string | null,
-    }
+    const orgInfo = await getReportBranding(config.org_id)
 
     // Build report HTML
     let html = ""

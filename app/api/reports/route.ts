@@ -10,6 +10,22 @@ import { buildLeaseExpiryReport } from "@/lib/reports/leaseExpiry"
 import { buildRentRoll } from "@/lib/reports/rentRoll"
 import { buildApplicationPipeline } from "@/lib/reports/applicationPipeline"
 import { buildOwnerPortfolio } from "@/lib/reports/ownerPortfolio"
+import { buildDepositRegister } from "@/lib/reports/depositRegister"
+import { buildManagementFeeSummary } from "@/lib/reports/managementFeeSummary"
+import { buildExpenseReport } from "@/lib/reports/expenseReport"
+import { buildVatSummary } from "@/lib/reports/vatSummary"
+import { buildTrustReconciliation } from "@/lib/reports/trustReconciliation"
+import { buildTenantPaymentHistory } from "@/lib/reports/tenantPaymentHistory"
+import { buildDebitOrderReport } from "@/lib/reports/debitOrderReport"
+import { buildTenantDirectory } from "@/lib/reports/tenantDirectory"
+import { buildPropertyPerformance } from "@/lib/reports/propertyPerformance"
+import { buildVacancyAnalysis } from "@/lib/reports/vacancyAnalysis"
+import { buildMunicipalCosts } from "@/lib/reports/municipalCosts"
+import { buildCpaNoticeSchedule } from "@/lib/reports/cpaNoticeSchedule"
+import { buildInspectionSchedule } from "@/lib/reports/inspectionSchedule"
+import { buildPopiaConsentAudit } from "@/lib/reports/popiaConsentAudit"
+import { buildContractorPerformance } from "@/lib/reports/contractorPerformance"
+import { buildMaintenanceSla } from "@/lib/reports/maintenanceSla"
 import type { ReportPeriodType, ReportType } from "@/lib/reports/types"
 import { REPORT_TIER_ACCESS } from "@/lib/reports/types"
 
@@ -65,15 +81,31 @@ export async function GET(req: NextRequest) {
   const filters = { orgId, from, to, propertyIds }
 
   const builders: Record<string, (f: typeof filters) => Promise<unknown>> = {
-    portfolio_summary: buildPortfolioSummary,
-    occupancy: buildOccupancyReport,
-    income_collection: buildIncomeCollectionReport,
-    arrears_aging: buildArrearsAgingReport,
-    maintenance_costs: buildMaintenanceCostReport,
-    lease_expiry: buildLeaseExpiryReport,
-    rent_roll: buildRentRoll,
-    application_pipeline: buildApplicationPipeline,
-    owner_portfolio: buildOwnerPortfolio,
+    portfolio_summary:      buildPortfolioSummary,
+    occupancy:              buildOccupancyReport,
+    income_collection:      buildIncomeCollectionReport,
+    arrears_aging:          buildArrearsAgingReport,
+    maintenance_costs:      buildMaintenanceCostReport,
+    lease_expiry:           buildLeaseExpiryReport,
+    rent_roll:              buildRentRoll,
+    application_pipeline:   buildApplicationPipeline,
+    owner_portfolio:        buildOwnerPortfolio,
+    deposit_register:       buildDepositRegister,
+    management_fee_summary: buildManagementFeeSummary,
+    expense_report:         buildExpenseReport,
+    vat_summary:            buildVatSummary,
+    trust_reconciliation:   buildTrustReconciliation,
+    tenant_payment_history: buildTenantPaymentHistory,
+    debit_order_report:     buildDebitOrderReport,
+    tenant_directory:       buildTenantDirectory,
+    property_performance:   buildPropertyPerformance,
+    vacancy_analysis:       buildVacancyAnalysis,
+    municipal_costs:        buildMunicipalCosts,
+    cpa_notice_schedule:    buildCpaNoticeSchedule,
+    inspection_schedule:    buildInspectionSchedule,
+    popia_consent_audit:    buildPopiaConsentAudit,
+    contractor_performance: buildContractorPerformance,
+    maintenance_sla:        buildMaintenanceSla,
   }
 
   const builder = builders[reportType]
