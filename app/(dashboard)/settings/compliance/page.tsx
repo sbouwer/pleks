@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Check, AlertTriangle, Loader2 } from "lucide-react"
 
 const SCOPE_OPTIONS = [
@@ -103,7 +104,9 @@ function RoleSection({
       <CardContent className="space-y-3">
         <Select value={value || ""} onValueChange={(v) => onChange(v ?? "")}>
           <SelectTrigger className="w-full max-w-sm">
-            <SelectValue placeholder="Select role" />
+            <SelectValue placeholder="Select role">
+              {SCOPE_OPTIONS.find((o) => o.value === value)?.label ?? "Select role"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {SCOPE_OPTIONS.map((o) => (
@@ -196,7 +199,9 @@ function PPRASection({
       <CardContent className="space-y-3">
         <Select value={status || ""} onValueChange={(v) => onStatusChange(v ?? "")}>
           <SelectTrigger className="w-full max-w-sm">
-            <SelectValue placeholder="Select status" />
+            <SelectValue placeholder="Select status">
+              {PPRA_OPTIONS.find((o) => o.value === status)?.label ?? "Select status"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {PPRA_OPTIONS.map((o) => (
@@ -269,13 +274,14 @@ function AddAccountForm({
   }
 
   return (
-    <div className="space-y-3 pt-3 border-t border-border">
-      <p className="text-sm font-medium">Add account</p>
-      <div className="grid gap-3 max-w-sm">
+    <div className="space-y-3">
+      <div className="grid gap-3">
         <div className="space-y-1">
           <Label className="text-xs">Account type</Label>
           <Select value={form.type} onValueChange={(v) => set("type", v ?? "")}>
-            <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-sm">
+              <SelectValue>{filteredTypes.find((o) => o.value === form.type)?.label}</SelectValue>
+            </SelectTrigger>
             <SelectContent>
               {filteredTypes.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
             </SelectContent>
@@ -300,7 +306,9 @@ function AddAccountForm({
         <div className="space-y-1">
           <Label className="text-xs">Account category</Label>
           <Select value={form.account_type} onValueChange={(v) => set("account_type", v ?? "")}>
-            <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-8 text-sm">
+              <SelectValue>{ACCOUNT_TYPE_OPTIONS.find((o) => o.value === form.account_type)?.label}</SelectValue>
+            </SelectTrigger>
             <SelectContent>
               {ACCOUNT_TYPE_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
             </SelectContent>
@@ -332,11 +340,11 @@ function AccountSection({
   orgId: string
   onSaved: (acct: BankAccount) => void
 }>) {
-  const [showForm, setShowForm] = useState(existing.length === 0)
+  const [open, setOpen] = useState(false)
 
   function handleSaved(acct: BankAccount) {
     onSaved(acct)
-    setShowForm(false)
+    setOpen(false)
   }
 
   return (
@@ -358,19 +366,25 @@ function AccountSection({
         </div>
       )}
 
-      {showForm ? (
-        <AddAccountForm
-          isPractitioner={isPractitioner}
-          orgId={orgId}
-          onSaved={handleSaved}
-          onCancel={() => setShowForm(false)}
-          showCancel={existing.length > 0}
-        />
-      ) : (
-        <Button variant="outline" size="sm" onClick={() => setShowForm(true)}>
-          Add another account
-        </Button>
-      )}
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+        {existing.length === 0 ? "Add account" : "Add another account"}
+      </Button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add bank account</DialogTitle>
+          </DialogHeader>
+          <AddAccountForm
+            isPractitioner={isPractitioner}
+            orgId={orgId}
+            onSaved={handleSaved}
+            onCancel={() => setOpen(false)}
+            showCancel={false}
+          />
+          <DialogFooter showCloseButton />
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
