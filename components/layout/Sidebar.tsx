@@ -54,7 +54,7 @@ const NAV_GROUPS: NavGroup[] = [
     title: "Finance",
     items: [
       { href: "/finance/deposits", label: "Deposits", icon: Wallet },
-      { href: "/payments", label: "Payments", icon: CreditCard },
+      { href: "/payments", label: "Billing", icon: CreditCard },
       { href: "/statements", label: "Statements", icon: Receipt },
       { href: "/reports", label: "Reports", icon: BarChart3 },
     ],
