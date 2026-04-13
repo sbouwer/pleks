@@ -3,6 +3,7 @@ import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
+import { getPropertyPnL } from "@/lib/finance/propertyPnL"
 
 const PERIOD_PRESETS = [
   { label: "This month", value: "this_month" },
@@ -11,27 +12,32 @@ const PERIOD_PRESETS = [
   { label: "This tax year", value: "tax_year" },
 ]
 
+function getLastMonth(now: Date) {
+  const from = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const to = new Date(now.getFullYear(), now.getMonth(), 0)
+  return { from, to, label: from.toLocaleDateString("en-ZA", { month: "long", year: "numeric" }) }
+}
+
+function getThisQuarter(now: Date) {
+  const q = Math.floor(now.getMonth() / 3)
+  const from = new Date(now.getFullYear(), q * 3, 1)
+  const to = new Date(now.getFullYear(), q * 3 + 3, 0)
+  return { from, to, label: `Q${q + 1} ${now.getFullYear()}` }
+}
+
+function getTaxYear(now: Date) {
+  // SA tax year: March 1 to Feb 28
+  const year = now.getMonth() < 2 ? now.getFullYear() - 1 : now.getFullYear()
+  const from = new Date(year, 2, 1)
+  const to = new Date(year + 1, 1, 28)
+  return { from, to, label: `Tax year ${year}/${year + 1 - 2000}` }
+}
+
 function getPeriod(preset?: string): { from: Date; to: Date; label: string } {
   const now = new Date()
-  if (preset === "last_month") {
-    const from = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-    const to = new Date(now.getFullYear(), now.getMonth(), 0)
-    return { from, to, label: from.toLocaleDateString("en-ZA", { month: "long", year: "numeric" }) }
-  }
-  if (preset === "this_quarter") {
-    const q = Math.floor(now.getMonth() / 3)
-    const from = new Date(now.getFullYear(), q * 3, 1)
-    const to = new Date(now.getFullYear(), q * 3 + 3, 0)
-    return { from, to, label: `Q${q + 1} ${now.getFullYear()}` }
-  }
-  if (preset === "tax_year") {
-    // SA tax year: March 1 to Feb 28
-    const year = now.getMonth() < 2 ? now.getFullYear() - 1 : now.getFullYear()
-    const from = new Date(year, 2, 1)
-    const to = new Date(year + 1, 1, 28)
-    return { from, to, label: `Tax year ${year}/${year + 1 - 2000}` }
-  }
-  // Default: this month
+  if (preset === "last_month") return getLastMonth(now)
+  if (preset === "this_quarter") return getThisQuarter(now)
+  if (preset === "tax_year") return getTaxYear(now)
   const from = new Date(now.getFullYear(), now.getMonth(), 1)
   const to = new Date(now.getFullYear(), now.getMonth() + 1, 0)
   return { from, to, label: from.toLocaleDateString("en-ZA", { month: "long", year: "numeric" }) }
@@ -72,60 +78,8 @@ export default async function PropertyFinancialsPage({
     .single()
   if (!property) notFound()
 
-  // Fetch owner statements for this property + period
-  const { data: statements, error: stmtErr } = await service
-    .from("owner_statements")
-    .select("id, period_month, period_from, period_to, gross_income_cents, total_expenses_cents, management_fee_cents, management_fee_vat_cents, net_to_owner_cents, income_lines, expense_lines")
-    .eq("org_id", orgId)
-    .eq("property_id", propertyId)
-    .gte("period_from", from.toISOString().slice(0, 10))
-    .lte("period_to", to.toISOString().slice(0, 10))
-    .order("period_from", { ascending: true })
-
-  if (stmtErr) console.error("property_financials:", stmtErr.message)
-
-  // Aggregate across statements
-  let totalRentCents = 0
-  let totalExpensesCents = 0
-  let totalFeesCents = 0
-  let totalNetCents = 0
-  type IncLine = { date: string; description: string; amount_cents: number; ref?: string }
-  type ExpLine = { date: string; description: string; amount_cents: number; ref?: string; sars_code?: string }
-  const incomeLines: IncLine[] = []
-  const expenseLines: ExpLine[] = []
-
-  for (const s of statements ?? []) {
-    totalRentCents += s.gross_income_cents ?? 0
-    totalExpensesCents += s.total_expenses_cents ?? 0
-    totalFeesCents += (s.management_fee_cents ?? 0) + (s.management_fee_vat_cents ?? 0)
-    totalNetCents += s.net_to_owner_cents ?? 0
-
-    const stmtIncome = Array.isArray(s.income_lines) ? s.income_lines as IncLine[] : []
-    const stmtExpenses = Array.isArray(s.expense_lines) ? s.expense_lines as ExpLine[] : []
-    incomeLines.push(...stmtIncome)
-    expenseLines.push(...stmtExpenses)
-
-    // Add management fee as a synthetic expense line
-    const feeTotal = (s.management_fee_cents ?? 0) + (s.management_fee_vat_cents ?? 0)
-    if (feeTotal > 0) {
-      const period = s.period_from?.slice(0, 7) ?? s.period_month?.slice(0, 7) ?? ""
-      expenseLines.push({
-        date: s.period_to ?? s.period_month ?? "",
-        description: `Management fee${s.management_fee_vat_cents ? " (incl. VAT)" : ""} — ${period}`,
-        amount_cents: feeTotal,
-        sars_code: "4255",
-      })
-    }
-  }
-
-  // Deposit held (current, from deposit_transactions)
-  const { data: depositTxns } = await service
-    .from("deposit_transactions")
-    .select("amount_cents, direction")
-    .eq("org_id", orgId)
-    .in("transaction_type", ["deposit_received", "deposit_refund", "deposit_deduction"])
-  const depositHeld = (depositTxns ?? []).reduce((sum, t) =>
-    sum + (t.direction === "credit" ? t.amount_cents : -t.amount_cents), 0)
+  const pnl = await getPropertyPnL(service, orgId, propertyId, from, to)
+  const { incomeLines, expenseLines, totalRentCents, totalExpensesCents, totalFeesCents, totalNetCents, depositHeldCents } = pnl
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 pb-12">
@@ -164,8 +118,8 @@ export default async function PropertyFinancialsPage({
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Income</h3>
           {incomeLines.length > 0 ? (
             <div className="space-y-1">
-              {incomeLines.map((l, i) => (
-                <div key={i} className="flex justify-between text-sm">
+              {incomeLines.map((l) => (
+                <div key={`${l.description}-${l.amount_cents}`} className="flex justify-between text-sm">
                   <span className="text-muted-foreground">{l.description}{l.date ? ` · ${l.date}` : ""}</span>
                   <span className="tabular-nums font-medium">{formatZAR(l.amount_cents)}</span>
                 </div>
@@ -185,8 +139,8 @@ export default async function PropertyFinancialsPage({
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">Expenses</h3>
           {expenseLines.length > 0 ? (
             <div className="space-y-1">
-              {expenseLines.map((l, i) => (
-                <div key={i} className="flex justify-between text-sm">
+              {expenseLines.map((l) => (
+                <div key={`${l.description}-${l.amount_cents}`} className="flex justify-between text-sm">
                   <span className="text-muted-foreground">
                     {l.description}
                     {l.sars_code && <span className="text-[10px] text-muted-foreground/60 ml-1">§{l.sars_code}</span>}
@@ -212,17 +166,17 @@ export default async function PropertyFinancialsPage({
       </div>
 
       {/* Deposit held */}
-      {depositHeld > 0 && (
+      {depositHeldCents > 0 && (
         <div className="rounded-xl border bg-card p-5">
           <h2 className="text-sm font-semibold mb-3">Deposit</h2>
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Deposit held in trust</span>
-            <span className="tabular-nums font-medium">{formatZAR(depositHeld)}</span>
+            <span className="tabular-nums font-medium">{formatZAR(depositHeldCents)}</span>
           </div>
         </div>
       )}
 
-      {statements?.length === 0 && (
+      {incomeLines.length === 0 && expenseLines.length === 0 && (
         <p className="text-sm text-muted-foreground text-center py-8">No owner statements generated for this period.</p>
       )}
     </div>
