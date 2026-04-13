@@ -239,9 +239,10 @@ export function exportDebitOrderReportCSV(data: DebitOrderReportData): string {
 
 export function exportTenantDirectoryCSV(data: TenantDirectoryData): string {
   return toCSV(
-    ["Tenant", "Email", "Phone", "Unit", "Property", "Lease End", "Monthly Rent"],
+    ["Tenant", "Role", "Email", "Phone", "Unit", "Property", "Lease End", "Monthly Rent"],
     data.rows.map((r) => [
       r.tenant_name,
+      r.role,
       r.email ?? "",
       r.phone ?? "",
       r.unit_number,

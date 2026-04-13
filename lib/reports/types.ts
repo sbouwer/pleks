@@ -383,6 +383,7 @@ export interface DebitOrderReportData {
 
 export interface TenantDirectoryRow {
   tenant_name: string
+  role: "Primary" | "Co-tenant" | "Prospective"
   email: string | null
   phone: string | null
   unit_number: string

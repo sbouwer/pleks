@@ -36,10 +36,17 @@ interface Property {
   name: string
 }
 
+interface Person {
+  id: string
+  name: string
+}
+
 interface ReportsClientProps {
   tier: string
   properties: Property[]
   orgId: string
+  landlords: Person[]
+  agents: Person[]
 }
 
 type FilterState = {
@@ -47,6 +54,8 @@ type FilterState = {
   propertyIds: string[]
   customFrom?: string
   customTo?: string
+  landlordId?: string
+  agentId?: string
 }
 
 type TabProps = {
@@ -139,13 +148,13 @@ function ReportCard({
   orgId,
   filters,
   onOpen,
-}: {
+}: Readonly<{
   reportType: ReportType
   tier: string
   orgId: string
   filters: FilterState
   onOpen: (r: ReportType) => void
-}) {
+}>) {
   const hasAccess = REPORT_TIER_ACCESS[reportType]?.includes(tier) ?? false
   const requiredTier = getRequiredTier(reportType)
   const tierIdx = TIER_ORDER.indexOf(tier)
@@ -156,6 +165,8 @@ function ReportCard({
     const p = new URLSearchParams({ type: reportType, orgId, periodType: filters.periodType, format })
     if (filters.periodType === "custom" && filters.customFrom) p.set("customFrom", filters.customFrom)
     if (filters.periodType === "custom" && filters.customTo) p.set("customTo", filters.customTo)
+    if (filters.landlordId) p.set("landlordId", filters.landlordId)
+    if (filters.agentId) p.set("agentId", filters.agentId)
     return p
   }
 
@@ -175,6 +186,9 @@ function ReportCard({
         isLocked ? "opacity-60" : "hover:border-foreground/30 cursor-pointer"
       }`}
       onClick={isLocked ? undefined : () => onOpen(reportType)}
+      onKeyDown={isLocked ? undefined : (e) => { if (e.key === "Enter" || e.key === " ") onOpen(reportType) }}
+      role={isLocked ? undefined : "button"}
+      tabIndex={isLocked ? undefined : 0}
     >
       <div className="flex items-center justify-between gap-1.5">
         <h3 className="text-xs font-semibold truncate min-w-0">{REPORT_LABELS[reportType]}</h3>
@@ -212,12 +226,14 @@ function ReportCard({
   )
 }
 
-export function ReportsClient({ tier, properties, orgId }: ReportsClientProps) {
+export function ReportsClient({ tier, properties, orgId, landlords, agents }: Readonly<ReportsClientProps>) {
   const [filters, setFilters] = useState<FilterState>({
     periodType: "this_month",
     propertyIds: [],
     customFrom: undefined,
     customTo: undefined,
+    landlordId: undefined,
+    agentId: undefined,
   })
   const [selectedReport, setSelectedReport] = useState<ReportType | null>(null)
 
@@ -244,7 +260,7 @@ export function ReportsClient({ tier, properties, orgId }: ReportsClientProps) {
           <ArrowLeft className="h-3.5 w-3.5" />
           All reports
         </button>
-        <ReportFilters properties={properties} onApply={handleApply} />
+        <ReportFilters properties={properties} landlords={landlords} agents={agents} tier={tier} onApply={handleApply} />
         <TabComponent orgId={orgId} filters={filters} />
       </div>
     )
@@ -252,7 +268,7 @@ export function ReportsClient({ tier, properties, orgId }: ReportsClientProps) {
 
   return (
     <div>
-      <ReportFilters properties={properties} onApply={handleApply} />
+      <ReportFilters properties={properties} landlords={[]} agents={[]} tier={tier} onApply={handleApply} />
       <div className="space-y-8">
         {REPORT_CATEGORIES.map((cat) => (
           <section key={cat.name}>
