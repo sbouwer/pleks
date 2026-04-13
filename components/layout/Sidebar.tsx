@@ -23,6 +23,7 @@ import {
   CalendarDays,
   Receipt,
   BookOpen,
+  PieChart,
 } from "lucide-react"
 
 const NAV_GROUPS: NavGroup[] = [
@@ -54,6 +55,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: "Finance",
     items: [
+      { href: "/finance", label: "Overview", icon: PieChart },
       { href: "/finance/deposits", label: "Deposits", icon: Wallet },
       { href: "/finance/trust-ledger", label: "Trust Ledger", icon: BookOpen },
       { href: "/payments", label: "Billing", icon: CreditCard },
