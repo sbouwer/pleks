@@ -1,6 +1,7 @@
 "use client"
 
 import { Menu, ExternalLink, LogOut, UserCircle } from "lucide-react"
+import { GlobalSearch } from "@/components/layout/GlobalSearch"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -63,12 +64,14 @@ export function Topbar({
         )}
       </div>
 
-      {/* Right: visit site + profile */}
+      {/* Right: search + visit site + profile */}
       <div className="flex items-center gap-2">
+        <GlobalSearch />
+
         <Button
           size="sm"
           className="hidden sm:inline-flex bg-brand text-primary-foreground hover:bg-brand-hover"
-          render={<a href={visitSiteHref} target="_blank" rel="noopener noreferrer" />}
+          render={<a href={visitSiteHref} target="_blank" rel="noopener noreferrer" aria-label={visitSiteLabel} />}
         >
           <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
           {visitSiteLabel}

@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { BatchPaymentEntry } from "@/components/payments/BatchPaymentEntry"
-import { CreditCard, Plus, List, LayoutList, MessageSquare, Loader2 } from "lucide-react"
+import { CreditCard, Plus, List, LayoutList, MessageSquare, Loader2, Upload } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import { OPERATIONAL_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchPaymentsAction } from "@/lib/queries/portfolioActions"
@@ -99,6 +99,9 @@ export function PaymentsPageClient({ orgId }: Readonly<Props>) {
               <List className="size-3.5" /> Invoices
             </button>
           </div>
+          <Button size="sm" variant="outline" render={<Link href="/payments/bulk-import" />}>
+            <Upload className="h-4 w-4 mr-1" /> Bulk import
+          </Button>
           <Button render={<Link href="/payments/invoices/new" />}>
             <Plus className="h-4 w-4 mr-1" /> Add Invoice
           </Button>
