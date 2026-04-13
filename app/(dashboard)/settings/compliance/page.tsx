@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Check, AlertTriangle, Loader2 } from "lucide-react"
 
 const SCOPE_OPTIONS = [
@@ -233,14 +233,10 @@ function AddAccountForm({
   isPractitioner,
   orgId,
   onSaved,
-  onCancel,
-  showCancel,
 }: Readonly<{
   isPractitioner: boolean
   orgId: string
   onSaved: (acct: BankAccount) => void
-  onCancel: () => void
-  showCancel: boolean
 }>) {
   const defaultType = isPractitioner ? "trust" : "deposit_holding"
   const [form, setForm] = useState<AccountFormState>({ ...EMPTY_ACCOUNT, type: defaultType })
@@ -315,16 +311,16 @@ function AddAccountForm({
           </Select>
         </div>
       </div>
-      {error && <p className="text-xs text-danger">{error}</p>}
-      <div className="flex gap-2">
+      {error && <p className="text-xs text-danger mb-1">{error}</p>}
+      <DialogFooter>
         <Button size="sm" onClick={handleSave} disabled={saving}>
           {saving && <Loader2 className="size-3.5 mr-1.5 animate-spin" />}
           Save account
         </Button>
-        {showCancel && (
-          <Button size="sm" variant="outline" onClick={onCancel}>Cancel</Button>
-        )}
-      </div>
+        <DialogClose render={<Button variant="destructive" size="sm" />}>
+          Cancel
+        </DialogClose>
+      </DialogFooter>
     </div>
   )
 }
@@ -379,10 +375,7 @@ function AccountSection({
             isPractitioner={isPractitioner}
             orgId={orgId}
             onSaved={handleSaved}
-            onCancel={() => setOpen(false)}
-            showCancel={false}
           />
-          <DialogFooter showCloseButton />
         </DialogContent>
       </Dialog>
     </div>
