@@ -7,6 +7,7 @@ import { MobileNav } from "@/components/layout/MobileNav"
 import { InactivityGuard } from "@/components/layout/InactivityGuard"
 import { NavigationProgress } from "@/components/layout/NavigationProgress"
 import { PortfolioPrefetcher } from "@/components/providers/PortfolioPrefetcher"
+import { KeyboardShortcuts } from "@/components/layout/KeyboardShortcuts"
 
 export default function DashboardLayout({
   children,
@@ -31,6 +32,7 @@ export default function DashboardLayout({
         <Topbar onMenuClick={() => setMobileNavOpen(true)} />
         <main className="flex-1 overflow-y-auto bg-muted/30 p-6">{children}</main>
         <InactivityGuard />
+        <KeyboardShortcuts />
       </div>
     </div>
   )

@@ -8,6 +8,7 @@ import { formatZAR } from "@/lib/constants"
 import { InspectionActions } from "./InspectionActions"
 import { CONDITION_OPTIONS } from "@/lib/inspections/roomTemplates"
 import { RescheduleRequestsPanel, type RescheduleRequest } from "./RescheduleRequestsPanel"
+import { PhotoComparison } from "./PhotoComparison"
 
 const STATUS_MAP: Record<string, "scheduled" | "pending" | "active" | "completed" | "arrears"> = {
   scheduled: "scheduled",
@@ -21,9 +22,9 @@ const STATUS_MAP: Record<string, "scheduled" | "pending" | "active" | "completed
 
 export default async function InspectionDetailPage({
   params,
-}: {
+}: Readonly<{
   params: Promise<{ inspectionId: string }>
-}) {
+}>) {
   const { inspectionId } = await params
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -174,6 +175,13 @@ export default async function InspectionDetailPage({
           )
         })}
       </div>
+
+      {/* Photo comparison (move-in vs move-out) */}
+      {gw && (
+        <div className="mt-4">
+          <PhotoComparison inspectionId={inspectionId} orgId={gw.orgId} />
+        </div>
+      )}
 
       {/* Reschedule requests */}
       <RescheduleRequestsPanel
