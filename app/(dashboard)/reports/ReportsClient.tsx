@@ -29,7 +29,7 @@ import { PopiaConsentAuditTab } from "./tabs/PopiaConsentAuditTab"
 import { ContractorPerformanceTab } from "./tabs/ContractorPerformanceTab"
 import { MaintenanceSlaTab } from "./tabs/MaintenanceSlaTab"
 import type { ReportPeriodType, ReportType } from "@/lib/reports/types"
-import { REPORT_TIER_ACCESS, REPORT_LABELS, REPORT_DESCRIPTIONS } from "@/lib/reports/types"
+import { REPORT_TIER_ACCESS, REPORT_LABELS } from "@/lib/reports/types"
 
 interface Property {
   id: string
@@ -166,36 +166,33 @@ function ReportCard({
 
   return (
     <div
-      className={`relative rounded-xl border bg-card p-4 flex flex-col gap-2 transition-colors ${
+      className={`relative rounded-lg border bg-card px-3 py-2.5 flex flex-col gap-1.5 transition-colors ${
         isLocked ? "opacity-60" : "hover:border-foreground/30 cursor-pointer"
       }`}
       onClick={isLocked ? undefined : () => onOpen(reportType)}
     >
-      <div className="flex items-start justify-between gap-2">
-        <h3 className="text-sm font-semibold leading-tight">{REPORT_LABELS[reportType]}</h3>
+      <div className="flex items-start justify-between gap-1.5">
+        <h3 className="text-xs font-semibold leading-snug">{REPORT_LABELS[reportType]}</h3>
         {isLocked && (
-          <span className="shrink-0 flex items-center gap-1 text-[10px] font-medium text-muted-foreground border rounded px-1.5 py-0.5">
-            <Lock className="h-2.5 w-2.5" />
+          <span className="shrink-0 flex items-center gap-0.5 text-[9px] font-medium text-muted-foreground border rounded px-1 py-0.5">
+            <Lock className="h-2 w-2" />
             {TIER_LABELS[requiredTier] ?? requiredTier}
           </span>
         )}
       </div>
-      <p className="text-[11px] text-muted-foreground leading-relaxed flex-1">
-        {REPORT_DESCRIPTIONS[reportType]}
-      </p>
       {!isLocked && (
-        <div className="flex gap-1.5 mt-1">
+        <div className="flex gap-1">
           <button
             onClick={handleCSV}
-            className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground border rounded px-2 py-1 transition-colors"
+            className="flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-foreground border rounded px-1.5 py-0.5 transition-colors"
           >
-            <Download className="h-3 w-3" /> CSV
+            <Download className="h-2.5 w-2.5" /> CSV
           </button>
           <button
             onClick={handlePDF}
-            className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground border rounded px-2 py-1 transition-colors"
+            className="flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-foreground border rounded px-1.5 py-0.5 transition-colors"
           >
-            <FileDown className="h-3 w-3" /> PDF
+            <FileDown className="h-2.5 w-2.5" /> PDF
           </button>
         </div>
       )}
@@ -250,7 +247,7 @@ export function ReportsClient({ tier, properties, orgId }: ReportsClientProps) {
             <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
               {cat.name}
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
               {cat.reports.map((r) => (
                 <ReportCard
                   key={r}
