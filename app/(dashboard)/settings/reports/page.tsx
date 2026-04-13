@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Trash2 } from "lucide-react"
+import { toast } from "sonner"
 import { createClient as createBrowserClient } from "@/lib/supabase/client"
 import { REPORT_LABELS } from "@/lib/reports/types"
 
@@ -81,7 +82,7 @@ export default function ReportSettingsPage() {
       .map((e) => e.trim())
       .filter(Boolean)
 
-    await supabase.from("report_configs").insert({
+    const { error } = await supabase.from("report_configs").insert({
       org_id: membership.org_id,
       report_type: newConfig.report_type,
       name: newConfig.name || (REPORT_LABELS[newConfig.report_type as keyof typeof REPORT_LABELS] ?? newConfig.report_type),
@@ -92,14 +93,18 @@ export default function ReportSettingsPage() {
       created_by: user.id,
     })
 
+    setSaving(false)
+    if (error) { toast.error("Failed to save report"); return }
+    toast.success("Scheduled report saved")
     setShowAdd(false)
     setNewConfig({ report_type: "portfolio_summary", name: "", schedule_day: 2, recipient_emails: "" })
-    setSaving(false)
     setRefreshKey((k) => k + 1)
   }
 
   async function handleDelete(id: string) {
-    await supabase.from("report_configs").delete().eq("id", id)
+    const { error } = await supabase.from("report_configs").delete().eq("id", id)
+    if (error) { toast.error("Failed to delete report"); return }
+    toast.success("Report removed")
     setRefreshKey((k) => k + 1)
   }
 
