@@ -7,17 +7,18 @@ export async function buildPopiaConsentAudit(filters: ReportFilters): Promise<Po
 
   const { data, error } = await db
     .from("consent_log")
-    .select("id, tenant_id, consent_type, granted_at, version, tenants(first_name, last_name, company_name, entity_type)")
+    .select("id, tenant_id, consent_type, granted_at, version, tenants(contacts(first_name, last_name, company_name, entity_type))")
     .eq("org_id", orgId)
     .order("granted_at", { ascending: false })
 
   if (error) console.error("popiaConsentAudit:", error.message)
 
   const rows: PopiaConsentRow[] = (data ?? []).map((c) => {
-    const tRaw = c.tenants as unknown as { first_name: string | null; last_name: string | null; company_name: string | null; entity_type: string } | null
-    const tenantName = tRaw?.entity_type === "company"
-      ? (tRaw.company_name ?? "Tenant")
-      : `${tRaw?.first_name ?? ""} ${tRaw?.last_name ?? ""}`.trim() || "Tenant"
+    const tRaw = c.tenants as unknown as { contacts: { first_name: string | null; last_name: string | null; company_name: string | null; entity_type: string } | null } | null
+    const tc = tRaw?.contacts
+    const tenantName = tc?.entity_type === "company"
+      ? (tc.company_name ?? "Tenant")
+      : `${tc?.first_name ?? ""} ${tc?.last_name ?? ""}`.trim() || "Tenant"
     return {
       tenant_name: tenantName,
       consent_type: c.consent_type as string,

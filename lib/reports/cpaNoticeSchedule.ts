@@ -14,7 +14,7 @@ export async function buildCpaNoticeSchedule(filters: ReportFilters): Promise<Cp
 
   const query = db
     .from("leases")
-    .select("id, end_date, tenant_id, unit_id, status, cpa_notice_sent_at, tenants(first_name, last_name, company_name, entity_type), units(unit_number, property_id, properties(name))")
+    .select("id, end_date, tenant_id, unit_id, status, cpa_notice_sent_at, tenants(contacts(first_name, last_name, company_name, entity_type)), units(unit_number, property_id, properties(name))")
     .eq("org_id", orgId)
     .in("status", ["active", "notice"])
     .not("end_date", "is", null)
@@ -31,10 +31,11 @@ export async function buildCpaNoticeSchedule(filters: ReportFilters): Promise<Cp
       return propertyIds.includes(unitRaw?.property_id ?? "")
     })
     .map((l) => {
-      const tRaw = l.tenants as unknown as { first_name: string | null; last_name: string | null; company_name: string | null; entity_type: string } | null
-      const tenantName = tRaw?.entity_type === "company"
-        ? (tRaw.company_name ?? "Tenant")
-        : `${tRaw?.first_name ?? ""} ${tRaw?.last_name ?? ""}`.trim() || "Tenant"
+      const tRaw = l.tenants as unknown as { contacts: { first_name: string | null; last_name: string | null; company_name: string | null; entity_type: string } | null } | null
+      const c = tRaw?.contacts
+      const tenantName = c?.entity_type === "company"
+        ? (c.company_name ?? "Tenant")
+        : `${c?.first_name ?? ""} ${c?.last_name ?? ""}`.trim() || "Tenant"
       const unitRaw = l.units as unknown as { unit_number: string; properties: { name: string } | null } | null
       const leaseEnd = new Date(l.end_date as string)
       const daysRemaining = Math.floor((leaseEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
