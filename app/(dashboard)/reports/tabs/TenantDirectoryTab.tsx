@@ -37,6 +37,7 @@ export function TenantDirectoryTab({ orgId, filters }: Readonly<Props>) {
                 <thead>
                   <tr className="border-b text-xs text-muted-foreground">
                     <th className="text-left py-2 pr-2">Tenant</th>
+                    <th className="text-left py-2 pr-2">Role</th>
                     <th className="text-left py-2 pr-2">Email</th>
                     <th className="text-left py-2 pr-2">Phone</th>
                     <th className="text-left py-2 pr-2">Unit</th>
@@ -49,6 +50,7 @@ export function TenantDirectoryTab({ orgId, filters }: Readonly<Props>) {
                   {data.rows.map((r) => (
                     <tr key={r.tenant_name + r.unit_number} className="border-b border-border/50">
                       <td className="py-2 pr-2">{r.tenant_name}</td>
+                      <td className="py-2 pr-2 text-xs">{r.role}</td>
                       <td className="py-2 pr-2 text-xs">{r.email ?? "—"}</td>
                       <td className="py-2 pr-2 text-xs">{r.phone ?? "—"}</td>
                       <td className="py-2 pr-2">{r.unit_number}</td>

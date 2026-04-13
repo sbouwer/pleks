@@ -7,29 +7,44 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { ReportPeriodType } from "@/lib/reports/types"
 
-interface Property {
+interface Person {
   id: string
   name: string
 }
 
 interface ReportFiltersProps {
-  properties: Property[]
-  onApply: (filters: { periodType: ReportPeriodType; propertyIds: string[]; customFrom?: string; customTo?: string }) => void
+  properties: Person[]
+  landlords: Person[]
+  agents: Person[]
+  tier: string
+  onApply: (filters: {
+    periodType: ReportPeriodType
+    propertyIds: string[]
+    customFrom?: string
+    customTo?: string
+    landlordId?: string
+    agentId?: string
+  }) => void
 }
 
 const PERIOD_OPTIONS: { value: ReportPeriodType; label: string }[] = [
-  { value: "this_month", label: "This month" },
-  { value: "last_month", label: "Last month" },
-  { value: "this_quarter", label: "This quarter" },
-  { value: "last_quarter", label: "Last quarter" },
+  { value: "this_month",    label: "This month" },
+  { value: "last_month",    label: "Last month" },
+  { value: "this_quarter",  label: "This quarter" },
+  { value: "last_quarter",  label: "Last quarter" },
   { value: "this_tax_year", label: "This tax year" },
   { value: "last_tax_year", label: "Last tax year" },
-  { value: "custom", label: "Custom range" },
+  { value: "custom",        label: "Custom range" },
 ]
 
-export function ReportFilters({ properties, onApply }: ReportFiltersProps) {
+const STEWARD_TIERS = new Set(["steward", "portfolio", "firm"])
+const PORTFOLIO_TIERS = new Set(["portfolio", "firm"])
+
+export function ReportFilters({ properties, landlords, agents, tier, onApply }: Readonly<ReportFiltersProps>) {
   const [periodType, setPeriodType] = useState<ReportPeriodType>("this_month")
-  const [selectedProperty, setSelectedProperty] = useState<string>("all")
+  const [selectedProperty, setSelectedProperty] = useState("all")
+  const [selectedLandlord, setSelectedLandlord] = useState("all")
+  const [selectedAgent, setSelectedAgent] = useState("all")
   const [customFrom, setCustomFrom] = useState("")
   const [customTo, setCustomTo] = useState("")
 
@@ -40,8 +55,13 @@ export function ReportFilters({ properties, onApply }: ReportFiltersProps) {
       propertyIds,
       customFrom: periodType === "custom" ? customFrom : undefined,
       customTo: periodType === "custom" ? customTo : undefined,
+      landlordId: selectedLandlord === "all" ? undefined : selectedLandlord,
+      agentId: selectedAgent === "all" ? undefined : selectedAgent,
     })
   }
+
+  const showLandlord = STEWARD_TIERS.has(tier) && landlords.length > 0
+  const showAgent = PORTFOLIO_TIERS.has(tier) && agents.length > 0
 
   return (
     <div className="flex flex-wrap items-end gap-3 mb-6">
@@ -86,6 +106,40 @@ export function ReportFilters({ properties, onApply }: ReportFiltersProps) {
           </SelectContent>
         </Select>
       </div>
+
+      {showLandlord && (
+        <div>
+          <Label className="text-xs text-muted-foreground mb-1 block">Landlord</Label>
+          <Select value={selectedLandlord} onValueChange={(v) => setSelectedLandlord(v ?? "all")}>
+            <SelectTrigger className="w-[180px] h-9">
+              <span>{selectedLandlord === "all" ? "All landlords" : landlords.find((l) => l.id === selectedLandlord)?.name ?? "Select"}</span>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All landlords</SelectItem>
+              {landlords.map((l) => (
+                <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {showAgent && (
+        <div>
+          <Label className="text-xs text-muted-foreground mb-1 block">Agent / PM</Label>
+          <Select value={selectedAgent} onValueChange={(v) => setSelectedAgent(v ?? "all")}>
+            <SelectTrigger className="w-[180px] h-9">
+              <span>{selectedAgent === "all" ? "All agents" : agents.find((a) => a.id === selectedAgent)?.name ?? "Select"}</span>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All agents</SelectItem>
+              {agents.map((a) => (
+                <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       <Button size="sm" onClick={handleApply}>Apply</Button>
     </div>

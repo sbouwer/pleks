@@ -439,12 +439,12 @@ export function buildTenantDirectoryHTML(data: TenantDirectoryData, org: ReportB
       <div class="metric"><div class="label">Active Tenants</div><div class="value">${data.total_active}</div></div>
     </div>
     <table>
-      <tr><th>Tenant</th><th>Email</th><th>Phone</th><th>Unit</th><th>Property</th><th>Lease End</th><th class="text-right">Monthly Rent</th></tr>
+      <tr><th>Tenant</th><th>Role</th><th>Email</th><th>Phone</th><th>Unit</th><th>Property</th><th>Lease End</th><th class="text-right">Monthly Rent</th></tr>
       ${data.rows.map((r) => {
         const leaseEnd = r.lease_end ?? "—"
         const rentStr = formatZAR(r.monthly_rent_cents)
         return `<tr>
-          <td>${r.tenant_name}</td><td>${r.email ?? "—"}</td><td>${r.phone ?? "—"}</td>
+          <td>${r.tenant_name}</td><td>${r.role}</td><td>${r.email ?? "—"}</td><td>${r.phone ?? "—"}</td>
           <td>${r.unit_number}</td><td>${r.property_name}</td>
           <td>${leaseEnd}</td><td class="text-right">${rentStr}</td>
         </tr>`
