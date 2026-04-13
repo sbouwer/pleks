@@ -7,7 +7,7 @@ export async function buildDepositRegister(filters: ReportFilters): Promise<Depo
 
   const { data, error } = await db
     .from("deposit_transactions")
-    .select("id, tenant_id, amount_cents, direction, transaction_type, transaction_date, leases(units(unit_number, properties(name))), tenants(first_name, last_name, company_name, entity_type)")
+    .select("id, tenant_id, amount_cents, direction, transaction_type, transaction_date, leases(units(unit_number, properties(name))), tenants(contacts(first_name, last_name, company_name, entity_type))")
     .eq("org_id", orgId)
     .in("transaction_type", ["deposit_received", "deposit_interest"])
     .order("transaction_date", { ascending: false })
@@ -21,10 +21,11 @@ export async function buildDepositRegister(filters: ReportFilters): Promise<Depo
 
   for (const t of txns) {
     const tid = t.tenant_id as string
-    const tenantRaw = t.tenants as unknown as { first_name: string | null; last_name: string | null; company_name: string | null; entity_type: string } | null
-    const tenantName = tenantRaw?.entity_type === "company"
-      ? (tenantRaw.company_name ?? "Tenant")
-      : `${tenantRaw?.first_name ?? ""} ${tenantRaw?.last_name ?? ""}`.trim() || "Tenant"
+    const tenantRaw = t.tenants as unknown as { contacts: { first_name: string | null; last_name: string | null; company_name: string | null; entity_type: string } | null } | null
+    const tc = tenantRaw?.contacts
+    const tenantName = tc?.entity_type === "company"
+      ? (tc.company_name ?? "Tenant")
+      : `${tc?.first_name ?? ""} ${tc?.last_name ?? ""}`.trim() || "Tenant"
     const leaseRaw = t.leases as unknown as { units: { unit_number: string; properties: { name: string } | null } | null } | null
     const unitNumber = leaseRaw?.units?.unit_number ?? "—"
     const propName = leaseRaw?.units?.properties?.name ?? "—"

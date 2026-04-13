@@ -7,17 +7,18 @@ export async function buildDebitOrderReport(filters: ReportFilters): Promise<Deb
 
   const { data, error } = await db
     .from("debicheck_mandates")
-    .select("id, tenant_id, lease_id, amount_cents, status, last_collection_date, next_collection_date, tenants(first_name, last_name, company_name, entity_type), leases(units(unit_number, properties(name)))")
+    .select("id, tenant_id, lease_id, amount_cents, status, last_collection_date, next_collection_date, tenants(contacts(first_name, last_name, company_name, entity_type)), leases(units(unit_number, properties(name)))")
     .eq("org_id", orgId)
     .order("status", { ascending: true })
 
   if (error) console.error("debitOrderReport:", error.message)
 
   const rows: DebitOrderRow[] = (data ?? []).map((m) => {
-    const tenantRaw = m.tenants as unknown as { first_name: string | null; last_name: string | null; company_name: string | null; entity_type: string } | null
-    const tenantName = tenantRaw?.entity_type === "company"
-      ? (tenantRaw.company_name ?? "Tenant")
-      : `${tenantRaw?.first_name ?? ""} ${tenantRaw?.last_name ?? ""}`.trim() || "Tenant"
+    const tenantRaw = m.tenants as unknown as { contacts: { first_name: string | null; last_name: string | null; company_name: string | null; entity_type: string } | null } | null
+    const tc = tenantRaw?.contacts
+    const tenantName = tc?.entity_type === "company"
+      ? (tc.company_name ?? "Tenant")
+      : `${tc?.first_name ?? ""} ${tc?.last_name ?? ""}`.trim() || "Tenant"
     const leaseRaw = m.leases as unknown as { units: { unit_number: string; properties: { name: string } | null } | null } | null
     return {
       tenant_name: tenantName,
