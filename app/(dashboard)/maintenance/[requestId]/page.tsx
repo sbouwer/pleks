@@ -1,10 +1,12 @@
 import { createClient } from "@/lib/supabase/server"
+import { gatewaySSR } from "@/lib/supabase/gateway"
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { formatZAR } from "@/lib/constants"
 import { MaintenanceActions } from "./MaintenanceActions"
+import { RecordDelayPanel } from "./RecordDelayPanel"
 
 const URGENCY_COLORS: Record<string, string> = {
   emergency: "text-danger",
@@ -61,6 +63,17 @@ export default async function MaintenanceDetailPage({
       .eq("request_id", requestId)
       .order("created_at"),
   ])
+
+  // Delay events — requires org context, use gateway
+  const gw = await gatewaySSR()
+  const { data: delayEvents } = gw
+    ? await gw.db
+        .from("maintenance_delay_events")
+        .select("id, delay_type, attributed_to, occurred_at, original_date, rescheduled_to, note")
+        .eq("maintenance_id", requestId)
+        .eq("org_id", gw.orgId)
+        .order("occurred_at", { ascending: false })
+    : { data: [] }
 
   return (
     <div>
@@ -195,6 +208,13 @@ export default async function MaintenanceDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      {/* Delay log */}
+      <Card className="mt-6">
+        <CardContent className="pt-4">
+          <RecordDelayPanel requestId={requestId} initialDelays={delayEvents ?? []} />
+        </CardContent>
+      </Card>
 
       {/* Timeline */}
       <Card className="mt-6">

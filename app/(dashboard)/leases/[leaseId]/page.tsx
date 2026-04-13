@@ -5,6 +5,7 @@ import { LeaseDisclaimerGate } from "@/components/leases/LeaseDisclaimerGate"
 import { hasAcceptedLeaseDisclaimer } from "@/lib/leases/disclaimer"
 import { Badge } from "@/components/ui/badge"
 import { LeaseActions } from "./LeaseActions"
+import { LeasePortalActions } from "./LeasePortalActions"
 import { MigratedDocSection } from "./MigratedDocSection"
 import { LeaseTermsGrid } from "./LeaseTermsGrid"
 import { PaymentStatus } from "./PaymentStatus"
@@ -79,6 +80,7 @@ export default async function LeaseDetailPage({
     landlordRes,
     bankDetails,
     prereqs,
+    tenantPortalRes,
   ] = await Promise.all([
     supabase
       .from("lease_co_tenants")
@@ -124,6 +126,9 @@ export default async function LeaseDetailPage({
       : Promise.resolve({ data: null }),
     getLessorBankDetails(lease.org_id),
     isDraft ? checkLeasePrerequisites(supabase, leaseId, lease.org_id).catch(() => null) : Promise.resolve(null),
+    lease.tenant_id
+      ? supabase.from("tenants").select("portal_invite_sent_at, auth_user_id").eq("id", lease.tenant_id).maybeSingle()
+      : Promise.resolve({ data: null }),
   ])
 
   // Build tenant display
@@ -175,6 +180,8 @@ export default async function LeaseDetailPage({
   const landlordName = landlord
     ? (landlord.company_name ?? `${landlord.first_name ?? ""} ${landlord.last_name ?? ""}`.trim())
     : null
+
+  const tenantPortal = tenantPortalRes.data as { portal_invite_sent_at: string | null; auth_user_id: string | null } | null
 
   const amendments = amendmentsRes.data ?? []
   const lifecycleEvents = lifecycleEventsRes.data ?? []
@@ -366,7 +373,19 @@ export default async function LeaseDetailPage({
           {/* Sidebar 2: Tenant cards */}
           <TenantCards primary={primaryContact} coTenants={coTenantCards} />
 
-          {/* Sidebar 3: Landlord */}
+          {/* Sidebar 3: Tenant portal actions */}
+          {tv && (
+            <div className="rounded-xl border bg-card p-4">
+              <LeasePortalActions
+                tenantId={tv.id}
+                leaseId={leaseId}
+                portalInviteSentAt={tenantPortal?.portal_invite_sent_at ?? null}
+                hasAuthUser={!!tenantPortal?.auth_user_id}
+              />
+            </div>
+          )}
+
+          {/* Sidebar 4: Landlord */}
           {landlord && landlordName && (
             <div className="rounded-xl border bg-card p-4">
               <p className="mb-2 text-[11px] uppercase tracking-wide text-muted-foreground">Owner</p>
@@ -382,7 +401,7 @@ export default async function LeaseDetailPage({
             </div>
           )}
 
-          {/* Sidebar 4: Interest settings */}
+          {/* Sidebar 5: Interest settings */}
           {(lease.deposit_interest_rate != null || lease.arrears_interest_rate != null) && (
             <div className="rounded-xl border bg-card p-4">
               <h3 className="mb-3 text-sm font-semibold">Interest settings</h3>
@@ -403,7 +422,7 @@ export default async function LeaseDetailPage({
             </div>
           )}
 
-          {/* Sidebar 5: Lease events timeline */}
+          {/* Sidebar 6: Lease events timeline */}
           {lifecycleEvents.length > 0 && (
             <div className="rounded-xl border bg-card p-4">
               <h3 className="mb-3 text-sm font-semibold">Lease events</h3>

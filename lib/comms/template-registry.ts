@@ -5,7 +5,7 @@
  */
 
 export type TemplateChannel  = "email" | "sms" | "both"
-export type TemplateCategory = "applications" | "arrears" | "maintenance" | "inspections" | "leases" | "deposits" | "statements" | "subscriptions"
+export type TemplateCategory = "applications" | "arrears" | "maintenance" | "inspections" | "leases" | "deposits" | "statements" | "subscriptions" | "portal"
 
 export interface TemplateEntry {
   key: string
@@ -190,6 +190,32 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
   "subscription.founding_expiry_warning": {
     key: "subscription.founding_expiry_warning", channel: "email", category: "subscriptions", is_mandatory: false,
     description: "Founding agent pricing expires in 35 days — upgrade CTA (cron)",
+  },
+
+  // ── Portal ────────────────────────────────────────────────────────
+  "portal.tenant_invite": {
+    key: "portal.tenant_invite", channel: "email", category: "portal", is_mandatory: false,
+    description: "Magic-link email inviting tenant to activate their portal account",
+  },
+  "portal.tenant_link": {
+    key: "portal.tenant_link", channel: "sms", category: "portal", is_mandatory: false,
+    description: "WhatsApp/SMS token link for tenants without email (generated link flow)",
+  },
+  "portal.maintenance_received": {
+    key: "portal.maintenance_received", channel: "email", category: "portal", is_mandatory: false,
+    description: "Tenant confirmation: maintenance request received via portal, reference number included",
+  },
+  "portal.maintenance_update": {
+    key: "portal.maintenance_update", channel: "both", category: "portal", is_mandatory: false,
+    description: "Tenant notified of status change on their portal-submitted maintenance request",
+  },
+  "portal.agent_maintenance_alert": {
+    key: "portal.agent_maintenance_alert", channel: "email", category: "portal", is_mandatory: false,
+    description: "Agent alerted when a tenant submits a maintenance request via the portal",
+  },
+  "portal.inspection_reschedule_response": {
+    key: "portal.inspection_reschedule_response", channel: "both", category: "portal", is_mandatory: false,
+    description: "Tenant notified of agent response (approved/declined/countered) to reschedule request",
   },
 
   // ── Application extras ────────────────────────────────────────────
