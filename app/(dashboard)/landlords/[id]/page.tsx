@@ -227,7 +227,7 @@ export default async function LandlordDetailPage({ params }: Props) {
         )}
       </SectionCard>
 
-      <SectionCard title="Financial summary">
+      <SectionCard title="Financial summary" action={{ label: "View ledger", href: `/landlords/${id}/ledger` }}>
         <StatGrid stats={[
           { label: "Monthly rent", value: formatZAR(totalMonthlyRent) },
           { label: "Total units", value: String(totalUnits) },

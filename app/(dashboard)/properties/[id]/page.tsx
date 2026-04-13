@@ -203,9 +203,14 @@ export default async function PropertyDetailPage({
             teamMembers={teamMembers}
           />
         </div>
-        <Button variant="outline" render={<Link href={`/properties/${id}/edit`} />}>
-          <Pencil className="h-4 w-4 mr-1" /> Edit
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" render={<Link href={`/properties/${id}/financials`} />}>
+            Financials
+          </Button>
+          <Button variant="outline" render={<Link href={`/properties/${id}/edit`} />}>
+            <Pencil className="h-4 w-4 mr-1" /> Edit
+          </Button>
+        </div>
       </div>
 
       {/* Three-card row */}
