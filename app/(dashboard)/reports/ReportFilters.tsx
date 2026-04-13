@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { ReportPeriodType } from "@/lib/reports/types"
@@ -49,7 +49,7 @@ export function ReportFilters({ properties, onApply }: ReportFiltersProps) {
         <Label className="text-xs text-muted-foreground mb-1 block">Period</Label>
         <Select value={periodType} onValueChange={(v) => setPeriodType((v ?? "this_month") as ReportPeriodType)}>
           <SelectTrigger className="w-[160px] h-9">
-            <SelectValue placeholder={PERIOD_OPTIONS.find((o) => o.value === periodType)?.label ?? "Select period"} />
+            <span>{PERIOD_OPTIONS.find((o) => o.value === periodType)?.label ?? "Select period"}</span>
           </SelectTrigger>
           <SelectContent>
             {PERIOD_OPTIONS.map((o) => (
@@ -76,7 +76,7 @@ export function ReportFilters({ properties, onApply }: ReportFiltersProps) {
         <Label className="text-xs text-muted-foreground mb-1 block">Property</Label>
         <Select value={selectedProperty} onValueChange={(v) => setSelectedProperty(v ?? "all")}>
           <SelectTrigger className="w-[180px] h-9">
-            <SelectValue placeholder={selectedProperty === "all" ? "All properties" : properties.find((p) => p.id === selectedProperty)?.name ?? "Select"} />
+            <span>{selectedProperty === "all" ? "All properties" : properties.find((p) => p.id === selectedProperty)?.name ?? "Select"}</span>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All properties</SelectItem>
