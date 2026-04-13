@@ -175,6 +175,7 @@ export async function getAttentionItems(orgId: string): Promise<AttentionItem[]>
   sixtyDaysOut.setDate(now.getDate() + 60)
   const sevenDaysOut = new Date(now)
   sevenDaysOut.setDate(now.getDate() + 7)
+  const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
 
   const [
     { data: arrearsCases },
@@ -183,6 +184,8 @@ export async function getAttentionItems(orgId: string): Promise<AttentionItem[]>
     { data: upcomingInspections },
     { data: pendingApplications },
     { data: depositTimers },
+    { data: feedErrors },
+    { data: staleUnmatched },
   ] = await Promise.all([
     supabase
       .from("arrears_cases")
@@ -251,6 +254,18 @@ export async function getAttentionItems(orgId: string): Promise<AttentionItem[]>
       .eq("status", "running")
       .order("deadline", { ascending: true })
       .limit(3),
+    supabase
+      .from("bank_feed_connections")
+      .select("id, bank_name, last_sync_error")
+      .eq("org_id", orgId)
+      .eq("status", "error"),
+    supabase
+      .from("bank_statement_lines")
+      .select("id")
+      .eq("org_id", orgId)
+      .eq("match_status", "unmatched")
+      .lt("created_at", twentyFourHoursAgo.toISOString())
+      .limit(1),
   ])
 
   const items: AttentionItem[] = []
@@ -283,6 +298,37 @@ export async function getAttentionItems(orgId: string): Promise<AttentionItem[]>
   // Deposit timers
   for (const d of depositTimers ?? []) {
     items.push(buildDepositItem(d as Parameters<typeof buildDepositItem>[0], now))
+  }
+
+  // Bank feed errors
+  for (const conn of feedErrors ?? []) {
+    const c = conn as { id: string; bank_name: string; last_sync_error: string | null }
+    items.push({
+      id: c.id,
+      type: "compliance",
+      priority: 2,
+      title: `Bank feed error — ${c.bank_name}`,
+      subtitle: c.last_sync_error ?? "Re-authentication required",
+      href: "/settings/finance",
+      badge: { text: "Re-authenticate", variant: "amber" },
+      dotColor: "#EF9F27",
+      sortDate: now,
+    })
+  }
+
+  // Stale unmatched bank transactions
+  if ((staleUnmatched ?? []).length > 0) {
+    items.push({
+      id: "stale-unmatched",
+      type: "compliance",
+      priority: 2,
+      title: "Unmatched bank transactions",
+      subtitle: "Some transactions have been unmatched for over 24 hours",
+      href: "/payments/reconciliation",
+      badge: { text: "Review", variant: "amber" },
+      dotColor: "#EF9F27",
+      sortDate: now,
+    })
   }
 
   // Sort priority asc, then sortDate asc (most urgent first within each priority)
