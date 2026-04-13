@@ -147,10 +147,10 @@ export function GlobalSearch() {
         ref={dialogRef}
         aria-label="Search"
         onClose={closeSearch}
-        className="fixed inset-0 z-50 w-full max-w-lg mx-auto mt-[10vh] rounded-xl border border-border bg-card shadow-2xl overflow-hidden p-0 backdrop:bg-background/80 backdrop:backdrop-blur-sm"
+        className="fixed inset-0 z-50 w-full max-w-lg mx-auto mt-[10vh] rounded-xl border border-border bg-popover shadow-2xl overflow-hidden p-0 backdrop:bg-black/60 backdrop:backdrop-blur-sm"
       >
         {/* Search input */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
+        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-border bg-popover">
           {loading ? (
             <Loader2 className="h-4 w-4 shrink-0 text-muted-foreground animate-spin" />
           ) : (
@@ -162,26 +162,26 @@ export function GlobalSearch() {
             onChange={(e) => handleQueryChange(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Search properties, tenants, invoices…"
-            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/60"
           />
           <button
             onClick={closeSearch}
-            className="text-muted-foreground hover:text-foreground transition-colors"
+            className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Results */}
-        <div className="max-h-[60vh] overflow-y-auto">
+        <div className="max-h-[60vh] overflow-y-auto bg-popover">
           {query.length < 2 && (
-            <p className="px-4 py-6 text-sm text-muted-foreground text-center">
+            <p className="px-4 py-8 text-sm text-muted-foreground text-center">
               Type at least 2 characters to search
             </p>
           )}
 
           {query.length >= 2 && !loading && results.length === 0 && (
-            <p className="px-4 py-6 text-sm text-muted-foreground text-center">
+            <p className="px-4 py-8 text-sm text-muted-foreground text-center">
               No results for &ldquo;{query}&rdquo;
             </p>
           )}
@@ -190,12 +190,13 @@ export function GlobalSearch() {
             const group = groups[type]
             if (!group?.length) return null
             const { label, icon: Icon } = TYPE_CONFIG[type] ?? { label: type, icon: Search }
+            const groupLabel = label === "Property" ? "Properties" : label + "s"
             return (
               <div key={type}>
-                <div className="flex items-center gap-2 px-4 py-2 bg-muted/30">
+                <div className="flex items-center gap-2 px-4 py-2 bg-muted/20 border-b border-border/50">
                   <Icon className="h-3 w-3 text-muted-foreground" />
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    {label}s
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                    {groupLabel}
                   </span>
                 </div>
                 {group.map((result) => {
@@ -206,12 +207,12 @@ export function GlobalSearch() {
                       key={result.id}
                       onClick={() => navigate(result.href)}
                       onMouseEnter={() => setActiveIndex(flatIdx)}
-                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${isActive ? "bg-accent" : "hover:bg-muted/40"}`}
+                      className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${isActive ? "bg-accent text-accent-foreground" : "hover:bg-muted/30"}`}
                     >
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{result.label}</p>
+                        <p className="text-sm font-medium truncate text-foreground">{result.label}</p>
                         {result.subtitle && (
-                          <p className="text-[11px] text-muted-foreground truncate">{result.subtitle}</p>
+                          <p className="text-[11px] text-muted-foreground truncate mt-0.5">{result.subtitle}</p>
                         )}
                       </div>
                     </button>
@@ -223,7 +224,7 @@ export function GlobalSearch() {
         </div>
 
         {results.length > 0 && (
-          <div className="border-t border-border px-4 py-2 flex items-center gap-4 text-[11px] text-muted-foreground">
+          <div className="border-t border-border px-4 py-2.5 flex items-center gap-4 text-[11px] text-muted-foreground bg-muted/10">
             <span>↑↓ navigate</span>
             <span>↵ open</span>
             <span>Esc close</span>
