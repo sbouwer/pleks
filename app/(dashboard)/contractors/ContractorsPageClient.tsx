@@ -11,10 +11,10 @@ import { PORTFOLIO_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchContractorsAction } from "@/lib/queries/portfolioActions"
 
 type SupplierTab = "contractor" | "managing_scheme" | "utility"
-const TABS: { key: SupplierTab; label: string; plural: string }[] = [
-  { key: "contractor", label: "Contractors", plural: "contractors" },
-  { key: "managing_scheme", label: "Managing Schemes", plural: "managing schemes" },
-  { key: "utility", label: "Utilities", plural: "utilities" },
+const TABS: { key: SupplierTab; label: string; singular: string; plural: string }[] = [
+  { key: "contractor", label: "Contractors", singular: "contractor", plural: "contractors" },
+  { key: "managing_scheme", label: "Managing Schemes", singular: "managing scheme", plural: "managing schemes" },
+  { key: "utility", label: "Utilities", singular: "utility", plural: "utilities" },
 ]
 
 interface Props { orgId: string; role: string }
@@ -39,7 +39,7 @@ export function ContractorsPageClient({ orgId, role }: Props) {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="font-heading text-3xl">Suppliers</h1>
-          <p className="text-sm text-muted-foreground">{contractors.length} {tabInfo.plural}</p>
+          <p className="text-sm text-muted-foreground">{contractors.length} {contractors.length === 1 ? tabInfo.singular : tabInfo.plural}</p>
         </div>
         <AddContractorButton orgId={orgId} supplierType={activeTab} />
       </div>

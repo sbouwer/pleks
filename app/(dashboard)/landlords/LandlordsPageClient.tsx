@@ -38,7 +38,7 @@ export function LandlordsPageClient({ orgId, role }: Props) {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="font-heading text-3xl">Landlords</h1>
-          <p className="text-sm text-muted-foreground">{landlords.length} landlords</p>
+          <p className="text-sm text-muted-foreground">{landlords.length} {landlords.length === 1 ? "landlord" : "landlords"}</p>
         </div>
         <AddLandlordForm orgId={orgId} />
       </div>
