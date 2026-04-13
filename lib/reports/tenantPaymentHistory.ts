@@ -10,7 +10,7 @@ export async function buildTenantPaymentHistory(filters: ReportFilters): Promise
 
   const leasesQuery = db
     .from("leases")
-    .select("id, tenant_id, unit_id, monthly_rent_cents, units(unit_number, property_id, properties(name))")
+    .select("id, tenant_id, unit_id, rent_amount_cents, units(unit_number, property_id, properties(name))")
     .eq("org_id", orgId)
     .in("status", ["active", "notice", "month_to_month", "ended"])
   if (propertyIds?.length) {

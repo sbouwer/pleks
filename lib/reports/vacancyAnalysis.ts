@@ -7,7 +7,7 @@ export async function buildVacancyAnalysis(filters: ReportFilters): Promise<Vaca
 
   let unitsQuery = db
     .from("units")
-    .select("id, unit_number, property_id, status, monthly_rent_cents, vacant_since, properties(name)")
+    .select("id, unit_number, property_id, status, market_rent_cents, updated_at, properties(name)")
     .eq("org_id", orgId)
     .eq("status", "vacant")
     .is("deleted_at", null)
@@ -20,9 +20,9 @@ export async function buildVacancyAnalysis(filters: ReportFilters): Promise<Vaca
   const now = new Date()
   const rows: VacancyRow[] = (data ?? []).map((u) => {
     const propRaw = u.properties as unknown as { name: string } | null
-    const vacantSince = u.vacant_since ? new Date(u.vacant_since as string) : now
-    const daysVacant = Math.floor((now.getTime() - vacantSince.getTime()) / (1000 * 60 * 60 * 24))
-    const rentCents = u.monthly_rent_cents as number ?? 0
+    const vacantSince = u.updated_at ? new Date(u.updated_at as string) : now
+    const daysVacant = Math.max(0, Math.floor((now.getTime() - vacantSince.getTime()) / (1000 * 60 * 60 * 24)))
+    const rentCents = u.market_rent_cents as number ?? 0
     const lostCents = Math.round(rentCents * (daysVacant / 30))
     return {
       unit_id: u.id as string,
