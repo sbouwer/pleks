@@ -153,6 +153,10 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
     key: "lease.terminated", channel: "email", category: "leases", is_mandatory: true,
     description: "Lease termination notice (legal — cannot be unsubscribed)",
   },
+  "lease.document_emailed": {
+    key: "lease.document_emailed", channel: "email", category: "leases", is_mandatory: false,
+    description: "Agent manually emailed lease summary + portal link to tenant",
+  },
 
   // ── Deposits ─────────────────────────────────────────────────────
   "deposit.received": {

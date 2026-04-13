@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useTransition } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -8,11 +8,13 @@ import { Card, CardContent } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { BatchPaymentEntry } from "@/components/payments/BatchPaymentEntry"
-import { CreditCard, Plus, List, LayoutList } from "lucide-react"
+import { CreditCard, Plus, List, LayoutList, MessageSquare, Loader2 } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import { OPERATIONAL_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchPaymentsAction } from "@/lib/queries/portfolioActions"
 import { relativeTime } from "@/lib/utils"
+import { toast } from "sonner"
+import { sendBulkRentReminders } from "./actions"
 
 const STATUS_MAP: Record<string, "pending" | "active" | "completed" | "arrears"> = {
   submitted: "pending",
@@ -36,6 +38,20 @@ export function PaymentsPageClient({ orgId }: Readonly<Props>) {
     staleTime: STALE_TIME.payments,
   })
   const [mode, setMode] = useState<"single" | "batch">("batch")
+  const [sendingReminders, startSendReminders] = useTransition()
+
+  function handleSendReminders() {
+    startSendReminders(async () => {
+      const result = await sendBulkRentReminders()
+      if (result.error) {
+        toast.error(result.error)
+      } else if (result.sent === 0) {
+        toast.info(result.skipped > 0 ? "SMS reminders require Steward tier or higher" : "No tenants with outstanding rent found")
+      } else {
+        toast.success(`Sent ${result.sent} reminder${result.sent === 1 ? "" : "s"}`)
+      }
+    })
+  }
 
   const pendingReview = list.filter((i) => ["submitted", "under_review"].includes(i.status))
   const unpaid = list.filter((i) => ["approved", "pending_payment"].includes(i.status))
@@ -62,6 +78,10 @@ export function PaymentsPageClient({ orgId }: Readonly<Props>) {
           )}
         </div>
         <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={handleSendReminders} disabled={sendingReminders}>
+            {sendingReminders ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <MessageSquare className="h-4 w-4 mr-1" />}
+            Send reminders
+          </Button>
           {/* Mode toggle */}
           <div className="flex items-center border border-border rounded-md overflow-hidden text-xs">
             <button
