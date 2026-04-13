@@ -3,16 +3,7 @@ import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
-
-interface OwnerLedgerEntry {
-  id: string
-  date: string
-  ref: string | null
-  type: string
-  property_name: string
-  in_cents: number
-  out_cents: number
-}
+import { getOwnerLedger, type OwnerLedgerEntry } from "@/lib/finance/ownerLedger"
 
 function BalancePill({ cents }: Readonly<{ cents: number }>) {
   return (
@@ -54,18 +45,9 @@ export default async function OwnerLedgerPage({
     || `${landlord.first_name ?? ""} ${landlord.last_name ?? ""}`.trim()
     || "Landlord"
 
-  // Get all properties for this landlord
-  const { data: properties } = await service
-    .from("properties")
-    .select("id, name")
-    .eq("landlord_id", landlordId)
-    .eq("org_id", orgId)
-    .is("deleted_at", null)
-  const propertyIds = (properties ?? []).map((p) => p.id)
-  const propertyNames: Record<string, string> = {}
-  for (const p of properties ?? []) { propertyNames[p.id] = p.name }
+  const { entries: ledgerEntries, propertyCount, statementCount } = await getOwnerLedger(service, orgId, landlordId)
 
-  if (propertyIds.length === 0) {
+  if (propertyCount === 0) {
     return (
       <div className="max-w-4xl mx-auto space-y-6 pb-12">
         <Link href={`/landlords/${landlordId}`} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-2">
@@ -76,63 +58,6 @@ export default async function OwnerLedgerPage({
       </div>
     )
   }
-
-  // Fetch owner statements — the authoritative owner financial record
-  const { data: statements, error: stmtErr } = await service
-    .from("owner_statements")
-    .select("id, period_month, period_from, period_to, gross_income_cents, total_expenses_cents, management_fee_cents, management_fee_vat_cents, net_to_owner_cents, owner_payment_status, owner_payment_date, property_id")
-    .eq("org_id", orgId)
-    .in("property_id", propertyIds)
-    .order("period_from", { ascending: true })
-
-  if (stmtErr) console.error("owner_statements:", stmtErr.message)
-
-  // Build ledger entries from statements
-  const ledgerEntries: OwnerLedgerEntry[] = []
-  for (const s of statements ?? []) {
-    const propName = propertyNames[s.property_id] ?? "Unknown"
-    const period = s.period_from ? s.period_from.slice(0, 7) : s.period_month?.slice(0, 7) ?? ""
-
-    // Income row
-    if (s.gross_income_cents > 0) {
-      ledgerEntries.push({
-        id: `inc-${s.id}`,
-        date: s.period_from ?? s.period_month ?? "",
-        ref: null,
-        type: "Rent collected",
-        property_name: propName,
-        in_cents: s.gross_income_cents,
-        out_cents: 0,
-      })
-    }
-    // Expenses row
-    const totalExpenses = (s.total_expenses_cents ?? 0) + (s.management_fee_cents ?? 0) + (s.management_fee_vat_cents ?? 0)
-    if (totalExpenses > 0) {
-      ledgerEntries.push({
-        id: `exp-${s.id}`,
-        date: s.period_from ?? s.period_month ?? "",
-        ref: null,
-        type: "Expenses & fees",
-        property_name: propName,
-        in_cents: 0,
-        out_cents: totalExpenses,
-      })
-    }
-    // Payout row
-    if (s.owner_payment_status === "paid" && s.net_to_owner_cents > 0) {
-      ledgerEntries.push({
-        id: `pay-${s.id}`,
-        date: s.owner_payment_date ?? s.period_from ?? "",
-        ref: `STMT-${period}`,
-        type: "Owner payout",
-        property_name: propName,
-        in_cents: 0,
-        out_cents: s.net_to_owner_cents,
-      })
-    }
-  }
-
-  ledgerEntries.sort((a, b) => a.date.localeCompare(b.date))
 
   // Running balance = money agency owes the owner (positive = owing)
   const entriesWithBalance = ledgerEntries.reduce<Array<OwnerLedgerEntry & { balance: number }>>(
@@ -155,7 +80,7 @@ export default async function OwnerLedgerPage({
           <ArrowLeft className="h-3.5 w-3.5" /> Back to {displayName}
         </Link>
         <h1 className="font-heading text-2xl">Owner Ledger</h1>
-        <p className="text-sm text-muted-foreground">{displayName} · {(properties ?? []).length} {(properties ?? []).length === 1 ? "property" : "properties"}</p>
+        <p className="text-sm text-muted-foreground">{displayName} · {propertyCount} {propertyCount === 1 ? "property" : "properties"}</p>
       </div>
 
       {/* Summary cards */}
@@ -164,7 +89,7 @@ export default async function OwnerLedgerPage({
           { label: "Total rent collected", value: formatZAR(totalIn), accent: false },
           { label: "Total disbursed", value: formatZAR(totalOut), accent: false },
           { label: "Balance owing to owner", value: formatZAR(currentBalance), accent: currentBalance > 0 },
-          { label: "Statements", value: String(statements?.length ?? 0), accent: false },
+          { label: "Statements", value: String(statementCount), accent: false },
         ].map(({ label, value, accent }) => (
           <div key={label} className="rounded-xl border bg-card p-4">
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
