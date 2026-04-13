@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
 import { ArrowLeft, Download } from "lucide-react"
-import { getTrustBalance } from "@/lib/dashboard/trustBalance"
 
 const TYPE_FILTER_OPTIONS = [
   { value: "", label: "All types" },
@@ -84,9 +83,23 @@ export default function TrustLedgerPage() {
 
   useEffect(() => {
     if (!orgId) return
-    getTrustBalance(orgId).then((b) =>
-      setSummary({ total_in_trust_cents: b.total_in_trust_cents, last_recon_date: b.last_recon_date })
-    )
+    const supabase = createClient()
+    void (async () => {
+      const [txnRes, reconRes] = await Promise.all([
+        supabase.from("trust_transactions").select("direction, amount_cents").eq("org_id", orgId),
+        supabase.from("bank_recon_sessions").select("period_end").eq("org_id", orgId).eq("status", "signed_off").order("period_end", { ascending: false }).limit(1),
+      ])
+      let totalIn = 0
+      let totalOut = 0
+      for (const t of txnRes.data ?? []) {
+        if (t.direction === "credit") { totalIn += t.amount_cents }
+        else { totalOut += t.amount_cents }
+      }
+      setSummary({
+        total_in_trust_cents: totalIn - totalOut,
+        last_recon_date: reconRes.data?.[0]?.period_end ?? null,
+      })
+    })()
   }, [orgId])
 
   const entriesWithBalance = useMemo(() =>
