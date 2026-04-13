@@ -6,6 +6,11 @@ import type {
   IncomeCollectionData,
   ArrearsAgingData,
   RentRollData,
+  OccupancyData,
+  MaintenanceCostData,
+  LeaseExpiryData,
+  ApplicationPipelineData,
+  OwnerPortfolioData,
   DepositRegisterData,
   ManagementFeeSummaryData,
   ExpenseReportData,
@@ -672,4 +677,142 @@ export function buildMaintenanceSlaHTML(data: MaintenanceSlaData, org: ReportBra
     </table>
   `
   return wrapHTML("Maintenance SLA Report", org, periodStr, body)
+}
+
+export function buildOccupancyHTML(data: OccupancyData, org: ReportBranding): string {
+  const periodStr = formatPeriodLabel(data.period.from, data.period.to)
+  const body = `
+    <div class="metric-grid">
+      <div class="metric"><div class="label">Total Units</div><div class="value">${data.totals.total_units}</div></div>
+      <div class="metric"><div class="label">Occupied</div><div class="value">${data.totals.occupied_units}</div></div>
+      <div class="metric"><div class="label">Vacant</div><div class="value">${data.totals.vacant_units}</div></div>
+      <div class="metric"><div class="label">Occupancy Rate</div><div class="value">${data.totals.occupancy_rate}%</div></div>
+    </div>
+    <h2>By Property</h2>
+    <table>
+      <tr><th>Property</th><th class="text-right">Total</th><th class="text-right">Occupied</th><th class="text-right">Vacant</th><th class="text-right">On Notice</th><th class="text-right">Rate</th></tr>
+      ${data.rows.map((r) => `<tr>
+        <td>${r.property_name}</td>
+        <td class="text-right">${r.total_units}</td><td class="text-right">${r.occupied_units}</td>
+        <td class="text-right">${r.vacant_units}</td><td class="text-right">${r.notice_units}</td>
+        <td class="text-right">${r.occupancy_rate}%</td>
+      </tr>`).join("")}
+    </table>
+    ${data.vacancies.length > 0 ? `
+    <h2>Current Vacancies</h2>
+    <table>
+      <tr><th>Unit</th><th>Property</th><th class="text-right">Days Vacant</th></tr>
+      ${data.vacancies.map((v) => `<tr>
+        <td>${v.unit_number}</td><td>${v.property_name}</td>
+        <td class="text-right">${v.days_vacant}</td>
+      </tr>`).join("")}
+    </table>` : ""}
+  `
+  return wrapHTML("Occupancy Report", org, periodStr, body)
+}
+
+export function buildMaintenanceCostHTML(data: MaintenanceCostData, org: ReportBranding): string {
+  const periodStr = formatPeriodLabel(data.period.from, data.period.to)
+  const body = `
+    <div class="metric-grid">
+      <div class="metric"><div class="label">Total Jobs</div><div class="value">${data.total_jobs}</div></div>
+      <div class="metric"><div class="label">Total Spend</div><div class="value">${formatZAR(data.total_spend_cents)}</div></div>
+    </div>
+    <h2>By Category</h2>
+    <table>
+      <tr><th>Category</th><th class="text-right">Jobs</th><th class="text-right">Spend</th><th class="text-right">%</th></tr>
+      ${data.by_category.map((c) => `<tr>
+        <td>${c.category}</td><td class="text-right">${c.jobs}</td>
+        <td class="text-right">${formatZAR(c.spend_cents)}</td><td class="text-right">${c.percent}%</td>
+      </tr>`).join("")}
+    </table>
+    <h2>Work Orders</h2>
+    <table>
+      <tr><th>Work Order</th><th>Property</th><th>Unit</th><th>Category</th><th>Contractor</th><th class="text-right">Cost</th></tr>
+      ${data.jobs.map((j) => `<tr>
+        <td class="font-mono">${j.work_order_number}</td><td>${j.property_name}</td>
+        <td>${j.unit_number}</td><td>${j.category}</td><td>${j.contractor_name}</td>
+        <td class="text-right">${formatZAR(j.actual_cost_cents)}</td>
+      </tr>`).join("")}
+    </table>
+  `
+  return wrapHTML("Maintenance Costs", org, periodStr, body)
+}
+
+export function buildLeaseExpiryHTML(data: LeaseExpiryData, org: ReportBranding): string {
+  const asAt = formatDateShort(data.as_at)
+  function leaseTable(rows: LeaseExpiryData["expiring_30d"], title: string): string {
+    if (rows.length === 0) return ""
+    return `
+      <h2>${title}</h2>
+      <table>
+        <tr><th>Tenant</th><th>Unit</th><th>Property</th><th class="text-right">Rent</th><th>Lease End</th><th>Status</th></tr>
+        ${rows.map((r) => `<tr>
+          <td>${r.tenant_name}</td><td>${r.unit_number}</td><td>${r.property_name}</td>
+          <td class="text-right">${formatZAR(r.rent_amount_cents)}</td>
+          <td>${r.lease_end ? formatDateShort(r.lease_end) : "—"}</td>
+          <td>${r.renewal_status}</td>
+        </tr>`).join("")}
+      </table>`
+  }
+  const body = `
+    <p style="margin-bottom:12px;font-size:10px;color:#666">As at ${asAt} · Action required: ${data.action_required}</p>
+    ${leaseTable(data.expiring_30d, "Expiring within 30 days")}
+    ${leaseTable(data.expiring_60d, "Expiring 31–60 days")}
+    ${leaseTable(data.expiring_90d, "Expiring 61–90 days")}
+    ${leaseTable(data.month_to_month, "Month-to-month")}
+  `
+  return wrapHTML("Lease Expiry Report", org, asAt, body)
+}
+
+export function buildApplicationPipelineHTML(data: ApplicationPipelineData, org: ReportBranding): string {
+  const periodStr = formatPeriodLabel(data.period.from, data.period.to)
+  const body = `
+    <div class="metric-grid">
+      <div class="metric"><div class="label">Applications</div><div class="value">${data.applications_submitted}</div></div>
+      <div class="metric"><div class="label">Approved</div><div class="value">${data.approved}</div></div>
+      <div class="metric"><div class="label">Leases Signed</div><div class="value">${data.lease_signed}</div></div>
+      <div class="metric"><div class="label">Fee Revenue</div><div class="value">${formatZAR(data.revenue_from_fees_cents)}</div></div>
+    </div>
+    <h2>FitScore Distribution</h2>
+    <table>
+      <tr><th>Range</th><th class="text-right">Count</th></tr>
+      ${data.fitscore_distribution.map((f) => `<tr>
+        <td>${f.range}</td><td class="text-right">${f.count}</td>
+      </tr>`).join("")}
+    </table>
+    <h2>By Listing</h2>
+    <table>
+      <tr><th>Property</th><th>Unit</th><th class="text-right">Views</th><th class="text-right">Applications</th><th class="text-right">Approved</th></tr>
+      ${data.listings.map((l) => `<tr>
+        <td>${l.property_name}</td><td>${l.unit_number}</td>
+        <td class="text-right">${l.views}</td><td class="text-right">${l.applications}</td>
+        <td class="text-right">${l.approved}</td>
+      </tr>`).join("")}
+    </table>
+  `
+  return wrapHTML("Application Pipeline", org, periodStr, body)
+}
+
+export function buildOwnerPortfolioHTML(data: OwnerPortfolioData, org: ReportBranding): string {
+  const periodStr = formatPeriodLabel(data.period.from, data.period.to)
+  const body = `
+    <div class="metric-grid">
+      <div class="metric"><div class="label">Gross Income</div><div class="value">${formatZAR(data.total_income_cents)}</div></div>
+      <div class="metric"><div class="label">Expenses</div><div class="value">${formatZAR(data.total_expenses_cents)}</div></div>
+      <div class="metric"><div class="label">Net to Owners</div><div class="value">${formatZAR(data.total_net_cents)}</div></div>
+      <div class="metric"><div class="label">Deposits Held</div><div class="value">${formatZAR(data.total_deposits_cents)}</div></div>
+    </div>
+    <table>
+      <tr><th>Owner</th><th>Property</th><th class="text-right">Units</th><th class="text-right">Gross</th><th class="text-right">Expenses</th><th class="text-right">Net</th><th class="text-right">Deposits</th></tr>
+      ${data.owners.map((r) => `<tr>
+        <td>${r.owner_name}</td><td>${r.property_name}</td><td class="text-right">${r.units}</td>
+        <td class="text-right">${formatZAR(r.gross_income_cents)}</td>
+        <td class="text-right">${formatZAR(r.expenses_cents)}</td>
+        <td class="text-right">${formatZAR(r.net_to_owner_cents)}</td>
+        <td class="text-right">${formatZAR(r.deposits_held_cents)}</td>
+      </tr>`).join("")}
+    </table>
+  `
+  return wrapHTML("Owner Portfolio", org, periodStr, body)
 }

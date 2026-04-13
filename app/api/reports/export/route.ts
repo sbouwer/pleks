@@ -7,6 +7,8 @@ import { buildMaintenanceCostReport } from "@/lib/reports/maintenanceCosts"
 import { buildRentRoll } from "@/lib/reports/rentRoll"
 import { buildOccupancyReport } from "@/lib/reports/occupancy"
 import { buildOwnerPortfolio } from "@/lib/reports/ownerPortfolio"
+import { buildLeaseExpiryReport } from "@/lib/reports/leaseExpiry"
+import { buildApplicationPipeline } from "@/lib/reports/applicationPipeline"
 import { buildPortfolioSummary } from "@/lib/reports/portfolioSummary"
 import { buildDepositRegister } from "@/lib/reports/depositRegister"
 import { buildManagementFeeSummary } from "@/lib/reports/managementFeeSummary"
@@ -55,6 +57,11 @@ import {
   buildArrearsAgingHTML,
   buildIncomeCollectionHTML,
   buildPortfolioSummaryHTML,
+  buildOccupancyHTML,
+  buildMaintenanceCostHTML,
+  buildLeaseExpiryHTML,
+  buildApplicationPipelineHTML,
+  buildOwnerPortfolioHTML,
   buildDepositRegisterHTML,
   buildManagementFeeSummaryHTML,
   buildExpenseReportHTML,
@@ -124,6 +131,11 @@ async function buildPDF(reportType: string, filters: ReportFilters, orgId: strin
     case "rent_roll":              return buildRentRollHTML(await buildRentRoll(filters), orgInfo)
     case "arrears_aging":          return buildArrearsAgingHTML(await buildArrearsAgingReport(filters), orgInfo)
     case "income_collection":      return buildIncomeCollectionHTML(await buildIncomeCollectionReport(filters), orgInfo)
+    case "occupancy":              return buildOccupancyHTML(await buildOccupancyReport(filters), orgInfo)
+    case "maintenance_costs":      return buildMaintenanceCostHTML(await buildMaintenanceCostReport(filters), orgInfo)
+    case "lease_expiry":           return buildLeaseExpiryHTML(await buildLeaseExpiryReport(filters), orgInfo)
+    case "application_pipeline":   return buildApplicationPipelineHTML(await buildApplicationPipeline(filters), orgInfo)
+    case "owner_portfolio":        return buildOwnerPortfolioHTML(await buildOwnerPortfolio(filters), orgInfo)
     case "deposit_register":       return buildDepositRegisterHTML(await buildDepositRegister(filters), orgInfo)
     case "management_fee_summary": return buildManagementFeeSummaryHTML(await buildManagementFeeSummary(filters), orgInfo)
     case "expense_report":         return buildExpenseReportHTML(await buildExpenseReport(filters), orgInfo)
@@ -182,10 +194,21 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: "Not available on your plan" }, { status: 403 })
   }
 
-  const { from, to } = resolvePeriod(periodType)
+  const customFromStr = params.get("customFrom")
+  const customToStr = params.get("customTo")
+  const customFrom = customFromStr ? new Date(customFromStr) : undefined
+  const customTo = customToStr ? new Date(customToStr) : undefined
+
+  let period: { from: Date; to: Date }
+  try {
+    period = resolvePeriod(periodType, customFrom, customTo)
+  } catch {
+    return Response.json({ error: "Custom period requires from and to dates" }, { status: 400 })
+  }
+
   const propertyIdsStr = params.get("propertyIds")
   const propertyIds = propertyIdsStr ? propertyIdsStr.split(",").filter(Boolean) : undefined
-  const filters = { orgId, from, to, propertyIds }
+  const filters = { orgId, from: period.from, to: period.to, propertyIds }
 
   if (format === "xero") return handleXeroExport(tier, params.get("xeroType"), filters)
 
