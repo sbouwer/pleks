@@ -166,36 +166,35 @@ function ReportCard({
 
   return (
     <div
-      className={`relative rounded-lg border bg-card px-3 py-2.5 flex flex-col gap-1.5 transition-colors ${
+      className={`relative rounded-lg border bg-card px-3 py-2.5 transition-colors ${
         isLocked ? "opacity-60" : "hover:border-foreground/30 cursor-pointer"
       }`}
       onClick={isLocked ? undefined : () => onOpen(reportType)}
     >
-      <div className="flex items-start justify-between gap-1.5">
-        <h3 className="text-xs font-semibold leading-snug">{REPORT_LABELS[reportType]}</h3>
-        {isLocked && (
+      <div className="flex items-center justify-between gap-1.5">
+        <h3 className="text-xs font-semibold truncate min-w-0">{REPORT_LABELS[reportType]}</h3>
+        {isLocked ? (
           <span className="shrink-0 flex items-center gap-0.5 text-[9px] font-medium text-muted-foreground border rounded px-1 py-0.5">
             <Lock className="h-2 w-2" />
             {TIER_LABELS[requiredTier] ?? requiredTier}
           </span>
+        ) : (
+          <div className="shrink-0 flex gap-1">
+            <button
+              onClick={handleCSV}
+              className="flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-foreground border rounded px-1.5 py-0.5 transition-colors"
+            >
+              <Download className="h-2.5 w-2.5" /> CSV
+            </button>
+            <button
+              onClick={handlePDF}
+              className="flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-foreground border rounded px-1.5 py-0.5 transition-colors"
+            >
+              <FileDown className="h-2.5 w-2.5" /> PDF
+            </button>
+          </div>
         )}
       </div>
-      {!isLocked && (
-        <div className="flex gap-1">
-          <button
-            onClick={handleCSV}
-            className="flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-foreground border rounded px-1.5 py-0.5 transition-colors"
-          >
-            <Download className="h-2.5 w-2.5" /> CSV
-          </button>
-          <button
-            onClick={handlePDF}
-            className="flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-foreground border rounded px-1.5 py-0.5 transition-colors"
-          >
-            <FileDown className="h-2.5 w-2.5" /> PDF
-          </button>
-        </div>
-      )}
     </div>
   )
 }
