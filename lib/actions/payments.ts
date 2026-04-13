@@ -62,6 +62,12 @@ export async function recordPayment(formData: FormData) {
 
   if (error || !payment) return { error: error?.message || "Failed to record payment" }
 
+  // Store receipt path — on-demand generation at /api/payments/[id]/receipt
+  db.from("payments")
+    .update({ receipt_path: `/api/payments/${payment.id}/receipt` })
+    .eq("id", payment.id)
+    .then(() => { /* fire and forget */ })
+
   // Update invoice
   await db.from("rent_invoices").update({
     amount_paid_cents: newPaid,

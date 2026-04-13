@@ -1,6 +1,7 @@
 /**
- * GET /api/tenants/[tenantId]/statement?from=YYYY-MM-DD&to=YYYY-MM-DD
+ * GET /api/tenants/[id]/statement?from=YYYY-MM-DD&to=YYYY-MM-DD
  * Returns an HTML tenant statement (open in new tab → print to PDF).
+ * Also accessible via portal: GET /api/portal/statement (uses portal session auth).
  */
 
 import { NextRequest } from "next/server"
@@ -10,9 +11,9 @@ import { redirect } from "next/navigation"
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ tenantId: string }> },
+  { params }: { params: Promise<{ id: string }> },
 ) {
-  const { tenantId } = await params
+  const { id: tenantId } = await params
 
   // Auth check
   const cookieClient = await createClient()
@@ -141,7 +142,7 @@ export async function GET(
     property_name: propertyName,
     unit_number: unitNumber,
     period_from: fromDate ?? (invoices[0]?.due_date ?? "—"),
-    period_to: toDate ?? (invoices[invoices.length - 1]?.due_date ?? "—"),
+    period_to: toDate ?? (invoices.at(-1)?.due_date ?? "—"),
     entries,
     current_balance_cents: totalInvoiced - totalPaid,
     deposit_held_cents: Math.max(0, depositHeld),
