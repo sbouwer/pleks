@@ -179,7 +179,7 @@ export function Step0Upload({ onAnalysed, onGlDetected }: Readonly<Step0UploadPr
 
       <p className="mt-6 text-xs text-muted-foreground">
         Starting fresh with no data?{" "}
-        <Link href="/templates/pleks_import_template.csv" className="text-brand hover:underline" download>
+        <Link href="/templates/pleks_import_template.xlsx" className="text-brand hover:underline" download>
           Download blank template →
         </Link>
       </p>

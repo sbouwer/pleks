@@ -5,20 +5,42 @@ import { createClient } from "@/lib/supabase/client"
 import { useOrg } from "@/hooks/useOrg"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Check, AlertTriangle } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Check, AlertTriangle, Loader2 } from "lucide-react"
 
-const SCOPE_LABELS: Record<string, string> = {
-  own_only: "Only my own properties",
-  own_and_others: "My own + properties for others",
-  others_only: "Only properties belonging to other people",
-}
+const SCOPE_OPTIONS = [
+  { value: "own_only", label: "Only my own properties" },
+  { value: "own_and_others", label: "My own + properties for others" },
+  { value: "others_only", label: "Only properties belonging to other people" },
+]
 
-const PPRA_LABELS: Record<string, string> = {
-  registered: "Registered",
-  pending: "Registration in progress",
-  not_registered: "Not registered",
-  unknown: "Not specified",
-}
+const PPRA_OPTIONS = [
+  { value: "registered", label: "Registered" },
+  { value: "pending", label: "Registration in progress" },
+  { value: "not_registered", label: "Not registered" },
+  { value: "unknown", label: "Not specified" },
+]
+
+const PROPERTY_TYPE_OPTIONS = [
+  { value: "residential", label: "Residential" },
+  { value: "commercial", label: "Commercial" },
+  { value: "mixed", label: "Mixed use" },
+]
+
+const BANK_TYPE_OPTIONS = [
+  { value: "trust", label: "Trust account" },
+  { value: "deposit_holding", label: "Deposit holding account" },
+  { value: "business", label: "Business account" },
+  { value: "ppra_trust", label: "PPRA trust account" },
+]
+
+const ACCOUNT_TYPE_OPTIONS = [
+  { value: "cheque", label: "Cheque" },
+  { value: "savings", label: "Savings" },
+  { value: "transmission", label: "Transmission" },
+]
 
 interface OrgCompliance {
   management_scope: string | null
@@ -26,86 +48,399 @@ interface OrgCompliance {
   ppra_status: string | null
   ppra_ffc_number: string | null
   has_deposit_account: boolean | null
-  deposit_account_type: string | null
   has_trust_account: boolean | null
-  trust_account_confirmed_at: string | null
+}
+
+interface BankAccount {
+  id: string
+  type: string
+  bank_name: string
+  account_holder: string
+  account_number: string
+  branch_code: string
+  account_type: string
+}
+
+interface AccountFormState {
+  type: string
+  bank_name: string
+  account_holder: string
+  account_number: string
+  branch_code: string
+  account_type: string
+}
+
+const EMPTY_ACCOUNT: AccountFormState = {
+  type: "trust",
+  bank_name: "",
+  account_holder: "",
+  account_number: "",
+  branch_code: "",
+  account_type: "cheque",
+}
+
+function maskAccount(n: string): string {
+  if (n.length <= 4) return n
+  return "•".repeat(n.length - 4) + n.slice(-4)
+}
+
+function RoleSection({
+  value,
+  onChange,
+  saving,
+  onSave,
+}: Readonly<{
+  value: string
+  onChange: (v: string) => void
+  saving: boolean
+  onSave: () => void
+}>) {
+  return (
+    <Card className="mb-4">
+      <CardHeader>
+        <CardTitle className="text-lg">Your Role</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Select value={value || ""} onValueChange={(v) => onChange(v ?? "")}>
+          <SelectTrigger className="w-full max-w-sm">
+            <SelectValue placeholder="Select role" />
+          </SelectTrigger>
+          <SelectContent>
+            {SCOPE_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button size="sm" onClick={onSave} disabled={saving}>
+          {saving && <Loader2 className="size-3.5 mr-1.5 animate-spin" />}
+          Save
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+function PropertyTypesSection({
+  selected,
+  onChange,
+  saving,
+  onSave,
+}: Readonly<{
+  selected: string[]
+  onChange: (v: string[]) => void
+  saving: boolean
+  onSave: () => void
+}>) {
+  function toggle(val: string) {
+    if (selected.includes(val)) {
+      onChange(selected.filter((x) => x !== val))
+    } else {
+      onChange([...selected, val])
+    }
+  }
+
+  return (
+    <Card className="mb-4">
+      <CardHeader>
+        <CardTitle className="text-lg">Property Types</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex gap-2 flex-wrap">
+          {PROPERTY_TYPE_OPTIONS.map((opt) => {
+            const active = selected.includes(opt.value)
+            return (
+              <Button
+                key={opt.value}
+                variant={active ? "default" : "outline"}
+                size="sm"
+                onClick={() => toggle(opt.value)}
+                type="button"
+              >
+                {active && <Check className="size-3.5 mr-1.5" />}
+                {opt.label}
+              </Button>
+            )
+          })}
+        </div>
+        <Button size="sm" onClick={onSave} disabled={saving}>
+          {saving && <Loader2 className="size-3.5 mr-1.5 animate-spin" />}
+          Save
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+function PPRASection({
+  status,
+  ffcNumber,
+  onStatusChange,
+  onFfcChange,
+  saving,
+  onSave,
+}: Readonly<{
+  status: string
+  ffcNumber: string
+  onStatusChange: (v: string) => void
+  onFfcChange: (v: string) => void
+  saving: boolean
+  onSave: () => void
+}>) {
+  const showFfc = status === "registered" || status === "pending"
+
+  return (
+    <Card className="mb-4">
+      <CardHeader>
+        <CardTitle className="text-lg">PPRA Status</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Select value={status || ""} onValueChange={(v) => onStatusChange(v ?? "")}>
+          <SelectTrigger className="w-full max-w-sm">
+            <SelectValue placeholder="Select status" />
+          </SelectTrigger>
+          <SelectContent>
+            {PPRA_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {showFfc && (
+          <div className="space-y-1 max-w-sm">
+            <Label className="text-xs">FFC number</Label>
+            <Input
+              value={ffcNumber}
+              onChange={(e) => onFfcChange(e.target.value)}
+              placeholder="e.g. FFC-2024-12345"
+              className="h-8 text-sm"
+            />
+          </div>
+        )}
+        <Button size="sm" onClick={onSave} disabled={saving}>
+          {saving && <Loader2 className="size-3.5 mr-1.5 animate-spin" />}
+          Save
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+function AccountForm({
+  isPractitioner,
+  existing,
+  orgId,
+  onSaved,
+}: Readonly<{
+  isPractitioner: boolean
+  existing: BankAccount[]
+  orgId: string
+  onSaved: (acct: BankAccount) => void
+}>) {
+  const [form, setForm] = useState<AccountFormState>(EMPTY_ACCOUNT)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  function set(key: keyof AccountFormState, val: string) {
+    setForm((prev) => ({ ...prev, [key]: val }))
+  }
+
+  async function handleSave() {
+    if (!form.bank_name || !form.account_holder || !form.account_number || !form.branch_code) {
+      setError("Please fill in all required fields.")
+      return
+    }
+    setSaving(true)
+    setError(null)
+    const supabase = createClient()
+    const { data, error: dbErr } = await supabase
+      .from("bank_accounts")
+      .insert({ ...form, org_id: orgId })
+      .select()
+      .single()
+    setSaving(false)
+    if (dbErr) {
+      setError(dbErr.message)
+      return
+    }
+    onSaved(data as BankAccount)
+    setForm(EMPTY_ACCOUNT)
+  }
+
+  const defaultType = isPractitioner ? "trust" : "deposit_holding"
+  const filteredTypes = isPractitioner
+    ? BANK_TYPE_OPTIONS.filter((t) => t.value === "trust" || t.value === "ppra_trust")
+    : BANK_TYPE_OPTIONS.filter((t) => t.value === "deposit_holding" || t.value === "business")
+
+  return (
+    <div className="space-y-3 mt-3 pt-3 border-t border-border">
+      <p className="text-sm font-medium">Add account</p>
+      <div className="grid gap-3 max-w-sm">
+        <div className="space-y-1">
+          <Label className="text-xs">Account type</Label>
+          <Select value={form.type || defaultType} onValueChange={(v) => set("type", v ?? "")}>
+            <SelectTrigger className="h-8 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {filteredTypes.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Bank name</Label>
+          <Input value={form.bank_name} onChange={(e) => set("bank_name", e.target.value)} className="h-8 text-sm" />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Account holder</Label>
+          <Input value={form.account_holder} onChange={(e) => set("account_holder", e.target.value)} className="h-8 text-sm" />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Account number</Label>
+          <Input value={form.account_number} onChange={(e) => set("account_number", e.target.value)} className="h-8 text-sm" />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Branch code</Label>
+          <Input value={form.branch_code} onChange={(e) => set("branch_code", e.target.value)} className="h-8 text-sm" />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Account category</Label>
+          <Select value={form.account_type} onValueChange={(v) => set("account_type", v ?? "")}>
+            <SelectTrigger className="h-8 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ACCOUNT_TYPE_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      {error && <p className="text-xs text-danger">{error}</p>}
+      <Button size="sm" onClick={handleSave} disabled={saving}>
+        {saving && <Loader2 className="size-3.5 mr-1.5 animate-spin" />}
+        Save account
+      </Button>
+
+      {existing.length > 0 && (
+        <div className="mt-4 space-y-2">
+          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Saved accounts</p>
+          {existing.map((acct) => (
+            <div key={acct.id} className="flex items-center gap-2 text-sm">
+              <Check className="size-3.5 text-success" />
+              <span>{acct.bank_name}</span>
+              <span className="text-muted-foreground font-mono text-xs">{maskAccount(acct.account_number)}</span>
+              <span className="text-xs text-muted-foreground capitalize">({acct.type.replaceAll("_", " ")})</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function CompliancePage() {
   const { orgId } = useOrg()
   const [org, setOrg] = useState<OrgCompliance | null>(null)
+  const [accounts, setAccounts] = useState<BankAccount[]>([])
+  const [scope, setScope] = useState("")
+  const [propertyTypes, setPropertyTypes] = useState<string[]>([])
+  const [ppraStatus, setPpraStatus] = useState("")
+  const [ppraFfc, setPpraFfc] = useState("")
+  const [savingScope, setSavingScope] = useState(false)
+  const [savingTypes, setSavingTypes] = useState(false)
+  const [savingPpra, setSavingPpra] = useState(false)
 
   useEffect(() => {
     if (!orgId) return
     const supabase = createClient()
     supabase
       .from("organisations")
-      .select(
-        "management_scope, property_types, ppra_status, ppra_ffc_number, has_deposit_account, deposit_account_type, has_trust_account, trust_account_confirmed_at"
-      )
+      .select("management_scope, property_types, ppra_status, ppra_ffc_number, has_deposit_account, has_trust_account")
       .eq("id", orgId)
       .single()
-      .then(({ data }) => setOrg(data as OrgCompliance | null))
+      .then(({ data, error }) => {
+        if (error) { console.error("compliance fetch:", error.message); return }
+        const d = data as OrgCompliance
+        setOrg(d)
+        setScope(d.management_scope ?? "")
+        setPropertyTypes(d.property_types ?? [])
+        setPpraStatus(d.ppra_status ?? "")
+        setPpraFfc(d.ppra_ffc_number ?? "")
+      })
+    supabase
+      .from("bank_accounts")
+      .select("id, type, bank_name, account_holder, account_number, branch_code, account_type")
+      .eq("org_id", orgId)
+      .then(({ data, error }) => {
+        if (error) { console.error("bank_accounts fetch:", error.message); return }
+        setAccounts((data ?? []) as BankAccount[])
+      })
   }, [orgId])
 
-  if (!org) return null
+  async function saveScope() {
+    if (!orgId) return
+    setSavingScope(true)
+    const supabase = createClient()
+    await supabase.from("organisations").update({ management_scope: scope }).eq("id", orgId)
+    setSavingScope(false)
+  }
 
-  const isPractitioner = org.management_scope === "own_and_others" || org.management_scope === "others_only"
-  const hasAccount = isPractitioner ? org.has_trust_account : org.has_deposit_account
+  async function saveTypes() {
+    if (!orgId) return
+    setSavingTypes(true)
+    const supabase = createClient()
+    await supabase.from("organisations").update({ property_types: propertyTypes }).eq("id", orgId)
+    setSavingTypes(false)
+  }
+
+  async function savePpra() {
+    if (!orgId) return
+    setSavingPpra(true)
+    const supabase = createClient()
+    const update: Record<string, string | null> = { ppra_status: ppraStatus }
+    if (ppraStatus === "registered" || ppraStatus === "pending") {
+      update.ppra_ffc_number = ppraFfc || null
+    }
+    await supabase.from("organisations").update(update).eq("id", orgId)
+    setSavingPpra(false)
+  }
+
+  if (!org || !orgId) return null
+
+  const isPractitioner = scope === "own_and_others" || scope === "others_only"
+  const hasAccount = accounts.length > 0
 
   return (
     <div>
       <h1 className="font-heading text-3xl mb-6">Compliance</h1>
 
-      {/* Management scope */}
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle className="text-lg">Your Role</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm">
-            {org.management_scope ? SCOPE_LABELS[org.management_scope] : "Not specified"}
-          </p>
-        </CardContent>
-      </Card>
+      <RoleSection
+        value={scope}
+        onChange={setScope}
+        saving={savingScope}
+        onSave={saveScope}
+      />
 
-      {/* Property types */}
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle className="text-lg">Property Types</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-2">
-            {(org.property_types || []).map((t) => (
-              <span key={t} className="text-sm capitalize px-2 py-1 bg-surface-elevated rounded">
-                {t}
-              </span>
-            ))}
-            {(!org.property_types || org.property_types.length === 0) && (
-              <span className="text-sm text-muted-foreground">Not specified</span>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <PropertyTypesSection
+        selected={propertyTypes}
+        onChange={setPropertyTypes}
+        saving={savingTypes}
+        onSave={saveTypes}
+      />
 
-      {/* PPRA status (practitioners only) */}
       {isPractitioner && (
-        <Card className="mb-4">
-          <CardHeader>
-            <CardTitle className="text-lg">PPRA Status</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <p className="text-sm">
-              {org.ppra_status ? PPRA_LABELS[org.ppra_status] : "Unknown"}
-            </p>
-            {org.ppra_ffc_number && (
-              <p className="text-xs text-muted-foreground">FFC: {org.ppra_ffc_number}</p>
-            )}
-          </CardContent>
-        </Card>
+        <PPRASection
+          status={ppraStatus}
+          ffcNumber={ppraFfc}
+          onStatusChange={setPpraStatus}
+          onFfcChange={setPpraFfc}
+          saving={savingPpra}
+          onSave={savePpra}
+        />
       )}
 
-      {/* Deposit / Trust account */}
       <Card className="mb-4">
         <CardHeader>
           <CardTitle className="text-lg">
@@ -116,7 +451,7 @@ export default function CompliancePage() {
           {hasAccount ? (
             <div className="flex items-center gap-2">
               <Check className="h-4 w-4 text-success" />
-              <span className="text-sm">Confirmed</span>
+              <span className="text-sm">Configured</span>
             </div>
           ) : (
             <div className="flex items-center gap-2">
@@ -124,9 +459,12 @@ export default function CompliancePage() {
               <span className="text-sm">Not configured — some features restricted</span>
             </div>
           )}
-          <Button variant="outline" size="sm" className="mt-3">
-            {hasAccount ? "Update Account" : "Add Account"}
-          </Button>
+          <AccountForm
+            isPractitioner={isPractitioner}
+            existing={accounts}
+            orgId={orgId}
+            onSaved={(acct) => setAccounts((prev) => [...prev, acct])}
+          />
         </CardContent>
       </Card>
     </div>
