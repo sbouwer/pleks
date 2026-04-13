@@ -7,7 +7,7 @@ export async function buildTenantDirectory(filters: ReportFilters): Promise<Tena
 
   const query = db
     .from("leases")
-    .select("id, end_date, monthly_rent_cents, tenant_id, unit_id, tenants(contacts(first_name, last_name, company_name, entity_type, primary_email, primary_phone)), units(unit_number, property_id, properties(name))")
+    .select("id, end_date, rent_amount_cents, tenant_id, unit_id, tenants(contacts(first_name, last_name, company_name, entity_type, primary_email, primary_phone)), units(unit_number, property_id, properties(name))")
     .eq("org_id", orgId)
     .in("status", ["active", "notice", "month_to_month"])
     .order("end_date", { ascending: true })
@@ -35,7 +35,7 @@ export async function buildTenantDirectory(filters: ReportFilters): Promise<Tena
         unit_number: unitRaw?.unit_number ?? "—",
         property_name: unitRaw?.properties?.name ?? "—",
         lease_end: (l.end_date as string | null) ?? null,
-        monthly_rent_cents: l.monthly_rent_cents as number ?? 0,
+        monthly_rent_cents: l.rent_amount_cents as number ?? 0,
       }
     })
 
