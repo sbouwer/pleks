@@ -9,6 +9,7 @@ import { LandlordPicker } from "./LandlordPicker"
 import { AgentPicker } from "./AgentPicker"
 import { PropertyUnitsSection } from "@/components/properties/PropertyUnitsSection"
 import { PropertyBuildingsSection } from "@/components/properties/PropertyBuildingsSection"
+import { PropertyDocumentsSection } from "@/components/properties/PropertyDocumentsSection"
 import { QuickActionsCard } from "@/components/properties/QuickActionsCard"
 import { ExternalLink, Pencil } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
@@ -57,6 +58,7 @@ export default async function PropertyDetailPage({
     { data: maintenanceCounts },
     { data: teamMemberRows },
     { data: buildings },
+    { data: propertyDocuments },
   ] = await Promise.all([
     supabase
       .from("units")
@@ -105,6 +107,13 @@ export default async function PropertyDetailPage({
       .eq("property_id", id)
       .is("deleted_at", null)
       .order("is_primary", { ascending: false }),
+
+    service
+      .from("property_documents")
+      .select("id, name, document_type, storage_path, expiry_date, notes, created_at")
+      .eq("property_id", id)
+      .eq("org_id", orgId)
+      .order("created_at", { ascending: false }),
   ])
 
   const landlord = landlordResult.data as {
@@ -290,6 +299,14 @@ export default async function PropertyDetailPage({
         maintenanceByUnit={maintenanceByUnit}
         orgId={orgId}
       />
+
+      {/* Property documents */}
+      <div className="mt-6">
+        <PropertyDocumentsSection
+          propertyId={id}
+          initialDocuments={propertyDocuments ?? []}
+        />
+      </div>
 
       {/* Quick actions */}
       <div className="mt-6">

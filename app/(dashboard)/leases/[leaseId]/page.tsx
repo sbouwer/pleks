@@ -9,6 +9,7 @@ import { LeasePortalActions } from "./LeasePortalActions"
 import { MigratedDocSection } from "./MigratedDocSection"
 import { LeaseTermsGrid } from "./LeaseTermsGrid"
 import { PaymentStatus } from "./PaymentStatus"
+import { QuickPaymentButton } from "./QuickPaymentButton"
 import { LeaseTimeline } from "./LeaseTimeline"
 import { TenantCards, buildTenantContact } from "./TenantCards"
 import { PrerequisitesCard } from "./PrerequisitesCard"
@@ -88,13 +89,13 @@ export default async function LeaseDetailPage({
       .eq("lease_id", leaseId),
     supabase
       .from("payments")
-      .select("id, amount_cents, payment_date, payment_method")
+      .select("id, amount_cents, payment_date, payment_method, receipt_number")
       .eq("lease_id", leaseId)
       .order("payment_date", { ascending: false })
       .limit(5),
     supabase
       .from("rent_invoices")
-      .select("balance_cents, status")
+      .select("id, balance_cents, status")
       .eq("lease_id", leaseId)
       .order("due_date", { ascending: false })
       .limit(1)
@@ -308,10 +309,17 @@ export default async function LeaseDetailPage({
             <PaymentStatus
               leaseId={leaseId}
               balanceCents={latestInvoice?.balance_cents ?? null}
-
               recentPayments={recentPaymentsRes.data ?? []}
               arrearsCase={arrearsCase}
             />
+            {latestInvoice?.id && (latestInvoice.balance_cents ?? 0) > 0 && (
+              <div className="mt-2 px-1">
+                <QuickPaymentButton
+                  invoiceId={latestInvoice.id}
+                  balanceCents={latestInvoice.balance_cents ?? 0}
+                />
+              </div>
+            )}
           </section>
 
           {/* Section 3: Additional charges (existing component) */}

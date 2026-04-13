@@ -6,6 +6,7 @@ interface Payment {
   amount_cents: number
   payment_date: string
   payment_method: string | null
+  receipt_number: string | null
 }
 
 interface ArrearsCase {
@@ -101,13 +102,26 @@ export function PaymentStatus({
                       {(p.payment_method ?? "eft").replaceAll("_", " ")}
                     </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(p.payment_date).toLocaleDateString("en-ZA", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                    })}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(p.payment_date).toLocaleDateString("en-ZA", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </p>
+                    {p.receipt_number && (
+                      <a
+                        href={`/api/payments/${p.id}/receipt`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                        title="View receipt"
+                      >
+                        Receipt ↗
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
