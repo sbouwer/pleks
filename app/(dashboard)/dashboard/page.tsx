@@ -40,15 +40,6 @@ function deriveTrialInfo(sub: SubRow) {
   return { isTrialing, trialEndsAt: isTrialing ? sub?.trial_ends_at : null }
 }
 
-const CHECKLIST = [
-  { key: "org", label: "Organisation created", done: true },
-  { key: "property", label: "Add your first property", href: "/properties" },
-  { key: "unit", label: "Add a unit", href: "/properties" },
-  { key: "tenant", label: "Add a tenant", href: "/tenants" },
-  { key: "lease", label: "Create a lease", href: "/leases" },
-  { key: "inspection", label: "Schedule a move-in inspection", href: "/inspections" },
-]
-
 // ── Heavy sections — streams in behind a Suspense boundary ───────────────────
 
 async function DashboardHeavySections({
@@ -121,7 +112,7 @@ export default async function DashboardPage() {
   const supabase = await createClient()
 
   // Light wave — all independent, renders greeting + metrics immediately
-  const [orgRes, profileRes, subRes, propCountRes, unitRes, collectionRate] = await Promise.all([
+  const [orgRes, profileRes, subRes, propCountRes, unitRes, collectionRate, tenantsCountRes, leasesCountRes, inspectionsCountRes] = await Promise.all([
     supabase
       .from("organisations")
       .select("has_trust_account, has_deposit_account, management_scope, founding_agent, founding_agent_price_cents")
@@ -150,6 +141,9 @@ export default async function DashboardPage() {
       .is("deleted_at", null)
       .eq("is_archived", false),
     getCollectionRate(orgId),
+    supabase.from("tenants").select("id", { count: "exact", head: true }).eq("org_id", orgId).is("deleted_at", null),
+    supabase.from("leases").select("id", { count: "exact", head: true }).eq("org_id", orgId),
+    supabase.from("inspections").select("id", { count: "exact", head: true }).eq("org_id", orgId),
   ])
 
   const org = orgRes.data as unknown as Record<string, unknown> | null
@@ -162,6 +156,16 @@ export default async function DashboardPage() {
   const vacantUnits = activeUnits.filter((u) => u.status === "vacant").length
   const occupancyPercent = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0
   const isNewOrg = totalProperties === 0
+
+  const checklistItems: { key: string; label: string; done: boolean; href?: string }[] = [
+    { key: "org",         label: "Organisation created",             done: true },
+    { key: "property",    label: "Add your first property",          done: totalProperties > 0,              href: "/properties" },
+    { key: "unit",        label: "Add a unit",                       done: totalUnits > 0,                   href: "/properties" },
+    { key: "tenant",      label: "Add a tenant",                     done: (tenantsCountRes.count ?? 0) > 0, href: "/tenants" },
+    { key: "lease",       label: "Create a lease",                   done: (leasesCountRes.count ?? 0) > 0,  href: "/leases" },
+    { key: "inspection",  label: "Schedule a move-in inspection",    done: (inspectionsCountRes.count ?? 0) > 0, href: "/inspections" },
+  ]
+  const showChecklist = checklistItems.some((item) => !item.done)
 
   const greeting = getGreeting()
   const dateStr = new Date().toLocaleDateString("en-ZA", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
@@ -192,27 +196,27 @@ export default async function DashboardPage() {
         foundingPriceCents={org?.founding_agent_price_cents as number | null}
       />
 
-      {/* Onboarding checklist */}
-      {isNewOrg && (
+      {/* Onboarding checklist — shown until all steps complete */}
+      {showChecklist && (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Welcome to Pleks! Get started:</CardTitle>
           </CardHeader>
           <CardContent>
             <ul className="space-y-2">
-              {CHECKLIST.map((item) => (
+              {checklistItems.map((item) => (
                 <li key={item.key} className="flex items-center gap-3">
                   {item.done ? (
                     <Check className="h-4 w-4 text-success" />
                   ) : (
                     <Circle className="h-4 w-4 text-muted-foreground" />
                   )}
-                  {item.href ? (
+                  {item.href && !item.done ? (
                     <Link href={item.href} className="text-sm hover:text-brand transition-colors">
                       {item.label}
                     </Link>
                   ) : (
-                    <span className="text-sm">{item.label}</span>
+                    <span className={`text-sm ${item.done ? "text-muted-foreground line-through" : ""}`}>{item.label}</span>
                   )}
                 </li>
               ))}

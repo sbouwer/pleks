@@ -63,7 +63,7 @@ interface OrgSettings {
   reply_to_email?: string
 }
 
-async function fetchOrgSettings(orgId: string): Promise<OrgSettings | null> {
+export async function fetchOrgSettings(orgId: string): Promise<OrgSettings | null> {
   const service = await createServiceClient()
   const { data } = await service
     .from("organisations")
