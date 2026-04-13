@@ -11,9 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Check, AlertTriangle, Loader2 } from "lucide-react"
 
 const SCOPE_OPTIONS = [
-  { value: "own_only", label: "Only my own properties" },
-  { value: "own_and_others", label: "My own + properties for others" },
-  { value: "others_only", label: "Only properties belonging to other people" },
+  { value: "own_only", label: "Private landlord — I manage my own properties" },
+  { value: "own_and_others", label: "Hybrid — I manage my own and clients' properties" },
+  { value: "others_only", label: "Property agent / manager — clients' properties only" },
 ]
 
 const PPRA_OPTIONS = [
@@ -224,24 +224,31 @@ function PPRASection({
   )
 }
 
-function AccountForm({
+function AddAccountForm({
   isPractitioner,
-  existing,
   orgId,
   onSaved,
+  onCancel,
+  showCancel,
 }: Readonly<{
   isPractitioner: boolean
-  existing: BankAccount[]
   orgId: string
   onSaved: (acct: BankAccount) => void
+  onCancel: () => void
+  showCancel: boolean
 }>) {
-  const [form, setForm] = useState<AccountFormState>(EMPTY_ACCOUNT)
+  const defaultType = isPractitioner ? "trust" : "deposit_holding"
+  const [form, setForm] = useState<AccountFormState>({ ...EMPTY_ACCOUNT, type: defaultType })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   function set(key: keyof AccountFormState, val: string) {
     setForm((prev) => ({ ...prev, [key]: val }))
   }
+
+  const filteredTypes = isPractitioner
+    ? BANK_TYPE_OPTIONS.filter((t) => t.value === "trust" || t.value === "ppra_trust")
+    : BANK_TYPE_OPTIONS.filter((t) => t.value === "deposit_holding" || t.value === "business")
 
   async function handleSave() {
     if (!form.bank_name || !form.account_holder || !form.account_number || !form.branch_code) {
@@ -257,33 +264,20 @@ function AccountForm({
       .select()
       .single()
     setSaving(false)
-    if (dbErr) {
-      setError(dbErr.message)
-      return
-    }
+    if (dbErr) { setError(dbErr.message); return }
     onSaved(data as BankAccount)
-    setForm(EMPTY_ACCOUNT)
   }
 
-  const defaultType = isPractitioner ? "trust" : "deposit_holding"
-  const filteredTypes = isPractitioner
-    ? BANK_TYPE_OPTIONS.filter((t) => t.value === "trust" || t.value === "ppra_trust")
-    : BANK_TYPE_OPTIONS.filter((t) => t.value === "deposit_holding" || t.value === "business")
-
   return (
-    <div className="space-y-3 mt-3 pt-3 border-t border-border">
+    <div className="space-y-3 pt-3 border-t border-border">
       <p className="text-sm font-medium">Add account</p>
       <div className="grid gap-3 max-w-sm">
         <div className="space-y-1">
           <Label className="text-xs">Account type</Label>
-          <Select value={form.type || defaultType} onValueChange={(v) => set("type", v ?? "")}>
-            <SelectTrigger className="h-8 text-sm">
-              <SelectValue />
-            </SelectTrigger>
+          <Select value={form.type} onValueChange={(v) => set("type", v ?? "")}>
+            <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {filteredTypes.map((o) => (
-                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-              ))}
+              {filteredTypes.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -306,35 +300,76 @@ function AccountForm({
         <div className="space-y-1">
           <Label className="text-xs">Account category</Label>
           <Select value={form.account_type} onValueChange={(v) => set("account_type", v ?? "")}>
-            <SelectTrigger className="h-8 text-sm">
-              <SelectValue />
-            </SelectTrigger>
+            <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {ACCOUNT_TYPE_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-              ))}
+              {ACCOUNT_TYPE_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
       </div>
       {error && <p className="text-xs text-danger">{error}</p>}
-      <Button size="sm" onClick={handleSave} disabled={saving}>
-        {saving && <Loader2 className="size-3.5 mr-1.5 animate-spin" />}
-        Save account
-      </Button>
+      <div className="flex gap-2">
+        <Button size="sm" onClick={handleSave} disabled={saving}>
+          {saving && <Loader2 className="size-3.5 mr-1.5 animate-spin" />}
+          Save account
+        </Button>
+        {showCancel && (
+          <Button size="sm" variant="outline" onClick={onCancel}>Cancel</Button>
+        )}
+      </div>
+    </div>
+  )
+}
 
+function AccountSection({
+  isPractitioner,
+  existing,
+  orgId,
+  onSaved,
+}: Readonly<{
+  isPractitioner: boolean
+  existing: BankAccount[]
+  orgId: string
+  onSaved: (acct: BankAccount) => void
+}>) {
+  const [showForm, setShowForm] = useState(existing.length === 0)
+
+  function handleSaved(acct: BankAccount) {
+    onSaved(acct)
+    setShowForm(false)
+  }
+
+  return (
+    <div className="space-y-3">
       {existing.length > 0 && (
-        <div className="mt-4 space-y-2">
-          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Saved accounts</p>
+        <div className="space-y-2">
           {existing.map((acct) => (
-            <div key={acct.id} className="flex items-center gap-2 text-sm">
-              <Check className="size-3.5 text-success" />
-              <span>{acct.bank_name}</span>
-              <span className="text-muted-foreground font-mono text-xs">{maskAccount(acct.account_number)}</span>
-              <span className="text-xs text-muted-foreground capitalize">({acct.type.replaceAll("_", " ")})</span>
+            <div key={acct.id} className="flex items-center gap-3 rounded-md border border-border px-3 py-2.5 text-sm">
+              <Check className="size-4 text-success shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="font-medium">{acct.bank_name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {acct.account_holder} · <span className="font-mono">{maskAccount(acct.account_number)}</span>
+                  {" · "}<span className="capitalize">{acct.type.replaceAll("_", " ")}</span>
+                </p>
+              </div>
             </div>
           ))}
         </div>
+      )}
+
+      {showForm ? (
+        <AddAccountForm
+          isPractitioner={isPractitioner}
+          orgId={orgId}
+          onSaved={handleSaved}
+          onCancel={() => setShowForm(false)}
+          showCancel={existing.length > 0}
+        />
+      ) : (
+        <Button variant="outline" size="sm" onClick={() => setShowForm(true)}>
+          Add another account
+        </Button>
       )}
     </div>
   )
@@ -448,18 +483,13 @@ export default function CompliancePage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {hasAccount ? (
-            <div className="flex items-center gap-2">
-              <Check className="h-4 w-4 text-success" />
-              <span className="text-sm">Configured</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
+          {!hasAccount && (
+            <div className="flex items-center gap-2 mb-4">
               <AlertTriangle className="h-4 w-4 text-warning" />
-              <span className="text-sm">Not configured — some features restricted</span>
+              <span className="text-sm text-muted-foreground">Not configured — some features restricted</span>
             </div>
           )}
-          <AccountForm
+          <AccountSection
             isPractitioner={isPractitioner}
             existing={accounts}
             orgId={orgId}
