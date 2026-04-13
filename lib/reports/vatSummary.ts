@@ -20,7 +20,7 @@ export async function buildVatSummary(filters: ReportFilters): Promise<VatSummar
 
   let siQuery = db
     .from("supplier_invoices")
-    .select("description, amount_cents, vat_amount_cents, invoice_date")
+    .select("description, amount_excl_vat_cents, vat_amount_cents, invoice_date")
     .eq("org_id", orgId)
     .gte("invoice_date", fromStr)
     .lte("invoice_date", toStr)
@@ -44,7 +44,7 @@ export async function buildVatSummary(filters: ReportFilters): Promise<VatSummar
     .filter((i) => (i.vat_amount_cents ?? 0) > 0)
     .map((i) => ({
       description: i.description ?? "Expense",
-      net_cents: (i.amount_cents ?? 0) - (i.vat_amount_cents ?? 0),
+      net_cents: i.amount_excl_vat_cents ?? 0,
       vat_cents: i.vat_amount_cents ?? 0,
     }))
 
