@@ -22,6 +22,7 @@ import {
   UserSquare2,
   CalendarDays,
   Receipt,
+  BookOpen,
 } from "lucide-react"
 
 const NAV_GROUPS: NavGroup[] = [
@@ -54,6 +55,7 @@ const NAV_GROUPS: NavGroup[] = [
     title: "Finance",
     items: [
       { href: "/finance/deposits", label: "Deposits", icon: Wallet },
+      { href: "/finance/trust-ledger", label: "Trust Ledger", icon: BookOpen },
       { href: "/payments", label: "Billing", icon: CreditCard },
       { href: "/statements", label: "Statements", icon: Receipt },
       { href: "/reports", label: "Reports", icon: BarChart3 },
@@ -70,7 +72,7 @@ const NAV_GROUPS: NavGroup[] = [
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false)
-  const { isPortfolio, isFirm } = useTier()
+  const { isSteward, isPortfolio, isFirm } = useTier()
   const badges = useNavBadges()
 
   const BADGE_COUNTS: Record<string, number> = {
@@ -85,6 +87,7 @@ export function Sidebar() {
     items: group.items
       .filter((item) => {
         if (item.href === "/calendar") return isPortfolio || isFirm
+        if (item.href === "/finance/trust-ledger") return isSteward || isPortfolio || isFirm
         return true
       })
       .map((item) => ({

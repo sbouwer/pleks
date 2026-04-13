@@ -250,7 +250,7 @@ export default async function TenantDetailPage({
       </SectionCard>
 
       {/* Payment status */}
-      <SectionCard title="Payment status" action={{ label: "View ledger", href: "/tenants/" + tenantId + "/ledger" }}>
+      <SectionCard title="Payment status" action={{ label: "View ledger & statement", href: "/tenants/" + tenantId + "/ledger" }}>
         <StatGrid
           stats={[
             { label: "Monthly rent", value: activeLease ? formatZAR(activeLease.rent_amount_cents ?? 0) : "—" },

@@ -2,8 +2,9 @@ import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { formatZAR } from "@/lib/constants"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Download } from "lucide-react"
 import { PrintButton } from "./PrintButton"
+import { Button } from "@/components/ui/button"
 
 type LedgerEntry = {
   id: string
@@ -155,7 +156,7 @@ export default async function TenantLedgerPage({
   const rentEntries = entries.filter((e) => e.type === "invoice" || e.type === "payment")
   const rentWithBalance = rentEntries.reduce<Array<LedgerEntry & { runningBalance: number }>>(
     (acc, e) => {
-      const prev = acc.length > 0 ? acc[acc.length - 1].runningBalance : 0
+      const prev = acc.length > 0 ? acc.at(-1)!.runningBalance : 0
       return [...acc, { ...e, runningBalance: prev + e.debitCents - e.creditCents }]
     },
     [],
@@ -165,12 +166,12 @@ export default async function TenantLedgerPage({
   const depositEntries = entries.filter((e) => e.type === "deposit")
   const depositsWithBalance = depositEntries.reduce<Array<LedgerEntry & { depositBalance: number }>>(
     (acc, e) => {
-      const prev = acc.length > 0 ? acc[acc.length - 1].depositBalance : 0
+      const prev = acc.length > 0 ? acc.at(-1)!.depositBalance : 0
       return [...acc, { ...e, depositBalance: prev + e.creditCents - e.debitCents }]
     },
     [],
   )
-  const depositBalance = depositsWithBalance.length > 0 ? depositsWithBalance[depositsWithBalance.length - 1].depositBalance : 0
+  const depositBalance = depositsWithBalance.at(-1)?.depositBalance ?? 0
 
   const totalInvoiced = invoices.reduce((s, i) => s + i.total_amount_cents, 0)
   const totalPaid = payments.reduce((s, p) => s + p.amount_cents, 0)
@@ -191,7 +192,12 @@ export default async function TenantLedgerPage({
           <h1 className="font-heading text-2xl">Tenant Ledger</h1>
           <p className="text-muted-foreground text-sm">{displayName}{tenant.email ? " · " + tenant.email : ""}</p>
         </div>
-        <PrintButton />
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" render={<Link href={`/api/tenants/${tenantId}/statement`} target="_blank" />}>
+            <Download className="h-3.5 w-3.5 mr-1.5" /> Statement
+          </Button>
+          <PrintButton />
+        </div>
       </div>
 
       {/* Summary cards */}
