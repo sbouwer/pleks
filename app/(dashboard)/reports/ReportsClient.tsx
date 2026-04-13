@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback } from "react"
-import { ArrowLeft, Lock, Download, FileDown } from "lucide-react"
+import { ArrowLeft, Lock, Download } from "lucide-react"
 import { ReportFilters } from "./ReportFilters"
 import { PortfolioTab } from "./tabs/PortfolioTab"
 import { OccupancyTab } from "./tabs/OccupancyTab"
@@ -179,19 +179,27 @@ function ReportCard({
             {TIER_LABELS[requiredTier] ?? requiredTier}
           </span>
         ) : (
-          <div className="shrink-0 flex gap-1">
+          <div className="relative shrink-0 group/dl">
             <button
-              onClick={handleCSV}
-              className="flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-foreground border rounded px-1.5 py-0.5 transition-colors"
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center text-muted-foreground hover:text-foreground border rounded p-1 transition-colors"
             >
-              <Download className="h-2.5 w-2.5" /> CSV
+              <Download className="h-3 w-3" />
             </button>
-            <button
-              onClick={handlePDF}
-              className="flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-foreground border rounded px-1.5 py-0.5 transition-colors"
-            >
-              <FileDown className="h-2.5 w-2.5" /> PDF
-            </button>
+            <div className="absolute right-0 top-full mt-0.5 z-10 hidden group-focus-within/dl:flex flex-col bg-popover border rounded shadow-md text-xs min-w-[72px]">
+              <button
+                onClick={handleCSV}
+                className="px-3 py-1.5 text-left hover:bg-accent transition-colors"
+              >
+                CSV
+              </button>
+              <button
+                onClick={handlePDF}
+                className="px-3 py-1.5 text-left hover:bg-accent transition-colors"
+              >
+                PDF
+              </button>
+            </div>
           </div>
         )}
       </div>
