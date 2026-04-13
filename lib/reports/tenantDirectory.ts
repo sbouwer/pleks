@@ -14,6 +14,7 @@ export async function buildTenantDirectory(filters: ReportFilters): Promise<Tena
 
   const { data, error } = await query
   if (error) console.error("tenantDirectory:", error.message)
+  console.log("tenantDirectory: orgId=", orgId, "rows=", data?.length ?? 0)
 
   const rows: TenantDirectoryRow[] = (data ?? [])
     .filter((l) => {

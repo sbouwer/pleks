@@ -152,16 +152,21 @@ function ReportCard({
   const requiredIdx = TIER_ORDER.indexOf(requiredTier)
   const isLocked = !hasAccess && requiredIdx > tierIdx
 
+  function buildExportParams(format: string) {
+    const p = new URLSearchParams({ type: reportType, orgId, periodType: filters.periodType, format })
+    if (filters.periodType === "custom" && filters.customFrom) p.set("customFrom", filters.customFrom)
+    if (filters.periodType === "custom" && filters.customTo) p.set("customTo", filters.customTo)
+    return p
+  }
+
   function handleCSV(e: React.MouseEvent) {
     e.stopPropagation()
-    const p = new URLSearchParams({ type: reportType, orgId, periodType: filters.periodType, format: "csv" })
-    window.open(`/api/reports/export?${p}`)
+    window.open(`/api/reports/export?${buildExportParams("csv")}`)
   }
 
   function handlePDF(e: React.MouseEvent) {
     e.stopPropagation()
-    const p = new URLSearchParams({ type: reportType, orgId, periodType: filters.periodType, format: "pdf" })
-    window.open(`/api/reports/export?${p}`)
+    window.open(`/api/reports/export?${buildExportParams("pdf")}`)
   }
 
   return (
