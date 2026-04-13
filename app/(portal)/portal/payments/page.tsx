@@ -2,7 +2,8 @@ import { redirect } from "next/navigation"
 import { getTenantSession } from "@/lib/portal/getTenantSession"
 import { createServiceClient } from "@/lib/supabase/server"
 import { formatZAR } from "@/lib/constants"
-import { CheckCircle2, AlertTriangle, Building2 } from "lucide-react"
+import { CheckCircle2, AlertTriangle, Building2, Download } from "lucide-react"
+import Link from "next/link"
 
 export default async function PortalPaymentsPage() {
   const session = await getTenantSession()
@@ -112,8 +113,15 @@ export default async function PortalPaymentsPage() {
 
       {/* Payment history */}
       <div className="rounded-xl border border-border/60 bg-card overflow-hidden">
-        <div className="px-5 py-3 border-b border-border/60">
+        <div className="px-5 py-3 border-b border-border/60 flex items-center justify-between">
           <p className="text-sm font-semibold">Payment history</p>
+          <Link
+            href={`/api/portal/statement`}
+            target="_blank"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Download className="h-3 w-3" /> Download statement
+          </Link>
         </div>
         {payments.length === 0 ? (
           <p className="px-5 py-8 text-center text-sm text-muted-foreground">No payment records yet.</p>
