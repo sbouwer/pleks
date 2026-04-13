@@ -46,7 +46,7 @@ export function Topbar({
   }
 
   return (
-    <header className="flex items-center justify-between h-16 px-4 lg:px-6 border-b border-border bg-card">
+    <header className="relative flex items-center justify-between h-16 px-4 lg:px-6 border-b border-border bg-card">
       {/* Left: mobile menu + org name */}
       <div className="flex items-center gap-3">
         <Button
@@ -64,9 +64,13 @@ export function Topbar({
         )}
       </div>
 
-      {/* Right: search + visit site + profile */}
-      <div className="flex items-center gap-2">
+      {/* Centre: global search */}
+      <div className="absolute left-1/2 -translate-x-1/2">
         <GlobalSearch />
+      </div>
+
+      {/* Right: visit site + profile */}
+      <div className="flex items-center gap-2">
 
         <Button
           size="sm"
