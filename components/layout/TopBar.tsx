@@ -13,7 +13,6 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useUser } from "@/hooks/useUser"
 import { useOrg } from "@/hooks/useOrg"
-import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 
 interface TopbarProps {
@@ -40,8 +39,7 @@ export function Topbar({
     : emailInitials
 
   async function handleSignOut() {
-    const supabase = createClient()
-    await supabase.auth.signOut()
+    await fetch("/api/auth/logout", { method: "POST" })
     router.push("/login")
   }
 
