@@ -24,6 +24,7 @@ interface ReportFiltersProps {
     customTo?: string
     landlordId?: string
     agentId?: string
+    showInactive?: boolean
   }) => void
 }
 
@@ -47,6 +48,7 @@ export function ReportFilters({ properties, landlords, agents, tier, onApply }: 
   const [selectedAgent, setSelectedAgent] = useState("all")
   const [customFrom, setCustomFrom] = useState("")
   const [customTo, setCustomTo] = useState("")
+  const [showInactive, setShowInactive] = useState(false)
 
   function handleApply() {
     const propertyIds = selectedProperty === "all" ? [] : [selectedProperty]
@@ -57,11 +59,12 @@ export function ReportFilters({ properties, landlords, agents, tier, onApply }: 
       customTo: periodType === "custom" ? customTo : undefined,
       landlordId: selectedLandlord === "all" ? undefined : selectedLandlord,
       agentId: selectedAgent === "all" ? undefined : selectedAgent,
+      showInactive,
     })
   }
 
-  const showLandlord = STEWARD_TIERS.has(tier) && landlords.length > 0
-  const showAgent = PORTFOLIO_TIERS.has(tier) && agents.length > 0
+  const showLandlord = STEWARD_TIERS.has(tier)
+  const showAgent = PORTFOLIO_TIERS.has(tier)
 
   return (
     <div className="flex flex-wrap items-end gap-3 mb-6">
@@ -140,6 +143,17 @@ export function ReportFilters({ properties, landlords, agents, tier, onApply }: 
           </Select>
         </div>
       )}
+
+      <div className="flex items-center gap-2 pb-0.5">
+        <input
+          id="show-inactive"
+          type="checkbox"
+          checked={showInactive}
+          onChange={(e) => setShowInactive(e.target.checked)}
+          className="h-3.5 w-3.5 cursor-pointer accent-brand"
+        />
+        <Label htmlFor="show-inactive" className="text-xs text-muted-foreground cursor-pointer">Show inactive</Label>
+      </div>
 
       <Button size="sm" onClick={handleApply}>Apply</Button>
     </div>
