@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useCallback } from "react"
+import { useState, useRef, useCallback, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { updateItemCondition, updateInspectionStatus } from "@/lib/actions/inspections"
+import { isOnline, onConnectivityChange, flushPhotoQueue } from "@/lib/offline/syncManager"
+import { saveItemRating, getAllRatings, queuePhoto } from "@/lib/offline/inspectionStore"
 
 // Web Speech API — not in default TS lib, defined locally
 interface SpeechRecognitionResult {
@@ -59,6 +61,22 @@ interface Props {
   rooms: InspectionRoom[]
   /** itemId → signed URL of the move-in photo (for move-out/periodic comparisons) */
   moveInPhotosByItemId?: Record<string, string>
+}
+
+function mergeOfflineRatings(
+  prev: Record<string, InspectionItem[]>,
+  cached: import("@/lib/offline/inspectionStore").OfflineRating[],
+): Record<string, InspectionItem[]> {
+  const next = { ...prev }
+  for (const r of cached) {
+    const roomId = Object.keys(next).find((rid) => next[rid].some((i) => i.id === r.itemId))
+    if (roomId) {
+      next[roomId] = next[roomId].map((i) =>
+        i.id === r.itemId ? { ...i, condition: r.condition, condition_notes: r.notes } : i
+      )
+    }
+  }
+  return next
 }
 
 const STATUS_MAP: Record<string, "scheduled" | "pending" | "active" | "completed" | "arrears"> = {
@@ -226,30 +244,31 @@ function ItemRow({ item, inspectionId, roomId, moveInPhotoUrl, onUpdate }: ItemR
     const condition = STARS_TO_CONDITION[v] ?? "not_inspected"
     setSaving(true)
     try {
-      const result = await updateItemCondition(item.id, inspectionId, condition, noteValue || undefined)
-      if (result?.error) {
-        toast.error(result.error)
-      } else {
-        onUpdate(item.id, condition, noteValue || null)
+      if (isOnline()) {
+        const result = await updateItemCondition(item.id, inspectionId, condition, noteValue || undefined)
+        if (result?.error) { toast.error(result.error); return }
       }
+      // Write-through: cache in IDB for offline resilience
+      saveItemRating(inspectionId, item.id, condition, noteValue).catch(() => {})
+      onUpdate(item.id, condition, noteValue || null)
+      if (!isOnline()) toast.info("Saved offline — will sync when connected")
     } finally {
       setSaving(false)
     }
   }, [item.id, inspectionId, noteValue, onUpdate])
 
   const handleNoteBlur = useCallback(async () => {
-    if (item.condition && item.condition !== "not_inspected") {
-      setSaving(true)
-      try {
+    if (!item.condition || item.condition === "not_inspected") return
+    setSaving(true)
+    try {
+      if (isOnline()) {
         const result = await updateItemCondition(item.id, inspectionId, item.condition, noteValue || undefined)
-        if (result?.error) {
-          toast.error(result.error)
-        } else {
-          onUpdate(item.id, item.condition, noteValue || null)
-        }
-      } finally {
-        setSaving(false)
+        if (result?.error) { toast.error(result.error); return }
       }
+      void saveItemRating(inspectionId, item.id, item.condition, noteValue)
+      onUpdate(item.id, item.condition, noteValue || null)
+    } finally {
+      setSaving(false)
     }
   }, [item.id, item.condition, inspectionId, noteValue, onUpdate])
 
@@ -258,6 +277,19 @@ function ItemRow({ item, inspectionId, roomId, moveInPhotoUrl, onUpdate }: ItemR
     if (!file) return
     setUploading(true)
     try {
+      if (!isOnline()) {
+        await queuePhoto({
+          id: crypto.randomUUID(),
+          uploadUrl: `/api/inspection/${inspectionId}/photo`,
+          blob: file,
+          filename: file.name,
+          inspectionId,
+          roomId,
+          itemId: item.id,
+        })
+        toast.info("Photo queued — uploads when you're back online")
+        return
+      }
       const fd = new FormData()
       fd.append("file", file)
       fd.append("itemId", item.id)
@@ -358,6 +390,25 @@ export function MobileInspectionView({
   const [agentSigned, setAgentSigned] = useState(false)
   const [tenantSigned, setTenantSigned] = useState(false)
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
+
+  // Load any offline-cached ratings and merge into room state
+  useEffect(() => {
+    getAllRatings(inspectionId).then((cached) => {
+      if (cached.length === 0) return
+      setRoomItems((prev) => mergeOfflineRatings(prev, cached))
+    }).catch(() => {})
+  }, [inspectionId])
+
+  // Flush pending photo queue when connectivity is restored
+  useEffect(() => {
+    const unsub = onConnectivityChange((nowOnline) => {
+      if (!nowOnline) return
+      flushPhotoQueue(inspectionId).then(({ uploaded }) => {
+        if (uploaded > 0) toast.success(`Synced ${uploaded} photo${uploaded === 1 ? "" : "s"}`)
+      }).catch(() => {})
+    })
+    return unsub
+  }, [inspectionId])
 
   const totalItems = rooms.reduce((sum, r) => sum + (roomItems[r.id]?.length ?? 0), 0)
   const inspectedItems = rooms.reduce((sum, r) => {
