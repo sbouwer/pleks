@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 
 const TIMEOUT_MS = 120 * 60 * 1000 // 120 minutes
@@ -13,10 +12,8 @@ export function InactivityGuard() {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    const supabase = createClient()
-
     async function signOut() {
-      await supabase.auth.signOut()
+      await fetch("/api/auth/logout", { method: "POST" })
       toast.info("You were signed out due to inactivity.")
       router.replace("/login")
     }
