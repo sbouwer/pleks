@@ -9,6 +9,7 @@ import { InspectionActions } from "./InspectionActions"
 import { CONDITION_OPTIONS } from "@/lib/inspections/roomTemplates"
 import { RescheduleRequestsPanel, type RescheduleRequest } from "./RescheduleRequestsPanel"
 import { PhotoComparison } from "./PhotoComparison"
+import { MobileInspectionView, type InspectionItem } from "@/components/mobile/MobileInspectionView"
 
 const STATUS_MAP: Record<string, "scheduled" | "pending" | "active" | "completed" | "arrears"> = {
   scheduled: "scheduled",
@@ -70,6 +71,28 @@ export default async function InspectionDetailPage({
 
   return (
     <div>
+      {/* Mobile view */}
+      <div className="lg:hidden">
+        <MobileInspectionView
+          inspectionId={inspectionId}
+          inspectionType={inspection.inspection_type}
+          status={inspection.status}
+          leaseType={inspection.lease_type}
+          scheduledDate={inspection.scheduled_date ?? null}
+          unitLabel={unit ? `${unit.unit_number}, ${unit.properties.name}` : ""}
+          tenantName={tenant ? `${tenant.first_name} ${tenant.last_name}` : null}
+          rooms={(rooms ?? []).map((r) => ({
+            id: r.id,
+            room_label: r.room_label,
+            room_type: r.room_type,
+            display_order: r.display_order,
+            items: (r.inspection_items as unknown as InspectionItem[]) ?? [],
+          }))}
+        />
+      </div>
+
+      {/* Desktop view */}
+      <div className="hidden lg:block">
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
@@ -201,6 +224,7 @@ export default async function InspectionDetailPage({
           </CardContent>
         </Card>
       )}
+      </div>{/* end desktop */}
     </div>
   )
 }
