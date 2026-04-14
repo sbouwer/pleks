@@ -56,6 +56,7 @@ type FilterState = {
   customTo?: string
   landlordId?: string
   agentId?: string
+  showInactive?: boolean
 }
 
 type TabProps = {

@@ -11,7 +11,7 @@ export default async function ReportsPage() {
   const { db, orgId } = gw
   const service = await createServiceClient()
 
-  const [tier, propertiesRes, landlordPropsRes, agentOrgsRes] = await Promise.all([
+  const [tier, propertiesRes, landlordIdsRes, agentOrgsRes] = await Promise.all([
     getOrgTier(orgId),
     db
       .from("properties")
@@ -21,7 +21,7 @@ export default async function ReportsPage() {
       .order("name"),
     db
       .from("properties")
-      .select("landlord_id, landlords(contacts(first_name, last_name, company_name, entity_type))")
+      .select("landlord_id")
       .eq("org_id", orgId)
       .is("deleted_at", null)
       .not("landlord_id", "is", null),
@@ -33,22 +33,23 @@ export default async function ReportsPage() {
       .in("role", ["agent", "property_manager"]),
   ])
 
-  // Deduplicate landlords by landlord_id
-  type LandlordPropRow = {
-    landlord_id: string | null
-    landlords: { contacts: { first_name: string | null; last_name: string | null; company_name: string | null; entity_type: string } | null } | null
-  }
-  const seenLandlords = new Set<string>()
+  // Deduplicate landlord IDs, then fetch names from landlord_view (avoids 3-level PostgREST join)
+  const landlordIds = [...new Set(
+    (landlordIdsRes.data ?? []).map((r) => r.landlord_id as string).filter(Boolean)
+  )]
   const landlords: { id: string; name: string }[] = []
-  for (const row of (landlordPropsRes.data ?? []) as unknown as LandlordPropRow[]) {
-    const lid = row.landlord_id
-    if (!lid || seenLandlords.has(lid)) continue
-    seenLandlords.add(lid)
-    const c = row.landlords?.contacts
-    const name = c?.entity_type === "company"
-      ? (c.company_name ?? lid)
-      : `${c?.first_name ?? ""} ${c?.last_name ?? ""}`.trim() || lid
-    landlords.push({ id: lid, name })
+  if (landlordIds.length > 0) {
+    const { data: lvRows } = await service
+      .from("landlord_view")
+      .select("id, first_name, last_name, company_name, entity_type")
+      .in("id", landlordIds)
+    for (const lv of lvRows ?? []) {
+      const r = lv as { id: string; first_name: string | null; last_name: string | null; company_name: string | null; entity_type: string }
+      const name = r.entity_type === "company"
+        ? (r.company_name ?? r.id)
+        : `${r.first_name ?? ""} ${r.last_name ?? ""}`.trim() || r.id
+      landlords.push({ id: r.id, name })
+    }
   }
 
   // Build agents list
