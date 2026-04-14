@@ -1,3 +1,4 @@
+import { toDateStr } from "./periods"
 import { createServiceClient } from "@/lib/supabase/server"
 import type { ApplicationPipelineData, ReportFilters } from "./types"
 
@@ -5,8 +6,8 @@ export async function buildApplicationPipeline(filters: ReportFilters): Promise<
   const supabase = await createServiceClient()
   const { orgId, from, to } = filters
 
-  const fromStr = from.toISOString()
-  const toStr = to.toISOString()
+  const fromStr = toDateStr(from)
+  const toStr = toDateStr(to)
 
   // Get listings
   const { data: listings } = await supabase

@@ -33,11 +33,10 @@ export async function buildArrearsAgingReport(filters: ReportFilters): Promise<A
   const [{ data: invoices, error: invErr }, { data: tenants, error: tErr }, { data: payments, error: pErr }] = await Promise.all([
     db
       .from("rent_invoices")
-      .select("tenant_id, balance_cents, due_date")
+      .select("tenant_id, total_amount_cents, amount_paid_cents, due_date")
       .eq("org_id", orgId)
       .in("tenant_id", tenantIds)
-      .not("status", "in", "(paid,cancelled,credit)")
-      .gt("balance_cents", 0),
+      .not("status", "in", "(paid,cancelled,credit)"),
     db
       .from("tenants")
       .select("id, contacts(primary_email, primary_phone, first_name, last_name, company_name, entity_type)")
@@ -61,7 +60,7 @@ export async function buildArrearsAgingReport(filters: ReportFilters): Promise<A
   for (const inv of invoices ?? []) {
     const tid = inv.tenant_id as string
     const days = Math.floor((now - new Date(inv.due_date as string).getTime()) / 86_400_000)
-    const amt = (inv.balance_cents as number) ?? 0
+    const amt = Math.max(0, ((inv.total_amount_cents as number) ?? 0) - ((inv.amount_paid_cents as number) ?? 0))
     const existing = tenantBuckets.get(tid) ?? { b30: 0, b60: 0, b90: 0, b90p: 0 }
     if (days <= 30) existing.b30 += amt
     else if (days <= 60) existing.b60 += amt
@@ -107,7 +106,7 @@ export async function buildArrearsAgingReport(filters: ReportFilters): Promise<A
 
   return {
     as_at: new Date(),
-    cases: rows.sort((a, b) => b.total_cents - a.total_cents),
+    cases: rows.toSorted((a, b) => b.total_cents - a.total_cents),
     total_30d_cents: total30,
     total_60d_cents: total60,
     total_90d_cents: total90,

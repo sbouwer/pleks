@@ -1,3 +1,4 @@
+import { toDateStr } from "./periods"
 import { createServiceClient } from "@/lib/supabase/server"
 import type { TrustReconciliationData, TrustReconRow, ReportFilters } from "./types"
 
@@ -5,8 +6,8 @@ export async function buildTrustReconciliation(filters: ReportFilters): Promise<
   const db = await createServiceClient()
   const { orgId, from, to } = filters
 
-  const fromStr = from.toISOString().slice(0, 10)
-  const toStr = to.toISOString().slice(0, 10)
+  const fromStr = toDateStr(from)
+  const toStr = toDateStr(to)
 
   // All trust transactions in period
   const { data, error } = await db

@@ -1,3 +1,4 @@
+import { toDateStr } from "./periods"
 import { createServiceClient } from "@/lib/supabase/server"
 import type { OwnerPortfolioData, OwnerPortfolioRow, ReportFilters } from "./types"
 
@@ -5,8 +6,8 @@ export async function buildOwnerPortfolio(filters: ReportFilters): Promise<Owner
   const supabase = await createServiceClient()
   const { orgId, from, to, propertyIds } = filters
 
-  const fromStr = from.toISOString()
-  const toStr = to.toISOString()
+  const fromStr = toDateStr(from)
+  const toStr = toDateStr(to)
 
   // Get owner statements for period
   let stmtQuery = supabase

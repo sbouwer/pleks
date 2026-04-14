@@ -1,4 +1,5 @@
 import { createServiceClient } from "@/lib/supabase/server"
+import { toDateStr } from "./periods"
 import type { InspectionScheduleData, InspectionScheduleRow, ReportFilters } from "./types"
 
 type ContactRow = { first_name: string | null; last_name: string | null; company_name: string | null; entity_type: string }
@@ -22,7 +23,7 @@ export async function buildInspectionSchedule(filters: ReportFilters): Promise<I
     .select("id, inspection_type, status, scheduled_date, property_id, unit_id, tenant_id, units(unit_number, properties(name))")
     .eq("org_id", orgId)
     .in("status", ["scheduled", "in_progress"])
-    .lte("scheduled_date", cutoff.toISOString().slice(0, 10))
+    .lte("scheduled_date", toDateStr(cutoff))
     .order("scheduled_date", { ascending: true })
   if (propertyIds?.length) query = query.in("property_id", propertyIds)
 

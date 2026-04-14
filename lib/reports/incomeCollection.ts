@@ -1,3 +1,4 @@
+import { toDateStr } from "./periods"
 import { createServiceClient } from "@/lib/supabase/server"
 import type { IncomeCollectionData, IncomeCollectionRow, ReportFilters } from "./types"
 
@@ -5,8 +6,8 @@ export async function buildIncomeCollectionReport(filters: ReportFilters): Promi
   const supabase = await createServiceClient()
   const { orgId, from, to } = filters
 
-  const fromStr = from.toISOString()
-  const toStr = to.toISOString()
+  const fromStr = toDateStr(from)
+  const toStr = toDateStr(to)
 
   const [invoicesRes, paymentsRes] = await Promise.all([
     supabase
