@@ -1,4 +1,5 @@
 import type { NextConfig } from "next"
+import withSerwist from "@serwist/next"
 
 const securityHeaders = [
   // Prevent clickjacking
@@ -24,6 +25,7 @@ const securityHeaders = [
       "font-src 'self' data:",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.resend.com",
       "frame-src https://maps.google.com https://www.google.com",
+      "worker-src 'self'",
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",
@@ -35,6 +37,10 @@ const nextConfig: NextConfig = {
   // Remove X-Powered-By: Next.js header
   poweredByHeader: false,
 
+  // Silence the Turbopack/webpack mismatch warning from @serwist/next.
+  // Serwist is disabled in development so webpack only runs in production builds.
+  turbopack: {},
+
   async headers() {
     return [
       {
@@ -45,4 +51,8 @@ const nextConfig: NextConfig = {
   },
 }
 
-export default nextConfig
+export default withSerwist({
+  swSrc: "app/sw.ts",
+  swDest: "public/sw.js",
+  disable: process.env.NODE_ENV === "development",
+})(nextConfig)
