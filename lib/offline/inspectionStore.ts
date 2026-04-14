@@ -2,14 +2,15 @@
  * IndexedDB store for offline inspection data.
  * Used by MobileInspectionView when navigator.onLine is false.
  *
- * Schema (pleks_offline v1):
- *   inspectionMeta   — inspection header, keyed by inspectionId
- *   inspectionRatings — { inspectionId, itemId, condition, notes }, keyed by `${inspectionId}:${itemId}`
- *   photoQueue       — pending photo uploads
+ * Schema (pleks_offline v2):
+ *   inspectionMeta     — inspection header, keyed by inspectionId
+ *   inspectionRatings  — { inspectionId, itemId, condition, notes }, keyed by `${inspectionId}:${itemId}`
+ *   photoQueue         — pending photo uploads (compressed JPEG blobs)
+ *   savedInspections   — full room+item tree pre-downloaded for offline use (Mode B)
  */
 
 const DB_NAME = "pleks_offline"
-const DB_VERSION = 1
+const DB_VERSION = 2
 
 let _db: IDBDatabase | null = null
 
@@ -27,6 +28,10 @@ function openDB(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains("photoQueue")) {
         db.createObjectStore("photoQueue", { keyPath: "id" })
+      }
+      // v2: full offline inspection snapshots for Mode B (Save for offline)
+      if (!db.objectStoreNames.contains("savedInspections")) {
+        db.createObjectStore("savedInspections", { keyPath: "inspectionId" })
       }
     }
     req.onsuccess = () => { _db = req.result; resolve(req.result) }
@@ -156,6 +161,83 @@ export async function removePendingPhoto(id: string): Promise<void> {
   const tx = db.transaction("photoQueue", "readwrite")
   return new Promise((resolve, reject) => {
     const req = tx.objectStore("photoQueue").delete(id)
+    req.onsuccess = () => resolve()
+    req.onerror = () => reject(req.error)
+  })
+}
+
+/** Count ALL pending photos across every inspection — used by Mode C sync screen. */
+export async function countAllPendingPhotos(): Promise<number> {
+  const db = await openDB()
+  const tx = db.transaction("photoQueue", "readonly")
+  return new Promise((resolve, reject) => {
+    const req = tx.objectStore("photoQueue").count()
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
+}
+
+// ── Saved inspections (Mode B — manual offline preparation) ──────────────────
+
+export interface SavedInspectionItem {
+  id: string
+  item_name: string
+  item_category: string | null
+  condition: string | null
+  condition_notes: string | null
+}
+
+export interface SavedInspectionRoom {
+  id: string
+  room_type: string
+  room_label: string
+  display_order: number
+  items: SavedInspectionItem[]
+}
+
+export interface SavedInspection {
+  inspectionId: string
+  inspectionType: string
+  status: string
+  unitNumber: string
+  propertyName: string
+  tenantName: string | null
+  tenantPhone: string | null
+  scheduledDate: string | null
+  rooms: SavedInspectionRoom[]
+  savedAt: string
+}
+
+export async function saveInspectionData(data: Omit<SavedInspection, "savedAt">): Promise<void> {
+  const db = await openDB()
+  const tx = db.transaction("savedInspections", "readwrite")
+  await idbPut(tx.objectStore("savedInspections"), {
+    ...data,
+    savedAt: new Date().toISOString(),
+  })
+}
+
+export async function loadInspectionData(inspectionId: string): Promise<SavedInspection | undefined> {
+  const db = await openDB()
+  const tx = db.transaction("savedInspections", "readonly")
+  return idbGet<SavedInspection>(tx.objectStore("savedInspections"), inspectionId)
+}
+
+export async function listSavedInspectionIds(): Promise<string[]> {
+  const db = await openDB()
+  const tx = db.transaction("savedInspections", "readonly")
+  return new Promise((resolve, reject) => {
+    const req = tx.objectStore("savedInspections").getAllKeys()
+    req.onsuccess = () => resolve(req.result as string[])
+    req.onerror = () => reject(req.error)
+  })
+}
+
+export async function deleteSavedInspection(inspectionId: string): Promise<void> {
+  const db = await openDB()
+  const tx = db.transaction("savedInspections", "readwrite")
+  return new Promise((resolve, reject) => {
+    const req = tx.objectStore("savedInspections").delete(inspectionId)
     req.onsuccess = () => resolve()
     req.onerror = () => reject(req.error)
   })

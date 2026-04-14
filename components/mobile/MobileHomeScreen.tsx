@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useEffect, useState, useCallback } from "react"
 import { useQuery } from "@tanstack/react-query"
 import {
   UserSquare2,
@@ -12,12 +13,19 @@ import {
   CreditCard,
   AlertTriangle,
   Shield,
+  Upload,
+  Loader2,
 } from "lucide-react"
 import { useUser } from "@/hooks/useUser"
 import { useOrg } from "@/hooks/useOrg"
 import { useMobileHomeBadges } from "@/hooks/useMobileHomeBadges"
 import { formatZARAbbrev } from "@/lib/constants"
 import { createClient } from "@/lib/supabase/client"
+import { countAllPendingPhotos } from "@/lib/offline/inspectionStore"
+import { isOnline } from "@/lib/offline/syncManager"
+import { toast } from "sonner"
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getGreeting(): string {
   const hour = new Date().getHours()
@@ -26,6 +34,101 @@ function getGreeting(): string {
   return "Good evening"
 }
 
+function fmtCents(cents: number): string {
+  return cents === 0 ? "—" : formatZARAbbrev(cents)
+}
+
+function formatAction(action: string): string {
+  switch (action) {
+    case "payment_recorded": return "Payment recorded"
+    case "maintenance_completed": return "Maintenance completed"
+    case "lease_created": return "Lease created"
+    default: return action
+  }
+}
+
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleString("en-ZA", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
+// ── Mode C — Sync section ─────────────────────────────────────────────────────
+
+/**
+ * Shows when there are photos pending upload.
+ * - Online: [Sync now] button triggers immediate upload
+ * - Offline: informs the inspector to connect to sync
+ */
+function SyncSection() {
+  const [pending, setPending] = useState(0)
+  const [syncing, setSyncing] = useState(false)
+  const online = isOnline()
+
+  useEffect(() => {
+    countAllPendingPhotos().then(setPending).catch(() => {})
+  }, [])
+
+  const handleSync = useCallback(async () => {
+    setSyncing(true)
+    try {
+      // flushPhotoQueue needs an inspectionId; pass empty string to flush all via SW
+      // For each pending photo the SW handles the upload — trigger via service worker
+      const reg = await navigator.serviceWorker?.ready
+      if (reg && "sync" in reg) {
+        await (reg as ServiceWorkerRegistration & { sync: { register(tag: string): Promise<void> } })
+          .sync.register("photo-upload")
+        toast.success("Sync started — photos uploading in background")
+      } else {
+        // Fallback: attempt direct flush of all inspections
+        // We don't know which inspectionId has pending photos, so trigger SW message
+        navigator.serviceWorker?.controller?.postMessage({ type: "FLUSH_PHOTOS" })
+        toast.success("Sync triggered")
+      }
+      setPending(0)
+    } catch {
+      toast.error("Sync failed — try again")
+    } finally {
+      setSyncing(false)
+    }
+  }, [])
+
+  if (pending === 0) return null
+
+  return (
+    <div className="mx-4 mt-4 rounded-xl border overflow-hidden bg-card border-emerald-800/40">
+      <div className="flex items-center justify-between px-4 py-3">
+        <div className="flex items-center gap-3">
+          <Upload className="h-4 w-4 text-emerald-400 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-medium">
+              {pending} photo{pending === 1 ? "" : "s"} pending upload
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {online ? "Ready to sync" : "Connect to WiFi to sync"}
+            </p>
+          </div>
+        </div>
+        {online && (
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="flex items-center gap-1.5 text-xs font-medium text-emerald-400 hover:text-emerald-300 disabled:opacity-60 transition-colors"
+          >
+            {syncing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {syncing ? "Syncing…" : "Sync now"}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Tile grid ─────────────────────────────────────────────────────────────────
+
 interface Tile {
   href: string
   icon: React.ElementType
@@ -33,12 +136,7 @@ interface Tile {
   badge: string
 }
 
-interface TileRowProps {
-  rowLabel: string
-  tiles: Tile[]
-}
-
-function TileRow({ rowLabel, tiles }: TileRowProps) {
+function TileRow({ rowLabel, tiles }: Readonly<{ rowLabel: string; tiles: Tile[] }>) {
   return (
     <div>
       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">
@@ -60,6 +158,8 @@ function TileRow({ rowLabel, tiles }: TileRowProps) {
     </div>
   )
 }
+
+// ── Attention section ─────────────────────────────────────────────────────────
 
 interface AttentionItem {
   id: string
@@ -120,17 +220,10 @@ function AttentionSection() {
       {items.map((item) => (
         <div key={item.id} className="flex items-center justify-between px-4 py-3 border-b border-border/50 last:border-b-0">
           <div className="flex items-center gap-3 min-w-0">
-            <span
-              className={`h-2 w-2 rounded-full flex-shrink-0 ${
-                item.type === "arrears" ? "bg-destructive" : "bg-orange-400"
-              }`}
-            />
+            <span className={`h-2 w-2 rounded-full flex-shrink-0 ${item.type === "arrears" ? "bg-destructive" : "bg-orange-400"}`} />
             <span className="text-sm truncate">{item.label}</span>
           </div>
-          <Link
-            href={item.href}
-            className="ml-3 text-xs text-brand font-medium flex-shrink-0"
-          >
+          <Link href={item.href} className="ml-3 text-xs text-brand font-medium flex-shrink-0">
             View
           </Link>
         </div>
@@ -138,6 +231,8 @@ function AttentionSection() {
     </div>
   )
 }
+
+// ── Recent activity ───────────────────────────────────────────────────────────
 
 interface AuditEntry {
   id: string
@@ -166,24 +261,6 @@ function RecentActivity() {
 
   if (entries.length === 0) return null
 
-  function formatAction(action: string): string {
-    switch (action) {
-      case "payment_recorded": return "Payment recorded"
-      case "maintenance_completed": return "Maintenance completed"
-      case "lease_created": return "Lease created"
-      default: return action
-    }
-  }
-
-  function formatTime(iso: string): string {
-    return new Date(iso).toLocaleString("en-ZA", {
-      day: "numeric",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    })
-  }
-
   return (
     <div className="mx-4 mt-4 rounded-xl bg-card border border-border overflow-hidden">
       <p className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground/60 border-b border-border/50">
@@ -199,6 +276,8 @@ function RecentActivity() {
   )
 }
 
+// ── Main export ───────────────────────────────────────────────────────────────
+
 export function MobileHomeScreen() {
   const { user } = useUser()
   const { displayName } = useOrg()
@@ -208,10 +287,6 @@ export function MobileHomeScreen() {
   const firstName = fullName?.split(" ")[0] ?? "there"
   const greeting = getGreeting()
   const orgName = displayName ?? ""
-
-  function fmtCents(cents: number): string {
-    return cents === 0 ? "—" : formatZARAbbrev(cents)
-  }
 
   const peopleRow: Tile[] = [
     { href: "/landlords", icon: UserSquare2, label: "Landlords", badge: String(badges.landlords) },
@@ -240,6 +315,9 @@ export function MobileHomeScreen() {
           {greeting}, {firstName}
         </h1>
       </div>
+
+      {/* Mode C — pending sync banner */}
+      <SyncSection />
 
       {/* 3×3 grid */}
       <div className="px-4 pt-5 space-y-5">
