@@ -48,8 +48,11 @@ function getReportCSS(org: ReportBranding): string {
   th { text-align: left; font-size: 9px; text-transform: uppercase; color: #64748b; background: ${accentLight}; border-bottom: 1px solid #e2e8f0; padding: 6px 8px; }
   td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; font-size: 10px; }
   tr:last-child td { border-bottom: 2px solid #e2e8f0; }
-  tr.co-tenant td { background: #f8fafc; color: #64748b; font-size: 9px; }
-  tr.co-tenant td:first-child { padding-left: 20px; }
+  tr.co-tenant td { font-size: 9px; color: #64748b; }
+  td.bracket-connector { width: 8px; padding: 0; border-bottom: none; }
+  td.bracket-top    { border-left: 2px solid ${accent}; border-top: 2px solid ${accent}; }
+  td.bracket-mid    { border-left: 2px solid ${accent}; }
+  td.bracket-bot    { border-left: 2px solid ${accent}; border-bottom: 2px solid ${accent}; }
   .metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
   .metric { background: #f8fafc; border: 1px solid #e2e8f0; border-top: 3px solid ${accent}; border-radius: 6px; padding: 10px; }
   .metric .label { font-size: 9px; color: #64748b; text-transform: uppercase; }
@@ -438,17 +441,31 @@ export function buildDebitOrderReportHTML(data: DebitOrderReportData, org: Repor
 
 export function buildTenantDirectoryHTML(data: TenantDirectoryData, org: ReportBranding): string {
   const periodStr = `As at ${formatDateShort(data.as_at)}`
+
+  // Tag each row with its bracket connector role
+  type RowWithBracket = (typeof data.rows)[number] & { bracketClass: string }
+  const tagged: RowWithBracket[] = data.rows.map((r, i, arr) => {
+    const isCo = r.role !== "Primary"
+    if (!isCo) {
+      const hasCoNext = i + 1 < arr.length && arr[i + 1].role !== "Primary"
+      return { ...r, bracketClass: hasCoNext ? "bracket-connector bracket-top" : "bracket-connector" }
+    }
+    const isLast = i + 1 >= arr.length || arr[i + 1].role === "Primary"
+    return { ...r, bracketClass: isLast ? "bracket-connector bracket-bot" : "bracket-connector bracket-mid" }
+  })
+
   const body = `
     <div class="metric-grid">
       <div class="metric"><div class="label">Active Tenants</div><div class="value">${data.total_active}</div></div>
     </div>
     <table>
-      <tr><th>Tenant</th><th>Role</th><th>Email</th><th>Phone</th><th>Unit</th><th>Property</th><th>Lease End</th><th class="text-right">Monthly Rent</th></tr>
-      ${data.rows.map((r) => {
+      <tr><th style="width:8px;padding:0"></th><th>Tenant</th><th>Role</th><th>Email</th><th>Phone</th><th>Unit</th><th>Property</th><th>Lease End</th><th class="text-right">Monthly Rent</th></tr>
+      ${tagged.map((r) => {
         const isCo = r.role !== "Primary"
         const leaseEnd = r.lease_end ?? "—"
         const rentStr = formatZAR(r.monthly_rent_cents)
         return `<tr${isCo ? ' class="co-tenant"' : ""}>
+          <td class="${r.bracketClass}"></td>
           <td>${r.tenant_name}</td><td>${r.role}</td><td>${r.email ?? "—"}</td><td>${r.phone ?? "—"}</td>
           <td>${isCo ? "" : r.unit_number}</td><td>${isCo ? "" : r.property_name}</td>
           <td>${isCo ? "" : leaseEnd}</td><td class="text-right">${isCo ? "" : rentStr}</td>
