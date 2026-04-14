@@ -41,7 +41,7 @@ export default async function PortalDashboard() {
   const { tenantId, leaseId, orgId, lease, unitId, tenantName } = session
 
   // Parallel data fetches
-  const [invoiceRes, , inspectionRes, maintenanceRes, unitRes, orgRes] = await Promise.all([
+  const [invoiceRes, , inspectionRes, maintenanceRes, unitRes, orgRes, subRes] = await Promise.all([
     // Latest open invoice for balance + next payment
     service.from("rent_invoices")
       .select("id, invoice_date, due_date, total_amount_cents, balance_cents, payment_reference, status")
@@ -75,16 +75,21 @@ export default async function PortalDashboard() {
       .eq("org_id", orgId)
       .order("created_at", { ascending: false })
       .limit(3),
-    // Unit details
+    // Unit + property (including managing agent)
     service.from("units")
-      .select("unit_number, properties(name, address_line1, city)")
+      .select("unit_number, properties(name, address_line1, city, managing_agent_id)")
       .eq("id", unitId)
       .single(),
-
-    // Org emergency contact
+    // Org emergency contact (fallback)
     service.from("organisations")
       .select("phone, emergency_phone, emergency_contact_name")
       .eq("id", orgId)
+      .single(),
+    // Subscription tier (determines emergency contact resolution)
+    service.from("subscriptions")
+      .select("tier")
+      .eq("org_id", orgId)
+      .eq("status", "active")
       .single(),
   ])
 
@@ -92,13 +97,30 @@ export default async function PortalDashboard() {
   const maintenance = maintenanceRes.data ?? []
   const inspection = inspectionRes.data
   const unit = unitRes.data
-  const property = unit?.properties as unknown as { name: string; address_line1: string | null; city: string | null } | null
+  const property = unit?.properties as unknown as { name: string; address_line1: string | null; city: string | null; managing_agent_id: string | null } | null
 
   const daysUntilDue = invoice?.due_date ? daysUntil(invoice.due_date) : null
 
   const orgData = orgRes.data as unknown as { phone: string | null; emergency_phone: string | null; emergency_contact_name: string | null } | null
-  const emergencyPhone = orgData?.emergency_phone ?? orgData?.phone ?? null
-  const emergencyContactName = orgData?.emergency_contact_name ?? null
+  const subTier = (subRes.data as unknown as { tier: string } | null)?.tier ?? "owner"
+  const isAgentTier = subTier === "portfolio" || subTier === "firm"
+
+  // For Portfolio/Firm orgs: prefer the managing agent's personal emergency contact
+  let emergencyPhone: string | null = orgData?.emergency_phone ?? orgData?.phone ?? null
+  let emergencyContactName: string | null = orgData?.emergency_contact_name ?? null
+
+  if (isAgentTier && property?.managing_agent_id) {
+    const { data: agentProfile } = await service
+      .from("user_profiles")
+      .select("emergency_phone, emergency_contact_name, full_name")
+      .eq("id", property.managing_agent_id)
+      .single()
+    const agent = agentProfile as unknown as { emergency_phone: string | null; emergency_contact_name: string | null; full_name: string | null } | null
+    if (agent?.emergency_phone) {
+      emergencyPhone = agent.emergency_phone
+      emergencyContactName = agent.emergency_contact_name ?? agent.full_name ?? null
+    }
+  }
 
   return (
     <div>
