@@ -55,8 +55,8 @@ export function ProductPreview() {
           Purpose-built for SA property management. Every screen designed to save you time.
         </p>
 
-        {/* Tab selector */}
-        <div className="flex gap-2 mb-8">
+        {/* Tab selector — horizontal scroll on mobile */}
+        <div className="flex gap-2 mb-8 overflow-x-auto pb-1 scrollbar-none">
           {TABS.map((tab) => (
             <button
               key={tab.key}
@@ -73,11 +73,11 @@ export function ProductPreview() {
           ))}
         </div>
 
-        {/* Browser chrome frame */}
+        {/* Browser chrome frame — chrome hidden on mobile, shown on md+ */}
         <div className="max-w-[900px] mx-auto">
-          <div className="rounded-xl overflow-hidden shadow-[0_24px_48px_rgba(0,0,0,0.4)] border border-border/40">
-            {/* Title bar */}
-            <div className="bg-surface border-b border-border/40 px-4 py-3 flex items-center gap-3">
+          <div className="rounded-xl overflow-hidden md:shadow-[0_24px_48px_rgba(0,0,0,0.4)] md:border md:border-border/40">
+            {/* Title bar — desktop only */}
+            <div className="hidden md:flex bg-surface border-b border-border/40 px-4 py-3 items-center gap-3">
               <div className="flex gap-1.5">
                 <div className="w-3 h-3 rounded-full bg-brand/30" />
                 <div className="w-3 h-3 rounded-full bg-brand/20" />

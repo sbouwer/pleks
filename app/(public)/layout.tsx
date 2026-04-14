@@ -1,22 +1,22 @@
 import Link from "next/link"
 import Image from "next/image"
-import { Mail } from "lucide-react"
 import { PublicNav } from "./PublicNav"
+import { FooterColumns } from "@/components/marketing/FooterColumns"
 
 export default function PublicLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode
-}) {
+}>) {
   return (
     <div className="min-h-screen flex flex-col">
       <PublicNav />
       <main className="flex-1">{children}</main>
       <footer className="border-t border-border/40 bg-surface">
         <div className="max-w-6xl mx-auto px-4 pt-12 pb-12">
-          <div className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr_1fr_1fr] gap-10 mb-10">
-            {/* Brand */}
-            <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr_1fr_1fr] gap-0 md:gap-10 mb-10">
+            {/* Brand — always visible */}
+            <div className="space-y-4 pb-6 md:pb-0 border-b border-border/30 md:border-none">
               <Image src="/logo.svg" alt="Pleks" width={100} height={32} className="h-8 w-auto opacity-90" />
               <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
                 Built from the inside out.
@@ -31,68 +31,8 @@ export default function PublicLayout({
               </Link>
             </div>
 
-            {/* Product */}
-            <div>
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-4">Product</h4>
-              <ul className="space-y-2.5 text-sm">
-                {[
-                  { label: "Pricing", href: "/pricing" },
-                  { label: "For Agents", href: "/for-agents" },
-                  { label: "For Landlords", href: "/for-landlords" },
-                  { label: "Switch to Pleks", href: "/migrate" },
-                  { label: "Early access", href: "/early-access" },
-                ].map((item) => (
-                  <li key={item.href}>
-                    <Link href={item.href} className="text-muted-foreground hover:text-foreground transition-colors">
-                      {item.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Legal */}
-            <div>
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-4">Legal</h4>
-              <ul className="space-y-2.5 text-sm">
-                {[
-                  { label: "Privacy Policy", href: "/privacy" },
-                  { label: "Terms of Service", href: "/terms" },
-                  { label: "Credit Check Policy", href: "/credit-check-policy" },
-                ].map((item) => (
-                  <li key={item.href}>
-                    <Link href={item.href} className="text-muted-foreground hover:text-foreground transition-colors">
-                      {item.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Contact */}
-            <div>
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-4">Contact</h4>
-              <ul className="space-y-2.5 text-sm">
-                <li>
-                  <a href="mailto:hello@pleks.co.za" className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2">
-                    <Mail className="size-3.5 shrink-0" />
-                    hello@pleks.co.za
-                  </a>
-                </li>
-                <li>
-                  <a href="mailto:support@pleks.co.za" className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2">
-                    <Mail className="size-3.5 shrink-0" />
-                    support@pleks.co.za
-                  </a>
-                </li>
-                <li>
-                  <a href="mailto:legal@pleks.co.za" className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2">
-                    <Mail className="size-3.5 shrink-0" />
-                    legal@pleks.co.za
-                  </a>
-                </li>
-              </ul>
-            </div>
+            {/* Product / Legal / Contact — accordion on mobile, columns on desktop */}
+            <FooterColumns />
           </div>
 
           {/* Bottom bar */}

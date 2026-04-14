@@ -1,11 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
-import { Menu, X, User, LogOut, LayoutDashboard } from "lucide-react"
+import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { Menu, User, LogOut, LayoutDashboard } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { cn } from "@/lib/utils"
 
 const NAV_LINKS = [
   { href: "/pricing", label: "Pricing" },
@@ -15,9 +17,11 @@ const NAV_LINKS = [
 ]
 
 export function PublicNav() {
-  const [open, setOpen] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [user, setUser] = useState<{ email?: string } | null>(null)
+  const [visible, setVisible] = useState(true)
+  const lastScrollRef = useRef(0)
 
   useEffect(() => {
     const supabase = createClient()
@@ -25,9 +29,18 @@ export function PublicNav() {
       .then(({ data }) => {
         setUser(data.user ? { email: data.user.email ?? undefined } : null)
       })
-      .catch(() => {
-        setUser(null)
-      })
+      .catch(() => { setUser(null) })
+  }, [])
+
+  // Scroll-away on mobile: hide when scrolling down, show on scroll up
+  useEffect(() => {
+    const handleScroll = () => {
+      const current = globalThis.scrollY
+      setVisible(current < lastScrollRef.current || current < 64)
+      lastScrollRef.current = current
+    }
+    globalThis.addEventListener("scroll", handleScroll, { passive: true })
+    return () => globalThis.removeEventListener("scroll", handleScroll)
   }, [])
 
   async function handleLogout() {
@@ -37,14 +50,21 @@ export function PublicNav() {
   }
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border/30 bg-background/80 backdrop-blur-xl">
+    <header
+      className={cn(
+        "sticky top-0 z-50 border-b border-border/30 bg-background/80 backdrop-blur-xl",
+        "transition-transform duration-300",
+        // On mobile: slide away when scrolling down; desktop always visible
+        !visible && "-translate-y-full md:translate-y-0"
+      )}
+    >
       <nav className="max-w-6xl mx-auto px-4 h-16 grid grid-cols-[auto_1fr_auto] items-center">
         {/* Left: logo */}
         <Link href="/" className="shrink-0">
           <Image src="/logo.svg" alt="Pleks" width={90} height={28} className="h-7 w-auto" priority />
         </Link>
 
-        {/* Centre: nav links + Start free */}
+        {/* Centre: nav links + Start free (desktop only) */}
         <div className="hidden md:flex items-center justify-center gap-6">
           {NAV_LINKS.map((link) => (
             <Link
@@ -62,8 +82,9 @@ export function PublicNav() {
           )}
         </div>
 
-        {/* Right: auth state */}
+        {/* Right: auth state + mobile hamburger */}
         <div className="flex items-center justify-end gap-3">
+          {/* Desktop: profile dropdown */}
           {user ? (
             <div className="relative hidden md:block">
               <button
@@ -76,7 +97,12 @@ export function PublicNav() {
               </button>
               {profileOpen && (
                 <>
-                  <button type="button" className="fixed inset-0 z-40 cursor-default" onClick={() => setProfileOpen(false)} aria-label="Close menu" />
+                  <button
+                    type="button"
+                    className="fixed inset-0 z-40 cursor-default"
+                    onClick={() => setProfileOpen(false)}
+                    aria-label="Close menu"
+                  />
                   <div className="absolute right-0 top-10 z-50 w-52 rounded-lg border border-border bg-popover shadow-lg py-1">
                     <p className="px-3 py-2 text-xs text-muted-foreground truncate border-b border-border/50">
                       {user.email}
@@ -106,39 +132,41 @@ export function PublicNav() {
               Sign in
             </Button>
           )}
+
+          {/* Mobile: hamburger opens bottom sheet */}
           <button
             className="md:hidden p-2 -mr-2"
-            onClick={() => setOpen(!open)}
-            aria-label="Toggle menu"
+            onClick={() => setMobileOpen(true)}
+            aria-label="Open menu"
           >
-            {open ? <X className="size-5" /> : <Menu className="size-5" />}
+            <Menu className="size-5" />
           </button>
         </div>
       </nav>
 
-      {/* Mobile menu */}
-      {open && (
-        <div className="md:hidden border-t border-border/30 bg-background px-4 pb-4">
-          <div className="flex flex-col gap-1 py-2">
+      {/* Mobile menu — bottom sheet */}
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+        <SheetContent side="bottom" className="rounded-t-xl pb-8">
+          <div className="flex flex-col gap-1 py-4">
             {NAV_LINKS.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className="py-3 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                onClick={() => setOpen(false)}
+                className="py-3 px-2 text-sm text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-surface-elevated"
+                onClick={() => setMobileOpen(false)}
               >
                 {link.label}
               </Link>
             ))}
           </div>
-          <div className="flex flex-col gap-2 pt-2 border-t border-border/30">
+          <div className="flex flex-col gap-2 pt-3 border-t border-border/30">
             {user ? (
               <>
-                <p className="text-xs text-muted-foreground px-1 mb-1">{user.email}</p>
+                <p className="text-xs text-muted-foreground px-2 mb-1">{user.email}</p>
                 <Link
                   href="/dashboard"
-                  className="flex items-center gap-2 py-2 text-sm hover:text-foreground transition-colors"
-                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-2 py-2 px-2 text-sm hover:text-foreground transition-colors rounded-lg hover:bg-surface-elevated"
+                  onClick={() => setMobileOpen(false)}
                 >
                   <LayoutDashboard className="size-4" />
                   Dashboard
@@ -146,7 +174,7 @@ export function PublicNav() {
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="flex items-center gap-2 py-2 text-sm text-danger text-left"
+                  className="flex items-center gap-2 py-2 px-2 text-sm text-danger text-left rounded-lg"
                 >
                   <LogOut className="size-4" />
                   Log out
@@ -163,8 +191,8 @@ export function PublicNav() {
               </>
             )}
           </div>
-        </div>
-      )}
+        </SheetContent>
+      </Sheet>
     </header>
   )
 }
