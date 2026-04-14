@@ -1,10 +1,11 @@
 "use client"
 
 import { useState } from "react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import type { ReportPeriodType } from "@/lib/reports/types"
 
 interface Person {
@@ -61,6 +62,7 @@ export function ReportFilters({ properties, landlords, agents, tier, onApply }: 
       agentId: selectedAgent === "all" ? undefined : selectedAgent,
       showInactive,
     })
+    toast.success("Filters applied")
   }
 
   const showLandlord = STEWARD_TIERS.has(tier)
@@ -86,11 +88,11 @@ export function ReportFilters({ properties, landlords, agents, tier, onApply }: 
         <>
           <div>
             <Label className="text-xs text-muted-foreground mb-1 block">From</Label>
-            <Input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="w-[140px] h-9" />
+            <DatePickerInput value={customFrom} onChange={setCustomFrom} placeholder="From date" />
           </div>
           <div>
             <Label className="text-xs text-muted-foreground mb-1 block">To</Label>
-            <Input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="w-[140px] h-9" />
+            <DatePickerInput value={customTo} onChange={setCustomTo} placeholder="To date" />
           </div>
         </>
       )}
