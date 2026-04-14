@@ -48,7 +48,7 @@ export async function buildPortfolioSummary(filters: ReportFilters): Promise<Por
         .lte("payment_date", toStr),
       supabase
         .from("arrears_cases")
-        .select("total_arrears_cents, oldest_outstanding_date, current_step")
+        .select("property_id, total_arrears_cents, oldest_outstanding_date, current_step")
         .eq("org_id", orgId)
         .in("status", ["open", "arrangement"]),
       supabase
@@ -68,6 +68,13 @@ export async function buildPortfolioSummary(filters: ReportFilters): Promise<Por
   const invoices = invoicesRes.data ?? []
   const payments = paymentsRes.data ?? []
   const arrearsCases = arrearsRes.data ?? []
+
+  // Per-property arrears totals
+  const propArrearsMap = new Map<string, number>()
+  for (const c of arrearsCases) {
+    const pid = c.property_id as string
+    propArrearsMap.set(pid, (propArrearsMap.get(pid) ?? 0) + (c.total_arrears_cents ?? 0))
+  }
   const maintenance = maintenanceRes.data ?? []
   const leases = leasesRes.data ?? []
 
@@ -151,7 +158,7 @@ export async function buildPortfolioSummary(filters: ReportFilters): Promise<Por
       expected_income_cents: pExpected,
       collected_income_cents: pCollected,
       collection_rate: pExpected > 0 ? Math.round((pCollected / pExpected) * 100) : 0,
-      arrears_cents: 0, // would need per-property arrears breakdown
+      arrears_cents: propArrearsMap.get(pid) ?? 0,
       maintenance_spend_cents: pMaint,
     }
   })

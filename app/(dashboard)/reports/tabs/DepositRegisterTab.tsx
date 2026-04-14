@@ -11,6 +11,12 @@ interface Props {
   filters: { periodType: ReportPeriodType; propertyIds: string[]; customFrom?: string; customTo?: string }
 }
 
+function formatDeadline(days: number | null): string {
+  if (days === null) return "—"
+  if (days <= 0) return "Overdue"
+  return `${days}d`
+}
+
 export function DepositRegisterTab({ orgId, filters }: Props) {
   const { data, loading, error } = useReportData<DepositRegisterData>("deposit_register", orgId, filters)
 
@@ -40,22 +46,33 @@ export function DepositRegisterTab({ orgId, filters }: Props) {
                     <th className="text-left py-2 pr-2">Tenant</th>
                     <th className="text-left py-2 pr-2">Unit</th>
                     <th className="text-left py-2 pr-2">Property</th>
-                    <th className="text-right py-2 px-2">Amount Held</th>
+                    <th className="text-right py-2 px-2">Principal</th>
+                    <th className="text-right py-2 px-2">Interest</th>
                     <th className="text-left py-2 px-2">Date Received</th>
+                    <th className="text-left py-2 px-2">Lease End</th>
+                    <th className="text-right py-2 px-2">Days to Deadline</th>
                     <th className="text-left py-2">Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {data.rows.map((r) => (
-                    <tr key={r.tenant_name + r.unit_number} className="border-b border-border/50">
-                      <td className="py-2 pr-2">{r.tenant_name}</td>
-                      <td className="py-2 pr-2">{r.unit_number}</td>
-                      <td className="py-2 pr-2 text-xs">{r.property_name}</td>
-                      <td className="text-right py-2 px-2">{formatZAR(r.amount_cents)}</td>
-                      <td className="py-2 px-2 text-xs">{r.date_received}</td>
-                      <td className="py-2 text-xs capitalize">{r.status}</td>
-                    </tr>
-                  ))}
+                  {data.rows.map((r) => {
+                    const deadlineClass = r.days_until_return_deadline !== null && r.days_until_return_deadline <= 3 ? "text-red-600 font-semibold" : ""
+                    return (
+                      <tr key={r.tenant_name + r.unit_number} className="border-b border-border/50">
+                        <td className="py-2 pr-2">{r.tenant_name}</td>
+                        <td className="py-2 pr-2">{r.unit_number}</td>
+                        <td className="py-2 pr-2 text-xs">{r.property_name}</td>
+                        <td className="text-right py-2 px-2">{formatZAR(r.amount_cents)}</td>
+                        <td className="text-right py-2 px-2 text-xs">{r.interest_cents > 0 ? formatZAR(r.interest_cents) : "—"}</td>
+                        <td className="py-2 px-2 text-xs">{r.date_received}</td>
+                        <td className="py-2 px-2 text-xs">{r.lease_end_date ?? "Active"}</td>
+                        <td className={`text-right py-2 px-2 text-xs ${deadlineClass}`}>
+                          {formatDeadline(r.days_until_return_deadline)}
+                        </td>
+                        <td className="py-2 text-xs capitalize">{r.status.replace("_", " ")}</td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </CardContent>

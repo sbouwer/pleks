@@ -38,6 +38,7 @@ export function InspectionScheduleTab({ orgId, filters }: Readonly<Props>) {
                   <tr className="border-b text-xs text-muted-foreground">
                     <th className="text-left py-2 pr-2">Unit</th>
                     <th className="text-left py-2 pr-2">Property</th>
+                    <th className="text-left py-2 pr-2">Tenant</th>
                     <th className="text-left py-2 pr-2">Type</th>
                     <th className="text-left py-2 px-2">Scheduled Date</th>
                     <th className="text-left py-2 px-2">Status</th>
@@ -51,6 +52,7 @@ export function InspectionScheduleTab({ orgId, filters }: Readonly<Props>) {
                       <tr key={r.unit_number + r.property_name + r.scheduled_date} className="border-b border-border/50">
                         <td className="py-2 pr-2">{r.unit_number}</td>
                         <td className="py-2 pr-2 text-xs">{r.property_name}</td>
+                        <td className="py-2 pr-2 text-xs">{r.tenant_name ?? "—"}</td>
                         <td className="py-2 pr-2 text-xs capitalize">{r.type}</td>
                         <td className="py-2 px-2 text-xs">{r.scheduled_date}</td>
                         <td className="py-2 px-2 text-xs capitalize">{r.status}</td>

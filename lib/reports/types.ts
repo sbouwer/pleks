@@ -149,6 +149,9 @@ export interface ArrearsAgingRow {
   total_cents: number
   current_step: number
   status: string
+  email: string | null
+  phone: string | null
+  last_payment_date: string | null
 }
 
 export interface ArrearsAgingData {
@@ -272,7 +275,10 @@ export interface DepositRegisterRow {
   unit_number: string
   property_name: string
   amount_cents: number
+  interest_cents: number
   date_received: string
+  lease_end_date: string | null
+  days_until_return_deadline: number | null
   status: string
 }
 
@@ -422,6 +428,7 @@ export interface VacancyRow {
   unit_id: string
   unit_number: string
   property_name: string
+  vacant_since: string | null
   days_vacant: number
   monthly_rent_cents: number
   estimated_lost_cents: number
@@ -477,6 +484,7 @@ export interface CpaNoticeScheduleData {
 export interface InspectionScheduleRow {
   unit_number: string
   property_name: string
+  tenant_name: string | null
   type: string
   scheduled_date: string
   status: string
@@ -510,6 +518,10 @@ export interface ContractorPerformanceRow {
   jobs_assigned: number
   jobs_completed: number
   total_spend_cents: number
+  no_shows: number
+  reschedules: number
+  incomplete_returns: number
+  no_responses: number
 }
 
 export interface ContractorPerformanceData {

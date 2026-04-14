@@ -60,9 +60,11 @@ export function exportIncomeCollectionCSV(data: IncomeCollectionData): string {
 
 export function exportArrearsAgingCSV(data: ArrearsAgingData): string {
   return toCSV(
-    ["Tenant", "Unit", "Property", "0-30d", "31-60d", "61-90d", "90d+", "Total", "Arrears Step"],
+    ["Tenant", "Email", "Phone", "Unit", "Property", "0-30d", "31-60d", "61-90d", "90d+", "Total", "Arrears Step", "Last Payment"],
     data.cases.map((c) => [
       c.tenant_name,
+      c.email ?? "",
+      c.phone ?? "",
       c.unit_number,
       c.property_name,
       formatCentsForCSV(c.arrears_30d_cents),
@@ -71,6 +73,7 @@ export function exportArrearsAgingCSV(data: ArrearsAgingData): string {
       formatCentsForCSV(c.arrears_90plus_cents),
       formatCentsForCSV(c.total_cents),
       `Step ${c.current_step}`,
+      c.last_payment_date ?? "",
     ])
   )
 }
