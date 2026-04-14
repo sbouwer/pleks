@@ -148,24 +148,19 @@ export function LeaseRow({ lease }: { lease: SerializedLease }) {
 
       {/* Col 2: Tenants */}
       <div className="flex min-w-0 items-center gap-2.5">
-        {/* Vertically stacked avatars */}
+        {/* Avatar: pill for multi-tenant, circle for single */}
         {hasCoTenants ? (
-          <div className="flex shrink-0 flex-col -space-y-[10px]">
-            <div className="z-10 ring-2 ring-card rounded-full">
-              <Avatar initials={display.primary.initials} size={28} />
+          <div
+            className="flex shrink-0 flex-col overflow-hidden rounded-full bg-brand/20"
+            style={{ width: 28, minHeight: 50 }}
+          >
+            <div className="flex flex-1 items-center justify-center text-[10px] font-semibold text-brand">
+              {display.primary.initials}
             </div>
-            {display.coTenants.length === 1 ? (
-              <div className="ring-2 ring-card rounded-full">
-                <Avatar initials={display.coTenants[0].initials} size={24} />
-              </div>
-            ) : (
-              <div
-                className="flex shrink-0 items-center justify-center rounded-full bg-muted font-semibold text-muted-foreground ring-2 ring-card"
-                style={{ width: 24, height: 24, fontSize: 9 }}
-              >
-                +{display.coTenants.length}
-              </div>
-            )}
+            <div className="mx-1.5 border-t border-brand/25" />
+            <div className="flex flex-1 items-center justify-center text-[9px] font-semibold text-brand/70">
+              {display.coTenants.length === 1 ? display.coTenants[0].initials : `+${display.coTenants.length}`}
+            </div>
           </div>
         ) : (
           <Avatar initials={display.primary.initials} size={28} />
