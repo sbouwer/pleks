@@ -55,6 +55,7 @@ export function CoTenantManager({ leaseId, orgId, coTenants, primaryTenantId }: 
         <TenantPicker
           orgId={orgId}
           onSelect={handleAdd}
+          align="right"
           trigger={
             <button
               type="button"
