@@ -5,6 +5,7 @@ export type ReportPeriodType =
   | "last_quarter"
   | "this_tax_year"
   | "last_tax_year"
+  | "all_time"
   | "custom"
 
 export type ReportType =
