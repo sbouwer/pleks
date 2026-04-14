@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
-import { randomUUID } from "crypto"
+import { randomUUID } from "node:crypto"
+import sharp from "sharp"
 
 export async function POST(
   req: NextRequest,
@@ -36,15 +37,21 @@ export async function POST(
     return NextResponse.json({ error: "No file provided" }, { status: 400 })
   }
 
-  const ext = file.name.split(".").pop() ?? "jpg"
   const uuid = randomUUID()
-  const storagePath = `${orgId}/${requestId}/${uuid}.${ext}`
+  const storagePath = `${orgId}/${requestId}/${uuid}.jpg`
 
-  const arrayBuffer = await file.arrayBuffer()
+  const rawBuffer = Buffer.from(await file.arrayBuffer())
+  // Server-side safety net: compress to 1920×1440 @ 70% JPEG.
+  // Mobile clients already compress before upload; this catches desktop uploads.
+  const compressed = await sharp(rawBuffer)
+    .resize(1920, 1440, { fit: "inside", withoutEnlargement: true })
+    .jpeg({ quality: 70 })
+    .toBuffer()
+
   const { error: uploadError } = await service.storage
     .from("maintenance-photos")
-    .upload(storagePath, arrayBuffer, {
-      contentType: file.type,
+    .upload(storagePath, compressed, {
+      contentType: "image/jpeg",
       upsert: false,
     })
 

@@ -111,11 +111,16 @@ export async function getAllRatings(inspectionId: string): Promise<OfflineRating
 export interface PendingPhoto {
   id: string
   uploadUrl: string
-  blob: Blob
-  filename: string
+  blob: Blob              // compressed JPEG working copy, ~300KB
+  thumbnail: Blob         // 400×300 preview, ~30KB
+  filename: string        // always ends in .jpg after client compression
   inspectionId: string
   roomId?: string
   itemId?: string
+  gpsLat: number | null
+  gpsLng: number | null
+  capturedAt: string      // ISO timestamp from EXIF or file.lastModified
+  originalSizeBytes: number
   queuedAt: string
 }
 

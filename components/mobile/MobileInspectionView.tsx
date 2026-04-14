@@ -11,6 +11,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge"
 import { updateItemCondition, updateInspectionStatus } from "@/lib/actions/inspections"
 import { isOnline, onConnectivityChange, flushPhotoQueue } from "@/lib/offline/syncManager"
 import { saveItemRating, getAllRatings, queuePhoto } from "@/lib/offline/inspectionStore"
+import { preparePhoto } from "@/lib/offline/compressPhoto"
 
 // Web Speech API — not in default TS lib, defined locally
 interface SpeechRecognitionResult {
@@ -277,21 +278,30 @@ function ItemRow({ item, inspectionId, roomId, moveInPhotoUrl, onUpdate }: ItemR
     if (!file) return
     setUploading(true)
     try {
+      // Compress and extract EXIF before anything touches the original
+      const prepared = await preparePhoto(file)
+      const filename = `${crypto.randomUUID()}.jpg`
+
       if (!isOnline()) {
         await queuePhoto({
           id: crypto.randomUUID(),
           uploadUrl: `/api/inspection/${inspectionId}/photo`,
-          blob: file,
-          filename: file.name,
+          blob: prepared.working,
+          thumbnail: prepared.thumbnail,
+          filename,
           inspectionId,
           roomId,
           itemId: item.id,
+          gpsLat: prepared.metadata.gpsLat,
+          gpsLng: prepared.metadata.gpsLng,
+          capturedAt: prepared.metadata.capturedAt,
+          originalSizeBytes: prepared.metadata.originalSizeBytes,
         })
         toast.info("Photo queued — uploads when you're back online")
         return
       }
       const fd = new FormData()
-      fd.append("file", file)
+      fd.append("file", prepared.working, filename)
       fd.append("itemId", item.id)
       fd.append("roomId", roomId)
       const res = await fetch(`/api/inspection/${inspectionId}/photo`, {
