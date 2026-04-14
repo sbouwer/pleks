@@ -1,3 +1,4 @@
+import { toDateStr } from "./periods"
 import { createServiceClient } from "@/lib/supabase/server"
 import { SARS_EXPENSE_CATEGORIES, type SARSCategory } from "@/lib/finance/sarsCategories"
 import type { ExpenseReportData, ExpenseRow, ReportFilters } from "./types"
@@ -21,8 +22,8 @@ export async function buildExpenseReport(filters: ReportFilters): Promise<Expens
   const db = await createServiceClient()
   const { orgId, from, to, propertyIds } = filters
 
-  const fromStr = from.toISOString().slice(0, 10)
-  const toStr = to.toISOString().slice(0, 10)
+  const fromStr = toDateStr(from)
+  const toStr = toDateStr(to)
 
   let maintQuery = db
     .from("maintenance_requests")

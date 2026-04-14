@@ -1,4 +1,5 @@
 import { createServiceClient } from "@/lib/supabase/server"
+import { toDateStr } from "./periods"
 import type { CpaNoticeScheduleData, CpaNoticeRow, ReportFilters } from "./types"
 
 // CPA s14 notice must be given 20 business days before lease end (approx 28 calendar days)
@@ -18,7 +19,7 @@ export async function buildCpaNoticeSchedule(filters: ReportFilters): Promise<Cp
     .eq("org_id", orgId)
     .in("status", ["active", "notice"])
     .not("end_date", "is", null)
-    .lte("end_date", cutoff.toISOString().slice(0, 10))
+    .lte("end_date", toDateStr(cutoff))
     .order("end_date", { ascending: true })
 
   const { data, error } = await query
@@ -54,13 +55,13 @@ export async function buildCpaNoticeSchedule(filters: ReportFilters): Promise<Cp
         property_name: unitRaw?.properties?.name ?? "—",
         lease_end: l.end_date as string,
         days_remaining: daysRemaining,
-        notice_due_by: noticeDueBy.toISOString().slice(0, 10),
+        notice_due_by: toDateStr(noticeDueBy),
         status,
       }
     })
 
-  const nowStr = now.toISOString().slice(0, 10)
-  const weekStr = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7).toISOString().slice(0, 10)
+  const nowStr = toDateStr(now)
+  const weekStr = toDateStr(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7))
 
   return {
     as_at: now,

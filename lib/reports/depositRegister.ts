@@ -20,7 +20,7 @@ type TxnRecord = {
   amount_cents: unknown
   direction: unknown
   transaction_type: unknown
-  transaction_date: unknown
+  created_at: unknown
   leases: unknown
   tenants: unknown
 }
@@ -71,7 +71,7 @@ function buildHoldMap(txns: TxnRecord[]): Map<string, HoldEntry> {
     const existing = holdMap.get(tid) ?? {
       principal: 0,
       interest: 0,
-      date: t.transaction_date as string,
+      date: (t.created_at as string).slice(0, 10),
       tenantName: resolveTenantName(t.tenants),
       unit: unitNumber,
       property: propName,
@@ -91,7 +91,7 @@ export async function buildDepositRegister(filters: ReportFilters): Promise<Depo
 
   const { data, error } = await db
     .from("deposit_transactions")
-    .select("id, tenant_id, amount_cents, direction, transaction_type, transaction_date, leases(end_date, status, units(unit_number, properties(name))), tenants(contacts(first_name, last_name, company_name, entity_type))")
+    .select("id, tenant_id, amount_cents, direction, transaction_type, created_at, leases(end_date, status, units(unit_number, properties(name))), tenants(contacts(first_name, last_name, company_name, entity_type))")
     .eq("org_id", orgId)
     .in("transaction_type", ["deposit_received", "interest_accrued", "deduction_applied", "deposit_returned_to_tenant"])
     .order("transaction_date", { ascending: true })

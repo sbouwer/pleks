@@ -1,4 +1,5 @@
 import { createServiceClient } from "@/lib/supabase/server"
+import { toDateStr } from "./periods"
 import type { ManagementFeeSummaryData, ManagementFeeRow, ReportFilters } from "./types"
 
 export async function buildManagementFeeSummary(filters: ReportFilters): Promise<ManagementFeeSummaryData> {
@@ -9,8 +10,8 @@ export async function buildManagementFeeSummary(filters: ReportFilters): Promise
     .from("owner_statements")
     .select("id, property_id, period_from, period_to, period_month, management_fee_cents, management_fee_vat_cents, owner_payment_status, properties(name)")
     .eq("org_id", orgId)
-    .gte("period_from", from.toISOString().slice(0, 10))
-    .lte("period_to", to.toISOString().slice(0, 10))
+    .gte("period_from", toDateStr(from))
+    .lte("period_to", toDateStr(to))
     .order("period_from", { ascending: true })
 
   if (propertyIds?.length) query = query.in("property_id", propertyIds)

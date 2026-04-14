@@ -61,3 +61,15 @@ export function formatPeriodLabel(from: Date, to: Date): string {
 export function formatDateShort(d: Date): string {
   return d.toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
 }
+
+/**
+ * Format a Date as YYYY-MM-DD using local time (not UTC).
+ * Use this for all SQL date column comparisons — toISOString() shifts
+ * dates by the server timezone offset, causing off-by-one errors.
+ */
+export function toDateStr(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
+}

@@ -1,3 +1,4 @@
+import { toDateStr } from "./periods"
 import { createServiceClient } from "@/lib/supabase/server"
 import type { ContractorPerformanceData, ContractorPerformanceRow, ReportFilters } from "./types"
 
@@ -48,8 +49,8 @@ export async function buildContractorPerformance(filters: ReportFilters): Promis
   const db = await createServiceClient()
   const { orgId, from, to } = filters
 
-  const fromStr = from.toISOString().slice(0, 10)
-  const toStr = to.toISOString().slice(0, 10)
+  const fromStr = toDateStr(from)
+  const toStr = toDateStr(to)
 
   const { data: jobs, error: jobErr } = await db
     .from("maintenance_requests")

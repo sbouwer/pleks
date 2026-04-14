@@ -1,3 +1,4 @@
+import { toDateStr } from "./periods"
 import { createServiceClient } from "@/lib/supabase/server"
 import type { PortfolioSummaryData, PropertySummary, ReportFilters } from "./types"
 
@@ -21,8 +22,8 @@ export async function buildPortfolioSummary(filters: ReportFilters): Promise<Por
     return emptyPortfolio(from, to)
   }
 
-  const fromStr = from.toISOString()
-  const toStr = to.toISOString()
+  const fromStr = toDateStr(from)
+  const toStr = toDateStr(to)
 
   // Parallel queries
   const [unitsRes, invoicesRes, paymentsRes, arrearsRes, maintenanceRes, leasesRes] =
