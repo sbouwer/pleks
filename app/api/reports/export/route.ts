@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { resolvePeriod } from "@/lib/reports/periods"
+import { resolvePeriod, getPeriodLabel } from "@/lib/reports/periods"
 import { buildIncomeCollectionReport } from "@/lib/reports/incomeCollection"
 import { buildArrearsAgingReport } from "@/lib/reports/arrearsAging"
 import { buildMaintenanceCostReport } from "@/lib/reports/maintenanceCosts"
@@ -124,34 +124,35 @@ async function handleXeroExport(tier: string, xeroType: string | null, filters: 
   return Response.json({ error: "xeroType must be 'income' or 'expenses'" }, { status: 400 })
 }
 
-async function buildPDF(reportType: string, filters: ReportFilters, orgId: string): Promise<string | null> {
+async function buildPDF(reportType: string, filters: ReportFilters, orgId: string, periodType: ReportPeriodType): Promise<string | null> {
   const orgInfo = await getReportBranding(orgId)
+  const pl = getPeriodLabel(periodType, filters.from, filters.to)
   switch (reportType) {
-    case "portfolio_summary":      return buildPortfolioSummaryHTML(await buildPortfolioSummary(filters), orgInfo)
+    case "portfolio_summary":      return buildPortfolioSummaryHTML(await buildPortfolioSummary(filters), orgInfo, pl)
     case "rent_roll":              return buildRentRollHTML(await buildRentRoll(filters), orgInfo)
     case "arrears_aging":          return buildArrearsAgingHTML(await buildArrearsAgingReport(filters), orgInfo)
-    case "income_collection":      return buildIncomeCollectionHTML(await buildIncomeCollectionReport(filters), orgInfo)
-    case "occupancy":              return buildOccupancyHTML(await buildOccupancyReport(filters), orgInfo)
-    case "maintenance_costs":      return buildMaintenanceCostHTML(await buildMaintenanceCostReport(filters), orgInfo)
+    case "income_collection":      return buildIncomeCollectionHTML(await buildIncomeCollectionReport(filters), orgInfo, pl)
+    case "occupancy":              return buildOccupancyHTML(await buildOccupancyReport(filters), orgInfo, pl)
+    case "maintenance_costs":      return buildMaintenanceCostHTML(await buildMaintenanceCostReport(filters), orgInfo, pl)
     case "lease_expiry":           return buildLeaseExpiryHTML(await buildLeaseExpiryReport(filters), orgInfo)
-    case "application_pipeline":   return buildApplicationPipelineHTML(await buildApplicationPipeline(filters), orgInfo)
-    case "owner_portfolio":        return buildOwnerPortfolioHTML(await buildOwnerPortfolio(filters), orgInfo)
+    case "application_pipeline":   return buildApplicationPipelineHTML(await buildApplicationPipeline(filters), orgInfo, pl)
+    case "owner_portfolio":        return buildOwnerPortfolioHTML(await buildOwnerPortfolio(filters), orgInfo, pl)
     case "deposit_register":       return buildDepositRegisterHTML(await buildDepositRegister(filters), orgInfo)
-    case "management_fee_summary": return buildManagementFeeSummaryHTML(await buildManagementFeeSummary(filters), orgInfo)
-    case "expense_report":         return buildExpenseReportHTML(await buildExpenseReport(filters), orgInfo)
-    case "vat_summary":            return buildVatSummaryHTML(await buildVatSummary(filters), orgInfo)
-    case "trust_reconciliation":   return buildTrustReconciliationHTML(await buildTrustReconciliation(filters), orgInfo)
-    case "tenant_payment_history": return buildTenantPaymentHistoryHTML(await buildTenantPaymentHistory(filters), orgInfo)
+    case "management_fee_summary": return buildManagementFeeSummaryHTML(await buildManagementFeeSummary(filters), orgInfo, pl)
+    case "expense_report":         return buildExpenseReportHTML(await buildExpenseReport(filters), orgInfo, pl)
+    case "vat_summary":            return buildVatSummaryHTML(await buildVatSummary(filters), orgInfo, pl)
+    case "trust_reconciliation":   return buildTrustReconciliationHTML(await buildTrustReconciliation(filters), orgInfo, pl)
+    case "tenant_payment_history": return buildTenantPaymentHistoryHTML(await buildTenantPaymentHistory(filters), orgInfo, pl)
     case "debit_order_report":     return buildDebitOrderReportHTML(await buildDebitOrderReport(filters), orgInfo)
     case "tenant_directory":       return buildTenantDirectoryHTML(await buildTenantDirectory(filters), orgInfo)
-    case "property_performance":   return buildPropertyPerformanceHTML(await buildPropertyPerformance(filters), orgInfo)
+    case "property_performance":   return buildPropertyPerformanceHTML(await buildPropertyPerformance(filters), orgInfo, pl)
     case "vacancy_analysis":       return buildVacancyAnalysisHTML(await buildVacancyAnalysis(filters), orgInfo)
-    case "municipal_costs":        return buildMunicipalCostsHTML(await buildMunicipalCosts(filters), orgInfo)
+    case "municipal_costs":        return buildMunicipalCostsHTML(await buildMunicipalCosts(filters), orgInfo, pl)
     case "cpa_notice_schedule":    return buildCpaNoticeScheduleHTML(await buildCpaNoticeSchedule(filters), orgInfo)
     case "inspection_schedule":    return buildInspectionScheduleHTML(await buildInspectionSchedule(filters), orgInfo)
     case "popia_consent_audit":    return buildPopiaConsentAuditHTML(await buildPopiaConsentAudit(filters), orgInfo)
-    case "contractor_performance": return buildContractorPerformanceHTML(await buildContractorPerformance(filters), orgInfo)
-    case "maintenance_sla":        return buildMaintenanceSlaHTML(await buildMaintenanceSla(filters), orgInfo)
+    case "contractor_performance": return buildContractorPerformanceHTML(await buildContractorPerformance(filters), orgInfo, pl)
+    case "maintenance_sla":        return buildMaintenanceSlaHTML(await buildMaintenanceSla(filters), orgInfo, pl)
     default:                       return null
   }
 }
@@ -224,7 +225,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (format === "pdf") {
-    const html = await buildPDF(reportType, filters, orgId)
+    const html = await buildPDF(reportType, filters, orgId, periodType)
     if (!html) return Response.json({ error: "PDF export not available for this report" }, { status: 400 })
     return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8" } })
   }

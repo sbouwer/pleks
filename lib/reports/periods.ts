@@ -73,3 +73,23 @@ export function toDateStr(d: Date): string {
   const day = String(d.getDate()).padStart(2, "0")
   return `${y}-${m}-${day}`
 }
+
+const PERIOD_LABELS: Record<ReportPeriodType, string> = {
+  this_month: "This month",
+  last_month: "Last month",
+  this_quarter: "This quarter",
+  last_quarter: "Last quarter",
+  this_tax_year: "This tax year",
+  last_tax_year: "Last tax year",
+  custom: "Custom range",
+}
+
+/**
+ * Returns a human-readable period label like "This month — April 2026".
+ * For custom ranges, returns just the date range without a prefix.
+ */
+export function getPeriodLabel(periodType: ReportPeriodType, from: Date, to: Date): string {
+  const dateLabel = formatPeriodLabel(from, to)
+  if (periodType === "custom") return dateLabel
+  return `${PERIOD_LABELS[periodType]} — ${dateLabel}`
+}

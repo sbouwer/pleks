@@ -137,8 +137,8 @@ export function wrapHTML(title: string, org: ReportBranding, periodStr: string, 
   return `<!DOCTYPE html><html><head><meta charset="utf-8">${fontLink}<style>${css}</style></head><body>${letterhead(org)}<h1>${title}</h1><div class="period">${periodStr}</div>${body}${footer()}</body></html>`
 }
 
-export function buildPortfolioSummaryHTML(data: PortfolioSummaryData, org: ReportBranding): string {
-  const period = formatPeriodLabel(data.period.from, data.period.to)
+export function buildPortfolioSummaryHTML(data: PortfolioSummaryData, org: ReportBranding, periodLabel?: string): string {
+  const period = periodLabel ?? formatPeriodLabel(data.period.from, data.period.to)
   const outstandingClass = data.outstanding_cents > 0 ? " text-danger" : ""
   const arrearsClass = data.total_arrears_cents > 0 ? " text-danger" : ""
   const body = `
@@ -228,8 +228,8 @@ export function buildArrearsAgingHTML(data: ArrearsAgingData, org: ReportBrandin
   return wrapHTML("Arrears Aging Report", org, periodStr, body)
 }
 
-export function buildIncomeCollectionHTML(data: IncomeCollectionData, org: ReportBranding): string {
-  const period = formatPeriodLabel(data.period.from, data.period.to)
+export function buildIncomeCollectionHTML(data: IncomeCollectionData, org: ReportBranding, periodLabel?: string): string {
+  const period = periodLabel ?? formatPeriodLabel(data.period.from, data.period.to)
   const body = `
     <div class="metric-grid">
       <div class="metric"><div class="label">Expected</div><div class="value">${formatZAR(data.expected_income_cents)}</div></div>
@@ -272,8 +272,8 @@ export function buildDepositRegisterHTML(data: DepositRegisterData, org: ReportB
   return wrapHTML("Deposit Register", org, periodStr, body)
 }
 
-export function buildManagementFeeSummaryHTML(data: ManagementFeeSummaryData, org: ReportBranding): string {
-  const periodStr = formatPeriodLabel(data.period.from, data.period.to)
+export function buildManagementFeeSummaryHTML(data: ManagementFeeSummaryData, org: ReportBranding, periodLabel?: string): string {
+  const periodStr = periodLabel ?? formatPeriodLabel(data.period.from, data.period.to)
   const body = `
     <div class="metric-grid">
       <div class="metric"><div class="label">Total Fees</div><div class="value">${formatZAR(data.total_fees_cents)}</div></div>
@@ -297,8 +297,8 @@ export function buildManagementFeeSummaryHTML(data: ManagementFeeSummaryData, or
   return wrapHTML("Management Fee Summary", org, periodStr, body)
 }
 
-export function buildExpenseReportHTML(data: ExpenseReportData, org: ReportBranding): string {
-  const periodStr = formatPeriodLabel(data.period.from, data.period.to)
+export function buildExpenseReportHTML(data: ExpenseReportData, org: ReportBranding, periodLabel?: string): string {
+  const periodStr = periodLabel ?? formatPeriodLabel(data.period.from, data.period.to)
   const body = `
     <div class="metric-grid">
       <div class="metric"><div class="label">Total Expenses</div><div class="value">${formatZAR(data.total_amount_cents)}</div></div>
@@ -328,8 +328,8 @@ export function buildExpenseReportHTML(data: ExpenseReportData, org: ReportBrand
   return wrapHTML("Expense Report", org, periodStr, body)
 }
 
-export function buildVatSummaryHTML(data: VatSummaryData, org: ReportBranding): string {
-  const periodStr = formatPeriodLabel(data.period.from, data.period.to)
+export function buildVatSummaryHTML(data: VatSummaryData, org: ReportBranding, periodLabel?: string): string {
+  const periodStr = periodLabel ?? formatPeriodLabel(data.period.from, data.period.to)
   const body = `
     <div class="metric-grid">
       <div class="metric"><div class="label">Output VAT</div><div class="value">${formatZAR(data.output_vat_cents)}</div></div>
@@ -358,8 +358,8 @@ export function buildVatSummaryHTML(data: VatSummaryData, org: ReportBranding): 
   return wrapHTML("VAT Summary", org, periodStr, body)
 }
 
-export function buildTrustReconciliationHTML(data: TrustReconciliationData, org: ReportBranding): string {
-  const periodStr = formatPeriodLabel(data.period.from, data.period.to)
+export function buildTrustReconciliationHTML(data: TrustReconciliationData, org: ReportBranding, periodLabel?: string): string {
+  const periodStr = periodLabel ?? formatPeriodLabel(data.period.from, data.period.to)
   const body = `
     <div class="metric-grid">
       <div class="metric"><div class="label">Opening Balance</div><div class="value">${formatZAR(data.opening_balance_cents)}</div></div>
@@ -383,8 +383,8 @@ export function buildTrustReconciliationHTML(data: TrustReconciliationData, org:
   return wrapHTML("Trust Reconciliation", org, periodStr, body)
 }
 
-export function buildTenantPaymentHistoryHTML(data: TenantPaymentHistoryData, org: ReportBranding): string {
-  const periodStr = formatPeriodLabel(data.period.from, data.period.to)
+export function buildTenantPaymentHistoryHTML(data: TenantPaymentHistoryData, org: ReportBranding, periodLabel?: string): string {
+  const periodStr = periodLabel ?? formatPeriodLabel(data.period.from, data.period.to)
   const body = `
     <div class="metric-grid">
       <div class="metric"><div class="label">Total Invoiced</div><div class="value">${formatZAR(data.total_invoiced_cents)}</div></div>
@@ -459,8 +459,8 @@ export function buildTenantDirectoryHTML(data: TenantDirectoryData, org: ReportB
   return wrapHTML("Tenant Directory", org, periodStr, body)
 }
 
-export function buildPropertyPerformanceHTML(data: PropertyPerformanceData, org: ReportBranding): string {
-  const periodStr = formatPeriodLabel(data.period.from, data.period.to)
+export function buildPropertyPerformanceHTML(data: PropertyPerformanceData, org: ReportBranding, periodLabel?: string): string {
+  const periodStr = periodLabel ?? formatPeriodLabel(data.period.from, data.period.to)
   const body = `
     <div class="metric-grid">
       <div class="metric"><div class="label">Gross Income</div><div class="value">${formatZAR(data.total_gross_cents)}</div></div>
@@ -510,8 +510,8 @@ export function buildVacancyAnalysisHTML(data: VacancyAnalysisData, org: ReportB
   return wrapHTML("Vacancy Analysis", org, periodStr, body)
 }
 
-export function buildMunicipalCostsHTML(data: MunicipalCostsData, org: ReportBranding): string {
-  const periodStr = formatPeriodLabel(data.period.from, data.period.to)
+export function buildMunicipalCostsHTML(data: MunicipalCostsData, org: ReportBranding, periodLabel?: string): string {
+  const periodStr = periodLabel ?? formatPeriodLabel(data.period.from, data.period.to)
   const body = `
     <div class="metric-grid">
       <div class="metric"><div class="label">Water</div><div class="value">${formatZAR(data.total_water_cents)}</div></div>
@@ -615,8 +615,8 @@ export function buildPopiaConsentAuditHTML(data: PopiaConsentAuditData, org: Rep
   return wrapHTML("POPIA Consent Audit", org, periodStr, body)
 }
 
-export function buildContractorPerformanceHTML(data: ContractorPerformanceData, org: ReportBranding): string {
-  const periodStr = formatPeriodLabel(data.period.from, data.period.to)
+export function buildContractorPerformanceHTML(data: ContractorPerformanceData, org: ReportBranding, periodLabel?: string): string {
+  const periodStr = periodLabel ?? formatPeriodLabel(data.period.from, data.period.to)
   const body = `
     <div class="metric-grid">
       <div class="metric"><div class="label">Contractors</div><div class="value">${data.total_contractors}</div></div>
@@ -638,8 +638,8 @@ export function buildContractorPerformanceHTML(data: ContractorPerformanceData, 
   return wrapHTML("Contractor Performance", org, periodStr, body)
 }
 
-export function buildMaintenanceSlaHTML(data: MaintenanceSlaData, org: ReportBranding): string {
-  const periodStr = formatPeriodLabel(data.period.from, data.period.to)
+export function buildMaintenanceSlaHTML(data: MaintenanceSlaData, org: ReportBranding, periodLabel?: string): string {
+  const periodStr = periodLabel ?? formatPeriodLabel(data.period.from, data.period.to)
   const emergencyRate = data.emergency.rate + "%"
   const urgentRate = data.urgent.rate + "%"
   const routineRate = data.routine.rate + "%"
@@ -684,8 +684,8 @@ export function buildMaintenanceSlaHTML(data: MaintenanceSlaData, org: ReportBra
   return wrapHTML("Maintenance SLA Report", org, periodStr, body)
 }
 
-export function buildOccupancyHTML(data: OccupancyData, org: ReportBranding): string {
-  const periodStr = formatPeriodLabel(data.period.from, data.period.to)
+export function buildOccupancyHTML(data: OccupancyData, org: ReportBranding, periodLabel?: string): string {
+  const periodStr = periodLabel ?? formatPeriodLabel(data.period.from, data.period.to)
   const body = `
     <div class="metric-grid">
       <div class="metric"><div class="label">Total Units</div><div class="value">${data.totals.total_units}</div></div>
@@ -716,8 +716,8 @@ export function buildOccupancyHTML(data: OccupancyData, org: ReportBranding): st
   return wrapHTML("Occupancy Report", org, periodStr, body)
 }
 
-export function buildMaintenanceCostHTML(data: MaintenanceCostData, org: ReportBranding): string {
-  const periodStr = formatPeriodLabel(data.period.from, data.period.to)
+export function buildMaintenanceCostHTML(data: MaintenanceCostData, org: ReportBranding, periodLabel?: string): string {
+  const periodStr = periodLabel ?? formatPeriodLabel(data.period.from, data.period.to)
   const body = `
     <div class="metric-grid">
       <div class="metric"><div class="label">Total Jobs</div><div class="value">${data.total_jobs}</div></div>
@@ -770,8 +770,8 @@ export function buildLeaseExpiryHTML(data: LeaseExpiryData, org: ReportBranding)
   return wrapHTML("Lease Expiry Report", org, asAt, body)
 }
 
-export function buildApplicationPipelineHTML(data: ApplicationPipelineData, org: ReportBranding): string {
-  const periodStr = formatPeriodLabel(data.period.from, data.period.to)
+export function buildApplicationPipelineHTML(data: ApplicationPipelineData, org: ReportBranding, periodLabel?: string): string {
+  const periodStr = periodLabel ?? formatPeriodLabel(data.period.from, data.period.to)
   const body = `
     <div class="metric-grid">
       <div class="metric"><div class="label">Applications</div><div class="value">${data.applications_submitted}</div></div>
@@ -799,8 +799,8 @@ export function buildApplicationPipelineHTML(data: ApplicationPipelineData, org:
   return wrapHTML("Application Pipeline", org, periodStr, body)
 }
 
-export function buildOwnerPortfolioHTML(data: OwnerPortfolioData, org: ReportBranding): string {
-  const periodStr = formatPeriodLabel(data.period.from, data.period.to)
+export function buildOwnerPortfolioHTML(data: OwnerPortfolioData, org: ReportBranding, periodLabel?: string): string {
+  const periodStr = periodLabel ?? formatPeriodLabel(data.period.from, data.period.to)
   const body = `
     <div class="metric-grid">
       <div class="metric"><div class="label">Gross Income</div><div class="value">${formatZAR(data.total_income_cents)}</div></div>
