@@ -12,6 +12,7 @@ import { PaymentStatus } from "./PaymentStatus"
 import { QuickPaymentButton } from "./QuickPaymentButton"
 import { LeaseTimeline } from "./LeaseTimeline"
 import { TenantCards, buildTenantContact } from "./TenantCards"
+import { CoTenantManager } from "./CoTenantManager"
 import { PrerequisitesCard } from "./PrerequisitesCard"
 import { SigningOptions } from "./SigningOptions"
 import { LeaseCharges } from "@/components/leases/LeaseCharges"
@@ -379,7 +380,18 @@ export default async function LeaseDetailPage({
           />
 
           {/* Sidebar 2: Tenant cards */}
-          <TenantCards primary={primaryContact} coTenants={coTenantCards} />
+          <TenantCards primary={primaryContact} coTenants={[]} />
+          <CoTenantManager
+            leaseId={leaseId}
+            orgId={lease.org_id}
+            primaryTenantId={primaryInput.id}
+            coTenants={coTenantCards.map((ct) => ({
+              tenantId: ct.tenantId,
+              name: ct.name,
+              email: ct.email,
+              phone: ct.phone,
+            }))}
+          />
 
           {/* Sidebar 3: Tenant portal actions */}
           {tv && (
