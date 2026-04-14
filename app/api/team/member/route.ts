@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { getMembership } from "@/lib/supabase/getMembership"
 
 const ALLOWED_PROFILE_FIELDS = ["title", "first_name", "last_name", "mobile", "emergency_phone", "emergency_contact_name"] as const
 const ALLOWED_ORG_FIELDS = ["role", "additional_roles"] as const
@@ -82,20 +83,12 @@ export async function PATCH(req: NextRequest) {
 
   const service = await createServiceClient()
 
-  // Resolve caller membership
-  const { data: callerRaw } = await service
-    .from("user_orgs")
-    .select("role, is_admin")
-    .eq("user_id", user.id)
-    .eq("org_id", orgId)
-    .is("deleted_at", null)
-    .single()
+  // Resolve caller membership (resilient — works before and after is_admin migration)
+  const caller = await getMembership(service, user.id, orgId)
+  if (!caller) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
-  if (!callerRaw) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-
-  const caller = callerRaw as unknown as { role: string; is_admin: boolean }
   const callerIsOwner = caller.role === "owner"
-  const callerIsAdmin = callerIsOwner || caller.is_admin === true
+  const callerIsAdmin = caller.isAdmin
   const isSelfEdit = userId === user.id
 
   // Non-admin can only edit their own profile fields (no role changes)
@@ -172,19 +165,9 @@ export async function DELETE(req: NextRequest) {
 
   const service = await createServiceClient()
 
-  // Resolve caller
-  const { data: callerRaw } = await service
-    .from("user_orgs")
-    .select("role, is_admin")
-    .eq("user_id", user.id)
-    .eq("org_id", orgId)
-    .is("deleted_at", null)
-    .single()
-
-  if (!callerRaw) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-
-  const caller = callerRaw as unknown as { role: string; is_admin: boolean }
-  if (caller.role !== "owner" && !caller.is_admin) {
+  const caller = await getMembership(service, user.id, orgId)
+  if (!caller) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  if (!caller.isAdmin) {
     return NextResponse.json({ error: "Admin access required to remove members" }, { status: 403 })
   }
 
