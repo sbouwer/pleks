@@ -36,6 +36,8 @@ export type ReportType =
   | "popia_consent_audit"
   | "contractor_performance"
   | "maintenance_sla"
+  // New in BUILD_53
+  | "landlord_welcome_pack"
 
 export interface ReportFilters {
   orgId: string
@@ -553,6 +555,82 @@ export interface MaintenanceSlaData {
   all_rows: MaintenanceSlaRow[]
 }
 
+// ── BUILD_53 Welcome Pack ────────────────────────────────────────────────────
+
+export interface WelcomePackUnit {
+  unit_id: string
+  unit_number: string
+  size_m2: number | null
+  status: string
+  tenant_name: string | null
+  tenant_type: string | null
+  rent_cents: number
+  deposit_cents: number
+  deposit_months: number
+  rent_per_m2_cents: number | null
+  lease_start: string | null
+  lease_end: string | null
+  days_remaining: number | null
+  escalation_percent: number
+  escalation_date: string | null
+  next_rent_cents: number
+  payment_method: string
+  co_tenants: string[]
+  flags: string[]
+}
+
+export interface WelcomePackProperty {
+  id: string
+  name: string
+  type: string
+  address: string
+  total_units: number
+  occupied_units: number
+  monthly_income_cents: number
+  units: WelcomePackUnit[]
+}
+
+export interface WelcomePackTotals {
+  properties: number
+  units: number
+  occupied: number
+  vacant: number
+  monthly_income_cents: number
+  deposits_held_cents: number
+  annual_projected_income_cents: number
+  vacancy_cost_cents: number
+}
+
+export interface WelcomePackCpaNotice {
+  tenant_name: string
+  unit: string
+  property: string
+  lease_end: string
+  notice_due_by: string
+  days_remaining: number
+}
+
+export interface WelcomePackEscalation {
+  tenant_name: string
+  unit: string
+  property: string
+  current_rent_cents: number
+  next_rent_cents: number
+  escalation_date: string
+  escalation_percent: number
+}
+
+export interface WelcomePackData {
+  landlord_name: string
+  generated_at: Date
+  properties: WelcomePackProperty[]
+  totals: WelcomePackTotals
+  compliance: {
+    cpa_notices: WelcomePackCpaNotice[]
+    escalations: WelcomePackEscalation[]
+  }
+}
+
 // ── Tier access ─────────────────────────────────────────────────────────────
 
 export const REPORT_TIER_ACCESS: Record<ReportType, string[]> = {
@@ -586,6 +664,8 @@ export const REPORT_TIER_ACCESS: Record<ReportType, string[]> = {
   // Firm — +2 (total 25)
   application_pipeline:    ["firm"],
   annual_tax_summary:      ["portfolio", "firm"],
+  // BUILD_53
+  landlord_welcome_pack:   ["steward", "portfolio", "firm"],
 }
 
 export const REPORT_LABELS: Record<ReportType, string> = {
@@ -615,6 +695,7 @@ export const REPORT_LABELS: Record<ReportType, string> = {
   popia_consent_audit:    "POPIA Consent Audit",
   contractor_performance: "Contractor Performance",
   maintenance_sla:        "Maintenance SLA",
+  landlord_welcome_pack:  "Landlord Welcome Pack",
 }
 
 export const REPORT_DESCRIPTIONS: Record<ReportType, string> = {
@@ -644,4 +725,5 @@ export const REPORT_DESCRIPTIONS: Record<ReportType, string> = {
   popia_consent_audit:    "All POPIA consent records by type and date for compliance review.",
   contractor_performance: "Per-contractor job count, completion rate, and total spend.",
   maintenance_sla:        "SLA compliance by urgency — emergency (4h), urgent (24h), routine (72h).",
+  landlord_welcome_pack:  "6-page onboarding report: portfolio snapshot, income analysis, 12-month projection, tenant profiles, compliance calendar, and AI recommendations.",
 }

@@ -11,6 +11,7 @@ import { PropertyUnitsSection } from "@/components/properties/PropertyUnitsSecti
 import { PropertyBuildingsSection } from "@/components/properties/PropertyBuildingsSection"
 import { PropertyDocumentsSection } from "@/components/properties/PropertyDocumentsSection"
 import { QuickActionsCard } from "@/components/properties/QuickActionsCard"
+import { WelcomePackBanner } from "@/components/reports/WelcomePackBanner"
 import { ExternalLink, Pencil } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import { cn } from "@/lib/utils"
@@ -59,6 +60,7 @@ export default async function PropertyDetailPage({
     { data: teamMemberRows },
     { data: buildings },
     { data: propertyDocuments },
+    { count: invoiceCount },
   ] = await Promise.all([
     supabase
       .from("units")
@@ -114,6 +116,12 @@ export default async function PropertyDetailPage({
       .eq("property_id", id)
       .eq("org_id", orgId)
       .order("created_at", { ascending: false }),
+
+    service
+      .from("rent_invoices")
+      .select("id", { count: "exact", head: true })
+      .eq("property_id", id)
+      .eq("org_id", orgId),
   ])
 
   const landlord = landlordResult.data as {
@@ -180,6 +188,11 @@ export default async function PropertyDetailPage({
   // Suppress unused variable warning — role available for future use
   void role
 
+  const showWelcomeBanner = property.landlord_id && (invoiceCount ?? 0) < 2
+  const landlordDisplayName = landlord
+    ? (landlord.company_name?.trim() || [landlord.first_name, landlord.last_name].filter(Boolean).join(" ") || undefined)
+    : undefined
+
   return (
     <div>
       {/* Breadcrumb */}
@@ -212,6 +225,11 @@ export default async function PropertyDetailPage({
           </Button>
         </div>
       </div>
+
+      {/* Welcome Pack banner for new properties */}
+      {showWelcomeBanner && (
+        <WelcomePackBanner orgId={orgId} landlordId={property.landlord_id!} landlordName={landlordDisplayName} />
+      )}
 
       {/* Three-card row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
