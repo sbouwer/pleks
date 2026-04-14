@@ -114,7 +114,7 @@ export function LeaseListTabs({ leases }: LeaseListTabsProps) {
 
       {/* Column headers */}
       {filtered.length > 0 && (
-        <div className="mb-2 grid grid-cols-[2fr_2fr_1fr_2fr_auto] gap-4 px-4">
+        <div className="mb-2 grid grid-cols-[2fr_3fr_1fr_1.5fr_auto] gap-4 px-4">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Property / Unit</p>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Tenants</p>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Rent</p>
