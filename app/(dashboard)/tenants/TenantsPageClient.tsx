@@ -10,9 +10,9 @@ import { TenantsClient } from "./TenantsClient"
 import { PORTFOLIO_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchTenantsAction } from "@/lib/queries/portfolioActions"
 
-interface Props { orgId: string; role: string }
+interface Props { orgId: string }
 
-export function TenantsPageClient({ orgId, role }: Props) {
+export function TenantsPageClient({ orgId }: Props) {
   const { data: tenants = [], isLoading } = useQuery({
     queryKey: PORTFOLIO_QUERY_KEYS.tenants(orgId),
     queryFn: () => fetchTenantsAction(orgId),
@@ -30,7 +30,7 @@ export function TenantsPageClient({ orgId, role }: Props) {
         />
       )
     } else {
-      body = <TenantsClient tenants={tenants} userRole={role} />
+      body = <TenantsClient tenants={tenants} />
     }
   }
 

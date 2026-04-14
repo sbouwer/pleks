@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useOrg } from "@/hooks/useOrg"
 import { useTier } from "@/hooks/useTier"
+import { usePermissions } from "@/hooks/usePermissions"
 import { TIER_LIMITS } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -65,6 +66,7 @@ interface Member {
   id: string
   user_id: string
   role: string
+  is_admin: boolean
   additional_roles: string[]
   user_profiles: {
     full_name: string | null
@@ -316,11 +318,13 @@ function EditMemberModal({
 
 // ── Member row (compact list — owner/steward/portfolio tiers) ──────────────────
 
-function MemberRow({ member, currentUserId, onEdit, onRemove }: Readonly<{
+function MemberRow({ member, currentUserId, callerIsOwner, onEdit, onRemove, onToggleAdmin }: Readonly<{
   member: Member
   currentUserId: string | null
+  callerIsOwner: boolean
   onEdit: (m: Member) => void
-  onRemove: (id: string) => void
+  onRemove: (id: string, orgId?: string) => void
+  onToggleAdmin: (m: Member) => void
 }>) {
   const isMe     = member.user_id === currentUserId
   const isOwner  = member.role === "owner"
@@ -337,12 +341,25 @@ function MemberRow({ member, currentUserId, onEdit, onRemove }: Readonly<{
           <span className="inline-block rounded-full bg-muted/50 border border-border/40 px-2 py-0.5 text-xs">
             {getRoleLabel(member.role)}
           </span>
+          {(isOwner || member.is_admin) && (
+            <span className="inline-block rounded-full bg-brand/10 border border-brand/30 px-2 py-0.5 text-xs text-brand">
+              {isOwner ? "Owner" : "Admin"}
+            </span>
+          )}
         </div>
         {member.user_profiles?.mobile && (
           <p className="text-xs text-muted-foreground mt-0.5">{member.user_profiles.mobile}</p>
         )}
       </div>
       <div className="flex items-center gap-1 shrink-0">
+        {callerIsOwner && !isOwner && (
+          <Button variant="ghost" size="sm"
+            className="h-7 text-xs text-muted-foreground hover:text-foreground px-2"
+            onClick={() => onToggleAdmin(member)}
+            title={member.is_admin ? "Revoke admin" : "Grant admin"}>
+            {member.is_admin ? "Admin ✓" : "Admin"}
+          </Button>
+        )}
         <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground"
           onClick={() => onEdit(member)}>
           <Pencil className="h-3.5 w-3.5" />
@@ -371,13 +388,15 @@ interface FirmTableProps {
   sortDir: SortDir
   onSort: (col: SortCol) => void
   currentUserId: string | null
+  callerIsOwner: boolean
   onEdit: (m: Member) => void
   onRemove: (id: string) => void
+  onToggleAdmin: (m: Member) => void
 }
 
 function FirmMemberTable({
   members, search, onSearch, roleFilter, onRoleFilter,
-  uniqueRoles, sortCol, sortDir, onSort, currentUserId, onEdit, onRemove,
+  uniqueRoles, sortCol, sortDir, onSort, currentUserId, callerIsOwner, onEdit, onRemove, onToggleAdmin,
 }: Readonly<FirmTableProps>) {
   return (
     <div className="space-y-3">
@@ -405,7 +424,7 @@ function FirmMemberTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-muted/30 border-b border-border/50">
-              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground w-1/2">
+              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground w-2/5">
                 <button type="button" onClick={() => onSort("name")}
                   className="flex items-center gap-1 hover:text-foreground transition-colors">
                   Name <SortIcon col="name" sortCol={sortCol} sortDir={sortDir} />
@@ -418,20 +437,21 @@ function FirmMemberTable({
                 </button>
               </th>
               <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Mobile</th>
+              {callerIsOwner && <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Admin</th>}
               <th className="px-4 py-2.5 w-20" />
             </tr>
           </thead>
           <tbody>
             {members.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-sm text-muted-foreground">
+                <td colSpan={callerIsOwner ? 5 : 4} className="px-4 py-6 text-center text-sm text-muted-foreground">
                   No members match your search.
                 </td>
               </tr>
             )}
             {members.map((m) => {
-              const isMe    = m.user_id === currentUserId
-              const isOwner = m.role === "owner"
+              const isMe      = m.user_id === currentUserId
+              const isOwner   = m.role === "owner"
               const canRemove = !isMe && !isOwner
               return (
                 <tr key={m.id}
@@ -444,6 +464,20 @@ function FirmMemberTable({
                   </td>
                   <td className="px-4 py-2.5 text-muted-foreground">{getRoleLabel(m.role)}</td>
                   <td className="px-4 py-2.5 text-muted-foreground">{m.user_profiles?.mobile ?? "—"}</td>
+                  {callerIsOwner && (
+                    <td className="px-4 py-2.5">
+                      {isOwner ? (
+                        <span className="text-xs text-muted-foreground">always</span>
+                      ) : (
+                        <Button variant="ghost" size="sm"
+                          className="h-6 text-xs px-2"
+                          onClick={() => onToggleAdmin(m)}
+                          title={m.is_admin ? "Revoke admin" : "Grant admin"}>
+                          {m.is_admin ? "✓ Admin" : "—"}
+                        </Button>
+                      )}
+                    </td>
+                  )}
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-1 justify-end">
                       <Button variant="ghost" size="icon"
@@ -473,8 +507,9 @@ function FirmMemberTable({
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function TeamPage() {
-  const { orgId }  = useOrg()
-  const { tier }   = useTier()
+  const { orgId }           = useOrg()
+  const { tier }            = useTier()
+  const { isOwner: callerIsOwner } = usePermissions()
 
   const [members, setMembers]           = useState<Member[]>([])
   const [orgRoles, setOrgRoles]         = useState<string[]>(DEFAULT_ROLES)
@@ -533,17 +568,19 @@ export default function TeamPage() {
       .is("deleted_at", null)
     if (error) { console.error("loadMembers:", error.message); return }
 
-    const base = (coreData as unknown as Omit<Member, "additional_roles">[]) ?? []
+    const base = (coreData as unknown as Omit<Member, "additional_roles" | "is_admin">[]) ?? []
     const memberIds = base.map((m) => m.id)
     const userIds   = base.map((m) => m.user_id)
     if (memberIds.length === 0) { setMembers([]); return }
 
-    // additional_roles — §5 migration; graceful fallback to []
-    const rolesMap = new Map<string, string[]>()
+    // additional_roles + is_admin — §5/§8 migrations; graceful fallback
+    const rolesMap   = new Map<string, string[]>()
+    const adminMap   = new Map<string, boolean>()
     const { data: rolesData } = await supabase
-      .from("user_orgs").select("id, additional_roles").in("id", memberIds)
-    for (const r of (rolesData as unknown as { id: string; additional_roles: string[] }[]) ?? []) {
+      .from("user_orgs").select("id, additional_roles, is_admin").in("id", memberIds)
+    for (const r of (rolesData as unknown as { id: string; additional_roles: string[]; is_admin: boolean }[]) ?? []) {
       rolesMap.set(r.id, r.additional_roles ?? [])
+      adminMap.set(r.id, r.is_admin ?? false)
     }
 
     // personal + emergency fields — §5-6 migration; graceful fallback
@@ -558,6 +595,7 @@ export default function TeamPage() {
 
     setMembers(base.map((m) => ({
       ...m,
+      is_admin: adminMap.get(m.id) ?? false,
       additional_roles: rolesMap.get(m.id) ?? [],
       user_profiles: {
         full_name: (m.user_profiles as { full_name: string | null } | null)?.full_name ?? null,
@@ -595,18 +633,51 @@ export default function TeamPage() {
   }
 
   async function handleRemove(memberOrgId: string) {
-    const supabase = createClient()
-    const { error } = await supabase.from("user_orgs")
-      .update({ deleted_at: new Date().toISOString() }).eq("id", memberOrgId)
-    if (error) toast.error("Failed to remove member")
-    else { toast.success("Member removed"); loadMembers(supabase) }
+    if (!orgId) return
+    const res = await fetch("/api/team/member", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberOrgId, orgId }),
+    })
+    if (!res.ok) {
+      const { error } = await res.json() as { error: string }
+      toast.error(error ?? "Failed to remove member")
+    } else {
+      toast.success("Member removed")
+      loadMembers(createClient())
+    }
+  }
+
+  async function handleToggleAdmin(member: Member) {
+    if (!orgId) return
+    const res = await fetch("/api/team/member", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: member.user_id, orgId, is_admin: !member.is_admin }),
+    })
+    if (!res.ok) {
+      const { error } = await res.json() as { error: string }
+      toast.error(error ?? "Failed to update admin status")
+    } else {
+      toast.success(member.is_admin ? "Admin access revoked" : "Admin access granted")
+      loadMembers(createClient())
+    }
   }
 
   async function handleRevokeInvite(inviteId: string) {
-    const supabase = createClient()
-    const { error } = await supabase.from("invites").delete().eq("id", inviteId)
-    if (error) toast.error("Failed to revoke invite")
-    else { toast.success("Invite revoked"); setPending((p) => p.filter((i) => i.id !== inviteId)) }
+    if (!orgId) return
+    const res = await fetch("/api/team/invite", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ inviteId, orgId }),
+    })
+    if (!res.ok) {
+      const { error } = await res.json() as { error: string }
+      toast.error(error ?? "Failed to revoke invite")
+    } else {
+      toast.success("Invite revoked")
+      setPending((p) => p.filter((i) => i.id !== inviteId))
+    }
   }
 
   async function handleInvite() {
@@ -658,14 +729,17 @@ export default function TeamPage() {
               uniqueRoles={uniqueRoles}
               sortCol={sortCol} sortDir={sortDir} onSort={toggleSort}
               currentUserId={currentUserId}
+              callerIsOwner={callerIsOwner}
               onEdit={setEditing}
               onRemove={handleRemove}
+              onToggleAdmin={handleToggleAdmin}
             />
           ) : (
             <div className="space-y-2">
               {filteredMembers.map((m) => (
                 <MemberRow key={m.id} member={m} currentUserId={currentUserId}
-                  onEdit={setEditing} onRemove={handleRemove} />
+                  callerIsOwner={callerIsOwner}
+                  onEdit={setEditing} onRemove={handleRemove} onToggleAdmin={handleToggleAdmin} />
               ))}
             </div>
           )}

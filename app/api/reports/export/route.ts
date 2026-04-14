@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { resolvePeriod, getPeriodLabel } from "@/lib/reports/periods"
 import { buildIncomeCollectionReport } from "@/lib/reports/incomeCollection"
 import { buildArrearsAgingReport } from "@/lib/reports/arrearsAging"
@@ -172,15 +172,20 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: "Missing params" }, { status: 400 })
   }
 
-  const { data: membership } = await supabase
+  const service = await createServiceClient()
+  const { data: membershipRaw } = await service
     .from("user_orgs")
-    .select("org_id")
+    .select("org_id, role, is_admin")
     .eq("user_id", user.id)
     .eq("org_id", orgId)
     .is("deleted_at", null)
     .single()
 
-  if (!membership) return Response.json({ error: "Forbidden" }, { status: 403 })
+  if (!membershipRaw) return Response.json({ error: "Forbidden" }, { status: 403 })
+
+  const membership = membershipRaw as unknown as { org_id: string; role: string; is_admin: boolean }
+  const isAdmin = membership.role === "owner" || membership.is_admin === true
+  if (!isAdmin) return Response.json({ error: "Admin access required to export reports" }, { status: 403 })
 
   const { data: sub } = await supabase
     .from("subscriptions")

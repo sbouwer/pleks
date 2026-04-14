@@ -9,7 +9,7 @@ export default async function TenantsPage() {
   const membership = await getServerOrgMembership()
   if (!membership) redirect("/login")
 
-  const { org_id: orgId, role } = membership
+  const { org_id: orgId } = membership
   const queryClient = new QueryClient()
   const supabase = await createServiceClient()
 
@@ -22,7 +22,7 @@ export default async function TenantsPage() {
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <TenantsPageClient orgId={orgId} role={role} />
+      <TenantsPageClient orgId={orgId} />
     </HydrationBoundary>
   )
 }

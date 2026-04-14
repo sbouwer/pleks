@@ -40,6 +40,8 @@ export interface GatewayContext {
   role: string
   /** Org tier (may be null if cookie doesn't include it) */
   tier: string | null
+  /** True if user is owner OR has is_admin = true. Use this for destructive/admin-only actions. */
+  isAdmin: boolean
 }
 
 /**
@@ -66,6 +68,7 @@ export async function gateway(): Promise<GatewayContext | null> {
     orgId: membership.org_id,
     role: membership.role,
     tier: membership.tier,
+    isAdmin: membership.role === "owner" || membership.is_admin === true,
   }
 }
 
@@ -95,6 +98,7 @@ export const gatewaySSR = cache(async (): Promise<GatewayContext | null> => {
     orgId: membership.org_id,
     role: membership.role,
     tier: membership.tier,
+    isAdmin: membership.role === "owner" || membership.is_admin === true,
   }
 })
 
@@ -102,8 +106,11 @@ export const gatewaySSR = cache(async (): Promise<GatewayContext | null> => {
 
 async function resolveOrgMembership(
   userId: string
-): Promise<{ org_id: string; role: string; tier: string | null } | null> {
+): Promise<{ org_id: string; role: string; tier: string | null; is_admin: boolean } | null> {
   // 1. Try pleks_org cookie (zero DB call)
+  // Note: is_admin is NOT cached in the cookie — always false from cookie path.
+  // Owners are always isAdmin regardless (role === 'owner' check covers them).
+  // Non-owners get is_admin from the DB fallback path.
   const cookieStore = await cookies()
   const cached = cookieStore.get("pleks_org")
   if (cached?.value) {
@@ -115,7 +122,12 @@ async function resolveOrgMembership(
         user_id: string
       }
       if (parsed.org_id && parsed.role && parsed.user_id === userId) {
-        return { org_id: parsed.org_id, role: parsed.role, tier: parsed.tier ?? null }
+        return {
+          org_id: parsed.org_id,
+          role: parsed.role,
+          tier: parsed.tier ?? null,
+          is_admin: parsed.role === "owner", // owner always admin; others resolved at DB level
+        }
       }
     } catch {
       // corrupted cookie — fall through
@@ -126,10 +138,16 @@ async function resolveOrgMembership(
   const service = await createServiceClient()
   const { data } = await service
     .from("user_orgs")
-    .select("org_id, role")
+    .select("org_id, role, is_admin")
     .eq("user_id", userId)
     .is("deleted_at", null)
     .single()
 
-  return data ? { ...data, tier: null } : null
+  if (!data) return null
+  return {
+    org_id: data.org_id,
+    role: data.role,
+    tier: null,
+    is_admin: (data as unknown as { is_admin: boolean }).is_admin ?? false,
+  }
 }

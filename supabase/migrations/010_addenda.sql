@@ -253,3 +253,62 @@ ALTER TABLE organisations
 
 COMMENT ON COLUMN organisations.custom_roles IS
   'Org-defined reusable role labels shown in the team member role picker';
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §8  ADMIN / USER PERMISSION FLAG  (BUILD_56)
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- is_admin controls destructive actions (delete/archive, manage team).
+-- role stays as a free-text display label — no permission logic derived from it.
+-- Owner (role = 'owner') is always implicitly admin; is_admin only matters
+-- for non-owner members.
+
+ALTER TABLE user_orgs
+  ADD COLUMN IF NOT EXISTS is_admin boolean NOT NULL DEFAULT false;
+
+COMMENT ON COLUMN user_orgs.is_admin IS
+  'Grants admin privileges (delete, archive, manage team) to non-owner members. '
+  'Owner is always admin regardless of this flag.';
+
+-- Drop the old CHECK constraint that limited role to 5 system slugs.
+-- role is now a free-text display label (BUILD_55 custom roles).
+ALTER TABLE user_orgs DROP CONSTRAINT IF EXISTS user_orgs_role_check;
+
+-- Re-add a loose constraint: role must be a non-empty string.
+ALTER TABLE user_orgs ADD CONSTRAINT user_orgs_role_nonempty
+  CHECK (role IS NOT NULL AND length(trim(role)) > 0);
+
+-- Belt-and-suspenders: mark existing owners as is_admin = true.
+-- Functionally redundant (owner always isAdmin), but makes audit queries easier.
+UPDATE user_orgs SET is_admin = true WHERE role = 'owner' AND is_admin = false;
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §9  OWNERSHIP TRANSFERS  (BUILD_56 Phase 1)
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- Tracks pending ownership transfer requests.
+-- Owner initiates → new owner receives email → clicks confirm → roles swap.
+CREATE TABLE IF NOT EXISTS ownership_transfers (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id       uuid NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+  from_user_id uuid NOT NULL,
+  to_user_id   uuid NOT NULL,
+  token        uuid NOT NULL DEFAULT gen_random_uuid() UNIQUE,
+  expires_at   timestamptz NOT NULL DEFAULT (now() + interval '48 hours'),
+  accepted_at  timestamptz,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ownership_transfers_token
+  ON ownership_transfers(token)
+  WHERE accepted_at IS NULL;
+
+ALTER TABLE ownership_transfers ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "org_ownership_transfers" ON ownership_transfers;
+CREATE POLICY "org_ownership_transfers" ON ownership_transfers
+  FOR ALL
+  USING  (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL))
+  WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL));

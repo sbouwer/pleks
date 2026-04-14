@@ -10,6 +10,7 @@ import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
 import Link from "next/link"
+import { usePermissions } from "@/hooks/usePermissions"
 import {
   Search, Trash2, X, Plus, Check,
   ArrowUpDown, ArrowUp, ArrowDown,
@@ -52,7 +53,6 @@ export interface Contractor {
 
 interface Props {
   contractors: Contractor[]
-  userRole: string
   orgId: string
 }
 
@@ -104,7 +104,7 @@ function ColHeader({ col, label, sortKey, sortDir, onSort }: Readonly<{ col: Sor
   )
 }
 
-export function ContractorsClient({ contractors: initial, userRole, orgId }: Readonly<Props>) {
+export function ContractorsClient({ contractors: initial, orgId }: Readonly<Props>) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const [search, setSearch] = useState("")
@@ -113,7 +113,7 @@ export function ContractorsClient({ contractors: initial, userRole, orgId }: Rea
   const [sortKey, setSortKey] = useState<SortKey>("company")
   const [sortDir, setSortDir] = useState<SortDir>("asc")
 
-  const isOwner = userRole === "owner"
+  const { isAdmin } = usePermissions()
 
   function handleSort(col: SortKey) {
     if (sortKey === col) {
@@ -323,7 +323,7 @@ export function ContractorsClient({ contractors: initial, userRole, orgId }: Rea
                         >
                           <Pencil className="size-3.5" />
                         </Button>
-                        {isOwner && (
+                        {isAdmin && (
                           <Button
                             variant="ghost"
                             size="icon-sm"

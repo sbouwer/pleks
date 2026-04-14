@@ -10,6 +10,7 @@ import { toast } from "sonner"
 import { Search, X, ArrowUpDown, ArrowUp, ArrowDown, Trash2, Pencil } from "lucide-react"
 import Link from "next/link"
 import { useOrg } from "@/hooks/useOrg"
+import { usePermissions } from "@/hooks/usePermissions"
 import { PORTFOLIO_QUERY_KEYS } from "@/lib/queries/portfolio"
 
 interface Landlord {
@@ -26,7 +27,6 @@ interface Landlord {
 
 interface Props {
   readonly landlords: Landlord[]
-  readonly userRole: string
 }
 
 type SortKey = "name" | "email" | "phone" | "type"
@@ -48,16 +48,15 @@ function ColHeader({ col, label, sortKey, sortDir, onSort }: Readonly<{ col: Sor
   )
 }
 
-export function LandlordsClient({ landlords: initial, userRole }: Readonly<Props>) {
+export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const { orgId } = useOrg()
+  const { isAdmin } = usePermissions()
   const [search, setSearch] = useState("")
   const [sortKey, setSortKey] = useState<SortKey>("name")
   const [sortDir, setSortDir] = useState<SortDir>("asc")
   const [deletingId, setDeletingId] = useState<string | null>(null)
-
-  const isOwner = userRole === "owner"
 
   function handleSort(col: SortKey) {
     if (sortKey === col) setSortDir(sortDir === "asc" ? "desc" : "asc")
@@ -170,7 +169,7 @@ export function LandlordsClient({ landlords: initial, userRole }: Readonly<Props
                           render={<Link href={`/landlords/${l.id}`} />}>
                           <Pencil className="size-3.5" />
                         </Button>
-                        {isOwner && (
+                        {isAdmin && (
                           <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive"
                             onClick={() => handleDelete(l)} disabled={isDeleting}>
                             <Trash2 className="size-3.5" />
