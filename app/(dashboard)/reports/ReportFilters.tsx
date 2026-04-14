@@ -74,7 +74,7 @@ export function ReportFilters({ properties, landlords, agents, tier, onApply }: 
           <SelectTrigger className="w-[160px] h-9">
             <span>{PERIOD_OPTIONS.find((o) => o.value === periodType)?.label ?? "Select period"}</span>
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent alignItemWithTrigger={false}>
             {PERIOD_OPTIONS.map((o) => (
               <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
             ))}
@@ -101,7 +101,7 @@ export function ReportFilters({ properties, landlords, agents, tier, onApply }: 
           <SelectTrigger className="w-[180px] h-9">
             <span>{selectedProperty === "all" ? "All properties" : properties.find((p) => p.id === selectedProperty)?.name ?? "Select"}</span>
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent alignItemWithTrigger={false}>
             <SelectItem value="all">All properties</SelectItem>
             {properties.map((p) => (
               <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
@@ -117,7 +117,7 @@ export function ReportFilters({ properties, landlords, agents, tier, onApply }: 
             <SelectTrigger className="w-[180px] h-9">
               <span>{selectedLandlord === "all" ? "All landlords" : landlords.find((l) => l.id === selectedLandlord)?.name ?? "Select"}</span>
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent alignItemWithTrigger={false}>
               <SelectItem value="all">All landlords</SelectItem>
               {landlords.map((l) => (
                 <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
@@ -134,7 +134,7 @@ export function ReportFilters({ properties, landlords, agents, tier, onApply }: 
             <SelectTrigger className="w-[180px] h-9">
               <span>{selectedAgent === "all" ? "All agents" : agents.find((a) => a.id === selectedAgent)?.name ?? "Select"}</span>
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent alignItemWithTrigger={false}>
               <SelectItem value="all">All agents</SelectItem>
               {agents.map((a) => (
                 <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
