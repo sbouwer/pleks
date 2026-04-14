@@ -34,9 +34,10 @@ interface TenantPickerProps {
   onSelect: (tenant: PickedTenant) => void
   trigger: React.ReactNode
   returnTo?: string
+  align?: "left" | "right"
 }
 
-export function TenantPicker({ orgId, onSelect, trigger, returnTo }: Readonly<TenantPickerProps>) {
+export function TenantPicker({ orgId, onSelect, trigger, returnTo, align = "left" }: Readonly<TenantPickerProps>) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState("")
   const containerRef = useRef<HTMLDivElement>(null)
@@ -102,7 +103,7 @@ export function TenantPicker({ orgId, onSelect, trigger, returnTo }: Readonly<Te
       {triggerWithHandler}
 
       {open && (
-        <div className="absolute left-0 top-full mt-1 z-50 w-72 rounded-xl border border-border/60 bg-surface-elevated shadow-lg">
+        <div className={`absolute ${align === "right" ? "right-0" : "left-0"} top-full mt-1 z-50 w-72 rounded-xl border border-border/60 bg-surface-elevated shadow-lg`}>
           {/* Search */}
           <div className="flex items-center gap-2 px-3 py-2 border-b border-border/60">
             <Search className="size-3.5 text-muted-foreground flex-shrink-0" />
