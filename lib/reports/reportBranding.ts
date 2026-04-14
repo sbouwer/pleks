@@ -56,11 +56,11 @@ export async function getReportBranding(orgId: string): Promise<ReportBranding> 
     }
   }
 
-  // Resolve logo URL from storage if brand_logo_path set, otherwise fall back to logo_url
+  // Resolve logo URL — org-assets bucket is private, must use signed URL
   let logoUrl: string | null = org.logo_url ?? null
   if (org.brand_logo_path) {
-    const { data: urlData } = db.storage.from("org-assets").getPublicUrl(org.brand_logo_path)
-    if (urlData?.publicUrl) logoUrl = urlData.publicUrl
+    const { data: signed } = await db.storage.from("org-assets").createSignedUrl(org.brand_logo_path, 3600)
+    if (signed?.signedUrl) logoUrl = signed.signedUrl
   }
 
   return {
