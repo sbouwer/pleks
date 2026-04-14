@@ -61,15 +61,18 @@ export function TenantDirectoryTab({ orgId, filters }: Readonly<Props>) {
                     .map((r) => {
                       const isCo = r.role !== "Primary"
                       return (
-                        <tr key={r.tenant_name + r.unit_number + r.role} className="border-b border-border/50">
-                          <td className={`py-2 pr-2${isCo ? " pl-4 text-muted-foreground" : ""}`}>{r.tenant_name}</td>
+                        <tr key={r.tenant_name + r.unit_number + r.role} className={`border-b border-border/50${isCo ? " bg-muted/30" : ""}`}>
+                          <td className={`py-2 pr-2${isCo ? " pl-6 text-muted-foreground text-xs" : ""}`}>
+                            {isCo && <span className="mr-1 text-muted-foreground/50">↳</span>}
+                            {r.tenant_name}
+                          </td>
                           <td className="py-2 pr-2 text-xs text-muted-foreground">{r.role}</td>
-                          <td className="py-2 pr-2 text-xs">{r.email ?? "—"}</td>
-                          <td className="py-2 pr-2 text-xs">{r.phone ?? "—"}</td>
+                          <td className="py-2 pr-2 text-xs text-muted-foreground">{r.email ?? "—"}</td>
+                          <td className="py-2 pr-2 text-xs text-muted-foreground">{r.phone ?? "—"}</td>
                           <td className="py-2 pr-2 text-xs">{isCo ? "" : r.unit_number}</td>
                           <td className="py-2 pr-2 text-xs">{isCo ? "" : r.property_name}</td>
                           <td className="py-2 px-2 text-xs">{isCo ? "" : (r.lease_end ?? "M2M")}</td>
-                          <td className="text-right py-2">{isCo ? "" : formatZAR(r.monthly_rent_cents)}</td>
+                          <td className="text-right py-2 text-xs">{isCo ? "" : formatZAR(r.monthly_rent_cents)}</td>
                         </tr>
                       )
                     })}
