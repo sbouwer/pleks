@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
+import type { SupabaseClient } from "@supabase/supabase-js"
 
 const ALLOWED_PROFILE_FIELDS = ["title", "first_name", "last_name", "mobile", "emergency_phone", "emergency_contact_name"] as const
 const ALLOWED_ORG_FIELDS = ["role", "additional_roles"] as const
+
+// System role slugs — these are never added to org custom_roles
+const SYSTEM_ROLE_SLUGS = new Set(["owner", "property_manager", "agent", "accountant", "maintenance_manager"])
 
 function buildProfilePatch(body: Record<string, unknown>): Record<string, unknown> {
   const patch: Record<string, unknown> = {}
@@ -24,6 +28,19 @@ function buildOrgPatch(body: Record<string, unknown>): Record<string, unknown> {
     if (field in body) patch[field] = body[field]
   }
   return patch
+}
+
+// If the role is a custom label (not a system slug), append it to org's
+// custom_roles library so it appears in the picker for future members.
+// Fails silently if the column doesn't exist yet (migration pending).
+async function appendOrgCustomRole(service: SupabaseClient, orgId: string, roleValue: string): Promise<void> {
+  if (SYSTEM_ROLE_SLUGS.has(roleValue)) return
+  const { data } = await service.from("organisations").select("custom_roles").eq("id", orgId).single()
+  const existing = (data as unknown as { custom_roles: string[] } | null)?.custom_roles ?? []
+  if (existing.includes(roleValue)) return
+  const { error } = await service.from("organisations")
+    .update({ custom_roles: [...existing, roleValue] }).eq("id", orgId)
+  if (error) console.warn("appendOrgCustomRole:", error.message)
 }
 
 // PATCH /api/team/member
@@ -70,7 +87,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Member not found in org" }, { status: 404 })
   }
 
-  // Prevent demoting or changing owner role
+  // Prevent changing owner role
   if (targetMembership.role === "owner" && body.role && body.role !== "owner") {
     return NextResponse.json({ error: "Cannot change owner role" }, { status: 403 })
   }
@@ -88,6 +105,11 @@ export async function PATCH(req: NextRequest) {
   if (Object.keys(orgPatch).length > 0) {
     const { error } = await service.from("user_orgs").update(orgPatch).eq("id", targetMembership.id)
     if (error) errors.push(`roles: ${error.message}`)
+  }
+
+  // Persist new custom role labels to org's library
+  if (!errors.length && orgPatch.role && typeof orgPatch.role === "string") {
+    await appendOrgCustomRole(service, orgId, orgPatch.role)
   }
 
   if (errors.length > 0) {
