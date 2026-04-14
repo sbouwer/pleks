@@ -59,7 +59,7 @@ export async function buildWelcomePackData(
   // 2. Properties
   const { data: propertiesRaw, error: propsError } = await db
     .from("properties")
-    .select("id, name, type, address_line1, suburb, city, unit_count")
+    .select("id, name, type, address_line1, suburb, city")
     .eq("landlord_id", landlordId)
     .eq("org_id", orgId)
     .is("deleted_at", null)

@@ -6,7 +6,7 @@ import { formatZAR } from "@/lib/constants"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import {
   FileText, CreditCard, Wrench, ClipboardCheck,
-  AlertTriangle, CheckCircle2, Clock,
+  AlertTriangle, CheckCircle2, Clock, Phone,
 } from "lucide-react"
 
 function daysUntil(dateStr: string | null) {
@@ -41,7 +41,7 @@ export default async function PortalDashboard() {
   const { tenantId, leaseId, orgId, lease, unitId, tenantName } = session
 
   // Parallel data fetches
-  const [invoiceRes, , inspectionRes, maintenanceRes, unitRes] = await Promise.all([
+  const [invoiceRes, , inspectionRes, maintenanceRes, unitRes, orgRes] = await Promise.all([
     // Latest open invoice for balance + next payment
     service.from("rent_invoices")
       .select("id, invoice_date, due_date, total_amount_cents, balance_cents, payment_reference, status")
@@ -80,6 +80,12 @@ export default async function PortalDashboard() {
       .select("unit_number, properties(name, address_line1, city)")
       .eq("id", unitId)
       .single(),
+
+    // Org emergency contact
+    service.from("organisations")
+      .select("phone, emergency_phone, emergency_contact_name")
+      .eq("id", orgId)
+      .single(),
   ])
 
   const invoice = invoiceRes.data
@@ -89,6 +95,10 @@ export default async function PortalDashboard() {
   const property = unit?.properties as unknown as { name: string; address_line1: string | null; city: string | null } | null
 
   const daysUntilDue = invoice?.due_date ? daysUntil(invoice.due_date) : null
+
+  const orgData = orgRes.data as unknown as { phone: string | null; emergency_phone: string | null; emergency_contact_name: string | null } | null
+  const emergencyPhone = orgData?.emergency_phone ?? orgData?.phone ?? null
+  const emergencyContactName = orgData?.emergency_contact_name ?? null
 
   return (
     <div>
@@ -101,6 +111,19 @@ export default async function PortalDashboard() {
           </p>
         )}
       </div>
+
+      {emergencyPhone && (
+        <a
+          href={`tel:${emergencyPhone}`}
+          className="flex items-center gap-3 rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 mb-4 hover:bg-destructive/10 transition-colors"
+        >
+          <Phone className="h-5 w-5 text-destructive shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-destructive">Emergency? Call {emergencyPhone}</p>
+            <p className="text-xs text-muted-foreground">{emergencyContactName ?? "After-hours & weekends"}</p>
+          </div>
+        </a>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 

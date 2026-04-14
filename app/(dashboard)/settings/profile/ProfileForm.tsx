@@ -8,9 +8,10 @@ import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
-import { Info, Plus, X } from "lucide-react"
+import { Info, Plus, X, Phone } from "lucide-react"
 
 const TITLES = ["Mr", "Mrs", "Ms", "Miss", "Dr", "Prof", "Adv", "Rev"]
+const WEEKEND_HOURS_OPTIONS = ["Closed", "08:00–12:00", "08:00–13:00", "09:00–13:00", "By appointment"]
 const PROVINCES = [
   "Eastern Cape", "Free State", "Gauteng", "KwaZulu-Natal",
   "Limpopo", "Mpumalanga", "Northern Cape", "North West", "Western Cape",
@@ -50,6 +51,15 @@ export interface OrgDetails {
   addr2_province: string | null
   addr2_postal_code: string | null
   primary_contact_is_user: boolean
+  // ADDENDUM_00B
+  office_hours_weekday: string | null
+  office_hours_saturday: string | null
+  office_hours_sunday: string | null
+  office_hours_public_holidays: string | null
+  emergency_phone: string | null
+  emergency_contact_name: string | null
+  emergency_instructions: string | null
+  emergency_email: string | null
 }
 
 type FormState = Omit<OrgDetails, "id" | "type" | "primary_contact_is_user">
@@ -238,6 +248,95 @@ function AddressesSection({ form, set, showSecond, onAddSecond, onRemoveSecond }
   )
 }
 
+// ── Operating hours & emergency contact ──────────────────────────────────────
+
+function resolveHoursValue(v: string | null): string {
+  if (!v || v === "Closed" || v === "custom") return ""
+  return v
+}
+
+function HoursSelect({ id, value, onChange }: Readonly<{ id: string; value: string; onChange: (v: string) => void }>) {
+  const isPreset = !value || WEEKEND_HOURS_OPTIONS.includes(value)
+  return (
+    <div className="flex gap-2">
+      <Select value={isPreset ? (value || "Closed") : "custom"} onValueChange={(v) => onChange(resolveHoursValue(v))}>
+        <SelectTrigger className="h-9 text-sm w-44">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {WEEKEND_HOURS_OPTIONS.map((o) => (
+            <SelectItem key={o} value={o}>{o}</SelectItem>
+          ))}
+          <SelectItem value="custom">Custom…</SelectItem>
+        </SelectContent>
+      </Select>
+      {!isPreset && (
+        <Input id={id} value={value} onChange={(e) => onChange(e.target.value)} placeholder="e.g. 10:00–14:00" className="h-9 text-sm" />
+      )}
+    </div>
+  )
+}
+
+function OperatingHoursCard({ form, set }: Readonly<{ form: FormState; set: (f: keyof FormState, v: string) => void }>) {
+  return (
+    <Card className="mb-4">
+      <CardHeader><CardTitle className="text-base">Operating Hours &amp; Emergency Contact</CardTitle></CardHeader>
+      <CardContent className="space-y-5">
+        <div className="space-y-3">
+          <SecHeading>Office Hours</SecHeading>
+          <F label="Weekdays" id="office_hours_weekday">
+            <Input id="office_hours_weekday" value={form.office_hours_weekday ?? "Mon–Fri 08:00–17:00"}
+              onChange={(e) => set("office_hours_weekday", e.target.value)} placeholder="Mon–Fri 08:00–17:00" />
+          </F>
+          <F label="Saturdays" id="office_hours_saturday">
+            <HoursSelect id="office_hours_saturday" value={form.office_hours_saturday ?? ""}
+              onChange={(v) => set("office_hours_saturday", v)} />
+          </F>
+          <F label="Sundays" id="office_hours_sunday">
+            <HoursSelect id="office_hours_sunday" value={form.office_hours_sunday ?? ""}
+              onChange={(v) => set("office_hours_sunday", v)} />
+          </F>
+          <F label="Public holidays" id="office_hours_public_holidays">
+            <HoursSelect id="office_hours_public_holidays" value={form.office_hours_public_holidays ?? ""}
+              onChange={(v) => set("office_hours_public_holidays", v)} />
+          </F>
+        </div>
+        <div className="border-t border-border/40 pt-4 space-y-3">
+          <SecHeading>After-Hours Emergency</SecHeading>
+          <div className="grid grid-cols-2 gap-3">
+            <F label="Emergency phone" id="emergency_phone">
+              <Input id="emergency_phone" type="tel" value={form.emergency_phone ?? ""}
+                onChange={(e) => set("emergency_phone", e.target.value)} placeholder="082 999 8888" />
+            </F>
+            <F label="Contact name" id="emergency_contact_name" help="Person or service name">
+              <Input id="emergency_contact_name" value={form.emergency_contact_name ?? ""}
+                onChange={(e) => set("emergency_contact_name", e.target.value)} placeholder="Cape Emergency Services" />
+            </F>
+          </div>
+          <F label="Emergency email" id="emergency_email">
+            <Input id="emergency_email" type="email" value={form.emergency_email ?? ""}
+              onChange={(e) => set("emergency_email", e.target.value)} placeholder="emergency@agency.co.za" />
+          </F>
+          <F label="Emergency instructions" id="emergency_instructions" help="Shown to tenants — keep brief">
+            <textarea
+              id="emergency_instructions"
+              value={form.emergency_instructions ?? ""}
+              onChange={(e) => set("emergency_instructions", e.target.value)}
+              placeholder="For burst pipes, close the main stopcock before calling."
+              rows={3}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+          </F>
+          <div className="flex items-start gap-2 text-xs text-muted-foreground rounded-lg border border-border/50 bg-muted/30 px-3 py-2.5">
+            <Phone className="size-3.5 shrink-0 mt-0.5" />
+            <span>If no emergency phone is set, your office number will be used as the emergency contact.</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 // ── Main form ─────────────────────────────────────────────────────────────────
 
 export function ProfileForm({ initialData }: Readonly<{ initialData: OrgDetails }>) {
@@ -362,6 +461,7 @@ export function ProfileForm({ initialData }: Readonly<{ initialData: OrgDetails 
             </CardContent>
           </Card>
         </div>
+        <OperatingHoursCard form={form} set={set} />
         {saveBtn}
       </div>
     )
@@ -415,6 +515,7 @@ export function ProfileForm({ initialData }: Readonly<{ initialData: OrgDetails 
             </CardContent>
           </Card>
         </div>
+        <OperatingHoursCard form={form} set={set} />
         {saveBtn}
       </div>
     )
@@ -469,6 +570,7 @@ export function ProfileForm({ initialData }: Readonly<{ initialData: OrgDetails 
           </CardContent>
         </Card>
       </div>
+      <OperatingHoursCard form={form} set={set} />
       {saveBtn}
     </div>
   )

@@ -64,6 +64,14 @@ export default async function ProfilePage() {
     addr2_city: (d.addr2_city as string) ?? null,
     addr2_province: (d.addr2_province as string) ?? null,
     addr2_postal_code: (d.addr2_postal_code as string) ?? null,
+    office_hours_weekday: (d.office_hours_weekday as string) ?? null,
+    office_hours_saturday: (d.office_hours_saturday as string) ?? null,
+    office_hours_sunday: (d.office_hours_sunday as string) ?? null,
+    office_hours_public_holidays: (d.office_hours_public_holidays as string) ?? null,
+    emergency_phone: (d.emergency_phone as string) ?? null,
+    emergency_contact_name: (d.emergency_contact_name as string) ?? null,
+    emergency_instructions: (d.emergency_instructions as string) ?? null,
+    emergency_email: (d.emergency_email as string) ?? null,
   }
 
   return <ProfileForm initialData={initialData} />
