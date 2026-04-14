@@ -7,6 +7,75 @@ import { StatusBadge } from "@/components/shared/StatusBadge"
 import { formatZAR } from "@/lib/constants"
 import { MaintenanceActions } from "./MaintenanceActions"
 import { RecordDelayPanel } from "./RecordDelayPanel"
+import { MobileMaintenanceView } from "@/components/mobile/MobileMaintenanceView"
+
+interface ContractorUpdate {
+  id: string
+  new_status: string
+  notes: string | null
+  created_at: string
+}
+
+interface MaintenanceRequestForTimeline {
+  created_at: string
+  ai_triage_at: string | null
+  ai_triage_notes: string | null
+  category: string | null
+  urgency: string | null
+  reviewed_at: string | null
+  status: string
+  work_order_sent_at: string | null
+  completed_at: string | null
+}
+
+function buildTimeline(
+  request: MaintenanceRequestForTimeline,
+  updates: ContractorUpdate[]
+): Array<{ label: string; date: string }> {
+  const items: Array<{ label: string; date: string }> = []
+
+  items.push({
+    label: "Request logged",
+    date: new Date(request.created_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }),
+  })
+
+  if (request.ai_triage_at) {
+    items.push({
+      label: `AI triage: ${request.category ?? ""}, ${request.urgency ?? ""}`,
+      date: new Date(request.ai_triage_at).toLocaleDateString("en-ZA"),
+    })
+  }
+
+  if (request.reviewed_at) {
+    items.push({
+      label: request.status === "rejected" ? "Rejected" : "Approved",
+      date: new Date(request.reviewed_at).toLocaleDateString("en-ZA"),
+    })
+  }
+
+  if (request.work_order_sent_at) {
+    items.push({
+      label: "Work order sent",
+      date: new Date(request.work_order_sent_at).toLocaleDateString("en-ZA"),
+    })
+  }
+
+  for (const u of updates) {
+    items.push({
+      label: u.notes ? `${u.new_status.replaceAll("_", " ")} — ${u.notes}` : u.new_status.replaceAll("_", " "),
+      date: new Date(u.created_at).toLocaleDateString("en-ZA"),
+    })
+  }
+
+  if (request.completed_at) {
+    items.push({
+      label: "Completed",
+      date: new Date(request.completed_at).toLocaleDateString("en-ZA"),
+    })
+  }
+
+  return items
+}
 
 const URGENCY_COLORS: Record<string, string> = {
   emergency: "text-danger",
@@ -75,8 +144,33 @@ export default async function MaintenanceDetailPage({
         .order("occurred_at", { ascending: false })
     : { data: [] }
 
+  const timeline = buildTimeline(request, (updates ?? []) as ContractorUpdate[])
+
   return (
     <div>
+      {/* Mobile view */}
+      <div className="lg:hidden">
+        <MobileMaintenanceView
+          requestId={requestId}
+          title={request.title}
+          description={request.description}
+          status={request.status}
+          urgency={request.urgency ?? null}
+          category={request.category ?? null}
+          workOrderNumber={request.work_order_number ?? null}
+          unitLabel={unit ? `${unit.unit_number}, ${unit.properties.name}` : ""}
+          tenantName={tenant ? `${tenant.first_name} ${tenant.last_name}` : null}
+          tenantPhone={tenant?.phone ?? null}
+          contractorName={contractor ? (contractor.company_name || `${contractor.first_name} ${contractor.last_name}`.trim()) : null}
+          contractorPhone={contractor?.phone ?? null}
+          aiTriageNotes={request.ai_triage_notes ?? null}
+          photoCount={0}
+          timeline={timeline}
+        />
+      </div>
+
+      {/* Desktop view */}
+      <div className="hidden lg:block">
       <div className="flex items-start justify-between mb-6">
         <div>
           <p className="text-sm text-muted-foreground mb-1">
@@ -259,6 +353,7 @@ export default async function MaintenanceDetailPage({
           </div>
         </CardContent>
       </Card>
+      </div>{/* end desktop */}
     </div>
   )
 }
