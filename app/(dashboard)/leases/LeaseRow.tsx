@@ -138,7 +138,7 @@ export function LeaseRow({ lease }: { lease: SerializedLease }) {
   return (
     <Link
       href={`/leases/${lease.id}`}
-      className="grid grid-cols-[2fr_2fr_1fr_2fr_auto] items-center gap-4 rounded-lg border bg-card px-4 py-3 transition-colors hover:bg-muted/40"
+      className="grid grid-cols-[2fr_3fr_1fr_1.5fr_auto] items-center gap-4 rounded-lg border bg-card px-4 py-3 transition-colors hover:bg-muted/40"
     >
       {/* Col 1: Property / Unit */}
       <div className="min-w-0">
@@ -148,30 +148,34 @@ export function LeaseRow({ lease }: { lease: SerializedLease }) {
 
       {/* Col 2: Tenants */}
       <div className="flex min-w-0 items-center gap-2.5">
-        {/* Overlapping avatars */}
+        {/* Vertically stacked avatars */}
         {hasCoTenants ? (
-          <div className="flex shrink-0 -space-x-2">
-            <div className="z-10"><Avatar initials={display.primary.initials} /></div>
+          <div className="flex shrink-0 flex-col -space-y-[10px]">
+            <div className="z-10 ring-2 ring-card rounded-full">
+              <Avatar initials={display.primary.initials} size={28} />
+            </div>
             {display.coTenants.length === 1 ? (
-              <Avatar initials={display.coTenants[0].initials} />
+              <div className="ring-2 ring-card rounded-full">
+                <Avatar initials={display.coTenants[0].initials} size={24} />
+              </div>
             ) : (
               <div
-                className="flex shrink-0 items-center justify-center rounded-full bg-muted font-semibold text-muted-foreground"
-                style={{ width: 30, height: 30, fontSize: 10 }}
+                className="flex shrink-0 items-center justify-center rounded-full bg-muted font-semibold text-muted-foreground ring-2 ring-card"
+                style={{ width: 24, height: 24, fontSize: 9 }}
               >
                 +{display.coTenants.length}
               </div>
             )}
           </div>
         ) : (
-          <Avatar initials={display.primary.initials} />
+          <Avatar initials={display.primary.initials} size={28} />
         )}
 
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           {/* Tenant name — clickable independently */}
           <button
             type="button"
-            className="block truncate text-left text-sm font-medium hover:underline"
+            className="block w-full truncate text-left text-sm font-medium hover:underline"
             onClick={(e) => {
               e.preventDefault()
               e.stopPropagation()
