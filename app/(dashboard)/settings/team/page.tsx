@@ -221,7 +221,7 @@ function EditMemberModal({
           <DialogTitle>Edit — {displayName}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-5 py-1">
+        <div className="space-y-5 py-1 overflow-y-auto max-h-[70vh] pr-1">
 
           {/* Personal details */}
           <div className="space-y-3">
@@ -258,15 +258,21 @@ function EditMemberModal({
           </div>
 
           {/* Role — free-text + quick-pick chips */}
-          {!isOwner && (
-            <div className="border-t border-border/40 pt-4 space-y-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Role</p>
-              <RoleCombobox value={member.role} onChange={setRoleInput} orgRoles={orgRoles} />
-              <p className="text-xs text-muted-foreground">
-                Type a custom title or pick from the list. New labels are saved to your org&apos;s role library.
+          <div className="border-t border-border/40 pt-4 space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Role</p>
+            {isOwner ? (
+              <p className="text-sm text-muted-foreground">
+                Owner — role cannot be changed here. Use ownership transfer to assign a new owner.
               </p>
-            </div>
-          )}
+            ) : (
+              <>
+                <RoleCombobox value={member.role} onChange={setRoleInput} orgRoles={orgRoles} />
+                <p className="text-xs text-muted-foreground">
+                  Type a custom title or pick from the list. New labels are saved to your org&apos;s role library.
+                </p>
+              </>
+            )}
+          </div>
 
           {/* Emergency contact — own row only, portfolio/firm tiers */}
           {showEmergency && isMe && (
@@ -793,25 +799,29 @@ export default function TeamPage() {
               <a href="/settings/billing" className="text-brand hover:underline">Upgrade</a> to add more.
             </p>
           ) : (
-            <div className="flex gap-2">
+            <div className="space-y-3">
               <Input
                 type="email"
                 placeholder="Email address"
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") handleInvite() }}
-                className="flex-1"
               />
-              <Select value={inviteRole} onValueChange={(v) => setInviteRole(v ?? "")}>
-                <SelectTrigger className="w-44"><SelectValue placeholder="Role" /></SelectTrigger>
-                <SelectContent>
-                  {orgRoles.filter((r) => r !== "Owner").map((r) => (
-                    <SelectItem key={r} value={r}>{r}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button onClick={handleInvite} disabled={loading || !inviteEmail || !inviteRole}>
-                <Plus className="h-4 w-4" />
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Role</p>
+                <RoleCombobox
+                  value={inviteRole}
+                  onChange={setInviteRole}
+                  orgRoles={orgRoles.filter((r) => r !== "Owner")}
+                />
+              </div>
+              <Button
+                onClick={handleInvite}
+                disabled={loading || !inviteEmail || !inviteRole}
+                className="w-full"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Send invite
               </Button>
             </div>
           )}
