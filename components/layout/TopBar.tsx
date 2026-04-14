@@ -1,6 +1,6 @@
 "use client"
 
-import { Menu, ExternalLink, LogOut, UserCircle } from "lucide-react"
+import { ExternalLink, LogOut, UserCircle } from "lucide-react"
 import { GlobalSearch } from "@/components/layout/GlobalSearch"
 import { Button } from "@/components/ui/button"
 import {
@@ -16,14 +16,12 @@ import { useOrg } from "@/hooks/useOrg"
 import { useRouter } from "next/navigation"
 
 interface TopbarProps {
-  readonly onMenuClick?: () => void
   readonly settingsHref?: string
   readonly visitSiteHref?: string
   readonly visitSiteLabel?: string
 }
 
 export function Topbar({
-  onMenuClick,
   settingsHref = "/settings",
   visitSiteHref = "/",
   visitSiteLabel = "Visit Site",
@@ -45,16 +43,8 @@ export function Topbar({
 
   return (
     <header className="relative flex items-center justify-between h-16 px-4 lg:px-6 border-b border-border bg-card">
-      {/* Left: mobile menu + org name */}
+      {/* Left: org name */}
       <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="lg:hidden"
-          onClick={onMenuClick}
-        >
-          <Menu className="h-5 w-5" />
-        </Button>
         {displayName && (
           <span className="text-sm font-medium text-muted-foreground hidden sm:inline">
             {displayName}
@@ -62,8 +52,8 @@ export function Topbar({
         )}
       </div>
 
-      {/* Centre: global search */}
-      <div className="absolute left-1/2 -translate-x-1/2">
+      {/* Centre: global search — desktop only */}
+      <div className="absolute left-1/2 -translate-x-1/2 hidden lg:flex">
         <GlobalSearch />
       </div>
 

@@ -25,7 +25,6 @@ export default function PortalLayout({
       />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar
-          onMenuClick={() => setMobileNavOpen(true)}
           settingsHref="/portal/account"
         />
         <main className="flex-1 overflow-y-auto bg-muted/30 p-6">{children}</main>

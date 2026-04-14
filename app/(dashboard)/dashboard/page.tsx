@@ -1,4 +1,5 @@
 import { Suspense } from "react"
+import { MobileHomeScreen } from "@/components/mobile/MobileHomeScreen"
 import { createClient, getCachedServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { getServerOrgMembership, getServerUser } from "@/lib/auth/server"
@@ -175,6 +176,11 @@ export default async function DashboardPage() {
   const showTrustBanner = tier !== "owner" && org?.has_trust_account !== true
 
   return (
+    <>
+    <div className="lg:hidden">
+      <MobileHomeScreen />
+    </div>
+    <div className="hidden lg:block">
     <div className="space-y-5">
       {/* Greeting */}
       <div>
@@ -256,5 +262,7 @@ export default async function DashboardPage() {
         </Suspense>
       )}
     </div>
+    </div>
+    </>
   )
 }

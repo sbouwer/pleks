@@ -25,7 +25,6 @@ export default function LandlordPortalLayout({
       />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar
-          onMenuClick={() => setMobileNavOpen(true)}
           settingsHref="/landlord/profile"
         />
         <main className="flex-1 overflow-y-auto bg-muted/30 p-6">{children}</main>
