@@ -437,3 +437,33 @@ export async function giveNotice(leaseId: string, givenBy: "tenant" | "landlord"
   revalidatePath("/leases")
   return { success: true }
 }
+
+export async function addLeaseCoTenant(leaseId: string, tenantId: string): Promise<{ error: string } | { success: true }> {
+  const gw = await gateway()
+  if (!gw) return { error: "Not authenticated" }
+  const { db, orgId } = gw
+
+  const { data: lease } = await db.from("leases").select("org_id").eq("id", leaseId).single()
+  if (lease?.org_id !== orgId) return { error: "Lease not found" }
+
+  const { error } = await db.from("lease_co_tenants").insert({ org_id: orgId, lease_id: leaseId, tenant_id: tenantId })
+  if (error) return { error: error.message }
+
+  revalidatePath(`/leases/${leaseId}`)
+  return { success: true }
+}
+
+export async function removeLeaseCoTenant(leaseId: string, tenantId: string): Promise<{ error: string } | { success: true }> {
+  const gw = await gateway()
+  if (!gw) return { error: "Not authenticated" }
+  const { db, orgId } = gw
+
+  const { data: lease } = await db.from("leases").select("org_id").eq("id", leaseId).single()
+  if (lease?.org_id !== orgId) return { error: "Lease not found" }
+
+  const { error } = await db.from("lease_co_tenants").delete().eq("lease_id", leaseId).eq("tenant_id", tenantId)
+  if (error) return { error: error.message }
+
+  revalidatePath(`/leases/${leaseId}`)
+  return { success: true }
+}
