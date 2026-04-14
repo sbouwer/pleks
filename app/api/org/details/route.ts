@@ -15,14 +15,19 @@ const ALL_FIELDS = [
 ] as const
 
 
-async function resolveOrgId(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
-  const { data: membership } = await supabase
+async function resolveOrgMembership(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
+  const { data } = await supabase
     .from("user_orgs")
-    .select("org_id")
+    .select("org_id, role, is_admin")
     .eq("user_id", userId)
     .is("deleted_at", null)
     .single()
-  return membership?.org_id ?? null
+  if (!data) return null
+  const row = data as unknown as { org_id: string; role: string; is_admin: boolean }
+  return {
+    orgId: row.org_id,
+    isAdmin: row.role === "owner" || row.is_admin === true,
+  }
 }
 
 export async function GET() {
@@ -30,8 +35,9 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const orgId = await resolveOrgId(supabase, user.id)
-  if (!orgId) return NextResponse.json({ error: "No org" }, { status: 403 })
+  const m = await resolveOrgMembership(supabase, user.id)
+  if (!m) return NextResponse.json({ error: "No org" }, { status: 403 })
+  const { orgId } = m
 
   const selectFields = [...ALL_FIELDS, "id", "type", "user_type", "primary_contact_is_user"].join(", ")
   const { data: org, error } = await supabase
@@ -67,8 +73,10 @@ export async function PATCH(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const orgId = await resolveOrgId(supabase, user.id)
-  if (!orgId) return NextResponse.json({ error: "No org" }, { status: 403 })
+  const m = await resolveOrgMembership(supabase, user.id)
+  if (!m) return NextResponse.json({ error: "No org" }, { status: 403 })
+  const { orgId, isAdmin } = m
+  if (!isAdmin) return NextResponse.json({ error: "Admin access required to update org settings" }, { status: 403 })
 
   let body: unknown
   try { body = await req.json() } catch {

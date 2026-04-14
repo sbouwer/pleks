@@ -4,11 +4,17 @@ import { createClient, createServiceClient } from "@/lib/supabase/server"
 async function getMembership(service: Awaited<ReturnType<typeof createServiceClient>>, userId: string) {
   const { data } = await service
     .from("user_orgs")
-    .select("org_id, role")
+    .select("org_id, role, is_admin")
     .eq("user_id", userId)
     .is("deleted_at", null)
     .single()
-  return data
+  if (!data) return null
+  const row = data as unknown as { org_id: string; role: string; is_admin: boolean }
+  return {
+    org_id: row.org_id,
+    role: row.role,
+    isAdmin: row.role === "owner" || row.is_admin === true,
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -134,8 +140,8 @@ export async function DELETE(req: NextRequest) {
   const membership = await getMembership(service, user.id)
   if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
 
-  if (membership.role !== "owner") {
-    return NextResponse.json({ error: "Only the account owner can delete contractors" }, { status: 403 })
+  if (!membership.isAdmin) {
+    return NextResponse.json({ error: "Admin access required to delete contractors" }, { status: 403 })
   }
 
   const { contractorId, contactId } = await req.json()

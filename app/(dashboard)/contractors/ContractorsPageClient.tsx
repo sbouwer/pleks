@@ -17,9 +17,9 @@ const TABS: { key: SupplierTab; label: string; singular: string; plural: string 
   { key: "utility", label: "Utilities", singular: "utility", plural: "utilities" },
 ]
 
-interface Props { orgId: string; role: string }
+interface Props { orgId: string }
 
-export function ContractorsPageClient({ orgId, role }: Props) {
+export function ContractorsPageClient({ orgId }: Props) {
   const searchParams = useSearchParams()
   const type = searchParams.get("type")
   const activeTab: SupplierTab = type === "managing_scheme" || type === "utility" ? type : "contractor"
@@ -61,7 +61,7 @@ export function ContractorsPageClient({ orgId, role }: Props) {
           description={`Add your first ${tabInfo.label.toLowerCase().slice(0, -1)} using the button above.`}
         />
       ) : (
-        <ContractorsClient contractors={contractors} userRole={role} orgId={orgId} />
+        <ContractorsClient contractors={contractors} orgId={orgId} />
       )}
     </div>
   )

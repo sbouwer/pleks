@@ -9,9 +9,9 @@ import { AddLandlordForm } from "./AddLandlordForm"
 import { PORTFOLIO_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchLandlordsAction } from "@/lib/queries/portfolioActions"
 
-interface Props { readonly orgId: string; readonly role: string }
+interface Props { readonly orgId: string }
 
-export function LandlordsPageClient({ orgId, role }: Props) {
+export function LandlordsPageClient({ orgId }: Props) {
   const { data: landlords = [], isLoading } = useQuery({
     queryKey: PORTFOLIO_QUERY_KEYS.landlords(orgId),
     queryFn: () => fetchLandlordsAction(orgId),
@@ -29,7 +29,7 @@ export function LandlordsPageClient({ orgId, role }: Props) {
         />
       )
     } else {
-      body = <LandlordsClient landlords={landlords} userRole={role} />
+      body = <LandlordsClient landlords={landlords} />
     }
   }
 
