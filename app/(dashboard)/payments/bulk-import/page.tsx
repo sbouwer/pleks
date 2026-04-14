@@ -8,6 +8,7 @@ import { toast } from "sonner"
 import { matchCsvRows, confirmBulkPayments } from "./actions"
 import type { ParsedRow, MatchedRow, ConfirmedPayment } from "./actions"
 import { formatZAR } from "@/lib/constants"
+import { DesktopOnlyCard } from "@/components/mobile/DesktopOnlyCard"
 
 function confirmLabel(count: number): string {
   return "Record " + count + " payment" + (count === 1 ? "" : "s")
@@ -172,19 +173,28 @@ export default function BulkImportPage() {
 
   if (step === "done") {
     return (
-      <div className="max-w-2xl mx-auto text-center py-16 space-y-4">
-        <CheckCircle2 className="h-12 w-12 text-emerald-500 mx-auto" />
-        <h1 className="font-heading text-2xl">{createdCount} payment{createdCount === 1 ? "" : "s"} recorded</h1>
-        <p className="text-muted-foreground">All confirmed matches have been recorded and invoices updated.</p>
-        <div className="flex gap-3 justify-center mt-6">
-          <Button onClick={() => { setStep("input"); setCsvText(""); setMatchedRows([]); setSelectedRows(new Set()) }}>
-            Import more
-          </Button>
-          <Link href="/payments">
-            <Button variant="outline">View payments</Button>
-          </Link>
+      <>
+        {/* Mobile: desktop-only gate */}
+        <div className="lg:hidden">
+          <DesktopOnlyCard title="Bulk Payment Import" description="Bulk payment import works best on a larger screen. Open Pleks on your computer to use this feature." />
         </div>
-      </div>
+        {/* Desktop */}
+        <div className="hidden lg:block">
+          <div className="max-w-2xl mx-auto text-center py-16 space-y-4">
+            <CheckCircle2 className="h-12 w-12 text-emerald-500 mx-auto" />
+            <h1 className="font-heading text-2xl">{createdCount} payment{createdCount === 1 ? "" : "s"} recorded</h1>
+            <p className="text-muted-foreground">All confirmed matches have been recorded and invoices updated.</p>
+            <div className="flex gap-3 justify-center mt-6">
+              <Button onClick={() => { setStep("input"); setCsvText(""); setMatchedRows([]); setSelectedRows(new Set()) }}>
+                Import more
+              </Button>
+              <Link href="/payments">
+                <Button variant="outline">View payments</Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </>
     )
   }
 
@@ -193,7 +203,14 @@ export default function BulkImportPage() {
     const selectedCount = selectedRows.size
 
     return (
-      <div className="space-y-6 pb-12">
+      <>
+        {/* Mobile: desktop-only gate */}
+        <div className="lg:hidden">
+          <DesktopOnlyCard title="Bulk Payment Import" description="Bulk payment import works best on a larger screen. Open Pleks on your computer to use this feature." />
+        </div>
+        {/* Desktop */}
+        <div className="hidden lg:block">
+        <div className="space-y-6 pb-12">
         <div className="flex items-center justify-between">
           <div>
             <button onClick={() => setStep("input")} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-2">
@@ -271,51 +288,62 @@ export default function BulkImportPage() {
           </div>
         </div>
       </div>
+      </div>
+      </>
     )
   }
 
   // Step: input
   return (
-    <div className="max-w-2xl mx-auto space-y-6 pb-12">
-      <div>
-        <Link href="/payments" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-2">
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Back to payments
-        </Link>
-        <h1 className="font-heading text-2xl">Bulk payment import</h1>
-        <p className="text-muted-foreground text-sm">Paste bank CSV rows to auto-match against open invoices.</p>
+    <>
+      {/* Mobile: desktop-only gate */}
+      <div className="lg:hidden">
+        <DesktopOnlyCard title="Bulk Payment Import" description="Bulk payment import works best on a larger screen. Open Pleks on your computer to use this feature." />
       </div>
+      {/* Desktop */}
+      <div className="hidden lg:block">
+        <div className="max-w-2xl mx-auto space-y-6 pb-12">
+          <div>
+            <Link href="/payments" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-2">
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Back to payments
+            </Link>
+            <h1 className="font-heading text-2xl">Bulk payment import</h1>
+            <p className="text-muted-foreground text-sm">Paste bank CSV rows to auto-match against open invoices.</p>
+          </div>
 
-      <div className="rounded-xl border bg-card p-5 space-y-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">CSV format</p>
-          <p className="text-sm text-muted-foreground mb-2">
-            Columns: <code className="bg-muted px-1 py-0.5 rounded text-xs">date, description, reference, amount</code> (reference optional)
-          </p>
-          <pre className="text-xs bg-muted rounded-lg px-3 py-2 text-muted-foreground overflow-x-auto">{SAMPLE}</pre>
+          <div className="rounded-xl border bg-card p-5 space-y-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">CSV format</p>
+              <p className="text-sm text-muted-foreground mb-2">
+                Columns: <code className="bg-muted px-1 py-0.5 rounded text-xs">date, description, reference, amount</code> (reference optional)
+              </p>
+              <pre className="text-xs bg-muted rounded-lg px-3 py-2 text-muted-foreground overflow-x-auto">{SAMPLE}</pre>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground block mb-2">
+                Paste CSV rows
+              </label>
+              <textarea
+                value={csvText}
+                onChange={(e) => setCsvText(e.target.value)}
+                rows={10}
+                placeholder={SAMPLE}
+                className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring resize-y"
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                {parseRows(csvText).length} valid rows detected
+              </p>
+            </div>
+
+            <Button onClick={handleParse} disabled={matching || parseRows(csvText).length === 0} className="w-full">
+              {matching ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              {matching ? "Matching…" : "Match rows →"}
+            </Button>
+          </div>
         </div>
-
-        <div>
-          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground block mb-2">
-            Paste CSV rows
-          </label>
-          <textarea
-            value={csvText}
-            onChange={(e) => setCsvText(e.target.value)}
-            rows={10}
-            placeholder={SAMPLE}
-            className="w-full rounded-lg border bg-background px-3 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring resize-y"
-          />
-          <p className="text-[11px] text-muted-foreground mt-1">
-            {parseRows(csvText).length} valid rows detected
-          </p>
-        </div>
-
-        <Button onClick={handleParse} disabled={matching || parseRows(csvText).length === 0} className="w-full">
-          {matching ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-          {matching ? "Matching…" : "Match rows →"}
-        </Button>
       </div>
-    </div>
+    </>
   )
 }

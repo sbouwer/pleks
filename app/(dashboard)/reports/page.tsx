@@ -3,6 +3,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { getOrgTier } from "@/lib/tier/getOrgTier"
 import { ReportsClient } from "./ReportsClient"
+import { DesktopOnlyCard } from "@/components/mobile/DesktopOnlyCard"
 
 export default async function ReportsPage() {
   const gw = await gatewaySSR()
@@ -64,14 +65,21 @@ export default async function ReportsPage() {
 
   return (
     <div>
-      <h1 className="font-heading text-3xl mb-6">Reports</h1>
-      <ReportsClient
-        tier={tier}
-        properties={propertiesRes.data ?? []}
-        orgId={orgId}
-        landlords={landlords}
-        agents={agents}
-      />
+      {/* Mobile: desktop-only gate */}
+      <div className="lg:hidden">
+        <DesktopOnlyCard title="Reports" description="Reports work best on a larger screen. Open Pleks on your computer to generate and download reports." />
+      </div>
+      {/* Desktop */}
+      <div className="hidden lg:block">
+        <h1 className="font-heading text-3xl mb-6">Reports</h1>
+        <ReportsClient
+          tier={tier}
+          properties={propertiesRes.data ?? []}
+          orgId={orgId}
+          landlords={landlords}
+          agents={agents}
+        />
+      </div>
     </div>
   )
 }
