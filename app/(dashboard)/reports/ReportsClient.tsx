@@ -268,7 +268,7 @@ export function ReportsClient({ tier, properties, orgId, landlords, agents }: Re
 
   return (
     <div>
-      <ReportFilters properties={properties} landlords={[]} agents={[]} tier={tier} onApply={handleApply} />
+      <ReportFilters properties={properties} landlords={landlords} agents={agents} tier={tier} onApply={handleApply} />
       <div className="space-y-8">
         {REPORT_CATEGORIES.map((cat) => (
           <section key={cat.name}>
