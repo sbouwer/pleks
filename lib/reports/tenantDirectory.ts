@@ -1,7 +1,7 @@
 import { createServiceClient } from "@/lib/supabase/server"
 import type { TenantDirectoryData, TenantDirectoryRow, ReportFilters } from "./types"
 
-const ACTIVE_STATUSES = ["active", "notice", "month_to_month", "pending_signing"]
+const ACTIVE_STATUSES = ["draft", "pending_signing", "active", "notice", "month_to_month"]
 
 type LeaseSummary = {
   id: string
