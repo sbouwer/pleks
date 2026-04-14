@@ -424,10 +424,21 @@ export function ProfileForm({ initialData }: Readonly<{ initialData: OrgDetails 
   async function handleSave() {
     setSaving(true)
     try {
+      const payload = { ...form }
+      if (type !== "landlord") {
+        delete (payload as Partial<typeof form>).office_hours_weekday
+        delete (payload as Partial<typeof form>).office_hours_saturday
+        delete (payload as Partial<typeof form>).office_hours_sunday
+        delete (payload as Partial<typeof form>).office_hours_public_holidays
+        delete (payload as Partial<typeof form>).emergency_phone
+        delete (payload as Partial<typeof form>).emergency_contact_name
+        delete (payload as Partial<typeof form>).emergency_instructions
+        delete (payload as Partial<typeof form>).emergency_email
+      }
       const res = await fetch("/api/org/details", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       })
       if (res.ok) {
         toast.success("Details saved")
@@ -575,7 +586,6 @@ export function ProfileForm({ initialData }: Readonly<{ initialData: OrgDetails 
             </CardContent>
           </Card>
         </div>
-        <OperatingHoursCard form={form} set={set} />
         {saveBtn}
       </div>
     )
@@ -630,7 +640,6 @@ export function ProfileForm({ initialData }: Readonly<{ initialData: OrgDetails 
           </CardContent>
         </Card>
       </div>
-      <OperatingHoursCard form={form} set={set} />
       {saveBtn}
     </div>
   )
