@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState, useMemo, useRef, useCallback } from "react"
+import { createPortal } from "react-dom"
 import { createClient } from "@/lib/supabase/client"
 import { useOrg } from "@/hooks/useOrg"
 import { useTier } from "@/hooks/useTier"
@@ -151,91 +152,144 @@ type SortCol = "name" | "role"
 type SortDir = "asc" | "desc"
 
 // ── Role combobox ──────────────────────────────────────────────────────────────
-// Free-text input with grouped quick-pick chips derived from ROLE_GROUPS.
-// Org custom roles (from DB) are shown in a "Custom" section at the bottom.
+// Input that opens a filtered dropdown grouped by function.
+// Typing narrows results across all groups; no match shows "+ Add '…'" option.
 
 function RoleCombobox({ value, onChange, orgRoles }: Readonly<{
   value: string
   onChange: (v: string) => void
-  orgRoles: string[]   // full list of allowed labels (used to surface custom roles)
+  orgRoles: string[]
 }>) {
-  const [inputVal, setInputVal] = useState(getRoleLabel(value))
+  const [inputVal, setInputVal]   = useState(getRoleLabel(value))
+  const [open, setOpen]           = useState(false)
+  const [dropRect, setDropRect]   = useState<DOMRect | null>(null)
+  const containerRef              = useRef<HTMLDivElement>(null)
+  const inputRef                  = useRef<HTMLInputElement>(null)
 
-  function handleInput(e: React.ChangeEvent<HTMLInputElement>) {
-    setInputVal(e.target.value)
-    onChange(e.target.value)
-  }
+  const measureAndOpen = useCallback(() => {
+    if (inputRef.current) setDropRect(inputRef.current.getBoundingClientRect())
+    setOpen(true)
+  }, [])
 
-  function handlePick(role: string) {
-    setInputVal(role)
-    onChange(role)
-  }
+  // Close on outside click
+  useEffect(() => {
+    function onPointerDown(e: PointerEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener("pointerdown", onPointerDown)
+    return () => document.removeEventListener("pointerdown", onPointerDown)
+  }, [])
 
-  // Standard labels that belong to a group
+  const query = inputVal.trim().toLowerCase()
+
+  // Standard labels not in the default set that the org has saved as custom
   const standardLabels = new Set(DEFAULT_ROLES)
+  const customRoles    = orgRoles.filter((r) => !standardLabels.has(r) && r !== "Owner")
 
-  // Custom labels added by this org (not in the standard set, not "Owner")
-  const customRoles = orgRoles.filter((r) => !standardLabels.has(r) && r !== "Owner")
+  // Build filtered groups: standard groups + custom section
+  const allGroups: { group: string; labels: string[] }[] = [
+    ...ROLE_GROUPS.map((g) => ({
+      group:  g.group,
+      labels: g.roles.map(([, label]) => label),
+    })),
+    ...(customRoles.length > 0 ? [{ group: "Custom", labels: customRoles }] : []),
+  ]
 
-  return (
-    <div className="space-y-3">
-      <Input
-        value={inputVal}
-        onChange={handleInput}
-        placeholder="Type or select a role…"
-        className="h-8 text-sm"
-      />
-      <div className="space-y-2">
-        {ROLE_GROUPS.map((group) => (
-          <div key={group.group}>
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-              {group.group}
-            </p>
-            <div className="flex flex-wrap gap-1">
-              {group.roles.map(([, label]) => (
+  const filteredGroups = allGroups
+    .map((g) => ({
+      group:  g.group,
+      labels: query
+        ? g.labels.filter((l) => l.toLowerCase().includes(query))
+        : g.labels,
+    }))
+    .filter((g) => g.labels.length > 0)
+
+  const hasResults = filteredGroups.length > 0
+  const showAddOption = query.length > 0 && !DEFAULT_ROLES.some(
+    (l) => l.toLowerCase() === query
+  ) && !customRoles.some((l) => l.toLowerCase() === query)
+
+  function pick(label: string) {
+    setInputVal(label)
+    onChange(label)
+    setOpen(false)
+  }
+
+  function addCustom() {
+    const trimmed = inputVal.trim()
+    if (!trimmed) return
+    onChange(trimmed)
+    setOpen(false)
+  }
+
+  const dropdown = open && dropRect && (
+    <div
+      style={{
+        position: "fixed",
+        top:   dropRect.bottom + 4,
+        left:  dropRect.left,
+        width: dropRect.width,
+        zIndex: 9999,
+      }}
+      className="rounded-md border border-border bg-popover shadow-md max-h-64 overflow-y-auto"
+    >
+      {hasResults ? (
+        <div className="py-1">
+          {filteredGroups.map((g) => (
+            <div key={g.group}>
+              <p className="px-3 pt-2 pb-0.5 text-[10px] font-semibold text-muted-foreground
+                            uppercase tracking-wider">
+                {g.group}
+              </p>
+              {g.labels.map((label) => (
                 <button
                   key={label}
                   type="button"
-                  onClick={() => handlePick(label)}
+                  onPointerDown={(e) => { e.preventDefault(); pick(label) }}
                   className={cn(
-                    "text-xs px-2 py-0.5 rounded-full border transition-colors cursor-pointer",
+                    "w-full px-3 py-1.5 text-left text-sm transition-colors",
                     inputVal === label
-                      ? "bg-brand/10 border-brand/50 text-brand"
-                      : "border-border/50 text-muted-foreground hover:border-brand/30 hover:text-foreground"
+                      ? "bg-brand/10 text-brand"
+                      : "hover:bg-muted/60 text-foreground"
                   )}
                 >
                   {label}
                 </button>
               ))}
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
+      ) : (
+        <p className="px-3 py-2 text-sm text-muted-foreground">No roles match.</p>
+      )}
+      {showAddOption && (
+        <div className="border-t border-border/50">
+          <button
+            type="button"
+            onPointerDown={(e) => { e.preventDefault(); addCustom() }}
+            className="w-full px-3 py-2 text-left text-sm text-brand hover:bg-brand/5 transition-colors"
+          >
+            + Add &ldquo;{inputVal.trim()}&rdquo;
+          </button>
+        </div>
+      )}
+    </div>
+  )
 
-        {customRoles.length > 0 && (
-          <div>
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-              Custom
-            </p>
-            <div className="flex flex-wrap gap-1">
-              {customRoles.map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => handlePick(r)}
-                  className={cn(
-                    "text-xs px-2 py-0.5 rounded-full border transition-colors cursor-pointer",
-                    inputVal === r
-                      ? "bg-brand/10 border-brand/50 text-brand"
-                      : "border-border/50 text-muted-foreground hover:border-brand/30 hover:text-foreground"
-                  )}
-                >
-                  {r}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+  return (
+    <div ref={containerRef}>
+      <Input
+        ref={inputRef}
+        value={inputVal}
+        onChange={(e) => { setInputVal(e.target.value); onChange(e.target.value); measureAndOpen() }}
+        onFocus={measureAndOpen}
+        placeholder="Type or select a role…"
+        className="h-8 text-sm"
+        autoComplete="off"
+      />
+      {typeof document !== "undefined" && dropdown && createPortal(dropdown, document.body)}
     </div>
   )
 }
