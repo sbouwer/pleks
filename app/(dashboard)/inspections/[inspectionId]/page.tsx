@@ -9,7 +9,40 @@ import { InspectionActions } from "./InspectionActions"
 import { CONDITION_OPTIONS } from "@/lib/inspections/roomTemplates"
 import { RescheduleRequestsPanel, type RescheduleRequest } from "./RescheduleRequestsPanel"
 import { PhotoComparison } from "./PhotoComparison"
+import { createServiceClient } from "@/lib/supabase/server"
 import { MobileInspectionView, type InspectionItem } from "@/components/mobile/MobileInspectionView"
+
+/** For move-out/periodic inspections: returns a map of itemId → signed move-in photo URL. */
+async function fetchMoveInPhotos(inspectionId: string): Promise<Record<string, string>> {
+  const service = await createServiceClient()
+  const { data: photos } = await service
+    .from("inspection_photos")
+    .select("item_id, move_in_photo_id")
+    .eq("inspection_id", inspectionId)
+    .not("item_id", "is", null)
+    .not("move_in_photo_id", "is", null)
+
+  if (!photos || photos.length === 0) return {}
+
+  const moveInIds = photos.map((p) => p.move_in_photo_id as string)
+  const { data: moveInPhotos } = await service
+    .from("inspection_photos")
+    .select("id, storage_path_original")
+    .in("id", moveInIds)
+
+  const pathById = new Map((moveInPhotos ?? []).map((p) => [p.id, p.storage_path_original as string]))
+  const result: Record<string, string> = {}
+
+  for (const photo of photos) {
+    if (!photo.item_id || !photo.move_in_photo_id) continue
+    const path = pathById.get(photo.move_in_photo_id)
+    if (!path) continue
+    const { data: signed } = await service.storage.from("inspection-photos").createSignedUrl(path, 3600)
+    if (signed?.signedUrl) result[photo.item_id] = signed.signedUrl
+  }
+
+  return result
+}
 
 const STATUS_MAP: Record<string, "scheduled" | "pending" | "active" | "completed" | "arrears"> = {
   scheduled: "scheduled",
@@ -63,6 +96,12 @@ export default async function InspectionDetailPage({
     sum + ((r.inspection_items as unknown as { condition: string | null }[]) || []).filter((i) => i.condition && i.condition !== "not_inspected").length, 0
   )
 
+  // For move-out/periodic inspections: fetch move-in photo URLs per item for comparison
+  const moveInPhotosByItemId =
+    inspection.inspection_type === "move_out" || inspection.inspection_type === "periodic"
+      ? await fetchMoveInPhotos(inspectionId)
+      : {}
+
   const isResidential = inspection.lease_type === "residential"
   const disputeOpen = inspection.dispute_window_open && inspection.dispute_window_closes_at
   const disputeCloses = disputeOpen ? new Date(inspection.dispute_window_closes_at) : null
@@ -88,6 +127,7 @@ export default async function InspectionDetailPage({
             display_order: r.display_order,
             items: (r.inspection_items as unknown as InspectionItem[]) ?? [],
           }))}
+          moveInPhotosByItemId={moveInPhotosByItemId}
         />
       </div>
 

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { updateItemCondition, updateInspectionStatus } from "@/lib/actions/inspections"
 
@@ -56,6 +57,8 @@ interface Props {
   unitLabel: string
   tenantName: string | null
   rooms: InspectionRoom[]
+  /** itemId → signed URL of the move-in photo (for move-out/periodic comparisons) */
+  moveInPhotosByItemId?: Record<string, string>
 }
 
 const STATUS_MAP: Record<string, "scheduled" | "pending" | "active" | "completed" | "arrears"> = {
@@ -103,14 +106,115 @@ function StarRating({ value, onChange }: { value: number; onChange: (v: number) 
   )
 }
 
+// ── Signature canvas ─────────────────────────────────────────────────────────
+
+interface SignatureCanvasProps {
+  label: string
+  onSave: (blob: Blob) => Promise<void>
+  saved: boolean
+}
+
+function SignatureCanvas({ label, onSave, saved }: SignatureCanvasProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [drawing, setDrawing] = useState(false)
+  const [hasStrokes, setHasStrokes] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  function getPos(e: React.PointerEvent<HTMLCanvasElement>) {
+    const rect = canvasRef.current!.getBoundingClientRect()
+    const scaleX = canvasRef.current!.width / rect.width
+    const scaleY = canvasRef.current!.height / rect.height
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY }
+  }
+
+  function handlePointerDown(e: React.PointerEvent<HTMLCanvasElement>) {
+    const ctx = canvasRef.current!.getContext("2d")!
+    ctx.lineWidth = 2
+    ctx.lineCap = "round"
+    ctx.strokeStyle = "#000"
+    const pos = getPos(e)
+    ctx.beginPath()
+    ctx.moveTo(pos.x, pos.y)
+    setDrawing(true)
+    setHasStrokes(true)
+    ;(e.target as HTMLCanvasElement).setPointerCapture(e.pointerId)
+  }
+
+  function handlePointerMove(e: React.PointerEvent<HTMLCanvasElement>) {
+    if (!drawing) return
+    const ctx = canvasRef.current!.getContext("2d")!
+    const pos = getPos(e)
+    ctx.lineTo(pos.x, pos.y)
+    ctx.stroke()
+  }
+
+  function handlePointerUp() {
+    setDrawing(false)
+  }
+
+  function handleClear() {
+    const canvas = canvasRef.current!
+    canvas.getContext("2d")!.clearRect(0, 0, canvas.width, canvas.height)
+    setHasStrokes(false)
+  }
+
+  async function handleSave() {
+    canvasRef.current!.toBlob(async (blob) => {
+      if (!blob) return
+      setSaving(true)
+      try {
+        await onSave(blob)
+      } finally {
+        setSaving(false)
+      }
+    }, "image/png")
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-medium">{label}</p>
+      {saved ? (
+        <p className="text-sm text-success">✅ Signature saved</p>
+      ) : (
+        <>
+          <div className="border-2 border-dashed border-border rounded-lg bg-white overflow-hidden">
+            <canvas
+              ref={canvasRef}
+              width={640}
+              height={200}
+              className="touch-none w-full h-[100px]"
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerLeave={handlePointerUp}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">Draw your signature above</p>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={handleClear} disabled={!hasStrokes}>
+              Clear
+            </Button>
+            <Button size="sm" onClick={handleSave} disabled={!hasStrokes || saving}>
+              {saving ? "Saving…" : "Save signature"}
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── Item row ──────────────────────────────────────────────────────────────────
+
 interface ItemRowProps {
   item: InspectionItem
   inspectionId: string
   roomId: string
+  moveInPhotoUrl?: string
   onUpdate: (itemId: string, condition: string, notes: string | null) => void
 }
 
-function ItemRow({ item, inspectionId, roomId, onUpdate }: ItemRowProps) {
+function ItemRow({ item, inspectionId, roomId, moveInPhotoUrl, onUpdate }: ItemRowProps) {
   const [noteValue, setNoteValue] = useState(item.condition_notes ?? "")
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -183,6 +287,20 @@ function ItemRow({ item, inspectionId, roomId, onUpdate }: ItemRowProps) {
         {saving && <span className="text-xs text-muted-foreground">Saving…</span>}
       </div>
 
+      {/* Move-in photo comparison */}
+      {moveInPhotoUrl && (
+        <div className="flex items-center gap-2">
+          <div className="relative w-16 h-16 rounded overflow-hidden border border-border shrink-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={moveInPhotoUrl} alt="Move-in" className="w-full h-full object-cover" loading="lazy" />
+            <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] text-center py-0.5">
+              Move-in
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground">Compare with move-in condition above</p>
+        </div>
+      )}
+
       <StarRating value={stars} onChange={handleStarChange} />
 
       <div className="flex items-center gap-2">
@@ -216,6 +334,8 @@ function ItemRow({ item, inspectionId, roomId, onUpdate }: ItemRowProps) {
   )
 }
 
+// ── Main component ────────────────────────────────────────────────────────────
+
 export function MobileInspectionView({
   inspectionId,
   inspectionType,
@@ -225,6 +345,7 @@ export function MobileInspectionView({
   unitLabel,
   tenantName,
   rooms,
+  moveInPhotosByItemId = {},
 }: Props) {
   const router = useRouter()
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null)
@@ -233,6 +354,9 @@ export function MobileInspectionView({
   )
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [voiceActive, setVoiceActive] = useState(false)
+  const [signOffOpen, setSignOffOpen] = useState(false)
+  const [agentSigned, setAgentSigned] = useState(false)
+  const [tenantSigned, setTenantSigned] = useState(false)
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
 
   const totalItems = rooms.reduce((sum, r) => sum + (roomItems[r.id]?.length ?? 0), 0)
@@ -268,7 +392,7 @@ export function MobileInspectionView({
   const handleVoiceSummary = useCallback(() => {
     type SpeechWindow = typeof globalThis & { SpeechRecognition?: SpeechRecognitionConstructor; webkitSpeechRecognition?: SpeechRecognitionConstructor }
     const w = globalThis.window === undefined ? null : (globalThis as SpeechWindow)
-    const SpeechRec: SpeechRecognitionConstructor | undefined = w?.SpeechRecognition ?? w?.webkitSpeechRecognition
+    const SpeechRec = w?.SpeechRecognition ?? w?.webkitSpeechRecognition
 
     if (!SpeechRec) {
       toast.error("Voice recognition not supported on this device")
@@ -283,29 +407,39 @@ export function MobileInspectionView({
     const recognition = new SpeechRec()
     recognition.lang = "en-ZA"
     recognition.interimResults = false
-
     recognition.onresult = (event) => {
       const transcript = event.results[0]?.[0]?.transcript ?? ""
       toast.success(`Voice summary: ${transcript}`, { duration: 6000 })
     }
-
-    recognition.onerror = () => {
-      setVoiceActive(false)
-      toast.error("Voice recognition failed")
-    }
-
-    recognition.onend = () => {
-      setVoiceActive(false)
-    }
-
+    recognition.onerror = () => { setVoiceActive(false); toast.error("Voice recognition failed") }
+    recognition.onend = () => { setVoiceActive(false) }
     recognitionRef.current = recognition
     recognition.start()
     setVoiceActive(true)
   }, [voiceActive])
 
+  const handleSaveSignature = useCallback(async (sigType: "agent" | "tenant", blob: Blob) => {
+    const fd = new FormData()
+    fd.append("file", blob, `${sigType}-signature.png`)
+    fd.append("sigType", sigType)
+    const res = await fetch(`/api/inspection/${inspectionId}/signature`, {
+      method: "POST",
+      body: fd,
+      credentials: "include",
+    })
+    if (!res.ok) {
+      const data = await res.json() as { error?: string }
+      throw new Error(data.error ?? "Failed to save signature")
+    }
+    if (sigType === "agent") setAgentSigned(true)
+    else setTenantSigned(true)
+    toast.success(`${sigType === "agent" ? "Agent" : "Tenant"} signature saved`)
+  }, [inspectionId])
+
   const selectedRoom = rooms.find((r) => r.id === selectedRoomId)
 
-  // Room detail view
+  // ── Room detail view ──────────────────────────────────────────────────────
+
   if (selectedRoom) {
     const items = roomItems[selectedRoom.id] ?? []
     const roomInspected = items.filter((i) => i.condition && i.condition !== "not_inspected").length
@@ -335,6 +469,7 @@ export function MobileInspectionView({
               item={item}
               inspectionId={inspectionId}
               roomId={selectedRoom.id}
+              moveInPhotoUrl={moveInPhotosByItemId[item.id]}
               onUpdate={onUpdate}
             />
           ))}
@@ -344,18 +479,15 @@ export function MobileInspectionView({
           <p className="text-sm text-center text-success font-medium">✅ All items inspected</p>
         )}
 
-        <Button
-          className="w-full"
-          variant="outline"
-          onClick={() => setSelectedRoomId(null)}
-        >
+        <Button className="w-full" variant="outline" onClick={() => setSelectedRoomId(null)}>
           ← Back to rooms
         </Button>
       </div>
     )
   }
 
-  // Room list view
+  // ── Room list view ────────────────────────────────────────────────────────
+
   return (
     <div className="px-4 pb-8 space-y-6">
       {/* Back nav */}
@@ -374,9 +506,7 @@ export function MobileInspectionView({
         <div className="flex flex-wrap items-center gap-2 mt-1">
           <StatusBadge status={STATUS_MAP[status] ?? "scheduled"} />
           <span className="text-xs text-muted-foreground capitalize">{leaseType}</span>
-          {tenantName && (
-            <span className="text-xs text-muted-foreground">· {tenantName}</span>
-          )}
+          {tenantName && <span className="text-xs text-muted-foreground">· {tenantName}</span>}
           {scheduledDate && (
             <span className="text-xs text-muted-foreground">
               · {new Date(scheduledDate).toLocaleDateString("en-ZA")}
@@ -407,7 +537,6 @@ export function MobileInspectionView({
           const done = items.filter((i) => i.condition && i.condition !== "not_inspected").length
           const isComplete = items.length > 0 && done === items.length
           const isEmpty = done === 0
-
           return (
             <button
               key={room.id}
@@ -440,7 +569,14 @@ export function MobileInspectionView({
         >
           {voiceActive ? "⏹ Stop recording" : "🎙 Voice summary"}
         </Button>
-
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full"
+          onClick={() => setSignOffOpen(true)}
+        >
+          {agentSigned && tenantSigned ? "✅ Signed off" : "✍️ Sign off"}
+        </Button>
         {status === "scheduled" && (
           <Button
             size="sm"
@@ -462,6 +598,34 @@ export function MobileInspectionView({
           </Button>
         )}
       </div>
+
+      {/* Sign-off sheet */}
+      <Sheet open={signOffOpen} onOpenChange={setSignOffOpen}>
+        <SheetContent side="bottom" className="h-auto max-h-[85vh] overflow-y-auto">
+          <SheetHeader className="mb-4">
+            <SheetTitle>Sign off inspection</SheetTitle>
+          </SheetHeader>
+          <div className="space-y-6 pb-6">
+            <SignatureCanvas
+              label="Agent signature"
+              saved={agentSigned}
+              onSave={(blob) => handleSaveSignature("agent", blob)}
+            />
+            <div className="border-t border-border pt-6">
+              <SignatureCanvas
+                label="Tenant signature"
+                saved={tenantSigned}
+                onSave={(blob) => handleSaveSignature("tenant", blob)}
+              />
+            </div>
+            {agentSigned && tenantSigned && (
+              <p className="text-sm text-center text-success font-medium">
+                ✅ Both signatures captured
+              </p>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

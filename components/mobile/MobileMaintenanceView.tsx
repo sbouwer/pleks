@@ -41,6 +41,12 @@ interface TimelineItem {
   date: string
 }
 
+interface PersistedNote {
+  id: string
+  note: string
+  createdAt: string
+}
+
 interface Props {
   requestId: string
   title: string
@@ -57,6 +63,8 @@ interface Props {
   aiTriageNotes: string | null
   photoCount: number
   timeline: TimelineItem[]
+  /** Notes persisted in audit_log from previous sessions */
+  persistedNotes?: PersistedNote[]
 }
 
 interface Contractor {
@@ -110,7 +118,8 @@ export function MobileMaintenanceView({
   aiTriageNotes,
   photoCount: initialPhotoCount,
   timeline,
-}: Props) {
+  persistedNotes = [],
+}: Readonly<Props>) {
   const router = useRouter()
   const { orgId } = useOrg()
 
@@ -370,7 +379,7 @@ export function MobileMaintenanceView({
       <div className="border rounded-lg p-3">
         <div className="flex items-center justify-between">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Photos</p>
-          <span className="text-sm text-muted-foreground">{photoCount} photo{photoCount !== 1 ? "s" : ""}</span>
+          <span className="text-sm text-muted-foreground">{photoCount} photo{photoCount === 1 ? "" : "s"}</span>
         </div>
         <input
           type="file"
@@ -394,6 +403,15 @@ export function MobileMaintenanceView({
       {/* Notes */}
       <div className="border rounded-lg p-3 space-y-2">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Notes</p>
+
+        {persistedNotes.map((note) => (
+          <div key={note.id} className="text-sm bg-muted/50 rounded p-2">
+            <p>{note.note}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {new Date(note.createdAt).toLocaleDateString("en-ZA", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+            </p>
+          </div>
+        ))}
 
         {localNotes.map((note) => (
           <div key={note.id} className="text-sm bg-muted/50 rounded p-2">
@@ -446,8 +464,8 @@ export function MobileMaintenanceView({
       {timeline.length > 0 && (
         <div className="border rounded-lg p-3 space-y-2">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Activity</p>
-          {timeline.map((item, i) => (
-            <div key={i} className="flex items-start gap-2 text-sm">
+          {timeline.map((item) => (
+            <div key={`${item.label}-${item.date}`} className="flex items-start gap-2 text-sm">
               <div className="w-1.5 h-1.5 rounded-full bg-brand shrink-0 mt-1.5" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm">{item.label}</p>
