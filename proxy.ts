@@ -67,7 +67,7 @@ async function refreshOrgCookieParallel(
 ) {
   const [orgsRes, subRes] = await Promise.all([
     service.from("user_orgs").select("role").eq("user_id", userId).eq("org_id", orgId).is("deleted_at", null).single(),
-    service.from("subscriptions").select("tier, status, trial_tier, trial_ends_at, trial_converted").eq("org_id", orgId).in("status", ["active", "trialing"]).single(),
+    service.from("subscriptions").select("tier, status, trial_tier, trial_ends_at, trial_converted").eq("org_id", orgId).in("status", ["active", "trialing"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ])
   if (orgsRes.data) {
     supabaseResponse.cookies.set("pleks_org", JSON.stringify({
@@ -88,7 +88,7 @@ async function setOrgCookiesFromDb(
   const orgId = orgs[0].org_id
   const { data: sub } = await service
     .from("subscriptions").select("tier, status, trial_tier, trial_ends_at, trial_converted")
-    .eq("org_id", orgId).in("status", ["active", "trialing"]).single()
+    .eq("org_id", orgId).in("status", ["active", "trialing"]).order("created_at", { ascending: false }).limit(1).maybeSingle()
 
   supabaseResponse.cookies.set("pleks_has_org", JSON.stringify({ org_id: orgId, user_id: user.id }), { ...COOKIE_OPTS, maxAge: 60 * 60 * 24 * 7 })
   supabaseResponse.cookies.set("pleks_org", JSON.stringify({
