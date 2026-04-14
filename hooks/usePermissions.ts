@@ -16,15 +16,31 @@ export function usePermissions() {
     queryFn: async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.user) return null
-      const { data, error } = await supabase
+
+      // Step 1: get role (always exists)
+      const { data: base, error: baseErr } = await supabase
         .from("user_orgs")
-        .select("role, is_admin")
+        .select("role")
         .eq("user_id", session.user.id)
         .is("deleted_at", null)
         .limit(1)
         .single()
-      if (error) { console.error("usePermissions:", error.message); return null }
-      return data as unknown as PermissionsData
+      if (baseErr || !base) return null
+
+      const role = (base as unknown as { role: string }).role
+
+      // Step 2: try is_admin — graceful fallback if column not yet migrated
+      const { data: adminData } = await supabase
+        .from("user_orgs")
+        .select("is_admin")
+        .eq("user_id", session.user.id)
+        .is("deleted_at", null)
+        .limit(1)
+        .single()
+
+      const is_admin = (adminData as unknown as { is_admin?: boolean } | null)?.is_admin ?? false
+
+      return { role, is_admin }
     },
     staleTime: 5 * 60 * 1000,
   })
