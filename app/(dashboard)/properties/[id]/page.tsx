@@ -12,6 +12,7 @@ import { PropertyBuildingsSection } from "@/components/properties/PropertyBuildi
 import { PropertyDocumentsSection } from "@/components/properties/PropertyDocumentsSection"
 import { QuickActionsCard } from "@/components/properties/QuickActionsCard"
 import { WelcomePackBanner } from "@/components/reports/WelcomePackBanner"
+import { MobilePropertyView } from "@/components/mobile/MobilePropertyView"
 import { ExternalLink, Pencil } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import { cn } from "@/lib/utils"
@@ -193,8 +194,38 @@ export default async function PropertyDetailPage({
     ? (landlord.company_name?.trim() || [landlord.first_name, landlord.last_name].filter(Boolean).join(" ") || undefined)
     : undefined
 
+  const mobileUnits = activeUnits.map((u) => ({
+    id: u.id,
+    unitNumber: u.unit_number,
+    status: u.status,
+    tenantName: tenantByUnit[u.id]?.name ?? null,
+    rentCents: u.asking_rent_cents ?? 0,
+    maintenanceCount: maintenanceByUnit[u.id] ?? 0,
+  }))
+
   return (
     <div>
+      {/* Mobile view */}
+      <div className="lg:hidden">
+        <MobilePropertyView
+          propertyId={id}
+          name={property.name}
+          address={fullAddress}
+          mapsUrl={googleMapsUrl}
+          type={property.type ?? null}
+          landlordName={landlord ? (landlord.company_name?.trim() || [landlord.first_name, landlord.last_name].filter(Boolean).join(" ") || null) : null}
+          landlordPhone={landlord?.phone ?? null}
+          totalUnits={activeUnits.length}
+          occupiedUnits={occupied}
+          vacantUnits={vacantCount}
+          totalRentCents={totalRentCents}
+          totalMaintenanceCount={totalMaintenanceCount}
+          units={mobileUnits}
+        />
+      </div>
+
+      {/* Desktop view */}
+      <div className="hidden lg:block">
       {/* Breadcrumb */}
       <p className="text-sm text-muted-foreground mb-1">
         <Link href="/properties" className="hover:text-foreground">Properties</Link> &rsaquo; {property.name}
@@ -339,6 +370,7 @@ export default async function PropertyDetailPage({
           maintenanceCount={totalMaintenanceCount}
         />
       </div>
+      </div>{/* end desktop */}
     </div>
   )
 }
