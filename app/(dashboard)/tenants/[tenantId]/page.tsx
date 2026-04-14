@@ -8,6 +8,7 @@ import { SectionCard } from "@/components/contacts/SectionCard"
 import { RelationshipCard } from "@/components/contacts/RelationshipCard"
 import { StatGrid } from "@/components/contacts/StatGrid"
 import { TenantContactSection, TenantIdentitySection, TenantEmploymentSection, TenantAddressSection } from "./TenantSections"
+import { MobileTenantView } from "@/components/mobile/MobileTenantView"
 import { formatZAR } from "@/lib/constants"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -191,7 +192,40 @@ export default async function TenantDetailPage({
   const leaseUnit = activeLease?.units as unknown as LeaseUnit | null
   const leaseProperty = leaseUnit?.properties ?? null
 
+  const mobileLease = activeLease && leaseUnit ? {
+    id: activeLease.id,
+    rentAmountCents: activeLease.rent_amount_cents ?? 0,
+    depositAmountCents: activeLease.deposit_amount_cents ?? null,
+    startDate: activeLease.start_date,
+    endDate: activeLease.end_date,
+    status: activeLease.status,
+    unitNumber: leaseUnit.unit_number,
+    propertyName: leaseProperty?.name ?? "",
+  } : null
+
   return (
+    <div>
+      {/* Mobile view */}
+      <div className="lg:hidden">
+        <MobileTenantView
+          tenantId={tenantId}
+          displayName={displayName}
+          entityType={tenant.entity_type}
+          primaryPhone={primaryPhone}
+          primaryEmail={primaryEmail}
+          activeLease={mobileLease}
+          arrearsAmountCents={arrearsCase?.total_arrears_cents ?? null}
+          activeMaintenanceRequests={(maintenanceRequests ?? []).map((r) => ({
+            id: r.id,
+            title: r.title,
+            status: r.status,
+            urgency: r.urgency ?? null,
+          }))}
+        />
+      </div>
+
+      {/* Desktop view */}
+      <div className="hidden lg:block">
     <ContactDetailLayout
       breadcrumb={{ label: "Tenants", href: "/tenants" }}
       sidebar={
@@ -292,5 +326,7 @@ export default async function TenantDetailPage({
         )}
       </SectionCard>
     </ContactDetailLayout>
+      </div>{/* end desktop */}
+    </div>
   )
 }
