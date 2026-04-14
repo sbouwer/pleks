@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
+import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { getMembership } from "@/lib/supabase/getMembership"
 
 const ALL_FIELDS = [
   "name", "trading_as", "reg_number", "eaab_number", "vat_number",
@@ -15,29 +16,15 @@ const ALL_FIELDS = [
 ] as const
 
 
-async function resolveOrgMembership(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
-  const { data } = await supabase
-    .from("user_orgs")
-    .select("org_id, role, is_admin")
-    .eq("user_id", userId)
-    .is("deleted_at", null)
-    .single()
-  if (!data) return null
-  const row = data as unknown as { org_id: string; role: string; is_admin: boolean }
-  return {
-    orgId: row.org_id,
-    isAdmin: row.role === "owner" || row.is_admin === true,
-  }
-}
-
 export async function GET() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const m = await resolveOrgMembership(supabase, user.id)
+  const service = await createServiceClient()
+  const m = await getMembership(service, user.id)
   if (!m) return NextResponse.json({ error: "No org" }, { status: 403 })
-  const { orgId } = m
+  const { org_id: orgId } = m
 
   const selectFields = [...ALL_FIELDS, "id", "type", "user_type", "primary_contact_is_user"].join(", ")
   const { data: org, error } = await supabase
@@ -73,9 +60,10 @@ export async function PATCH(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const m = await resolveOrgMembership(supabase, user.id)
+  const service = await createServiceClient()
+  const m = await getMembership(service, user.id)
   if (!m) return NextResponse.json({ error: "No org" }, { status: 403 })
-  const { orgId, isAdmin } = m
+  const { org_id: orgId, isAdmin } = m
   if (!isAdmin) return NextResponse.json({ error: "Admin access required to update org settings" }, { status: 403 })
 
   let body: unknown
