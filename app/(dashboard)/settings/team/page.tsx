@@ -29,20 +29,82 @@ import { Plus, Trash2, Pencil, ChevronUp, ChevronDown, ArrowUpDown } from "lucid
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
+// Grouped role definitions — single source of truth.
+// Each group has a display label and a list of [slug, displayName] pairs.
+// "owner" is special-cased separately (never appears in invite dropdowns).
+const ROLE_GROUPS: { group: string; roles: [string, string][] }[] = [
+  {
+    group: "Management",
+    roles: [
+      ["property_manager",  "Property Manager"],
+      ["office_manager",    "Office Manager"],
+      ["portfolio_manager", "Portfolio Manager"],
+      ["director",          "Director"],
+    ],
+  },
+  {
+    group: "Leasing & Applications",
+    roles: [
+      ["agent",               "Letting Agent"],
+      ["leasing_consultant",  "Leasing Consultant"],
+      ["sales_agent",         "Sales Agent"],
+    ],
+  },
+  {
+    group: "Finance & Accounts",
+    roles: [
+      ["accountant",      "Accountant"],
+      ["bookkeeper",      "Bookkeeper"],
+      ["account_manager", "Account Manager"],
+      ["accounts_payable","Accounts Payable"],
+      ["trust_accountant","Trust Accountant"],
+    ],
+  },
+  {
+    group: "Operations",
+    roles: [
+      ["maintenance_manager", "Maintenance Manager"],
+      ["inspection_manager",  "Inspection Manager"],
+      ["facilities_manager",  "Facilities Manager"],
+    ],
+  },
+  {
+    group: "Admin & Support",
+    roles: [
+      ["admin_assistant", "Admin Assistant"],
+      ["receptionist",    "Receptionist"],
+    ],
+  },
+  {
+    group: "HR & Compliance",
+    roles: [
+      ["hr_manager",         "HR Manager"],
+      ["compliance_officer", "Compliance Officer"],
+    ],
+  },
+  {
+    group: "IT",
+    roles: [
+      ["it_manager",    "IT Manager"],
+      ["it_department", "IT Department"],
+    ],
+  },
+]
+
+// Slug → display label (includes owner which is never in ROLE_GROUPS)
 const ROLE_LABELS: Record<string, string> = {
-  owner:               "Owner",
-  property_manager:    "Property Manager",
-  agent:               "Letting Agent",
-  accountant:          "Accountant",
-  maintenance_manager: "Maintenance Manager",
+  owner: "Owner",
+  ...Object.fromEntries(ROLE_GROUPS.flatMap((g) => g.roles)),
 }
 
-// Reverse map: display label → system slug (for storing back as slug where possible)
+// Reverse map: display label → system slug
 const ROLE_LABEL_TO_SLUG: Record<string, string> = Object.fromEntries(
   Object.entries(ROLE_LABELS).map(([k, v]) => [v, k])
 )
 
-const DEFAULT_ROLES = Object.values(ROLE_LABELS)
+// Flat list of all non-owner display labels (used as the org default quick-pick set)
+const DEFAULT_ROLES: string[] = ROLE_GROUPS.flatMap((g) => g.roles.map(([, label]) => label))
+
 const TITLES = ["Mr", "Mrs", "Ms", "Miss", "Dr", "Prof", "Adv"]
 const PORTFOLIO_TIERS = new Set(["portfolio", "firm"])
 
@@ -89,13 +151,13 @@ type SortCol = "name" | "role"
 type SortDir = "asc" | "desc"
 
 // ── Role combobox ──────────────────────────────────────────────────────────────
-// Combines a free-text input with quick-pick chips from the org's role library.
-// Selecting a chip or typing sets the role value directly.
+// Free-text input with grouped quick-pick chips derived from ROLE_GROUPS.
+// Org custom roles (from DB) are shown in a "Custom" section at the bottom.
 
 function RoleCombobox({ value, onChange, orgRoles }: Readonly<{
   value: string
   onChange: (v: string) => void
-  orgRoles: string[]
+  orgRoles: string[]   // full list of allowed labels (used to surface custom roles)
 }>) {
   const [inputVal, setInputVal] = useState(getRoleLabel(value))
 
@@ -109,33 +171,71 @@ function RoleCombobox({ value, onChange, orgRoles }: Readonly<{
     onChange(role)
   }
 
+  // Standard labels that belong to a group
+  const standardLabels = new Set(DEFAULT_ROLES)
+
+  // Custom labels added by this org (not in the standard set, not "Owner")
+  const customRoles = orgRoles.filter((r) => !standardLabels.has(r) && r !== "Owner")
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <Input
         value={inputVal}
         onChange={handleInput}
         placeholder="Type or select a role…"
         className="h-8 text-sm"
       />
-      {orgRoles.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {orgRoles.map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => handlePick(r)}
-              className={cn(
-                "text-xs px-2 py-0.5 rounded-full border transition-colors cursor-pointer",
-                inputVal === r
-                  ? "bg-brand/10 border-brand/50 text-brand"
-                  : "border-border/50 text-muted-foreground hover:border-brand/30 hover:text-foreground"
-              )}
-            >
-              {r}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="space-y-2">
+        {ROLE_GROUPS.map((group) => (
+          <div key={group.group}>
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+              {group.group}
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {group.roles.map(([, label]) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => handlePick(label)}
+                  className={cn(
+                    "text-xs px-2 py-0.5 rounded-full border transition-colors cursor-pointer",
+                    inputVal === label
+                      ? "bg-brand/10 border-brand/50 text-brand"
+                      : "border-border/50 text-muted-foreground hover:border-brand/30 hover:text-foreground"
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        {customRoles.length > 0 && (
+          <div>
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+              Custom
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {customRoles.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => handlePick(r)}
+                  className={cn(
+                    "text-xs px-2 py-0.5 rounded-full border transition-colors cursor-pointer",
+                    inputVal === r
+                      ? "bg-brand/10 border-brand/50 text-brand"
+                      : "border-border/50 text-muted-foreground hover:border-brand/30 hover:text-foreground"
+                  )}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
