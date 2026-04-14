@@ -14,33 +14,20 @@ export function usePermissions() {
   const { data, isLoading } = useQuery<PermissionsData | null>({
     queryKey: ["permissions"],
     queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user) return null
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return null
 
-      // Step 1: get role (always exists)
-      const { data: base, error: baseErr } = await supabase
+      const { data: row, error } = await supabase
         .from("user_orgs")
-        .select("role")
-        .eq("user_id", session.user.id)
+        .select("role, is_admin")
+        .eq("user_id", user.id)
         .is("deleted_at", null)
         .limit(1)
         .single()
-      if (baseErr || !base) return null
+      if (error || !row) return null
 
-      const role = (base as unknown as { role: string }).role
-
-      // Step 2: try is_admin — graceful fallback if column not yet migrated
-      const { data: adminData } = await supabase
-        .from("user_orgs")
-        .select("is_admin")
-        .eq("user_id", session.user.id)
-        .is("deleted_at", null)
-        .limit(1)
-        .single()
-
-      const is_admin = (adminData as unknown as { is_admin?: boolean } | null)?.is_admin ?? false
-
-      return { role, is_admin }
+      const { role, is_admin } = row as { role: string; is_admin: boolean }
+      return { role, is_admin: is_admin ?? false }
     },
     staleTime: 5 * 60 * 1000,
   })
