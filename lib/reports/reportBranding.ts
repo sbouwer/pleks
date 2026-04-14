@@ -42,9 +42,10 @@ export async function getReportBranding(orgId: string): Promise<ReportBranding> 
 
   const defaultHours = getOperatingHours({})
 
+  // Core branding columns — stable, always present
   const { data: org, error } = await db
     .from("organisations")
-    .select("name, brand_logo_path, logo_url, brand_accent_color, brand_cover_template, brand_font, lease_address, lease_phone, lease_email, lease_website, lease_registration_number, phone, office_hours_weekday, office_hours_saturday, office_hours_sunday, office_hours_public_holidays, emergency_phone, emergency_contact_name, emergency_email, emergency_instructions")
+    .select("name, brand_logo_path, logo_url, brand_accent_color, brand_cover_template, brand_font, lease_address, lease_phone, lease_email, lease_website, lease_registration_number, phone")
     .eq("id", orgId)
     .single()
 
@@ -71,7 +72,27 @@ export async function getReportBranding(orgId: string): Promise<ReportBranding> 
     if (signed?.signedUrl) logoUrl = signed.signedUrl
   }
 
-  const orgRecord = org as unknown as Record<string, string | null>
+  // Hours columns — added in migration 023; graceful fallback if not yet applied
+  let hours = getOperatingHours({ phone: org.lease_phone ?? null })
+  const { data: orgHours } = await db
+    .from("organisations")
+    .select("office_hours_weekday, office_hours_saturday, office_hours_sunday, office_hours_public_holidays, emergency_phone, emergency_contact_name, emergency_email, emergency_instructions")
+    .eq("id", orgId)
+    .single()
+  if (orgHours) {
+    const h = orgHours as unknown as Record<string, string | null>
+    hours = getOperatingHours({
+      phone: org.lease_phone ?? null,
+      office_hours_weekday: h.office_hours_weekday,
+      office_hours_saturday: h.office_hours_saturday,
+      office_hours_sunday: h.office_hours_sunday,
+      office_hours_public_holidays: h.office_hours_public_holidays,
+      emergency_phone: h.emergency_phone,
+      emergency_contact_name: h.emergency_contact_name,
+      emergency_email: h.emergency_email,
+      emergency_instructions: h.emergency_instructions,
+    })
+  }
 
   return {
     logo_url: logoUrl,
@@ -84,16 +105,6 @@ export async function getReportBranding(orgId: string): Promise<ReportBranding> 
     accent_color: org.brand_accent_color ?? "#1a3a5c",
     font: org.brand_font ?? "inter",
     layout: org.brand_cover_template ?? "classic",
-    hours: getOperatingHours({
-      phone: org.lease_phone ?? null,
-      office_hours_weekday: orgRecord.office_hours_weekday,
-      office_hours_saturday: orgRecord.office_hours_saturday,
-      office_hours_sunday: orgRecord.office_hours_sunday,
-      office_hours_public_holidays: orgRecord.office_hours_public_holidays,
-      emergency_phone: orgRecord.emergency_phone,
-      emergency_contact_name: orgRecord.emergency_contact_name,
-      emergency_email: orgRecord.emergency_email,
-      emergency_instructions: orgRecord.emergency_instructions,
-    }),
+    hours,
   }
 }
