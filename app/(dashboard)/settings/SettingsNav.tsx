@@ -43,14 +43,14 @@ function getTopTabs(type: OrgType): TopTab[] {
     {
       label: "Organisation",
       icon: Building2,
-      groupPrefixes: ["/settings/profile", "/settings/team", "/settings/hours"],
+      groupPrefixes: ["/settings/profile", "/settings/team", "/settings/hours", "/settings/branding"],
       subTabs: [
         { href: "/settings/profile", label: "Details" },
         { href: "/settings/team", label: "Team" },
         { href: "/settings/hours", label: "Opening Hours" },
+        { href: "/settings/branding", label: "Branding" },
       ],
     },
-    { href: "/settings/branding", label: "Branding", icon: Palette },
     { href: "/settings/compliance", label: "Compliance", icon: Shield },
     { href: "/settings/lease-templates", label: "Lease Templates", icon: FileText },
     {
