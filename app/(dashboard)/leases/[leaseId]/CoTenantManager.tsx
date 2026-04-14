@@ -56,6 +56,7 @@ export function CoTenantManager({ leaseId, orgId, coTenants, primaryTenantId }: 
           orgId={orgId}
           onSelect={handleAdd}
           align="right"
+          excludeIds={[primaryTenantId, ...coTenants.map((ct) => ct.tenantId)]}
           trigger={
             <button
               type="button"

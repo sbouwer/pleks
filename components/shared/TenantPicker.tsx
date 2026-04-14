@@ -35,9 +35,10 @@ interface TenantPickerProps {
   trigger: React.ReactNode
   returnTo?: string
   align?: "left" | "right"
+  excludeIds?: string[]
 }
 
-export function TenantPicker({ orgId, onSelect, trigger, returnTo, align = "left" }: Readonly<TenantPickerProps>) {
+export function TenantPicker({ orgId, onSelect, trigger, returnTo, align = "left", excludeIds }: Readonly<TenantPickerProps>) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState("")
   const containerRef = useRef<HTMLDivElement>(null)
@@ -78,6 +79,7 @@ export function TenantPicker({ orgId, onSelect, trigger, returnTo, align = "left
   }
 
   const filtered = (tenants as TenantRow[]).filter((t) => {
+    if (excludeIds?.includes(t.id)) return false
     if (!search) return true
     const name = displayName(t).toLowerCase()
     const phone = t.phone?.toLowerCase() ?? ""
