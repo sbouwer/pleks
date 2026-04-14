@@ -36,6 +36,7 @@ const PERIOD_OPTIONS: { value: ReportPeriodType; label: string }[] = [
   { value: "last_quarter",  label: "Last quarter" },
   { value: "this_tax_year", label: "This tax year" },
   { value: "last_tax_year", label: "Last tax year" },
+  { value: "all_time",      label: "All time" },
   { value: "custom",        label: "Custom range" },
 ]
 

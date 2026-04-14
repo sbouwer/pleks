@@ -42,6 +42,8 @@ export function resolvePeriod(
       const taxEnd = m < 2 ? saTaxYearEnd(y - 2) : saTaxYearEnd(y - 1)
       return { from: taxStart, to: taxEnd }
     }
+    case "all_time":
+      return { from: new Date(2000, 0, 1), to: new Date(2099, 11, 31) }
     case "custom":
       if (!customFrom || !customTo) throw new Error("Custom period requires from and to dates")
       return { from: customFrom, to: customTo }
@@ -81,6 +83,7 @@ const PERIOD_LABELS: Record<ReportPeriodType, string> = {
   last_quarter: "Last quarter",
   this_tax_year: "This tax year",
   last_tax_year: "Last tax year",
+  all_time: "All time",
   custom: "Custom range",
 }
 
