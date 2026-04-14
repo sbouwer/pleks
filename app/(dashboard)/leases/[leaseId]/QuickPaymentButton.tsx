@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useTransition, useRef } from "react"
+import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { Button } from "@/components/ui/button"
 import { PlusCircle, Loader2, X } from "lucide-react"
 import { toast } from "sonner"
@@ -25,6 +26,7 @@ export function QuickPaymentButton({ invoiceId, balanceCents }: QuickPaymentButt
 
   const balanceRands = (balanceCents / 100).toFixed(2)
   const today = new Date().toISOString().split("T")[0]
+  const [paymentDate, setPaymentDate] = useState(today)
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -78,13 +80,9 @@ export function QuickPaymentButton({ invoiceId, balanceCents }: QuickPaymentButt
           </div>
           <div>
             <label className="text-[11px] text-muted-foreground uppercase tracking-wide">Date</label>
-            <input
-              name="payment_date"
-              type="date"
-              defaultValue={today}
-              required
-              className="mt-1 w-full rounded-md border bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            />
+            <div className="mt-1">
+              <DatePickerInput value={paymentDate} onChange={setPaymentDate} name="payment_date" />
+            </div>
           </div>
         </div>
         <div>

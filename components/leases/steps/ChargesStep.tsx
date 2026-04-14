@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
@@ -233,11 +234,11 @@ export function ChargesStep({ data, onBack, onNext }: Readonly<Props>) {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Start date</Label>
-                <Input type="date" value={newStartDate} onChange={(e) => setNewStartDate(e.target.value)} />
+                <DatePickerInput value={newStartDate} onChange={setNewStartDate} placeholder="Start date" />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">End date (optional)</Label>
-                <Input type="date" value={newEndDate} onChange={(e) => setNewEndDate(e.target.value)} />
+                <DatePickerInput value={newEndDate} onChange={setNewEndDate} placeholder="End date" />
               </div>
             </div>
             <div className="space-y-1">

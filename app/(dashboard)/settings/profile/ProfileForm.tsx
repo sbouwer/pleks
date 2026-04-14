@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { toast } from "sonner"
@@ -178,8 +179,7 @@ function PersonalSection({ form, set }: Readonly<{ form: FormState; set: (f: key
             capitalize placeholder="Select…" />
         </F>
         <F label="Date of birth" id="date_of_birth">
-          <Input id="date_of_birth" type="date" value={form.date_of_birth ?? ""}
-            onChange={(e) => set("date_of_birth", e.target.value)} />
+          <DatePickerInput value={form.date_of_birth ?? ""} onChange={(v) => set("date_of_birth", v)} placeholder="Date of birth" />
         </F>
         <F label="SA ID number" id="id_number">
           <Input id="id_number" value={form.id_number ?? ""}

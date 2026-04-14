@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { toast } from "sonner"
@@ -91,19 +92,11 @@ export function PrimeRateWidget({ currentRate, effectiveSince }: Readonly<PrimeR
                 </div>
                 <div className="space-y-2">
                   <Label>Effective date</Label>
-                  <Input
-                    type="date"
-                    value={effectiveDate}
-                    onChange={(e) => setEffectiveDate(e.target.value)}
-                  />
+                  <DatePickerInput value={effectiveDate} onChange={setEffectiveDate} />
                 </div>
                 <div className="space-y-2">
                   <Label>MPC meeting date (optional)</Label>
-                  <Input
-                    type="date"
-                    value={mpcDate}
-                    onChange={(e) => setMpcDate(e.target.value)}
-                  />
+                  <DatePickerInput value={mpcDate} onChange={setMpcDate} placeholder="Optional" />
                 </div>
                 <div className="space-y-2">
                   <Label>Notes (optional)</Label>

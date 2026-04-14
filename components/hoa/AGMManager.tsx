@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { formatDateShort } from "@/lib/reports/periods"
@@ -195,7 +196,7 @@ export function AGMManager({ hoaId, initialRecords }: Readonly<Props>) {
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Date *</label>
-                <Input type="date" value={form.meeting_date} onChange={(e) => setF("meeting_date", e.target.value)} />
+                <DatePickerInput value={form.meeting_date} onChange={(v) => setF("meeting_date", v)} placeholder="Meeting date" />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Time</label>

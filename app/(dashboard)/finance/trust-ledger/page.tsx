@@ -6,7 +6,7 @@ import { useOrg } from "@/hooks/useOrg"
 import { formatZAR } from "@/lib/constants"
 import { formatTrustType, buildTrustLedgerCSV, type TrustLedgerEntry } from "@/lib/finance/trustLedger"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import Link from "next/link"
 import { ArrowLeft, Download } from "lucide-react"
 
@@ -152,11 +152,11 @@ export default function TrustLedgerPage() {
       <div className="flex flex-wrap gap-3 items-end">
         <div>
           <label htmlFor="filter-from" className="text-xs text-muted-foreground block mb-1">From</label>
-          <Input id="filter-from" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-36 text-sm" />
+          <DatePickerInput value={fromDate} onChange={setFromDate} placeholder="From date" />
         </div>
         <div>
           <label htmlFor="filter-to" className="text-xs text-muted-foreground block mb-1">To</label>
-          <Input id="filter-to" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-36 text-sm" />
+          <DatePickerInput value={toDate} onChange={setToDate} placeholder="To date" />
         </div>
         <div>
           <label htmlFor="filter-type" className="text-xs text-muted-foreground block mb-1">Type</label>

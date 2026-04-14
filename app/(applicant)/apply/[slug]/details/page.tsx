@@ -12,6 +12,7 @@ import { validateSAIdNumber } from "@/lib/crypto/idNumber"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -192,7 +193,7 @@ export default function DetailsPage() {
             )}
           </Field>
           <Field label="Date of birth" error={errors.date_of_birth}>
-            <Input className="h-12" type="date" value={form.date_of_birth} onChange={(e) => update("date_of_birth", e.target.value)} readOnly={form.id_type === "sa_id" && idValidation?.valid === true} />
+            <DatePickerInput value={form.date_of_birth} onChange={(v) => update("date_of_birth", v)} placeholder="Date of birth" disabled={form.id_type === "sa_id" && idValidation?.valid === true} />
           </Field>
           {isForeign && (
             <>
@@ -216,7 +217,7 @@ export default function DetailsPage() {
                 <Input className="h-12" value={form.permit_number} onChange={(e) => update("permit_number", e.target.value)} />
               </Field>
               <Field label="Permit expiry date" error={errors.permit_expiry_date}>
-                <Input className="h-12" type="date" value={form.permit_expiry_date} onChange={(e) => update("permit_expiry_date", e.target.value)} />
+                <DatePickerInput value={form.permit_expiry_date} onChange={(v) => update("permit_expiry_date", v)} placeholder="Permit expiry date" />
               </Field>
             </>
           )}

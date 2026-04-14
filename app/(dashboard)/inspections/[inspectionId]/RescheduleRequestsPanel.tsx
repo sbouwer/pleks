@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { toast } from "sonner"
 import { Loader2, CalendarX } from "lucide-react"
 import { respondToRescheduleRequest } from "./actions"
@@ -129,12 +130,7 @@ function RequestCard({ req, inspectionId }: Readonly<{ req: RescheduleRequest; i
             {action === "countered" && (
               <div className="space-y-1.5">
                 <Label className="text-xs">Counter date *</Label>
-                <input
-                  type="date"
-                  value={counterDate}
-                  onChange={(e) => setCounterDate(e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                />
+                <DatePickerInput value={counterDate} onChange={setCounterDate} placeholder="Counter date" />
               </div>
             )}
 
