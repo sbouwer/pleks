@@ -10,7 +10,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { updateItemCondition, updateInspectionStatus } from "@/lib/actions/inspections"
 import { isOnline, onConnectivityChange, flushPhotoQueue } from "@/lib/offline/syncManager"
-import { saveItemRating, getAllRatings, queuePhoto } from "@/lib/offline/inspectionStore"
+import { saveItemRating, getAllRatings, queuePhoto, loadInspectionData } from "@/lib/offline/inspectionStore"
 import { preparePhoto } from "@/lib/offline/compressPhoto"
 
 // Web Speech API — not in default TS lib, defined locally
@@ -399,7 +399,28 @@ export function MobileInspectionView({
   const [signOffOpen, setSignOffOpen] = useState(false)
   const [agentSigned, setAgentSigned] = useState(false)
   const [tenantSigned, setTenantSigned] = useState(false)
+  // Offline fallback: rooms pre-saved via Mode B [Save for offline]
+  const [offlineRooms, setOfflineRooms] = useState<InspectionRoom[]>([])
+  const displayRooms = rooms.length > 0 ? rooms : offlineRooms
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
+
+  // Mode B offline fallback: if the server provided no rooms (offline navigation),
+  // load the pre-downloaded inspection data from IndexedDB
+  useEffect(() => {
+    if (rooms.length > 0) return
+    loadInspectionData(inspectionId).then((saved) => {
+      if (!saved) return
+      const roomList: InspectionRoom[] = saved.rooms.map((r) => ({
+        id: r.id,
+        room_type: r.room_type,
+        room_label: r.room_label,
+        display_order: r.display_order,
+        items: r.items,
+      }))
+      setOfflineRooms(roomList)
+      setRoomItems(Object.fromEntries(roomList.map((r) => [r.id, r.items])))
+    }).catch(() => {})
+  }, [inspectionId, rooms])
 
   // Load any offline-cached ratings and merge into room state
   useEffect(() => {
@@ -420,8 +441,8 @@ export function MobileInspectionView({
     return unsub
   }, [inspectionId])
 
-  const totalItems = rooms.reduce((sum, r) => sum + (roomItems[r.id]?.length ?? 0), 0)
-  const inspectedItems = rooms.reduce((sum, r) => {
+  const totalItems = displayRooms.reduce((sum, r) => sum + (roomItems[r.id]?.length ?? 0), 0)
+  const inspectedItems = displayRooms.reduce((sum, r) => {
     const items = roomItems[r.id] ?? []
     return sum + items.filter((i) => i.condition && i.condition !== "not_inspected").length
   }, 0)
@@ -497,7 +518,7 @@ export function MobileInspectionView({
     toast.success(`${sigType === "agent" ? "Agent" : "Tenant"} signature saved`)
   }, [inspectionId])
 
-  const selectedRoom = rooms.find((r) => r.id === selectedRoomId)
+  const selectedRoom = displayRooms.find((r) => r.id === selectedRoomId)
 
   // ── Room detail view ──────────────────────────────────────────────────────
 
@@ -593,7 +614,7 @@ export function MobileInspectionView({
       {/* Rooms */}
       <div className="space-y-2">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Rooms</p>
-        {rooms.map((room) => {
+        {displayRooms.map((room) => {
           const items = roomItems[room.id] ?? []
           const done = items.filter((i) => i.condition && i.condition !== "not_inspected").length
           const isComplete = items.length > 0 && done === items.length
