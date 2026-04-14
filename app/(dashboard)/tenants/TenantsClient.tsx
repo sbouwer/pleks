@@ -117,54 +117,83 @@ export function TenantsClient({ tenants: initial }: Readonly<Props>) {
       {filtered.length === 0 ? (
         <p className="text-sm text-muted-foreground py-8 text-center">No tenants match your search.</p>
       ) : (
-        <div className="rounded-lg border border-border overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/30">
-                <th className="px-4 py-2.5 text-left"><ColHeader col="name" label="Name" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} /></th>
-                <th className="px-4 py-2.5 text-left hidden md:table-cell"><ColHeader col="type" label="Type" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} /></th>
-                <th className="px-4 py-2.5 text-left hidden lg:table-cell"><ColHeader col="phone" label="Phone" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} /></th>
-                <th className="px-4 py-2.5 text-left hidden lg:table-cell"><ColHeader col="email" label="Email" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} /></th>
-                <th className="px-4 py-2.5 text-right"><span className="sr-only">Actions</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((t) => {
-                const displayName = t.company_name || `${t.first_name ?? ""} ${t.last_name ?? ""}`.trim() || "Unnamed"
-                return (
-                  <tr key={t.id}
-                    className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors cursor-pointer group"
-                    onClick={() => router.push(`/tenants/${t.id}`)}>
-                    <td className="px-4 py-3 font-medium">{displayName}</td>
-                    <td className="px-4 py-3 hidden md:table-cell">
-                      <Badge variant="secondary" className="text-[10px] capitalize">{t.entity_type}</Badge>
-                    </td>
-                    <td className="px-4 py-3 hidden lg:table-cell text-muted-foreground">
-                      {t.phone || <span className="text-muted-foreground/40">—</span>}
-                    </td>
-                    <td className="px-4 py-3 hidden lg:table-cell text-muted-foreground truncate max-w-[200px]">
-                      {t.email || <span className="text-muted-foreground/40">—</span>}
-                    </td>
-                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground"
-                          render={<Link href={`/tenants/${t.id}`} />}>
-                          <Pencil className="size-3.5" />
-                        </Button>
-                        {isAdmin && (
-                          <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive"
-                            onClick={() => handleDelete(t)} disabled={deletingId === t.id}>
-                            <Trash2 className="size-3.5" />
+        <>
+          {/* Mobile card list */}
+          <div className="lg:hidden space-y-2">
+            {filtered.map((t) => {
+              const displayName = t.company_name || `${t.first_name ?? ""} ${t.last_name ?? ""}`.trim() || "Unnamed"
+              return (
+                <div key={t.id} className="border border-border rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm truncate">{displayName}</p>
+                    {t.phone && <p className="text-xs text-muted-foreground mt-0.5">{t.phone}</p>}
+                    {t.email && <p className="text-xs text-muted-foreground truncate">{t.email}</p>}
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {t.phone && (
+                      <a href={`tel:${t.phone}`}>
+                        <Button size="sm" variant="outline" className="h-7 text-xs px-2.5">Call</Button>
+                      </a>
+                    )}
+                    <Link href={`/tenants/${t.id}`}>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs px-2">→</Button>
+                    </Link>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden lg:block rounded-lg border border-border overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/30">
+                  <th className="px-4 py-2.5 text-left"><ColHeader col="name" label="Name" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} /></th>
+                  <th className="px-4 py-2.5 text-left hidden md:table-cell"><ColHeader col="type" label="Type" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} /></th>
+                  <th className="px-4 py-2.5 text-left hidden lg:table-cell"><ColHeader col="phone" label="Phone" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} /></th>
+                  <th className="px-4 py-2.5 text-left hidden lg:table-cell"><ColHeader col="email" label="Email" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} /></th>
+                  <th className="px-4 py-2.5 text-right"><span className="sr-only">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((t) => {
+                  const displayName = t.company_name || `${t.first_name ?? ""} ${t.last_name ?? ""}`.trim() || "Unnamed"
+                  return (
+                    <tr key={t.id}
+                      className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors cursor-pointer group"
+                      onClick={() => router.push(`/tenants/${t.id}`)}>
+                      <td className="px-4 py-3 font-medium">{displayName}</td>
+                      <td className="px-4 py-3 hidden md:table-cell">
+                        <Badge variant="secondary" className="text-[10px] capitalize">{t.entity_type}</Badge>
+                      </td>
+                      <td className="px-4 py-3 hidden lg:table-cell text-muted-foreground">
+                        {t.phone || <span className="text-muted-foreground/40">—</span>}
+                      </td>
+                      <td className="px-4 py-3 hidden lg:table-cell text-muted-foreground truncate max-w-[200px]">
+                        {t.email || <span className="text-muted-foreground/40">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground"
+                            render={<Link href={`/tenants/${t.id}`} />}>
+                            <Pencil className="size-3.5" />
                           </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+                          {isAdmin && (
+                            <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive"
+                              onClick={() => handleDelete(t)} disabled={deletingId === t.id}>
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   )

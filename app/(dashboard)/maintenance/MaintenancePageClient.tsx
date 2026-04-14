@@ -204,8 +204,67 @@ export function MaintenancePageClient({ orgId }: Readonly<Props>) {
     return !terminal.includes(r.status) && getSlaAge(r) === "breached"
   }).length
 
+  const mobileList = sortRequests(list.filter((r) =>
+    !["completed", "closed", "rejected", "cancelled"].includes(r.status)
+  ))
+
   return (
     <div>
+      {/* ─── Mobile view ─── */}
+      <div className="lg:hidden space-y-3 pb-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="font-heading text-2xl">Maintenance</h1>
+            {list.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {mobileList.length} open · {list.length} total
+              </p>
+            )}
+          </div>
+          <Button size="sm" render={<Link href="/maintenance/new" />}>
+            <Plus className="h-4 w-4 mr-1" /> Log
+          </Button>
+        </div>
+
+        {emergencies.length > 0 && (
+          <div className="rounded-xl border border-danger/30 bg-danger-bg px-3 py-2.5 flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 text-danger shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-danger">
+                {emergencies.length} emergency{emergencies.length > 1 ? "s" : ""}
+              </p>
+              {emergencies.map((e) => {
+                const unit = e.units as unknown as { unit_number: string; properties: { name: string } } | null
+                return (
+                  <Link key={e.id} href={`/maintenance/${e.id}`} className="text-xs text-danger/80 hover:underline block">
+                    {e.title}{unit ? ` — ${unit.unit_number}` : ""}
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {list.length === 0 ? (
+          <EmptyState
+            icon={<Wrench className="h-8 w-8 text-muted-foreground" />}
+            title="No maintenance requests"
+            description="Log a maintenance request to get started."
+          />
+        ) : (
+          <div className="space-y-2">
+            {mobileList.map((req) => <MaintenanceCard key={req.id} req={req as MaintenanceItemExtended} />)}
+            {list.filter((r) => ["completed", "closed", "rejected", "cancelled"].includes(r.status)).length > 0 && (
+              <p className="text-xs text-muted-foreground text-center pt-1">
+                +{list.filter((r) => ["completed", "closed", "rejected", "cancelled"].includes(r.status)).length} completed — view on desktop
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ─── Desktop view ─── */}
+      <div className="hidden lg:block">
       {/* ─── Header ─── */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -318,6 +377,7 @@ export function MaintenancePageClient({ orgId }: Readonly<Props>) {
           </p>
         ) : null
       })()}
+      </div>{/* end desktop */}
     </div>
   )
 }

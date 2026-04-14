@@ -58,15 +58,18 @@ export function PaymentsPageClient({ orgId }: Readonly<Props>) {
 
   return (
     <div>
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
+          <h1 className="font-heading text-3xl hidden lg:block">Payments</h1>
+          <h1 className="font-heading text-2xl lg:hidden">Payments</h1>
           {list.length > 0 && (
             <p className="text-sm text-muted-foreground mt-1">
               {pendingReview.length} pending review &middot; {unpaid.length} approved unpaid
             </p>
           )}
           {dataUpdatedAt > 0 && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+            <div className="hidden lg:flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
               <span>Updated {relativeTime(new Date(dataUpdatedAt))}</span>
               <button
                 onClick={() => queryClient.invalidateQueries({ queryKey })}
@@ -77,12 +80,12 @@ export function PaymentsPageClient({ orgId }: Readonly<Props>) {
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        {/* Desktop action bar */}
+        <div className="hidden lg:flex items-center gap-2">
           <Button size="sm" variant="outline" onClick={handleSendReminders} disabled={sendingReminders}>
             {sendingReminders ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <MessageSquare className="h-4 w-4 mr-1" />}
             Send reminders
           </Button>
-          {/* Mode toggle */}
           <div className="flex items-center border border-border rounded-md overflow-hidden text-xs">
             <button
               type="button"
@@ -106,9 +109,18 @@ export function PaymentsPageClient({ orgId }: Readonly<Props>) {
             <Plus className="h-4 w-4 mr-1" /> Add Invoice
           </Button>
         </div>
+        {/* Mobile action bar */}
+        <div className="lg:hidden flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={handleSendReminders} disabled={sendingReminders}>
+            {sendingReminders ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MessageSquare className="h-3.5 w-3.5" />}
+          </Button>
+          <Button size="sm" render={<Link href="/payments/invoices/new" />}>
+            <Plus className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
-      {/* Batch rent payment entry */}
+      {/* Batch entry — both viewports */}
       {mode === "batch" && (
         <Card className="mb-6">
           <CardContent className="pt-4">
@@ -120,7 +132,18 @@ export function PaymentsPageClient({ orgId }: Readonly<Props>) {
         </Card>
       )}
 
-      {/* Supplier invoice list */}
+      {/* Mobile: invoice list toggle */}
+      <div className="lg:hidden mb-4">
+        <button
+          type="button"
+          onClick={() => setMode(mode === "batch" ? "single" : "batch")}
+          className="text-xs text-brand hover:underline"
+        >
+          {mode === "batch" ? "View invoice list →" : "← Back to quick entry"}
+        </button>
+      </div>
+
+      {/* Invoice list */}
       {mode === "single" && (
         list.length === 0 ? (
           <EmptyState
@@ -135,8 +158,25 @@ export function PaymentsPageClient({ orgId }: Readonly<Props>) {
               const property = inv.properties as unknown as { name: string } | null
 
               return (
-                <Link key={inv.id} href={`/payments/invoices/${inv.id}`}>
-                  <Card className="hover:border-brand/50 transition-colors cursor-pointer">
+                <Link key={inv.id} href={`/payments/invoices/${inv.id}`} className="block">
+                  {/* Mobile card */}
+                  <div className="lg:hidden border border-border rounded-xl px-4 py-3 hover:border-brand/40 transition-colors">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm truncate">{inv.description}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {contractor ? (contractor.company_name || `${contractor.first_name} ${contractor.last_name}`.trim()) : "Unknown"}
+                          {property ? ` · ${property.name}` : ""}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="font-medium text-sm">{formatZAR(inv.amount_incl_vat_cents)}</p>
+                        <StatusBadge status={STATUS_MAP[inv.status] || "pending"} />
+                      </div>
+                    </div>
+                  </div>
+                  {/* Desktop card */}
+                  <Card className="hidden lg:block hover:border-brand/50 transition-colors cursor-pointer">
                     <CardContent className="flex items-center justify-between pt-4">
                       <div>
                         <div className="flex items-center gap-2">

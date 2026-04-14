@@ -12,6 +12,7 @@ import { Upload, Check, AlertTriangle, RefreshCw } from "lucide-react"
 import { createBankImport } from "@/lib/actions/recon"
 import { toast } from "sonner"
 import Link from "next/link"
+import { DesktopOnlyCard } from "@/components/mobile/DesktopOnlyCard"
 
 interface ImportRecord {
   id: string
@@ -133,6 +134,12 @@ export default function ReconciliationPage() {
 
   return (
     <div>
+      {/* Mobile: desktop-only gate */}
+      <div className="lg:hidden">
+        <DesktopOnlyCard title="Reconciliation" description="Bank reconciliation works best on a larger screen. Open Pleks on your computer to upload and reconcile statements." />
+      </div>
+      {/* Desktop */}
+      <div className="hidden lg:block">
       {/* Live bank feeds (Steward+) */}
       {feedConnections.length > 0 && (
         <Card className="mb-6">
@@ -249,6 +256,7 @@ export default function ReconciliationPage() {
           </CardContent>
         </Card>
       )}
+      </div>
     </div>
   )
 }
