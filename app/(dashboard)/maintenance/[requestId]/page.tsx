@@ -119,8 +119,8 @@ export default async function MaintenanceDetailPage({
   const tenant = request.tenant_view as unknown as { first_name: string; last_name: string; phone: string } | null
   const contractor = request.contractor_view as unknown as { first_name: string; last_name: string; company_name: string; email: string; phone: string } | null
 
-  // Get contractor updates timeline + cost allocations
-  const [{ data: updates }, { data: allocations }] = await Promise.all([
+  // Get contractor updates, cost allocations, and agent notes in parallel
+  const [{ data: updates }, { data: allocations }, { data: noteLog }] = await Promise.all([
     supabase
       .from("contractor_updates")
       .select("*")
@@ -131,7 +131,20 @@ export default async function MaintenanceDetailPage({
       .select("id, allocation_type, amount_cents, description, lease_clause_ref, collection_method, added_to_invoice_at")
       .eq("request_id", requestId)
       .order("created_at"),
+    supabase
+      .from("audit_log")
+      .select("id, new_values, created_at")
+      .eq("table_name", "maintenance_requests")
+      .eq("record_id", requestId)
+      .eq("action", "NOTE")
+      .order("created_at", { ascending: true }),
   ])
+
+  const persistedNotes = (noteLog ?? []).map((row) => ({
+    id: row.id as string,
+    note: ((row.new_values as Record<string, string> | null)?.note) ?? "",
+    createdAt: row.created_at as string,
+  })).filter((n) => n.note)
 
   // Delay events — requires org context, use gateway
   const gw = await gatewaySSR()
@@ -166,6 +179,7 @@ export default async function MaintenanceDetailPage({
           aiTriageNotes={request.ai_triage_notes ?? null}
           photoCount={0}
           timeline={timeline}
+          persistedNotes={persistedNotes}
         />
       </div>
 
