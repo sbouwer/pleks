@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -210,7 +211,7 @@ export function NewLeaseForm() {
         <div className="space-y-4">
           <div className="space-y-2">
             <Label>Start Date *</Label>
-            <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
+            <DatePickerInput value={startDate} onChange={setStartDate} placeholder="Start date" />
           </div>
           <div className="flex items-center gap-4 mb-2">
             <label className="flex items-center gap-2 cursor-pointer">
@@ -225,7 +226,7 @@ export function NewLeaseForm() {
           {isFixedTerm && (
             <div className="space-y-2">
               <Label>End Date *</Label>
-              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+              <DatePickerInput value={endDate} onChange={setEndDate} placeholder="End date" />
             </div>
           )}
           <div className="space-y-2">

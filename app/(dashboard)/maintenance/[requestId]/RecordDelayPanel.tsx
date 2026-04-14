@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { toast } from "sonner"
 import { Loader2, Plus, Clock } from "lucide-react"
 import { recordMaintenanceDelay } from "./actions"
@@ -123,21 +124,11 @@ export function RecordDelayPanel({ requestId, initialDelays }: Props) {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs">Original date</Label>
-              <input
-                type="date"
-                value={originalDate}
-                onChange={(e) => setOriginalDate(e.target.value)}
-                className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              />
+              <DatePickerInput value={originalDate} onChange={setOriginalDate} placeholder="Original date" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Rescheduled to</Label>
-              <input
-                type="date"
-                value={rescheduledTo}
-                onChange={(e) => setRescheduledTo(e.target.value)}
-                className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              />
+              <DatePickerInput value={rescheduledTo} onChange={setRescheduledTo} placeholder="Rescheduled to" />
             </div>
           </div>
 

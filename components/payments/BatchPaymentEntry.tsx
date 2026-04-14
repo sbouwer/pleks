@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { formatZAR } from "@/lib/constants"
 import { Plus, Trash2 } from "lucide-react"
 
@@ -264,12 +265,7 @@ export function BatchPaymentEntry() {
                     />
                   </td>
                   <td className="py-2 pr-3">
-                    <Input
-                      type="date"
-                      className="h-8 text-sm w-32"
-                      value={row.date}
-                      onChange={(e) => updateRow(row.key, { date: e.target.value })}
-                    />
+                    <DatePickerInput value={row.date} onChange={(v) => updateRow(row.key, { date: v })} />
                   </td>
                   <td className="py-2 pr-3">
                     <select

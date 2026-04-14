@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -81,6 +82,7 @@ export function BuildingForm({ propertyId, building }: Readonly<Props>) {
   const [maintenanceRhythm, setMaintenanceRhythm] = useState(building?.maintenance_rhythm ?? "standard")
   const [heritageStatus, setHeritageStatus] = useState(building?.heritage_status ?? "none")
   const [insuranceType, setInsuranceType] = useState(building?.insurance_type ?? "")
+  const [insuranceRenewalDate, setInsuranceRenewalDate] = useState(building?.insurance_renewal_date ?? "")
   const [preApproval, setPreApproval] = useState(building?.heritage_pre_approval_required ?? false)
   const [approvedContractorsOnly, setApprovedContractorsOnly] = useState(
     building?.heritage_approved_contractors_only ?? false
@@ -275,8 +277,7 @@ export function BuildingForm({ propertyId, building }: Readonly<Props>) {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="insurance_renewal_date">Renewal date</Label>
-            <Input id="insurance_renewal_date" name="insurance_renewal_date" type="date"
-              defaultValue={building?.insurance_renewal_date ?? ""} />
+            <DatePickerInput value={insuranceRenewalDate} onChange={setInsuranceRenewalDate} name="insurance_renewal_date" placeholder="Renewal date" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="insurance_replacement_value">Replacement value (R)</Label>

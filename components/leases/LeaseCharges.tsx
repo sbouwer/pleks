@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -232,11 +233,11 @@ export function LeaseCharges({ leaseId }: Readonly<LeaseChargesProps>) {
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label>Starts *</Label>
-                  <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                  <DatePickerInput value={startDate} onChange={setStartDate} placeholder="Start date" />
                 </div>
                 <div className="space-y-2">
                   <Label>Ends</Label>
-                  <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} placeholder="Follows lease" />
+                  <DatePickerInput value={endDate} onChange={setEndDate} placeholder="Follows lease" />
                   <p className="text-xs text-muted-foreground">Leave blank to follow lease end date</p>
                 </div>
               </div>

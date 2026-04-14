@@ -9,6 +9,8 @@ interface DatePickerInputProps {
   onChange: (value: string) => void
   placeholder?: string
   className?: string
+  name?: string           // when set, renders a hidden input for form submission
+  disabled?: boolean
 }
 
 export function DatePickerInput({
@@ -16,11 +18,13 @@ export function DatePickerInput({
   onChange,
   placeholder = "Select date",
   className = "",
+  name,
+  disabled = false,
 }: Readonly<DatePickerInputProps>) {
   const selected = value ? new Date(`${value}T00:00:00`) : null
   const [open, setOpen] = useState(false)
   const [viewDate, setViewDate] = useState<Date>(selected ?? new Date())
-  const [mode, setMode] = useState<"day" | "year">("day")
+  const [mode, setMode] = useState<"day" | "month" | "year">("day")
   const [decadeStart, setDecadeStart] = useState(() => Math.floor((selected ?? new Date()).getFullYear() / 12) * 12)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -31,6 +35,7 @@ export function DatePickerInput({
         setMode("day")
       }
     }
+
     if (open) document.addEventListener("mousedown", handler)
     return () => document.removeEventListener("mousedown", handler)
   }, [open])
@@ -45,6 +50,11 @@ export function DatePickerInput({
 
   function handleYearClick(y: number) {
     setViewDate(new Date(y, viewDate.getMonth(), 1))
+    setMode("day")
+  }
+
+  function handleMonthClick(m: number) {
+    setViewDate(new Date(viewDate.getFullYear(), m, 1))
     setMode("day")
   }
 
@@ -75,13 +85,15 @@ export function DatePickerInput({
 
   const displayLabel = selected ? format(selected, "dd MMM yyyy") : null
   const years = Array.from({ length: 12 }, (_, i) => decadeStart + i)
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
   return (
     <div ref={ref} className={`relative ${className}`}>
+      {name && <input type="hidden" name={name} value={value} />}
       <button
         type="button"
-        onClick={() => { setOpen((v) => !v); setMode("day") }}
-        className="flex h-9 w-[140px] items-center gap-2 rounded-md border border-input bg-transparent px-3 text-left text-sm transition-colors hover:bg-muted/50"
+        onClick={() => { if (!disabled) { setOpen((v) => !v); setMode("day") } }}
+        className={`flex h-9 w-[140px] items-center gap-2 rounded-md border border-input bg-transparent px-3 text-left text-sm transition-colors ${disabled ? "cursor-not-allowed opacity-50" : "hover:bg-muted/50"}`}
       >
         <CalendarIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
         <span className={displayLabel ? "text-foreground" : "text-muted-foreground truncate"}>
@@ -92,7 +104,47 @@ export function DatePickerInput({
       {open && (
         <div className="absolute left-0 top-full z-50 mt-1 w-64 rounded-xl border border-border/60 bg-popover p-3 shadow-lg">
 
-          {mode === "year" ? (
+          {mode === "month" && (
+            <>
+              {/* Month grid */}
+              <div className="mb-3 flex items-center justify-between">
+                <button type="button" onClick={() => setViewDate(new Date(year - 1, month, 1))} className="rounded p-1 transition-colors hover:bg-muted">
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setDecadeStart(Math.floor(year / 12) * 12); setMode("year") }}
+                  className="rounded px-1 py-0.5 text-sm font-medium text-brand transition-colors hover:bg-muted"
+                >
+                  {year}
+                </button>
+                <button type="button" onClick={() => setViewDate(new Date(year + 1, month, 1))} className="rounded p-1 transition-colors hover:bg-muted">
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="grid grid-cols-3 gap-1">
+                {MONTHS.map((name, i) => {
+                  const isCurrent = i === month
+                  const isTodayMonth = i === today.getMonth() && year === today.getFullYear()
+                  let monthCls = "rounded-lg py-2 text-xs font-medium transition-colors hover:bg-muted"
+                  if (isCurrent) monthCls = "rounded-lg py-2 text-xs font-medium bg-brand text-white"
+                  else if (isTodayMonth) monthCls = "rounded-lg py-2 text-xs font-medium ring-1 ring-brand text-brand"
+                  return (
+                    <button key={name} type="button" onClick={() => handleMonthClick(i)} className={monthCls}>
+                      {name}
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="mt-3 border-t border-border pt-3">
+                <button type="button" onClick={() => setMode("day")} className="text-xs text-muted-foreground transition-colors hover:text-foreground">
+                  ← Back
+                </button>
+              </div>
+            </>
+          )}
+
+          {mode === "year" && (
             <>
               {/* Year grid */}
               <div className="mb-3 flex items-center justify-between">
@@ -124,7 +176,9 @@ export function DatePickerInput({
                 </button>
               </div>
             </>
-          ) : (
+          )}
+
+          {mode === "day" && (
             <>
               {/* Month navigation */}
               <div className="mb-3 flex items-center justify-between">
@@ -132,7 +186,13 @@ export function DatePickerInput({
                   <ChevronLeft className="h-4 w-4" />
                 </button>
                 <div className="flex items-center gap-1">
-                  <span className="text-sm font-medium">{format(viewDate, "MMMM")}</span>
+                  <button
+                    type="button"
+                    onClick={() => setMode("month")}
+                    className="rounded px-1 py-0.5 text-sm font-medium text-brand transition-colors hover:bg-muted"
+                  >
+                    {format(viewDate, "MMMM")}
+                  </button>
                   <button
                     type="button"
                     onClick={() => { setDecadeStart(Math.floor(year / 12) * 12); setMode("year") }}

@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { describeRate } from "@/lib/deposits/rateUtils"
 import type { DepositInterestConfig as Config } from "@/lib/deposits/rateUtils"
@@ -220,7 +221,7 @@ export function DepositInterestConfig({ propertyId = null, unitId = null, curren
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Effective from</label>
-              <Input type="date" className="h-8 text-sm" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
+              <DatePickerInput value={effectiveFrom} onChange={setEffectiveFrom} placeholder="Effective from" />
             </div>
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Reason for change (optional)</label>

@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
+import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { Label } from "@/components/ui/label"
 import { CheckCircle2, Truck, ClipboardCheck, Calendar, XCircle, Loader2, FileText, Receipt, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
@@ -302,12 +303,7 @@ function InvoicePanel({ requestId, workOrderNumber, token, onSubmitted }: {
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">Invoice date *</Label>
-          <Input
-            type="date"
-            value={invoiceDate}
-            onChange={(e) => setInvoiceDate(e.target.value)}
-            className="text-sm"
-          />
+          <DatePickerInput value={invoiceDate} onChange={setInvoiceDate} placeholder="Invoice date" />
         </div>
       </div>
 

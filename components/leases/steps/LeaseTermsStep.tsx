@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
@@ -114,23 +115,11 @@ export function LeaseTermsStep({ data, onBack, onNext }: Readonly<Props>) {
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="start-date">Start date *</Label>
-          <Input
-            id="start-date"
-            type="date"
-            value={startDate}
-            onChange={(e) => handleStartDateChange(e.target.value)}
-            required
-          />
+          <DatePickerInput value={startDate} onChange={handleStartDateChange} placeholder="Start date" />
         </div>
         <div className="space-y-2">
           <Label htmlFor="end-date">End date {!isFixedTerm && <span className="text-muted-foreground text-xs">(month-to-month)</span>}</Label>
-          <Input
-            id="end-date"
-            type="date"
-            value={endDate}
-            disabled={!isFixedTerm}
-            onChange={(e) => setEndDate(e.target.value)}
-          />
+          <DatePickerInput value={endDate} onChange={setEndDate} placeholder="End date" disabled={!isFixedTerm} />
         </div>
       </div>
 

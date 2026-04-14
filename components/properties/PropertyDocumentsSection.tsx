@@ -4,6 +4,7 @@ import { useState, useTransition, useRef } from "react"
 import { uploadPropertyDocument, deletePropertyDocument, getDocumentSignedUrl } from "@/lib/actions/documents"
 import { Button } from "@/components/ui/button"
 import { Upload, Trash2, FileText, Loader2, ExternalLink } from "lucide-react"
+import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { toast } from "sonner"
 
 const DOCUMENT_TYPES = [
@@ -61,6 +62,7 @@ export function PropertyDocumentsSection({ propertyId, initialDocuments }: Prope
   const [uploading, startUpload] = useTransition()
   const [deleting, startDelete] = useTransition()
   const [openingId, setOpeningId] = useState<string | null>(null)
+  const [expiryDate, setExpiryDate] = useState("")
   const formRef = useRef<HTMLFormElement>(null)
 
   function handleUpload(e: React.FormEvent<HTMLFormElement>) {
@@ -73,6 +75,7 @@ export function PropertyDocumentsSection({ propertyId, initialDocuments }: Prope
       } else {
         toast.success("Document uploaded")
         setShowForm(false)
+        setExpiryDate("")
         formRef.current?.reset()
       }
     })
@@ -146,11 +149,7 @@ export function PropertyDocumentsSection({ propertyId, initialDocuments }: Prope
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="text-[11px] text-muted-foreground uppercase tracking-wide">Expiry date (optional)</label>
-                <input
-                  name="expiry_date"
-                  type="date"
-                  className="mt-1 w-full rounded-md border bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                />
+                <DatePickerInput value={expiryDate} onChange={setExpiryDate} name="expiry_date" placeholder="Optional" />
               </div>
               <div>
                 <label className="text-[11px] text-muted-foreground uppercase tracking-wide">Notes (optional)</label>

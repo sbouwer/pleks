@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { formatZAR } from "@/lib/constants"
@@ -214,10 +215,9 @@ export function LevyScheduleManager({ hoaId, initialSchedules, unitOwnerMap }: P
 
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Effective from *</label>
-                <Input
-                  type="date"
+                <DatePickerInput
                   value={form.effective_from}
-                  onChange={(e) => setForm((f) => ({ ...f, effective_from: e.target.value }))}
+                  onChange={(v) => setForm((f) => ({ ...f, effective_from: v }))}
                 />
               </div>
 

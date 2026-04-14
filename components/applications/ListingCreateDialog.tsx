@@ -10,6 +10,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { generateListingSlug } from "@/lib/applications/slug"
+import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import {
   Dialog,
   DialogContent,
@@ -166,12 +167,7 @@ export function ListingCreateDialog({ open, onOpenChange, unit, property, orgId 
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="available_from">Available from *</Label>
-                  <Input
-                    id="available_from"
-                    type="date"
-                    value={form.available_from}
-                    onChange={(e) => update("available_from", e.target.value)}
-                  />
+                  <DatePickerInput value={form.available_from} onChange={(v) => update("available_from", v)} placeholder="Available from" />
                 </div>
               </div>
 
