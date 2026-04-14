@@ -45,7 +45,7 @@ export default async function ReportsPage() {
       .in("id", landlordIds)
     for (const lv of lvRows ?? []) {
       const r = lv as { id: string; first_name: string | null; last_name: string | null; company_name: string | null; entity_type: string }
-      const name = r.entity_type === "company"
+      const name = r.entity_type === "organisation"
         ? (r.company_name ?? r.id)
         : `${r.first_name ?? ""} ${r.last_name ?? ""}`.trim() || r.id
       landlords.push({ id: r.id, name })

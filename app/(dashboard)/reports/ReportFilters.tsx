@@ -75,7 +75,7 @@ export function ReportFilters({ properties, landlords, agents, tier, onApply }: 
         <Label className="text-xs text-muted-foreground mb-1 block">Period</Label>
         <Select value={periodType} onValueChange={(v) => setPeriodType((v ?? "this_month") as ReportPeriodType)}>
           <SelectTrigger className="w-[160px] h-9">
-            <span>{PERIOD_OPTIONS.find((o) => o.value === periodType)?.label ?? "Select period"}</span>
+            <span className="truncate">{PERIOD_OPTIONS.find((o) => o.value === periodType)?.label ?? "Select period"}</span>
           </SelectTrigger>
           <SelectContent alignItemWithTrigger={false}>
             {PERIOD_OPTIONS.map((o) => (
@@ -102,7 +102,7 @@ export function ReportFilters({ properties, landlords, agents, tier, onApply }: 
         <Label className="text-xs text-muted-foreground mb-1 block">Property</Label>
         <Select value={selectedProperty} onValueChange={(v) => setSelectedProperty(v ?? "all")}>
           <SelectTrigger className="w-[180px] h-9">
-            <span>{selectedProperty === "all" ? "All properties" : properties.find((p) => p.id === selectedProperty)?.name ?? "Select"}</span>
+            <span className="truncate">{selectedProperty === "all" ? "All properties" : properties.find((p) => p.id === selectedProperty)?.name ?? "Select"}</span>
           </SelectTrigger>
           <SelectContent alignItemWithTrigger={false}>
             <SelectItem value="all">All properties</SelectItem>
@@ -118,7 +118,7 @@ export function ReportFilters({ properties, landlords, agents, tier, onApply }: 
           <Label className="text-xs text-muted-foreground mb-1 block">Landlord</Label>
           <Select value={selectedLandlord} onValueChange={(v) => setSelectedLandlord(v ?? "all")}>
             <SelectTrigger className="w-[180px] h-9">
-              <span>{selectedLandlord === "all" ? "All landlords" : landlords.find((l) => l.id === selectedLandlord)?.name ?? "Select"}</span>
+              <span className="truncate">{selectedLandlord === "all" ? "All landlords" : landlords.find((l) => l.id === selectedLandlord)?.name ?? "Select"}</span>
             </SelectTrigger>
             <SelectContent alignItemWithTrigger={false}>
               <SelectItem value="all">All landlords</SelectItem>
@@ -135,7 +135,7 @@ export function ReportFilters({ properties, landlords, agents, tier, onApply }: 
           <Label className="text-xs text-muted-foreground mb-1 block">Agent / PM</Label>
           <Select value={selectedAgent} onValueChange={(v) => setSelectedAgent(v ?? "all")}>
             <SelectTrigger className="w-[180px] h-9">
-              <span>{selectedAgent === "all" ? "All agents" : agents.find((a) => a.id === selectedAgent)?.name ?? "Select"}</span>
+              <span className="truncate">{selectedAgent === "all" ? "All agents" : agents.find((a) => a.id === selectedAgent)?.name ?? "Select"}</span>
             </SelectTrigger>
             <SelectContent alignItemWithTrigger={false}>
               <SelectItem value="all">All agents</SelectItem>

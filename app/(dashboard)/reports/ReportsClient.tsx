@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useCallback } from "react"
+import { toast } from "sonner"
 import { ArrowLeft, Lock, Download } from "lucide-react"
 import { ReportFilters } from "./ReportFilters"
 import { PortfolioTab } from "./tabs/PortfolioTab"
@@ -181,6 +182,11 @@ function ReportCard({
 
   function handlePDF(e: React.MouseEvent) {
     e.stopPropagation()
+    if (reportType === "landlord_welcome_pack") {
+      if (!filters.landlordId) { toast.error("Select a landlord filter first, then click PDF."); return }
+      window.open(`/api/reports/welcome-pack?orgId=${orgId}&landlordId=${filters.landlordId}`)
+      return
+    }
     window.open(`/api/reports/export?${buildExportParams("pdf")}`)
   }
 
@@ -210,12 +216,14 @@ function ReportCard({
               <Download className="h-3 w-3" />
             </button>
             <div className="absolute right-0 top-full mt-0.5 z-10 hidden group-focus-within/dl:flex flex-col bg-popover border rounded shadow-md text-xs min-w-[72px]">
-              <button
-                onClick={handleCSV}
-                className="px-3 py-1.5 text-left hover:bg-accent transition-colors"
-              >
-                CSV
-              </button>
+              {reportType !== "landlord_welcome_pack" && (
+                <button
+                  onClick={handleCSV}
+                  className="px-3 py-1.5 text-left hover:bg-accent transition-colors"
+                >
+                  CSV
+                </button>
+              )}
               <button
                 onClick={handlePDF}
                 className="px-3 py-1.5 text-left hover:bg-accent transition-colors"
