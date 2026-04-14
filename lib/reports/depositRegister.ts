@@ -48,7 +48,7 @@ function applyTxn(entry: HoldEntry, t: TxnRecord): void {
   const isCredit = t.direction === "credit"
   const txType = t.transaction_type as string
 
-  if (txType === "deposit_interest") {
+  if (txType === "interest_accrued") {
     entry.interest += isCredit ? amt : -amt
   } else {
     entry.principal += isCredit ? amt : -amt
@@ -93,7 +93,7 @@ export async function buildDepositRegister(filters: ReportFilters): Promise<Depo
     .from("deposit_transactions")
     .select("id, tenant_id, amount_cents, direction, transaction_type, transaction_date, leases(end_date, status, units(unit_number, properties(name))), tenants(contacts(first_name, last_name, company_name, entity_type))")
     .eq("org_id", orgId)
-    .in("transaction_type", ["deposit_received", "deposit_refund", "deposit_interest"])
+    .in("transaction_type", ["deposit_received", "interest_accrued", "deduction_applied", "deposit_returned_to_tenant"])
     .order("transaction_date", { ascending: true })
 
   if (error) console.error("depositRegister:", error.message)
