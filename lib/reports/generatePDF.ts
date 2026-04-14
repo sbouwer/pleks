@@ -205,18 +205,20 @@ export function buildArrearsAgingHTML(data: ArrearsAgingData, org: ReportBrandin
       <div class="metric"><div class="label">90+ days</div><div class="value text-danger">${formatZAR(data.total_90plus_cents)}</div></div>
     </div>
     <table>
-      <tr><th>Tenant</th><th>Unit</th><th>Property</th><th class="text-right">0-30d</th><th class="text-right">31-60d</th><th class="text-right">61-90d</th><th class="text-right">90d+</th><th class="text-right">Total</th><th>Step</th></tr>
+      <tr><th>Tenant</th><th>Contact</th><th>Unit</th><th>Property</th><th class="text-right">0-30d</th><th class="text-right">31-60d</th><th class="text-right">61-90d</th><th class="text-right">90d+</th><th class="text-right">Total</th><th>Step</th><th>Last Payment</th></tr>
       ${data.cases.map((c) => {
         const b30 = c.arrears_30d_cents ? formatZAR(c.arrears_30d_cents) : "—"
         const b60 = c.arrears_60d_cents ? formatZAR(c.arrears_60d_cents) : "—"
         const b90 = c.arrears_90d_cents ? formatZAR(c.arrears_90d_cents) : "—"
         const b90p = c.arrears_90plus_cents ? formatZAR(c.arrears_90plus_cents) : "—"
+        const contact = c.phone ?? c.email ?? "—"
         return `<tr>
-          <td>${c.tenant_name}</td><td>${c.unit_number}</td><td>${c.property_name}</td>
+          <td>${c.tenant_name}</td><td>${contact}</td><td>${c.unit_number}</td><td>${c.property_name}</td>
           <td class="text-right">${b30}</td><td class="text-right">${b60}</td>
           <td class="text-right">${b90}</td><td class="text-right">${b90p}</td>
           <td class="text-right">${formatZAR(c.total_cents)}</td>
           <td>Step ${c.current_step}</td>
+          <td>${c.last_payment_date ?? "None"}</td>
         </tr>`
       }).join("")}
     </table>

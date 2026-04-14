@@ -7,27 +7,55 @@ export async function buildVacancyAnalysis(filters: ReportFilters): Promise<Vaca
 
   let unitsQuery = db
     .from("units")
-    .select("id, unit_number, property_id, status, market_rent_cents, updated_at, properties(name)")
+    .select("id, unit_number, property_id, status, market_rent_cents, properties(name)")
     .eq("org_id", orgId)
     .eq("status", "vacant")
     .is("deleted_at", null)
     .eq("is_archived", false)
   if (propertyIds?.length) unitsQuery = unitsQuery.in("property_id", propertyIds)
 
-  const { data, error } = await unitsQuery
-  if (error) console.error("vacancyAnalysis:", error.message)
+  const { data: unitsData, error: unitsError } = await unitsQuery
+  if (unitsError) console.error("vacancyAnalysis units:", unitsError.message)
+
+  const units = unitsData ?? []
+  if (units.length === 0) {
+    const now = new Date()
+    return { as_at: now, currently_vacant: [], total_vacant: 0, total_estimated_lost_cents: 0, average_days_vacant: 0 }
+  }
+
+  const unitIds = units.map((u) => u.id as string)
+
+  // Use last ended lease's end_date as vacancy start — more reliable than updated_at
+  const { data: leasesData, error: leasesError } = await db
+    .from("leases")
+    .select("unit_id, end_date")
+    .eq("org_id", orgId)
+    .in("unit_id", unitIds)
+    .in("status", ["ended", "terminated"])
+    .order("end_date", { ascending: false })
+
+  if (leasesError) console.error("vacancyAnalysis leases:", leasesError.message)
+
+  // Last ended lease per unit
+  const lastLeaseEnd = new Map<string, string>()
+  for (const l of leasesData ?? []) {
+    const uid = l.unit_id as string
+    if (!lastLeaseEnd.has(uid)) lastLeaseEnd.set(uid, l.end_date as string)
+  }
 
   const now = new Date()
-  const rows: VacancyRow[] = (data ?? []).map((u) => {
+  const rows: VacancyRow[] = units.map((u) => {
     const propRaw = u.properties as unknown as { name: string } | null
-    const vacantSince = u.updated_at ? new Date(u.updated_at as string) : now
-    const daysVacant = Math.max(0, Math.floor((now.getTime() - vacantSince.getTime()) / (1000 * 60 * 60 * 24)))
-    const rentCents = u.market_rent_cents as number ?? 0
+    const vacantSinceStr = lastLeaseEnd.get(u.id as string) ?? null
+    const vacantSince = vacantSinceStr ? new Date(vacantSinceStr) : null
+    const daysVacant = vacantSince ? Math.max(0, Math.floor((now.getTime() - vacantSince.getTime()) / (1000 * 60 * 60 * 24))) : 0
+    const rentCents = (u.market_rent_cents as number) ?? 0
     const lostCents = Math.round(rentCents * (daysVacant / 30))
     return {
       unit_id: u.id as string,
       unit_number: u.unit_number as string,
       property_name: propRaw?.name ?? "Unknown",
+      vacant_since: vacantSinceStr,
       days_vacant: daysVacant,
       monthly_rent_cents: rentCents,
       estimated_lost_cents: lostCents,

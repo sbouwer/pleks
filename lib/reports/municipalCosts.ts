@@ -14,7 +14,7 @@ export async function buildMunicipalCosts(filters: ReportFilters): Promise<Munic
     .eq("org_id", orgId)
     .gte("billing_period_from", fromStr)
     .lte("billing_period_to", toStr)
-    .order("period_from", { ascending: true })
+    .order("billing_period_from", { ascending: true })
   if (propertyIds?.length) query = query.in("property_id", propertyIds)
 
   const { data, error } = await query

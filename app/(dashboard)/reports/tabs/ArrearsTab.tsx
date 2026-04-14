@@ -38,6 +38,7 @@ export function ArrearsTab({ orgId, filters }: Props) {
                   <thead>
                     <tr className="border-b text-xs text-muted-foreground">
                       <th className="text-left py-2 pr-2">Tenant</th>
+                      <th className="text-left py-2 pr-2">Contact</th>
                       <th className="text-left py-2 pr-2">Unit</th>
                       <th className="text-right py-2 px-2">0-30d</th>
                       <th className="text-right py-2 px-2">31-60d</th>
@@ -45,12 +46,16 @@ export function ArrearsTab({ orgId, filters }: Props) {
                       <th className="text-right py-2 px-2">90d+</th>
                       <th className="text-right py-2 px-2">Total</th>
                       <th className="text-left py-2 px-2">Step</th>
+                      <th className="text-left py-2 px-2">Last payment</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.cases.map((c) => (
                       <tr key={c.tenant_id} className="border-b border-border/50">
                         <td className="py-2 pr-2">{c.tenant_name}</td>
+                        <td className="py-2 pr-2 text-xs text-muted-foreground">
+                          {c.phone ?? c.email ?? "—"}
+                        </td>
                         <td className="py-2 pr-2 text-xs">{c.unit_number}, {c.property_name}</td>
                         <td className="text-right py-2 px-2">{c.arrears_30d_cents ? formatZAR(c.arrears_30d_cents) : "—"}</td>
                         <td className="text-right py-2 px-2">{c.arrears_60d_cents ? formatZAR(c.arrears_60d_cents) : "—"}</td>
@@ -58,6 +63,7 @@ export function ArrearsTab({ orgId, filters }: Props) {
                         <td className="text-right py-2 px-2 text-red-600">{c.arrears_90plus_cents ? formatZAR(c.arrears_90plus_cents) : "—"}</td>
                         <td className="text-right py-2 px-2 font-semibold">{formatZAR(c.total_cents)}</td>
                         <td className="py-2 px-2 text-xs">Step {c.current_step}</td>
+                        <td className="py-2 px-2 text-xs text-muted-foreground">{c.last_payment_date ?? "None"}</td>
                       </tr>
                     ))}
                   </tbody>

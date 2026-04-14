@@ -1,5 +1,21 @@
 import { createServiceClient } from "@/lib/supabase/server"
+import { SARS_EXPENSE_CATEGORIES, type SARSCategory } from "@/lib/finance/sarsCategories"
 import type { ExpenseReportData, ExpenseRow, ReportFilters } from "./types"
+
+function mapToSARSLabel(category: string | null | undefined): string {
+  const cat = (category ?? "").toLowerCase()
+  let key: SARSCategory = "other_allowable"
+  if (cat.includes("repair") || cat.includes("maintenance") || cat.includes("plumb") || cat.includes("electr") || cat.includes("paint") || cat.includes("carpent") || cat.includes("roof") || cat.includes("general")) key = "repairs_maintenance"
+  else if (cat.includes("manage") || cat.includes("agent") || cat.includes("commission")) key = "management_fees"
+  else if (cat.includes("secur") || cat.includes("alarm") || cat.includes("cctv") || cat.includes("guard")) key = "security"
+  else if (cat.includes("garden") || cat.includes("landscap") || cat.includes("lawn")) key = "garden_services"
+  else if (cat.includes("levy") || cat.includes("levies") || cat.includes("hoa") || cat.includes("body corp")) key = "levies"
+  else if (cat.includes("advert") || cat.includes("market") || cat.includes("listing")) key = "advertising"
+  else if (cat.includes("insur")) key = "insurance"
+  else if (cat.includes("rates") || cat.includes("municipal")) key = "rates_taxes"
+  else if (cat.includes("improv") || cat.includes("renovat") || cat.includes("extend") || cat.includes("capital")) key = "improvements"
+  return SARS_EXPENSE_CATEGORIES[key].label
+}
 
 export async function buildExpenseReport(filters: ReportFilters): Promise<ExpenseReportData> {
   const db = await createServiceClient()
@@ -8,7 +24,6 @@ export async function buildExpenseReport(filters: ReportFilters): Promise<Expens
   const fromStr = from.toISOString().slice(0, 10)
   const toStr = to.toISOString().slice(0, 10)
 
-  // Maintenance jobs
   let maintQuery = db
     .from("maintenance_requests")
     .select("work_order_number, property_id, category, contractor_id, actual_cost_cents, completed_at, properties(name), contractors(name)")
@@ -21,13 +36,13 @@ export async function buildExpenseReport(filters: ReportFilters): Promise<Expens
   const { data: maintData, error: maintErr } = await maintQuery
   if (maintErr) console.error("expenseReport maintenance:", maintErr.message)
 
-  // Supplier invoices
   let siQuery = db
     .from("supplier_invoices")
-    .select("description, property_id, category, supplier_name, amount_cents, invoice_date, properties(name)")
+    .select("description, property_id, amount_incl_vat_cents, invoice_date, properties(name), contractors(name)")
     .eq("org_id", orgId)
     .gte("invoice_date", fromStr)
     .lte("invoice_date", toStr)
+    .in("status", ["approved", "pending_payment", "paid"])
   if (propertyIds?.length) siQuery = siQuery.in("property_id", propertyIds)
   const { data: siData, error: siErr } = await siQuery
   if (siErr) console.error("expenseReport supplier_invoices:", siErr.message)
@@ -38,26 +53,27 @@ export async function buildExpenseReport(filters: ReportFilters): Promise<Expens
     const propRaw = m.properties as unknown as { name: string } | null
     const contractorRaw = m.contractors as unknown as { name: string } | null
     rows.push({
-      date: m.completed_at?.slice(0, 10) ?? "",
-      description: `Maintenance — ${m.work_order_number ?? m.category}`,
+      date: (m.completed_at as string | null)?.slice(0, 10) ?? "",
+      description: `${m.category ?? "Maintenance"} — ${m.work_order_number ?? ""}`.trim().replace(/— $/, ""),
       property_name: propRaw?.name ?? "Unknown",
       category: m.category ?? "General",
-      sars_code: "4255",
+      sars_code: mapToSARSLabel(m.category as string | null),
       supplier: contractorRaw?.name ?? "—",
-      amount_cents: m.actual_cost_cents ?? 0,
+      amount_cents: (m.actual_cost_cents as number) ?? 0,
     })
   }
 
   for (const s of siData ?? []) {
     const propRaw = s.properties as unknown as { name: string } | null
+    const contractorRaw = s.contractors as unknown as { name: string } | null
     rows.push({
-      date: s.invoice_date?.slice(0, 10) ?? "",
-      description: s.description ?? s.category ?? "Expense",
+      date: (s.invoice_date as string | null)?.slice(0, 10) ?? "",
+      description: (s.description as string | null) ?? "Expense",
       property_name: propRaw?.name ?? "Unknown",
-      category: s.category ?? "General",
-      sars_code: "4255",
-      supplier: s.supplier_name ?? "—",
-      amount_cents: s.amount_cents ?? 0,
+      category: "supplier",
+      sars_code: mapToSARSLabel(s.description as string | null),
+      supplier: contractorRaw?.name ?? "—",
+      amount_cents: (s.amount_incl_vat_cents as number) ?? 0,
     })
   }
 
@@ -65,8 +81,8 @@ export async function buildExpenseReport(filters: ReportFilters): Promise<Expens
 
   const categoryMap = new Map<string, { amount_cents: number; count: number }>()
   for (const r of rows) {
-    const existing = categoryMap.get(r.category) ?? { amount_cents: 0, count: 0 }
-    categoryMap.set(r.category, { amount_cents: existing.amount_cents + r.amount_cents, count: existing.count + 1 })
+    const existing = categoryMap.get(r.sars_code) ?? { amount_cents: 0, count: 0 }
+    categoryMap.set(r.sars_code, { amount_cents: existing.amount_cents + r.amount_cents, count: existing.count + 1 })
   }
 
   return {

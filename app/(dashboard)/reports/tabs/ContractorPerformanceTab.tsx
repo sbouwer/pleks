@@ -42,6 +42,9 @@ export function ContractorPerformanceTab({ orgId, filters }: Readonly<Props>) {
                     <th className="text-right py-2 px-2">Jobs Assigned</th>
                     <th className="text-right py-2 px-2">Jobs Completed</th>
                     <th className="text-right py-2 px-2">Completion %</th>
+                    <th className="text-right py-2 px-2">No-shows</th>
+                    <th className="text-right py-2 px-2">Reschedules</th>
+                    <th className="text-right py-2 px-2">Incomplete</th>
                     <th className="text-right py-2">Total Spend</th>
                   </tr>
                 </thead>
@@ -57,6 +60,9 @@ export function ContractorPerformanceTab({ orgId, filters }: Readonly<Props>) {
                         <td className="text-right py-2 px-2">{r.jobs_assigned}</td>
                         <td className="text-right py-2 px-2">{r.jobs_completed}</td>
                         <td className="text-right py-2 px-2 text-xs">{completionPct}</td>
+                        <td className="text-right py-2 px-2 text-xs">{r.no_shows > 0 ? <span className="text-red-600 font-semibold">{r.no_shows}</span> : "—"}</td>
+                        <td className="text-right py-2 px-2 text-xs">{r.reschedules > 0 ? r.reschedules : "—"}</td>
+                        <td className="text-right py-2 px-2 text-xs">{r.incomplete_returns > 0 ? r.incomplete_returns : "—"}</td>
                         <td className="text-right py-2">{formatZAR(r.total_spend_cents)}</td>
                       </tr>
                     )

@@ -40,6 +40,7 @@ export function VacancyAnalysisTab({ orgId, filters }: Readonly<Props>) {
                   <tr className="border-b text-xs text-muted-foreground">
                     <th className="text-left py-2 pr-2">Unit</th>
                     <th className="text-left py-2 pr-2">Property</th>
+                    <th className="text-left py-2 px-2">Vacant Since</th>
                     <th className="text-right py-2 px-2">Days Vacant</th>
                     <th className="text-right py-2 px-2">Monthly Rent</th>
                     <th className="text-right py-2">Est. Lost Income</th>
@@ -50,7 +51,8 @@ export function VacancyAnalysisTab({ orgId, filters }: Readonly<Props>) {
                     <tr key={r.unit_number + r.property_name} className="border-b border-border/50">
                       <td className="py-2 pr-2">{r.unit_number}</td>
                       <td className="py-2 pr-2 text-xs">{r.property_name}</td>
-                      <td className="text-right py-2 px-2">{r.days_vacant}</td>
+                      <td className="py-2 px-2 text-xs">{r.vacant_since ?? "Unknown"}</td>
+                      <td className="text-right py-2 px-2">{r.days_vacant > 0 ? r.days_vacant : "—"}</td>
                       <td className="text-right py-2 px-2">{formatZAR(r.monthly_rent_cents)}</td>
                       <td className="text-right py-2 text-red-600">{formatZAR(r.estimated_lost_cents)}</td>
                     </tr>

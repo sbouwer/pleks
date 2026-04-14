@@ -47,18 +47,32 @@ export function TenantDirectoryTab({ orgId, filters }: Readonly<Props>) {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.rows.map((r) => (
-                    <tr key={r.tenant_name + r.unit_number} className="border-b border-border/50">
-                      <td className="py-2 pr-2">{r.tenant_name}</td>
-                      <td className="py-2 pr-2 text-xs">{r.role}</td>
-                      <td className="py-2 pr-2 text-xs">{r.email ?? "—"}</td>
-                      <td className="py-2 pr-2 text-xs">{r.phone ?? "—"}</td>
-                      <td className="py-2 pr-2">{r.unit_number}</td>
-                      <td className="py-2 pr-2 text-xs">{r.property_name}</td>
-                      <td className="py-2 px-2 text-xs">{r.lease_end ?? "M2M"}</td>
-                      <td className="text-right py-2">{formatZAR(r.monthly_rent_cents)}</td>
-                    </tr>
-                  ))}
+                  {[...data.rows]
+                    .sort((a, b) => {
+                      const prop = a.property_name.localeCompare(b.property_name)
+                      if (prop !== 0) return prop
+                      const unit = a.unit_number.localeCompare(b.unit_number)
+                      if (unit !== 0) return unit
+                      // Primary before Co-tenant/Prospective
+                      if (a.role === "Primary" && b.role !== "Primary") return -1
+                      if (a.role !== "Primary" && b.role === "Primary") return 1
+                      return 0
+                    })
+                    .map((r) => {
+                      const isCo = r.role !== "Primary"
+                      return (
+                        <tr key={r.tenant_name + r.unit_number + r.role} className="border-b border-border/50">
+                          <td className={`py-2 pr-2${isCo ? " pl-4 text-muted-foreground" : ""}`}>{r.tenant_name}</td>
+                          <td className="py-2 pr-2 text-xs text-muted-foreground">{r.role}</td>
+                          <td className="py-2 pr-2 text-xs">{r.email ?? "—"}</td>
+                          <td className="py-2 pr-2 text-xs">{r.phone ?? "—"}</td>
+                          <td className="py-2 pr-2 text-xs">{isCo ? "" : r.unit_number}</td>
+                          <td className="py-2 pr-2 text-xs">{isCo ? "" : r.property_name}</td>
+                          <td className="py-2 px-2 text-xs">{isCo ? "" : (r.lease_end ?? "M2M")}</td>
+                          <td className="text-right py-2">{isCo ? "" : formatZAR(r.monthly_rent_cents)}</td>
+                        </tr>
+                      )
+                    })}
                 </tbody>
               </table>
             </CardContent>
