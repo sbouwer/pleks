@@ -238,3 +238,18 @@ COMMENT ON COLUMN user_profiles.title      IS 'Salutation: Mr, Mrs, Ms, Dr, etc.
 COMMENT ON COLUMN user_profiles.first_name IS 'Given name — used to compose full_name';
 COMMENT ON COLUMN user_profiles.last_name  IS 'Surname';
 COMMENT ON COLUMN user_profiles.mobile     IS 'Personal mobile number';
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §7  ORG CUSTOM ROLE LIBRARY  (new — 026)
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- Free-form role/job-title labels defined per org.
+-- user_orgs.role stores either a system slug (owner, property_manager, …) or a
+-- custom label from this list.  No permission logic is derived from the value —
+-- it is purely a display/organisational label.
+ALTER TABLE organisations
+  ADD COLUMN IF NOT EXISTS custom_roles text[] NOT NULL DEFAULT '{}';
+
+COMMENT ON COLUMN organisations.custom_roles IS
+  'Org-defined reusable role labels shown in the team member role picker';
