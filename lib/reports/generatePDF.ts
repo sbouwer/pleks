@@ -47,7 +47,9 @@ function getReportCSS(org: ReportBranding): string {
   table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
   th { text-align: left; font-size: 9px; text-transform: uppercase; color: #64748b; background: ${accentLight}; border-bottom: 1px solid #e2e8f0; padding: 6px 8px; }
   td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; font-size: 10px; }
-  tr:last-child td { border-bottom: 2px solid #e2e8f0; font-weight: 600; }
+  tr:last-child td { border-bottom: 2px solid #e2e8f0; }
+  tr.co-tenant td { background: #f8fafc; color: #64748b; font-size: 9px; }
+  tr.co-tenant td:first-child { padding-left: 20px; }
   .metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
   .metric { background: #f8fafc; border: 1px solid #e2e8f0; border-top: 3px solid ${accent}; border-radius: 6px; padding: 10px; }
   .metric .label { font-size: 9px; color: #64748b; text-transform: uppercase; }
@@ -443,12 +445,13 @@ export function buildTenantDirectoryHTML(data: TenantDirectoryData, org: ReportB
     <table>
       <tr><th>Tenant</th><th>Role</th><th>Email</th><th>Phone</th><th>Unit</th><th>Property</th><th>Lease End</th><th class="text-right">Monthly Rent</th></tr>
       ${data.rows.map((r) => {
+        const isCo = r.role !== "Primary"
         const leaseEnd = r.lease_end ?? "—"
         const rentStr = formatZAR(r.monthly_rent_cents)
-        return `<tr>
+        return `<tr${isCo ? ' class="co-tenant"' : ""}>
           <td>${r.tenant_name}</td><td>${r.role}</td><td>${r.email ?? "—"}</td><td>${r.phone ?? "—"}</td>
-          <td>${r.unit_number}</td><td>${r.property_name}</td>
-          <td>${leaseEnd}</td><td class="text-right">${rentStr}</td>
+          <td>${isCo ? "" : r.unit_number}</td><td>${isCo ? "" : r.property_name}</td>
+          <td>${isCo ? "" : leaseEnd}</td><td class="text-right">${isCo ? "" : rentStr}</td>
         </tr>`
       }).join("")}
     </table>
