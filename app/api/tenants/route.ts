@@ -1,21 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
-
-async function getMembership(service: Awaited<ReturnType<typeof createServiceClient>>, userId: string) {
-  const { data } = await service
-    .from("user_orgs")
-    .select("org_id, role, is_admin")
-    .eq("user_id", userId)
-    .is("deleted_at", null)
-    .single()
-  if (!data) return null
-  const row = data as unknown as { org_id: string; role: string; is_admin: boolean }
-  return {
-    org_id: row.org_id,
-    role: row.role,
-    isAdmin: row.role === "owner" || row.is_admin === true,
-  }
-}
+import { getMembership } from "@/lib/supabase/getMembership"
 
 interface TenantPatchBody {
   tenantId: string; contactId: string

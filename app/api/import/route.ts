@@ -3,6 +3,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { importProperties } from "@/lib/import/propertyImport"
 import { importTenants } from "@/lib/import/tenantImport"
 import { importLeases } from "@/lib/import/leaseImport"
+import { getMembership } from "@/lib/supabase/getMembership"
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -10,18 +11,9 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const service = await createServiceClient()
-  const { data: membershipRaw } = await service
-    .from("user_orgs")
-    .select("org_id, role, is_admin")
-    .eq("user_id", user.id)
-    .is("deleted_at", null)
-    .single()
-
-  if (!membershipRaw) return NextResponse.json({ error: "No org" }, { status: 403 })
-
-  const membership = membershipRaw as unknown as { org_id: string; role: string; is_admin: boolean }
-  const isAdmin = membership.role === "owner" || membership.is_admin === true
-  if (!isAdmin) {
+  const membership = await getMembership(service, user.id)
+  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
+  if (!membership.isAdmin) {
     return NextResponse.json({ error: "Admin access required to import data" }, { status: 403 })
   }
 

@@ -1,8 +1,10 @@
 "use client"
 
 import { useState } from "react"
+import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { SidebarContent, type NavGroup } from "./SidebarContent"
+import { SettingsSidebar } from "./SettingsSidebar"
 import { useTier } from "@/hooks/useTier"
 import { useNavBadges } from "@/hooks/useNavBadges"
 import {
@@ -73,9 +75,19 @@ const NAV_GROUPS: NavGroup[] = [
 ]
 
 export function Sidebar() {
+  const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
   const { isSteward, isPortfolio, isFirm } = useTier()
   const badges = useNavBadges()
+
+  // Settings pages get their own dedicated sidebar
+  if (pathname.startsWith("/settings")) {
+    return (
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-border lg:flex">
+        <SettingsSidebar />
+      </aside>
+    )
+  }
 
   const BADGE_COUNTS: Record<string, number> = {
     "/applications": badges.applications,
