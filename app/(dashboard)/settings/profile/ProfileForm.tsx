@@ -11,7 +11,6 @@ import { toast } from "sonner"
 import { Info, Plus, X, Phone } from "lucide-react"
 
 const TITLES = ["Mr", "Mrs", "Ms", "Miss", "Dr", "Prof", "Adv", "Rev"]
-const WEEKEND_HOURS_OPTIONS = ["Closed", "08:00–12:00", "08:00–13:00", "09:00–13:00", "By appointment"]
 const PROVINCES = [
   "Eastern Cape", "Free State", "Gauteng", "KwaZulu-Natal",
   "Limpopo", "Mpumalanga", "Northern Cape", "North West", "Western Cape",
@@ -250,29 +249,71 @@ function AddressesSection({ form, set, showSecond, onAddSecond, onRemoveSecond }
 
 // ── Operating hours & emergency contact ──────────────────────────────────────
 
-function resolveHoursValue(v: string | null): string {
-  if (!v || v === "Closed" || v === "custom") return ""
-  return v
+/** Parse stored "HH:MM–HH:MM" string into time parts. Returns closed=true when null/empty. */
+function parseDayHours(value: string | null): { start: string; end: string; closed: boolean } {
+  if (!value) return { start: "08:00", end: "17:00", closed: true }
+  const match = value.match(/^(\d{2}:\d{2})[–-](\d{2}:\d{2})$/)
+  if (match) return { start: match[1], end: match[2], closed: false }
+  return { start: "08:00", end: "17:00", closed: true }
 }
 
-function HoursSelect({ id, value, onChange }: Readonly<{ id: string; value: string; onChange: (v: string) => void }>) {
-  const isPreset = !value || WEEKEND_HOURS_OPTIONS.includes(value)
+/** Format time parts back to stored string, or null when closed. */
+function formatDayHours(start: string, end: string, closed: boolean): string {
+  if (closed) return ""
+  return `${start}–${end}`
+}
+
+interface DayRowProps {
+  label: string
+  value: string | null
+  defaultStart?: string
+  defaultEnd?: string
+  onChange: (v: string) => void
+}
+
+function DayHoursRow({ label, value, defaultStart = "08:00", defaultEnd = "17:00", onChange }: Readonly<DayRowProps>) {
+  const parsed = parseDayHours(value)
+  // If closed but we have a default open state (weekday), treat null as open with defaults
+  const isClosed = parsed.closed
+  const start = isClosed ? defaultStart : parsed.start
+  const end = isClosed ? defaultEnd : parsed.end
+
+  function handleClosed(checked: boolean) {
+    onChange(formatDayHours(start, end, checked))
+  }
+  function handleStart(v: string) {
+    onChange(formatDayHours(v, end, isClosed))
+  }
+  function handleEnd(v: string) {
+    onChange(formatDayHours(start, v, isClosed))
+  }
+
   return (
-    <div className="flex gap-2">
-      <Select value={isPreset ? (value || "Closed") : "custom"} onValueChange={(v) => onChange(resolveHoursValue(v))}>
-        <SelectTrigger className="h-9 text-sm w-44">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {WEEKEND_HOURS_OPTIONS.map((o) => (
-            <SelectItem key={o} value={o}>{o}</SelectItem>
-          ))}
-          <SelectItem value="custom">Custom…</SelectItem>
-        </SelectContent>
-      </Select>
-      {!isPreset && (
-        <Input id={id} value={value} onChange={(e) => onChange(e.target.value)} placeholder="e.g. 10:00–14:00" className="h-9 text-sm" />
-      )}
+    <div className="grid grid-cols-[100px_1fr_1fr_auto] items-center gap-x-3 gap-y-0">
+      <span className="text-sm">{label}</span>
+      <Input
+        type="time"
+        value={start}
+        disabled={isClosed}
+        onChange={(e) => handleStart(e.target.value)}
+        className="h-8 text-sm disabled:opacity-40"
+      />
+      <Input
+        type="time"
+        value={end}
+        disabled={isClosed}
+        onChange={(e) => handleEnd(e.target.value)}
+        className="h-8 text-sm disabled:opacity-40"
+      />
+      <label className="flex items-center gap-1.5 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={isClosed}
+          onChange={(e) => handleClosed(e.target.checked)}
+          className="h-3.5 w-3.5 accent-brand cursor-pointer"
+        />
+        <span className="text-xs text-muted-foreground">Closed</span>
+      </label>
     </div>
   )
 }
@@ -282,24 +323,43 @@ function OperatingHoursCard({ form, set }: Readonly<{ form: FormState; set: (f: 
     <Card className="mb-4">
       <CardHeader><CardTitle className="text-base">Operating Hours &amp; Emergency Contact</CardTitle></CardHeader>
       <CardContent className="space-y-5">
-        <div className="space-y-3">
+        <div className="space-y-2">
           <SecHeading>Office Hours</SecHeading>
-          <F label="Weekdays" id="office_hours_weekday">
-            <Input id="office_hours_weekday" value={form.office_hours_weekday ?? "Mon–Fri 08:00–17:00"}
-              onChange={(e) => set("office_hours_weekday", e.target.value)} placeholder="Mon–Fri 08:00–17:00" />
-          </F>
-          <F label="Saturdays" id="office_hours_saturday">
-            <HoursSelect id="office_hours_saturday" value={form.office_hours_saturday ?? ""}
-              onChange={(v) => set("office_hours_saturday", v)} />
-          </F>
-          <F label="Sundays" id="office_hours_sunday">
-            <HoursSelect id="office_hours_sunday" value={form.office_hours_sunday ?? ""}
-              onChange={(v) => set("office_hours_sunday", v)} />
-          </F>
-          <F label="Public holidays" id="office_hours_public_holidays">
-            <HoursSelect id="office_hours_public_holidays" value={form.office_hours_public_holidays ?? ""}
-              onChange={(v) => set("office_hours_public_holidays", v)} />
-          </F>
+          {/* Column headers */}
+          <div className="grid grid-cols-[100px_1fr_1fr_auto] items-center gap-x-3 mb-1">
+            <span />
+            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Open</span>
+            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Close</span>
+            <span />
+          </div>
+          <DayHoursRow
+            label="Weekdays"
+            value={form.office_hours_weekday}
+            defaultStart="08:00"
+            defaultEnd="17:00"
+            onChange={(v) => set("office_hours_weekday", v)}
+          />
+          <DayHoursRow
+            label="Saturdays"
+            value={form.office_hours_saturday}
+            defaultStart="08:00"
+            defaultEnd="13:00"
+            onChange={(v) => set("office_hours_saturday", v)}
+          />
+          <DayHoursRow
+            label="Sundays"
+            value={form.office_hours_sunday}
+            defaultStart="08:00"
+            defaultEnd="13:00"
+            onChange={(v) => set("office_hours_sunday", v)}
+          />
+          <DayHoursRow
+            label="Public holidays"
+            value={form.office_hours_public_holidays}
+            defaultStart="08:00"
+            defaultEnd="13:00"
+            onChange={(v) => set("office_hours_public_holidays", v)}
+          />
         </div>
         <div className="border-t border-border/40 pt-4 space-y-3">
           <SecHeading>After-Hours Emergency</SecHeading>
