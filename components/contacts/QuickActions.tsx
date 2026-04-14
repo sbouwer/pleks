@@ -90,7 +90,7 @@ export function QuickActions({ primaryPhone, primaryEmail, waNumber, moreItems =
             moreItems.map((item) => (
               <DropdownMenuItem
                 key={item.label}
-                onClick={item.onClick}
+                onClick={item.href ? () => window.open(item.href, "_blank") : item.onClick}
                 className={item.variant === "danger" ? "text-danger" : ""}
               >
                 {item.label}

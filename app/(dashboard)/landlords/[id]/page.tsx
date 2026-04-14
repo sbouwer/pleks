@@ -10,6 +10,7 @@ import { StatGrid } from "@/components/contacts/StatGrid"
 import { ActivityTimeline } from "@/components/contacts/ActivityTimeline"
 import { LandlordIdentitySection, LandlordContactSection, LandlordAddressSection, LandlordBankingSection } from "./LandlordSections"
 import { LandlordPortalSection } from "@/components/portal/LandlordPortalSection"
+import { WelcomePackBanner } from "@/components/reports/WelcomePackBanner"
 import { formatZAR } from "@/lib/constants"
 
 interface Props {
@@ -157,6 +158,7 @@ export default async function LandlordDetailPage({ params }: Props) {
               primaryEmail={primaryEmail}
               moreItems={[
                 { label: "Send statement" },
+                { label: "Generate Welcome Pack", href: `/api/reports/welcome-pack?orgId=${membership.org_id}&landlordId=${id}` },
                 { label: "Archive", variant: "danger" as const },
               ]}
             />
@@ -203,6 +205,7 @@ export default async function LandlordDetailPage({ params }: Props) {
         </ContactSidebar>
       }
     >
+      <WelcomePackBanner orgId={membership.org_id} landlordId={id} landlordName={displayName} />
       <SectionCard title="Properties" count={(properties || []).length} action={{ label: "View all", href: "/properties" }}>
         {(properties || []).length === 0 ? (
           <p className="text-sm text-muted-foreground">No properties linked.</p>

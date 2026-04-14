@@ -28,6 +28,7 @@ import { InspectionScheduleTab } from "./tabs/InspectionScheduleTab"
 import { PopiaConsentAuditTab } from "./tabs/PopiaConsentAuditTab"
 import { ContractorPerformanceTab } from "./tabs/ContractorPerformanceTab"
 import { MaintenanceSlaTab } from "./tabs/MaintenanceSlaTab"
+import { WelcomePackTab } from "./tabs/WelcomePackTab"
 import type { ReportPeriodType, ReportType } from "@/lib/reports/types"
 import { REPORT_TIER_ACCESS, REPORT_LABELS } from "@/lib/reports/types"
 
@@ -62,6 +63,7 @@ type FilterState = {
 type TabProps = {
   orgId: string
   filters: FilterState
+  landlords?: Array<{ id: string; name: string }>
 }
 
 // Mapping from ReportType → component — avoids 25-branch switch (SonarJS S3776)
@@ -92,6 +94,7 @@ const TAB_COMPONENTS: Record<ReportType, React.ComponentType<TabProps>> = {
   popia_consent_audit:    PopiaConsentAuditTab,
   contractor_performance: ContractorPerformanceTab,
   maintenance_sla:        MaintenanceSlaTab,
+  landlord_welcome_pack:  WelcomePackTab,
 }
 
 const TIER_ORDER = ["owner", "steward", "portfolio", "firm"]
@@ -133,7 +136,7 @@ const REPORT_CATEGORIES = [
   },
   {
     name: "Agency",
-    reports: ["application_pipeline", "owner_portfolio"] as ReportType[],
+    reports: ["application_pipeline", "owner_portfolio", "landlord_welcome_pack"] as ReportType[],
   },
 ]
 
@@ -262,7 +265,7 @@ export function ReportsClient({ tier, properties, orgId, landlords, agents }: Re
           All reports
         </button>
         <ReportFilters properties={properties} landlords={landlords} agents={agents} tier={tier} onApply={handleApply} />
-        <TabComponent orgId={orgId} filters={filters} />
+        <TabComponent orgId={orgId} filters={filters} landlords={landlords} />
       </div>
     )
   }
