@@ -26,6 +26,7 @@ export function useTier() {
     },
     enabled: !!orgId,
     staleTime: 5 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
   })
 
   const tier: Tier = data ? getEffectiveTier(data) : "owner"

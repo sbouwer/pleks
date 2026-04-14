@@ -72,7 +72,7 @@ async function refreshOrgCookieParallel(
   if (orgsRes.data) {
     supabaseResponse.cookies.set("pleks_org", JSON.stringify({
       org_id: orgId, role: orgsRes.data.role, tier: deriveTierFromSub(subRes.data), user_id: userId,
-    }), { ...COOKIE_OPTS, maxAge: 3600 })
+    }), { ...COOKIE_OPTS, maxAge: 300 })
   }
 }
 
@@ -93,7 +93,7 @@ async function setOrgCookiesFromDb(
   supabaseResponse.cookies.set("pleks_has_org", JSON.stringify({ org_id: orgId, user_id: user.id }), { ...COOKIE_OPTS, maxAge: 60 * 60 * 24 * 7 })
   supabaseResponse.cookies.set("pleks_org", JSON.stringify({
     org_id: orgId, role: orgs[0].role, tier: deriveTierFromSub(sub), user_id: user.id,
-  }), { ...COOKIE_OPTS, maxAge: 3600 })
+  }), { ...COOKIE_OPTS, maxAge: 300 })
   return false
 }
 
