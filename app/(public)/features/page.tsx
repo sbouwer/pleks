@@ -122,26 +122,27 @@ export default function FeaturesPage() {
           ))}
         </div>
 
-        {/* Feature grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        {/* Feature grid — 2-col compact on mobile, 2-col sm, 3-col lg */}
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-5">
           {FEATURES.map((f) => {
             const Icon = f.icon
             return (
               <div
                 key={f.title}
-                className="rounded-xl border border-border/60 bg-card px-5 py-5 space-y-3 hover:border-brand/40 transition-colors"
+                className="rounded-xl border border-border/60 bg-card px-3 py-3 sm:px-5 sm:py-5 space-y-2 sm:space-y-3 hover:border-brand/40 transition-colors"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="rounded-lg bg-surface-elevated p-2.5 shrink-0">
-                    <Icon className="h-5 w-5 text-brand" />
+                <div className="flex items-start justify-between gap-2">
+                  <div className="rounded-lg bg-surface-elevated p-2 sm:p-2.5 shrink-0">
+                    <Icon className="h-4 w-4 sm:h-5 sm:w-5 text-brand" />
                   </div>
-                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${TIER_COLOURS[f.tier]}`}>
+                  <span className={`text-[10px] sm:text-[11px] font-semibold px-1.5 sm:px-2 py-0.5 rounded-full ${TIER_COLOURS[f.tier]}`}>
                     {f.tier}
                   </span>
                 </div>
                 <div>
-                  <p className="font-semibold text-sm mb-1">{f.title}</p>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{f.description}</p>
+                  <p className="font-semibold text-xs sm:text-sm mb-0.5 sm:mb-1">{f.title}</p>
+                  {/* Description hidden on mobile — icon + title sufficient in 2-col grid */}
+                  <p className="hidden sm:block text-sm text-muted-foreground leading-relaxed">{f.description}</p>
                 </div>
               </div>
             )

@@ -135,10 +135,10 @@ export default function PricingPage() {
           </Button>
         </div>
 
-        {/* Tier cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-20">
+        {/* Tier cards — horizontal scroll snap on mobile, grid on md+ */}
+        <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-4 -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-2 md:overflow-visible md:snap-none lg:grid-cols-4 md:gap-6 mb-20">
           {tiers.map((tier) => (
-            <div key={tier.name} className="group relative pt-4">
+            <div key={tier.name} className="group relative pt-4 shrink-0 w-[80vw] max-w-[280px] snap-center md:w-auto md:max-w-none md:snap-align-none">
               {tier.popular && (
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 z-10">
                   <span className="inline-block bg-brand text-primary-foreground text-xs font-semibold px-3 py-1 rounded-full shadow-[0_2px_12px_rgba(var(--brand-rgb),0.5)]">
