@@ -106,14 +106,16 @@ export default async function HOADetailPage({
 
       {/* Tabs */}
       <Tabs defaultValue="overview">
-        <TabsList className="flex-wrap h-auto gap-1">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="owners">Owners</TabsTrigger>
-          <TabsTrigger value="levies">Levies</TabsTrigger>
-          <TabsTrigger value="agm">AGM</TabsTrigger>
-          <TabsTrigger value="financials">Financials</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-        </TabsList>
+        <div className="border-b border-border mb-6">
+          <TabsList variant="line" className="w-fit h-auto gap-0 rounded-none p-0">
+            <TabsTrigger value="overview" className="px-4 py-2 rounded-none">Overview</TabsTrigger>
+            <TabsTrigger value="owners" className="px-4 py-2 rounded-none">Owners</TabsTrigger>
+            <TabsTrigger value="levies" className="px-4 py-2 rounded-none">Levies</TabsTrigger>
+            <TabsTrigger value="agm" className="px-4 py-2 rounded-none">AGM</TabsTrigger>
+            <TabsTrigger value="financials" className="px-4 py-2 rounded-none">Financials</TabsTrigger>
+            <TabsTrigger value="settings" className="px-4 py-2 rounded-none">Settings</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="overview" className="space-y-4 mt-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -17,6 +17,7 @@ import {
   FURNISHING_TEMPLATES,
   FURNISHING_CATEGORIES,
   FURNISHING_CATEGORY_LABELS,
+  getFurnishingPlaceholder,
   type FurnishingItem,
 } from "@/lib/units/furnishingTemplates"
 import { X } from "lucide-react"
@@ -368,38 +369,29 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
         <p className="text-sm text-danger mb-4 p-3 bg-danger/10 rounded-md">{state.error}</p>
       )}
 
-      <div className="flex gap-8 min-h-[600px]">
+      {/* ── Tab bar ─────────────────────────────────────────────────────── */}
+      <div className="flex gap-1 border-b border-border mb-8">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setActiveTab(tab.id)}
+            className={cn(
+              "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap",
+              activeTab === tab.id
+                ? "border-brand text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-        {/* ── Left tab nav ────────────────────────────────────────────────── */}
-        <div className="w-52 flex-shrink-0 space-y-0.5 pt-1">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={cn(
-                "flex items-center w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left",
-                activeTab === tab.id
-                  ? "bg-brand/10 text-brand"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
-
-          <div className="pt-6">
-            <Button type="submit" disabled={pending} className="w-full">
-              {pending ? "Saving..." : "Save Unit"}
-            </Button>
-          </div>
-        </div>
-
-        {/* ── Tab content ─────────────────────────────────────────────────── */}
-        <div className="flex-1 min-w-0">
+      {/* ── Tab content ─────────────────────────────────────────────────── */}
 
         {/* ── Tab 1: Unit details ──────────────────────────────────────── */}
-        {activeTab === "details" && <div className="space-y-6">
+        {activeTab === "details" && <div className="space-y-6 max-w-2xl">
           <div className="space-y-2">
             <Label htmlFor="unit_number">Unit Name / Number *</Label>
             <Input
@@ -620,7 +612,7 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
                                 <Input
                                   value={itemState.notes}
                                   onChange={(e) => setItemNotes(cat, itemName, e.target.value)}
-                                  placeholder="Description (e.g. Hisense 130L with ice dispenser)"
+                                  placeholder={getFurnishingPlaceholder(itemName)}
                                   className="h-7 text-xs flex-1"
                                 />
                                 <div className="flex items-center gap-1 flex-shrink-0">
@@ -661,7 +653,7 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
         </div>}
 
         {/* ── Tab 3: Rental & lease ────────────────────────────────────── */}
-        {activeTab === "rental" && <div className="space-y-6">
+        {activeTab === "rental" && <div className="space-y-6 max-w-2xl">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="asking_rent">Asking rent (ZAR)</Label>
@@ -724,8 +716,12 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
           )}
         </div>}
 
-        </div>{/* end tab content */}
-      </div>{/* end flex */}
+      {/* ── Save button ─────────────────────────────────────────────────── */}
+      <div className="mt-8 pt-6 border-t">
+        <Button type="submit" disabled={pending}>
+          {pending ? "Saving..." : "Save Unit"}
+        </Button>
+      </div>
     </form>
   )
 }
