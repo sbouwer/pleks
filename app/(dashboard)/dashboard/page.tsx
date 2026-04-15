@@ -77,7 +77,7 @@ async function DashboardHeavySections({
           totalLandlords={totalLandlords}
         />
       </div>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[3fr_2fr]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <LeaseExpiryTimeline leases={expiringLeases} />
         <ActivityFeed items={activityItems} />
       </div>
@@ -92,7 +92,7 @@ function DashboardSectionsSkeleton() {
         <div className="rounded-xl border border-border/60 bg-surface-elevated h-64 animate-pulse" />
         <div className="rounded-xl border border-border/60 bg-surface-elevated h-64 animate-pulse" />
       </div>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[3fr_2fr]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-border/60 bg-surface-elevated h-56 animate-pulse" />
         <div className="rounded-xl border border-border/60 bg-surface-elevated h-56 animate-pulse" />
       </div>
