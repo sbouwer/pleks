@@ -2,6 +2,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { LogMaintenanceForm } from "@/components/maintenance/LogMaintenanceForm"
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { BackLink } from "@/components/ui/BackLink"
 
 interface Props {
   searchParams: Promise<{ property?: string; unit?: string }>
@@ -210,6 +211,7 @@ export default async function NewMaintenancePage({ searchParams }: Readonly<Prop
 
   return (
     <div className="max-w-2xl">
+      <BackLink href="/maintenance" label="Maintenance" />
       <div className="mb-6">
         <h1 className="font-heading text-3xl">Log maintenance request</h1>
         <p className="text-muted-foreground mt-1">

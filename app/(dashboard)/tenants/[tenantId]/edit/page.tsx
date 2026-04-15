@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { redirect, notFound } from "next/navigation"
 import { updateTenant } from "@/lib/actions/tenants"
 import { TenantEditForm } from "./TenantEditForm"
+import { BackLink } from "@/components/ui/BackLink"
 
 export default async function EditTenantPage({
   params,
@@ -26,6 +27,7 @@ export default async function EditTenantPage({
 
   return (
     <div className="max-w-xl">
+      <BackLink href={`/tenants/${tenantId}`} label="Back to tenant" />
       <h1 className="font-heading text-3xl mb-6">Edit Tenant</h1>
       <TenantEditForm tenant={tenant} action={boundAction} />
     </div>

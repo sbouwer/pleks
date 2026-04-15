@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent } from "@/components/ui/card"
 import { formatZAR } from "@/lib/constants"
 import { Suspense } from "react"
+import { BackLink } from "@/components/ui/BackLink"
 
 interface AppRow {
   id: string
@@ -96,6 +97,7 @@ function CompareContent() {
 export default function ComparePage() {
   return (
     <div>
+      <BackLink href="/applications" label="Applications" />
       <h1 className="font-heading text-3xl mb-6">Compare Applicants</h1>
       <Card>
         <CardContent className="pt-4">

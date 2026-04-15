@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge"
 import { formatZAR } from "@/lib/constants"
 import { ArrearsActions } from "./ArrearsActions"
 import { InterestSection } from "./InterestSection"
+import { BackLink } from "@/components/ui/BackLink"
 
 function getArrearsBadgeStatus(status: string) {
   if (status === "open") return "arrears"
@@ -60,6 +61,7 @@ export default async function ArrearsDetailPage({
 
   return (
     <div>
+      <BackLink href="/payments/arrears" label="Arrears" />
       <div className="flex items-start justify-between mb-6">
         <div>
           <p className="text-sm text-muted-foreground mb-1">

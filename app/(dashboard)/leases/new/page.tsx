@@ -5,6 +5,7 @@ import { redirect } from "next/navigation"
 import { LeasePathFork } from "@/components/leases/LeasePathFork"
 import { LeaseDisclaimerGate } from "@/components/leases/LeaseDisclaimerGate"
 import { hasAcceptedLeaseDisclaimer } from "@/lib/leases/disclaimer"
+import { BackLink } from "@/components/ui/BackLink"
 
 interface Props {
   searchParams: Promise<Record<string, string>>
@@ -155,6 +156,7 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
   return (
     <LeaseDisclaimerGate initialAccepted={accepted}>
       <div>
+        <BackLink href="/leases" label="Leases" />
         <h1 className="font-heading text-2xl mb-6">Create lease</h1>
         <Suspense fallback={<div className="text-sm text-muted-foreground">Loading…</div>}>
           <LeasePathFork

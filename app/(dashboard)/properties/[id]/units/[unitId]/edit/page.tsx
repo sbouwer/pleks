@@ -3,6 +3,7 @@ import { redirect, notFound } from "next/navigation"
 import { updateUnit } from "@/lib/actions/units"
 import { UnitForm } from "../../UnitForm"
 import type { FurnishingItem } from "@/lib/units/furnishingTemplates"
+import { BackLink } from "@/components/ui/BackLink"
 
 export default async function EditUnitPage({
   params,
@@ -44,6 +45,7 @@ export default async function EditUnitPage({
 
   return (
     <div>
+      <BackLink href={`/properties/${id}/units/${unitId}`} label={unit.unit_number} />
       <h1 className="font-heading text-3xl mb-1">Edit Unit</h1>
       <p className="text-muted-foreground text-sm mb-6">{property.name} — {unit.unit_number}</p>
       <UnitForm

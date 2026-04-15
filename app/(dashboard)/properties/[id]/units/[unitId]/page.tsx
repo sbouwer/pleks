@@ -11,6 +11,7 @@ import { UnitAgentPicker } from "./UnitAgentPicker"
 import { UnitClauseProfile } from "@/components/leases/UnitClauseProfile"
 import { ListingSection } from "./ListingSection"
 import { DepositInterestConfig } from "@/components/deposits/DepositInterestConfig"
+import { BackLink } from "@/components/ui/BackLink"
 
 export default async function UnitDetailPage({
   params,
@@ -96,6 +97,7 @@ export default async function UnitDetailPage({
 
   return (
     <div>
+      <BackLink href={`/properties/${id}`} label={property.name ?? "Property"} />
       {/* Breadcrumb + header */}
       <div className="flex items-start justify-between mb-6">
         <div>

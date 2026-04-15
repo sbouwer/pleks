@@ -3,6 +3,7 @@ import { getServerOrgMembership } from "@/lib/auth/server"
 import { redirect } from "next/navigation"
 import { NewInspectionForm } from "./NewInspectionForm"
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { BackLink } from "@/components/ui/BackLink"
 
 interface Props {
   searchParams: Promise<Record<string, string>>
@@ -67,6 +68,7 @@ export default async function NewInspectionPage({ searchParams }: Readonly<Props
 
   return (
     <div className="max-w-2xl">
+      <BackLink href="/inspections" label="Inspections" />
       <h1 className="font-heading text-3xl mb-6">Schedule inspection</h1>
       <NewInspectionForm
         orgId={orgId}

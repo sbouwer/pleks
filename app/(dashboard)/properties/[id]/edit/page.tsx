@@ -4,6 +4,7 @@ import { getServerOrgMembership } from "@/lib/auth/server"
 import { getOrgTier } from "@/lib/tier/getOrgTier"
 import { updateProperty } from "@/lib/actions/properties"
 import { PropertyEditForm } from "../../PropertyEditForm"
+import { BackLink } from "@/components/ui/BackLink"
 
 export default async function EditPropertyPage({
   params,
@@ -96,6 +97,8 @@ export default async function EditPropertyPage({
   const boundAction = updateProperty.bind(null, id)
 
   return (
+    <div>
+      <BackLink href={`/properties/${id}`} label="Back to property" />
     <PropertyEditForm
       propertyId={id}
       orgId={orgId}
@@ -125,5 +128,6 @@ export default async function EditPropertyPage({
       teamMembers={teamMembers}
       managingAgentId={property.managing_agent_id ?? null}
     />
+    </div>
   )
 }
