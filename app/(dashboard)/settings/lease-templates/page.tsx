@@ -15,6 +15,8 @@ import { LeasePreview } from "@/components/leases/LeasePreview"
 import Link from "next/link"
 import { toast } from "sonner"
 import { Eye, ExternalLink } from "lucide-react"
+import { useIsMobile } from "@/hooks/useIsMobile"
+import { DesktopOnlyCard } from "@/components/mobile/DesktopOnlyCard"
 
 interface OrgInfo {
   orgId: string
@@ -25,6 +27,7 @@ interface OrgInfo {
 }
 
 export default function LeaseTemplatesPage() {
+  const isMobile = useIsMobile()
   const [leaseType, setLeaseType] = useState("residential")
   const [orgInfo, setOrgInfo] = useState<OrgInfo | null>(null)
   const [showConfirmRecord, setShowConfirmRecord] = useState(false)
@@ -106,6 +109,10 @@ export default function LeaseTemplatesPage() {
     } else {
       toast.error("Failed to submit request")
     }
+  }
+
+  if (isMobile) {
+    return <DesktopOnlyCard title="Lease templates" description="Lease template editing works best on a larger screen. Open Pleks on your computer to configure clauses and branding." />
   }
 
   return (
