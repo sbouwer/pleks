@@ -21,6 +21,9 @@ import {
   type FurnishingItem,
 } from "@/lib/units/furnishingTemplates"
 import { X } from "lucide-react"
+import { RoomList } from "@/components/units/RoomList"
+import type { RoomEntry } from "@/lib/units/roomListGenerator"
+import { generateRooms, mergeRoomList, deserializeRooms, serializeRooms } from "@/lib/units/roomListGenerator"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -48,6 +51,8 @@ export interface UnitFormProps {
     deposit_amount?: number
     managed_by?: string
     notes?: string
+    /** Saved profile rooms from DB — used to initialise the room list */
+    rooms?: Array<{ room_type: string; label: string; sort_order: number; is_custom: boolean }>
   }
 }
 
@@ -182,6 +187,18 @@ function calcSuggestedDeposit(rent: number, status: string): number | null {
 export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
   const [activeTab, setActiveTab] = useState<TabId>("details")
   const [unitType, setUnitType] = useState<string>(defaultValues?.unit_type ?? "")
+  const [bedroomsVal, setBedroomsVal] = useState<number | null>(defaultValues?.bedrooms ?? null)
+  const [bathroomsVal, setBathroomsVal] = useState<number | null>(defaultValues?.bathrooms ?? null)
+  const [rooms, setRooms] = useState<RoomEntry[]>(() => {
+    const saved = defaultValues?.rooms
+    const ut = defaultValues?.unit_type ?? ""
+    const beds = defaultValues?.bedrooms ?? 0
+    const baths = defaultValues?.bathrooms ?? 0
+    const feats = defaultValues?.features ?? []
+    if (saved && saved.length > 0) return deserializeRooms(saved, ut, beds, baths, feats)
+    if (ut) return generateRooms(ut, beds, baths, feats)
+    return []
+  })
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>(defaultValues?.features ?? [])
   const [customFeatures, setCustomFeatures] = useState<string[]>([])
   const [customFeatureInput, setCustomFeatureInput] = useState("")
@@ -259,11 +276,44 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
 
       formData.set("furnishings_json", JSON.stringify(furnishingRows))
 
+      // Serialize room list for inspection profile upsert
+      formData.set("rooms_json", serializeRooms(rooms))
+
       const result = await action(formData)
       return result ?? null
     },
     null
   )
+
+  // ── Room list handlers ────────────────────────────────────────────────────
+
+  function handleUnitTypeChange(newType: string) {
+    const hasRooms = rooms.some((r) => r.included)
+    if (hasRooms && newType !== unitType) {
+      // eslint-disable-next-line no-alert
+      if (!window.confirm("Changing unit type will reset the room list. Continue?")) return
+    }
+    setUnitType(newType)
+    setRooms(generateRooms(newType, bedroomsVal ?? 0, bathroomsVal ?? 0, selectedFeatures))
+  }
+
+  function handleBedroomsChange(val: string) {
+    const n = val ? Number.parseInt(val) : null
+    setBedroomsVal(n)
+    if (unitType) {
+      const fresh = generateRooms(unitType, n ?? 0, bathroomsVal ?? 0, selectedFeatures)
+      setRooms((prev) => mergeRoomList(prev, fresh))
+    }
+  }
+
+  function handleBathroomsChange(val: string) {
+    const n = val ? Number.parseFloat(val) : null
+    setBathroomsVal(n)
+    if (unitType) {
+      const fresh = generateRooms(unitType, bedroomsVal ?? 0, n ?? 0, selectedFeatures)
+      setRooms((prev) => mergeRoomList(prev, fresh))
+    }
+  }
 
   // ── Feature chip handlers ──────────────────────────────────────────────────
 
@@ -405,7 +455,7 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
 
           <div className="space-y-2">
             <Label htmlFor="unit_type">Unit type *</Label>
-            <Select name="unit_type" value={unitType} onValueChange={(v) => setUnitType(v ?? "")}>
+            <Select name="unit_type" value={unitType} onValueChange={(v) => handleUnitTypeChange(v ?? "")}>
               <SelectTrigger id="unit_type">
                 <SelectValue placeholder="Select unit type..." />
               </SelectTrigger>
@@ -427,7 +477,8 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
                 name="bedrooms"
                 type="number"
                 min="0"
-                defaultValue={defaultValues?.bedrooms ?? ""}
+                value={bedroomsVal ?? ""}
+                onChange={(e) => handleBedroomsChange(e.target.value)}
               />
             </div>
             <div className="space-y-2">
@@ -438,7 +489,8 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
                 type="number"
                 min="0"
                 step="0.5"
-                defaultValue={defaultValues?.bathrooms ?? ""}
+                value={bathroomsVal ?? ""}
+                onChange={(e) => handleBathroomsChange(e.target.value)}
               />
             </div>
             <div className="space-y-2">
@@ -473,6 +525,17 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
               defaultValue={defaultValues?.floor ?? ""}
               placeholder="0 = ground"
             />
+          </div>
+
+          {/* Room list — auto-generates from unit type + bed/bath count */}
+          <div className="space-y-2">
+            <div>
+              <Label className="text-base font-semibold">Rooms</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                These rooms become the inspection checklist template for this unit.
+              </p>
+            </div>
+            <RoomList rooms={rooms} onChange={setRooms} />
           </div>
 
           <div className="space-y-2">

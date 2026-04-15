@@ -70,6 +70,77 @@ async function upsertFurnishings(
   if (error) console.error("[upsertFurnishings] failed:", error.message)
 }
 
+type RoomRow = {
+  org_id: string
+  profile_id: string
+  room_type: string
+  label: string
+  sort_order: number
+  is_custom: boolean
+}
+
+async function upsertInspectionProfile(
+  db: SupabaseClient,
+  unitId: string,
+  orgId: string,
+  roomsJson: string | null,
+): Promise<void> {
+  if (!roomsJson) return
+
+  let rooms: Array<{ room_type: string; label: string; sort_order: number; is_custom: boolean }>
+  try {
+    rooms = JSON.parse(roomsJson)
+  } catch {
+    return
+  }
+
+  // Get or create the profile
+  const { data: existing } = await db
+    .from("unit_inspection_profiles")
+    .select("id")
+    .eq("unit_id", unitId)
+    .maybeSingle()
+
+  let profileId: string
+
+  if (existing) {
+    profileId = existing.id
+    // Touch updated_at
+    await db
+      .from("unit_inspection_profiles")
+      .update({ updated_at: new Date().toISOString() })
+      .eq("id", profileId)
+  } else {
+    const { data: created, error } = await db
+      .from("unit_inspection_profiles")
+      .insert({ org_id: orgId, unit_id: unitId })
+      .select("id")
+      .single()
+    if (error || !created) {
+      console.error("[upsertInspectionProfile] create failed:", error?.message)
+      return
+    }
+    profileId = created.id
+  }
+
+  // Replace rooms
+  await db.from("unit_inspection_profile_rooms").delete().eq("profile_id", profileId)
+
+  if (rooms.length === 0) return
+
+  const insertRows: RoomRow[] = rooms.map((r) => ({
+    org_id: orgId,
+    profile_id: profileId,
+    room_type: r.room_type,
+    label: r.label,
+    sort_order: r.sort_order,
+    is_custom: r.is_custom,
+  }))
+
+  const { error } = await db.from("unit_inspection_profile_rooms").insert(insertRows)
+  if (error) console.error("[upsertInspectionProfile] rooms insert failed:", error.message)
+}
+
 // ── Actions ───────────────────────────────────────────────────────────────────
 
 export async function createUnit(propertyId: string, formData: FormData) {
@@ -95,6 +166,7 @@ export async function createUnit(propertyId: string, formData: FormData) {
   }
 
   await upsertFurnishings(db, unit.id, orgId, formData.get("furnishings_json") as string | null)
+  await upsertInspectionProfile(db, unit.id, orgId, formData.get("rooms_json") as string | null)
 
   await db.from("unit_status_history").insert({
     unit_id: unit.id,
@@ -134,6 +206,7 @@ export async function updateUnit(unitId: string, propertyId: string, formData: F
   if (error) return { error: error.message }
 
   await upsertFurnishings(db, unitId, orgId, formData.get("furnishings_json") as string | null)
+  await upsertInspectionProfile(db, unitId, orgId, formData.get("rooms_json") as string | null)
 
   try {
     await syncUnitClauseProfile(db, unitId, orgId, fields.features)
@@ -231,6 +304,7 @@ export async function createUnitData(propertyId: string, formData: FormData): Pr
   }
 
   await upsertFurnishings(db, unit.id, orgId, formData.get("furnishings_json") as string | null)
+  await upsertInspectionProfile(db, unit.id, orgId, formData.get("rooms_json") as string | null)
 
   await db.from("unit_status_history").insert({
     unit_id: unit.id,
