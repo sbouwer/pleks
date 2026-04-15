@@ -74,9 +74,11 @@ export function ContactsTab({
     <div className="space-y-4">
       {/* Action bar */}
       <div className="flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" render={<Link href={`/leases/${leaseId}?tab=contacts#edit-tenants`} />}>
-          Edit tenants
-        </Button>
+        {activeTenant && (
+          <Button variant="outline" size="sm" render={<Link href={`/tenants/${activeTenant.tenantId}`} />}>
+            Edit tenant
+          </Button>
+        )}
         {primaryTenantId && (
           <LeasePortalActions
             tenantId={primaryTenantId}
