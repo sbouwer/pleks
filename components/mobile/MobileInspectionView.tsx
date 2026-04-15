@@ -399,6 +399,8 @@ export function MobileInspectionView({
   const [signOffOpen, setSignOffOpen] = useState(false)
   const [agentSigned, setAgentSigned] = useState(false)
   const [tenantSigned, setTenantSigned] = useState(false)
+  const [addingCustom, setAddingCustom] = useState(false)
+  const [customItemName, setCustomItemName] = useState("")
   // Offline fallback: rooms pre-saved via Mode B [Save for offline]
   const [offlineRooms, setOfflineRooms] = useState<InspectionRoom[]>([])
   const displayRooms = rooms.length > 0 ? rooms : offlineRooms
@@ -446,6 +448,19 @@ export function MobileInspectionView({
     const items = roomItems[r.id] ?? []
     return sum + items.filter((i) => i.condition && i.condition !== "not_inspected").length
   }, 0)
+
+  const handleAddCustomItem = useCallback((roomId: string, name: string) => {
+    const newItem: InspectionItem = {
+      id: `custom-${crypto.randomUUID()}`,
+      item_name: name,
+      condition: null,
+      condition_notes: null,
+    }
+    setRoomItems((prev) => ({
+      ...prev,
+      [roomId]: [...(prev[roomId] ?? []), newItem],
+    }))
+  }, [])
 
   const handleItemUpdate = useCallback((roomId: string) => (itemId: string, condition: string, notes: string | null) => {
     setRoomItems((prev) => ({
@@ -555,6 +570,59 @@ export function MobileInspectionView({
               onUpdate={onUpdate}
             />
           ))}
+
+          {/* Add custom item */}
+          {addingCustom ? (
+            <div className="py-3 flex items-center gap-2 border-t border-border">
+              <input
+                type="text"
+                autoFocus
+                className="flex-1 text-sm border rounded px-2 py-1.5 bg-background"
+                placeholder="Item name (e.g. Washing line)"
+                value={customItemName}
+                onChange={(e) => setCustomItemName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && customItemName.trim()) {
+                    handleAddCustomItem(selectedRoom.id, customItemName.trim())
+                    setCustomItemName("")
+                    setAddingCustom(false)
+                  }
+                  if (e.key === "Escape") {
+                    setAddingCustom(false)
+                    setCustomItemName("")
+                  }
+                }}
+              />
+              <Button
+                size="sm"
+                disabled={!customItemName.trim()}
+                onClick={() => {
+                  if (customItemName.trim()) {
+                    handleAddCustomItem(selectedRoom.id, customItemName.trim())
+                    setCustomItemName("")
+                    setAddingCustom(false)
+                  }
+                }}
+              >
+                Add
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => { setAddingCustom(false); setCustomItemName("") }}
+              >
+                Cancel
+              </Button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="w-full py-3 text-sm text-brand hover:text-brand/80 text-left border-t border-border"
+              onClick={() => setAddingCustom(true)}
+            >
+              + Add custom item
+            </button>
+          )}
         </div>
 
         {roomInspected === items.length && items.length > 0 && (
