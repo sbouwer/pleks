@@ -290,7 +290,6 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
   function handleUnitTypeChange(newType: string) {
     const hasRooms = rooms.some((r) => r.included)
     if (hasRooms && newType !== unitType) {
-      // eslint-disable-next-line no-alert
       if (!window.confirm("Changing unit type will reset the room list. Continue?")) return
     }
     setUnitType(newType)
