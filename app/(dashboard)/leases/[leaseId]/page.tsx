@@ -6,6 +6,7 @@ import { hasAcceptedLeaseDisclaimer } from "@/lib/leases/disclaimer"
 import { buildTenantDisplay } from "@/lib/leases/tenantDisplay"
 import { checkLeasePrerequisites } from "@/lib/leases/checkPrerequisites"
 import { getLessorBankDetails } from "@/lib/leases/bankDetails"
+import { decryptNullable } from "@/lib/crypto/encryption"
 import { BackLink } from "@/components/ui/BackLink"
 import { LeaseTabs } from "./LeaseTabs"
 import { OverviewTab } from "./OverviewTab"
@@ -58,6 +59,106 @@ function buildComplianceItems(
   return items
 }
 
+function maskSAId(encrypted: string | null | undefined): string | null {
+  if (!encrypted) return null
+  try {
+    const plain = decryptNullable(encrypted)
+    if (!plain || plain.length < 6) return null
+    return `${plain.slice(0, 6)} ${plain.slice(6, 7)}** ***`
+  } catch {
+    return null
+  }
+}
+
+function getIdOrReg(
+  entityType: string | null | undefined,
+  idNumber: string | null | undefined,
+  regNumber: string | null | undefined,
+): { idOrRegNumber: string | null; idOrRegLabel: string } {
+  if (entityType === "organisation") {
+    return { idOrRegNumber: regNumber ?? null, idOrRegLabel: "Reg number" }
+  }
+  return { idOrRegNumber: maskSAId(idNumber), idOrRegLabel: "ID number" }
+}
+
+function derivePortalStatus(
+  authUserId: string | null | undefined,
+  inviteSentAt: string | null | undefined,
+): "none" | "invited" | "active" {
+  if (authUserId) return "active"
+  if (inviteSentAt) return "invited"
+  return "none"
+}
+
+type CoTenantRow = {
+  tenant_id: string
+  tenants: {
+    id: string
+    contacts: {
+      first_name: string | null
+      last_name: string | null
+      company_name: string | null
+      entity_type: string | null
+      primary_email: string | null
+      primary_phone: string | null
+      is_verified: boolean | null
+      registration_number: string | null
+      id_number: string | null
+    } | null
+  } | null
+}
+
+type PrimaryTenantView = {
+  id: string
+  contact_id: string | null
+  first_name: string | null
+  last_name: string | null
+  company_name: string | null
+  entity_type: string
+  email: string | null
+  phone: string | null
+  id_number: string | null
+}
+
+function buildAllTenants(
+  tv: PrimaryTenantView | null,
+  tenantId: string | null | undefined,
+  coTenantsRaw: CoTenantRow[],
+  primaryContact: { is_verified: boolean | null; registration_number: string | null } | null,
+  portalStatus: "none" | "invited" | "active",
+): TenantContactInfo[] {
+  const list: TenantContactInfo[] = []
+  if (tv && tenantId) {
+    const isOrg = tv.entity_type === "organisation"
+    const name = (isOrg && tv.company_name)
+      ? tv.company_name
+      : `${tv.first_name ?? ""} ${tv.last_name ?? ""}`.trim() || "Unknown"
+    const { idOrRegNumber, idOrRegLabel } = getIdOrReg(tv.entity_type, tv.id_number, primaryContact?.registration_number)
+    list.push({
+      id: tv.id, name, role: "Primary", email: tv.email, phone: tv.phone,
+      entityType: tv.entity_type ?? null, tenantId,
+      ficaVerified: primaryContact?.is_verified ?? null, idOrRegNumber, idOrRegLabel,
+      portalStatus, welcomePackSentAt: null,
+    })
+  }
+  for (const ct of coTenantsRaw.filter((c) => c.tenants)) {
+    const c = ct.tenants!.contacts
+    const isOrg = c?.entity_type === "organisation"
+    const name = (isOrg && c?.company_name)
+      ? c.company_name
+      : `${c?.first_name ?? ""} ${c?.last_name ?? ""}`.trim() || "Unknown"
+    const { idOrRegNumber, idOrRegLabel } = getIdOrReg(c?.entity_type, c?.id_number, c?.registration_number)
+    list.push({
+      id: ct.tenants!.id, name, role: "Co-tenant",
+      email: c?.primary_email ?? null, phone: c?.primary_phone ?? null,
+      entityType: c?.entity_type ?? null, tenantId: ct.tenants!.id,
+      ficaVerified: c?.is_verified ?? null, idOrRegNumber, idOrRegLabel,
+      portalStatus: null, welcomePackSentAt: null,
+    })
+  }
+  return list
+}
+
 export default async function LeaseDetailPage({
   params,
   searchParams,
@@ -81,7 +182,7 @@ export default async function LeaseDetailPage({
     .from("leases")
     .select(`
       *,
-      tenant_view(id, first_name, last_name, company_name, entity_type, email, phone),
+      tenant_view(id, contact_id, first_name, last_name, company_name, entity_type, email, phone, id_number),
       units(unit_number, properties(id, name, address_line1, suburb, city, owner_id))
     `)
     .eq("id", leaseId)
@@ -99,12 +200,24 @@ export default async function LeaseDetailPage({
   } | null
 
   const tv = lease.tenant_view as unknown as {
-    id: string; first_name: string | null; last_name: string | null
-    company_name: string | null; entity_type: string; email: string | null; phone: string | null
+    id: string
+    contact_id: string | null
+    first_name: string | null
+    last_name: string | null
+    company_name: string | null
+    entity_type: string
+    email: string | null
+    phone: string | null
+    id_number: string | null
   } | null
 
   const ownerIdForProperty = unit?.properties?.owner_id ?? null
   const isDraft = lease.status === "draft"
+
+  // SA tax year starts 1 March
+  const today = new Date()
+  const taxYear = today.getMonth() >= 2 ? today.getFullYear() : today.getFullYear() - 1
+  const taxYearStart = `${taxYear}-03-01`
 
   const [
     coTenantsRes,
@@ -120,10 +233,13 @@ export default async function LeaseDetailPage({
     tenantPortalRes,
     inspectionsRes,
     maintenanceRes,
+    primaryContactRes,
+    ytdPaymentsRes,
+    maintenanceCostRes,
   ] = await Promise.all([
     supabase
       .from("lease_co_tenants")
-      .select("tenant_id, is_signatory, tenants(id, contacts(first_name, last_name, company_name, entity_type, primary_email, primary_phone))")
+      .select("tenant_id, is_signatory, tenants(id, contacts(first_name, last_name, company_name, entity_type, primary_email, primary_phone, is_verified, registration_number, id_number))")
       .eq("lease_id", leaseId),
     supabase
       .from("payments")
@@ -161,7 +277,11 @@ export default async function LeaseDetailPage({
       .eq("lease_id", leaseId)
       .not("custom_body", "is", null),
     ownerIdForProperty
-      ? supabase.from("landlord_view").select("id, first_name, last_name, company_name, email, phone").eq("id", ownerIdForProperty).maybeSingle()
+      ? supabase
+          .from("landlords")
+          .select("id, portal_status, contacts(entity_type, first_name, last_name, company_name, registration_number, is_verified, primary_email, primary_phone)")
+          .eq("id", ownerIdForProperty)
+          .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
     getLessorBankDetails(lease.org_id),
     isDraft ? checkLeasePrerequisites(supabase, leaseId, lease.org_id).catch(() => null) : Promise.resolve(null),
@@ -174,28 +294,30 @@ export default async function LeaseDetailPage({
     lease.unit_id
       ? supabase.from("maintenance_requests").select("id, title, work_order_number, status, created_at").eq("unit_id", lease.unit_id).order("created_at", { ascending: false }).limit(3)
       : Promise.resolve({ data: [], error: null }),
+    // Primary tenant FICA + reg number (from contacts table — not in tenant_view)
+    tv?.contact_id != null
+      ? supabase.from("contacts").select("is_verified, registration_number").eq("id", tv.contact_id).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    // YTD payments for collection chart
+    supabase
+      .from("payments")
+      .select("amount_cents, payment_date")
+      .eq("lease_id", leaseId)
+      .gte("payment_date", taxYearStart)
+      .order("payment_date", { ascending: true }),
+    // Maintenance cost YTD
+    lease.unit_id
+      ? supabase
+          .from("maintenance_requests")
+          .select("actual_cost_cents")
+          .eq("unit_id", lease.unit_id)
+          .eq("org_id", lease.org_id)
+          .gte("created_at", `${taxYearStart}T00:00:00Z`)
+          .not("actual_cost_cents", "is", null)
+      : Promise.resolve({ data: [], error: null }),
   ])
 
-  // Primary tenant display
-  const primaryInput = {
-    id: tv?.id ?? lease.tenant_id,
-    firstName: tv?.first_name,
-    lastName: tv?.last_name,
-    companyName: tv?.company_name,
-    entityType: tv?.entity_type,
-  }
-
-  const coTenantsRaw = (coTenantsRes.data ?? []) as unknown as Array<{
-    tenant_id: string
-    tenants: {
-      id: string
-      contacts: {
-        first_name: string | null; last_name: string | null
-        company_name: string | null; entity_type: string | null
-        primary_email: string | null; primary_phone: string | null
-      } | null
-    } | null
-  }>
+  const coTenantsRaw = (coTenantsRes.data ?? []) as unknown as CoTenantRow[]
 
   const coTenantInputs = coTenantsRaw
     .filter((ct) => ct.tenants)
@@ -207,20 +329,17 @@ export default async function LeaseDetailPage({
       entityType: ct.tenants!.contacts?.entity_type ?? "individual",
     }))
 
-  const display = buildTenantDisplay(primaryInput, coTenantInputs)
+  const display = buildTenantDisplay({ id: tv?.id ?? lease.tenant_id, firstName: tv?.first_name, lastName: tv?.last_name, companyName: tv?.company_name, entityType: tv?.entity_type }, coTenantInputs)
   const tenantDisplayText = display.displayText
 
-  // Landlord
-  const landlordRaw = landlordRes.data as {
-    id: string; first_name: string | null; last_name: string | null
-    company_name: string | null; email: string | null; phone: string | null
-  } | null
-  const landlordName = landlordRaw
-    ? (landlordRaw.company_name ?? `${landlordRaw.first_name ?? ""} ${landlordRaw.last_name ?? ""}`.trim())
+  type LandlordRow = { id: string; portal_status: string | null; contacts: { entity_type: string | null; first_name: string | null; last_name: string | null; company_name: string | null; registration_number: string | null; is_verified: boolean | null; primary_email: string | null; primary_phone: string | null } | null } | null
+  const landlordRaw = landlordRes.data as LandlordRow
+  const landlordContact = landlordRaw?.contacts ?? null
+  const landlordName = landlordContact
+    ? (landlordContact.company_name ?? `${landlordContact.first_name ?? ""} ${landlordContact.last_name ?? ""}`.trim())
     : null
 
   const tenantPortal = tenantPortalRes.data as { portal_invite_sent_at: string | null; auth_user_id: string | null } | null
-
   const amendments = amendmentsRes.data ?? []
   const lifecycleEvents = lifecycleEventsRes.data ?? []
   const arrearsCase = arrearsCaseRes.data ?? null
@@ -231,29 +350,28 @@ export default async function LeaseDetailPage({
   const unitLabel = unit ? `${unit.unit_number} — ${unit.properties.name}` : ""
   const areaLabel = [unit?.properties.suburb, unit?.properties.city].filter(Boolean).join(", ")
 
-  // Build ContactsTab tenants list
-  const allTenants: TenantContactInfo[] = []
-  if (tv && lease.tenant_id) {
-    const isOrg = tv.entity_type === "organisation"
-    const primaryName = (isOrg && tv.company_name) ? tv.company_name : `${tv.first_name ?? ""} ${tv.last_name ?? ""}`.trim() || "Unknown"
-    allTenants.push({ id: tv.id, name: primaryName, role: "Primary", email: tv.email, phone: tv.phone, entityType: tv.entity_type ?? null, tenantId: lease.tenant_id })
-  }
-  for (const ct of coTenantsRaw.filter((c) => c.tenants)) {
-    const c = ct.tenants!.contacts
-    const isOrg = c?.entity_type === "organisation"
-    const coName = (isOrg && c?.company_name) ? c.company_name : `${c?.first_name ?? ""} ${c?.last_name ?? ""}`.trim() || "Unknown"
-    allTenants.push({ id: ct.tenants!.id, name: coName, role: "Co-tenant", email: c?.primary_email ?? null, phone: c?.primary_phone ?? null, entityType: c?.entity_type ?? null, tenantId: ct.tenants!.id })
-  }
+  const primaryContact = primaryContactRes.data as { is_verified: boolean | null; registration_number: string | null } | null
+  const primaryPortalStatus = derivePortalStatus(tenantPortal?.auth_user_id, tenantPortal?.portal_invite_sent_at)
+  const allTenants = buildAllTenants(tv, lease.tenant_id, coTenantsRaw, primaryContact, primaryPortalStatus)
 
+  const llIdOrReg = getIdOrReg(landlordContact?.entity_type, null, landlordContact?.registration_number)
   const contactsLandlord: LandlordContactInfo | null = landlordRaw ? {
     id: landlordRaw.id,
     name: landlordName ?? "Unknown",
-    company: landlordRaw.company_name ?? null,
-    email: landlordRaw.email ?? null,
-    phone: landlordRaw.phone ?? null,
+    company: landlordContact?.company_name ?? null,
+    email: landlordContact?.primary_email ?? null,
+    phone: landlordContact?.primary_phone ?? null,
+    entityType: landlordContact?.entity_type ?? null,
+    ficaVerified: landlordContact?.is_verified ?? null,
+    idOrRegNumber: llIdOrReg.idOrRegNumber,
+    idOrRegLabel: llIdOrReg.idOrRegLabel,
+    portalStatus: (landlordRaw.portal_status ?? "none") as LandlordContactInfo["portalStatus"],
   } : null
 
-  const today = new Date()
+  const ytdPayments = (ytdPaymentsRes.data ?? []) as Array<{ amount_cents: number; payment_date: string }>
+  const maintenanceCostRows = (maintenanceCostRes.data ?? []) as Array<{ actual_cost_cents: number }>
+  const maintenanceCostCents = maintenanceCostRows.reduce((s, r) => s + (r.actual_cost_cents ?? 0), 0)
+  const maintenanceJobCount = maintenanceCostRows.length
   const complianceItems = buildComplianceItems(lease, today)
   const statusColor = buildStatusColor(lease.status)
 
@@ -302,18 +420,33 @@ export default async function LeaseDetailPage({
               end_date: lease.end_date ?? null,
               deposit_amount_cents: lease.deposit_amount_cents ?? null,
               deposit_interest_to: lease.deposit_interest_to ?? null,
+              deposit_interest_rate: lease.deposit_interest_rate ?? null,
               escalation_percent: lease.escalation_percent ?? null,
+              escalation_review_date: lease.escalation_review_date ?? null,
               payment_due_day: typeof lease.payment_due_day === "string" ? Number.parseInt(lease.payment_due_day, 10) || null : (lease.payment_due_day ?? null),
               is_fixed_term: lease.is_fixed_term ?? null,
             }}
             latestInvoice={latestInvoice}
             arrearsCase={arrearsCase}
-            tenantDisplayText={tenantDisplayText}
-            tenantEmail={tv?.email ?? null}
-            tenantPhone={tv?.phone ?? null}
-            landlordName={landlordName}
-            landlordId={landlordRaw?.id ?? null}
+            tenant={tv ? {
+              name: tenantDisplayText,
+              subtitle: `${tv.entity_type ?? "Individual"} · Primary lessee`,
+              email: tv.email,
+              phone: tv.phone,
+              tenantId: lease.tenant_id ?? null,
+            } : null}
+            landlord={landlordRaw ? {
+              id: landlordRaw.id,
+              name: landlordName ?? "Unknown",
+              company: landlordContact?.company_name ?? null,
+              email: landlordContact?.primary_email ?? null,
+              phone: landlordContact?.primary_phone ?? null,
+            } : null}
             lifecycleEvents={lifecycleEvents}
+            ytdPayments={ytdPayments}
+            maintenanceCostCents={maintenanceCostCents}
+            maintenanceJobCount={maintenanceJobCount}
+            upcomingDeadlines={complianceItems}
           />
         )}
 
