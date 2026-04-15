@@ -84,6 +84,44 @@ export async function createInspection(formData: FormData) {
   redirect(`/inspections/${inspection.id}`)
 }
 
+type GatewayResult = NonNullable<Awaited<ReturnType<typeof gateway>>>
+type Db = GatewayResult["db"]
+
+/** Seeds rooms + items from the lease-type template if none exist yet. */
+async function seedRoomsIfEmpty(
+  db: Db,
+  inspectionId: string,
+  orgId: string,
+  leaseType: string,
+): Promise<void> {
+  const { count } = await db
+    .from("inspection_rooms")
+    .select("id", { count: "exact", head: true })
+    .eq("inspection_id", inspectionId)
+
+  if ((count ?? 0) > 0) return
+
+  const rooms = getRoomTemplate(leaseType)
+  for (let i = 0; i < rooms.length; i++) {
+    const room = rooms[i]
+    const { data: roomRecord } = await db
+      .from("inspection_rooms")
+      .insert({ org_id: orgId, inspection_id: inspectionId, room_type: room.type, room_label: room.label, display_order: i })
+      .select("id")
+      .single()
+
+    if (!roomRecord) continue
+
+    const items = getItemsForRoom(leaseType, room.type)
+    for (let j = 0; j < items.length; j++) {
+      await db.from("inspection_items").insert({
+        org_id: orgId, inspection_id: inspectionId, room_id: roomRecord.id,
+        item_name: items[j], item_category: "other", display_order: j,
+      })
+    }
+  }
+}
+
 export async function updateInspectionStatus(inspectionId: string, newStatus: string) {
   const gw = await gateway()
   if (!gw) redirect("/login")
@@ -99,25 +137,25 @@ export async function updateInspectionStatus(inspectionId: string, newStatus: st
 
   const updates: Record<string, unknown> = { status: newStatus }
 
-  // If completing a residential inspection, open dispute window
   if (newStatus === "completed" && inspection.lease_type === "residential") {
     const now = new Date()
     const closeDate = new Date(now)
     closeDate.setDate(closeDate.getDate() + 7)
-
     updates.status = "awaiting_tenant_review"
     updates.dispute_window_open = true
     updates.dispute_window_opened_at = now.toISOString()
     updates.dispute_window_closes_at = closeDate.toISOString()
   }
 
-  // Commercial: skip dispute window, go straight to completed
   if (newStatus === "completed" && inspection.lease_type === "commercial") {
     updates.conducted_date = new Date().toISOString()
   }
 
   if (newStatus === "in_progress") {
     updates.conducted_date = new Date().toISOString()
+    // Lazy seed: covers inspections created outside createInspection()
+    // (auto-scheduled on lease activation, seed data, imports)
+    await seedRoomsIfEmpty(db, inspectionId, inspection.org_id, inspection.lease_type ?? "residential")
   }
 
   await db.from("inspections").update(updates).eq("id", inspectionId)
