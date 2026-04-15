@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
-import { createServiceClient } from "@/lib/supabase/server"
+import { createClient, createServiceClient } from "@/lib/supabase/server"
 
 // POST /api/inspection/[id]/signature
 // Accepts multipart/form-data with "file" (PNG blob) and "sigType" ("agent" | "tenant")
@@ -28,7 +27,7 @@ export async function POST(
   const sigType = (formData.get("sigType") as string) || "agent"
 
   if (!(file instanceof File)) return NextResponse.json({ error: "file required" }, { status: 400 })
-  if (!["agent", "tenant"].includes(sigType)) return NextResponse.json({ error: "invalid sigType" }, { status: 400 })
+  if (!["agent", "tenant", "sign_off"].includes(sigType)) return NextResponse.json({ error: "invalid sigType" }, { status: 400 })
   if (file.type !== "image/png") return NextResponse.json({ error: "PNG only" }, { status: 400 })
   if (file.size > 500 * 1024) return NextResponse.json({ error: "Max 500 KB" }, { status: 400 })
 

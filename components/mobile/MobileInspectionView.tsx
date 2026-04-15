@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { StatusBadge } from "@/components/shared/StatusBadge"
+import { SignOffFlow } from "@/components/mobile/SignOffFlow"
 import { updateItemCondition, updateInspectionStatus } from "@/lib/actions/inspections"
 import { isOnline, onConnectivityChange, flushPhotoQueue } from "@/lib/offline/syncManager"
 import { saveItemRating, getAllRatings, queuePhoto, loadInspectionData } from "@/lib/offline/inspectionStore"
@@ -122,104 +122,6 @@ function StarRating({ value, onChange }: { value: number; onChange: (v: number) 
           ★
         </button>
       ))}
-    </div>
-  )
-}
-
-// ── Signature canvas ─────────────────────────────────────────────────────────
-
-interface SignatureCanvasProps {
-  label: string
-  onSave: (blob: Blob) => Promise<void>
-  saved: boolean
-}
-
-function SignatureCanvas({ label, onSave, saved }: SignatureCanvasProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [drawing, setDrawing] = useState(false)
-  const [hasStrokes, setHasStrokes] = useState(false)
-  const [saving, setSaving] = useState(false)
-
-  function getPos(e: React.PointerEvent<HTMLCanvasElement>) {
-    const rect = canvasRef.current!.getBoundingClientRect()
-    const scaleX = canvasRef.current!.width / rect.width
-    const scaleY = canvasRef.current!.height / rect.height
-    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY }
-  }
-
-  function handlePointerDown(e: React.PointerEvent<HTMLCanvasElement>) {
-    const ctx = canvasRef.current!.getContext("2d")!
-    ctx.lineWidth = 2
-    ctx.lineCap = "round"
-    ctx.strokeStyle = "#000"
-    const pos = getPos(e)
-    ctx.beginPath()
-    ctx.moveTo(pos.x, pos.y)
-    setDrawing(true)
-    setHasStrokes(true)
-    ;(e.target as HTMLCanvasElement).setPointerCapture(e.pointerId)
-  }
-
-  function handlePointerMove(e: React.PointerEvent<HTMLCanvasElement>) {
-    if (!drawing) return
-    const ctx = canvasRef.current!.getContext("2d")!
-    const pos = getPos(e)
-    ctx.lineTo(pos.x, pos.y)
-    ctx.stroke()
-  }
-
-  function handlePointerUp() {
-    setDrawing(false)
-  }
-
-  function handleClear() {
-    const canvas = canvasRef.current!
-    canvas.getContext("2d")!.clearRect(0, 0, canvas.width, canvas.height)
-    setHasStrokes(false)
-  }
-
-  async function handleSave() {
-    canvasRef.current!.toBlob(async (blob) => {
-      if (!blob) return
-      setSaving(true)
-      try {
-        await onSave(blob)
-      } finally {
-        setSaving(false)
-      }
-    }, "image/png")
-  }
-
-  return (
-    <div className="space-y-2">
-      <p className="text-sm font-medium">{label}</p>
-      {saved ? (
-        <p className="text-sm text-success">✅ Signature saved</p>
-      ) : (
-        <>
-          <div className="border-2 border-dashed border-border rounded-lg bg-white overflow-hidden">
-            <canvas
-              ref={canvasRef}
-              width={640}
-              height={200}
-              className="touch-none w-full h-[100px]"
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerLeave={handlePointerUp}
-            />
-          </div>
-          <p className="text-xs text-muted-foreground">Draw your signature above</p>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={handleClear} disabled={!hasStrokes}>
-              Clear
-            </Button>
-            <Button size="sm" onClick={handleSave} disabled={!hasStrokes || saving}>
-              {saving ? "Saving…" : "Save signature"}
-            </Button>
-          </div>
-        </>
-      )}
     </div>
   )
 }
@@ -416,8 +318,7 @@ export function MobileInspectionView({
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [voiceActive, setVoiceActive] = useState(false)
   const [signOffOpen, setSignOffOpen] = useState(false)
-  const [agentSigned, setAgentSigned] = useState(false)
-  const [tenantSigned, setTenantSigned] = useState(false)
+  const [signOffComplete, setSignOffComplete] = useState(false)
   const [addingCustom, setAddingCustom] = useState(false)
   const [customItemName, setCustomItemName] = useState("")
   // Offline fallback: rooms pre-saved via Mode B [Save for offline]
@@ -534,23 +435,6 @@ export function MobileInspectionView({
     setVoiceActive(true)
   }, [voiceActive])
 
-  const handleSaveSignature = useCallback(async (sigType: "agent" | "tenant", blob: Blob) => {
-    const fd = new FormData()
-    fd.append("file", blob, `${sigType}-signature.png`)
-    fd.append("sigType", sigType)
-    const res = await fetch(`/api/inspection/${inspectionId}/signature`, {
-      method: "POST",
-      body: fd,
-      credentials: "include",
-    })
-    if (!res.ok) {
-      const data = await res.json() as { error?: string }
-      throw new Error(data.error ?? "Failed to save signature")
-    }
-    if (sigType === "agent") setAgentSigned(true)
-    else setTenantSigned(true)
-    toast.success(`${sigType === "agent" ? "Agent" : "Tenant"} signature saved`)
-  }, [inspectionId])
 
   const selectedRoom = displayRooms.find((r) => r.id === selectedRoomId)
 
@@ -744,7 +628,7 @@ export function MobileInspectionView({
           className="w-full"
           onClick={() => setSignOffOpen(true)}
         >
-          {agentSigned && tenantSigned ? "✅ Signed off" : "✍️ Sign off"}
+          {signOffComplete ? "✅ Signed off" : "✍️ Sign off"}
         </Button>
         {status === "scheduled" && (
           <Button
@@ -768,33 +652,17 @@ export function MobileInspectionView({
         )}
       </div>
 
-      {/* Sign-off sheet */}
-      <Sheet open={signOffOpen} onOpenChange={setSignOffOpen}>
-        <SheetContent side="bottom" className="h-auto max-h-[85vh] overflow-y-auto">
-          <SheetHeader className="mb-4">
-            <SheetTitle>Sign off inspection</SheetTitle>
-          </SheetHeader>
-          <div className="space-y-6 pb-6">
-            <SignatureCanvas
-              label="Agent signature"
-              saved={agentSigned}
-              onSave={(blob) => handleSaveSignature("agent", blob)}
-            />
-            <div className="border-t border-border pt-6">
-              <SignatureCanvas
-                label="Tenant signature"
-                saved={tenantSigned}
-                onSave={(blob) => handleSaveSignature("tenant", blob)}
-              />
-            </div>
-            {agentSigned && tenantSigned && (
-              <p className="text-sm text-center text-success font-medium">
-                ✅ Both signatures captured
-              </p>
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
+      {/* Full-screen sign-off flow */}
+      {signOffOpen && (
+        <SignOffFlow
+          inspectionId={inspectionId}
+          inspectionType={inspectionType}
+          unitLabel={unitLabel}
+          scheduledDate={scheduledDate}
+          onComplete={() => setSignOffComplete(true)}
+          onClose={() => setSignOffOpen(false)}
+        />
+      )}
     </div>
   )
 }
