@@ -39,8 +39,8 @@ export function NewLeaseForm() {
   const [propertyId, setPropertyId] = useState("")
   const [tenantId, setTenantId] = useState("")
   const [leaseType, setLeaseType] = useState("residential")
-  const [cpaApplies] = useState(true)
-  const [tenantIsJuristic] = useState(false)
+  const [cpaApplies, setCpaApplies] = useState(true)
+  const tenantIsJuristic = false
 
   // Step 2
   const [startDate, setStartDate] = useState("")
@@ -181,7 +181,12 @@ export function NewLeaseForm() {
           </div>
           <div className="space-y-2">
             <Label>Lease Type *</Label>
-            <Select value={leaseType} onValueChange={(v) => setLeaseType(v ?? "residential")}>
+            <Select value={leaseType} onValueChange={(v) => {
+              const type = v ?? "residential"
+              setLeaseType(type)
+              // CPA applies by default for residential, not for commercial (juristic tenants)
+              setCpaApplies(type === "residential")
+            }}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="residential">Residential</SelectItem>
@@ -193,6 +198,24 @@ export function NewLeaseForm() {
             <Card className="border-info/30 bg-info-bg">
               <CardContent className="text-sm pt-4">
                 RHA applies. CPA s14 requires 20 business days notice. Deposit interest belongs to tenant.
+              </CardContent>
+            </Card>
+          )}
+          {leaseType === "commercial" && (
+            <Card className="border-border">
+              <CardContent className="text-sm pt-4 space-y-2">
+                <p className="text-muted-foreground">
+                  CPA does not apply to commercial leases where the tenant is a juristic person (company, CC, trust) with annual turnover above the threshold (s5(2)(b), s6(1)).
+                </p>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={cpaApplies}
+                    onChange={(e) => setCpaApplies(e.target.checked)}
+                    className="rounded border-border"
+                  />
+                  <span className="text-sm">CPA applies (tenant is a natural person or small business under R2m turnover)</span>
+                </label>
               </CardContent>
             </Card>
           )}
