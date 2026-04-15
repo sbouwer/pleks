@@ -2,19 +2,20 @@
  * IndexedDB store for offline inspection data.
  * Used by MobileInspectionView when navigator.onLine is false.
  *
- * Schema (pleks_offline v2):
+ * Schema (pleks_offline v3):
  *   inspectionMeta     — inspection header, keyed by inspectionId
  *   inspectionRatings  — { inspectionId, itemId, condition, notes }, keyed by `${inspectionId}:${itemId}`
  *   photoQueue         — pending photo uploads (compressed JPEG blobs)
- *   savedInspections   — full room+item tree pre-downloaded for offline use (Mode B)
+ *   savedInspections   — full room+item tree, auto-synced by syncEngine
+ *   pendingWrites      — non-photo offline writes (ratings, notes) queued for server upload
  */
 
 const DB_NAME = "pleks_offline"
-const DB_VERSION = 2
+const DB_VERSION = 3
 
 let _db: IDBDatabase | null = null
 
-function openDB(): Promise<IDBDatabase> {
+export function openDB(): Promise<IDBDatabase> {
   if (_db) return Promise.resolve(_db)
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION)
@@ -29,13 +30,16 @@ function openDB(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains("photoQueue")) {
         db.createObjectStore("photoQueue", { keyPath: "id" })
       }
-      // v2: full offline inspection snapshots for Mode B (Save for offline)
       if (!db.objectStoreNames.contains("savedInspections")) {
         db.createObjectStore("savedInspections", { keyPath: "inspectionId" })
       }
+      // v3: non-photo pending writes for sync engine
+      if (!db.objectStoreNames.contains("pendingWrites")) {
+        db.createObjectStore("pendingWrites", { keyPath: "id" })
+      }
     }
     req.onsuccess = () => { _db = req.result; resolve(req.result) }
-    req.onerror = () => reject(req.error)
+    req.onerror = () => reject(new Error(req.error?.message ?? "IDB error"))
   })
 }
 
@@ -43,7 +47,7 @@ function idbPut(store: IDBObjectStore, value: unknown): Promise<void> {
   return new Promise((resolve, reject) => {
     const req = store.put(value)
     req.onsuccess = () => resolve()
-    req.onerror = () => reject(req.error)
+    req.onerror = () => reject(new Error(req.error?.message ?? "IDB error"))
   })
 }
 
@@ -51,7 +55,7 @@ function idbGet<T>(store: IDBObjectStore, key: IDBValidKey): Promise<T | undefin
   return new Promise((resolve, reject) => {
     const req = store.get(key)
     req.onsuccess = () => resolve(req.result as T | undefined)
-    req.onerror = () => reject(req.error)
+    req.onerror = () => reject(new Error(req.error?.message ?? "IDB error"))
   })
 }
 
@@ -107,7 +111,7 @@ export async function getAllRatings(inspectionId: string): Promise<OfflineRating
       if (record.inspectionId === inspectionId) results.push(record)
       cursor.continue()
     }
-    req.onerror = () => reject(req.error)
+    req.onerror = () => reject(new Error(req.error?.message ?? "IDB error"))
   })
 }
 
@@ -152,7 +156,18 @@ export async function getPendingPhotos(inspectionId: string): Promise<PendingPho
       if (record.inspectionId === inspectionId) results.push(record)
       cursor.continue()
     }
-    req.onerror = () => reject(req.error)
+    req.onerror = () => reject(new Error(req.error?.message ?? "IDB error"))
+  })
+}
+
+/** Returns all pending photos across every inspection. */
+export async function getAllPendingPhotos(): Promise<PendingPhoto[]> {
+  const db = await openDB()
+  const tx = db.transaction("photoQueue", "readonly")
+  return new Promise((resolve, reject) => {
+    const req = tx.objectStore("photoQueue").getAll()
+    req.onsuccess = () => resolve(req.result as PendingPhoto[])
+    req.onerror = () => reject(new Error(req.error?.message ?? "IDB error"))
   })
 }
 
@@ -162,22 +177,11 @@ export async function removePendingPhoto(id: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const req = tx.objectStore("photoQueue").delete(id)
     req.onsuccess = () => resolve()
-    req.onerror = () => reject(req.error)
+    req.onerror = () => reject(new Error(req.error?.message ?? "IDB error"))
   })
 }
 
-/** Count ALL pending photos across every inspection — used by Mode C sync screen. */
-export async function countAllPendingPhotos(): Promise<number> {
-  const db = await openDB()
-  const tx = db.transaction("photoQueue", "readonly")
-  return new Promise((resolve, reject) => {
-    const req = tx.objectStore("photoQueue").count()
-    req.onsuccess = () => resolve(req.result)
-    req.onerror = () => reject(req.error)
-  })
-}
-
-// ── Saved inspections (Mode B — manual offline preparation) ──────────────────
+// ── Saved inspections (auto-synced by syncEngine) ────────────────────────────
 
 export interface SavedInspectionItem {
   id: string
@@ -229,7 +233,7 @@ export async function listSavedInspectionIds(): Promise<string[]> {
   return new Promise((resolve, reject) => {
     const req = tx.objectStore("savedInspections").getAllKeys()
     req.onsuccess = () => resolve(req.result as string[])
-    req.onerror = () => reject(req.error)
+    req.onerror = () => reject(new Error(req.error?.message ?? "IDB error"))
   })
 }
 
@@ -239,6 +243,6 @@ export async function deleteSavedInspection(inspectionId: string): Promise<void>
   return new Promise((resolve, reject) => {
     const req = tx.objectStore("savedInspections").delete(inspectionId)
     req.onsuccess = () => resolve()
-    req.onerror = () => reject(req.error)
+    req.onerror = () => reject(new Error(req.error?.message ?? "IDB error"))
   })
 }

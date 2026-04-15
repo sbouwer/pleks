@@ -11,6 +11,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge"
 import { updateItemCondition, updateInspectionStatus } from "@/lib/actions/inspections"
 import { isOnline, onConnectivityChange, flushPhotoQueue } from "@/lib/offline/syncManager"
 import { saveItemRating, getAllRatings, queuePhoto, loadInspectionData } from "@/lib/offline/inspectionStore"
+import { queueWrite } from "@/lib/offline/pendingWrites"
 import { preparePhoto } from "@/lib/offline/compressPhoto"
 
 // Web Speech API — not in default TS lib, defined locally
@@ -248,6 +249,15 @@ function ItemRow({ item, inspectionId, roomId, moveInPhotoUrl, onUpdate }: ItemR
       if (isOnline()) {
         const result = await updateItemCondition(item.id, inspectionId, condition, noteValue || undefined)
         if (result?.error) { toast.error(result.error); return }
+      } else {
+        await queueWrite({
+          id: `${inspectionId}:${item.id}:condition`,
+          type: "inspection_item_condition",
+          inspectionId,
+          itemId: item.id,
+          condition,
+          notes: noteValue,
+        })
       }
       // Write-through: cache in IDB for offline resilience
       saveItemRating(inspectionId, item.id, condition, noteValue).catch(() => {})
@@ -265,6 +275,15 @@ function ItemRow({ item, inspectionId, roomId, moveInPhotoUrl, onUpdate }: ItemR
       if (isOnline()) {
         const result = await updateItemCondition(item.id, inspectionId, item.condition, noteValue || undefined)
         if (result?.error) { toast.error(result.error); return }
+      } else {
+        await queueWrite({
+          id: `${inspectionId}:${item.id}:condition`,
+          type: "inspection_item_condition",
+          inspectionId,
+          itemId: item.id,
+          condition: item.condition,
+          notes: noteValue,
+        })
       }
       void saveItemRating(inspectionId, item.id, item.condition, noteValue)
       onUpdate(item.id, item.condition, noteValue || null)

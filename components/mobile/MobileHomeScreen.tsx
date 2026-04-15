@@ -1,7 +1,6 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useState, useCallback } from "react"
 import { useQuery } from "@tanstack/react-query"
 import {
   UserSquare2,
@@ -13,17 +12,12 @@ import {
   CreditCard,
   AlertTriangle,
   Shield,
-  Upload,
-  Loader2,
 } from "lucide-react"
 import { useUser } from "@/hooks/useUser"
 import { useOrg } from "@/hooks/useOrg"
 import { useMobileHomeBadges } from "@/hooks/useMobileHomeBadges"
 import { formatZARAbbrev } from "@/lib/constants"
 import { createClient } from "@/lib/supabase/client"
-import { countAllPendingPhotos } from "@/lib/offline/inspectionStore"
-import { isOnline } from "@/lib/offline/syncManager"
-import { toast } from "sonner"
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -54,77 +48,6 @@ function formatTime(iso: string): string {
     hour: "2-digit",
     minute: "2-digit",
   })
-}
-
-// ── Mode C — Sync section ─────────────────────────────────────────────────────
-
-/**
- * Shows when there are photos pending upload.
- * - Online: [Sync now] button triggers immediate upload
- * - Offline: informs the inspector to connect to sync
- */
-function SyncSection() {
-  const [pending, setPending] = useState(0)
-  const [syncing, setSyncing] = useState(false)
-  const online = isOnline()
-
-  useEffect(() => {
-    countAllPendingPhotos().then(setPending).catch(() => {})
-  }, [])
-
-  const handleSync = useCallback(async () => {
-    setSyncing(true)
-    try {
-      // flushPhotoQueue needs an inspectionId; pass empty string to flush all via SW
-      // For each pending photo the SW handles the upload — trigger via service worker
-      const reg = await navigator.serviceWorker?.ready
-      if (reg && "sync" in reg) {
-        await (reg as ServiceWorkerRegistration & { sync: { register(tag: string): Promise<void> } })
-          .sync.register("photo-upload")
-        toast.success("Sync started — photos uploading in background")
-      } else {
-        // Fallback: attempt direct flush of all inspections
-        // We don't know which inspectionId has pending photos, so trigger SW message
-        navigator.serviceWorker?.controller?.postMessage({ type: "FLUSH_PHOTOS" })
-        toast.success("Sync triggered")
-      }
-      setPending(0)
-    } catch {
-      toast.error("Sync failed — try again")
-    } finally {
-      setSyncing(false)
-    }
-  }, [])
-
-  if (pending === 0) return null
-
-  return (
-    <div className="mx-4 mt-4 rounded-xl border overflow-hidden bg-card border-emerald-800/40">
-      <div className="flex items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-3">
-          <Upload className="h-4 w-4 text-emerald-400 flex-shrink-0" />
-          <div>
-            <p className="text-sm font-medium">
-              {pending} photo{pending === 1 ? "" : "s"} pending upload
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {online ? "Ready to sync" : "Connect to WiFi to sync"}
-            </p>
-          </div>
-        </div>
-        {online && (
-          <button
-            onClick={handleSync}
-            disabled={syncing}
-            className="flex items-center gap-1.5 text-xs font-medium text-emerald-400 hover:text-emerald-300 disabled:opacity-60 transition-colors"
-          >
-            {syncing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-            {syncing ? "Syncing…" : "Sync now"}
-          </button>
-        )}
-      </div>
-    </div>
-  )
 }
 
 // ── Tile grid ─────────────────────────────────────────────────────────────────
@@ -311,13 +234,10 @@ export function MobileHomeScreen() {
       {/* Greeting */}
       <div className="px-4 pt-6 pb-4 bg-card border-b border-border">
         <p className="text-xs text-muted-foreground">{orgName}</p>
-        <h1 className="text-2xl font-heading font-bold">
+        <h1 className="text-2xl font-heading font-bold" suppressHydrationWarning>
           {greeting}, {firstName}
         </h1>
       </div>
-
-      {/* Mode C — pending sync banner */}
-      <SyncSection />
 
       {/* 3×3 grid */}
       <div className="px-4 pt-5 space-y-5">
