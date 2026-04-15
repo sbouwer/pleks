@@ -67,8 +67,6 @@ export function LeasePortalActions({ tenantId, leaseId, portalInviteSentAt, hasA
 
   return (
     <div className="space-y-3">
-      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Tenant portal</p>
-
       <div className="flex flex-wrap gap-2">
         <Button
           size="sm"
