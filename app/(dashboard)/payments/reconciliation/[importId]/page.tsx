@@ -1,6 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect, notFound } from "next/navigation"
-import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { formatZAR } from "@/lib/constants"
@@ -51,12 +50,10 @@ export default async function ReconDetailPage({
       <BackLink href="/payments/reconciliation" label="Reconciliation" />
       <div className="flex items-start justify-between mb-6">
         <div>
-          <p className="text-sm text-muted-foreground mb-1">
-            <Link href="/payments/reconciliation" className="hover:text-foreground">Reconciliation</Link> &rsaquo; {imp.original_filename}
-          </p>
           <h1 className="font-heading text-3xl">{imp.detected_bank?.toUpperCase() || "Bank"} Statement</h1>
           <p className="text-muted-foreground">
             {imp.statement_period_from && `${imp.statement_period_from} → ${imp.statement_period_to}`}
+            {imp.original_filename && ` · ${imp.original_filename}`}
           </p>
         </div>
         <ReconActions importId={importId} reconciled={imp.reconciled} unmatched={unmatched.length} />

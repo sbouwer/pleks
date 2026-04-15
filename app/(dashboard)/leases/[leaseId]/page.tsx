@@ -202,10 +202,6 @@ export default async function LeaseDetailPage({
       {/* Breadcrumb + header */}
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <p className="mb-1 text-sm text-muted-foreground">
-            <Link href="/leases" className="hover:text-foreground">Leases</Link>
-            {" ›"} {tenantDisplayText} — {unitLabel}
-          </p>
           <h1 className="font-heading text-2xl font-bold">{tenantDisplayText}</h1>
           {unitLabel && (
             <p className="text-muted-foreground">

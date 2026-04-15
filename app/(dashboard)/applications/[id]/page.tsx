@@ -1,6 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect, notFound } from "next/navigation"
-import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatZAR } from "@/lib/constants"
 import { getDepositRecommendation } from "@/lib/screening/depositRecommendation"
@@ -50,9 +49,6 @@ export default async function ApplicationDetailPage({
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <p className="text-sm text-muted-foreground mb-1">
-            <Link href="/applications" className="hover:text-foreground">Applications</Link> &rsaquo; {name}
-          </p>
           <div className="flex items-center gap-3">
             <h1 className="font-heading text-3xl">{name}</h1>
             {app.fitscore !== null && (

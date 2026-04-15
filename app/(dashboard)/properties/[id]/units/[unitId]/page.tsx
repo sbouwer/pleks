@@ -98,15 +98,9 @@ export default async function UnitDetailPage({
   return (
     <div>
       <BackLink href={`/properties/${id}`} label={property.name ?? "Property"} />
-      {/* Breadcrumb + header */}
+      {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <p className="text-sm text-muted-foreground mb-1">
-            <Link href="/properties" className="hover:text-foreground">Properties</Link>
-            {" "}&rsaquo;{" "}
-            <Link href={`/properties/${id}`} className="hover:text-foreground">{property.name}</Link>
-            {" "}&rsaquo; {unit.unit_number}
-          </p>
           <div className="flex items-center gap-3">
             <h1 className="font-heading text-3xl">{unit.unit_number}</h1>
             <StatusBadge status={statusMap[unit.status] || "open"} />

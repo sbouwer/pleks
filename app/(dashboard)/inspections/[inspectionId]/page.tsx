@@ -1,7 +1,6 @@
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { seedInspectionRooms } from "@/lib/inspections/seedRooms"
 import { redirect, notFound } from "next/navigation"
-import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { formatZAR } from "@/lib/constants"
@@ -153,10 +152,6 @@ export default async function InspectionDetailPage({
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <p className="text-sm text-muted-foreground mb-1">
-            <Link href="/inspections" className="hover:text-foreground">Inspections</Link> &rsaquo;{" "}
-            {inspection.inspection_type.replaceAll("_", " ")}
-          </p>
           <div className="flex items-center gap-3">
             <h1 className="font-heading text-3xl capitalize">{inspection.inspection_type.replaceAll("_", " ")}</h1>
             <StatusBadge status={STATUS_MAP[inspection.status] || "scheduled"} />

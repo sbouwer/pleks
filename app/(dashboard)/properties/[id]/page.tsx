@@ -228,11 +228,6 @@ export default async function PropertyDetailPage({
 
       {/* Desktop view */}
       <div className="hidden lg:block">
-      {/* Breadcrumb */}
-      <p className="text-sm text-muted-foreground mb-1">
-        <Link href="/properties" className="hover:text-foreground">Properties</Link> &rsaquo; {property.name}
-      </p>
-
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
