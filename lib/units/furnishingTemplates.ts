@@ -4,7 +4,6 @@
 export const FURNISHING_TEMPLATES: Record<string, string[]> = {
   kitchen: [
     "Fridge",
-    "Fridge/Freezer",
     "Stove / Oven",
     "Microwave",
     "Dishwasher",
@@ -21,8 +20,7 @@ export const FURNISHING_TEMPLATES: Record<string, string[]> = {
     "Baking trays",
   ],
   lounge: [
-    "Couch / Sofa (2-seater)",
-    "Couch / Sofa (3-seater)",
+    "Couch / Sofa",
     "Armchair",
     "Coffee table",
     "Side table",
@@ -45,11 +43,7 @@ export const FURNISHING_TEMPLATES: Record<string, string[]> = {
     "Table runner",
   ],
   bedroom: [
-    "Bed frame (king)",
-    "Bed frame (queen)",
-    "Bed frame (double)",
-    "Bed frame (single)",
-    "Bed frame (bunk)",
+    "Bed frame",
     "Mattress",
     "Mattress protector",
     "Bedside table",

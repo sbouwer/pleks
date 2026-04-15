@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { cn } from "@/lib/utils"
 import {
   FURNISHING_TEMPLATES,
   FURNISHING_CATEGORIES,
@@ -129,7 +129,7 @@ function getOrderedFeatures(unitType: string): string[] {
 // ── Furnishing inventory helpers ──────────────────────────────────────────────
 
 interface CategoryInventory {
-  [itemName: string]: { checked: boolean; quantity: number }
+  [itemName: string]: { checked: boolean; quantity: number; notes: string }
 }
 
 type InventoryState = Record<string, CategoryInventory>
@@ -139,14 +139,14 @@ function buildInitialInventory(furnishings?: FurnishingItem[]): InventoryState {
   for (const cat of FURNISHING_CATEGORIES) {
     state[cat] = {}
     for (const item of FURNISHING_TEMPLATES[cat]) {
-      state[cat][item] = { checked: false, quantity: 1 }
+      state[cat][item] = { checked: false, quantity: 1, notes: "" }
     }
   }
   if (furnishings) {
     for (const f of furnishings) {
       const cat = f.category
       if (!state[cat]) state[cat] = {}
-      state[cat][f.item_name] = { checked: true, quantity: f.quantity }
+      state[cat][f.item_name] = { checked: true, quantity: f.quantity, notes: f.notes ?? "" }
     }
   }
   return state
@@ -154,7 +154,32 @@ function buildInitialInventory(furnishings?: FurnishingItem[]): InventoryState {
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
+// ── Tab nav ───────────────────────────────────────────────────────────────────
+
+type TabId = "details" | "features" | "rental"
+
+const TABS: { id: TabId; label: string }[] = [
+  { id: "details", label: "Unit details" },
+  { id: "features", label: "Features & furnishings" },
+  { id: "rental", label: "Rental & lease" },
+]
+
+// ── Deposit helpers ───────────────────────────────────────────────────────────
+
+const DEPOSIT_MULTIPLIERS: Record<string, number> = {
+  semi_furnished: 1.5,
+  furnished: 2,
+}
+
+function calcSuggestedDeposit(rent: number, status: string): number | null {
+  const mult = DEPOSIT_MULTIPLIERS[status]
+  return mult != null && rent > 0 ? Math.round(rent * mult) : null
+}
+
+// ── Main component ─────────────────────────────────────────────────────────────
+
 export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
+  const [activeTab, setActiveTab] = useState<TabId>("details")
   const [unitType, setUnitType] = useState<string>(defaultValues?.unit_type ?? "")
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>(defaultValues?.features ?? [])
   const [customFeatures, setCustomFeatures] = useState<string[]>([])
@@ -162,6 +187,12 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
   const [managedBy, setManagedBy] = useState<string>(defaultValues?.managed_by ?? "")
   const [furnishingStatus, setFurnishingStatus] = useState<string>(
     defaultValues?.furnishing_status ?? "unfurnished"
+  )
+  const [askingRent, setAskingRent] = useState<string>(
+    defaultValues?.asking_rent != null ? String(defaultValues.asking_rent) : ""
+  )
+  const [depositAmount, setDepositAmount] = useState<string>(
+    defaultValues?.deposit_amount != null ? String(defaultValues.deposit_amount) : ""
   )
   const [inventory, setInventory] = useState<InventoryState>(
     () => buildInitialInventory(defaultValues?.furnishings)
@@ -186,25 +217,42 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
       ;[...selectedFeatures, ...customFeatures].forEach((f) => formData.append("features", f))
       if (managedBy) formData.set("managed_by", managedBy)
       formData.set("furnishing_status", furnishingStatus)
+      // Controlled inputs — write current values into formData
+      if (askingRent) formData.set("asking_rent", askingRent)
+      if (depositAmount) formData.set("deposit_amount", depositAmount)
 
       // Serialize furnishing inventory as JSON
       const furnishingRows: Array<{
         category: string
         item_name: string
         quantity: number
+        notes: string | null
         is_custom: boolean
       }> = []
 
       for (const cat of FURNISHING_CATEGORIES) {
         // Standard items
-        for (const [itemName, state] of Object.entries(inventory[cat] ?? {})) {
-          if (state.checked) {
-            furnishingRows.push({ category: cat, item_name: itemName, quantity: state.quantity, is_custom: false })
+        for (const [itemName, itemState] of Object.entries(inventory[cat] ?? {})) {
+          if (itemState.checked) {
+            furnishingRows.push({
+              category: cat,
+              item_name: itemName,
+              quantity: itemState.quantity,
+              notes: itemState.notes || null,
+              is_custom: false,
+            })
           }
         }
         // Custom items in this category
         for (const itemName of customItems[cat] ?? []) {
-          furnishingRows.push({ category: cat, item_name: itemName, quantity: 1, is_custom: true })
+          const itemState = inventory[cat]?.[itemName]
+          furnishingRows.push({
+            category: cat,
+            item_name: itemName,
+            quantity: itemState?.quantity ?? 1,
+            notes: itemState?.notes || null,
+            is_custom: true,
+          })
         }
       }
 
@@ -258,10 +306,17 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
       ...prev,
       [cat]: {
         ...prev[cat],
-        [itemName]: {
-          ...prev[cat]?.[itemName],
-          quantity: Math.max(1, qty),
-        },
+        [itemName]: { ...prev[cat]?.[itemName], quantity: Math.max(1, qty) },
+      },
+    }))
+  }
+
+  function setItemNotes(cat: string, itemName: string, notes: string) {
+    setInventory((prev) => ({
+      ...prev,
+      [cat]: {
+        ...prev[cat],
+        [itemName]: { ...prev[cat]?.[itemName], notes },
       },
     }))
   }
@@ -275,11 +330,30 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
       ...prev,
       [cat]: {
         ...prev[cat],
-        [val]: { checked: true, quantity: 1 },
+        [val]: { checked: true, quantity: 1, notes: "" },
       },
     }))
     setCustomItemInputs((prev) => ({ ...prev, [cat]: "" }))
   }
+
+  // ── Deposit auto-calc ─────────────────────────────────────────────────────
+
+  function handleRentChange(val: string) {
+    setAskingRent(val)
+    const rent = Number.parseFloat(val)
+    const suggested = calcSuggestedDeposit(rent, furnishingStatus)
+    if (suggested != null) setDepositAmount(String(suggested))
+  }
+
+  function handleFurnishingChange(status: string) {
+    setFurnishingStatus(status)
+    const rent = Number.parseFloat(askingRent)
+    const suggested = calcSuggestedDeposit(rent, status)
+    if (suggested != null) setDepositAmount(String(suggested))
+    else if (status === "unfurnished") setDepositAmount(askingRent) // default 1× for unfurnished
+  }
+
+  const suggestedDeposit = calcSuggestedDeposit(Number.parseFloat(askingRent), furnishingStatus)
 
   // ── Ordered feature list ───────────────────────────────────────────────────
 
@@ -289,20 +363,43 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <form action={formAction} className="max-w-2xl">
+    <form action={formAction} className="w-full">
       {state?.error && (
         <p className="text-sm text-danger mb-4 p-3 bg-danger/10 rounded-md">{state.error}</p>
       )}
 
-      <Tabs defaultValue="details" className="w-full">
-        <TabsList className="w-full mb-6">
-          <TabsTrigger value="details" className="flex-1">Unit details</TabsTrigger>
-          <TabsTrigger value="features" className="flex-1">Features & furnishings</TabsTrigger>
-          <TabsTrigger value="rental" className="flex-1">Rental & lease</TabsTrigger>
-        </TabsList>
+      <div className="flex gap-8 min-h-[600px]">
 
-        {/* ── Tab 1: Unit details ────────────────────────────────────────── */}
-        <TabsContent value="details" className="space-y-6">
+        {/* ── Left tab nav ────────────────────────────────────────────────── */}
+        <div className="w-52 flex-shrink-0 space-y-0.5 pt-1">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "flex items-center w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left",
+                activeTab === tab.id
+                  ? "bg-brand/10 text-brand"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+
+          <div className="pt-6">
+            <Button type="submit" disabled={pending} className="w-full">
+              {pending ? "Saving..." : "Save Unit"}
+            </Button>
+          </div>
+        </div>
+
+        {/* ── Tab content ─────────────────────────────────────────────────── */}
+        <div className="flex-1 min-w-0">
+
+        {/* ── Tab 1: Unit details ──────────────────────────────────────── */}
+        {activeTab === "details" && <div className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="unit_number">Unit Name / Number *</Label>
             <Input
@@ -396,10 +493,10 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
               placeholder="Visible to team only — not shown on listings"
             />
           </div>
-        </TabsContent>
+        </div>}
 
-        {/* ── Tab 2: Features & furnishings ─────────────────────────────── */}
-        <TabsContent value="features" className="space-y-8">
+        {/* ── Tab 2: Features & furnishings ───────────────────────────── */}
+        {activeTab === "features" && <div className="space-y-8">
 
           {/* Features */}
           <div className="space-y-3">
@@ -475,7 +572,7 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
                     name="furnishing_status_radio"
                     value={opt.value}
                     checked={furnishingStatus === opt.value}
-                    onChange={() => setFurnishingStatus(opt.value)}
+                    onChange={() => handleFurnishingChange(opt.value)}
                     className="accent-brand"
                   />
                   <span className="text-sm">{opt.label}</span>
@@ -504,35 +601,41 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
                     <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                       {FURNISHING_CATEGORY_LABELS[cat]}
                     </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                    <div className="space-y-0.5">
                       {allItems.map((itemName) => {
-                        const itemState = inventory[cat]?.[itemName] ?? { checked: false, quantity: 1 }
+                        const itemState = inventory[cat]?.[itemName] ?? { checked: false, quantity: 1, notes: "" }
                         return (
-                          <label
-                            key={itemName}
-                            className="flex items-center gap-2 py-1 cursor-pointer group"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={itemState.checked}
-                              onChange={() => toggleItem(cat, itemName)}
-                              className="accent-brand flex-shrink-0"
-                            />
-                            <span className="text-sm flex-1">{itemName}</span>
+                          <div key={itemName} className="py-1">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={itemState.checked}
+                                onChange={() => toggleItem(cat, itemName)}
+                                className="accent-brand flex-shrink-0"
+                              />
+                              <span className="text-sm">{itemName}</span>
+                            </label>
                             {itemState.checked && (
-                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                                <span className="text-xs text-muted-foreground">×</span>
+                              <div className="flex items-center gap-2 mt-1 ml-6">
                                 <Input
-                                  type="number"
-                                  min="1"
-                                  value={itemState.quantity}
-                                  onChange={(e) => setQuantity(cat, itemName, Number.parseInt(e.target.value) || 1)}
-                                  className="w-14 h-6 text-xs px-1"
-                                  onClick={(e) => e.preventDefault()}
+                                  value={itemState.notes}
+                                  onChange={(e) => setItemNotes(cat, itemName, e.target.value)}
+                                  placeholder="Description (e.g. Hisense 130L with ice dispenser)"
+                                  className="h-7 text-xs flex-1"
                                 />
+                                <div className="flex items-center gap-1 flex-shrink-0">
+                                  <span className="text-xs text-muted-foreground">×</span>
+                                  <Input
+                                    type="number"
+                                    min="1"
+                                    value={itemState.quantity}
+                                    onChange={(e) => setQuantity(cat, itemName, Number.parseInt(e.target.value) || 1)}
+                                    className="w-14 h-7 text-xs px-1"
+                                  />
+                                </div>
                               </div>
                             )}
-                          </label>
+                          </div>
                         )
                       })}
                     </div>
@@ -555,10 +658,10 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
               })}
             </div>
           )}
-        </TabsContent>
+        </div>}
 
-        {/* ── Tab 3: Rental & lease ──────────────────────────────────────── */}
-        <TabsContent value="rental" className="space-y-6">
+        {/* ── Tab 3: Rental & lease ────────────────────────────────────── */}
+        {activeTab === "rental" && <div className="space-y-6">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="asking_rent">Asking rent (ZAR)</Label>
@@ -568,7 +671,8 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
                 type="number"
                 min="0"
                 step="0.01"
-                defaultValue={defaultValues?.asking_rent ?? ""}
+                value={askingRent}
+                onChange={(e) => handleRentChange(e.target.value)}
                 placeholder="e.g. 8500"
               />
             </div>
@@ -580,17 +684,13 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
                 type="number"
                 min="0"
                 step="0.01"
-                defaultValue={defaultValues?.deposit_amount ?? ""}
-                placeholder="e.g. 17000"
+                value={depositAmount}
+                onChange={(e) => setDepositAmount(e.target.value)}
+                placeholder="e.g. 8500"
               />
-              {furnishingStatus === "furnished" && (
+              {suggestedDeposit != null && (
                 <p className="text-xs text-muted-foreground">
-                  Furnished units typically require 3× monthly rent.
-                </p>
-              )}
-              {furnishingStatus === "semi_furnished" && (
-                <p className="text-xs text-muted-foreground">
-                  Semi-furnished units typically require 2–3× monthly rent.
+                  Auto-calculated: R {suggestedDeposit.toLocaleString("en-ZA")} ({DEPOSIT_MULTIPLIERS[furnishingStatus]}× rent). Edit to override.
                 </p>
               )}
             </div>
@@ -622,14 +722,10 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
               </Select>
             </div>
           )}
-        </TabsContent>
-      </Tabs>
+        </div>}
 
-      <div className="mt-8 pt-6 border-t">
-        <Button type="submit" disabled={pending} className="w-full">
-          {pending ? "Saving..." : "Save Unit"}
-        </Button>
-      </div>
+        </div>{/* end tab content */}
+      </div>{/* end flex */}
     </form>
   )
 }
