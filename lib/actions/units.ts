@@ -141,8 +141,9 @@ export async function updateUnit(unitId: string, propertyId: string, formData: F
     console.error("[updateUnit] syncUnitClauseProfile failed:", err)
   }
 
+  revalidatePath(`/properties/${propertyId}/units/${unitId}`)
   revalidatePath(`/properties/${propertyId}`)
-  redirect(`/properties/${propertyId}`)
+  redirect(`/properties/${propertyId}/units/${unitId}`)
 }
 
 export async function updateAskingRent(unitId: string, rentCents: number): Promise<{ error?: string }> {
