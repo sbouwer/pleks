@@ -1,4 +1,5 @@
 import { gatewaySSR } from "@/lib/supabase/gateway"
+import { seedInspectionRooms } from "@/lib/inspections/seedRooms"
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -72,13 +73,26 @@ export default async function InspectionDetailPage({
   if (inspectionError) { console.error("fetchInspection failed:", inspectionError.message) }
   if (!inspection) notFound()
 
-  const { data: rooms, error: roomsError } = await gw.db
+  const { data: existingRooms, error: roomsError } = await gw.db
     .from("inspection_rooms")
     .select("*, inspection_items(*)")
     .eq("inspection_id", inspectionId)
     .order("display_order")
 
   if (roomsError) { console.error("fetchRooms failed:", roomsError.message) }
+
+  // Seed rooms on first open if the inspection was created outside the normal flow
+  // (auto-scheduled on lease activation, imported, or created via direct DB insert)
+  let rooms = existingRooms
+  if (!rooms?.length) {
+    await seedInspectionRooms(gw.db, inspectionId, gw.orgId, inspection.lease_type ?? "residential")
+    const { data: seeded } = await gw.db
+      .from("inspection_rooms")
+      .select("*, inspection_items(*)")
+      .eq("inspection_id", inspectionId)
+      .order("display_order")
+    rooms = seeded
+  }
 
   const rescheduleRequests = gw
     ? ((await gw.db

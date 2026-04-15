@@ -3,7 +3,7 @@
 import { gateway } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
-import { getRoomTemplate, getItemsForRoom } from "@/lib/inspections/roomTemplates"
+import { seedInspectionRooms } from "@/lib/inspections/seedRooms"
 
 export async function createInspection(formData: FormData) {
   const gw = await gateway()
@@ -39,37 +39,7 @@ export async function createInspection(formData: FormData) {
     return { error: error?.message || "Failed to create inspection" }
   }
 
-  // Pre-populate rooms from template
-  const rooms = getRoomTemplate(leaseType)
-  for (let i = 0; i < rooms.length; i++) {
-    const room = rooms[i]
-    const { data: roomRecord } = await db
-      .from("inspection_rooms")
-      .insert({
-        org_id: orgId,
-        inspection_id: inspection.id,
-        room_type: room.type,
-        room_label: room.label,
-        display_order: i,
-      })
-      .select("id")
-      .single()
-
-    if (!roomRecord) continue
-
-    // Pre-populate items for this room
-    const items = getItemsForRoom(leaseType, room.type)
-    for (let j = 0; j < items.length; j++) {
-      await db.from("inspection_items").insert({
-        org_id: orgId,
-        inspection_id: inspection.id,
-        room_id: roomRecord.id,
-        item_name: items[j],
-        item_category: "other",
-        display_order: j,
-      })
-    }
-  }
+  await seedInspectionRooms(db, inspection.id, orgId, leaseType)
 
   await db.from("audit_log").insert({
     org_id: orgId,
@@ -82,44 +52,6 @@ export async function createInspection(formData: FormData) {
 
   revalidatePath("/inspections")
   redirect(`/inspections/${inspection.id}`)
-}
-
-type GatewayResult = NonNullable<Awaited<ReturnType<typeof gateway>>>
-type Db = GatewayResult["db"]
-
-/** Seeds rooms + items from the lease-type template if none exist yet. */
-async function seedRoomsIfEmpty(
-  db: Db,
-  inspectionId: string,
-  orgId: string,
-  leaseType: string,
-): Promise<void> {
-  const { count } = await db
-    .from("inspection_rooms")
-    .select("id", { count: "exact", head: true })
-    .eq("inspection_id", inspectionId)
-
-  if ((count ?? 0) > 0) return
-
-  const rooms = getRoomTemplate(leaseType)
-  for (let i = 0; i < rooms.length; i++) {
-    const room = rooms[i]
-    const { data: roomRecord } = await db
-      .from("inspection_rooms")
-      .insert({ org_id: orgId, inspection_id: inspectionId, room_type: room.type, room_label: room.label, display_order: i })
-      .select("id")
-      .single()
-
-    if (!roomRecord) continue
-
-    const items = getItemsForRoom(leaseType, room.type)
-    for (let j = 0; j < items.length; j++) {
-      await db.from("inspection_items").insert({
-        org_id: orgId, inspection_id: inspectionId, room_id: roomRecord.id,
-        item_name: items[j], item_category: "other", display_order: j,
-      })
-    }
-  }
 }
 
 export async function updateInspectionStatus(inspectionId: string, newStatus: string) {
@@ -154,8 +86,7 @@ export async function updateInspectionStatus(inspectionId: string, newStatus: st
   if (newStatus === "in_progress") {
     updates.conducted_date = new Date().toISOString()
     // Lazy seed: covers inspections created outside createInspection()
-    // (auto-scheduled on lease activation, seed data, imports)
-    await seedRoomsIfEmpty(db, inspectionId, inspection.org_id, inspection.lease_type ?? "residential")
+    await seedInspectionRooms(db, inspectionId, inspection.org_id, inspection.lease_type ?? "residential")
   }
 
   await db.from("inspections").update(updates).eq("id", inspectionId)
