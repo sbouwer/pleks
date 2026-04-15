@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { formatZAR } from "@/lib/constants"
 import { formatDateShort } from "@/lib/reports/periods"
 import { DepositActions } from "./DepositActions"
+import { BackLink } from "@/components/ui/BackLink"
 
 export default async function DepositReconPage({
   params,
@@ -88,6 +89,7 @@ export default async function DepositReconPage({
   if (!recon) {
     return (
       <div>
+        <BackLink href={`/leases/${leaseId}`} label="Back to lease" />
         <h1 className="font-heading text-2xl mb-4">Deposit Reconciliation</h1>
         <Card>
           <CardContent className="pt-6 text-center">
@@ -102,6 +104,7 @@ export default async function DepositReconPage({
 
   return (
     <div className="space-y-6">
+      <BackLink href={`/leases/${leaseId}`} label="Back to lease" />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-heading text-2xl">Deposit Reconciliation</h1>

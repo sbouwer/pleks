@@ -8,6 +8,7 @@ import { formatZAR } from "@/lib/constants"
 import { MaintenanceActions } from "./MaintenanceActions"
 import { RecordDelayPanel } from "./RecordDelayPanel"
 import { MobileMaintenanceView } from "@/components/mobile/MobileMaintenanceView"
+import { BackLink } from "@/components/ui/BackLink"
 
 interface ContractorUpdate {
   id: string
@@ -161,6 +162,7 @@ export default async function MaintenanceDetailPage({
 
   return (
     <div>
+      <BackLink href="/maintenance" label="Maintenance" />
       {/* Mobile view */}
       <div className="lg:hidden">
         <MobileMaintenanceView

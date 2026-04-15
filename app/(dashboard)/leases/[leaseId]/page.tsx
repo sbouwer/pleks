@@ -20,6 +20,7 @@ import { buildTenantDisplay } from "@/lib/leases/tenantDisplay"
 import { checkLeasePrerequisites } from "@/lib/leases/checkPrerequisites"
 import { AlertTriangle } from "lucide-react"
 import { getLessorBankDetails } from "@/lib/leases/bankDetails"
+import { BackLink } from "@/components/ui/BackLink"
 
 const EVENT_DOT: Record<string, string> = {
   lease_created: "#7F77DD", lease_signed: "#7F77DD", lease_renewed: "#7F77DD",
@@ -197,6 +198,7 @@ export default async function LeaseDetailPage({
   return (
     <LeaseDisclaimerGate initialAccepted={accepted}>
     <div>
+      <BackLink href="/leases" label="Leases" />
       {/* Breadcrumb + header */}
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>

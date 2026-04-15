@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { NewHOAForm } from "./NewHOAForm"
+import { BackLink } from "@/components/ui/BackLink"
 
 export default async function NewHOAPage() {
   const supabase = await createClient()
@@ -32,5 +33,10 @@ export default async function NewHOAPage() {
     .eq("org_id", membership.org_id)
     .order("name")
 
-  return <NewHOAForm properties={properties ?? []} />
+  return (
+    <div>
+      <BackLink href="/hoa" label="HOA / Body Corporate" />
+      <NewHOAForm properties={properties ?? []} />
+    </div>
+  )
 }

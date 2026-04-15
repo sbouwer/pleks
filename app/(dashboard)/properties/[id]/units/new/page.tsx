@@ -2,6 +2,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect, notFound } from "next/navigation"
 import { createUnit } from "@/lib/actions/units"
 import { UnitForm } from "../UnitForm"
+import { BackLink } from "@/components/ui/BackLink"
 
 export default async function NewUnitPage({
   params,
@@ -32,6 +33,7 @@ export default async function NewUnitPage({
 
   return (
     <div>
+      <BackLink href={`/properties/${id}`} label={property.name} />
       <h1 className="font-heading text-3xl mb-1">Add Unit</h1>
       <p className="text-muted-foreground text-sm mb-6">{property.name}</p>
       <UnitForm action={boundAction} members={(members as never) || []} />

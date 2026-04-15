@@ -11,6 +11,7 @@ import { RescheduleRequestsPanel, type RescheduleRequest } from "./RescheduleReq
 import { PhotoComparison } from "./PhotoComparison"
 import { createServiceClient } from "@/lib/supabase/server"
 import { MobileInspectionView, type InspectionItem } from "@/components/mobile/MobileInspectionView"
+import { BackLink } from "@/components/ui/BackLink"
 
 /** For move-out/periodic inspections: returns a map of itemId → signed move-in photo URL. */
 async function fetchMoveInPhotos(inspectionId: string): Promise<Record<string, string>> {
@@ -125,6 +126,7 @@ export default async function InspectionDetailPage({
 
   return (
     <div>
+      <BackLink href="/inspections" label="Inspections" />
       {/* Mobile view */}
       <div className="lg:hidden">
         <MobileInspectionView

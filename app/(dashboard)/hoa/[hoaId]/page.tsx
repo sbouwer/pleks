@@ -10,6 +10,7 @@ import { formatDateShort } from "@/lib/reports/periods"
 import { LevyScheduleManager } from "@/components/hoa/LevyScheduleManager"
 import { AGMManager } from "@/components/hoa/AGMManager"
 import { ReserveFundManager } from "@/components/hoa/ReserveFundManager"
+import { BackLink } from "@/components/ui/BackLink"
 
 export default async function HOADetailPage({
   params,
@@ -58,6 +59,7 @@ export default async function HOADetailPage({
 
   return (
     <div className="space-y-6">
+      <BackLink href="/hoa" label="HOA / Body Corporate" />
       <div>
         <h1 className="font-heading text-2xl">{hoa.name}</h1>
         <p className="text-sm text-muted-foreground">

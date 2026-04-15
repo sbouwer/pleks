@@ -16,6 +16,7 @@ import { MobilePropertyView } from "@/components/mobile/MobilePropertyView"
 import { ExternalLink, Pencil } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import { cn } from "@/lib/utils"
+import { BackLink } from "@/components/ui/BackLink"
 
 function getInitials(firstName?: string | null, lastName?: string | null, companyName?: string | null): string {
   if (companyName) return companyName.slice(0, 2).toUpperCase()
@@ -205,6 +206,7 @@ export default async function PropertyDetailPage({
 
   return (
     <div>
+      <BackLink href="/properties" label="Properties" />
       {/* Mobile view */}
       <div className="lg:hidden">
         <MobilePropertyView

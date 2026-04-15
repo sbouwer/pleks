@@ -6,6 +6,7 @@ import { formatZAR } from "@/lib/constants"
 import { getDepositRecommendation } from "@/lib/screening/depositRecommendation"
 import { checkVisaLeaseAlignment } from "@/lib/screening/visaLeaseCheck"
 import { ApplicationActions } from "./ApplicationActions"
+import { BackLink } from "@/components/ui/BackLink"
 
 export default async function ApplicationDetailPage({
   params,
@@ -45,6 +46,7 @@ export default async function ApplicationDetailPage({
 
   return (
     <div>
+      <BackLink href="/applications" label="Applications" />
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { formatZAR } from "@/lib/constants"
+import { BackLink } from "@/components/ui/BackLink"
 
 export default async function DepositsPage() {
   const membership = await getServerOrgMembership()
@@ -65,6 +66,7 @@ export default async function DepositsPage() {
 
   return (
     <div className="space-y-6">
+      <BackLink href="/finance" label="Finance" />
       <h1 className="font-heading text-3xl">Deposits</h1>
 
       {/* Stats */}

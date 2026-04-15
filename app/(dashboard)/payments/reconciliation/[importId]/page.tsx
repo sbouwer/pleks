@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { formatZAR } from "@/lib/constants"
 import { ReconActions } from "./ReconActions"
+import { BackLink } from "@/components/ui/BackLink"
 
 const MATCH_STATUS_MAP: Record<string, "completed" | "active" | "pending" | "arrears"> = {
   matched_exact: "completed",
@@ -47,6 +48,7 @@ export default async function ReconDetailPage({
 
   return (
     <div>
+      <BackLink href="/payments/reconciliation" label="Reconciliation" />
       <div className="flex items-start justify-between mb-6">
         <div>
           <p className="text-sm text-muted-foreground mb-1">
