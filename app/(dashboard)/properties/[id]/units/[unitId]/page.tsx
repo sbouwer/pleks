@@ -57,6 +57,7 @@ export default async function UnitDetailPage({
     { data: primeRateRow },
     { data: furnishings },
     { data: activeLease },
+    { data: profileRooms },
   ] = await Promise.all([
     supabase
       .from("unit_status_history")
@@ -96,6 +97,11 @@ export default async function UnitDetailPage({
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    service
+      .from("unit_inspection_profiles")
+      .select("unit_inspection_profile_rooms(room_type, label, sort_order, is_custom)")
+      .eq("unit_id", unitId)
+      .maybeSingle(),
   ])
 
   const property = unit.properties as unknown as { name: string; managing_agent_id: string | null }
@@ -119,6 +125,11 @@ export default async function UnitDetailPage({
     maintenance: "scheduled",
     archived: "cancelled",
   }
+
+  // Profile rooms for the room list
+  type ProfileRoomRow = { room_type: string; label: string; sort_order: number; is_custom: boolean }
+  const savedRooms: ProfileRoomRow[] =
+    (profileRooms?.unit_inspection_profile_rooms as unknown as ProfileRoomRow[] | null) ?? []
 
   // Furnishings mapped to FurnishingItem[]
   const mappedFurnishings: FurnishingItem[] = (furnishings ?? []).map((f) => ({
@@ -214,6 +225,7 @@ export default async function UnitDetailPage({
           deposit_amount: unit.deposit_amount_cents ? unit.deposit_amount_cents / 100 : undefined,
           managed_by: unit.managed_by ?? undefined,
           notes: unit.notes ?? undefined,
+          rooms: savedRooms,
         }}
       />
 
