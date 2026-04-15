@@ -199,7 +199,7 @@ export default async function LeaseDetailPage({
     .select(`
       *,
       tenant_view(id, contact_id, first_name, last_name, company_name, entity_type, email, phone, id_number),
-      units(unit_number, properties(id, name, address_line1, suburb, city, owner_id))
+      units(unit_number, properties(id, name, address_line1, suburb, city, landlord_id))
     `)
     .eq("id", leaseId)
     .single()
@@ -212,7 +212,7 @@ export default async function LeaseDetailPage({
 
   const unit = lease.units as unknown as {
     unit_number: string
-    properties: { id: string; name: string; address_line1: string | null; suburb: string | null; city: string | null; owner_id: string | null }
+    properties: { id: string; name: string; address_line1: string | null; suburb: string | null; city: string | null; landlord_id: string | null }
   } | null
 
   const tv = lease.tenant_view as unknown as {
@@ -227,7 +227,7 @@ export default async function LeaseDetailPage({
     id_number: string | null
   } | null
 
-  const ownerIdForProperty = unit?.properties?.owner_id ?? null
+  const ownerIdForProperty = unit?.properties?.landlord_id ?? null
   const isDraft = lease.status === "draft"
 
   // SA tax year starts 1 March
