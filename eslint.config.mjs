@@ -27,6 +27,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Dev-only utility scripts — not production code
     "scripts/**",
+    // Claude Code agent worktrees — not production code
+    ".claude/**",
   ]),
   {
     rules: {

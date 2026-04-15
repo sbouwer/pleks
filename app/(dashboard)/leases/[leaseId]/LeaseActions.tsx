@@ -20,9 +20,10 @@ import { PORTFOLIO_QUERY_KEYS, DASHBOARD_QUERY_KEYS } from "@/lib/queries/portfo
 interface LeaseActionsProps {
   readonly leaseId: string
   readonly status: string
+  readonly unitId?: string | null
 }
 
-export function LeaseActions({ leaseId, status }: LeaseActionsProps) {
+export function LeaseActions({ leaseId, status, unitId }: LeaseActionsProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const { orgId } = useOrg()
@@ -90,27 +91,27 @@ export function LeaseActions({ leaseId, status }: LeaseActionsProps) {
             More
             <ChevronDown className="ml-1 h-3 w-3" />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" side="bottom">
+        <DropdownMenuContent align="end" side="bottom" className="w-56">
           <DropdownMenuItem render={<Link href={`/leases/${leaseId}/edit`} />}>
             <Pencil className="h-4 w-4" /> Edit lease
           </DropdownMenuItem>
           {isActive && (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast.info("Escalation processing coming soon")}>
                 <TrendingUp className="h-4 w-4" /> Process escalation
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast.info("Renewal offers coming soon")}>
                 <FileText className="h-4 w-4" /> Generate renewal offer
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast.info("s14 notice sending coming soon")}>
                 <ShieldCheck className="h-4 w-4" /> Send s14 notice
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem render={<Link href={`/leases/${leaseId}/deposit`} />}>
                 <FileText className="h-4 w-4" /> View deposit
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem render={unitId ? <Link href={`/inspections?unit=${unitId}`} /> : undefined} onClick={!unitId ? () => toast.info("No unit linked to this lease") : undefined}>
                 <Search className="h-4 w-4" /> View inspection history
               </DropdownMenuItem>
             </>
