@@ -15,8 +15,7 @@ export default async function MaintenancePage() {
 
   await queryClient.prefetchQuery({
     queryKey: OPERATIONAL_QUERY_KEYS.maintenance(orgId),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    queryFn: () => fetchMaintenance(supabase as any),
+    queryFn: () => fetchMaintenance(supabase, orgId),
     staleTime: STALE_TIME.maintenance,
   })
 
