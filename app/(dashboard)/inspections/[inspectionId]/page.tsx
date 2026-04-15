@@ -1,4 +1,3 @@
-import { createClient } from "@/lib/supabase/server"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
@@ -60,25 +59,27 @@ export default async function InspectionDetailPage({
   params: Promise<{ inspectionId: string }>
 }>) {
   const { inspectionId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const gw = await gatewaySSR()
+  if (!gw) redirect("/login")
 
-  const { data: inspection } = await supabase
+  const { data: inspection, error: inspectionError } = await gw.db
     .from("inspections")
-    .select("*, units(unit_number, properties(name, address_line1)), tenant_view(first_name, last_name)")
+    .select("*, units(unit_number, properties(name, address_line1))")
     .eq("id", inspectionId)
+    .eq("org_id", gw.orgId)
     .single()
 
+  if (inspectionError) { console.error("fetchInspection failed:", inspectionError.message) }
   if (!inspection) notFound()
 
-  const { data: rooms } = await supabase
+  const { data: rooms, error: roomsError } = await gw.db
     .from("inspection_rooms")
     .select("*, inspection_items(*)")
     .eq("inspection_id", inspectionId)
     .order("display_order")
 
-  const gw = await gatewaySSR()
+  if (roomsError) { console.error("fetchRooms failed:", roomsError.message) }
+
   const rescheduleRequests = gw
     ? ((await gw.db
         .from("inspection_reschedule_requests")
@@ -89,7 +90,7 @@ export default async function InspectionDetailPage({
     : []
 
   const unit = inspection.units as unknown as { unit_number: string; properties: { name: string; address_line1: string } } | null
-  const tenant = inspection.tenant_view as unknown as { first_name: string; last_name: string } | null
+  const tenant = null as { first_name: string; last_name: string } | null
 
   const totalItems = (rooms || []).reduce((sum, r) => sum + ((r.inspection_items as unknown[]) || []).length, 0)
   const inspectedItems = (rooms || []).reduce((sum, r) =>
