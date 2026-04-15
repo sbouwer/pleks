@@ -46,16 +46,16 @@ export function CollectionChart({ data }: CollectionChartProps) {
   return (
     <div className="h-40">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -28 }} barCategoryGap="20%">
+        <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }} barCategoryGap="20%">
           <XAxis
             dataKey="month"
             tick={{ fontSize: 10 }}
             axisLine={false}
             tickLine={false}
           />
-          <YAxis hide domain={[0, maxVal * 1.15 || 1]} />
+          <YAxis hide width={0} domain={[0, maxVal * 1.15 || 1]} />
           <Tooltip content={<ChartTooltip />} cursor={{ fill: "transparent" }} />
-          <Bar dataKey="expected" fill="#374151" opacity={0.15} radius={[2, 2, 0, 0]} />
+          <Bar dataKey="expected" fill="#378ADD" opacity={0.25} radius={[2, 2, 0, 0]} />
           <Bar dataKey="collected" radius={[2, 2, 0, 0]}>
             {data.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={STATUS_COLOR[entry.status]} />

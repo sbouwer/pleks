@@ -16,7 +16,7 @@ interface LeaseTabsProps {
 
 export function LeaseTabs({ activeTab, leaseId }: LeaseTabsProps) {
   return (
-    <div className="flex gap-1 border-b border-border mb-6 overflow-x-auto">
+    <div className="flex gap-1 border-b border-border mb-6 overflow-x-auto overflow-y-hidden">
       {TABS.map((tab) => (
         <Link
           key={tab.id}

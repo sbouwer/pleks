@@ -30,30 +30,46 @@ function buildComplianceItems(
   lease: {
     escalation_review_date: string | null
     end_date: string | null
+    escalation_percent: number | null
     cpa_applies: boolean | null
     is_fixed_term: boolean | null
     auto_renewal_notice_sent_at: string | null
   },
   today: Date,
+  nextInspectionDate: string | null,
 ): ComplianceItem[] {
-  const fmt = (d: Date) => d.toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
+  const fmt = (d: Date) => d.toLocaleDateString("en-ZA", { day: "2-digit", month: "short", year: "numeric" })
   const items: ComplianceItem[] = []
 
   if (lease.escalation_review_date) {
     const d = new Date(lease.escalation_review_date)
-    items.push({ dot: d > today ? "#EF9F27" : "#1D9E75", label: "Next escalation", value: fmt(d) })
+    const pct = lease.escalation_percent ? `${lease.escalation_percent}% fixed increase due` : ""
+    items.push({ dot: d > today ? "#EF9F27" : "#1D9E75", label: "Next escalation", value: [fmt(d), pct].filter(Boolean).join(" · ") })
   }
 
   if (lease.end_date && lease.cpa_applies && lease.is_fixed_term) {
     const s14 = new Date(lease.end_date)
     s14.setDate(s14.getDate() - 28)
     const overdue = today > s14 && !lease.auto_renewal_notice_sent_at
-    items.push({ dot: overdue ? "#E24B4A" : "#EF9F27", label: "s14 notice due", value: fmt(s14), overdue })
+    items.push({ dot: overdue ? "#E24B4A" : "#6b7280", label: "s14 notice due", value: `${fmt(s14)} · 40-80 business days before expiry`, overdue })
+  }
+
+  if (nextInspectionDate) {
+    const d = new Date(nextInspectionDate)
+    const overdue = d < today
+    items.push({ dot: overdue ? "#E24B4A" : "#378ADD", label: "Next inspection", value: fmt(d), overdue })
   }
 
   if (lease.end_date) {
     const end = new Date(lease.end_date)
-    items.push({ dot: end < today ? "#E24B4A" : "#378ADD", label: "Lease expiry", value: fmt(end) })
+    const termLabel = lease.is_fixed_term ? "fixed term ends" : ""
+    items.push({ dot: end < today ? "#E24B4A" : "#378ADD", label: "Lease expiry", value: [fmt(end), termLabel].filter(Boolean).join(" · ") })
+  }
+
+  if (lease.end_date) {
+    const deadline = new Date(lease.end_date)
+    deadline.setDate(deadline.getDate() + 14)
+    items.push({ dot: "#1D9E75", label: "Deposit return deadline", value: `14 days after move-out · statutory` })
   }
 
   return items
@@ -234,6 +250,7 @@ export default async function LeaseDetailPage({
     inspectionsRes,
     maintenanceRes,
     primaryContactRes,
+    landlordPortalRes,
     ytdPaymentsRes,
     maintenanceCostRes,
   ] = await Promise.all([
@@ -276,12 +293,9 @@ export default async function LeaseDetailPage({
       .select("id", { count: "exact", head: true })
       .eq("lease_id", leaseId)
       .not("custom_body", "is", null),
+    // landlord_view gives name/contact/registration data reliably via its JOIN
     ownerIdForProperty
-      ? supabase
-          .from("landlords")
-          .select("id, portal_status, contacts(entity_type, first_name, last_name, company_name, registration_number, is_verified, primary_email, primary_phone)")
-          .eq("id", ownerIdForProperty)
-          .maybeSingle()
+      ? supabase.from("landlord_view").select("id, contact_id, entity_type, first_name, last_name, company_name, registration_number, email, phone").eq("id", ownerIdForProperty).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
     getLessorBankDetails(lease.org_id),
     isDraft ? checkLeasePrerequisites(supabase, leaseId, lease.org_id).catch(() => null) : Promise.resolve(null),
@@ -292,11 +306,15 @@ export default async function LeaseDetailPage({
       ? supabase.from("inspections").select("id, inspection_type, status, scheduled_date, conducted_date").eq("unit_id", lease.unit_id).order("scheduled_date", { ascending: false }).limit(3)
       : Promise.resolve({ data: [], error: null }),
     lease.unit_id
-      ? supabase.from("maintenance_requests").select("id, title, work_order_number, status, created_at").eq("unit_id", lease.unit_id).order("created_at", { ascending: false }).limit(3)
+      ? supabase.from("maintenance_requests").select("id, title, work_order_number, urgency, status, created_at").eq("unit_id", lease.unit_id).order("created_at", { ascending: false }).limit(3)
       : Promise.resolve({ data: [], error: null }),
     // Primary tenant FICA + reg number (from contacts table — not in tenant_view)
     tv?.contact_id != null
       ? supabase.from("contacts").select("is_verified, registration_number").eq("id", tv.contact_id).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    // Landlord portal_status (not in landlord_view)
+    ownerIdForProperty
+      ? supabase.from("landlords").select("portal_status").eq("id", ownerIdForProperty).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
     // YTD payments for collection chart
     supabase
@@ -332,11 +350,14 @@ export default async function LeaseDetailPage({
   const display = buildTenantDisplay({ id: tv?.id ?? lease.tenant_id, firstName: tv?.first_name, lastName: tv?.last_name, companyName: tv?.company_name, entityType: tv?.entity_type }, coTenantInputs)
   const tenantDisplayText = display.displayText
 
-  type LandlordRow = { id: string; portal_status: string | null; contacts: { entity_type: string | null; first_name: string | null; last_name: string | null; company_name: string | null; registration_number: string | null; is_verified: boolean | null; primary_email: string | null; primary_phone: string | null } | null } | null
+  if (landlordRes.error) console.error("landlord_view query failed:", landlordRes.error.message, "ownerIdForProperty:", ownerIdForProperty)
+  if (!landlordRes.data && ownerIdForProperty) console.warn("landlord_view returned no row for id:", ownerIdForProperty)
+
+  type LandlordRow = { id: string; contact_id: string | null; entity_type: string | null; first_name: string | null; last_name: string | null; company_name: string | null; registration_number: string | null; email: string | null; phone: string | null } | null
   const landlordRaw = landlordRes.data as LandlordRow
-  const landlordContact = landlordRaw?.contacts ?? null
-  const landlordName = landlordContact
-    ? (landlordContact.company_name ?? `${landlordContact.first_name ?? ""} ${landlordContact.last_name ?? ""}`.trim())
+  const landlordPortalStatus = (landlordPortalRes.data as { portal_status: string | null } | null)?.portal_status ?? "none"
+  const landlordName = landlordRaw
+    ? (landlordRaw.company_name ?? `${landlordRaw.first_name ?? ""} ${landlordRaw.last_name ?? ""}`.trim())
     : null
 
   const tenantPortal = tenantPortalRes.data as { portal_invite_sent_at: string | null; auth_user_id: string | null } | null
@@ -354,25 +375,32 @@ export default async function LeaseDetailPage({
   const primaryPortalStatus = derivePortalStatus(tenantPortal?.auth_user_id, tenantPortal?.portal_invite_sent_at)
   const allTenants = buildAllTenants(tv, lease.tenant_id, coTenantsRaw, primaryContact, primaryPortalStatus)
 
-  const llIdOrReg = getIdOrReg(landlordContact?.entity_type, null, landlordContact?.registration_number)
+  const llIdOrReg = getIdOrReg(landlordRaw?.entity_type, null, landlordRaw?.registration_number)
   const contactsLandlord: LandlordContactInfo | null = landlordRaw ? {
     id: landlordRaw.id,
     name: landlordName ?? "Unknown",
-    company: landlordContact?.company_name ?? null,
-    email: landlordContact?.primary_email ?? null,
-    phone: landlordContact?.primary_phone ?? null,
-    entityType: landlordContact?.entity_type ?? null,
-    ficaVerified: landlordContact?.is_verified ?? null,
+    company: landlordRaw.company_name ?? null,
+    email: landlordRaw.email ?? null,
+    phone: landlordRaw.phone ?? null,
+    entityType: landlordRaw.entity_type ?? null,
+    ficaVerified: null,
     idOrRegNumber: llIdOrReg.idOrRegNumber,
     idOrRegLabel: llIdOrReg.idOrRegLabel,
-    portalStatus: (landlordRaw.portal_status ?? "none") as LandlordContactInfo["portalStatus"],
+    portalStatus: (landlordPortalStatus as LandlordContactInfo["portalStatus"]) ?? "none",
   } : null
 
   const ytdPayments = (ytdPaymentsRes.data ?? []) as Array<{ amount_cents: number; payment_date: string }>
   const maintenanceCostRows = (maintenanceCostRes.data ?? []) as Array<{ actual_cost_cents: number }>
   const maintenanceCostCents = maintenanceCostRows.reduce((s, r) => s + (r.actual_cost_cents ?? 0), 0)
   const maintenanceJobCount = maintenanceCostRows.length
-  const complianceItems = buildComplianceItems(lease, today)
+  const nextInspectionDate = (inspectionsRes.data ?? [])
+    .filter((ins: { scheduled_date: string | null; status: string }) =>
+      ins.scheduled_date && !["completed", "cancelled"].includes(ins.status))
+    .map((ins: { scheduled_date: string }) => ins.scheduled_date)
+    .sort()
+    .find((d: string) => new Date(d) >= today) ?? null
+  const propertyId = unit?.properties?.id ?? null
+  const complianceItems = buildComplianceItems(lease, today, nextInspectionDate)
   const statusColor = buildStatusColor(lease.status)
 
   return (
@@ -414,6 +442,7 @@ export default async function LeaseDetailPage({
         {/* Tab content */}
         {activeTab === "overview" && (
           <OverviewTab
+            propertyId={propertyId}
             lease={{
               rent_amount_cents: lease.rent_amount_cents ?? null,
               start_date: lease.start_date ?? null,
@@ -438,9 +467,9 @@ export default async function LeaseDetailPage({
             landlord={landlordRaw ? {
               id: landlordRaw.id,
               name: landlordName ?? "Unknown",
-              company: landlordContact?.company_name ?? null,
-              email: landlordContact?.primary_email ?? null,
-              phone: landlordContact?.primary_phone ?? null,
+              company: landlordRaw.company_name ?? null,
+              email: landlordRaw.email ?? null,
+              phone: landlordRaw.phone ?? null,
             } : null}
             lifecycleEvents={lifecycleEvents}
             ytdPayments={ytdPayments}
@@ -495,6 +524,7 @@ export default async function LeaseDetailPage({
             tenants={allTenants}
             landlord={contactsLandlord}
             leaseId={leaseId}
+            propertyId={propertyId}
             portalInviteSentAt={tenantPortal?.portal_invite_sent_at ?? null}
             hasAuthUser={!!tenantPortal?.auth_user_id}
             primaryTenantId={lease.tenant_id ?? null}
@@ -520,6 +550,7 @@ export default async function LeaseDetailPage({
           <OperationsTab
             leaseId={leaseId}
             unitId={lease.unit_id ?? null}
+            unitNumber={unit?.unit_number ?? null}
             inspections={(inspectionsRes.data ?? []).map((ins: { id: string; inspection_type: string; status: string; scheduled_date: string | null; conducted_date: string | null }) => ({
               id: ins.id,
               inspection_type: ins.inspection_type,
@@ -527,10 +558,11 @@ export default async function LeaseDetailPage({
               scheduled_date: ins.scheduled_date,
               completed_at: ins.conducted_date,
             }))}
-            maintenanceRequests={(maintenanceRes.data ?? []).map((m: { id: string; title: string; work_order_number: string | null; status: string; created_at: string }) => ({
+            maintenanceRequests={(maintenanceRes.data ?? []).map((m: { id: string; title: string; work_order_number: string | null; urgency: string | null; status: string; created_at: string }) => ({
               id: m.id,
               title: m.title,
               work_order_number: m.work_order_number,
+              urgency: m.urgency,
               status: m.status,
               created_at: m.created_at,
             }))}
