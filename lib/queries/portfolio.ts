@@ -91,36 +91,44 @@ export async function fetchLeases(supabase: SupabaseClient, orgId: string) {
   return data ?? []
 }
 
-export async function fetchInspections(supabase: SupabaseClient) {
-  const { data } = await supabase
+export async function fetchInspections(supabase: SupabaseClient, orgId: string) {
+  const { data, error } = await supabase
     .from("inspections")
     .select("id, inspection_type, lease_type, status, scheduled_date, conducted_date, units(unit_number, properties(name)), tenant_view(first_name, last_name)")
+    .eq("org_id", orgId)
     .order("created_at", { ascending: false })
+  if (error) { console.error("fetchInspections failed:", error.message); return [] }
   return data ?? []
 }
 
-export async function fetchMaintenance(supabase: SupabaseClient) {
-  const { data } = await supabase
+export async function fetchMaintenance(supabase: SupabaseClient, orgId: string) {
+  const { data, error } = await supabase
     .from("maintenance_requests")
     .select("id, title, category, urgency, status, work_order_number, logged_by, reported_via, created_at, units(unit_number, properties(name))")
+    .eq("org_id", orgId)
     .order("created_at", { ascending: false })
+  if (error) { console.error("fetchMaintenance failed:", error.message); return [] }
   return data ?? []
 }
 
-export async function fetchApplications(supabase: SupabaseClient) {
-  const { data } = await supabase
+export async function fetchApplications(supabase: SupabaseClient, orgId: string) {
+  const { data, error } = await supabase
     .from("applications")
     .select("id, first_name, last_name, applicant_email, stage1_status, stage2_status, prescreen_score, fitscore, gross_monthly_income_cents, is_foreign_national, has_co_applicant, applicant_motivation, created_at, listing_id, listings(id, public_slug, asking_rent_cents, applications_count, units(unit_number, properties(name)))")
+    .eq("org_id", orgId)
     .order("created_at", { ascending: false })
     .limit(100)
+  if (error) { console.error("fetchApplications failed:", error.message); return [] }
   return data ?? []
 }
 
-export async function fetchPayments(supabase: SupabaseClient) {
-  const { data } = await supabase
+export async function fetchPayments(supabase: SupabaseClient, orgId: string) {
+  const { data, error } = await supabase
     .from("supplier_invoices")
     .select("id, invoice_number, description, amount_incl_vat_cents, invoice_date, status, payment_source, contractor_view(first_name, last_name, company_name), properties(name)")
+    .eq("org_id", orgId)
     .order("created_at", { ascending: false })
     .limit(50)
+  if (error) { console.error("fetchPayments failed:", error.message); return [] }
   return data ?? []
 }

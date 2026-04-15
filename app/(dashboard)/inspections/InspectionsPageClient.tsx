@@ -29,15 +29,13 @@ function isSaveable(status: string): boolean {
   return status === "scheduled" || status === "in_progress"
 }
 
-function isToday(dateStr: string | null): boolean {
+/** True if the inspection date is today or in the next 48 hours */
+function isUpcoming(dateStr: string | null): boolean {
   if (!dateStr) return false
   const d = new Date(dateStr)
   const now = new Date()
-  return (
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate()
-  )
+  const diffMs = d.getTime() - now.getTime()
+  return diffMs >= -86_400_000 && diffMs <= 2 * 86_400_000 // yesterday-boundary to 48h ahead
 }
 
 interface Props { orgId: string }
@@ -74,7 +72,7 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
   }, [])
 
   const todayIds = list
-    .filter((i) => isSaveable(i.status) && isToday(i.scheduled_date as string | null))
+    .filter((i) => isSaveable(i.status) && isUpcoming(i.scheduled_date as string | null))
     .map((i) => i.id)
     .filter((id) => !savedIds.has(id))
 
@@ -113,14 +111,13 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
           )}
         </div>
         <div className="flex items-center gap-2">
-          {/* Save all today's inspections (Mode B batch) — mobile only */}
+          {/* Save all today's inspections (Mode B batch) */}
           {todayIds.length > 0 && (
             <Button
               size="sm"
               variant="outline"
               onClick={handleSaveAll}
               disabled={savingAll}
-              className="lg:hidden"
             >
               {savingAll
                 ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
@@ -178,12 +175,12 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
                   </Card>
                 </Link>
 
-                {/* Save for offline button — mobile only, saveable inspections */}
+                {/* Save for offline button — saveable inspections */}
                 {canSave && (
                   <button
                     onClick={(e) => { e.preventDefault(); void handleSave(insp.id) }}
                     disabled={isSaved || isSaving}
-                    className="lg:hidden absolute top-3 right-[7.5rem] flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-muted hover:bg-muted/80 disabled:opacity-60 transition-colors z-10"
+                    className="absolute top-3 right-[7.5rem] flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-muted hover:bg-muted/80 disabled:opacity-60 transition-colors z-10"
                     aria-label={isSaved ? "Saved for offline" : "Save for offline"}
                   >
                     {isSaving && <Loader2 className="h-3 w-3 animate-spin" />}

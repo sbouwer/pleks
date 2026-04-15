@@ -15,8 +15,7 @@ export default async function InspectionsPage() {
 
   await queryClient.prefetchQuery({
     queryKey: OPERATIONAL_QUERY_KEYS.inspections(orgId),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    queryFn: () => fetchInspections(supabase as any),
+    queryFn: () => fetchInspections(supabase, orgId),
     staleTime: STALE_TIME.inspections,
   })
 

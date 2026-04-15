@@ -15,8 +15,7 @@ export default async function PaymentsPage() {
 
   await queryClient.prefetchQuery({
     queryKey: OPERATIONAL_QUERY_KEYS.payments(orgId),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    queryFn: () => fetchPayments(supabase as any),
+    queryFn: () => fetchPayments(supabase, orgId),
     staleTime: STALE_TIME.payments,
   })
 

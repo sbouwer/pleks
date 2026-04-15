@@ -48,23 +48,23 @@ export async function fetchContractorsAction(_orgId?: string) {
 export async function fetchInspectionsAction(_orgId?: string) {
   const gw = await gateway()
   if (!gw) return []
-  return fetchInspections(gw.db)
+  return fetchInspections(gw.db, gw.orgId)
 }
 
 export async function fetchMaintenanceAction(_orgId?: string) {
   const gw = await gateway()
   if (!gw) return []
-  return fetchMaintenance(gw.db)
+  return fetchMaintenance(gw.db, gw.orgId)
 }
 
 export async function fetchApplicationsAction(_orgId?: string) {
   const gw = await gateway()
   if (!gw) return []
-  return fetchApplications(gw.db)
+  return fetchApplications(gw.db, gw.orgId)
 }
 
 export async function fetchPaymentsAction(_orgId?: string) {
   const gw = await gateway()
   if (!gw) return []
-  return fetchPayments(gw.db)
+  return fetchPayments(gw.db, gw.orgId)
 }
