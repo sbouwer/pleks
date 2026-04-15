@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { formatZAR } from "@/lib/constants"
 import { ContactCard } from "@/components/contacts/ContactCard"
 import { CollectionChart, type MonthBar } from "./CollectionChart"
@@ -40,6 +41,7 @@ interface OverviewLandlord {
 }
 
 interface OverviewTabProps {
+  propertyId: string | null
   lease: OverviewLease
   latestInvoice: { balance_cents: number | null } | null
   arrearsCase: { total_arrears_cents: number; months_in_arrears: number | null } | null
@@ -159,6 +161,7 @@ function BalanceDisplay({ cents }: { readonly cents: number | null }) {
 }
 
 export function OverviewTab({
+  propertyId,
   lease,
   latestInvoice,
   arrearsCase,
@@ -274,7 +277,14 @@ export function OverviewTab({
               profileHref={`/landlords/${landlord.id}`}
             />
           ) : (
-            <p className="text-sm text-muted-foreground">No owner linked.</p>
+            <p className="text-sm text-muted-foreground">
+              No owner linked.{" "}
+              {propertyId && (
+                <Link href={`/properties/${propertyId}`} className="text-brand hover:underline">
+                  Link here
+                </Link>
+              )}
+            </p>
           )}
         </div>
       </div>
@@ -291,16 +301,13 @@ export function OverviewTab({
             <CollectionChart data={monthBars} />
             <div className="flex gap-4 mt-2">
               <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                <span className="h-2 w-2 rounded-sm inline-block" style={{ background: "#4B5563", opacity: 0.4 }} />
-                Expected
+                <span className="h-2 w-2 rounded-sm inline-block" style={{ background: "#378ADD", opacity: 0.6 }} /> Expected
               </span>
               <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                <span className="h-2 w-2 rounded-sm inline-block bg-[#1D9E75]" />
-                Collected
+                <span className="h-2 w-2 rounded-sm inline-block bg-[#1D9E75]" /> Collected
               </span>
               <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                <span className="h-2 w-2 rounded-sm inline-block bg-[#EF9F27]" />
-                Partial
+                <span className="h-2 w-2 rounded-sm inline-block bg-[#EF9F27]" /> Partial
               </span>
             </div>
           </div>

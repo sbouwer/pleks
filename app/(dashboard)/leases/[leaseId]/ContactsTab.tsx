@@ -39,6 +39,7 @@ interface ContactsTabProps {
   readonly tenants: TenantContactInfo[]
   readonly landlord: LandlordContactInfo | null
   readonly leaseId: string
+  readonly propertyId: string | null
   readonly portalInviteSentAt: string | null
   readonly hasAuthUser: boolean
   readonly primaryTenantId: string | null
@@ -50,6 +51,7 @@ export function ContactsTab({
   tenants,
   landlord,
   leaseId,
+  propertyId,
   portalInviteSentAt,
   hasAuthUser,
   primaryTenantId,
@@ -179,7 +181,14 @@ export function ContactsTab({
             />
           ) : (
             <div className="flex-1 flex items-center justify-center min-h-[220px]">
-              <p className="text-sm text-muted-foreground">No owner linked to this property.</p>
+              <p className="text-sm text-muted-foreground">
+                No owner linked.{" "}
+                {propertyId && (
+                  <Link href={`/properties/${propertyId}`} className="text-brand hover:underline">
+                    Link here
+                  </Link>
+                )}
+              </p>
             </div>
           )}
         </div>
