@@ -14,6 +14,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { useUser } from "@/hooks/useUser"
 import { useOrg } from "@/hooks/useOrg"
 import { useRouter } from "next/navigation"
+import { SyncIndicator } from "@/components/layout/SyncIndicator"
 
 interface TopbarProps {
   readonly settingsHref?: string
@@ -57,8 +58,9 @@ export function Topbar({
         <GlobalSearch />
       </div>
 
-      {/* Right: visit site + profile */}
+      {/* Right: sync indicator + visit site + profile */}
       <div className="flex items-center gap-2">
+        <SyncIndicator />
 
         <Button
           size="sm"

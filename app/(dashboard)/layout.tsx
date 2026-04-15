@@ -7,6 +7,7 @@ import { InactivityGuard } from "@/components/layout/InactivityGuard"
 import { NavigationProgress } from "@/components/layout/NavigationProgress"
 import { PortfolioPrefetcher } from "@/components/providers/PortfolioPrefetcher"
 import { KeyboardShortcuts } from "@/components/layout/KeyboardShortcuts"
+import { SyncEngineClient } from "@/components/layout/SyncEngineClient"
 
 export default function DashboardLayout({
   children,
@@ -24,6 +25,7 @@ export default function DashboardLayout({
         <MobileBottomBar />
         <InactivityGuard />
         <KeyboardShortcuts />
+        <SyncEngineClient />
       </div>
     </div>
   )

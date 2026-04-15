@@ -15,6 +15,11 @@ interface SyncEvent extends ExtendableEvent {
   readonly tag: string
 }
 
+// Periodic Sync API type (Chrome Android, not in standard TS lib)
+interface PeriodicSyncEvent extends ExtendableEvent {
+  readonly tag: string
+}
+
 declare const self: ServiceWorkerGlobalScope
 
 const serwist = new Serwist({
@@ -27,12 +32,19 @@ const serwist = new Serwist({
 
 serwist.addEventListeners()
 
-// Background sync: upload pending photos when back online
+// One-shot background sync: upload pending photos when back online
 self.addEventListener("sync", (event: SyncEvent) => {
   if (event.tag === "photo-upload") {
     event.waitUntil(uploadPendingPhotos())
   }
 })
+
+// Periodic background sync (Chrome Android): keep data fresh every 6 hours
+self.addEventListener("periodicsync", ((event: PeriodicSyncEvent) => {
+  if (event.tag === "pleks-sync") {
+    event.waitUntil(uploadPendingPhotos())
+  }
+}) as EventListenerOrEventListenerObject)
 
 async function uploadPendingPhotos(): Promise<void> {
   const db = await openOfflineDB()
@@ -58,7 +70,7 @@ async function uploadPendingPhotos(): Promise<void> {
         deleteTx.objectStore("photoQueue").delete(item.id)
         await new Promise<void>((resolve, reject) => {
           deleteTx.oncomplete = () => resolve()
-          deleteTx.onerror = () => reject(deleteTx.error)
+          deleteTx.onerror = () => reject(new Error(deleteTx.error?.message ?? "IDB error"))
         })
       }
     } catch {
@@ -69,15 +81,10 @@ async function uploadPendingPhotos(): Promise<void> {
 
 function openOfflineDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open("pleks_offline", 1)
+    // Open at current version — IDB returns the DB at whatever version it's at
+    const req = indexedDB.open("pleks_offline")
     req.onsuccess = () => resolve(req.result)
-    req.onerror = () => reject(req.error)
-    req.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result
-      if (!db.objectStoreNames.contains("photoQueue")) {
-        db.createObjectStore("photoQueue", { keyPath: "id" })
-      }
-    }
+    req.onerror = () => reject(new Error(req.error?.message ?? "IDB open failed"))
   })
 }
 
@@ -92,6 +99,6 @@ function idbGetAll(store: IDBObjectStore): Promise<Array<{
   return new Promise((resolve, reject) => {
     const req = store.getAll()
     req.onsuccess = () => resolve(req.result)
-    req.onerror = () => reject(req.error)
+    req.onerror = () => reject(new Error(req.error?.message ?? "IDB error"))
   })
 }
