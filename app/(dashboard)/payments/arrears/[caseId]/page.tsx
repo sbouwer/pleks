@@ -1,6 +1,5 @@
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect, notFound } from "next/navigation"
-import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { formatZAR } from "@/lib/constants"
@@ -64,9 +63,6 @@ export default async function ArrearsDetailPage({
       <BackLink href="/payments/arrears" label="Arrears" />
       <div className="flex items-start justify-between mb-6">
         <div>
-          <p className="text-sm text-muted-foreground mb-1">
-            <Link href="/payments/arrears" className="hover:text-foreground">Arrears</Link> &rsaquo; {tenantName}
-          </p>
           <div className="flex items-center gap-3">
             <h1 className="font-heading text-3xl">{tenantName}</h1>
             <StatusBadge status={getArrearsBadgeStatus(arrearsCase.status)} />

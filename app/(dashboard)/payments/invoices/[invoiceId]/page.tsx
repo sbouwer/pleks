@@ -1,10 +1,10 @@
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { redirect, notFound } from "next/navigation"
-import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { formatZAR } from "@/lib/constants"
 import { InvoiceActions } from "./InvoiceActions"
+import { BackLink } from "@/components/ui/BackLink"
 
 const STATUS_MAP: Record<string, "pending" | "completed" | "arrears" | "scheduled"> = {
   submitted: "pending",
@@ -41,11 +41,9 @@ export default async function InvoiceDetailPage({
 
   return (
     <div>
+      <BackLink href="/payments" label="Payments" />
       <div className="flex items-start justify-between mb-6">
         <div>
-          <p className="text-sm text-muted-foreground mb-1">
-            <Link href="/payments" className="hover:text-foreground">Payments</Link> &rsaquo; Invoice
-          </p>
           <div className="flex items-center gap-3">
             <h1 className="font-heading text-3xl">{invoice.description}</h1>
             <StatusBadge status={STATUS_MAP[invoice.status] || "pending"} />

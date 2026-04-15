@@ -1,7 +1,6 @@
 import { createClient } from "@/lib/supabase/server"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { redirect, notFound } from "next/navigation"
-import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { formatZAR } from "@/lib/constants"
@@ -189,14 +188,12 @@ export default async function MaintenanceDetailPage({
       <div className="hidden lg:block">
       <div className="flex items-start justify-between mb-6">
         <div>
-          <p className="text-sm text-muted-foreground mb-1">
-            <Link href="/maintenance" className="hover:text-foreground">Maintenance</Link> &rsaquo; {request.work_order_number || request.title}
-          </p>
           <div className="flex items-center gap-3">
             <h1 className="font-heading text-3xl">{request.title}</h1>
             <StatusBadge status={STATUS_MAP[request.status] || "pending"} />
           </div>
           <p className="text-muted-foreground">
+            {request.work_order_number && `${request.work_order_number} · `}
             {unit ? `${unit.unit_number}, ${unit.properties.name}` : ""}
             {request.category && ` · ${request.category}`}
           </p>

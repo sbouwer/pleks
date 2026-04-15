@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect, notFound } from "next/navigation"
-import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { BackLink } from "@/components/ui/BackLink"
 import { formatZAR } from "@/lib/constants"
 import { MunicipalBillActions } from "./MunicipalBillActions"
 
@@ -31,11 +31,9 @@ export default async function MunicipalBillDetailPage({
 
   return (
     <div>
+      <BackLink href="/payments/municipal" label="Municipal Bills" />
       <div className="flex items-start justify-between mb-6">
         <div>
-          <p className="text-sm text-muted-foreground mb-1">
-            <Link href="/payments/municipal" className="hover:text-foreground">Municipal Bills</Link> &rsaquo; {periodLabel}
-          </p>
           <h1 className="font-heading text-3xl">{account?.municipality_name || "Municipal Bill"} — {periodLabel}</h1>
           <p className="text-muted-foreground">{property?.name} · Account: {account?.account_number}</p>
         </div>

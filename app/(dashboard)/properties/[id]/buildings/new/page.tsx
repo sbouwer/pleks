@@ -1,8 +1,8 @@
 import { createServiceClient } from "@/lib/supabase/server"
 import { getServerOrgMembership } from "@/lib/auth/server"
 import { redirect, notFound } from "next/navigation"
-import Link from "next/link"
 import { BuildingForm } from "@/components/properties/BuildingForm"
+import { BackLink } from "@/components/ui/BackLink"
 
 export default async function NewBuildingPage({
   params,
@@ -26,12 +26,7 @@ export default async function NewBuildingPage({
 
   return (
     <div>
-      <p className="text-sm text-muted-foreground mb-1">
-        <Link href="/properties" className="hover:text-foreground">Properties</Link>
-        {" ›"}{" "}
-        <Link href={`/properties/${id}`} className="hover:text-foreground">{property.name}</Link>
-        {" › Add building"}
-      </p>
+      <BackLink href={`/properties/${id}`} label={property.name} />
       <h1 className="font-heading text-2xl mb-6">Add building</h1>
       <div className="max-w-2xl">
         <BuildingForm propertyId={id} />

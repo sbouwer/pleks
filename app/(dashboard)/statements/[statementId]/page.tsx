@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect, notFound } from "next/navigation"
-import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { BackLink } from "@/components/ui/BackLink"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { formatZAR } from "@/lib/constants"
 
@@ -37,10 +37,8 @@ export default async function StatementDetailPage({
 
   return (
     <div>
+      <BackLink href="/statements" label="Statements" />
       <div className="mb-6">
-        <p className="text-sm text-muted-foreground mb-1">
-          <Link href="/statements" className="hover:text-foreground">Statements</Link> &rsaquo; {periodLabel}
-        </p>
         <div className="flex items-center gap-3">
           <h1 className="font-heading text-3xl">{property?.name} — {periodLabel}</h1>
           <StatusBadge status={stmtBadgeStatus} />
