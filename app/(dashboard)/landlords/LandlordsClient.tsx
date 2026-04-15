@@ -121,7 +121,38 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
       {filtered.length === 0 ? (
         <p className="text-sm text-muted-foreground py-8 text-center">No landlords match your search.</p>
       ) : (
-        <div className="rounded-lg border border-border overflow-hidden">
+        <>
+          {/* Mobile card list */}
+          <div className="lg:hidden space-y-2">
+            {filtered.map((l) => {
+              const displayName = l.company_name || `${l.first_name ?? ""} ${l.last_name ?? ""}`.trim() || "Unnamed"
+              return (
+                <div key={l.id} className="border border-border rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm truncate">{displayName}</p>
+                    {l.phone && <p className="text-xs text-muted-foreground mt-0.5">{l.phone}</p>}
+                    {l.email && <p className="text-xs text-muted-foreground truncate">{l.email}</p>}
+                    {l.properties.length > 0 && (
+                      <p className="text-xs text-muted-foreground mt-0.5">{l.properties.slice(0, 2).join(", ")}{l.properties.length > 2 ? ` +${l.properties.length - 2}` : ""}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {l.phone && (
+                      <a href={`tel:${l.phone}`}>
+                        <Button size="sm" variant="outline" className="h-7 text-xs px-2.5">Call</Button>
+                      </a>
+                    )}
+                    <Link href={`/landlords/${l.id}`}>
+                      <Button size="sm" variant="ghost" className="h-7 text-xs px-2">→</Button>
+                    </Link>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden lg:block rounded-lg border border-border overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/30">
@@ -182,7 +213,8 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
               })}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       )}
     </div>
   )

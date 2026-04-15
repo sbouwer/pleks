@@ -239,9 +239,9 @@ export default async function InspectionDetailPage({
         })}
       </div>
 
-      {/* Photo comparison (move-in vs move-out) */}
+      {/* Photo comparison (move-in vs move-out) — desktop only, mobile uses inline per-item comparison */}
       {gw && (
-        <div className="mt-4">
+        <div className="hidden lg:block mt-4">
           <PhotoComparison inspectionId={inspectionId} orgId={gw.orgId} />
         </div>
       )}
