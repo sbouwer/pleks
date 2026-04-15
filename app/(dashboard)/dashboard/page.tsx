@@ -85,16 +85,90 @@ async function DashboardHeavySections({
   )
 }
 
+function SkeletonLine({ w = "w-1/2", h = "h-3.5" }: { w?: string; h?: string }) {
+  return <div className={`${h} ${w} rounded bg-muted animate-pulse`} />
+}
+
 function DashboardSectionsSkeleton() {
   return (
     <div className="space-y-4">
+      {/* Row 1: Needs attention + Financials */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-border/60 bg-surface-elevated h-64 animate-pulse" />
-        <div className="rounded-xl border border-border/60 bg-surface-elevated h-64 animate-pulse" />
+        {/* Needs attention */}
+        <div className="rounded-xl border bg-card">
+          <div className="flex items-center gap-2 border-b px-4 py-3">
+            <SkeletonLine w="w-28" />
+            <div className="h-4 w-5 rounded-full bg-muted animate-pulse" />
+          </div>
+          <ul className="divide-y">
+            {[0, 1, 2, 3].map((i) => (
+              <li key={i} className="flex items-center gap-3 px-4 py-3">
+                <div className="h-6 w-6 shrink-0 rounded-full bg-muted animate-pulse" />
+                <div className="flex-1 space-y-1.5">
+                  <SkeletonLine w="w-3/4" />
+                  <SkeletonLine w="w-1/2" h="h-3" />
+                </div>
+                <div className="h-5 w-14 shrink-0 rounded-full bg-muted animate-pulse" />
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* Financials */}
+        <div className="rounded-xl border bg-card">
+          <div className="border-b px-4 py-3">
+            <SkeletonLine w="w-20" />
+          </div>
+          <div className="grid grid-cols-2 divide-x divide-y">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="space-y-2 px-4 py-4">
+                <SkeletonLine w="w-24" h="h-3" />
+                <SkeletonLine w="w-20" h="h-6" />
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
+
+      {/* Row 2: Lease expiry + Recent activity */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-border/60 bg-surface-elevated h-56 animate-pulse" />
-        <div className="rounded-xl border border-border/60 bg-surface-elevated h-56 animate-pulse" />
+        {/* Lease expiry */}
+        <div className="rounded-xl border bg-card">
+          <div className="border-b px-4 py-3">
+            <SkeletonLine w="w-24" />
+          </div>
+          <ul className="divide-y">
+            {[0, 1, 2].map((i) => (
+              <li key={i} className="flex items-center gap-3 px-4 py-3">
+                <div className="h-2 w-2 shrink-0 rounded-full bg-muted animate-pulse" />
+                <div className="flex-1 space-y-1.5">
+                  <SkeletonLine w="w-3/4" />
+                  <SkeletonLine w="w-2/5" h="h-2.5" />
+                </div>
+                <SkeletonLine w="w-16 shrink-0" h="h-3" />
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* Recent activity */}
+        <div className="rounded-xl border bg-card">
+          <div className="border-b px-4 py-3">
+            <SkeletonLine w="w-28" />
+          </div>
+          <ul className="divide-y">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <li key={i} className="flex items-start gap-3 px-4 py-3">
+                <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-muted animate-pulse" />
+                <div className="flex-1 space-y-1.5">
+                  <SkeletonLine w="w-3/4" />
+                  <SkeletonLine w="w-1/2" h="h-3" />
+                </div>
+                <SkeletonLine w="w-10 shrink-0" h="h-3" />
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </div>
   )
