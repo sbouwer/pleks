@@ -32,6 +32,7 @@ type FurnishingRow = {
   category: string
   item_name: string
   quantity: number
+  notes: string | null
   is_custom: boolean
 }
 
@@ -43,7 +44,7 @@ async function upsertFurnishings(
 ): Promise<void> {
   if (!furnishingsJson) return
 
-  let rows: Array<{ category: string; item_name: string; quantity: number; is_custom: boolean }>
+  let rows: Array<{ category: string; item_name: string; quantity: number; notes: string | null; is_custom: boolean }>
   try {
     rows = JSON.parse(furnishingsJson)
   } catch {
@@ -61,6 +62,7 @@ async function upsertFurnishings(
     category: r.category,
     item_name: r.item_name,
     quantity: r.quantity ?? 1,
+    notes: r.notes ?? null,
     is_custom: r.is_custom ?? false,
   }))
 
