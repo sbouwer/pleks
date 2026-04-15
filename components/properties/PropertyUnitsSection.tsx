@@ -1,16 +1,11 @@
 "use client"
 
-import { useState, useTransition } from "react"
-import { ChevronRight, ChevronDown } from "lucide-react"
-import { toast } from "sonner"
+import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { UpgradeCta } from "@/components/shared/UpgradeCta"
-import { UnitExpandPanel } from "./UnitExpandPanel"
 import { AddUnitDialog } from "./AddUnitDialog"
-import { ListingCreateDialog } from "@/components/applications/ListingCreateDialog"
-import { updateUnitStatus } from "@/lib/actions/units"
 import { getUnitDescription } from "@/lib/units/typeAwareFields"
 import { formatZAR } from "@/lib/constants"
 
@@ -58,39 +53,11 @@ export function PropertyUnitsSection({
   units,
   archivedUnits,
   propertyId,
-  propertyName,
-  propertyCity,
   propertyType,
   tier,
   tenantByUnit,
   maintenanceByUnit,
-  orgId,
 }: PropertyUnitsSectionProps) {
-  const [expandedUnitId, setExpandedUnitId] = useState<string | null>(null)
-  const [archivingUnitId, setArchivingUnitId] = useState<string | null>(null)
-  const [listingUnit, setListingUnit] = useState<UnitData | null>(null)
-  const [isPending, startTransition] = useTransition()
-
-  function toggleUnit(unitId: string) {
-    setExpandedUnitId((prev) => (prev === unitId ? null : unitId))
-    // Reset archive confirmation when collapsing
-    if (archivingUnitId && expandedUnitId !== unitId) {
-      setArchivingUnitId(null)
-    }
-  }
-
-  function handleArchiveUnit(unitId: string) {
-    startTransition(async () => {
-      const result = await updateUnitStatus(unitId, propertyId, "archived")
-      if (result?.error) {
-        toast.error(result.error)
-      } else {
-        setArchivingUnitId(null)
-        setExpandedUnitId(null)
-      }
-    })
-  }
-
   const isOwner = tier === "owner"
 
   return (
@@ -105,11 +72,7 @@ export function PropertyUnitsSection({
             <AddUnitDialog
               propertyId={propertyId}
               propertyType={propertyType}
-              trigger={
-                <Button size="sm">
-                  + Add unit
-                </Button>
-              }
+              trigger={<Button size="sm">+ Add unit</Button>}
             />
           </>
         )}
@@ -121,114 +84,52 @@ export function PropertyUnitsSection({
       ) : (
         <div className="space-y-2">
           {units.map((unit) => {
-            const isExpanded = expandedUnitId === unit.id
-            const isArchiving = archivingUnitId === unit.id
             const tenant = tenantByUnit[unit.id] ?? null
             const maintenanceCount = maintenanceByUnit[unit.id] ?? 0
             const statusKey = STATUS_MAP[unit.status] ?? "open"
             const description = getUnitDescription(unit, propertyType)
 
             return (
-              <div key={unit.id} className="rounded-lg border border-border/60 overflow-hidden">
-                {/* Clickable unit row */}
-                <div
-                  className={cn(
-                    "border rounded-lg px-4 py-3 cursor-pointer hover:border-brand/40 transition-colors",
-                    isExpanded && "border-brand/40 rounded-b-none"
+              <Link
+                key={unit.id}
+                href={`/properties/${propertyId}/units/${unit.id}`}
+                className={cn(
+                  "flex items-center justify-between gap-4 px-4 py-3 rounded-lg border border-border/60",
+                  "hover:border-brand/40 hover:bg-surface transition-colors"
+                )}
+              >
+                {/* Left: unit number + status + description */}
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <span className="font-medium whitespace-nowrap">{unit.unit_number}</span>
+                  <StatusBadge status={statusKey} />
+                  {maintenanceCount > 0 && (
+                    <span className="text-xs px-2 py-0.5 rounded bg-warning/10 text-warning whitespace-nowrap">
+                      {maintenanceCount} maintenance
+                    </span>
                   )}
-                  onClick={() => toggleUnit(unit.id)}
-                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") toggleUnit(unit.id) }}
-                  tabIndex={0}
-                  role="button"
-                  aria-expanded={isExpanded}
-                >
-                  <div className="flex items-center justify-between gap-4">
-                    {/* Left: unit number + status + description */}
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <span className="font-medium whitespace-nowrap">{unit.unit_number}</span>
-                      <StatusBadge status={statusKey} />
-                      {maintenanceCount > 0 && (
-                        <span className="text-xs px-2 py-0.5 rounded bg-warning/10 text-warning whitespace-nowrap">
-                          {maintenanceCount} maintenance
-                        </span>
-                      )}
-                      <span className="text-sm text-muted-foreground truncate hidden sm:block">
-                        {description}
-                      </span>
-                    </div>
-
-                    {/* Middle: tenant */}
-                    <div className="hidden md:block shrink-0">
-                      {tenant ? (
-                        <span className="text-sm">{tenant.name}</span>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">—</span>
-                      )}
-                    </div>
-
-                    {/* Right: rent + chevron */}
-                    <div className="flex items-center gap-2 shrink-0">
-                      {unit.asking_rent_cents ? (
-                        <span className="text-sm font-medium">{formatZAR(unit.asking_rent_cents)}</span>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">—</span>
-                      )}
-                      {isExpanded ? (
-                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </div>
-                  </div>
+                  <span className="text-sm text-muted-foreground truncate hidden sm:block">
+                    {description}
+                  </span>
                 </div>
 
-                {/* Expand panel with animation */}
-                <div
-                  className={cn(
-                    "grid transition-all duration-200",
-                    isExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                {/* Middle: tenant */}
+                <div className="hidden md:block shrink-0">
+                  {tenant ? (
+                    <span className="text-sm">{tenant.name}</span>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">Vacant</span>
                   )}
-                >
-                  <div className="overflow-hidden">
-                    <UnitExpandPanel
-                      unit={unit}
-                      propertyId={propertyId}
-                      propertyType={propertyType}
-                      onArchive={() => setArchivingUnitId(unit.id)}
-                      onCreateListing={() => setListingUnit(unit)}
-                    />
-
-                    {/* Archive confirmation */}
-                    {isArchiving && (
-                      <div className="mx-4 mb-4 rounded-lg border border-danger/30 bg-danger/5 px-4 py-3">
-                        <p className="text-sm text-muted-foreground mb-3">
-                          Archive this unit? It will be hidden from active lists.
-                        </p>
-                        <div className="flex gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setArchivingUnitId(null)}
-                            disabled={isPending}
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={() => handleArchiveUnit(unit.id)}
-                            disabled={isPending}
-                            className="bg-danger text-white hover:bg-danger/90"
-                          >
-                            {isPending ? "Archiving..." : "Archive unit"}
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
                 </div>
-              </div>
+
+                {/* Right: rent */}
+                <div className="shrink-0">
+                  {unit.asking_rent_cents ? (
+                    <span className="text-sm font-medium">{formatZAR(unit.asking_rent_cents)}</span>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">—</span>
+                  )}
+                </div>
+              </Link>
             )
           })}
         </div>
@@ -240,17 +141,6 @@ export function PropertyUnitsSection({
           title="Managing more properties?"
           description="Upgrade to Steward to manage up to 20 units."
           dismissKey="upgrade-cta-units"
-        />
-      )}
-
-      {/* Listing create dialog */}
-      {listingUnit && (
-        <ListingCreateDialog
-          open={true}
-          onOpenChange={(open) => { if (!open) setListingUnit(null) }}
-          unit={{ id: listingUnit.id, unit_number: listingUnit.unit_number, asking_rent_cents: listingUnit.asking_rent_cents }}
-          property={{ id: propertyId, name: propertyName, city: propertyCity }}
-          orgId={orgId}
         />
       )}
 
