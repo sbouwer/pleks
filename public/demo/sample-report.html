@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portfolio Summary — Tax Year 2025/2026 | Pleks Demo Properties</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    :root {
+      --brand: #0f766e;
+      --brand-light: #f0fdfa;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --surface: #f8fafc;
+      --danger: #dc2626;
+      --green: #16a34a;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      font-size: 11pt;
+      color: var(--text);
+      background: #fff;
+      line-height: 1.5;
+    }
+
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      padding: 16mm 18mm;
+      background: #fff;
+    }
+
+    @media screen {
+      body { background: #f0f0f0; padding: 20px 0 40px; }
+      .page { box-shadow: 0 2px 20px rgba(0,0,0,0.12); margin-bottom: 20px; }
+      .print-btn {
+        position: fixed; top: 20px; right: 20px; z-index: 100;
+        background: var(--brand); color: #fff; border: none;
+        padding: 10px 20px; border-radius: 8px; font-size: 14px;
+        font-family: inherit; cursor: pointer; font-weight: 600;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      }
+      .print-btn:hover { background: #0d6460; }
+    }
+
+    @media print {
+      body { background: #fff; padding: 0; }
+      .page { box-shadow: none; margin: 0; padding: 12mm 16mm; }
+      .print-btn { display: none; }
+    }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      padding-bottom: 12px;
+      border-bottom: 2px solid var(--brand);
+      margin-bottom: 20px;
+    }
+    .logo-mark {
+      width: 36px; height: 36px;
+      background: var(--brand);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: 700; font-size: 16px; letter-spacing: -1px;
+    }
+    .org-name { font-size: 14pt; font-weight: 700; color: var(--text); line-height: 1.1; }
+    .org-sub  { font-size: 9pt; color: var(--muted); margin-top: 2px; }
+    .report-meta { text-align: right; }
+    .report-title { font-size: 13pt; font-weight: 700; color: var(--text); }
+    .report-period { font-size: 9pt; color: var(--muted); margin-top: 2px; }
+    .report-generated { font-size: 8pt; color: var(--muted); margin-top: 4px; }
+
+    /* ── Section ── */
+    .section-label {
+      font-size: 7pt;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+      margin-top: 20px;
+    }
+
+    /* ── KPI strip ── */
+    .kpi-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 0;
+    }
+    .kpi-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+    .kpi-label { font-size: 8pt; color: var(--muted); margin-bottom: 2px; }
+    .kpi-value { font-size: 17pt; font-weight: 700; line-height: 1.1; }
+    .kpi-value.brand { color: var(--brand); }
+    .kpi-value.green { color: var(--green); }
+    .kpi-value.danger { color: var(--danger); }
+    .kpi-sub { font-size: 8pt; color: var(--muted); margin-top: 2px; }
+
+    /* ── Table ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9.5pt;
+    }
+    th {
+      text-align: left;
+      font-size: 7.5pt;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      padding: 7px 10px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--surface); }
+    .td-right { text-align: right; }
+    .td-bold  { font-weight: 600; }
+    .td-muted { color: var(--muted); font-size: 9pt; }
+    .td-green { color: var(--green); font-weight: 600; }
+    .td-red   { color: var(--danger); font-weight: 600; }
+    .td-brand { color: var(--brand); font-weight: 600; }
+
+    /* ── Badge ── */
+    .badge {
+      display: inline-block;
+      font-size: 7.5pt;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+    .badge-green  { background: #dcfce7; color: #166534; }
+    .badge-amber  { background: #fef9c3; color: #854d0e; }
+    .badge-red    { background: #fee2e2; color: #991b1b; }
+    .badge-blue   { background: #dbeafe; color: #1e40af; }
+    .badge-muted  { background: #f1f5f9; color: #475569; }
+
+    /* ── 2-col row ── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+    /* ── Summary box ── */
+    .summary-box {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .summary-box-header {
+      background: var(--brand);
+      color: #fff;
+      font-size: 9pt;
+      font-weight: 600;
+      padding: 7px 12px;
+    }
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 7px 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 9.5pt;
+    }
+    .summary-row:last-child { border-bottom: none; }
+    .summary-row-label { color: var(--muted); }
+    .summary-total {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: var(--brand-light);
+      font-weight: 700;
+      font-size: 10pt;
+      color: var(--brand);
+    }
+
+    /* ── Flags ── */
+    .flag { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
+    .flag-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      margin-top: 5px; shrink: 0; flex-shrink: 0;
+    }
+    .flag-dot.red    { background: var(--danger); }
+    .flag-dot.amber  { background: #f59e0b; }
+    .flag-dot.green  { background: var(--green); }
+    .flag-text { font-size: 9.5pt; line-height: 1.4; }
+    .flag-meta { font-size: 8pt; color: var(--muted); }
+
+    /* ── Footer ── */
+    .footer {
+      margin-top: 24px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      font-size: 8pt;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
+
+  <div class="page">
+    <!-- Header -->
+    <div class="header">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div class="logo-mark">P</div>
+        <div>
+          <div class="org-name">Pleks Demo Properties</div>
+          <div class="org-sub">demo@pleksproperties.co.za · 021 555 0100</div>
+        </div>
+      </div>
+      <div class="report-meta">
+        <div class="report-title">Portfolio Summary</div>
+        <div class="report-period">Tax Year 2025/2026</div>
+        <div class="report-generated">Generated 16 April 2026</div>
+      </div>
+    </div>
+
+    <!-- KPI strip -->
+    <p class="section-label">Portfolio overview</p>
+    <div class="kpi-strip">
+      <div class="kpi-card">
+        <div class="kpi-label">Total units</div>
+        <div class="kpi-value">11</div>
+        <div class="kpi-sub">9 occupied · 2 vacant</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Annual rental income</div>
+        <div class="kpi-value brand">R1,048,800</div>
+        <div class="kpi-sub">R87,400/mo average</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Deposits held</div>
+        <div class="kpi-value">R171,800</div>
+        <div class="kpi-sub">8 deposits in trust</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Occupancy rate</div>
+        <div class="kpi-value green">82%</div>
+        <div class="kpi-sub">9 of 11 units</div>
+      </div>
+    </div>
+
+    <!-- Property breakdown -->
+    <p class="section-label" style="margin-top:18px;">Property breakdown</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Property</th>
+          <th>Type</th>
+          <th class="td-right">Units</th>
+          <th class="td-right">Occupied</th>
+          <th class="td-right">Monthly income</th>
+          <th class="td-right">Annual income</th>
+          <th>Owner</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="td-bold">Kirstenhof Court</td>
+          <td><span class="badge badge-blue">Residential</span></td>
+          <td class="td-right">4</td>
+          <td class="td-right">4 <span class="td-muted">(100%)</span></td>
+          <td class="td-right td-green">R44,000</td>
+          <td class="td-right td-brand">R528,000</td>
+          <td class="td-muted">A. van Wyk</td>
+        </tr>
+        <tr>
+          <td class="td-bold">12 Buitenkant</td>
+          <td><span class="badge badge-blue">Residential</span></td>
+          <td class="td-right">1</td>
+          <td class="td-right">1 <span class="td-muted">(100%)</span></td>
+          <td class="td-right td-green">R7,800</td>
+          <td class="td-right td-brand">R93,600</td>
+          <td class="td-muted">S. Petersen</td>
+        </tr>
+        <tr>
+          <td class="td-bold">Welgemeend Estate</td>
+          <td><span class="badge badge-muted">Mixed use</span></td>
+          <td class="td-right">6</td>
+          <td class="td-right">4 <span class="td-muted">(67%)</span></td>
+          <td class="td-right td-green">R38,600</td>
+          <td class="td-right td-brand">R463,200</td>
+          <td class="td-muted">Welgemeend Trust</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Financial summary + Owner statements side by side -->
+    <p class="section-label">Financial summary — 2025/2026</p>
+    <div class="two-col">
+      <div class="summary-box">
+        <div class="summary-box-header">Income &amp; Disbursements</div>
+        <div class="summary-row">
+          <span class="summary-row-label">Gross rental collected</span>
+          <span>R1,013,200</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-row-label">Maintenance &amp; expenses</span>
+          <span class="td-red">−R58,500</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-row-label">Management fees (10%)</span>
+          <span class="td-red">−R101,320</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-row-label">Outstanding arrears</span>
+          <span class="td-red">−R8,800</span>
+        </div>
+        <div class="summary-total">
+          <span>Net disbursed to owners</span>
+          <span>R844,580</span>
+        </div>
+      </div>
+
+      <div class="summary-box">
+        <div class="summary-box-header">Trust Account</div>
+        <div class="summary-row">
+          <span class="summary-row-label">Opening balance</span>
+          <span>R0</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-row-label">Total receipts</span>
+          <span>R1,013,200</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-row-label">Total disbursements</span>
+          <span class="td-red">−R925,750</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-row-label">Deposits held</span>
+          <span>R171,800</span>
+        </div>
+        <div class="summary-total">
+          <span>Closing balance</span>
+          <span>R87,450</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lease status -->
+    <p class="section-label">Active leases</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Tenant</th>
+          <th>Unit</th>
+          <th class="td-right">Monthly rent</th>
+          <th class="td-right">Deposit</th>
+          <th>Escalation</th>
+          <th>End date</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="td-bold">Amahle Dlamini</td>
+          <td class="td-muted">Kirstenhof 101</td>
+          <td class="td-right">R9,500</td>
+          <td class="td-right">R19,000</td>
+          <td>8%</td>
+          <td>Jul 2026</td>
+          <td><span class="badge badge-green">Active</span></td>
+        </tr>
+        <tr>
+          <td class="td-bold">Marco van der Berg</td>
+          <td class="td-muted">Kirstenhof 102</td>
+          <td class="td-right">R9,500</td>
+          <td class="td-right">R19,000</td>
+          <td>8%</td>
+          <td>Dec 2026</td>
+          <td><span class="badge badge-green">Active</span></td>
+        </tr>
+        <tr>
+          <td class="td-bold">Priya Naidoo</td>
+          <td class="td-muted">Kirstenhof 201</td>
+          <td class="td-right">R12,500</td>
+          <td class="td-right">R25,000</td>
+          <td>10%</td>
+          <td>Sep 2026</td>
+          <td><span class="badge badge-green">Active</span></td>
+        </tr>
+        <tr>
+          <td class="td-bold">James Fortuin</td>
+          <td class="td-muted">Buitenkant 1</td>
+          <td class="td-right">R7,800</td>
+          <td class="td-right">R15,600</td>
+          <td>8%</td>
+          <td>May 2026</td>
+          <td><span class="badge badge-amber">Expiring</span></td>
+        </tr>
+        <tr>
+          <td class="td-bold">Leilah Hendricks</td>
+          <td class="td-muted">Welgemeend A1</td>
+          <td class="td-right">R8,800</td>
+          <td class="td-right">R17,600</td>
+          <td>8%</td>
+          <td>Feb 2027</td>
+          <td><span class="badge badge-green">Active</span></td>
+        </tr>
+        <tr>
+          <td class="td-bold">Sipho Motaung</td>
+          <td class="td-muted">Welgemeend A2</td>
+          <td class="td-right">R8,800</td>
+          <td class="td-right">R17,600</td>
+          <td>8%</td>
+          <td>May 2026</td>
+          <td><span class="badge badge-red">In arrears</span></td>
+        </tr>
+        <tr>
+          <td class="td-bold">Caitlin Rousseau</td>
+          <td class="td-muted">Welgemeend C1</td>
+          <td class="td-right">R11,500</td>
+          <td class="td-right">R23,000</td>
+          <td>10%</td>
+          <td>Jan 2027</td>
+          <td><span class="badge badge-green">Active</span></td>
+        </tr>
+        <tr>
+          <td class="td-bold">Thabo Mahlangu</td>
+          <td class="td-muted">Kirstenhof 202</td>
+          <td class="td-right">R12,500</td>
+          <td class="td-right">R25,000</td>
+          <td>8%</td>
+          <td>Nov 2026</td>
+          <td><span class="badge badge-amber">On notice</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Flags -->
+    <p class="section-label">Flags &amp; action items</p>
+    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px;">
+      <div class="flag">
+        <div class="flag-dot red"></div>
+        <div>
+          <div class="flag-text"><strong>Arrears — Sipho Motaung (Welgemeend A2)</strong></div>
+          <div class="flag-meta">R8,800 outstanding · 23 days overdue · Collection step 1 of 5 initiated</div>
+        </div>
+      </div>
+      <div class="flag">
+        <div class="flag-dot amber"></div>
+        <div>
+          <div class="flag-text"><strong>CPA notice required — James Fortuin (Buitenkant 1)</strong></div>
+          <div class="flag-meta">Lease ends May 2026 · CPA s14(2) notice window open · Notice not yet sent</div>
+        </div>
+      </div>
+      <div class="flag">
+        <div class="flag-dot amber"></div>
+        <div>
+          <div class="flag-text"><strong>Vacant units — Welgemeend B1 and C2</strong></div>
+          <div class="flag-meta">2 units vacant · R16,500/month combined lost income · No active applications</div>
+        </div>
+      </div>
+      <div class="flag">
+        <div class="flag-dot green"></div>
+        <div>
+          <div class="flag-text"><strong>Overdue inspection resolved — Welgemeend C1</strong></div>
+          <div class="flag-meta">Periodic inspection rescheduled with Caitlin Rousseau · 5 days overdue</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <span>Pleks Demo Properties · demo@pleksproperties.co.za</span>
+      <span>Portfolio Summary · Tax Year 2025/2026 · Generated 16 Apr 2026</span>
+      <span>Confidential — prepared by Pleks</span>
+    </div>
+  </div>
+</body>
+</html>
