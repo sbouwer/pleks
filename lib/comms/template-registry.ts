@@ -5,7 +5,7 @@
  */
 
 export type TemplateChannel  = "email" | "sms" | "both"
-export type TemplateCategory = "applications" | "arrears" | "maintenance" | "inspections" | "leases" | "deposits" | "statements" | "subscriptions" | "portal"
+export type TemplateCategory = "applications" | "arrears" | "maintenance" | "inspections" | "leases" | "deposits" | "statements" | "subscriptions" | "portal" | "reports"
 
 export interface TemplateEntry {
   key: string
@@ -220,6 +220,12 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
   "portal.inspection_reschedule_response": {
     key: "portal.inspection_reschedule_response", channel: "both", category: "portal", is_mandatory: false,
     description: "Tenant notified of agent response (approved/declined/countered) to reschedule request",
+  },
+
+  // ── Reports ──────────────────────────────────────────────────────
+  "reports.welcome_pack": {
+    key: "reports.welcome_pack", channel: "email", category: "reports", is_mandatory: false,
+    description: "Owner portfolio welcome pack sent as HTML email",
   },
 
   // ── Application extras ────────────────────────────────────────────

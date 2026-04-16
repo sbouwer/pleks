@@ -70,6 +70,10 @@ export interface ContactCardProps {
   readonly ficaVerified?: boolean | null
   readonly portalStatus?: PortalStatus
   readonly welcomePackSentAt?: string | null
+  /** Label for the welcome pack row. Defaults to "Welcome pack". */
+  readonly welcomePackLabel?: string
+  /** When true the row shows "Outdated · Re-send" instead of the sent date. */
+  readonly welcomePackOutdated?: boolean
   readonly onSendWelcomePack?: () => void
   /** Called when the agent clicks "Invite" in the portal status row */
   readonly onSendPortalInvite?: () => void
@@ -92,6 +96,8 @@ export function ContactCard({
   idOrRegLabel = "ID number",
   ficaVerified,
   portalStatus,
+  welcomePackLabel = "Welcome pack",
+  welcomePackOutdated = false,
   welcomePackSentAt,
   onSendWelcomePack,
   onSendPortalInvite,
@@ -221,8 +227,24 @@ export function ContactCard({
                 <PortalPill status={portalStatus ?? null} />
               )}
             </InfoRow>
-            <InfoRow label="Welcome pack">
-              {welcomeLabel ?? (
+            <InfoRow label={welcomePackLabel}>
+              {welcomePackOutdated ? (
+                <span className="flex items-center gap-1.5">
+                  <span className="text-warning font-normal">Outdated</span>
+                  {onSendWelcomePack && (
+                    <>
+                      {" · "}
+                      <button
+                        type="button"
+                        onClick={onSendWelcomePack}
+                        className="text-brand hover:underline font-medium"
+                      >
+                        Re-send
+                      </button>
+                    </>
+                  )}
+                </span>
+              ) : (welcomeLabel ?? (
                 <span className="flex items-center gap-1.5">
                   <span className="text-muted-foreground font-normal">Not sent</span>
                   {onSendWelcomePack && (
@@ -238,7 +260,7 @@ export function ContactCard({
                     </>
                   )}
                 </span>
-              )}
+              ))}
             </InfoRow>
           </div>
         </>

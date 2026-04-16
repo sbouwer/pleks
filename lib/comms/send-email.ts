@@ -36,8 +36,10 @@ export interface SendEmailParams {
     contactId?: string
   }
   subject: string
-  /** The rendered React Email element (from the template component) */
-  emailElement: ReactElement
+  /** The rendered React Email element (from the template component). Mutually exclusive with rawHtml. */
+  emailElement?: ReactElement
+  /** Pre-rendered HTML string (for reports/documents). Mutually exclusive with emailElement. */
+  rawHtml?: string
   /** Plain-text body preview (first ~200 chars shown in log) */
   bodyPreview?: string
   entityType?: string
@@ -158,8 +160,9 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailResul
 
   const replyTo = params.replyTo ?? orgSettings?.reply_to_email ?? orgSettings?.email ?? REPLY_TO_DEFAULT
 
-  // 3. Render HTML from the React Email element (already includes layout)
-  const html = await render(params.emailElement)
+  // 3. Render HTML — either from a React Email element or a pre-rendered string
+  if (!params.emailElement && !params.rawHtml) throw new Error("sendEmail: provide emailElement or rawHtml")
+  const html = params.rawHtml ?? await render(params.emailElement!)
 
   // 4. Send via Resend
   const service = await createServiceClient()
