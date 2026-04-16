@@ -225,7 +225,11 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
   // ── Reports ──────────────────────────────────────────────────────
   "reports.welcome_pack": {
     key: "reports.welcome_pack", channel: "email", category: "reports", is_mandatory: false,
-    description: "Owner portfolio welcome pack sent as HTML email",
+    description: "Owner portfolio overview sent as HTML email",
+  },
+  "reports.tenant_welcome_pack": {
+    key: "reports.tenant_welcome_pack", channel: "email", category: "reports", is_mandatory: false,
+    description: "Tenant welcome pack — payment details, maintenance contacts, key lease dates",
   },
 
   // ── Application extras ────────────────────────────────────────────

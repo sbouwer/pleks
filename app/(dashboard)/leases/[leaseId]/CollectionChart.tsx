@@ -45,7 +45,7 @@ export function CollectionChart({ data }: CollectionChartProps) {
 
   return (
     <div className="h-40">
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height="100%" minWidth={0}>
         <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }} barCategoryGap="20%">
           <XAxis
             dataKey="month"
