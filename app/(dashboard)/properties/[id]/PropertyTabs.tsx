@@ -4,8 +4,8 @@ import { cn } from "@/lib/utils"
 const TABS = [
   { id: "overview",   label: "Overview" },
   { id: "units",      label: "Buildings & units" },
-  { id: "documents",  label: "Documents" },
   { id: "operations", label: "Operations" },
+  { id: "documents",  label: "Documents" },
 ] as const
 
 interface PropertyTabsProps {
