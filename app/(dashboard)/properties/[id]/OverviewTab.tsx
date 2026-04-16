@@ -181,9 +181,9 @@ export function OverviewTab({
       </div>
 
       {/* Two-column cards */}
-      <div className="flex flex-col lg:flex-row gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Left: Owner / Landlord */}
-        <div className="flex-1 min-w-0 rounded-xl border bg-card overflow-hidden">
+        <div className="rounded-xl border bg-card overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b">
             <span className="text-xs text-muted-foreground uppercase tracking-wide">Owner / Landlord</span>
             {managingAgentName && (
@@ -221,7 +221,7 @@ export function OverviewTab({
         </div>
 
         {/* Right: Property details + map stacked */}
-        <div className="flex-1 min-w-0 flex flex-col gap-4">
+        <div className="flex flex-col gap-4">
           <div className="rounded-xl border bg-card overflow-hidden">
             <div className="px-4 py-3 border-b">
               <span className="text-xs text-muted-foreground uppercase tracking-wide">Property details</span>
