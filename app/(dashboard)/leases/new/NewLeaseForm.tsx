@@ -18,6 +18,7 @@ import { createLease } from "@/lib/actions/leases"
 import { toast } from "sonner"
 import { Plus, X } from "lucide-react"
 import { ClauseConfigurator } from "@/components/leases/ClauseConfigurator"
+import { OwnerProUpgradeCard } from "@/components/billing/OwnerProUpgradeCard"
 
 type Step = 1 | 2 | 3 | 4 | 45 | 5 | 6
 
@@ -26,7 +27,13 @@ interface SpecialTerm {
   detail: string
 }
 
-export function NewLeaseForm() {
+interface NewLeaseFormProps {
+  /** Owner tier only — how many premium slots are already in use */
+  premiumSlotsUsed?: number
+  isRenewal?: boolean
+}
+
+export function NewLeaseForm({ premiumSlotsUsed = 0, isRenewal = false }: NewLeaseFormProps) {
   const searchParams = useSearchParams()
   const renewalOf = searchParams.get("renewal_of")
 
@@ -49,6 +56,7 @@ export function NewLeaseForm() {
   const [noticePeriod, setNoticePeriod] = useState("20")
 
   // Step 3
+  const [premiumEnabled, setPremiumEnabled] = useState(false)
   const [rent, setRent] = useState("")
   const [paymentDueDay, setPaymentDueDay] = useState("1")
   const [escalationPercent, setEscalationPercent] = useState("10")
@@ -152,6 +160,7 @@ export function NewLeaseForm() {
     formData.set("arrears_interest_margin", arrearsMargin)
     formData.set("special_terms", JSON.stringify(specialTerms.filter((t) => t.detail.trim())))
     formData.set("clause_selections", JSON.stringify(clauseSelections))
+    formData.set("premium_enabled", String(premiumEnabled))
 
     const result = await createLease(formData)
     if (result?.error) {
@@ -340,6 +349,17 @@ export function NewLeaseForm() {
           {leaseType === "residential" && (
             <p className="text-xs text-muted-foreground">Deposit interest belongs to tenant (RHA statutory requirement).</p>
           )}
+          {/* Owner Pro upgrade prompt — only for Owner tier */}
+          {premiumSlotsUsed < 3 && (
+            <OwnerProUpgradeCard
+              usedSlots={premiumSlotsUsed}
+              context={isRenewal ? "renewal" : "new_lease"}
+              enabled={premiumEnabled}
+              onEnable={() => setPremiumEnabled(true)}
+              onSkip={() => setPremiumEnabled(false)}
+            />
+          )}
+
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => setStep(2)}>Back</Button>
             <Button className="flex-1" onClick={() => setStep(4)}>Continue</Button>
