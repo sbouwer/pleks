@@ -198,7 +198,11 @@ ALTER TABLE payments ADD COLUMN IF NOT EXISTS receipt_path text;
 -- ═══════════════════════════════════════════════════════════════════════════════
 
 ALTER TABLE organisations
-  ADD COLUMN IF NOT EXISTS office_hours_weekday          text DEFAULT 'Mon–Fri 08:00–17:00',
+  ADD COLUMN IF NOT EXISTS office_hours_monday           text,
+  ADD COLUMN IF NOT EXISTS office_hours_tuesday          text,
+  ADD COLUMN IF NOT EXISTS office_hours_wednesday        text,
+  ADD COLUMN IF NOT EXISTS office_hours_thursday         text,
+  ADD COLUMN IF NOT EXISTS office_hours_friday           text,
   ADD COLUMN IF NOT EXISTS office_hours_saturday         text,
   ADD COLUMN IF NOT EXISTS office_hours_sunday           text,
   ADD COLUMN IF NOT EXISTS office_hours_public_holidays  text,
