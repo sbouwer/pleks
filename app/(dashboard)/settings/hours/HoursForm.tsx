@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { Phone } from "lucide-react"
 
-// ── Shared primitives (copied from ProfileForm.tsx) ───────────────────────────
+// ── Shared primitives ─────────────────────────────────────────────────────────
 
 function F({ label, id, required, help, children }: Readonly<{
   label: string; id?: string; required?: boolean; help?: string; children: React.ReactNode
@@ -95,7 +95,11 @@ function DayHoursRow({ label, value, defaultStart = "08:00", defaultEnd = "17:00
 // ── Component ─────────────────────────────────────────────────────────────────
 
 interface HoursData {
-  office_hours_weekday: string | null
+  office_hours_monday: string | null
+  office_hours_tuesday: string | null
+  office_hours_wednesday: string | null
+  office_hours_thursday: string | null
+  office_hours_friday: string | null
   office_hours_saturday: string | null
   office_hours_sunday: string | null
   office_hours_public_holidays: string | null
@@ -147,34 +151,14 @@ export function HoursForm({ initialData }: Readonly<{ initialData: HoursData }>)
             <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Close</span>
             <span />
           </div>
-          <DayHoursRow
-            label="Weekdays"
-            value={form.office_hours_weekday}
-            defaultStart="08:00"
-            defaultEnd="17:00"
-            onChange={(v) => set("office_hours_weekday", v)}
-          />
-          <DayHoursRow
-            label="Saturdays"
-            value={form.office_hours_saturday}
-            defaultStart="08:00"
-            defaultEnd="13:00"
-            onChange={(v) => set("office_hours_saturday", v)}
-          />
-          <DayHoursRow
-            label="Sundays"
-            value={form.office_hours_sunday}
-            defaultStart="08:00"
-            defaultEnd="13:00"
-            onChange={(v) => set("office_hours_sunday", v)}
-          />
-          <DayHoursRow
-            label="Public holidays"
-            value={form.office_hours_public_holidays}
-            defaultStart="08:00"
-            defaultEnd="13:00"
-            onChange={(v) => set("office_hours_public_holidays", v)}
-          />
+          <DayHoursRow label="Monday"    value={form.office_hours_monday}    defaultStart="08:00" defaultEnd="17:00" onChange={(v) => set("office_hours_monday", v)} />
+          <DayHoursRow label="Tuesday"   value={form.office_hours_tuesday}   defaultStart="08:00" defaultEnd="17:00" onChange={(v) => set("office_hours_tuesday", v)} />
+          <DayHoursRow label="Wednesday" value={form.office_hours_wednesday} defaultStart="08:00" defaultEnd="17:00" onChange={(v) => set("office_hours_wednesday", v)} />
+          <DayHoursRow label="Thursday"  value={form.office_hours_thursday}  defaultStart="08:00" defaultEnd="17:00" onChange={(v) => set("office_hours_thursday", v)} />
+          <DayHoursRow label="Friday"    value={form.office_hours_friday}    defaultStart="08:00" defaultEnd="15:00" onChange={(v) => set("office_hours_friday", v)} />
+          <DayHoursRow label="Saturday"  value={form.office_hours_saturday}  defaultStart="08:00" defaultEnd="13:00" onChange={(v) => set("office_hours_saturday", v)} />
+          <DayHoursRow label="Sunday"    value={form.office_hours_sunday}    defaultStart="08:00" defaultEnd="13:00" onChange={(v) => set("office_hours_sunday", v)} />
+          <DayHoursRow label="Public holidays" value={form.office_hours_public_holidays} defaultStart="08:00" defaultEnd="13:00" onChange={(v) => set("office_hours_public_holidays", v)} />
         </CardContent>
       </Card>
 

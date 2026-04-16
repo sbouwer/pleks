@@ -11,7 +11,8 @@ const ALL_FIELDS = [
   "addr_type", "addr_line1", "addr_suburb", "addr_city", "addr_province", "addr_postal_code",
   "addr2_type", "addr2_line1", "addr2_suburb", "addr2_city", "addr2_province", "addr2_postal_code",
   // operating hours & emergency contact (ADDENDUM_00B)
-  "office_hours_weekday", "office_hours_saturday", "office_hours_sunday", "office_hours_public_holidays",
+  "office_hours_monday", "office_hours_tuesday", "office_hours_wednesday", "office_hours_thursday", "office_hours_friday",
+  "office_hours_saturday", "office_hours_sunday", "office_hours_public_holidays",
   "emergency_phone", "emergency_contact_name", "emergency_instructions", "emergency_email",
 ] as const
 
