@@ -7,7 +7,7 @@ const TABS = [
   { id: "contacts",    label: "Contacts" },
   { id: "operations",  label: "Operations" },
   { id: "finance",     label: "Finance" },
-  { id: "documents",   label: "Documents" },
+  { id: "communications", label: "Communications" },
 ] as const
 
 interface LeaseTabsProps {

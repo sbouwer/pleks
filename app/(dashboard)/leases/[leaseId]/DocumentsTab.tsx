@@ -477,10 +477,10 @@ export function DocumentsTab({
         {/* Footer */}
         <div className="px-4 py-3 border-t border-border bg-muted/20">
           <a
-            href={`/leases/${leaseId}/documents`}
+            href={`/leases/${leaseId}/communications`}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
-            View all documents &amp; communications →
+            View full communication history →
           </a>
         </div>
       </div>
