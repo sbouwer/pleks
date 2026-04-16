@@ -346,7 +346,7 @@ export const DEMO_DATA = {
   reports: {
     available: 25,
     categories: ["Financial", "Tenant", "Property", "Compliance", "Operations", "Agency"],
-    sample_pdf_url: "/demo/sample-report.pdf",
+    sample_pdf_url: "/demo/sample-report.html",
   },
 
   // ── Compliance ───────────────────────────────────────────────────────────────
