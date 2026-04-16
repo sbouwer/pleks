@@ -20,6 +20,11 @@ export const TIER_PRICING = {
 
 export const OVERAGE_RATE_CENTS = 3500
 
+// Owner Pro — per-lease premium unlock
+export const OWNER_PRO_PRICE_CENTS        = 9900   // R99 per lease per month
+export const OWNER_PRO_MAX_LEASES         = 3      // cap before Steward upsell
+export const OWNER_PRO_REFUND_WINDOW_HOURS = 48    // full refund within 48h of enabling
+
 // Founding agent pricing (first 10 clients — 24-month lock)
 export const FOUNDING_AGENT_PRICE_CENTS = 29900 // R299/month
 export const FOUNDING_AGENT_DURATION_MONTHS = 24
