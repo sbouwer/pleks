@@ -17,7 +17,7 @@ import { DocumentsTab, type CommLogRow, type LeaseDocRow } from "./DocumentsTab"
 import { OperationsTab } from "./OperationsTab"
 import { resolveDepositInterestConfig, getPrimeRateOn, describeRate } from "@/lib/deposits/interestConfig"
 
-const VALID_TABS = ["overview", "details", "contacts", "operations", "finance", "documents"] as const
+const VALID_TABS = ["overview", "details", "contacts", "operations", "finance", "communications"] as const
 type Tab = (typeof VALID_TABS)[number]
 
 type ComplianceItem = { dot: string; label: string; value: string | null; overdue?: boolean }
@@ -645,7 +645,7 @@ export default async function LeaseDetailPage({
     activeTab === "finance"
       ? fetchFinanceTabExtras(supabase, leaseId, lease.org_id, propertyId, lease.unit_id ?? null, lease.deposit_amount_cents ?? null, recentPayments[0]?.payment_method ?? null, today, taxYearStart)
       : Promise.resolve(null),
-    activeTab === "documents"
+    activeTab === "communications"
       ? fetchDocumentsTabData(supabase, leaseId, lease.org_id)
       : Promise.resolve(null),
   ])
@@ -798,7 +798,7 @@ export default async function LeaseDetailPage({
           />
         )}
 
-        {activeTab === "documents" && (
+        {activeTab === "communications" && (
           <DocumentsTab
             leaseId={leaseId}
             orgId={lease.org_id}
