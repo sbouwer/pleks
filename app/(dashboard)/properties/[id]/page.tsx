@@ -130,6 +130,7 @@ interface OverviewData {
   managingAgentName: string | null
   activity: RecentActivityItem[]
   managingScheme: string | null
+  teamMembers: { userId: string; name: string; role: string }[]
 }
 
 async function fetchOverviewData(
@@ -150,6 +151,7 @@ async function fetchOverviewData(
     { data: recentLeases },
     managingAgentResult,
     managingSchemeResult,
+    { data: teamMemberRows },
   ] = await Promise.all([
     supabase.from("units").select("id, status, asking_rent_cents").eq("property_id", propertyId).is("deleted_at", null).eq("is_archived", false),
     landlordId
@@ -178,6 +180,7 @@ async function fetchOverviewData(
       ? service.from("user_orgs").select("user_profiles(full_name)").eq("user_id", managingAgentId).eq("org_id", orgId).limit(1)
       : Promise.resolve({ data: null }),
     service.from("contractors").select("name").eq("org_id", orgId).limit(1),
+    service.from("user_orgs").select("user_id, role, user_profiles(id, full_name)").eq("org_id", orgId).is("deleted_at", null),
   ])
 
   // Arrears totals
@@ -218,6 +221,11 @@ async function fetchOverviewData(
   }
   activity.sort((a, b) => b.date.localeCompare(a.date))
 
+  const teamMembers = (teamMemberRows ?? []).map((m) => {
+    const profile = m.user_profiles as unknown as { full_name: string | null }
+    return { userId: m.user_id as string, name: profile?.full_name ?? "Unknown", role: m.role as string }
+  })
+
   return {
     landlord:       landlordResult.data as OverviewData["landlord"],
     allLandlords:   (allLandlords ?? []) as OverviewData["allLandlords"],
@@ -228,6 +236,7 @@ async function fetchOverviewData(
     managingAgentName,
     activity:       activity.slice(0, 5),
     managingScheme,
+    teamMembers,
   }
 }
 
@@ -517,11 +526,13 @@ export default async function PropertyDetailPage({
             )}
           </div>
           <p className="text-muted-foreground text-sm mt-0.5">{fullAddress}</p>
-          <AgentPicker
-            propertyId={id}
-            currentAgentId={property.managing_agent_id ?? null}
-            teamMembers={unitsData?.teamMembers ?? []}
-          />
+          {activeTab === "overview" && (
+            <AgentPicker
+              propertyId={id}
+              currentAgentId={property.managing_agent_id ?? null}
+              teamMembers={overviewData?.teamMembers ?? unitsData?.teamMembers ?? []}
+            />
+          )}
         </div>
 
         {/* Tabs */}
