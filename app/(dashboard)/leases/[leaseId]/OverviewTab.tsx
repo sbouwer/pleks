@@ -87,18 +87,22 @@ function buildMonthBars(
   rentCents: number,
   taxYearStart: Date,
   today: Date,
+  leaseStartDate: Date | null,
 ): MonthBar[] {
   const bars: MonthBar[] = []
   for (let i = 0; i < 12; i++) {
     const d = new Date(taxYearStart.getFullYear(), taxYearStart.getMonth() + i, 1)
     const label = d.toLocaleDateString("en-ZA", { month: "short" })
+    // Month before lease start → no expected rent
+    const leaseActive = !leaseStartDate || d >= new Date(leaseStartDate.getFullYear(), leaseStartDate.getMonth(), 1)
+    const expectedForMonth = leaseActive ? rentCents : 0
     const collected = ytdPayments
       .filter((p) => {
         const pd = new Date(p.payment_date)
         return pd.getFullYear() === d.getFullYear() && pd.getMonth() === d.getMonth()
       })
       .reduce((sum, p) => sum + p.amount_cents, 0)
-    bars.push({ month: label, expected: rentCents, collected, status: getMonthStatus(d > today, collected, rentCents) })
+    bars.push({ month: label, expected: expectedForMonth, collected, status: getMonthStatus(d > today, collected, expectedForMonth) })
   }
   return bars
 }
@@ -353,7 +357,8 @@ export function OverviewTab({
   const { start: taxYearStart, label: taxYearLabel } = getTaxYear(today)
   const { ytdCollectedCents, ytdExpectedCents, outstandingCents, collectedPct, depositInterestCents } =
     computeYtd(lease, ytdPayments, taxYearStart, today)
-  const monthBars = rentCents > 0 ? buildMonthBars(ytdPayments, rentCents, taxYearStart, today) : []
+  const leaseStartDate = lease.start_date ? new Date(lease.start_date) : null
+  const monthBars = rentCents > 0 ? buildMonthBars(ytdPayments, rentCents, taxYearStart, today, leaseStartDate) : []
   const daysRemaining = lease.end_date
     ? Math.ceil((new Date(lease.end_date).getTime() - today.getTime()) / 86400000)
     : null
