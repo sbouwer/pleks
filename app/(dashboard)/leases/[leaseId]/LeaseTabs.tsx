@@ -5,8 +5,9 @@ const TABS = [
   { id: "overview",    label: "Overview" },
   { id: "details",     label: "Lease details" },
   { id: "contacts",    label: "Contacts" },
-  { id: "finance",     label: "Finance" },
   { id: "operations",  label: "Operations" },
+  { id: "finance",     label: "Finance" },
+  { id: "documents",   label: "Documents" },
 ] as const
 
 interface LeaseTabsProps {
@@ -14,7 +15,7 @@ interface LeaseTabsProps {
   leaseId: string
 }
 
-export function LeaseTabs({ activeTab, leaseId }: LeaseTabsProps) {
+export function LeaseTabs({ activeTab, leaseId }: Readonly<LeaseTabsProps>) {
   return (
     <div className="flex gap-1 border-b border-border mb-6 overflow-x-auto overflow-y-hidden">
       {TABS.map((tab) => (

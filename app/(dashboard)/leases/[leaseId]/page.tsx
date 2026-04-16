@@ -13,9 +13,11 @@ import { OverviewTab } from "./OverviewTab"
 import { LeaseDetailsTab } from "./LeaseDetailsTab"
 import { ContactsTab, type TenantContactInfo, type LandlordContactInfo } from "./ContactsTab"
 import { FinanceTab } from "./FinanceTab"
+import { DocumentsTab, type CommLogRow, type LeaseDocRow } from "./DocumentsTab"
 import { OperationsTab } from "./OperationsTab"
+import { resolveDepositInterestConfig, getPrimeRateOn, describeRate } from "@/lib/deposits/interestConfig"
 
-const VALID_TABS = ["overview", "details", "contacts", "finance", "operations"] as const
+const VALID_TABS = ["overview", "details", "contacts", "operations", "finance", "documents"] as const
 type Tab = (typeof VALID_TABS)[number]
 
 type ComplianceItem = { dot: string; label: string; value: string | null; overdue?: boolean }
@@ -95,6 +97,70 @@ function getIdOrReg(
     return { idOrRegNumber: regNumber ?? null, idOrRegLabel: "Reg number" }
   }
   return { idOrRegNumber: maskSAId(idNumber), idOrRegLabel: "ID number" }
+}
+
+interface LeasePageHeaderProps {
+  landlordName: string | null
+  tenantDisplayText: string
+  unitLabel: string
+  areaLabel: string
+  statusColor: string
+  status: string
+  leaseType: string
+  isFixedTerm: boolean | null
+  cpaApplies: boolean | null
+  migrated: boolean | null
+  editedClauseCount: number
+}
+
+function LeasePageHeader({
+  landlordName,
+  tenantDisplayText,
+  unitLabel,
+  areaLabel,
+  statusColor,
+  status,
+  leaseType,
+  isFixedTerm,
+  cpaApplies,
+  migrated,
+  editedClauseCount,
+}: Readonly<LeasePageHeaderProps>) {
+  const locationParts = [unitLabel, areaLabel].filter(Boolean)
+  return (
+    <div className="mb-6">
+      <h1 className="font-heading text-2xl font-bold leading-snug">
+        {landlordName && <span className="text-muted-foreground font-normal text-base block">Owner: {landlordName}</span>}
+        Tenant: {tenantDisplayText}
+      </h1>
+      {locationParts.length > 0 && (
+        <p className="text-muted-foreground mt-0.5">{locationParts.join(" · ")}</p>
+      )}
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${statusColor}`}>
+          {status.replaceAll("_", " ")}
+        </span>
+        <Badge variant="outline" className="text-xs capitalize">{leaseType}</Badge>
+        <Badge variant="outline" className="text-xs">
+          {isFixedTerm ? "Fixed term" : "Month to month"}
+        </Badge>
+        {cpaApplies && leaseType !== "commercial" && (
+          <Badge variant="outline" className="text-xs">CPA applies</Badge>
+        )}
+        {migrated && (
+          <Badge variant="outline" className="text-xs border-brand/40 text-brand bg-brand/10">Migrated</Badge>
+        )}
+        {!migrated && editedClauseCount > 0 && (
+          <Badge variant="outline" className="text-xs border-brand/40 text-brand bg-brand/10">Edited</Badge>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function parsePaymentDueDay(raw: string | number | null | undefined): number | null {
+  if (typeof raw === "string") return Number.parseInt(raw, 10) || null
+  return raw ?? null
 }
 
 function resolveAgentName(
@@ -229,6 +295,106 @@ async function fetchPortfolioOverviewStatus(
   ])
 
   return { sentAt, outdated: (changedProps.count ?? 0) > 0 || (changedLeases.count ?? 0) > 0 }
+}
+
+type FinanceExtras = {
+  depositReceivedAt: string | null
+  depositRateDescription: string | null
+  depositInterestCents: number
+  trustBankName: string | null
+  paymentMethod: string | null
+  paymentReference: string | null
+  ytdExpectedCents: number
+  totalCollectedCents: number
+  trustTransactions: Array<{ id: string; direction: string; amount_cents: number; description: string; created_at: string }>
+}
+
+async function fetchFinanceTabExtras(
+  db: Awaited<ReturnType<typeof createServiceClient>>,
+  leaseId: string,
+  orgId: string,
+  propertyId: string | null,
+  unitId: string | null,
+  depositAmountCents: number | null,
+  lastPaymentMethod: string | null,
+  today: Date,
+  taxYearStart: string,
+): Promise<FinanceExtras> {
+  const todayStr = today.toISOString().slice(0, 10)
+  const [
+    depositTxnRes,
+    trustBankRes,
+    ytdInvoicesRes,
+    payRefRes,
+    trustTxnRes,
+    totalPaymentsRes,
+  ] = await Promise.all([
+    db.from("deposit_transactions").select("created_at").eq("lease_id", leaseId).eq("transaction_type", "deposit_received").order("created_at", { ascending: true }).limit(1).maybeSingle(),
+    db.from("bank_accounts").select("bank_name").eq("org_id", orgId).eq("type", "trust").limit(1).maybeSingle(),
+    db.from("rent_invoices").select("total_amount_cents").eq("lease_id", leaseId).gte("due_date", taxYearStart),
+    db.from("rent_invoices").select("payment_reference").eq("lease_id", leaseId).not("payment_reference", "is", null).order("due_date", { ascending: false }).limit(1).maybeSingle(),
+    db.from("trust_transactions").select("id, direction, amount_cents, description, created_at").eq("lease_id", leaseId).order("created_at", { ascending: false }).limit(5),
+    db.from("payments").select("amount_cents").eq("lease_id", leaseId),
+  ])
+
+  const depositReceivedAt = (depositTxnRes.data as { created_at: string } | null)?.created_at ?? null
+  const trustBankName = (trustBankRes.data as { bank_name: string } | null)?.bank_name ?? null
+  const paymentReference = (payRefRes.data as { payment_reference: string } | null)?.payment_reference ?? null
+  const ytdInvoiceRows = (ytdInvoicesRes.data ?? []) as Array<{ total_amount_cents: number }>
+  const ytdExpectedCents = ytdInvoiceRows.reduce((s, r) => s + (r.total_amount_cents ?? 0), 0)
+  const allPaymentRows = (totalPaymentsRes.data ?? []) as Array<{ amount_cents: number }>
+  const totalCollectedCents = allPaymentRows.reduce((s, r) => s + (r.amount_cents ?? 0), 0)
+  const trustTransactions = (trustTxnRes.data ?? []) as Array<{ id: string; direction: string; amount_cents: number; description: string; created_at: string }>
+
+  let depositRateDescription: string | null = null
+  let depositInterestCents = 0
+  if (depositAmountCents && depositReceivedAt) {
+    const interestConfig = await resolveDepositInterestConfig(orgId, propertyId, unitId, todayStr)
+    if (interestConfig) {
+      const currentPrime = await getPrimeRateOn(todayStr)
+      depositRateDescription = describeRate(interestConfig, currentPrime)
+      let ratePercent: number | null = null
+      if (interestConfig.rate_type === "fixed") {
+        ratePercent = interestConfig.fixed_rate_percent
+      } else if (interestConfig.rate_type === "prime_linked" && currentPrime != null) {
+        ratePercent = currentPrime + (interestConfig.prime_offset_percent ?? 0)
+      } else if (interestConfig.rate_type === "repo_linked" && currentPrime != null) {
+        ratePercent = (currentPrime - 3.5) + (interestConfig.repo_offset_percent ?? 0)
+      }
+      if (ratePercent != null) {
+        const msHeld = today.getTime() - new Date(depositReceivedAt).getTime()
+        const daysHeldCount = Math.floor(msHeld / 86400000)
+        depositInterestCents = Math.round(depositAmountCents * (ratePercent / 100) * (daysHeldCount / 365))
+      }
+    }
+  }
+
+  return {
+    depositReceivedAt,
+    depositRateDescription,
+    depositInterestCents,
+    trustBankName,
+    paymentMethod: lastPaymentMethod,
+    paymentReference,
+    ytdExpectedCents,
+    totalCollectedCents,
+    trustTransactions,
+  }
+}
+
+async function fetchDocumentsTabData(
+  db: Awaited<ReturnType<typeof createServiceClient>>,
+  leaseId: string,
+  orgId: string,
+): Promise<{ communicationLog: CommLogRow[]; leaseDocuments: LeaseDocRow[] }> {
+  const [commLogRes, leaseDocsRes] = await Promise.all([
+    db.from("communication_log").select("id, channel, direction, subject, template_key, status, sent_by, sent_to_email, sent_to_phone, recipient_name, created_at").eq("org_id", orgId).eq("lease_id", leaseId).order("created_at", { ascending: false }).limit(100),
+    db.from("lease_documents").select("id, doc_type, title, storage_path, file_size_bytes, generated_by, created_at").eq("lease_id", leaseId).eq("org_id", orgId).order("created_at", { ascending: false }),
+  ])
+  return {
+    communicationLog: (commLogRes.data ?? []) as CommLogRow[],
+    leaseDocuments: (leaseDocsRes.data ?? []) as LeaseDocRow[],
+  }
 }
 
 export default async function LeaseDetailPage({
@@ -474,38 +640,34 @@ export default async function LeaseDetailPage({
     ? await fetchPortfolioOverviewStatus(supabase, lease.org_id, ownerIdForProperty)
     : { sentAt: null, outdated: false }
 
+  // ── Tab-specific data (fetched only when tab is active) ──────────────────
+  const [financeExtras, documentsData] = await Promise.all([
+    activeTab === "finance"
+      ? fetchFinanceTabExtras(supabase, leaseId, lease.org_id, propertyId, lease.unit_id ?? null, lease.deposit_amount_cents ?? null, recentPayments[0]?.payment_method ?? null, today, taxYearStart)
+      : Promise.resolve(null),
+    activeTab === "documents"
+      ? fetchDocumentsTabData(supabase, leaseId, lease.org_id)
+      : Promise.resolve(null),
+  ])
+
   return (
     <LeaseDisclaimerGate initialAccepted={accepted}>
       <div>
         <BackLink href="/leases" label="Leases" />
 
-        {/* Fixed header: name + location + badges only */}
-        <div className="mb-6">
-          <h1 className="font-heading text-2xl font-bold">{tenantDisplayText}</h1>
-          {unitLabel && (
-            <p className="text-muted-foreground">
-              {[unitLabel, areaLabel].filter(Boolean).join(" · ")}
-            </p>
-          )}
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${statusColor}`}>
-              {lease.status.replaceAll("_", " ")}
-            </span>
-            <Badge variant="outline" className="text-xs capitalize">{lease.lease_type}</Badge>
-            <Badge variant="outline" className="text-xs">
-              {lease.is_fixed_term ? "Fixed term" : "Month to month"}
-            </Badge>
-            {lease.cpa_applies && lease.lease_type !== "commercial" && (
-              <Badge variant="outline" className="text-xs">CPA applies</Badge>
-            )}
-            {lease.migrated && (
-              <Badge variant="outline" className="text-xs border-brand/40 text-brand bg-brand/10">Migrated</Badge>
-            )}
-            {!lease.migrated && editedClauseCount > 0 && (
-              <Badge variant="outline" className="text-xs border-brand/40 text-brand bg-brand/10">Edited</Badge>
-            )}
-          </div>
-        </div>
+        <LeasePageHeader
+          landlordName={landlordName}
+          tenantDisplayText={tenantDisplayText}
+          unitLabel={unitLabel}
+          areaLabel={areaLabel}
+          statusColor={statusColor}
+          status={lease.status}
+          leaseType={lease.lease_type}
+          isFixedTerm={lease.is_fixed_term ?? null}
+          cpaApplies={lease.cpa_applies ?? null}
+          migrated={lease.migrated ?? null}
+          editedClauseCount={editedClauseCount}
+        />
 
         {/* Tab nav */}
         <LeaseTabs activeTab={activeTab} leaseId={leaseId} />
@@ -523,7 +685,7 @@ export default async function LeaseDetailPage({
               deposit_interest_rate: lease.deposit_interest_rate ?? null,
               escalation_percent: lease.escalation_percent ?? null,
               escalation_review_date: lease.escalation_review_date ?? null,
-              payment_due_day: typeof lease.payment_due_day === "string" ? Number.parseInt(lease.payment_due_day, 10) || null : (lease.payment_due_day ?? null),
+              payment_due_day: parsePaymentDueDay(lease.payment_due_day),
               is_fixed_term: lease.is_fixed_term ?? null,
             }}
             latestInvoice={latestInvoice}
@@ -606,14 +768,43 @@ export default async function LeaseDetailPage({
           <FinanceTab
             leaseId={leaseId}
             balanceCents={latestInvoice?.balance_cents ?? null}
-            depositAmountCents={lease.deposit_amount_cents ?? null}
-            depositInterestRate={lease.deposit_interest_rate ?? null}
-            depositInterestTo={lease.deposit_interest_to ?? null}
-            arrearsCaseInterestCents={arrearsCase?.interest_accrued_cents ?? null}
-            arraysInterestRate={lease.arrears_interest_rate ?? null}
-            recentPayments={recentPayments}
+            lastPaymentDate={recentPayments[0]?.payment_date ?? null}
             arrearsCase={arrearsCase}
-            latestInvoiceId={latestInvoice?.id ?? null}
+            depositAmountCents={lease.deposit_amount_cents ?? null}
+            depositReceivedAt={financeExtras?.depositReceivedAt ?? null}
+            depositRateDescription={financeExtras?.depositRateDescription ?? null}
+            depositInterestCents={financeExtras?.depositInterestCents ?? 0}
+            depositInterestTo={lease.deposit_interest_to ?? null}
+            trustBankName={financeExtras?.trustBankName ?? null}
+            recentPayments={recentPayments}
+            rentAmountCents={lease.rent_amount_cents ?? null}
+            escalationPercent={lease.escalation_percent ?? null}
+            escalationReviewDate={lease.escalation_review_date ?? null}
+            paymentDueDay={
+              typeof lease.payment_due_day === "string"
+                ? Number.parseInt(lease.payment_due_day, 10) || null
+                : (lease.payment_due_day ?? null)
+            }
+            debicheckStatus={lease.debicheck_mandate_status ?? null}
+            paymentMethod={financeExtras?.paymentMethod ?? null}
+            paymentReference={financeExtras?.paymentReference ?? null}
+            ytdCollectedCents={ytdPayments.reduce((s, p) => s + p.amount_cents, 0)}
+            ytdExpectedCents={financeExtras?.ytdExpectedCents ?? 0}
+            arrearsCaseInterestCents={arrearsCase?.interest_accrued_cents ?? null}
+            arrearsInterestRate={lease.arrears_interest_rate ?? null}
+            totalCollectedCents={financeExtras?.totalCollectedCents ?? 0}
+            maintenanceCostCents={maintenanceCostCents}
+            trustTransactions={financeExtras?.trustTransactions ?? []}
+          />
+        )}
+
+        {activeTab === "documents" && (
+          <DocumentsTab
+            leaseId={leaseId}
+            orgId={lease.org_id}
+            signedLeasePath={lease.generated_doc_path ?? lease.external_document_path ?? null}
+            communicationLog={documentsData?.communicationLog ?? []}
+            leaseDocuments={documentsData?.leaseDocuments ?? []}
           />
         )}
 
