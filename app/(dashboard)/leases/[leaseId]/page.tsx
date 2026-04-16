@@ -559,6 +559,7 @@ export default async function LeaseDetailPage({
             tenants={allTenants}
             landlord={contactsLandlord}
             leaseId={leaseId}
+            orgId={lease.org_id}
             propertyId={propertyId}
             managedBy={managedByLabel}
             portalInviteSentAt={tenantPortal?.portal_invite_sent_at ?? null}
