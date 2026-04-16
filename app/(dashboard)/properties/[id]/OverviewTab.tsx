@@ -183,7 +183,7 @@ export function OverviewTab({
       {/* Two-column cards */}
       <div className="flex flex-col lg:flex-row gap-4">
         {/* Left: Owner / Landlord */}
-        <Card className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 rounded-xl border bg-card overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b">
             <span className="text-xs text-muted-foreground uppercase tracking-wide">Owner / Landlord</span>
             {managingAgentName && (
@@ -192,7 +192,7 @@ export function OverviewTab({
               </span>
             )}
           </div>
-          <CardContent className="pt-4">
+          <div className="p-4">
             {landlordName ? (
               <ContactCard
                 name={landlordName}
@@ -217,16 +217,16 @@ export function OverviewTab({
                 </Link>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Right: Property details + map stacked */}
         <div className="flex-1 min-w-0 flex flex-col gap-4">
-          <Card>
+          <div className="rounded-xl border bg-card overflow-hidden">
             <div className="px-4 py-3 border-b">
               <span className="text-xs text-muted-foreground uppercase tracking-wide">Property details</span>
             </div>
-            <CardContent className="pt-3 pb-3">
+            <div className="px-4 py-3">
               <KvRow label="Type" value={typeLabel[property.type ?? ""] ?? property.type ?? "—"} />
               <KvRow label="Erf number" value={property.erf_number ?? <span className="text-muted-foreground">—</span>} />
               <KvRow label="Sectional title" value={sectionalTitleValue} />
@@ -243,11 +243,11 @@ export function OverviewTab({
                 }
               />
               <KvRow label="Total floor area" value={<span className="text-muted-foreground">—</span>} />
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           {/* Map */}
-          <Card className="relative overflow-hidden flex-1" style={{ minHeight: 180 }}>
+          <div className="flex-1 rounded-xl border bg-card relative overflow-hidden" style={{ minHeight: 180 }}>
             <a
               href={googleMapsUrl}
               target="_blank"
@@ -265,7 +265,7 @@ export function OverviewTab({
               referrerPolicy="no-referrer-when-downgrade"
               src={`https://maps.google.com/maps?q=${mapsQuery}&output=embed&z=15`}
             />
-          </Card>
+          </div>
         </div>
       </div>
 
