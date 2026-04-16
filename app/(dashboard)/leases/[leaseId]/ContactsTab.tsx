@@ -7,7 +7,8 @@ import { toast } from "sonner"
 import { ContactCard, type PortalStatus } from "@/components/contacts/ContactCard"
 import { CoTenantAvatars } from "@/components/contacts/CoTenantAvatars"
 import { LeasePortalActions } from "./LeasePortalActions"
-import { emailLeaseToTenant } from "./actions"
+import { emailLeaseToTenant, inviteLandlordPortal } from "./actions"
+import { inviteTenantPortal } from "@/lib/portal/inviteTenant"
 
 export interface TenantContactInfo {
   id: string
@@ -67,6 +68,14 @@ export function ContactsTab({
   const [activeIdx, setActiveIdx] = useState(0)
   const [sendingWelcome, startSendWelcome] = useTransition()
 
+  // Optimistic portal status overrides per tenant (tenantId → status)
+  const [tenantPortalOverride, setTenantPortalOverride] = useState<Record<string, PortalStatus>>({})
+  const [invitingTenantId, setInvitingTenantId] = useState<string | null>(null)
+
+  // Optimistic owner portal status override
+  const [ownerPortalOverride, setOwnerPortalOverride] = useState<PortalStatus>(null)
+  const [invitingOwner, setInvitingOwner] = useState(false)
+
   const activeTenant = tenants[activeIdx] ?? null
 
   const tenantSubtitle = activeTenant
@@ -86,6 +95,37 @@ export function ContactsTab({
     })
   }
 
+  async function handleTenantPortalInvite(tenantId: string) {
+    setInvitingTenantId(tenantId)
+    const result = await inviteTenantPortal(tenantId, leaseId)
+    setInvitingTenantId(null)
+    if (result.error) {
+      toast.error(result.error)
+    } else {
+      toast.success("Portal invite sent")
+      setTenantPortalOverride(prev => ({ ...prev, [tenantId]: "invited" }))
+    }
+  }
+
+  async function handleOwnerPortalInvite() {
+    if (!landlord) return
+    setInvitingOwner(true)
+    const result = await inviteLandlordPortal(landlord.id)
+    setInvitingOwner(false)
+    if (result.error) {
+      toast.error(result.error)
+    } else {
+      toast.success("Owner portal invite sent")
+      setOwnerPortalOverride("invited")
+    }
+  }
+
+  const activeTenantPortalStatus = activeTenant
+    ? (tenantPortalOverride[activeTenant.tenantId] ?? activeTenant.portalStatus)
+    : null
+
+  const ownerPortalStatus = ownerPortalOverride ?? landlord?.portalStatus ?? null
+
   return (
     <div className="space-y-4">
       {/* Action bar */}
@@ -98,6 +138,7 @@ export function ContactsTab({
         {primaryTenantId && (
           <LeasePortalActions
             tenantId={primaryTenantId}
+            allTenants={tenants}
             leaseId={leaseId}
             portalInviteSentAt={portalInviteSentAt}
             hasAuthUser={hasAuthUser}
@@ -107,40 +148,6 @@ export function ContactsTab({
 
       {/* Equal-height grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* ── Tenant card ── */}
-        <div className="rounded-xl border bg-card p-4 flex flex-col">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 mb-3">
-            {tenants.length === 1 ? "Tenant" : "Tenants"}
-          </p>
-
-          <div className="flex-1">
-            {activeTenant ? (
-              <ContactCard
-                name={activeTenant.name}
-                subtitle={tenantSubtitle}
-                avatarVariant={AVATAR_VARIANT[activeTenant.role] ?? "blue"}
-                email={activeTenant.email}
-                phone={activeTenant.phone}
-                address={activeTenant.address}
-                profileHref={`/tenants/${activeTenant.tenantId}`}
-                showInfo
-                entityType={activeTenant.entityType}
-                idOrRegNumber={activeTenant.idOrRegNumber}
-                idOrRegLabel={activeTenant.idOrRegLabel}
-                ficaVerified={activeTenant.ficaVerified}
-                portalStatus={activeTenant.portalStatus}
-                welcomePackSentAt={activeTenant.welcomePackSentAt}
-                onSendWelcomePack={activeTenant.role === "Primary" && !sendingWelcome ? handleSendWelcomePack : undefined}
-                headerActions={tenants.length > 1 ? (
-                  <CoTenantAvatars tenants={tenants} activeIdx={activeIdx} onSelect={setActiveIdx} />
-                ) : undefined}
-              />
-            ) : (
-              <p className="text-sm text-muted-foreground">No tenant linked.</p>
-            )}
-          </div>
-        </div>
-
         {/* ── Owner card ── */}
         <div className="rounded-xl border bg-card p-4 flex flex-col">
           <div className="flex items-center justify-between mb-3">
@@ -165,8 +172,13 @@ export function ContactsTab({
               idOrRegNumber={landlord.idOrRegNumber}
               idOrRegLabel={landlord.idOrRegLabel}
               ficaVerified={landlord.ficaVerified}
-              portalStatus={landlord.portalStatus}
+              portalStatus={ownerPortalStatus}
               welcomePackSentAt={null}
+              onSendPortalInvite={
+                !invitingOwner && (!ownerPortalStatus || ownerPortalStatus === "none")
+                  ? handleOwnerPortalInvite
+                  : undefined
+              }
             />
           ) : (
             <div className="flex-1 flex items-center justify-center min-h-[220px]">
@@ -180,6 +192,45 @@ export function ContactsTab({
               </p>
             </div>
           )}
+        </div>
+
+        {/* ── Tenant card ── */}
+        <div className="rounded-xl border bg-card p-4 flex flex-col">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 mb-3">
+            {tenants.length === 1 ? "Tenant" : "Tenants"}
+          </p>
+
+          <div className="flex-1">
+            {activeTenant ? (
+              <ContactCard
+                name={activeTenant.name}
+                subtitle={tenantSubtitle}
+                avatarVariant={AVATAR_VARIANT[activeTenant.role] ?? "blue"}
+                email={activeTenant.email}
+                phone={activeTenant.phone}
+                address={activeTenant.address}
+                profileHref={`/tenants/${activeTenant.tenantId}`}
+                showInfo
+                entityType={activeTenant.entityType}
+                idOrRegNumber={activeTenant.idOrRegNumber}
+                idOrRegLabel={activeTenant.idOrRegLabel}
+                ficaVerified={activeTenant.ficaVerified}
+                portalStatus={activeTenantPortalStatus}
+                welcomePackSentAt={activeTenant.welcomePackSentAt}
+                onSendWelcomePack={activeTenant.role === "Primary" && !sendingWelcome ? handleSendWelcomePack : undefined}
+                onSendPortalInvite={
+                  !invitingTenantId && (!activeTenantPortalStatus || activeTenantPortalStatus === "none")
+                    ? () => handleTenantPortalInvite(activeTenant.tenantId)
+                    : undefined
+                }
+                headerActions={tenants.length > 1 ? (
+                  <CoTenantAvatars tenants={tenants} activeIdx={activeIdx} onSelect={setActiveIdx} />
+                ) : undefined}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">No tenant linked.</p>
+            )}
+          </div>
         </div>
       </div>
     </div>
