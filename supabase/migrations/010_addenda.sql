@@ -280,6 +280,7 @@ COMMENT ON COLUMN user_orgs.is_admin IS
 ALTER TABLE user_orgs DROP CONSTRAINT IF EXISTS user_orgs_role_check;
 
 -- Re-add a loose constraint: role must be a non-empty string.
+ALTER TABLE user_orgs DROP CONSTRAINT IF EXISTS user_orgs_role_nonempty;
 ALTER TABLE user_orgs ADD CONSTRAINT user_orgs_role_nonempty
   CHECK (role IS NOT NULL AND length(trim(role)) > 0);
 
