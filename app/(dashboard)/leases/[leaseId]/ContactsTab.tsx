@@ -44,6 +44,7 @@ interface ContactsTabProps {
   readonly tenants: TenantContactInfo[]
   readonly landlord: LandlordContactInfo | null
   readonly leaseId: string
+  readonly orgId: string
   readonly propertyId: string | null
   readonly managedBy?: string | null
   readonly portalInviteSentAt: string | null
@@ -59,6 +60,7 @@ export function ContactsTab({
   tenants,
   landlord,
   leaseId,
+  orgId,
   propertyId,
   managedBy,
   portalInviteSentAt,
@@ -93,6 +95,11 @@ export function ContactsTab({
       if (result.error) toast.error(result.error)
       else toast.success("Welcome pack sent to tenant")
     })
+  }
+
+  function handleOwnerWelcomePack() {
+    if (!landlord) return
+    window.open(`/api/reports/welcome-pack?orgId=${encodeURIComponent(orgId)}&landlordId=${encodeURIComponent(landlord.id)}`, "_blank")
   }
 
   async function handleTenantPortalInvite(tenantId: string) {
@@ -174,6 +181,7 @@ export function ContactsTab({
               ficaVerified={landlord.ficaVerified}
               portalStatus={ownerPortalStatus}
               welcomePackSentAt={null}
+              onSendWelcomePack={handleOwnerWelcomePack}
               onSendPortalInvite={
                 !invitingOwner && (!ownerPortalStatus || ownerPortalStatus === "none")
                   ? handleOwnerPortalInvite
