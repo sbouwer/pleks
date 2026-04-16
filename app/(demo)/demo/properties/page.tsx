@@ -48,7 +48,7 @@ export default function DemoPropertiesPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <Badge variant="secondary">{property.property_type}</Badge>
+                    <Badge variant="secondary">{property.type}</Badge>
                     <span className="text-sm text-muted-foreground">{property.units_count} units</span>
                     {isExpanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
                   </div>

@@ -8,23 +8,59 @@ import { Button } from "@/components/ui/button"
 import {
   LayoutDashboard, Building2, Users, FileText,
   ClipboardCheck, Wrench, CreditCard, BarChart3,
-  Sparkles,
+  Sparkles, User, Truck, ClipboardList, PieChart,
+  Shield, Landmark,
 } from "lucide-react"
 
-const DEMO_NAV = [
-  { href: "/demo", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/demo/properties", label: "Properties", icon: Building2 },
-  { href: "/demo/tenants", label: "Tenants", icon: Users },
-  { href: "/demo/leases", label: "Leases", icon: FileText },
-  { href: "/demo/payments", label: "Payments", icon: CreditCard },
-  { href: "/demo/inspections", label: "Inspections", icon: ClipboardCheck },
-  { href: "/demo/maintenance", label: "Maintenance", icon: Wrench },
-  { href: "/demo/finance", label: "Financials", icon: BarChart3 },
+// ── Nav structure ─────────────────────────────────────────────────────────────
+
+type NavSection = "OVERVIEW" | "PORTFOLIO" | "OPERATIONS" | "FINANCE"
+
+interface NavItem {
+  href: string
+  label: string
+  icon: React.ElementType
+  section: NavSection
+}
+
+const DEMO_NAV: NavItem[] = [
+  // OVERVIEW
+  { href: "/demo",                    label: "Dashboard",    icon: LayoutDashboard, section: "OVERVIEW"    },
+  // PORTFOLIO
+  { href: "/demo/properties",         label: "Properties",   icon: Building2,       section: "PORTFOLIO"   },
+  { href: "/demo/landlords",          label: "Landlords",    icon: User,            section: "PORTFOLIO"   },
+  { href: "/demo/tenants",            label: "Tenants",      icon: Users,           section: "PORTFOLIO"   },
+  { href: "/demo/suppliers",          label: "Suppliers",    icon: Truck,           section: "PORTFOLIO"   },
+  { href: "/demo/leases",             label: "Leases",       icon: FileText,        section: "PORTFOLIO"   },
+  // OPERATIONS
+  { href: "/demo/applications",       label: "Applications", icon: ClipboardList,   section: "OPERATIONS"  },
+  { href: "/demo/maintenance",        label: "Maintenance",  icon: Wrench,          section: "OPERATIONS"  },
+  { href: "/demo/inspections",        label: "Inspections",  icon: ClipboardCheck,  section: "OPERATIONS"  },
+  // FINANCE
+  { href: "/demo/finance",            label: "Overview",     icon: PieChart,        section: "FINANCE"     },
+  { href: "/demo/finance/deposits",   label: "Deposits",     icon: Shield,          section: "FINANCE"     },
+  { href: "/demo/finance/trust",      label: "Trust Ledger", icon: Landmark,        section: "FINANCE"     },
+  { href: "/demo/finance/billing",    label: "Billing",      icon: CreditCard,      section: "FINANCE"     },
+  { href: "/demo/finance/reports",    label: "Reports",      icon: BarChart3,       section: "FINANCE"     },
 ]
+
+const SECTIONS: NavSection[] = ["OVERVIEW", "PORTFOLIO", "OPERATIONS", "FINANCE"]
+
+// Mobile bottom nav: Dashboard, Properties, Tenants, Maintenance, Finance
+const MOBILE_NAV = DEMO_NAV.filter((item) =>
+  ["/demo", "/demo/properties", "/demo/tenants", "/demo/maintenance", "/demo/finance"].includes(item.href),
+)
+
+// ── Layout ────────────────────────────────────────────────────────────────────
 
 export default function DemoInnerLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const pathname = usePathname()
   const router = useRouter()
+
+  function isActive(href: string) {
+    if (href === "/demo") return pathname === "/demo"
+    return pathname === href || pathname.startsWith(`${href}/`)
+  }
 
   return (
     <DemoProvider>
@@ -53,22 +89,35 @@ export default function DemoInnerLayout({ children }: Readonly<{ children: React
             </Link>
             <p className="text-[10px] text-brand mt-1 font-medium">DEMO</p>
           </div>
-          <nav className="flex-1 p-2 space-y-0.5">
-            {DEMO_NAV.map((item) => {
-              const active = pathname === item.href
+
+          <nav className="flex-1 p-2 overflow-y-auto">
+            {SECTIONS.map((section) => {
+              const items = DEMO_NAV.filter((item) => item.section === section)
               return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
-                    active
-                      ? "bg-brand/10 text-brand font-medium"
-                      : "text-muted-foreground hover:text-foreground hover:bg-surface-elevated"
-                  }`}
-                >
-                  <item.icon className="size-4 shrink-0" />
-                  {item.label}
-                </Link>
+                <div key={section} className="mb-3">
+                  <p className="px-3 py-1 text-[9px] font-semibold tracking-widest text-muted-foreground/50 uppercase">
+                    {section}
+                  </p>
+                  <div className="space-y-0.5">
+                    {items.map((item) => {
+                      const active = isActive(item.href)
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
+                            active
+                              ? "bg-brand/10 text-brand font-medium"
+                              : "text-muted-foreground hover:text-foreground hover:bg-surface-elevated"
+                          }`}
+                        >
+                          <item.icon className="size-4 shrink-0" />
+                          {item.label}
+                        </Link>
+                      )
+                    })}
+                  </div>
+                </div>
               )
             })}
           </nav>
@@ -76,10 +125,14 @@ export default function DemoInnerLayout({ children }: Readonly<{ children: React
 
         {/* Mobile nav */}
         <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface border-t border-border flex justify-around py-2">
-          {DEMO_NAV.slice(0, 5).map((item) => {
-            const active = pathname === item.href
+          {MOBILE_NAV.map((item) => {
+            const active = isActive(item.href)
             return (
-              <Link key={item.href} href={item.href} className={`flex flex-col items-center gap-0.5 text-[10px] ${active ? "text-brand" : "text-muted-foreground"}`}>
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex flex-col items-center gap-0.5 text-[10px] ${active ? "text-brand" : "text-muted-foreground"}`}
+              >
                 <item.icon className="size-5" />
                 {item.label}
               </Link>
