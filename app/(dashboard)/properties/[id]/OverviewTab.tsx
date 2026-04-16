@@ -184,8 +184,13 @@ export function OverviewTab({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
         {/* Left: Owner / Landlord */}
         <Card className="h-full">
-          <div className="px-4 py-3 border-b">
+          <div className="flex items-center justify-between px-4 py-3 border-b">
             <span className="text-xs text-muted-foreground uppercase tracking-wide">Owner / Landlord</span>
+            {managingAgentName && (
+              <span className="text-xs text-muted-foreground uppercase tracking-wide">
+                Managed by {managingAgentName}
+              </span>
+            )}
           </div>
           <CardContent className="pt-4">
             {landlordName ? (
@@ -195,7 +200,6 @@ export function OverviewTab({
                 avatarVariant="blue"
                 email={landlord?.email ?? null}
                 phone={landlord?.phone ?? null}
-                managedBy={managingAgentName ?? "self-managed"}
                 showInfo
                 entityType={landlord?.entity_type ?? null}
                 idOrRegLabel={idOrRegLabel}
