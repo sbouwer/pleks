@@ -317,3 +317,265 @@ CREATE POLICY "org_ownership_transfers" ON ownership_transfers
   FOR ALL
   USING  (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL))
   WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL));
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §10  INSPECTION STORAGE  (was 011_inspection_storage.sql)
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'inspection-photos',
+  'inspection-photos',
+  false,
+  10485760,  -- 10 MB
+  ARRAY['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+)
+ON CONFLICT (id) DO NOTHING;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'storage' AND tablename = 'objects'
+    AND policyname = 'org members can upload inspection photos'
+  ) THEN
+    CREATE POLICY "org members can upload inspection photos" ON storage.objects
+      FOR INSERT TO authenticated
+      WITH CHECK (bucket_id = 'inspection-photos');
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'storage' AND tablename = 'objects'
+    AND policyname = 'org members can manage inspection photos'
+  ) THEN
+    CREATE POLICY "org members can manage inspection photos" ON storage.objects
+      FOR ALL TO authenticated
+      USING (bucket_id = 'inspection-photos');
+  END IF;
+END $$;
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §11  UNIT TYPE & FURNISHINGS  (was 012_unit_type_furnishings.sql)
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+ALTER TABLE units ADD COLUMN IF NOT EXISTS unit_type text;
+
+ALTER TABLE units ADD COLUMN IF NOT EXISTS furnishing_status text
+  DEFAULT 'unfurnished'
+  CHECK (furnishing_status IN ('unfurnished', 'semi_furnished', 'furnished'));
+
+-- Migrate from legacy boolean
+UPDATE units SET furnishing_status = 'furnished'   WHERE furnished = true  AND furnishing_status = 'unfurnished';
+UPDATE units SET furnishing_status = 'unfurnished' WHERE furnished = false AND furnishing_status = 'unfurnished';
+
+CREATE TABLE IF NOT EXISTS unit_furnishings (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id      uuid NOT NULL REFERENCES organisations(id),
+  unit_id     uuid NOT NULL REFERENCES units(id) ON DELETE CASCADE,
+  category    text NOT NULL,
+  item_name   text NOT NULL,
+  quantity    int  NOT NULL DEFAULT 1,
+  condition   text,
+  notes       text,
+  is_custom   boolean NOT NULL DEFAULT false,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_unit_furnishings_unit ON unit_furnishings(unit_id);
+
+ALTER TABLE unit_furnishings ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'unit_furnishings'
+    AND policyname = 'org unit furnishings access'
+  ) THEN
+    CREATE POLICY "org unit furnishings access" ON unit_furnishings
+      FOR ALL TO authenticated
+      USING (
+        org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+      )
+      WITH CHECK (
+        org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+      );
+  END IF;
+END $$;
+
+-- Backfill unit_type for legacy units
+UPDATE units SET unit_type = 'studio'    WHERE unit_type IS NULL AND bedrooms = 0;
+UPDATE units SET unit_type = 'apartment' WHERE unit_type IS NULL AND bedrooms IS NOT NULL AND bedrooms > 0;
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §12  INSPECTION PROFILES  (was 013_inspection_profiles.sql)
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS unit_inspection_profiles (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id      uuid NOT NULL REFERENCES organisations(id),
+  unit_id     uuid NOT NULL REFERENCES units(id) ON DELETE CASCADE,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (unit_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_uip_unit ON unit_inspection_profiles(unit_id);
+CREATE INDEX IF NOT EXISTS idx_uip_org  ON unit_inspection_profiles(org_id);
+
+ALTER TABLE unit_inspection_profiles ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'unit_inspection_profiles'
+    AND policyname = 'org unit inspection profiles access'
+  ) THEN
+    CREATE POLICY "org unit inspection profiles access" ON unit_inspection_profiles
+      FOR ALL TO authenticated
+      USING (
+        org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+      )
+      WITH CHECK (
+        org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+      );
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS unit_inspection_profile_rooms (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id      uuid NOT NULL REFERENCES organisations(id),
+  profile_id  uuid NOT NULL REFERENCES unit_inspection_profiles(id) ON DELETE CASCADE,
+  room_type   text NOT NULL,
+  label       text NOT NULL,
+  sort_order  int  NOT NULL DEFAULT 0,
+  is_custom   boolean NOT NULL DEFAULT false,
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_uipr_profile ON unit_inspection_profile_rooms(profile_id);
+CREATE INDEX IF NOT EXISTS idx_uipr_org     ON unit_inspection_profile_rooms(org_id);
+
+ALTER TABLE unit_inspection_profile_rooms ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'unit_inspection_profile_rooms'
+    AND policyname = 'org unit inspection profile rooms access'
+  ) THEN
+    CREATE POLICY "org unit inspection profile rooms access" ON unit_inspection_profile_rooms
+      FOR ALL TO authenticated
+      USING (
+        org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+      )
+      WITH CHECK (
+        org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+      );
+  END IF;
+END $$;
+
+ALTER TABLE unit_furnishings ADD COLUMN IF NOT EXISTS room_type text;
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §13  LEASE NOTES  (was 014_lease_notes.sql)
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS lease_notes (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id      uuid NOT NULL REFERENCES organisations(id),
+  lease_id    uuid NOT NULL REFERENCES leases(id) ON DELETE CASCADE,
+  note_type   text NOT NULL CHECK (note_type IN ('tenant', 'owner', 'general')),
+  body        text NOT NULL,
+  created_by  uuid NOT NULL REFERENCES auth.users(id),
+  created_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_lease_notes_lease ON lease_notes(lease_id);
+CREATE INDEX IF NOT EXISTS idx_lease_notes_org   ON lease_notes(org_id);
+
+ALTER TABLE lease_notes ENABLE ROW LEVEL SECURITY;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE tablename = 'lease_notes'
+    AND policyname = 'org lease notes access'
+  ) THEN
+    CREATE POLICY "org lease notes access" ON lease_notes
+      FOR ALL TO authenticated
+      USING (
+        org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+      )
+      WITH CHECK (
+        org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+      );
+  END IF;
+END $$;
+
+-- Commercial leases should never have cpa_applies = true.
+UPDATE leases
+  SET cpa_applies = false
+  WHERE lease_type = 'commercial'
+    AND cpa_applies = true;
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §14  LEASE DOCUMENTS  (was 015_lease_documents.sql)
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS lease_documents (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id          uuid NOT NULL REFERENCES organisations(id),
+  lease_id        uuid NOT NULL REFERENCES leases(id) ON DELETE CASCADE,
+  doc_type        text NOT NULL CHECK (doc_type IN (
+                    'signed_lease',
+                    'welcome_pack_tenant',
+                    'welcome_pack_landlord',
+                    'lod',
+                    's14_notice',
+                    'section_4_notice',
+                    'tribunal_submission',
+                    'statement_tenant',
+                    'statement_owner',
+                    'inspection_report',
+                    'amendment',
+                    'other'
+                  )),
+  title           text NOT NULL,
+  storage_path    text NOT NULL,
+  file_size_bytes bigint,
+  generated_by    text,
+  created_at      timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_lease_documents_lease ON lease_documents(lease_id);
+CREATE INDEX IF NOT EXISTS idx_lease_documents_org   ON lease_documents(org_id);
+CREATE INDEX IF NOT EXISTS idx_lease_documents_type  ON lease_documents(doc_type);
+
+ALTER TABLE lease_documents ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "lease_docs_org_select" ON lease_documents;
+CREATE POLICY "lease_docs_org_select" ON lease_documents
+  FOR SELECT USING (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+  );
+
+DROP POLICY IF EXISTS "lease_docs_org_insert" ON lease_documents;
+CREATE POLICY "lease_docs_org_insert" ON lease_documents
+  FOR INSERT WITH CHECK (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+  );
+
+DROP POLICY IF EXISTS "lease_docs_org_delete" ON lease_documents;
+CREATE POLICY "lease_docs_org_delete" ON lease_documents
+  FOR DELETE USING (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+  );
