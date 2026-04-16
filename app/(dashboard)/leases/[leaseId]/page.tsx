@@ -97,6 +97,15 @@ function getIdOrReg(
   return { idOrRegNumber: maskSAId(idNumber), idOrRegLabel: "ID number" }
 }
 
+function resolveAgentName(
+  data: { full_name: string | null; first_name: string | null; last_name: string | null } | null,
+): string | null {
+  if (!data) return null
+  if (data.full_name) return data.full_name
+  const composed = `${data.first_name ?? ""} ${data.last_name ?? ""}`.trim()
+  return composed || null
+}
+
 function derivePortalStatus(
   authUserId: string | null | undefined,
   inviteSentAt: string | null | undefined,
@@ -248,6 +257,7 @@ export default async function LeaseDetailPage({
   } | null
 
   const ownerIdForProperty = unit?.properties?.landlord_id ?? null
+  const managingAgentId = unit?.properties?.managing_agent_id ?? null
   const isDraft = lease.status === "draft"
 
   // SA tax year starts 1 March
@@ -274,6 +284,7 @@ export default async function LeaseDetailPage({
     ytdPaymentsRes,
     maintenanceCostRes,
     primaryAddressRes,
+    managingAgentRes,
   ] = await Promise.all([
     supabase
       .from("lease_co_tenants")
@@ -358,6 +369,8 @@ export default async function LeaseDetailPage({
     tv?.contact_id != null
       ? supabase.from("contact_addresses").select("street_line1, suburb, city, postal_code, address_type").eq("org_id", lease.org_id).eq("contact_id", tv.contact_id).in("address_type", ["physical", "postal"]).limit(2)
       : Promise.resolve({ data: [], error: null }),
+    // Managing agent name — empty string returns no rows (no ternary needed)
+    supabase.from("user_profiles").select("full_name, first_name, last_name").eq("id", managingAgentId ?? "").maybeSingle(),
   ])
 
   const coTenantsRaw = (coTenantsRes.data ?? []) as unknown as CoTenantRow[]
@@ -403,8 +416,7 @@ export default async function LeaseDetailPage({
 
   const allTenants = buildAllTenants(tv, lease.tenant_id, coTenantsRaw, primaryContact, primaryPortalStatus, primaryAddress)
 
-  const managingAgentId = unit?.properties?.managing_agent_id ?? null
-  const managedByLabel = managingAgentId ? null : "self-managed"
+  const managedByLabel = resolveAgentName(managingAgentRes.data as { full_name: string | null; first_name: string | null; last_name: string | null } | null)
 
   const llIdOrReg = getIdOrReg(landlordRaw?.entity_type, null, landlordRaw?.registration_number)
   const contactsLandlord: LandlordContactInfo | null = landlordRaw ? {
@@ -484,19 +496,15 @@ export default async function LeaseDetailPage({
             }}
             latestInvoice={latestInvoice}
             arrearsCase={arrearsCase}
-            tenant={tv ? {
-              name: tenantDisplayText,
-              subtitle: `${tv.entity_type ?? "Individual"} · Primary lessee`,
-              email: tv.email,
-              phone: tv.phone,
-              tenantId: lease.tenant_id ?? null,
-            } : null}
+            allTenants={allTenants}
             landlord={landlordRaw ? {
               id: landlordRaw.id,
               name: landlordName ?? "Unknown",
               company: landlordRaw.company_name ?? null,
+              entityType: landlordRaw.entity_type ?? null,
               email: landlordRaw.email ?? null,
               phone: landlordRaw.phone ?? null,
+              managedBy: managedByLabel,
             } : null}
             lifecycleEvents={lifecycleEvents}
             ytdPayments={ytdPayments}
