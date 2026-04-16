@@ -7,6 +7,7 @@ import { formatZAR } from "@/lib/constants"
 import { formatTrustType, buildTrustLedgerCSV, type TrustLedgerEntry } from "@/lib/finance/trustLedger"
 import { Button } from "@/components/ui/button"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
+import { FormSelect } from "@/components/ui/FormSelect"
 import Link from "next/link"
 import { ArrowLeft, Download } from "lucide-react"
 
@@ -160,16 +161,12 @@ export default function TrustLedgerPage() {
         </div>
         <div>
           <label htmlFor="filter-type" className="text-xs text-muted-foreground block mb-1">Type</label>
-          <select
-            id="filter-type"
+          <FormSelect
             value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm w-48"
-          >
-            {TYPE_FILTER_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
+            onValueChange={setTypeFilter}
+            options={TYPE_FILTER_OPTIONS}
+            className="w-48"
+          />
         </div>
         {(fromDate || toDate || typeFilter) && (
           <Button variant="ghost" size="sm" onClick={() => { setFromDate(""); setToDate(""); setTypeFilter("") }}>

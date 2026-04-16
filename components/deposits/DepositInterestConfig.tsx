@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
+import { FormSelect } from "@/components/ui/FormSelect"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { describeRate } from "@/lib/deposits/rateUtils"
 import type { DepositInterestConfig as Config } from "@/lib/deposits/rateUtils"
@@ -156,27 +157,21 @@ export function DepositInterestConfig({ propertyId = null, unitId = null, curren
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Rate mode</label>
-              <select
-                className="h-8 text-sm border border-border rounded-md px-2 bg-background w-full"
+              <FormSelect
                 value={rateType}
-                onChange={(e) => setRateType(e.target.value as Config["rate_type"])}
-              >
-                {Object.entries(RATE_TYPE_LABELS).map(([v, l]) => (
-                  <option key={v} value={v}>{l}</option>
-                ))}
-              </select>
+                onValueChange={(v) => setRateType(v as Config["rate_type"])}
+                options={Object.entries(RATE_TYPE_LABELS).map(([v, l]) => ({ value: v, label: l }))}
+                className="w-full"
+              />
             </div>
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Compounding</label>
-              <select
-                className="h-8 text-sm border border-border rounded-md px-2 bg-background w-full"
+              <FormSelect
                 value={compounding}
-                onChange={(e) => setCompounding(e.target.value as "daily" | "monthly")}
-              >
-                {Object.entries(COMPOUNDING_LABELS).map(([v, l]) => (
-                  <option key={v} value={v}>{l}</option>
-                ))}
-              </select>
+                onValueChange={(v) => setCompounding(v as "daily" | "monthly")}
+                options={Object.entries(COMPOUNDING_LABELS).map(([v, l]) => ({ value: v, label: l }))}
+                className="w-full"
+              />
             </div>
           </div>
 

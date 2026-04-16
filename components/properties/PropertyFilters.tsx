@@ -3,6 +3,7 @@
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { useCallback } from "react"
 import { Input } from "@/components/ui/input"
+import { FormSelect } from "@/components/ui/FormSelect"
 import { Search, List, LayoutGrid } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -36,16 +37,17 @@ export function PropertyFilters({ view }: PropertyFiltersProps) {
       </div>
 
       {/* Status filter */}
-      <select
-        className="h-8 rounded-md border border-input bg-background px-3 text-sm text-muted-foreground"
+      <FormSelect
         defaultValue={searchParams.get("status") ?? ""}
-        onChange={(e) => set("status", e.target.value)}
-      >
-        <option value="">All statuses</option>
-        <option value="vacancies">Has vacancies</option>
-        <option value="occupied">Fully occupied</option>
-        <option value="arrears">Has arrears</option>
-      </select>
+        onValueChange={(v) => set("status", v)}
+        placeholder="All statuses"
+        options={[
+          { value: "", label: "All statuses" },
+          { value: "vacancies", label: "Has vacancies" },
+          { value: "occupied", label: "Fully occupied" },
+          { value: "arrears", label: "Has arrears" },
+        ]}
+      />
 
       {/* View toggle */}
       <div className="flex items-center border border-border rounded-md overflow-hidden">

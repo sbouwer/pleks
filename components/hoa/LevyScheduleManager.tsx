@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
+import { FormSelect } from "@/components/ui/FormSelect"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { formatZAR } from "@/lib/constants"
@@ -177,28 +178,22 @@ export function LevyScheduleManager({ hoaId, initialSchedules, unitOwnerMap }: P
 
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Type *</label>
-                <select
+                <FormSelect
                   value={form.schedule_type}
-                  onChange={(e) => setForm((f) => ({ ...f, schedule_type: e.target.value }))}
-                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-                >
-                  {SCHEDULE_TYPES.map((t) => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
-                </select>
+                  onValueChange={(v) => setForm((f) => ({ ...f, schedule_type: v }))}
+                  options={SCHEDULE_TYPES}
+                  className="w-full"
+                />
               </div>
 
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Calculation method *</label>
-                <select
+                <FormSelect
                   value={form.calculation_method}
-                  onChange={(e) => setForm((f) => ({ ...f, calculation_method: e.target.value }))}
-                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-                >
-                  {CALC_METHODS.map((m) => (
-                    <option key={m.value} value={m.value}>{m.label}</option>
-                  ))}
-                </select>
+                  onValueChange={(v) => setForm((f) => ({ ...f, calculation_method: v }))}
+                  options={CALC_METHODS}
+                  className="w-full"
+                />
               </div>
 
               <div>

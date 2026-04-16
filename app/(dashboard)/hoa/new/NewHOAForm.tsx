@@ -6,6 +6,7 @@ import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { FormSelect } from "@/components/ui/FormSelect"
 import { toast } from "sonner"
 import { ArrowLeft, Loader2 } from "lucide-react"
 
@@ -103,15 +104,12 @@ export function NewHOAForm({ properties }: Readonly<{ properties: Property[] }>)
           <CardContent className="space-y-4">
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Entity type *</label>
-              <select
+              <FormSelect
                 value={form.entity_type}
-                onChange={(e) => set("entity_type", e.target.value)}
-                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-              >
-                {ENTITY_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
-                ))}
-              </select>
+                onValueChange={(v) => set("entity_type", v)}
+                options={ENTITY_TYPES}
+                className="w-full"
+              />
             </div>
 
             <div>
@@ -125,18 +123,13 @@ export function NewHOAForm({ properties }: Readonly<{ properties: Property[] }>)
 
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Property *</label>
-              <select
+              <FormSelect
                 value={form.property_id}
-                onChange={(e) => set("property_id", e.target.value)}
-                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-              >
-                <option value="">— Select property —</option>
-                {properties.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}{p.city ? `, ${p.city}` : ""}
-                  </option>
-                ))}
-              </select>
+                onValueChange={(v) => set("property_id", v)}
+                placeholder="— Select property —"
+                options={properties.map((p) => ({ value: p.id, label: p.name + (p.city ? `, ${p.city}` : "") }))}
+                className="w-full"
+              />
               <p className="text-xs text-muted-foreground mt-1">
                 Units within this property become the HOA&apos;s sections/units.
               </p>
@@ -166,15 +159,12 @@ export function NewHOAForm({ properties }: Readonly<{ properties: Property[] }>)
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Financial year end</label>
-                <select
+                <FormSelect
                   value={form.financial_year_end_month}
-                  onChange={(e) => set("financial_year_end_month", e.target.value)}
-                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-                >
-                  {MONTHS.map((m, i) => (
-                    <option key={i + 1} value={String(i + 1)}>{m}</option>
-                  ))}
-                </select>
+                  onValueChange={(v) => set("financial_year_end_month", v)}
+                  options={MONTHS.map((m, i) => ({ value: String(i + 1), label: m }))}
+                  className="w-full"
+                />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Number of trustees</label>

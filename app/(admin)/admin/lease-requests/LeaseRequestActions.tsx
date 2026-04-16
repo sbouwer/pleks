@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import { FormSelect } from "@/components/ui/FormSelect"
 
 interface LeaseRequestActionsProps {
   requestId: string
@@ -45,17 +46,11 @@ export function LeaseRequestActions({
   }
 
   return (
-    <select
+    <FormSelect
       value={currentStatus}
       disabled={updating}
-      onChange={(e) => updateStatus(e.target.value)}
-      className="text-xs border border-border rounded px-2 py-1 bg-background disabled:opacity-50"
-    >
-      {STATUS_OPTIONS.map((status) => (
-        <option key={status} value={status}>
-          {status.replace("_", " ")}
-        </option>
-      ))}
-    </select>
+      onValueChange={updateStatus}
+      options={STATUS_OPTIONS.map((status) => ({ value: status, label: status.replace("_", " ") }))}
+    />
   )
 }

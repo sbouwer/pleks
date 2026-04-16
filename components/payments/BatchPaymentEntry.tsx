@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
+import { FormSelect } from "@/components/ui/FormSelect"
 import { formatZAR } from "@/lib/constants"
 import { Plus, Trash2 } from "lucide-react"
 
@@ -229,20 +230,21 @@ export function BatchPaymentEntry() {
                         <p className="text-xs text-muted-foreground">Balance: {formatZAR(row.balanceCents)}</p>
                       </div>
                     ) : (
-                      <select
-                        className="h-8 text-sm border border-border rounded-md px-2 bg-background w-full"
+                      <FormSelect
                         value=""
-                        onChange={(e) => selectInvoice(row.key, e.target.value)}
-                      >
-                        <option value="">Select tenant…</option>
-                        {invoices
-                          .filter((inv) => !rows.some((r) => r.key !== row.key && r.invoiceId === inv.id))
-                          .map((inv) => (
-                            <option key={inv.id} value={inv.id}>
-                              {tenantLabel(inv)} — {inv.units?.unit_number ?? ""} ({formatZAR(inv.balance_cents)})
-                            </option>
-                          ))}
-                      </select>
+                        onValueChange={(v) => selectInvoice(row.key, v)}
+                        placeholder="Select tenant…"
+                        options={[
+                          { value: "", label: "Select tenant…" },
+                          ...invoices
+                            .filter((inv) => !rows.some((r) => r.key !== row.key && r.invoiceId === inv.id))
+                            .map((inv) => ({
+                              value: inv.id,
+                              label: `${tenantLabel(inv)} — ${inv.units?.unit_number ?? ""} (${formatZAR(inv.balance_cents)})`,
+                            })),
+                        ]}
+                        className="w-full"
+                      />
                     )}
                   </td>
                   <td className="py-2 pr-3 text-xs text-muted-foreground">
@@ -268,13 +270,11 @@ export function BatchPaymentEntry() {
                     <DatePickerInput value={row.date} onChange={(v) => updateRow(row.key, { date: v })} />
                   </td>
                   <td className="py-2 pr-3">
-                    <select
-                      className="h-8 text-sm border border-border rounded-md px-2 bg-background"
+                    <FormSelect
                       value={row.method}
-                      onChange={(e) => updateRow(row.key, { method: e.target.value })}
-                    >
-                      {PAYMENT_METHODS.map((m) => <option key={m}>{m}</option>)}
-                    </select>
+                      onValueChange={(v) => updateRow(row.key, { method: v })}
+                      options={PAYMENT_METHODS.map((m) => ({ value: m, label: m }))}
+                    />
                   </td>
                   <td className="py-2 pr-3">
                     <Input
