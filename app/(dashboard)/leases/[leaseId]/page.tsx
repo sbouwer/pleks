@@ -106,6 +106,25 @@ function derivePortalStatus(
   return "none"
 }
 
+type AddressRow = { street_line1: string | null; suburb: string | null; postal_code: string | null; address_type: string }
+
+function parseContactAddress(rows: AddressRow[]): string | null {
+  const row = rows.find(r => r.address_type === "physical") ?? rows[0] ?? null
+  if (!row) return null
+  return [row.street_line1, row.suburb, row.postal_code].filter(Boolean).join(", ")
+}
+
+function getNextInspectionDate(
+  inspections: Array<{ scheduled_date: string | null; status: string }>,
+  today: Date,
+): string | null {
+  return inspections
+    .filter(ins => ins.scheduled_date && !["completed", "cancelled"].includes(ins.status))
+    .map(ins => ins.scheduled_date as string)
+    .sort()
+    .find(d => new Date(d) >= today) ?? null
+}
+
 type CoTenantRow = {
   tenant_id: string
   tenants: {
@@ -142,6 +161,7 @@ function buildAllTenants(
   coTenantsRaw: CoTenantRow[],
   primaryContact: { is_verified: boolean | null; registration_number: string | null } | null,
   portalStatus: "none" | "invited" | "active",
+  primaryAddress: string | null,
 ): TenantContactInfo[] {
   const list: TenantContactInfo[] = []
   if (tv && tenantId) {
@@ -152,7 +172,7 @@ function buildAllTenants(
     const { idOrRegNumber, idOrRegLabel } = getIdOrReg(tv.entity_type, tv.id_number, primaryContact?.registration_number)
     list.push({
       id: tv.id, name, role: "Primary", email: tv.email, phone: tv.phone,
-      entityType: tv.entity_type ?? null, tenantId,
+      address: primaryAddress, entityType: tv.entity_type ?? null, tenantId,
       ficaVerified: primaryContact?.is_verified ?? null, idOrRegNumber, idOrRegLabel,
       portalStatus, welcomePackSentAt: null,
     })
@@ -167,7 +187,7 @@ function buildAllTenants(
     list.push({
       id: ct.tenants!.id, name, role: "Co-tenant",
       email: c?.primary_email ?? null, phone: c?.primary_phone ?? null,
-      entityType: c?.entity_type ?? null, tenantId: ct.tenants!.id,
+      address: null, entityType: c?.entity_type ?? null, tenantId: ct.tenants!.id,
       ficaVerified: c?.is_verified ?? null, idOrRegNumber, idOrRegLabel,
       portalStatus: null, welcomePackSentAt: null,
     })
@@ -199,7 +219,7 @@ export default async function LeaseDetailPage({
     .select(`
       *,
       tenant_view(id, contact_id, first_name, last_name, company_name, entity_type, email, phone, id_number),
-      units(unit_number, properties(id, name, address_line1, suburb, city, landlord_id))
+      units(unit_number, properties(id, name, address_line1, suburb, city, landlord_id, managing_agent_id))
     `)
     .eq("id", leaseId)
     .single()
@@ -212,7 +232,7 @@ export default async function LeaseDetailPage({
 
   const unit = lease.units as unknown as {
     unit_number: string
-    properties: { id: string; name: string; address_line1: string | null; suburb: string | null; city: string | null; landlord_id: string | null }
+    properties: { id: string; name: string; address_line1: string | null; suburb: string | null; city: string | null; landlord_id: string | null; managing_agent_id: string | null }
   } | null
 
   const tv = lease.tenant_view as unknown as {
@@ -253,6 +273,7 @@ export default async function LeaseDetailPage({
     landlordPortalRes,
     ytdPaymentsRes,
     maintenanceCostRes,
+    primaryAddressRes,
   ] = await Promise.all([
     supabase
       .from("lease_co_tenants")
@@ -333,6 +354,10 @@ export default async function LeaseDetailPage({
           .gte("created_at", `${taxYearStart}T00:00:00Z`)
           .not("actual_cost_cents", "is", null)
       : Promise.resolve({ data: [], error: null }),
+    // Primary tenant address
+    tv?.contact_id != null
+      ? supabase.from("contact_addresses").select("street_line1, suburb, city, postal_code, address_type").eq("org_id", lease.org_id).eq("contact_id", tv.contact_id).in("address_type", ["physical", "postal"]).limit(2)
+      : Promise.resolve({ data: [], error: null }),
   ])
 
   const coTenantsRaw = (coTenantsRes.data ?? []) as unknown as CoTenantRow[]
@@ -373,7 +398,13 @@ export default async function LeaseDetailPage({
 
   const primaryContact = primaryContactRes.data as { is_verified: boolean | null; registration_number: string | null } | null
   const primaryPortalStatus = derivePortalStatus(tenantPortal?.auth_user_id, tenantPortal?.portal_invite_sent_at)
-  const allTenants = buildAllTenants(tv, lease.tenant_id, coTenantsRaw, primaryContact, primaryPortalStatus)
+
+  const primaryAddress = parseContactAddress((primaryAddressRes.data ?? []) as AddressRow[])
+
+  const allTenants = buildAllTenants(tv, lease.tenant_id, coTenantsRaw, primaryContact, primaryPortalStatus, primaryAddress)
+
+  const managingAgentId = unit?.properties?.managing_agent_id ?? null
+  const managedByLabel = managingAgentId ? null : "self-managed"
 
   const llIdOrReg = getIdOrReg(landlordRaw?.entity_type, null, landlordRaw?.registration_number)
   const contactsLandlord: LandlordContactInfo | null = landlordRaw ? {
@@ -382,6 +413,7 @@ export default async function LeaseDetailPage({
     company: landlordRaw.company_name ?? null,
     email: landlordRaw.email ?? null,
     phone: landlordRaw.phone ?? null,
+    address: null,
     entityType: landlordRaw.entity_type ?? null,
     ficaVerified: null,
     idOrRegNumber: llIdOrReg.idOrRegNumber,
@@ -393,12 +425,7 @@ export default async function LeaseDetailPage({
   const maintenanceCostRows = (maintenanceCostRes.data ?? []) as Array<{ actual_cost_cents: number }>
   const maintenanceCostCents = maintenanceCostRows.reduce((s, r) => s + (r.actual_cost_cents ?? 0), 0)
   const maintenanceJobCount = maintenanceCostRows.length
-  const nextInspectionDate = (inspectionsRes.data ?? [])
-    .filter((ins: { scheduled_date: string | null; status: string }) =>
-      ins.scheduled_date && !["completed", "cancelled"].includes(ins.status))
-    .map((ins: { scheduled_date: string }) => ins.scheduled_date)
-    .sort()
-    .find((d: string) => new Date(d) >= today) ?? null
+  const nextInspectionDate = getNextInspectionDate(inspectionsRes.data ?? [], today)
   const propertyId = unit?.properties?.id ?? null
   const complianceItems = buildComplianceItems(lease, today, nextInspectionDate)
   const statusColor = buildStatusColor(lease.status)
@@ -413,7 +440,7 @@ export default async function LeaseDetailPage({
           <h1 className="font-heading text-2xl font-bold">{tenantDisplayText}</h1>
           {unitLabel && (
             <p className="text-muted-foreground">
-              {unitLabel}{areaLabel ? ` · ${areaLabel}` : ""}
+              {[unitLabel, areaLabel].filter(Boolean).join(" · ")}
             </p>
           )}
           <div className="mt-2 flex flex-wrap gap-1.5">
@@ -525,6 +552,7 @@ export default async function LeaseDetailPage({
             landlord={contactsLandlord}
             leaseId={leaseId}
             propertyId={propertyId}
+            managedBy={managedByLabel}
             portalInviteSentAt={tenantPortal?.portal_invite_sent_at ?? null}
             hasAuthUser={!!tenantPortal?.auth_user_id}
             primaryTenantId={lease.tenant_id ?? null}
