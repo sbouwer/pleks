@@ -1,4 +1,6 @@
-import { Phone, Mail, MessageCircle, ExternalLink } from "lucide-react"
+"use client"
+
+import { Phone, Mail, MessageCircle, ExternalLink, MapPin } from "lucide-react"
 
 export type PortalStatus = "none" | "invited" | "active" | "suspended" | null
 
@@ -15,7 +17,7 @@ const STATUS_PILL: Record<string, string> = {
 }
 
 function waLink(phone: string): string {
-  const digits = phone.replace(/\D/g, "")
+  const digits = phone.replaceAll(/\D/g, "")
   const normalized = digits.startsWith("0") ? `27${digits.slice(1)}` : digits
   return `https://wa.me/${normalized}`
 }
@@ -47,20 +49,30 @@ function InfoRow({ label, children }: { readonly label: string; readonly childre
 }
 
 export interface ContactCardProps {
-  name: string
-  subtitle: string
-  avatarVariant?: "brand" | "blue" | "neutral"
-  email: string | null
-  phone: string | null
-  profileHref?: string
+  readonly name: string
+  readonly subtitle: string
+  readonly avatarVariant?: "brand" | "blue" | "neutral"
+  readonly email: string | null
+  readonly phone: string | null
+  readonly address?: string | null
+  readonly profileHref?: string
+  /**
+   * When set, renders a management status label in the header right side.
+   * "self-managed" → renders "self-managed" in muted text.
+   * Any other string → renders "managed by\n[value]".
+   */
+  readonly managedBy?: string | null
   /** When true, renders the Type / ID / FICA / Portal / Welcome rows below the action buttons */
-  showInfo?: boolean
-  entityType?: string | null
-  idOrRegNumber?: string | null
-  idOrRegLabel?: string
-  ficaVerified?: boolean | null
-  portalStatus?: PortalStatus
-  welcomePackSentAt?: string | null
+  readonly showInfo?: boolean
+  readonly entityType?: string | null
+  readonly idOrRegNumber?: string | null
+  readonly idOrRegLabel?: string
+  readonly ficaVerified?: boolean | null
+  readonly portalStatus?: PortalStatus
+  readonly welcomePackSentAt?: string | null
+  readonly onSendWelcomePack?: () => void
+  /** Extra nodes rendered in the header right slot, next to the profile link */
+  readonly headerActions?: React.ReactNode
 }
 
 export function ContactCard({
@@ -69,7 +81,9 @@ export function ContactCard({
   avatarVariant = "brand",
   email,
   phone,
+  address,
   profileHref,
+  managedBy,
   showInfo = false,
   entityType,
   idOrRegNumber,
@@ -77,91 +91,103 @@ export function ContactCard({
   ficaVerified,
   portalStatus,
   welcomePackSentAt,
+  onSendWelcomePack,
+  headerActions,
 }: ContactCardProps) {
   const colorCls = AVATAR_CLASSES[avatarVariant] ?? AVATAR_CLASSES.brand
-  const hasContact = !!(phone ?? email)
   const entityLabel = entityType
-    ? entityType.charAt(0).toUpperCase() + entityType.slice(1).replace(/_/g, " ")
+    ? entityType.charAt(0).toUpperCase() + entityType.slice(1).replaceAll("_", " ")
     : "Individual"
 
   const welcomeLabel = welcomePackSentAt
     ? new Date(welcomePackSentAt).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
     : null
 
+  const isSelfManaged = managedBy === "self-managed"
+
   return (
     <div className="space-y-3">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className={`h-9 w-9 ${colorCls} shrink-0 rounded-full font-semibold text-sm flex items-center justify-center`}>
+      <div className="flex items-start gap-3">
+        <div className={`h-9 w-9 ${colorCls} shrink-0 rounded-full font-semibold text-sm flex items-center justify-center mt-0.5`}>
           {name.slice(0, 2).toUpperCase()}
         </div>
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-sm truncate">{name}</p>
           <p className="text-xs text-muted-foreground truncate">{subtitle}</p>
         </div>
-        {profileHref && (
-          <a href={profileHref} className="shrink-0 text-muted-foreground hover:text-foreground">
-            <ExternalLink className="h-3.5 w-3.5" />
-          </a>
-        )}
-      </div>
-
-      {/* Contact rows */}
-      <div className="space-y-1.5">
-        {phone && (
-          <div className="flex items-center gap-2 text-sm">
-            <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <span>{phone}</span>
-          </div>
-        )}
-        {email && (
-          <div className="flex items-center gap-2 text-sm">
-            <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <span className="truncate">{email}</span>
-          </div>
-        )}
-        {phone && (
-          <div className="flex items-center gap-2 text-sm">
-            <MessageCircle className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <span>WhatsApp: {phone}</span>
-          </div>
-        )}
-        {!hasContact && (
-          <p className="text-xs text-muted-foreground">No contact details on record.</p>
-        )}
-      </div>
-
-      {/* Action buttons */}
-      {hasContact && (
-        <div className="flex gap-2">
-          {phone && (
-            <a
-              href={`tel:${phone}`}
-              className="flex-1 text-center rounded-md border border-border bg-card px-2 py-1.5 text-xs font-medium hover:bg-muted transition-colors"
-            >
-              Call
-            </a>
+        <div className="flex items-start gap-2 shrink-0">
+          {managedBy && (
+            <div className="text-right">
+              {isSelfManaged ? (
+                <p className="text-xs text-muted-foreground">self-managed</p>
+              ) : (
+                <>
+                  <p className="text-[10px] text-muted-foreground/70">managed by</p>
+                  <p className="text-xs text-muted-foreground font-medium">{managedBy}</p>
+                </>
+              )}
+            </div>
           )}
-          {phone && (
-            <a
-              href={waLink(phone)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-1 text-center rounded-md border border-border bg-card px-2 py-1.5 text-xs font-medium hover:bg-muted transition-colors"
-            >
-              WhatsApp
-            </a>
-          )}
-          {email && (
-            <a
-              href={`mailto:${email}`}
-              className="flex-1 text-center rounded-md border border-border bg-card px-2 py-1.5 text-xs font-medium hover:bg-muted transition-colors"
-            >
-              Email
+          {headerActions}
+          {profileHref && (
+            <a href={profileHref} className="text-muted-foreground hover:text-foreground mt-0.5">
+              <ExternalLink className="h-3.5 w-3.5" />
             </a>
           )}
         </div>
-      )}
+      </div>
+
+      {/* Contact rows — always shown, "—" when missing */}
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2 text-sm">
+          <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          {phone ? <span>{phone}</span> : <span className="text-muted-foreground">—</span>}
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          {email ? <span className="truncate">{email}</span> : <span className="text-muted-foreground">—</span>}
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <MessageCircle className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          {phone ? <span>WhatsApp: {phone}</span> : <span className="text-muted-foreground">—</span>}
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          {address ? <span className="truncate">{address}</span> : <span className="text-muted-foreground">—</span>}
+        </div>
+      </div>
+
+      {/* Action buttons — always shown, greyed out when data is missing */}
+      <div className="flex gap-2">
+        {phone ? (
+          <a href={`tel:${phone}`} className="flex-1 text-center rounded-md border border-border bg-card px-2 py-1.5 text-xs font-medium hover:bg-muted transition-colors">
+            Call
+          </a>
+        ) : (
+          <span className="flex-1 text-center rounded-md border border-border/40 px-2 py-1.5 text-xs font-medium text-muted-foreground/50 cursor-not-allowed">
+            Call
+          </span>
+        )}
+        {phone ? (
+          <a href={waLink(phone)} target="_blank" rel="noopener noreferrer" className="flex-1 text-center rounded-md border border-border bg-card px-2 py-1.5 text-xs font-medium hover:bg-muted transition-colors">
+            WhatsApp
+          </a>
+        ) : (
+          <span className="flex-1 text-center rounded-md border border-border/40 px-2 py-1.5 text-xs font-medium text-muted-foreground/50 cursor-not-allowed">
+            WhatsApp
+          </span>
+        )}
+        {email ? (
+          <a href={`mailto:${email}`} className="flex-1 text-center rounded-md border border-border bg-card px-2 py-1.5 text-xs font-medium hover:bg-muted transition-colors">
+            Email
+          </a>
+        ) : (
+          <span className="flex-1 text-center rounded-md border border-border/40 px-2 py-1.5 text-xs font-medium text-muted-foreground/50 cursor-not-allowed">
+            Email
+          </span>
+        )}
+      </div>
 
       {/* Optional info section */}
       {showInfo && (
@@ -179,7 +205,23 @@ export function ContactCard({
               <PortalPill status={portalStatus ?? null} />
             </InfoRow>
             <InfoRow label="Welcome pack">
-              {welcomeLabel ?? <span className="text-muted-foreground">Not sent</span>}
+              {welcomeLabel ?? (
+                <span className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground font-normal">Not sent</span>
+                  {onSendWelcomePack && (
+                    <>
+                      {" · "}
+                      <button
+                        type="button"
+                        onClick={onSendWelcomePack}
+                        className="text-brand hover:underline font-medium"
+                      >
+                        Send
+                      </button>
+                    </>
+                  )}
+                </span>
+              )}
             </InfoRow>
           </div>
         </>
