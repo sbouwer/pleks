@@ -370,27 +370,8 @@ export function OverviewTab({
         rentCents={rentCents}
       />
 
-      {/* Tenant + Owner contact cards */}
+      {/* Owner + Tenant contact cards */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border bg-card p-4">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 mb-3">Tenant</p>
-          {activeTenant ? (
-            <ContactCard
-              name={activeTenant.name}
-              subtitle={`${formatEntityLabel(activeTenant.entityType)} · ${activeTenant.role}`}
-              avatarVariant="brand"
-              email={activeTenant.email}
-              phone={activeTenant.phone}
-              profileHref={activeTenant.tenantId ? `/tenants/${activeTenant.tenantId}` : undefined}
-              headerActions={allTenants.length > 1 ? (
-                <CoTenantAvatars tenants={allTenants} activeIdx={activeIdx} onSelect={setActiveIdx} />
-              ) : undefined}
-            />
-          ) : (
-            <p className="text-sm text-muted-foreground">No tenant linked.</p>
-          )}
-        </div>
-
         <div className="rounded-xl border bg-card p-4">
           <div className="flex items-center justify-between mb-3">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">Owner / Landlord</p>
@@ -416,6 +397,25 @@ export function OverviewTab({
                 <Link href={`/properties/${propertyId}`} className="text-brand hover:underline">Link here</Link>
               )}
             </p>
+          )}
+        </div>
+
+        <div className="rounded-xl border bg-card p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 mb-3">Tenant</p>
+          {activeTenant ? (
+            <ContactCard
+              name={activeTenant.name}
+              subtitle={`${formatEntityLabel(activeTenant.entityType)} · ${activeTenant.role}`}
+              avatarVariant="brand"
+              email={activeTenant.email}
+              phone={activeTenant.phone}
+              profileHref={activeTenant.tenantId ? `/tenants/${activeTenant.tenantId}` : undefined}
+              headerActions={allTenants.length > 1 ? (
+                <CoTenantAvatars tenants={allTenants} activeIdx={activeIdx} onSelect={setActiveIdx} />
+              ) : undefined}
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground">No tenant linked.</p>
           )}
         </div>
       </div>

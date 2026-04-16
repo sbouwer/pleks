@@ -5,6 +5,13 @@ import { gateway } from "@/lib/supabase/gateway"
 import { sendEmail, buildBranding, fetchOrgSettings, type SendEmailResult } from "@/lib/comms/send-email"
 import { EmailLayout, EmailButton, EmailDetail, EmailSectionHeading } from "@/lib/comms/templates/layout"
 import { formatZAR } from "@/lib/constants"
+import { inviteLandlord } from "@/lib/portal/inviteLandlord"
+
+export async function inviteLandlordPortal(landlordId: string): Promise<{ success?: boolean; error?: string }> {
+  const gw = await gateway()
+  if (!gw) return { error: "Not authenticated" }
+  return inviteLandlord(landlordId, gw.userId)
+}
 
 export async function emailLeaseToTenant(leaseId: string): Promise<SendEmailResult & { error?: string }> {
   const gw = await gateway()

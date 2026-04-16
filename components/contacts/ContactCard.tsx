@@ -71,6 +71,8 @@ export interface ContactCardProps {
   readonly portalStatus?: PortalStatus
   readonly welcomePackSentAt?: string | null
   readonly onSendWelcomePack?: () => void
+  /** Called when the agent clicks "Invite" in the portal status row */
+  readonly onSendPortalInvite?: () => void
   /** Extra nodes rendered in the header right slot, next to the profile link */
   readonly headerActions?: React.ReactNode
 }
@@ -92,6 +94,7 @@ export function ContactCard({
   portalStatus,
   welcomePackSentAt,
   onSendWelcomePack,
+  onSendPortalInvite,
   headerActions,
 }: ContactCardProps) {
   const colorCls = AVATAR_CLASSES[avatarVariant] ?? AVATAR_CLASSES.brand
@@ -202,7 +205,21 @@ export function ContactCard({
               <FicaPill verified={ficaVerified} />
             </InfoRow>
             <InfoRow label="Portal status">
-              <PortalPill status={portalStatus ?? null} />
+              {(!portalStatus || portalStatus === "none") && onSendPortalInvite ? (
+                <span className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground font-normal">Not invited</span>
+                  {" · "}
+                  <button
+                    type="button"
+                    onClick={onSendPortalInvite}
+                    className="text-brand hover:underline font-medium"
+                  >
+                    Invite
+                  </button>
+                </span>
+              ) : (
+                <PortalPill status={portalStatus ?? null} />
+              )}
             </InfoRow>
             <InfoRow label="Welcome pack">
               {welcomeLabel ?? (

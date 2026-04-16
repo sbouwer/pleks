@@ -1,46 +1,51 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
-import { Mail, Link2, ShieldOff, Copy, Check, Loader2, MessageCircle, Send } from "lucide-react"
-import { inviteTenantPortal, generateTenantPortalLink, revokeTenantPortalAccess } from "@/lib/portal/inviteTenant"
+import { Link2, ShieldOff, Copy, Check, Loader2, MessageCircle, Send, ChevronDown } from "lucide-react"
+import { generateTenantPortalLink, revokeTenantPortalAccess } from "@/lib/portal/inviteTenant"
 import { emailLeaseToTenant } from "./actions"
+import type { TenantContactInfo } from "./ContactsTab"
 
 interface Props {
   readonly tenantId: string
+  readonly allTenants: TenantContactInfo[]
   readonly leaseId: string
   readonly portalInviteSentAt: string | null
   readonly hasAuthUser: boolean
 }
 
-export function LeasePortalActions({ tenantId, leaseId, portalInviteSentAt, hasAuthUser }: Props) {
-  const [inviting, setInviting] = useState(false)
+export function LeasePortalActions({ tenantId, allTenants, leaseId, portalInviteSentAt, hasAuthUser }: Props) {
   const [generating, setGenerating] = useState(false)
   const [revoking, setRevoking] = useState(false)
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
-  const [emailing, startEmail] = useTransition()
+  const [emailing, setEmailing] = useState(false)
+  const [whatsappOpen, setWhatsappOpen] = useState(false)
+  const whatsappRef = useRef<HTMLDivElement>(null)
 
-  function handleEmailLease() {
-    startEmail(async () => {
-      const result = await emailLeaseToTenant(leaseId)
-      if (result.error) toast.error(result.error)
-      else toast.success("Lease details emailed to tenant")
-    })
-  }
+  useEffect(() => {
+    if (!whatsappOpen) return
+    function handleClick(e: MouseEvent) {
+      if (whatsappRef.current && !whatsappRef.current.contains(e.target as Node)) setWhatsappOpen(false)
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [whatsappOpen])
 
-  async function handleInvite() {
-    setInviting(true)
-    const result = await inviteTenantPortal(tenantId, leaseId)
-    setInviting(false)
+  async function handleEmailLease() {
+    setEmailing(true)
+    const result = await emailLeaseToTenant(leaseId)
+    setEmailing(false)
     if (result.error) toast.error(result.error)
-    else toast.success("Portal invite sent")
+    else toast.success("Lease details emailed to tenant")
   }
 
-  async function handleGenerateLink() {
+  async function handleGenerateLink(targetTenantId: string) {
+    setWhatsappOpen(false)
     setGenerating(true)
-    const result = await generateTenantPortalLink(tenantId, leaseId)
+    const result = await generateTenantPortalLink(targetTenantId, leaseId)
     setGenerating(false)
     if (result.error) {
       toast.error(result.error)
@@ -65,19 +70,11 @@ export function LeasePortalActions({ tenantId, leaseId, portalInviteSentAt, hasA
     else toast.success("Portal access revoked")
   }
 
+  const hasMultipleTenants = allTenants.length > 1
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={handleInvite}
-          disabled={inviting}
-        >
-          {inviting ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Mail className="h-3.5 w-3.5 mr-1.5" />}
-          {portalInviteSentAt ? "Re-send invite" : "Invite via email"}
-        </Button>
-
         <Button
           size="sm"
           variant="outline"
@@ -88,15 +85,49 @@ export function LeasePortalActions({ tenantId, leaseId, portalInviteSentAt, hasA
           Email lease
         </Button>
 
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={handleGenerateLink}
-          disabled={generating}
-        >
-          {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Link2 className="h-3.5 w-3.5 mr-1.5" />}
-          Generate WhatsApp link
-        </Button>
+        {/* WhatsApp link — single tenant: generate directly; multiple: pick first */}
+        {hasMultipleTenants ? (
+          <div ref={whatsappRef} className="relative">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setWhatsappOpen(v => !v)}
+              disabled={generating}
+            >
+              {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Link2 className="h-3.5 w-3.5 mr-1.5" />}
+              WhatsApp link
+              <ChevronDown className="h-3 w-3 ml-1 opacity-60" />
+            </Button>
+            {whatsappOpen && (
+              <div className="absolute left-0 top-9 z-20 min-w-[180px] rounded-lg border border-border bg-card shadow-md py-1">
+                <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
+                  Generate link for
+                </p>
+                {allTenants.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => handleGenerateLink(t.tenantId)}
+                    className="w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-muted transition-colors"
+                  >
+                    <span className="flex-1 truncate">{t.name}</span>
+                    <span className="text-[10px] text-muted-foreground/70 shrink-0">{t.role}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleGenerateLink(tenantId)}
+            disabled={generating}
+          >
+            {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Link2 className="h-3.5 w-3.5 mr-1.5" />}
+            WhatsApp link
+          </Button>
+        )}
 
         {(hasAuthUser || portalInviteSentAt) && (
           <Button
