@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
+import { FormSelect } from "@/components/ui/FormSelect"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { formatDateShort } from "@/lib/reports/periods"
@@ -189,10 +190,12 @@ export function AGMManager({ hoaId, initialRecords }: Readonly<Props>) {
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Type *</label>
-                <select value={form.agm_type} onChange={(e) => setF("agm_type", e.target.value)}
-                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm">
-                  {AGM_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </select>
+                <FormSelect
+                  value={form.agm_type}
+                  onValueChange={(v) => setF("agm_type", v)}
+                  options={AGM_TYPES}
+                  className="w-full"
+                />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Date *</label>
@@ -324,17 +327,21 @@ export function AGMManager({ hoaId, initialRecords }: Readonly<Props>) {
                             </div>
                             <div>
                               <label className="text-xs text-muted-foreground mb-1 block">Type</label>
-                              <select value={resForm.resolution_type} onChange={(e) => setR("resolution_type", e.target.value)}
-                                className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs">
-                                {RESOLUTION_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                              </select>
+                              <FormSelect
+                                value={resForm.resolution_type}
+                                onValueChange={(v) => setR("resolution_type", v)}
+                                options={RESOLUTION_TYPES.map((t) => ({ value: t, label: t }))}
+                                className="w-full"
+                              />
                             </div>
                             <div>
                               <label className="text-xs text-muted-foreground mb-1 block">Result</label>
-                              <select value={resForm.result} onChange={(e) => setR("result", e.target.value)}
-                                className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs">
-                                {RESOLUTION_RESULTS.map((r) => <option key={r} value={r}>{r}</option>)}
-                              </select>
+                              <FormSelect
+                                value={resForm.result}
+                                onValueChange={(v) => setR("result", v)}
+                                options={RESOLUTION_RESULTS.map((r) => ({ value: r, label: r }))}
+                                className="w-full"
+                              />
                             </div>
                             <div className="sm:col-span-3">
                               <label className="text-xs text-muted-foreground mb-1 block">Description *</label>

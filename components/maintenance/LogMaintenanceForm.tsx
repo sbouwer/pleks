@@ -11,6 +11,7 @@ import { createMaintenanceRequest, fetchUnitsForProperty, fetchTenantForUnit, fe
 import { fetchBuildingsForProperty } from "@/lib/actions/buildings"
 import { formatZAR } from "@/lib/constants"
 import { InlineCombobox } from "@/components/shared/InlineCombobox"
+import { FormSelect } from "@/components/ui/FormSelect"
 
 interface Property {
   id: string
@@ -437,10 +438,13 @@ export function LogMaintenanceForm({
             {propertyId && buildings.length > 1 && (
               <div className="space-y-1.5">
                 <Label className="text-xs">Building</Label>
-                <select value={buildingId} onChange={(e) => setBuildingId(e.target.value)} className="w-full h-8 rounded-md border border-input bg-background px-2 text-sm">
-                  <option value="">All buildings / not specific</option>
-                  {buildings.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-                </select>
+                <FormSelect
+                  value={buildingId}
+                  onValueChange={setBuildingId}
+                  placeholder="All buildings / not specific"
+                  options={[{ value: "", label: "All buildings / not specific" }, ...buildings.map((b) => ({ value: b.id, label: b.name }))]}
+                  className="w-full"
+                />
               </div>
             )}
             {propertyId && (

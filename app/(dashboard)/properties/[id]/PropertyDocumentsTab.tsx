@@ -5,6 +5,7 @@ import { uploadPropertyDocument, deletePropertyDocument, getDocumentSignedUrl } 
 import { Button } from "@/components/ui/button"
 import { FileText, FileWarning, ShieldCheck, Home, FolderOpen, Upload, Trash2, ExternalLink, Loader2 } from "lucide-react"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
+import { FormSelect } from "@/components/ui/FormSelect"
 import { toast } from "sonner"
 
 // ── Doc types + categories ────────────────────────────────────────────────────
@@ -204,16 +205,12 @@ export function PropertyDocumentsTab({ propertyId, initialDocuments }: PropertyD
                 <label className="text-[11px] text-muted-foreground uppercase tracking-wide block mb-1">
                   Document type
                 </label>
-                <select
+                <FormSelect
                   name="document_type"
                   defaultValue="other"
                   required
-                  className="w-full rounded-md border bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring font-sans"
-                >
-                  {DOC_TYPES.map((t) => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
-                </select>
+                  options={DOC_TYPES.map((t) => ({ value: t.value, label: t.label }))}
+                />
               </div>
               <div>
                 <label className="text-[11px] text-muted-foreground uppercase tracking-wide block mb-1">

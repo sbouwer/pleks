@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { FormSelect } from "@/components/ui/FormSelect"
 import { toast } from "sonner"
 import { formatZAR } from "@/lib/constants"
 import { formatDateShort } from "@/lib/reports/periods"
@@ -116,18 +117,24 @@ export function ReserveFundManager({ hoaId, initialEntries, initialBalance }: Re
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Entry type *</label>
-                <select value={form.entry_type} onChange={(e) => setF("entry_type", e.target.value)}
-                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm">
-                  {ENTRY_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </select>
+                <FormSelect
+                  value={form.entry_type}
+                  onValueChange={(v) => setF("entry_type", v)}
+                  options={ENTRY_TYPES}
+                  className="w-full"
+                />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Direction *</label>
-                <select value={form.direction} onChange={(e) => setF("direction", e.target.value)}
-                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm">
-                  <option value="credit">Credit (money in)</option>
-                  <option value="debit">Debit (money out)</option>
-                </select>
+                <FormSelect
+                  value={form.direction}
+                  onValueChange={(v) => setF("direction", v)}
+                  options={[
+                    { value: "credit", label: "Credit (money in)" },
+                    { value: "debit", label: "Debit (money out)" },
+                  ]}
+                  className="w-full"
+                />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">Amount (R) *</label>

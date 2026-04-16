@@ -5,6 +5,7 @@ import { uploadPropertyDocument, deletePropertyDocument, getDocumentSignedUrl } 
 import { Button } from "@/components/ui/button"
 import { Upload, Trash2, FileText, Loader2, ExternalLink } from "lucide-react"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
+import { FormSelect } from "@/components/ui/FormSelect"
 import { toast } from "sonner"
 
 const DOCUMENT_TYPES = [
@@ -125,16 +126,13 @@ export function PropertyDocumentsSection({ propertyId, initialDocuments }: Prope
             <input type="hidden" name="property_id" value={propertyId} />
             <div>
               <label className="text-[11px] text-muted-foreground uppercase tracking-wide">Document type</label>
-              <select
+              <FormSelect
                 name="document_type"
                 defaultValue="other"
                 required
-                className="mt-1 w-full rounded-md border bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                {DOCUMENT_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
-                ))}
-              </select>
+                options={DOCUMENT_TYPES}
+                className="mt-1 w-full"
+              />
             </div>
             <div>
               <label className="text-[11px] text-muted-foreground uppercase tracking-wide">File</label>

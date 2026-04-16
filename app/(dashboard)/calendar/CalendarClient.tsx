@@ -9,6 +9,7 @@ import interactionPlugin from "@fullcalendar/interaction"
 import type { EventClickArg, EventContentArg } from "@fullcalendar/core"
 import { useRouter } from "next/navigation"
 import type { CalendarEvent, EventType } from "@/lib/calendar/events"
+import { FormSelect } from "@/components/ui/FormSelect"
 
 interface CalendarClientProps {
   events: CalendarEvent[]
@@ -115,26 +116,20 @@ export function CalendarClient({ events, properties, isFirm }: CalendarClientPro
         </div>
 
         {/* Filters */}
-        <select
+        <FormSelect
           value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-          className="rounded-lg border border-border bg-surface-elevated px-3 py-1.5 text-sm text-foreground"
-        >
-          {FILTER_GROUPS.map((g) => (
-            <option key={g.value} value={g.value}>{g.label}</option>
-          ))}
-        </select>
+          onValueChange={setTypeFilter}
+          options={FILTER_GROUPS}
+          className="rounded-lg"
+        />
 
-        <select
+        <FormSelect
           value={propertyFilter}
-          onChange={(e) => setPropertyFilter(e.target.value)}
-          className="rounded-lg border border-border bg-surface-elevated px-3 py-1.5 text-sm text-foreground"
-        >
-          <option value="all">All properties</option>
-          {properties.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
+          onValueChange={setPropertyFilter}
+          placeholder="All properties"
+          options={[{ value: "all", label: "All properties" }, ...properties.map((p) => ({ value: p.id, label: p.name }))]}
+          className="rounded-lg"
+        />
       </div>
 
       {/* Mobile notice for non-list views */}

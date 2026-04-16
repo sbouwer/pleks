@@ -3,6 +3,7 @@
 import { useState, useTransition, useRef } from "react"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { Button } from "@/components/ui/button"
+import { FormSelect } from "@/components/ui/FormSelect"
 import { PlusCircle, Loader2, X } from "lucide-react"
 import { toast } from "sonner"
 import { recordPayment } from "@/lib/actions/payments"
@@ -87,15 +88,12 @@ export function QuickPaymentButton({ invoiceId, balanceCents }: QuickPaymentButt
         </div>
         <div>
           <label className="text-[11px] text-muted-foreground uppercase tracking-wide">Method</label>
-          <select
+          <FormSelect
             name="payment_method"
             defaultValue="eft"
-            className="mt-1 w-full rounded-md border bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          >
-            {PAYMENT_METHODS.map((m) => (
-              <option key={m.value} value={m.value}>{m.label}</option>
-            ))}
-          </select>
+            options={PAYMENT_METHODS}
+            className="mt-1 w-full"
+          />
         </div>
         <div>
           <label className="text-[11px] text-muted-foreground uppercase tracking-wide">Reference (optional)</label>
