@@ -499,10 +499,66 @@ function buildPage6(recs: Recommendation[], accent: string): string {
 
 // ── Master builder ────────────────────────────────────────────────────────────
 
+export interface WelcomePackToolbar {
+  orgId: string
+  landlordId: string
+  landlordName: string
+  landlordEmail: string | null
+}
+
+function buildToolbar(toolbar: WelcomePackToolbar, accent: string): string {
+  const safeOrgId      = toolbar.orgId       // UUIDs — no escaping needed
+  const safeLandlordId = toolbar.landlordId  // UUIDs — no escaping needed
+  const safeName       = toolbar.landlordName.replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+  const hasEmail       = !!toolbar.landlordEmail
+
+  const sendBtn = hasEmail
+    ? `<button id="send-btn" onclick="sendPack()" style="background:${accent};color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">&#9993; Send to ${safeName}</button>`
+    : `<button disabled title="No email address on file for this owner" style="background:#64748b;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;cursor:not-allowed;opacity:0.6;white-space:nowrap;">&#9993; No email on file</button>`
+
+  const script = hasEmail ? `<script>
+async function sendPack() {
+  const btn = document.getElementById('send-btn');
+  btn.disabled = true; btn.textContent = 'Sending\u2026';
+  try {
+    const res = await fetch('/api/reports/welcome-pack/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orgId: '${safeOrgId}', landlordId: '${safeLandlordId}' })
+    });
+    const json = await res.json();
+    if (json.error) {
+      btn.textContent = '\u2715 ' + json.error;
+      btn.style.background = '#dc2626';
+      setTimeout(() => { btn.disabled = false; btn.innerHTML = '&#9993; Send to ${safeName}'; btn.style.background = '${accent}'; }, 4000);
+    } else {
+      btn.textContent = '\u2713 Sent!';
+      btn.style.background = '#16a34a';
+    }
+  } catch {
+    btn.textContent = '\u2715 Network error';
+    btn.style.background = '#dc2626';
+    setTimeout(() => { btn.disabled = false; btn.innerHTML = '&#9993; Send to ${safeName}'; btn.style.background = '${accent}'; }, 4000);
+  }
+}
+${"</"}script>` : ""
+
+  return `
+  <div class="no-print" style="position:fixed;top:0;left:0;right:0;background:#1e293b;padding:10px 20px;display:flex;align-items:center;gap:10px;z-index:9999;box-shadow:0 2px 8px rgba(0,0,0,0.2);">
+    <span style="color:#fff;font-size:13px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Portfolio Overview &mdash; ${safeName}</span>
+    ${sendBtn}
+    <button onclick="window.print()" style="background:rgba(255,255,255,0.12);color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:12px;cursor:pointer;white-space:nowrap;">&#128438; Print / PDF</button>
+  </div>
+  <div class="no-print" style="height:48px;"></div>
+  ${script}
+  `
+}
+
 export function buildWelcomePackHTML(
   data: WelcomePackData,
   recs: Recommendation[],
   org: ReportBranding,
+  toolbar?: WelcomePackToolbar,
 ): string {
   const css = getWelcomeCSS(org)
   const fontLink = getFontLink(org.font)
@@ -516,12 +572,15 @@ export function buildWelcomePackHTML(
     <div style="padding:40px 0;text-align:center;color:#64748b;font-size:13px;">
       <p style="font-size:16px;font-weight:600;color:#1a1a1a;margin-bottom:8px;">No properties linked</p>
       <p>No properties are currently linked to ${data.landlord_name}.</p>
-      <p style="margin-top:4px;">Add a property with this landlord assigned, then regenerate the welcome pack.</p>
+      <p style="margin-top:4px;">Add a property with this landlord assigned, then regenerate the portfolio overview.</p>
     </div>`
 
+  const toolbarHtml = toolbar ? buildToolbar(toolbar, accent) : ""
+
   const body = `
+    ${toolbarHtml}
     ${letterhead(org)}
-    <h1>Portfolio Welcome Pack</h1>
+    <h1>Portfolio Overview</h1>
     <div class="subtitle">${coverSubtitle}</div>
     <hr class="accent">
     ${hasProperties ? buildPage1(data, org) : noPropertiesHtml}
@@ -533,5 +592,7 @@ export function buildWelcomePackHTML(
     ${footer}
   `
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8">${fontLink}<style>${css}</style></head><body>${body}</body></html>`
+  const noPrintCss = `@media print { .no-print { display: none !important; } }`
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8">${fontLink}<style>${css}${noPrintCss}</style></head><body>${body}</body></html>`
 }

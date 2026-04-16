@@ -50,6 +50,8 @@ interface ContactsTabProps {
   readonly portalInviteSentAt: string | null
   readonly hasAuthUser: boolean
   readonly primaryTenantId: string | null
+  readonly portfolioOverviewSentAt: string | null
+  readonly portfolioOverviewOutdated: boolean
 }
 
 const AVATAR_VARIANT: Record<string, "brand" | "blue"> = {
@@ -66,6 +68,8 @@ export function ContactsTab({
   portalInviteSentAt,
   hasAuthUser,
   primaryTenantId,
+  portfolioOverviewSentAt,
+  portfolioOverviewOutdated,
 }: ContactsTabProps) {
   const [activeIdx, setActiveIdx] = useState(0)
   const [sendingWelcome, startSendWelcome] = useTransition()
@@ -180,7 +184,9 @@ export function ContactsTab({
               idOrRegLabel={landlord.idOrRegLabel}
               ficaVerified={landlord.ficaVerified}
               portalStatus={ownerPortalStatus}
-              welcomePackSentAt={null}
+              welcomePackLabel="Portfolio overview"
+              welcomePackSentAt={portfolioOverviewSentAt}
+              welcomePackOutdated={portfolioOverviewOutdated}
               onSendWelcomePack={handleOwnerWelcomePack}
               onSendPortalInvite={
                 !invitingOwner && (!ownerPortalStatus || ownerPortalStatus === "none")

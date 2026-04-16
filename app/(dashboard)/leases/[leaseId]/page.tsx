@@ -204,6 +204,33 @@ function buildAllTenants(
   return list
 }
 
+async function fetchPortfolioOverviewStatus(
+  db: Awaited<ReturnType<typeof createClient>>,
+  orgId: string,
+  landlordId: string,
+): Promise<{ sentAt: string | null; outdated: boolean }> {
+  const { data } = await db
+    .from("communication_log")
+    .select("created_at")
+    .eq("org_id", orgId)
+    .eq("template_key", "reports.welcome_pack")
+    .eq("entity_id", landlordId)
+    .eq("status", "sent")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const sentAt = (data as { created_at: string } | null)?.created_at ?? null
+  if (!sentAt) return { sentAt: null, outdated: false }
+
+  const [changedProps, changedLeases] = await Promise.all([
+    db.from("properties").select("id", { count: "exact", head: true }).eq("org_id", orgId).eq("owner_id", landlordId).gt("updated_at", sentAt),
+    db.from("leases").select("id", { count: "exact", head: true }).eq("org_id", orgId).gt("created_at", sentAt),
+  ])
+
+  return { sentAt, outdated: (changedProps.count ?? 0) > 0 || (changedLeases.count ?? 0) > 0 }
+}
+
 export default async function LeaseDetailPage({
   params,
   searchParams,
@@ -442,6 +469,11 @@ export default async function LeaseDetailPage({
   const complianceItems = buildComplianceItems(lease, today, nextInspectionDate)
   const statusColor = buildStatusColor(lease.status)
 
+  // Portfolio overview sent status for owner card
+  const { sentAt: portfolioOverviewSentAt, outdated: portfolioOverviewOutdated } = ownerIdForProperty
+    ? await fetchPortfolioOverviewStatus(supabase, lease.org_id, ownerIdForProperty)
+    : { sentAt: null, outdated: false }
+
   return (
     <LeaseDisclaimerGate initialAccepted={accepted}>
       <div>
@@ -565,6 +597,8 @@ export default async function LeaseDetailPage({
             portalInviteSentAt={tenantPortal?.portal_invite_sent_at ?? null}
             hasAuthUser={!!tenantPortal?.auth_user_id}
             primaryTenantId={lease.tenant_id ?? null}
+            portfolioOverviewSentAt={portfolioOverviewSentAt}
+            portfolioOverviewOutdated={portfolioOverviewOutdated}
           />
         )}
 
