@@ -221,7 +221,7 @@ export function OverviewTab({
         </Card>
 
         {/* Right: Property details + map stacked */}
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 h-full">
           <Card>
             <div className="px-4 py-3 border-b">
               <span className="text-xs text-muted-foreground uppercase tracking-wide">Property details</span>
@@ -247,7 +247,7 @@ export function OverviewTab({
           </Card>
 
           {/* Map */}
-          <Card className="relative overflow-hidden" style={{ minHeight: 180 }}>
+          <Card className="relative overflow-hidden flex-1" style={{ minHeight: 180 }}>
             <a
               href={googleMapsUrl}
               target="_blank"
