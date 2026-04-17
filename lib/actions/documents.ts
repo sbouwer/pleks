@@ -3,6 +3,7 @@
 import { gateway } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
+import { Resend } from "resend"
 
 export async function uploadPropertyDocument(formData: FormData) {
   const gw = await gateway()
@@ -29,7 +30,7 @@ export async function uploadPropertyDocument(formData: FormData) {
   if (!property) return { error: "Property not found" }
 
   const orgId = property.org_id
-  const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_")
+  const sanitizedName = file.name.replaceAll(/[^a-zA-Z0-9.-]/g, "_")
   const storagePath = `${orgId}/${propertyId}/${documentType}/${Date.now()}-${sanitizedName}`
 
   const { error: uploadError } = await db.storage
@@ -99,4 +100,200 @@ export async function getDocumentSignedUrl(storagePath: string) {
     .createSignedUrl(storagePath, 3600)
 
   return data?.signedUrl || null
+}
+
+// ─── Document editor actions ─────────────────────────────────────────────────
+
+/**
+ * Resolve merge fields in a template body using real or sample values.
+ */
+function resolveMergeFields(
+  body: string,
+  values: Record<string, string>
+): string {
+  let resolved = body
+  for (const [key, value] of Object.entries(values)) {
+    resolved = resolved.replaceAll(`{{${key}}}`, value)
+  }
+  return resolved
+}
+
+export async function sendDocument(
+  formData: FormData
+): Promise<{ error?: string }> {
+  const gw = await gateway()
+  if (!gw) return { error: "Not authenticated" }
+  const { db, orgId, userId, email: agentEmail } = gw
+
+  const templateId = formData.get("template_id") as string | null
+  const leaseId = formData.get("lease_id") as string | null
+  const recipientEmail = formData.get("recipient_email") as string
+  const subject = (formData.get("subject") as string) || "Document from Pleks"
+  const bodyHtml = formData.get("body_html") as string
+
+  if (!recipientEmail || !bodyHtml) {
+    return { error: "Recipient email and body are required" }
+  }
+
+  // 1. Create job row
+  const { data: job, error: jobError } = await db
+    .from("document_generation_jobs")
+    .insert({
+      org_id: orgId,
+      created_by: userId,
+      template_id: templateId,
+      lease_id: leaseId,
+      status: "generating",
+      recipient_email: recipientEmail,
+      subject,
+    })
+    .select("id")
+    .single()
+
+  if (jobError) return { error: jobError.message }
+
+  // 2. Resolve merge field values from lease context
+  const mergeValues: Record<string, string> = {
+    "today": new Date().toLocaleDateString("en-ZA", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }),
+    "agent.name": agentEmail,
+  }
+
+  if (leaseId) {
+    const { data: lease } = await db
+      .from("leases")
+      .select(
+        "id, rent_cents, tenants(full_name), units(unit_number, properties(name))"
+      )
+      .eq("id", leaseId)
+      .eq("org_id", orgId)
+      .single()
+
+    if (lease) {
+      const leaseData = lease as unknown as {
+        rent_cents: number
+        tenants: { full_name: string } | null
+        units: { unit_number: string; properties: { name: string } | null } | null
+      }
+      mergeValues["tenant.full_name"] = leaseData.tenants?.full_name ?? ""
+      mergeValues["unit.number"] = leaseData.units?.unit_number ?? ""
+      mergeValues["property.name"] = leaseData.units?.properties?.name ?? ""
+      mergeValues["lease.rent_amount"] = `R ${(leaseData.rent_cents / 100).toFixed(2)}`
+    }
+  }
+
+  const resolvedHtml = resolveMergeFields(bodyHtml, mergeValues)
+
+  // 3. Send via Resend
+  const resend = new Resend(process.env.RESEND_API_KEY)
+  const { error: sendError } = await resend.emails.send({
+    from: "Pleks <noreply@pleks.co.za>",
+    to: recipientEmail,
+    subject,
+    html: resolvedHtml,
+  })
+
+  if (sendError) {
+    await db
+      .from("document_generation_jobs")
+      .update({ status: "failed" })
+      .eq("id", job.id)
+    return { error: sendError.message }
+  }
+
+  // 4. Mark job sent + create lease_documents record
+  await db
+    .from("document_generation_jobs")
+    .update({ status: "sent", sent_at: new Date().toISOString() })
+    .eq("id", job.id)
+
+  if (leaseId) {
+    await db.from("lease_documents").insert({
+      org_id: orgId,
+      lease_id: leaseId,
+      template_id: templateId,
+      job_id: job.id,
+      subject,
+      recipient_email: recipientEmail,
+      sent_at: new Date().toISOString(),
+    })
+
+    // 5. Communication log
+    await db.from("communication_log").insert({
+      org_id: orgId,
+      lease_id: leaseId,
+      channel: "email",
+      direction: "outbound",
+      subject,
+      recipient_email: recipientEmail,
+      sent_by: userId,
+      sent_at: new Date().toISOString(),
+    })
+  }
+
+  revalidatePath("/documents")
+  return {}
+}
+
+export async function generateDocumentPdf(
+  _formData: FormData
+): Promise<{ error?: string; pdfUrl?: string }> {
+  // Stub — PDF generation via pdf-lib is planned for a future update.
+  return { error: "PDF generation not yet implemented" }
+}
+
+export async function saveDraftDocument(
+  formData: FormData
+): Promise<{ error?: string; id?: string }> {
+  const gw = await gateway()
+  if (!gw) return { error: "Not authenticated" }
+  const { db, orgId, userId } = gw
+
+  const templateId = formData.get("template_id") as string | null
+  const leaseId = formData.get("lease_id") as string | null
+  const subject = (formData.get("subject") as string) || null
+  const bodyHtml = formData.get("body_html") as string
+  const recipientEmail = (formData.get("recipient_email") as string) || null
+  const existingJobId = (formData.get("job_id") as string) || null
+
+  if (existingJobId) {
+    const { error } = await db
+      .from("document_generation_jobs")
+      .update({
+        template_id: templateId,
+        lease_id: leaseId,
+        subject,
+        body_html: bodyHtml,
+        recipient_email: recipientEmail,
+        status: "draft",
+      })
+      .eq("id", existingJobId)
+      .eq("org_id", orgId)
+
+    if (error) return { error: error.message }
+    return { id: existingJobId }
+  }
+
+  const { data, error } = await db
+    .from("document_generation_jobs")
+    .insert({
+      org_id: orgId,
+      created_by: userId,
+      template_id: templateId,
+      lease_id: leaseId,
+      subject,
+      body_html: bodyHtml,
+      recipient_email: recipientEmail,
+      status: "draft",
+    })
+    .select("id")
+    .single()
+
+  if (error) return { error: error.message }
+
+  revalidatePath("/documents")
+  return { id: data.id }
 }
