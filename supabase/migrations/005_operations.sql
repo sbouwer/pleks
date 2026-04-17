@@ -1412,3 +1412,92 @@ SELECT
   co.updated_at
 FROM contractors co
 JOIN contacts c ON c.id = co.contact_id;
+
+
+-- =============================================================
+-- BUILD_60: PROPERTY INFO REQUESTS
+-- =============================================================
+-- Missing-info follow-up system. Tracks outstanding asks with
+-- status, magic-link tokens, reminder cadence, and audit log.
+
+CREATE TABLE IF NOT EXISTS property_info_requests (
+  id                     uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id                 uuid NOT NULL REFERENCES organisations(id),
+  property_id            uuid NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+  topic                  text NOT NULL CHECK (topic IN (
+                           'landlord', 'insurance', 'broker', 'scheme',
+                           'banking', 'documents', 'compliance', 'other'
+                         )),
+  missing_fields         text[] NOT NULL,
+  recipient_type         text NOT NULL CHECK (recipient_type IN ('owner','broker','self')),
+  recipient_contact_id   uuid REFERENCES contacts(id),
+  recipient_email        text,
+  recipient_phone        text,
+  requested_by           uuid NOT NULL REFERENCES auth.users(id),
+  token                  text UNIQUE NOT NULL,
+  status                 text NOT NULL DEFAULT 'pending' CHECK (status IN (
+                           'pending','sent','viewed','completed','expired','dismissed','failed'
+                         )),
+  scenario_context       jsonb DEFAULT '{}'::jsonb,
+  sent_at                timestamptz,
+  viewed_at              timestamptz,
+  completed_at           timestamptz,
+  expires_at             timestamptz NOT NULL,
+  reminder_count         integer NOT NULL DEFAULT 0,
+  last_reminder_at       timestamptz,
+  completion_log_id      uuid REFERENCES audit_log(id),
+  notes                  text,
+  created_at             timestamptz NOT NULL DEFAULT now(),
+  updated_at             timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE property_info_requests ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "org_property_info_requests" ON property_info_requests;
+CREATE POLICY "org_property_info_requests" ON property_info_requests
+  FOR ALL USING (
+    org_id IN (SELECT org_id FROM user_orgs
+               WHERE user_id = auth.uid() AND deleted_at IS NULL)
+  );
+
+CREATE INDEX IF NOT EXISTS idx_info_requests_property ON property_info_requests(property_id);
+CREATE INDEX IF NOT EXISTS idx_info_requests_token    ON property_info_requests(token);
+CREATE INDEX IF NOT EXISTS idx_info_requests_status   ON property_info_requests(status, expires_at);
+
+DROP TRIGGER IF EXISTS update_property_info_requests_updated_at ON property_info_requests;
+CREATE TRIGGER update_property_info_requests_updated_at
+  BEFORE UPDATE ON property_info_requests
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- =============================================================
+-- BUILD_60: PROPERTY INFO REQUEST EVENTS
+-- =============================================================
+
+CREATE TABLE IF NOT EXISTS property_info_request_events (
+  id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  request_id           uuid NOT NULL REFERENCES property_info_requests(id) ON DELETE CASCADE,
+  event_type           text NOT NULL CHECK (event_type IN (
+                         'created','email_sent','email_reminder_sent',
+                         'viewed','partial_response','completed',
+                         'expired','dismissed','resent_manually'
+                       )),
+  channel              text CHECK (channel IN ('email','whatsapp','sms','in_app')),
+  communication_log_id uuid REFERENCES communication_log(id),
+  actor_user_id        uuid REFERENCES auth.users(id),
+  payload              jsonb DEFAULT '{}'::jsonb,
+  created_at           timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE property_info_request_events ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "org_info_request_events" ON property_info_request_events;
+CREATE POLICY "org_info_request_events" ON property_info_request_events
+  FOR ALL USING (
+    request_id IN (
+      SELECT id FROM property_info_requests
+      WHERE org_id IN (SELECT org_id FROM user_orgs
+                       WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    )
+  );
+
+CREATE INDEX IF NOT EXISTS idx_info_request_events_request ON property_info_request_events(request_id);
