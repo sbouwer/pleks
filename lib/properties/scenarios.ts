@@ -56,7 +56,6 @@ export interface ScenarioMeta {
   defaultUnitCount:  number
   /** If set, pre-selects this scheme type and skips the universal BC question */
   preselectSchemeType?: string
-  educationalBullets: string[]
   questions:         ScenarioQuestion[]
 }
 
@@ -102,13 +101,6 @@ export const SCENARIOS: Record<Exclude<ScenarioType, "other">, ScenarioMeta> = {
     icon:             "Home",
     unitCountMode:    "fixed",
     defaultUnitCount: 2,
-    educationalBullets: [
-      "You're both landlord and neighbour — the RHA applies to the flatlet lease.",
-      "The main house and flatlet are separate units but one property in our system.",
-      "Contents insurance for the flatlet is the tenant's responsibility; building cover is yours.",
-      "Business use in the flatlet changes your insurance obligations — worth confirming with your broker.",
-      "CPA applies because this is a residential lease (unless duration > 24 months and tenant opts out).",
-    ],
     questions: [
       {
         id:       "flatlet_type",
@@ -162,13 +154,6 @@ export const SCENARIOS: Record<Exclude<ScenarioType, "other">, ScenarioMeta> = {
     icon:             "House",
     unitCountMode:    "fixed",
     defaultUnitCount: 1,
-    educationalBullets: [
-      "The RHA governs the lease — your tenant has full statutory protections.",
-      "A routine entry inspection before keys change hands protects your deposit claim later.",
-      "Municipal utilities (water, electricity) are typically in your name — claim as a lease charge.",
-      "CPA applies for leases under 24 months where the tenant is a consumer.",
-      "If there's a pool or borehole, make sure maintenance obligations are explicit in the lease.",
-    ],
     questions: [
       {
         id:          "bedrooms",
@@ -218,13 +203,6 @@ export const SCENARIOS: Record<Exclude<ScenarioType, "other">, ScenarioMeta> = {
     unitCountMode:      "fixed",
     defaultUnitCount:   1,
     preselectSchemeType: "body_corporate",
-    educationalBullets: [
-      "The body corporate insures the building structure (common property + units).",
-      "You still need contents, liability, and often rental income cover for your section.",
-      "The BC's managing agent is your first call for common-area issues — not the tenant's.",
-      "CSOS handles disputes between you, tenants, and the BC — faster than going to court.",
-      "Levy invoices sit alongside your lease documents here — no more hunting two systems.",
-    ],
     questions: [
       {
         id:          "bedrooms",
@@ -300,13 +278,6 @@ export const SCENARIOS: Record<Exclude<ScenarioType, "other">, ScenarioMeta> = {
     icon:             "Buildings",
     unitCountMode:    "counted",
     defaultUnitCount: 2,
-    educationalBullets: [
-      "Each unit gets its own lease, deposit, and inspection record here.",
-      "Insurance covers the whole building — apportion replacement value per unit in the Buildings tab.",
-      "If all units have the same layout, use the 'Fill all same' shortcut to save time.",
-      "CSOS has no jurisdiction here (no sectional title scheme) — disputes go to the RHT.",
-      "Vacancy reports across all units are available in the reporting module.",
-    ],
     questions: [
       {
         id:       "identical_layout",
@@ -365,13 +336,6 @@ export const SCENARIOS: Record<Exclude<ScenarioType, "other">, ScenarioMeta> = {
     unitCountMode:      "counted",
     defaultUnitCount:   4,
     preselectSchemeType: "hoa",
-    educationalBullets: [
-      "Each building and unit is tracked separately — occupancy per building is visible at a glance.",
-      "Estate infrastructure (guards, CCTV, pool, gym) can be documented against the estate record.",
-      "HOA or BC levies are tracked per-unit alongside lease charges.",
-      "Building compliance (electrical, plumbing, fire) is managed per building in the Compliance tab.",
-      "Bulk lease renewals and vacancy reports are available across the whole estate.",
-    ],
     questions: [
       {
         id:       "shared_infrastructure",
@@ -415,13 +379,6 @@ export const SCENARIOS: Record<Exclude<ScenarioType, "other">, ScenarioMeta> = {
     icon:             "Briefcase",
     unitCountMode:    "fixed",
     defaultUnitCount: 1,
-    educationalBullets: [
-      "The CPA does not apply to commercial leases — NCA and common law govern instead.",
-      "Rental escalation clauses (CPI-linked or fixed %) are standard and enforceable.",
-      "CIDB registration and fire compliance are your landlord obligations regardless of tenant use.",
-      "VAT on commercial rental is compulsory if the landlord is VAT-registered.",
-      "A professional snagging list before occupation is strongly recommended for commercial fitouts.",
-    ],
     questions: [
       {
         id:          "size_m2",
@@ -485,13 +442,6 @@ export const SCENARIOS: Record<Exclude<ScenarioType, "other">, ScenarioMeta> = {
     icon:             "Building",
     unitCountMode:    "counted",
     defaultUnitCount: 3,
-    educationalBullets: [
-      "Each tenant gets a separate lease, invoicing cycle, and deposit record.",
-      "Common area maintenance (CAM) costs can be allocated pro-rata by lettable area.",
-      "If the building is VAT-registered as a whole, each lease invoice must carry VAT.",
-      "Anchor tenants and standard tenants may have different lease structures — both supported.",
-      "Vacancy rate across the building is visible in the reporting module.",
-    ],
     questions: [
       {
         id:       "mix_type",
@@ -550,13 +500,6 @@ export const SCENARIOS: Record<Exclude<ScenarioType, "other">, ScenarioMeta> = {
     icon:             "Warehouse",
     unitCountMode:    "counted",
     defaultUnitCount: 1,
-    educationalBullets: [
-      "Three-phase power and load capacity are the most common specification gaps — capture them now.",
-      "Roller door count and height determine what vehicles can access each unit.",
-      "HAZMAT approval is required by the municipality for certain storage categories.",
-      "Fire suppression compliance is a landlord obligation for industrial tenants.",
-      "Industrial escalations are often CPI-linked with a floor — confirm with your attorney.",
-    ],
     questions: [
       {
         id:          "size_m2",
@@ -666,13 +609,6 @@ export const SCENARIOS: Record<Exclude<ScenarioType, "other">, ScenarioMeta> = {
     icon:             "LayoutGrid",
     unitCountMode:    "counted",
     defaultUnitCount: 4,
-    educationalBullets: [
-      "Each building and unit within the park is tracked separately.",
-      "Park-level amenities (guard house, CCTV, fibre) are documented against the estate record.",
-      "CAM charges can be split across tenants pro-rata by occupied area.",
-      "Anchor tenant and standard tenant lease structures are both supported.",
-      "Portfolio reporting across the whole park is available in the reports module.",
-    ],
     questions: [
       {
         id:       "park_amenities",
@@ -715,13 +651,6 @@ export const SCENARIOS: Record<Exclude<ScenarioType, "other">, ScenarioMeta> = {
     icon:             "Layers",
     unitCountMode:    "counted",
     defaultUnitCount: 4,
-    educationalBullets: [
-      "Retail and residential units each get separate lease templates — CPA on residential, not on retail.",
-      "Separate entrances for retail vs residential are strongly recommended for insurance and compliance.",
-      "VAT applies to the retail leases if you're VAT-registered; residential leases are VAT-exempt.",
-      "Building insurance covers the whole structure — break out replacement value per floor in the Buildings tab.",
-      "Noise and access disputes between retail and residential tenants are common — address them in the lease rules.",
-    ],
     questions: [
       {
         id:          "retail_size_m2",
@@ -778,13 +707,6 @@ export const SCENARIOS: Record<Exclude<ScenarioType, "other">, ScenarioMeta> = {
     icon:             "Network",
     unitCountMode:    "counted",
     defaultUnitCount: 2,
-    educationalBullets: [
-      "Each building type (office, retail, residential) gets its own lease template and clause profile.",
-      "CPA applies only to residential units — commercial and office leases are governed by contract law.",
-      "Shared infrastructure (fibre, generator, parking) is documented at the development level.",
-      "Portfolio reporting can filter by building type so you see commercial vs residential performance separately.",
-      "Development-scale insurance typically requires a specialist commercial broker — flag this in the setup.",
-    ],
     questions: [
       {
         id:       "development_type_mix",

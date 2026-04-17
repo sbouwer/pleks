@@ -44,6 +44,8 @@ interface OverviewTabProps {
     description: string | null
     insurance_provider: string | null
     insurance_renewal_date: string | null
+    scenario_label: string | null
+    operating_hours_preset: string | null
   }
   landlord: OverviewLandlord | null
   activeUnits: OverviewUnit[]
@@ -133,6 +135,14 @@ function landlordDisplayInfo(landlord: OverviewLandlord | null) {
 
 const TYPE_LABELS: Record<string, string> = {
   residential: "Residential", commercial: "Commercial", mixed: "Mixed use",
+}
+
+const OPERATING_HOURS_LABELS: Record<string, string> = {
+  standard_business: "Mon–Fri 08:00–17:00",
+  extended:          "Extended (Mon–Fri + Sat)",
+  retail:            "Retail hours",
+  "24_7":            "24 / 7",
+  custom:            "Custom schedule",
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -255,6 +265,15 @@ export function OverviewTab({
             </div>
             <div className="px-4 py-3">
               <KvRow label="Type" value={TYPE_LABELS[property.type ?? ""] ?? property.type ?? "—"} />
+              {property.scenario_label && (
+                <KvRow label="Scenario" value={property.scenario_label} />
+              )}
+              {property.operating_hours_preset && (
+                <KvRow
+                  label="Operating hours"
+                  value={OPERATING_HOURS_LABELS[property.operating_hours_preset] ?? property.operating_hours_preset}
+                />
+              )}
               <KvRow label="Erf number" value={property.erf_number ?? <span className="text-muted-foreground">—</span>} />
               <KvRow label="Sectional title" value={sectionalTitleValue} />
               {hasManagingScheme && managingScheme && (

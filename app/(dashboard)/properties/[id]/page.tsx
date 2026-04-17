@@ -25,6 +25,12 @@ function displayName(row: { first_name?: string | null; last_name?: string | nul
   return row.company_name?.trim() || [row.first_name, row.last_name].filter(Boolean).join(" ") || "Unknown"
 }
 
+function resolveScenarioLabel(code: ScenarioType | null): string | null {
+  if (!code) return null
+  if (code === "other") return "Other / advanced"
+  return SCENARIOS[code]?.label ?? null
+}
+
 
 const VALID_TABS = ["overview", "units", "insurance", "scheme", "documents", "operations"] as const
 type TabId = (typeof VALID_TABS)[number]
@@ -737,6 +743,8 @@ export default async function PropertyDetailPage({
                 description:             property.description ?? null,
                 insurance_provider:      (propRaw.insurance_provider as string | null) ?? null,
                 insurance_renewal_date:  (propRaw.insurance_renewal_date as string | null) ?? null,
+                scenario_label:          resolveScenarioLabel(propRaw.scenario_type as ScenarioType | null),
+                operating_hours_preset:  (propRaw.operating_hours_preset as string | null) ?? null,
               }}
               landlord={overviewData.landlord}
               activeUnits={overviewData.activeUnits}
