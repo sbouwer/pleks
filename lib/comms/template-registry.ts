@@ -253,6 +253,20 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
     key: "application.credit_report_delivered", channel: "email", category: "applications", is_mandatory: false,
     description: "Applicant receives their FitScore and screening summary",
   },
+
+  // ── Critical incident notifications (BUILD_59) ────────────────────
+  "incident.critical_broker": {
+    key: "incident.critical_broker", channel: "email", category: "maintenance", is_mandatory: true,
+    description: "Insurance broker notified of critical property incident",
+  },
+  "incident.critical_owner": {
+    key: "incident.critical_owner", channel: "email", category: "maintenance", is_mandatory: true,
+    description: "Owner paper-trail notification of critical property incident",
+  },
+  "incident.critical_scheme": {
+    key: "incident.critical_scheme", channel: "email", category: "maintenance", is_mandatory: true,
+    description: "Managing scheme / body corporate notified of critical property incident",
+  },
 }
 
 /** Returns the template entry or throws if the key is unknown */
