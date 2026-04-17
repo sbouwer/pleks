@@ -3,7 +3,7 @@
 import { gateway } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
-import { triageMaintenanceRequest } from "@/lib/ai/maintenanceTriage"
+import { triageMaintenanceRequest, deriveSeverityFromTriage } from "@/lib/ai/maintenanceTriage"
 import { hasFeature } from "@/lib/tier/gates"
 import { getOrgTier } from "@/lib/tier/getOrgTier"
 
@@ -48,13 +48,14 @@ export async function createMaintenanceRequest(formData: FormData) {
   // AI triage — only for Steward+ (Owner tier gets manual defaults, zero API cost)
   // If the form already ran triage client-side and agent overrode, use those values
   const tier = await getOrgTier(orgId)
-  let triage: { category: string; urgency: string; urgency_reason: string; suggested_action: string }
+  let triage: { category: string; urgency: string; urgency_reason: string; suggested_action: string; severity: "routine" | "elevated" | "urgent" | "critical"; insurance_relevant: boolean }
   if (categoryOverride) {
-    triage = { category: categoryOverride, urgency: urgencyOverride ?? "routine", urgency_reason: "Agent classification", suggested_action: "" }
+    const sev = deriveSeverityFromTriage(categoryOverride, urgencyOverride ?? "routine", title, description)
+    triage = { category: categoryOverride, urgency: urgencyOverride ?? "routine", urgency_reason: "Agent classification", suggested_action: "", severity: sev, insurance_relevant: false }
   } else if (hasFeature(tier, "ai_maintenance_triage")) {
     triage = await triageMaintenanceRequest(title, description)
   } else {
-    triage = { category: "other", urgency: "routine", urgency_reason: "Manual — upgrade for AI triage", suggested_action: "" }
+    triage = { category: "other", urgency: "routine", urgency_reason: "Manual — upgrade for AI triage", suggested_action: "", severity: "routine", insurance_relevant: false }
   }
 
   // Generate work order number
@@ -95,6 +96,8 @@ export async function createMaintenanceRequest(formData: FormData) {
       estimated_cost_cents: formData.get("estimated_cost")
         ? Math.round(Number.parseFloat(formData.get("estimated_cost") as string) * 100)
         : null,
+      severity: triage.severity,
+      severity_source: categoryOverride ? "agent" : "ai_triage",
       status: "pending_review",
     })
     .select("id")
@@ -110,7 +113,7 @@ export async function createMaintenanceRequest(formData: FormData) {
     record_id: request.id,
     action: "INSERT",
     changed_by: userId,
-    new_values: { title, category: triage.category, urgency: triage.urgency },
+    new_values: { title, category: triage.category, urgency: triage.urgency, severity: triage.severity },
   })
 
   revalidatePath("/maintenance")
