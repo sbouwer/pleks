@@ -3,6 +3,7 @@ import { formatDateShort, formatPeriodLabel } from "./periods"
 import { FONT_STACKS, getFontLink, type ReportBranding } from "./reportBranding"
 import { barChart } from "./svgCharts"
 import type {
+  PeriodComparison,
   PortfolioSummaryData,
   IncomeCollectionData,
   ArrearsAgingData,
@@ -141,9 +142,18 @@ export function wrapHTML(title: string, org: ReportBranding, periodStr: string, 
   return `<!DOCTYPE html><html><head><meta charset="utf-8">${fontLink}<style>${css}</style></head><body>${letterhead(org)}<h1>${title}</h1><div class="period">${periodStr}</div>${body}${footer()}</body></html>`
 }
 
+function renderDelta(cmp: PeriodComparison | undefined, isRate = false): string {
+  if (!cmp) return ""
+  if (cmp.direction === "flat") return `<span class="sub">→ 0%</span>`
+  const arrow = cmp.direction === "up" ? "↑" : "↓"
+  const cssClass = cmp.direction === "up" ? "text-success" : "text-danger"
+  const sign = cmp.direction === "up" ? "+" : ""
+  const label = isRate ? `${sign}${cmp.delta_cents}pp` : `${sign}${cmp.delta_percent}%`
+  return `<span class="sub ${cssClass}">${arrow} ${label} vs prev</span>`
+}
+
 export function buildPortfolioSummaryHTML(data: PortfolioSummaryData, org: ReportBranding, periodLabel?: string): string {
   const period = periodLabel ?? formatPeriodLabel(data.period.from, data.period.to)
-  const outstandingClass = data.outstanding_cents > 0 ? " text-danger" : ""
   const arrearsClass = data.total_arrears_cents > 0 ? " text-danger" : ""
 
   // Income bar chart: Expected vs Collected vs Outstanding
@@ -180,9 +190,9 @@ export function buildPortfolioSummaryHTML(data: PortfolioSummaryData, org: Repor
       <div class="metric"><div class="label">Notice</div><div class="value">${data.notice_units}</div></div>
     </div>
     <div class="metric-grid">
-      <div class="metric"><div class="label">Expected Income</div><div class="value">${formatZAR(data.expected_income_cents)}</div></div>
-      <div class="metric"><div class="label">Collected</div><div class="value">${formatZAR(data.collected_income_cents)} <span class="sub">(${data.collection_rate}%)</span></div></div>
-      <div class="metric"><div class="label">Outstanding</div><div class="value${outstandingClass}">${formatZAR(data.outstanding_cents)}</div></div>
+      <div class="metric"><div class="label">Expected Income</div><div class="value">${formatZAR(data.expected_income_cents)}</div>${renderDelta(data.comparison?.expected_income)}</div>
+      <div class="metric"><div class="label">Collected</div><div class="value">${formatZAR(data.collected_income_cents)} <span class="sub">(${data.collection_rate}%)</span></div>${renderDelta(data.comparison?.collected_income)}</div>
+      <div class="metric"><div class="label">Collection Rate</div><div class="value">${data.collection_rate}%</div>${renderDelta(data.comparison?.collection_rate, true)}</div>
       <div class="metric"><div class="label">Total Arrears</div><div class="value${arrearsClass}">${formatZAR(data.total_arrears_cents)}</div></div>
     </div>
     ${incomeChart ? `<h2>Income Overview</h2><div style="margin-bottom:16px;">${incomeChart}</div>` : ""}

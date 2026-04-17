@@ -65,6 +65,17 @@ export function formatDateShort(d: Date): string {
 }
 
 /**
+ * Returns the equal-length period immediately preceding [from, to].
+ * E.g. April 1–30 → March 2–31 (same 30 days, ending the day before April 1).
+ */
+export function computePreviousPeriod(from: Date, to: Date): { from: Date; to: Date } {
+  const days = Math.round((to.getTime() - from.getTime()) / 86400000) + 1
+  const prevTo = new Date(from.getFullYear(), from.getMonth(), from.getDate() - 1)
+  const prevFrom = new Date(from.getFullYear(), from.getMonth(), from.getDate() - days)
+  return { from: prevFrom, to: prevTo }
+}
+
+/**
  * Format a Date as YYYY-MM-DD using local time (not UTC).
  * Use this for all SQL date column comparisons — toISOString() shifts
  * dates by the server timezone offset, causing off-by-one errors.
