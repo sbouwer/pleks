@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useTransition, useRef } from "react"
 import { toast } from "sonner"
-import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Send, FileDown, Save, AlertTriangle } from "lucide-react"
+import { RichTextEditor, type RichTextEditorHandle } from "@/components/ui/RichTextEditor"
 import type { DocumentTemplate } from "@/app/(dashboard)/settings/communication/templates/page"
 import {
   sendDocument,
@@ -246,7 +246,7 @@ export function DocumentEditorClient({
   const [recipientEmail, setRecipientEmail] = useState("")
   const [jobId, setJobId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const editorRef = useRef<RichTextEditorHandle>(null)
   const [csWindow, setCsWindow] = useState<{ isActive: boolean; expiresAt: string | null }>({
     isActive: false,
     expiresAt: null,
@@ -274,23 +274,7 @@ export function DocumentEditorClient({
   }
 
   function insertMergeField(field: string) {
-    const textarea = textareaRef.current
-    if (!textarea) {
-      setBodyHtml((prev) => prev + field)
-      return
-    }
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-    const before = bodyHtml.slice(0, start)
-    const after = bodyHtml.slice(end)
-    const updated = before + field + after
-    setBodyHtml(updated)
-    // Restore cursor after React re-render
-    requestAnimationFrame(() => {
-      textarea.selectionStart = start + field.length
-      textarea.selectionEnd = start + field.length
-      textarea.focus()
-    })
+    editorRef.current?.insertText(field)
   }
 
   function buildFormData(): FormData {
@@ -405,17 +389,15 @@ export function DocumentEditorClient({
             />
           </div>
 
-          {/* Body textarea */}
+          {/* Body editor */}
           <div className="flex-1 overflow-hidden flex flex-col px-4 pt-3">
-            <textarea
-              ref={textareaRef}
+            <RichTextEditor
+              ref={editorRef}
               value={bodyHtml}
-              onChange={(e) => setBodyHtml(e.target.value)}
-              className={cn(
-                "flex-1 w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-brand/40",
-                "min-h-[200px]"
-              )}
-              placeholder="<p>Dear {{tenant.full_name}},</p>&#10;<p>Your rent of {{lease.rent_amount}} is due on the 1st of each month.</p>"
+              onChange={setBodyHtml}
+              placeholder="Dear {{tenant.full_name}}, your rent of {{lease.rent_amount}} is due on the 1st of each month."
+              className="flex-1"
+              minHeight="200px"
             />
           </div>
 
