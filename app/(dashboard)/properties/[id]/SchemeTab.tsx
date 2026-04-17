@@ -21,6 +21,7 @@ export interface ManagingSchemeData {
 interface SchemeTabProps {
   propertyId: string
   scheme:     ManagingSchemeData
+  tier:       string
 }
 
 const SCHEME_TYPE_LABELS: Record<string, string> = {
@@ -73,13 +74,15 @@ function SectionCard({
   )
 }
 
-export function SchemeTab({ propertyId, scheme }: Readonly<SchemeTabProps>) {
+export function SchemeTab({ propertyId, scheme, tier }: Readonly<SchemeTabProps>) {
   const editHref = `/properties/${propertyId}/scheme/edit`
+  const canEdit = tier !== "owner"
+  const isFirm  = tier === "firm"
 
   return (
     <div className="space-y-6">
-      {/* Scheme details */}
-      <SectionCard title="Scheme details" icon={Building2} editHref={editHref}>
+      {/* Scheme details — read-only for free Owner */}
+      <SectionCard title="Scheme details" icon={Building2} editHref={canEdit ? editHref : undefined}>
         <KvRow label="Name"              value={scheme.name} />
         <KvRow
           label="Type"
@@ -93,7 +96,7 @@ export function SchemeTab({ propertyId, scheme }: Readonly<SchemeTabProps>) {
           label="Levy cycle"
           value={scheme.levy_cycle ? LEVY_CYCLE_LABELS[scheme.levy_cycle] ?? scheme.levy_cycle : <span className="text-muted-foreground">—</span>}
         />
-        {scheme.levy_amount_cents !== null && (
+        {isFirm && scheme.levy_amount_cents !== null && (
           <KvRow
             label="Monthly levy"
             value={formatZAR(scheme.levy_amount_cents)}
@@ -133,15 +136,34 @@ export function SchemeTab({ propertyId, scheme }: Readonly<SchemeTabProps>) {
         </SectionCard>
       )}
 
-      {/* Unlink */}
-      <div className="pt-2">
-        <Link
-          href={`/properties/${propertyId}/scheme/edit`}
-          className="text-xs text-muted-foreground hover:text-danger transition-colors"
-        >
-          Remove managing scheme from this property →
-        </Link>
-      </div>
+      {/* Levies — Firm tier only */}
+      {isFirm && (
+        <SectionCard title="Levies" icon={FileText} editHref={editHref}>
+          {scheme.levy_amount_cents !== null ? (
+            <KvRow
+              label="Current levy amount"
+              value={formatZAR(scheme.levy_amount_cents)}
+            />
+          ) : (
+            <p className="text-xs text-muted-foreground">No levy amount recorded.</p>
+          )}
+          <p className="text-xs text-muted-foreground mt-2">
+            Full levy schedule and invoice history available via the HOA module.
+          </p>
+        </SectionCard>
+      )}
+
+      {/* Unlink — only for editors */}
+      {canEdit && (
+        <div className="pt-2">
+          <Link
+            href={`/properties/${propertyId}/scheme/edit`}
+            className="text-xs text-muted-foreground hover:text-danger transition-colors"
+          >
+            Remove managing scheme from this property →
+          </Link>
+        </div>
+      )}
     </div>
   )
 }
