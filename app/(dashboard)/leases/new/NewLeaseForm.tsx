@@ -92,6 +92,11 @@ export function NewLeaseForm({ premiumSlotsUsed = 0, isRenewal = false }: NewLea
   const [arrearsInterestEnabled, setArrearsInterestEnabled] = useState(true)
   const [arrearsMargin, setArrearsMargin] = useState("2")
 
+  // Messaging consent
+  const [consentEmail, setConsentEmail] = useState(true)
+  const [consentWhatsApp, setConsentWhatsApp] = useState(false)
+  const [consentSms, setConsentSms] = useState(false)
+
   // Step 5
   const [specialTerms, setSpecialTerms] = useState<SpecialTerm[]>([])
 
@@ -161,6 +166,9 @@ export function NewLeaseForm({ premiumSlotsUsed = 0, isRenewal = false }: NewLea
     formData.set("special_terms", JSON.stringify(specialTerms.filter((t) => t.detail.trim())))
     formData.set("clause_selections", JSON.stringify(clauseSelections))
     formData.set("premium_enabled", String(premiumEnabled))
+    formData.set("consent_email", String(consentEmail))
+    formData.set("consent_whatsapp", String(consentWhatsApp))
+    formData.set("consent_sms", String(consentSms))
 
     const result = await createLease(formData)
     if (result?.error) {
@@ -227,6 +235,28 @@ export function NewLeaseForm({ premiumSlotsUsed = 0, isRenewal = false }: NewLea
                 </label>
               </CardContent>
             </Card>
+          )}
+          {tenantId && (
+            <div className="border rounded-lg p-4 space-y-3 bg-muted/30 mt-4">
+              <p className="text-sm font-medium">Tenant communication consent</p>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                The tenant consents to receive property management communications via:
+              </p>
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input type="checkbox" checked={consentEmail} onChange={e => setConsentEmail(e.target.checked)} className="rounded" />
+                  Email
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input type="checkbox" checked={consentWhatsApp} onChange={e => setConsentWhatsApp(e.target.checked)} className="rounded" />
+                  WhatsApp
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input type="checkbox" checked={consentSms} onChange={e => setConsentSms(e.target.checked)} className="rounded" />
+                  SMS
+                </label>
+              </div>
+            </div>
           )}
           <Button className="w-full" onClick={() => setStep(2)}>Continue</Button>
         </div>

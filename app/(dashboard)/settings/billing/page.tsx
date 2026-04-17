@@ -11,11 +11,87 @@ import { Check, Sparkles, Award, Zap, ArrowRight } from "lucide-react"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { createClient } from "@/lib/supabase/client"
 import { isFoundingAgentActive, getMonthlyPriceCents, foundingAgentMonthsRemaining, type PricingContext } from "@/lib/tier/pricing"
-import { disableLeasePremium, type OwnerProSummary } from "@/lib/actions/billing"
+import { disableLeasePremium, type OwnerProSummary, type MessagingUsageData } from "@/lib/actions/billing"
 import { OwnerProUpgradeCard } from "@/components/billing/OwnerProUpgradeCard"
 import { toast } from "sonner"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
+
+// ── Messaging usage section ───────────────────────────────────────────────────
+
+function MessagingUsageSection() {
+  const [usage, setUsage] = useState<MessagingUsageData | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      const { getMessagingUsage } = await import("@/lib/actions/billing")
+      const result = await getMessagingUsage()
+      if (!cancelled) {
+        if ("error" in result) {
+          console.error("MessagingUsageSection:", result.error)
+        } else {
+          setUsage(result)
+        }
+        setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [])
+
+  if (loading) {
+    return <div className="h-20 animate-pulse bg-muted rounded-lg" />
+  }
+  if (!usage) return null
+
+  const whatsappPct = usage.quotaWhatsapp > 0
+    ? Math.min(100, Math.round((usage.whatsappCount / usage.quotaWhatsapp) * 100))
+    : 0
+  const emailPct = usage.quotaEmail > 0
+    ? Math.min(100, Math.round((usage.emailCount / usage.quotaEmail) * 100))
+    : 0
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="flex justify-between text-sm mb-1">
+          <span>WhatsApp</span>
+          <span className="text-muted-foreground">{usage.whatsappCount} / {usage.quotaWhatsapp}</span>
+        </div>
+        <div className="h-2 bg-muted rounded-full overflow-hidden">
+          <div
+            className="h-full bg-green-500 rounded-full transition-all"
+            style={{ width: `${whatsappPct}%` }}
+          />
+        </div>
+        {usage.overageWhatsapp > 0 && (
+          <p className="text-xs text-amber-600 mt-1">
+            {usage.overageWhatsapp} overage &middot; R{(usage.overageCents / 100).toFixed(2)} billed
+          </p>
+        )}
+      </div>
+      <div>
+        <div className="flex justify-between text-sm mb-1">
+          <span>Email</span>
+          <span className="text-muted-foreground">{usage.emailCount} / {usage.quotaEmail}</span>
+        </div>
+        <div className="h-2 bg-muted rounded-full overflow-hidden">
+          <div
+            className="h-full bg-blue-500 rounded-full transition-all"
+            style={{ width: `${emailPct}%` }}
+          />
+        </div>
+      </div>
+      {usage.smsCount > 0 && (
+        <p className="text-sm text-muted-foreground">
+          SMS fallback: {usage.smsCount} sends this month
+        </p>
+      )}
+    </div>
+  )
+}
 
 // ── Owner Pro section ─────────────────────────────────────────────────────────
 
@@ -347,6 +423,16 @@ export default function BillingPage() {
       {tier === "owner" && !isTrialing && orgId && (
         <OwnerProSection orgId={orgId} />
       )}
+
+      {/* ── Messaging usage ── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Messaging usage</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <MessagingUsageSection />
+        </CardContent>
+      </Card>
 
       <p className="text-[10px] text-muted-foreground text-center">
         To activate founding agent pricing, run the SQL in docs/founding-agent-activation.sql via Supabase.
