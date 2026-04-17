@@ -323,9 +323,15 @@ export function DocumentEditorClient({
     startTransition(async () => {
       const result = await generateDocumentPdf(buildFormData())
       if (result.error) {
-        toast.info("PDF generation coming soon")
-      } else if (result.pdfUrl) {
-        window.open(result.pdfUrl, "_blank")
+        toast.error(result.error)
+      } else if (result.printUrl) {
+        // Open print-ready HTML in a new tab; the page auto-triggers window.print()
+        if (jobId === null && result.printUrl) {
+          // Extract job ID from print URL so Save Draft button syncs
+          const match = /\/documents\/([^/]+)\/print/.exec(result.printUrl)
+          if (match) setJobId(match[1])
+        }
+        window.open(result.printUrl, "_blank")
       }
     })
   }

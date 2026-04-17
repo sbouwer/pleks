@@ -29,17 +29,19 @@ function getGroups(orgType: OrgType): SettingsGroup[] {
     {
       title: "Organisation",
       items: [
-        { href: "/settings/profile",  label: "Details" },
+        { href: "/settings/profile",        label: "Details" },
         ...(hasTeam ? [
-          { href: "/settings/team",   label: "Team" },
-          { href: "/settings/hours",  label: "Opening hours" },
+          { href: "/settings/team",         label: "Team" },
+          { href: "/settings/hours",        label: "Opening hours" },
         ] : []),
-        { href: "/settings/branding", label: "Branding" },
+        { href: "/settings/branding",       label: "Branding" },
+        { href: "/settings/configuration",  label: "Configuration" },
       ],
     },
     {
       title: "Documents",
       items: [
+        { href: "/settings/communication/templates", label: "Templates", extraPrefixes: ["/settings/communication"] },
         { href: "/settings/lease-templates", label: "Lease templates" },
       ],
     },
@@ -61,6 +63,12 @@ function getGroups(orgType: OrgType): SettingsGroup[] {
       title: "Data",
       items: [
         { href: "/settings/import", label: "Import" },
+      ],
+    },
+    {
+      title: "My Profile",
+      items: [
+        { href: "/settings/profile/signature", label: "Signature", extraPrefixes: [] },
       ],
     },
   ]
