@@ -61,7 +61,8 @@ export async function uploadPropertyDocument(formData: FormData) {
 export async function deletePropertyDocument(documentId: string, propertyId: string) {
   const gw = await gateway()
   if (!gw) redirect("/login")
-  const { db, userId } = gw
+  const { db, userId, isAdmin } = gw
+  if (!isAdmin) return { error: "Admin access required" }
 
   const { data: doc } = await db
     .from("property_documents")
