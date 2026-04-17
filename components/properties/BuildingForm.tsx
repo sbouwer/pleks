@@ -38,14 +38,6 @@ const MAINTENANCE_RHYTHMS = [
   { value: "custom", label: "Custom" },
 ]
 
-const INSURANCE_TYPES = [
-  { value: "standard_buildings", label: "Standard buildings" },
-  { value: "heritage_specialist", label: "Heritage specialist" },
-  { value: "commercial_property", label: "Commercial property" },
-  { value: "sectional_title", label: "Sectional title" },
-  { value: "other", label: "Other" },
-]
-
 export interface BuildingData {
   id?: string
   name?: string
@@ -60,11 +52,8 @@ export interface BuildingData {
   heritage_pre_approval_required?: boolean
   heritage_materials_spec?: string | null
   heritage_approved_contractors_only?: boolean
-  insurance_policy_number?: string | null
-  insurance_provider?: string | null
-  insurance_type?: string | null
-  insurance_renewal_date?: string | null
-  insurance_replacement_value_cents?: number | null
+  replacement_value_cents?: number | null
+  last_valuation_date?: string | null
   description?: string | null
   notes?: string | null
 }
@@ -81,8 +70,7 @@ export function BuildingForm({ propertyId, building }: Readonly<Props>) {
   const [buildingType, setBuildingType] = useState(building?.building_type ?? "residential")
   const [maintenanceRhythm, setMaintenanceRhythm] = useState(building?.maintenance_rhythm ?? "standard")
   const [heritageStatus, setHeritageStatus] = useState(building?.heritage_status ?? "none")
-  const [insuranceType, setInsuranceType] = useState(building?.insurance_type ?? "")
-  const [insuranceRenewalDate, setInsuranceRenewalDate] = useState(building?.insurance_renewal_date ?? "")
+  const [lastValuationDate, setLastValuationDate] = useState(building?.last_valuation_date ?? "")
   const [preApproval, setPreApproval] = useState(building?.heritage_pre_approval_required ?? false)
   const [approvedContractorsOnly, setApprovedContractorsOnly] = useState(
     building?.heritage_approved_contractors_only ?? false
@@ -99,7 +87,6 @@ export function BuildingForm({ propertyId, building }: Readonly<Props>) {
     formData.set("building_type", buildingType)
     formData.set("maintenance_rhythm", maintenanceRhythm)
     formData.set("heritage_status", heritageStatus)
-    formData.set("insurance_type", insuranceType)
     formData.set("heritage_pre_approval_required", String(preApproval))
     formData.set("heritage_approved_contractors_only", String(approvedContractorsOnly))
 
@@ -250,43 +237,29 @@ export function BuildingForm({ propertyId, building }: Readonly<Props>) {
         </div>
       </section>
 
-      {/* Insurance */}
+      {/* Replacement value */}
       <section className="space-y-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Insurance</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Replacement value</h2>
+        <p className="text-xs text-muted-foreground -mt-2">
+          Used for insurance underwriting. The policy itself is set on the property.
+        </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label htmlFor="insurance_policy_number">Policy number</Label>
-            <Input id="insurance_policy_number" name="insurance_policy_number" defaultValue={building?.insurance_policy_number ?? ""} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="insurance_provider">Provider</Label>
-            <Input id="insurance_provider" name="insurance_provider" defaultValue={building?.insurance_provider ?? ""} />
-          </div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="space-y-1.5">
-            <Label>Insurance type</Label>
-            <Select value={insuranceType} onValueChange={(v) => setInsuranceType(v ?? "")}>
-              <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
-              <SelectContent>
-                {INSURANCE_TYPES.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="insurance_renewal_date">Renewal date</Label>
-            <DatePickerInput value={insuranceRenewalDate} onChange={setInsuranceRenewalDate} name="insurance_renewal_date" placeholder="Renewal date" />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="insurance_replacement_value">Replacement value (R)</Label>
-            <Input id="insurance_replacement_value" name="insurance_replacement_value" type="number" min="0"
-              defaultValue={building?.insurance_replacement_value_cents
-                ? (building.insurance_replacement_value_cents / 100).toFixed(0)
-                : ""
-              }
+            <Label htmlFor="replacement_value">Replacement value (R)</Label>
+            <Input
+              id="replacement_value"
+              name="replacement_value"
+              type="number"
+              min="0"
+              defaultValue={building?.replacement_value_cents
+                ? (building.replacement_value_cents / 100).toFixed(0)
+                : ""}
+              placeholder="e.g. 4500000"
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Last valuation date</Label>
+            <DatePickerInput value={lastValuationDate} onChange={setLastValuationDate} name="last_valuation_date" placeholder="Select date" />
           </div>
         </div>
       </section>

@@ -36,6 +36,28 @@ export async function createProperty(formData: FormData) {
     return { error: error?.message || "Failed to create property" }
   }
 
+  // Create managing scheme if selected
+  const schemeType = formData.get("scheme_type") as string | null
+  if (schemeType && schemeType !== "none") {
+    const schemeName = (formData.get("scheme_name") as string) || (formData.get("name") as string)
+    const { data: scheme, error: schemeErr } = await db
+      .from("managing_schemes")
+      .insert({
+        org_id: orgId,
+        name: schemeName,
+        scheme_type: schemeType,
+      })
+      .select("id")
+      .single()
+
+    if (!schemeErr && scheme) {
+      await db
+        .from("properties")
+        .update({ managing_scheme_id: scheme.id })
+        .eq("id", property.id)
+    }
+  }
+
   // Auto-create default building (transparent for single-building properties)
   const propertyType = formData.get("type") as string || "residential"
   let buildingType: string

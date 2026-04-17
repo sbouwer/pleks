@@ -8,6 +8,8 @@ import { OverviewTab, type RecentActivityItem, type OverviewUnit } from "./Overv
 import { UnitsTab, type UnitTabData, type BuildingTabData } from "./UnitsTab"
 import { PropertyDocumentsTab } from "./PropertyDocumentsTab"
 import { OperationsTab, type RecentInspection, type RecentMaintenance, type ComplianceItem, type AuditItem } from "./OperationsTab"
+import { InsuranceTab, type InsurancePolicy, type InsuranceBroker, type InsuranceBuildingRow, type InsuranceClaim } from "./InsuranceTab"
+import { SchemeTab, type ManagingSchemeData } from "./SchemeTab"
 import { AgentPicker } from "./AgentPicker"
 import { LandlordPicker } from "./LandlordPicker"
 import { MobilePropertyView } from "@/components/mobile/MobilePropertyView"
@@ -21,7 +23,7 @@ function displayName(row: { first_name?: string | null; last_name?: string | nul
 }
 
 
-const VALID_TABS = ["overview", "units", "documents", "operations"] as const
+const VALID_TABS = ["overview", "units", "insurance", "scheme", "documents", "operations"] as const
 type TabId = (typeof VALID_TABS)[number]
 
 // ── Tab-specific fetchers ─────────────────────────────────────────────────────
@@ -416,6 +418,134 @@ async function fetchOperationsData(
   }
 }
 
+interface InsuranceData {
+  policy:       InsurancePolicy
+  broker:       InsuranceBroker | null
+  buildings:    InsuranceBuildingRow[]
+  activeClaims: InsuranceClaim[]
+}
+
+async function fetchInsuranceData(
+  service: ServiceClient,
+  propertyId: string,
+  orgId: string,
+  property: Record<string, unknown>,
+): Promise<InsuranceData> {
+  const [{ data: brokerRow }, { data: buildings }, { data: claims }] = await Promise.all([
+    service
+      .from("property_brokers")
+      .select("broker_contact_id, auto_notify_critical, notify_channels, after_hours_number, notes, contacts(id, first_name, last_name, company_name, email, phone)")
+      .eq("property_id", propertyId)
+      .maybeSingle(),
+    service
+      .from("buildings")
+      .select("id, name, replacement_value_cents, last_valuation_date")
+      .eq("property_id", propertyId)
+      .is("deleted_at", null)
+      .order("is_primary", { ascending: false }),
+    service
+      .from("maintenance_requests")
+      .select("id, title, work_order_number, insurance_claim_reference, insurance_decision, created_at")
+      .eq("property_id", propertyId)
+      .eq("org_id", orgId)
+      .eq("is_insurance_claim", true)
+      .not("status", "in", "(cancelled,closed)")
+      .order("created_at", { ascending: false })
+      .limit(10),
+  ])
+
+  let broker: InsuranceBroker | null = null
+  if (brokerRow) {
+    const b = brokerRow as Record<string, unknown>
+    const c = b.contacts as Record<string, unknown> | null
+    const cName = c?.company_name as string | null
+    const brokerName = cName?.trim()
+      || [c?.first_name, c?.last_name].filter(Boolean).join(" ")
+      || "Unknown"
+    broker = {
+      broker_contact_id:    b.broker_contact_id as string,
+      broker_name:          brokerName,
+      broker_email:         (c?.email as string | null) ?? null,
+      broker_phone:         (c?.phone as string | null) ?? null,
+      auto_notify_critical: (b.auto_notify_critical as boolean) ?? true,
+      notify_channels:      (b.notify_channels as string[]) ?? ["email"],
+      after_hours_number:   (b.after_hours_number as string | null) ?? null,
+      notes:                (b.notes as string | null) ?? null,
+    }
+  }
+
+  return {
+    policy: {
+      insurance_policy_number:           (property.insurance_policy_number as string | null) ?? null,
+      insurance_provider:                (property.insurance_provider as string | null) ?? null,
+      insurance_policy_type:             (property.insurance_policy_type as string | null) ?? null,
+      insurance_renewal_date:            (property.insurance_renewal_date as string | null) ?? null,
+      insurance_replacement_value_cents: (property.insurance_replacement_value_cents as number | null) ?? null,
+      insurance_excess_cents:            (property.insurance_excess_cents as number | null) ?? null,
+      insurance_notes:                   (property.insurance_notes as string | null) ?? null,
+    },
+    broker,
+    buildings:    (buildings ?? []) as InsuranceBuildingRow[],
+    activeClaims: (claims ?? []) as InsuranceClaim[],
+  }
+}
+
+async function fetchSchemeData(
+  service: ServiceClient,
+  schemeId: string,
+  orgId: string,
+  levyAmountCents: number | null,
+): Promise<ManagingSchemeData | null> {
+  const { data: scheme, error } = await service
+    .from("managing_schemes")
+    .select("id, name, scheme_type, csos_registration_number, levy_cycle, csos_ombud_contact, notes, managing_agent_contact_id, emergency_contact_id")
+    .eq("id", schemeId)
+    .eq("org_id", orgId)
+    .is("deleted_at", null)
+    .single()
+
+  if (error || !scheme) return null
+
+  const s = scheme as Record<string, unknown>
+  const managingAgentId  = s.managing_agent_contact_id as string | null
+  const emergencyContactId = s.emergency_contact_id as string | null
+
+  const [managingAgentRes, emergencyContactRes] = await Promise.all([
+    managingAgentId
+      ? service.from("contacts").select("first_name, last_name, company_name, email, phone").eq("id", managingAgentId).single()
+      : Promise.resolve({ data: null }),
+    emergencyContactId
+      ? service.from("contacts").select("first_name, last_name, company_name, phone").eq("id", emergencyContactId).single()
+      : Promise.resolve({ data: null }),
+  ])
+
+  function contactName(c: Record<string, unknown> | null): string | null {
+    if (!c) return null
+    return (c.company_name as string | null)?.trim()
+      || [c.first_name, c.last_name].filter(Boolean).join(" ")
+      || null
+  }
+
+  const ma = managingAgentRes.data as Record<string, unknown> | null
+  const ec = emergencyContactRes.data as Record<string, unknown> | null
+
+  return {
+    id:                       s.id as string,
+    name:                     s.name as string,
+    scheme_type:              s.scheme_type as string,
+    csos_registration_number: (s.csos_registration_number as string | null) ?? null,
+    levy_cycle:               (s.levy_cycle as string | null) ?? null,
+    csos_ombud_contact:       (s.csos_ombud_contact as string | null) ?? null,
+    notes:                    (s.notes as string | null) ?? null,
+    managing_agent_name:      contactName(ma),
+    managing_agent_email:     (ma?.email as string | null) ?? null,
+    managing_agent_phone:     (ma?.phone as string | null) ?? null,
+    emergency_contact_name:   contactName(ec),
+    emergency_contact_phone:  (ec?.phone as string | null) ?? null,
+    levy_amount_cents:        levyAmountCents,
+  }
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function PropertyDetailPage({
@@ -468,8 +598,12 @@ export default async function PropertyDetailPage({
     tenantName: null, rentCents: u.asking_rent_cents ?? 0, maintenanceCount: 0,
   }))
 
+  const propRaw          = property as unknown as Record<string, unknown>
+  const hasManagingScheme = (propRaw.has_managing_scheme as boolean) ?? false
+  const managingSchemeId  = (propRaw.managing_scheme_id as string | null) ?? null
+
   // Tab-specific data fetching
-  const [overviewData, unitsData, operationsData] = await Promise.all([
+  const [overviewData, unitsData, operationsData, insuranceData, schemeData] = await Promise.all([
     activeTab === "overview"
       ? fetchOverviewData(supabase, service, id, orgId, property.landlord_id ?? null, property.managing_agent_id ?? null)
       : Promise.resolve(null),
@@ -478,6 +612,12 @@ export default async function PropertyDetailPage({
       : Promise.resolve(null),
     activeTab === "operations"
       ? fetchOperationsData(supabase, service, id, orgId)
+      : Promise.resolve(null),
+    activeTab === "insurance"
+      ? fetchInsuranceData(service, id, orgId, propRaw)
+      : Promise.resolve(null),
+    activeTab === "scheme" && managingSchemeId
+      ? fetchSchemeData(service, managingSchemeId, orgId, (propRaw.levy_amount_cents as number | null) ?? null)
       : Promise.resolve(null),
   ])
 
@@ -536,7 +676,7 @@ export default async function PropertyDetailPage({
         </div>
 
         {/* Tabs */}
-        <PropertyTabs activeTab={activeTab} propertyId={id} />
+        <PropertyTabs activeTab={activeTab} propertyId={id} hasManagingScheme={hasManagingScheme} />
 
         {/* Tab content */}
         {activeTab === "overview" && overviewData && (
@@ -555,12 +695,14 @@ export default async function PropertyDetailPage({
             <OverviewTab
               propertyId={id}
               property={{
-                type:                  property.type ?? null,
-                erf_number:            (property as unknown as Record<string, unknown>).erf_number as string | null ?? null,
-                sectional_title_number: (property as unknown as Record<string, unknown>).sectional_title_number as string | null ?? null,
-                is_sectional_title:    (property as unknown as Record<string, unknown>).is_sectional_title as boolean | null ?? null,
-                levy_amount_cents:     (property as unknown as Record<string, unknown>).levy_amount_cents as number | null ?? null,
-                description:           property.description ?? null,
+                type:                    property.type ?? null,
+                erf_number:              (propRaw.erf_number as string | null) ?? null,
+                sectional_title_number:  (propRaw.sectional_title_number as string | null) ?? null,
+                is_sectional_title:      (propRaw.is_sectional_title as boolean | null) ?? null,
+                levy_amount_cents:       (propRaw.levy_amount_cents as number | null) ?? null,
+                description:             property.description ?? null,
+                insurance_provider:      (propRaw.insurance_provider as string | null) ?? null,
+                insurance_renewal_date:  (propRaw.insurance_renewal_date as string | null) ?? null,
               }}
               landlord={overviewData.landlord}
               activeUnits={overviewData.activeUnits}
@@ -572,6 +714,7 @@ export default async function PropertyDetailPage({
               managingAgentName={overviewData.managingAgentName}
               activity={overviewData.activity}
               managingScheme={overviewData.managingScheme}
+              hasManagingScheme={hasManagingScheme}
             />
           </>
         )}
@@ -588,6 +731,29 @@ export default async function PropertyDetailPage({
             tenantByUnit={unitsData.tenantByUnit}
             maintenanceByUnit={unitsData.maintenanceByUnit}
           />
+        )}
+
+        {activeTab === "insurance" && insuranceData && (
+          <InsuranceTab
+            propertyId={id}
+            policy={insuranceData.policy}
+            broker={insuranceData.broker}
+            buildings={insuranceData.buildings}
+            activeClaims={insuranceData.activeClaims}
+          />
+        )}
+
+        {activeTab === "scheme" && schemeData && (
+          <SchemeTab propertyId={id} scheme={schemeData} />
+        )}
+
+        {activeTab === "scheme" && !schemeData && (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">No managing scheme linked to this property.</p>
+            <a href={`/properties/${id}/scheme/edit`} className="text-sm text-brand hover:underline">
+              Add managing scheme →
+            </a>
+          </div>
         )}
 
         {activeTab === "documents" && (
