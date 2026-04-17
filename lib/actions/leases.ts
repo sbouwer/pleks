@@ -358,10 +358,19 @@ export async function createUploadedLease(formData: FormData): Promise<{ error: 
 export async function markAsSigned(leaseId: string) {
   const { activateLeaseCascade } = await import("@/lib/leases/activateLeaseCascade")
   const { checkLeasePrerequisites } = await import("@/lib/leases/checkPrerequisites")
+  const { canActivateLease } = await import("@/lib/tier/canActivateLease")
 
   const gw = await gateway()
   if (!gw) redirect("/login")
   const { db, userId, orgId } = gw
+
+  // Tier gate (BUILD_60): Owner tier = 1 active lease, Steward = 20, Firm = ∞.
+  // The old properties.count check was removed in Phase 1; lease activation
+  // is now the tier boundary.
+  const tierCheck = await canActivateLease(orgId)
+  if (!tierCheck.ok) {
+    return { error: tierCheck.reason ?? "You've reached your active lease limit. Upgrade to activate more." }
+  }
 
   const prereqs = await checkLeasePrerequisites(db, leaseId, orgId)
   if (!prereqs.canProceed) {

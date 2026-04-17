@@ -24,10 +24,11 @@ export async function canActivateLease(
   const limit = LEASE_LIMITS[tier] ?? 1
 
   if (count >= limit) {
+    const tierLabel = tier.charAt(0).toUpperCase() + tier.slice(1)
     const limitLabel = limit === 1 ? "1 active lease" : `${limit} active leases`
     return {
       ok: false,
-      reason: `${tier} tier limit reached (${limitLabel}). Upgrade to activate more.`,
+      reason: `You've reached your active lease limit. ${tierLabel} tier allows ${limitLabel}. Upgrade to activate more.`,
     }
   }
 

@@ -15,6 +15,7 @@ import {
   type ScenarioSegment,
   type ScenarioType,
 } from "@/lib/properties/scenarios"
+import { getScenarioEducation } from "@/lib/properties/scenarioEducation"
 import { useWizard, type ManagedMode } from "../WizardContext"
 
 // ── Icon map ──────────────────────────────────────────────────────────────────
@@ -210,8 +211,8 @@ function ScenarioCard({
       {/* Educational bullets (expanded) */}
       {infoOpen && (
         <ul className="mt-3 pl-7 space-y-1.5 border-t pt-3">
-          {scenario.educationalBullets.map((bullet, i) => (
-            <li key={i} className="text-xs text-muted-foreground flex gap-1.5">
+          {getScenarioEducation(scenario.code).map((bullet) => (
+            <li key={bullet} className="text-xs text-muted-foreground flex gap-1.5">
               <span className="mt-0.5 shrink-0 text-primary">•</span>
               {bullet}
             </li>
