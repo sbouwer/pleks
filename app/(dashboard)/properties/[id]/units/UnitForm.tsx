@@ -170,6 +170,12 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "rental", label: "Rental & lease" },
 ]
 
+// ── Save label helper ─────────────────────────────────────────────────────────
+
+function saveLabel(isCreate: boolean): string {
+  return isCreate ? "Create Unit" : "Save changes"
+}
+
 // ── Deposit helpers ───────────────────────────────────────────────────────────
 
 const DEPOSIT_MULTIPLIERS: Record<string, number> = {
@@ -185,6 +191,10 @@ function calcSuggestedDeposit(rent: number, status: string): number | null {
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
+  const isCreate = !defaultValues?.unit_number
+  const [isDirty, setIsDirty] = useState(false)
+  const markDirty = () => setIsDirty(true)
+
   const [activeTab, setActiveTab] = useState<TabId>("details")
   const [unitType, setUnitType] = useState<string>(defaultValues?.unit_type ?? "")
   const [bedroomsVal, setBedroomsVal] = useState<number | null>(defaultValues?.bedrooms ?? null)
@@ -294,6 +304,7 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
     }
     setUnitType(newType)
     setRooms(generateRooms(newType, bedroomsVal ?? 0, bathroomsVal ?? 0, selectedFeatures))
+    markDirty()
   }
 
   function handleBedroomsChange(val: string) {
@@ -320,6 +331,7 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
     setSelectedFeatures((prev) =>
       prev.includes(feature) ? prev.filter((f) => f !== feature) : [...prev, feature]
     )
+    markDirty()
   }
 
   function addCustomFeature() {
@@ -329,11 +341,13 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
     setSelectedFeatures((prev) => [...prev, val])
     setCustomFeatureInput("")
     customFeatureRef.current?.focus()
+    markDirty()
   }
 
   function removeCustomFeature(feature: string) {
     setCustomFeatures((prev) => prev.filter((f) => f !== feature))
     setSelectedFeatures((prev) => prev.filter((f) => f !== feature))
+    markDirty()
   }
 
   // ── Inventory handlers ─────────────────────────────────────────────────────
@@ -401,6 +415,7 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
     const suggested = calcSuggestedDeposit(rent, status)
     if (suggested != null) setDepositAmount(String(suggested))
     else if (status === "unfurnished") setDepositAmount(askingRent) // default 1× for unfurnished
+    markDirty()
   }
 
   const suggestedDeposit = calcSuggestedDeposit(Number.parseFloat(askingRent), furnishingStatus)
@@ -413,7 +428,7 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <form action={formAction} className="w-full">
+    <form action={formAction} className="w-full" onChange={markDirty}>
       {state?.error && (
         <p className="text-sm text-danger mb-4 p-3 bg-danger/10 rounded-md">{state.error}</p>
       )}
@@ -753,7 +768,7 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
           {members.length > 0 && (
             <div className="space-y-2">
               <Label>Managing person</Label>
-              <Select value={managedBy} onValueChange={(v) => setManagedBy(v ?? "")}>
+              <Select value={managedBy} onValueChange={(v) => { setManagedBy(v ?? ""); markDirty() }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select team member..." />
                 </SelectTrigger>
@@ -778,12 +793,14 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
           )}
         </div>}
 
-      {/* ── Save button ─────────────────────────────────────────────────── */}
-      <div className="mt-8 pt-6 border-t">
-        <Button type="submit" disabled={pending}>
-          {pending ? "Saving..." : "Save Unit"}
-        </Button>
-      </div>
+      {/* ── Save button — only visible when dirty or creating ────────── */}
+      {(isDirty || isCreate) && (
+        <div className="mt-8 pt-6 border-t">
+          <Button type="submit" disabled={pending}>
+            {pending ? "Saving..." : saveLabel(isCreate)}
+          </Button>
+        </div>
+      )}
     </form>
   )
 }

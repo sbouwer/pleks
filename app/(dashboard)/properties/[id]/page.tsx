@@ -587,7 +587,6 @@ export default async function PropertyDetailPage({
             tier={tier}
             tenantByUnit={unitsData.tenantByUnit}
             maintenanceByUnit={unitsData.maintenanceByUnit}
-            orgId={orgId}
           />
         )}
 

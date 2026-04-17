@@ -6,7 +6,6 @@ import { ChevronDown, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatZAR } from "@/lib/constants"
 import { Button } from "@/components/ui/button"
-import { AddUnitDialog } from "@/components/properties/AddUnitDialog"
 import { getUnitDescription } from "@/lib/units/typeAwareFields"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -48,7 +47,6 @@ interface UnitsTabProps {
   tier: string
   tenantByUnit: Record<string, { name: string }>
   maintenanceByUnit: Record<string, number>
-  orgId: string
 }
 
 // ── Unit card ─────────────────────────────────────────────────────────────────
@@ -152,7 +150,7 @@ function BuildingSection({ building, units, propertyId, propertyType, tenantByUn
         <div>
           <span className="font-medium text-sm">{building.name}</span>
           <span className="ml-2 text-xs text-muted-foreground">
-            {units.length} unit{units.length !== 1 ? "s" : ""} · {occupied} occupied
+            {units.length} unit{units.length === 1 ? "" : "s"} · {occupied} occupied
           </span>
         </div>
         {open
@@ -194,7 +192,6 @@ export function UnitsTab({
   tier,
   tenantByUnit,
   maintenanceByUnit,
-  orgId,
 }: Readonly<UnitsTabProps>) {
   const isOwner = tier === "owner"
   const visibleBuildings = buildings.filter((b) => b.is_visible_in_ui)
@@ -205,14 +202,10 @@ export function UnitsTab({
       {/* Action bar */}
       {!isOwner && (
         <div className="flex items-center gap-2">
-          <AddUnitDialog
-            propertyId={propertyId}
-            propertyType={propertyType}
-            trigger={<Button size="sm">+ Add unit</Button>}
-          />
-          <Button size="sm" variant="outline" render={
-            <a href={`/properties/${propertyId}/buildings/new`} />
-          }>
+          <Button size="sm" render={<Link href={`/properties/${propertyId}/units/new`} />}>
+            + Add unit
+          </Button>
+          <Button size="sm" variant="outline" render={<Link href={`/properties/${propertyId}/buildings/new`} />}>
             + Add building
           </Button>
         </div>
@@ -242,7 +235,7 @@ export function UnitsTab({
             )
           })}
           {/* Unassigned units */}
-          {units.filter((u) => !u.building_id).length > 0 && (
+          {units.some((u) => !u.building_id) && (
             <div className="rounded-xl border border-border/60 overflow-hidden">
               <div className="px-4 py-3 bg-surface">
                 <span className="text-sm font-medium text-muted-foreground">Unassigned</span>
@@ -268,7 +261,7 @@ export function UnitsTab({
       {!isMultiBuilding && units.length > 0 && (
         <div>
           <p className="text-sm text-muted-foreground mb-3">
-            {propertyName} · {units.length} unit{units.length !== 1 ? "s" : ""} · {units.filter((u) => u.status === "occupied").length} occupied · {units.filter((u) => u.status === "vacant").length} vacant
+            {propertyName} · {units.length} unit{units.length === 1 ? "" : "s"} · {units.filter((u) => u.status === "occupied").length} occupied · {units.filter((u) => u.status === "vacant").length} vacant
           </p>
           <div className="space-y-2">
             {units.map((unit) => (
@@ -302,8 +295,6 @@ export function UnitsTab({
         </div>
       )}
 
-      {/* void orgId — available for future server actions */}
-      {void orgId}
     </div>
   )
 }
