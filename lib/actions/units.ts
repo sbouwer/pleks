@@ -192,7 +192,7 @@ export async function createUnit(propertyId: string, formData: FormData) {
   }
 
   revalidatePath(`/properties/${propertyId}`)
-  redirect(`/properties/${propertyId}`)
+  redirect(`/properties/${propertyId}/units/${unit.id}`)
 }
 
 export async function updateUnit(unitId: string, propertyId: string, formData: FormData) {
