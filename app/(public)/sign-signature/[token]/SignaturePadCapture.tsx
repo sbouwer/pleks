@@ -10,29 +10,33 @@ interface SignaturePadCaptureProps {
   orgId: string
 }
 
-export function SignaturePadCapture({ token, userId, orgId }: SignaturePadCaptureProps) {
+// Pleks is always dark theme. White strokes on transparent PNG:
+//   - Visible in the dark app UI with no white box
+//   - Inverted to black when embedded in white-background documents/PDFs
+const STROKE_COLOR = "#ffffff"
+
+export function SignaturePadCapture({ token, userId, orgId }: Readonly<SignaturePadCaptureProps>) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [drawing, setDrawing] = useState(false)
   const [hasStrokes, setHasStrokes] = useState(false)
   const [saved, setSaved] = useState(false)
   const [pending, startTransition] = useTransition()
 
-  // Set canvas resolution for crisp drawing
+  // Set canvas resolution — cap DPR at 2 to keep PNG payload manageable
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    // Cap DPR at 2 — higher values produce very large payloads on high-DPI mobile
-    const dpr = Math.min(window.devicePixelRatio || 1, 2)
+    const dpr = Math.min(globalThis.devicePixelRatio || 1, 2)
     const rect = canvas.getBoundingClientRect()
     canvas.width  = rect.width * dpr
     canvas.height = rect.height * dpr
     const ctx = canvas.getContext("2d")
     if (ctx) {
       ctx.scale(dpr, dpr)
-      ctx.strokeStyle = "#1a1a1a"
-      ctx.lineWidth = 2
-      ctx.lineCap = "round"
-      ctx.lineJoin = "round"
+      ctx.strokeStyle = STROKE_COLOR
+      ctx.lineWidth   = 2
+      ctx.lineCap     = "round"
+      ctx.lineJoin    = "round"
     }
   }, [])
 
@@ -70,9 +74,7 @@ export function SignaturePadCapture({ token, userId, orgId }: SignaturePadCaptur
     setHasStrokes(true)
   }
 
-  function stopDraw() {
-    setDrawing(false)
-  }
+  function stopDraw() { setDrawing(false) }
 
   function clearCanvas() {
     const canvas = canvasRef.current
@@ -88,8 +90,8 @@ export function SignaturePadCapture({ token, userId, orgId }: SignaturePadCaptur
       toast.error("Please draw your signature first")
       return
     }
-    // Use JPEG at 0.8 quality — PNG produces 3-5× larger payloads for the same signature
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.8)
+    // PNG preserves the transparent background — no white box in the app
+    const dataUrl = canvas.toDataURL("image/png")
 
     startTransition(async () => {
       const { saveSignatureFromMobile } = await import("@/lib/actions/signatures")
@@ -118,7 +120,6 @@ export function SignaturePadCapture({ token, userId, orgId }: SignaturePadCaptur
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
       <div className="px-4 pt-6 pb-4 border-b">
         <h1 className="text-lg font-semibold">Sign your signature</h1>
         <p className="text-sm text-muted-foreground mt-1">
@@ -126,12 +127,12 @@ export function SignaturePadCapture({ token, userId, orgId }: SignaturePadCaptur
         </p>
       </div>
 
-      {/* Canvas */}
       <div className="flex-1 flex flex-col items-center justify-center p-6">
         <div className="w-full max-w-sm">
+          {/* Dark canvas surface — white strokes visible here, transparent in stored PNG */}
           <canvas
             ref={canvasRef}
-            className="w-full border-2 border-dashed border-border rounded-xl bg-white touch-none"
+            className="w-full border border-border rounded-xl bg-zinc-900 touch-none"
             style={{ height: 180 }}
             onMouseDown={startDraw}
             onMouseMove={draw}
@@ -147,21 +148,11 @@ export function SignaturePadCapture({ token, userId, orgId }: SignaturePadCaptur
         </div>
       </div>
 
-      {/* Action bar */}
       <div className="px-6 pb-8 pt-4 border-t flex gap-3">
-        <Button
-          variant="outline"
-          className="flex-1"
-          onClick={clearCanvas}
-          disabled={pending}
-        >
+        <Button variant="outline" className="flex-1" onClick={clearCanvas} disabled={pending}>
           Clear
         </Button>
-        <Button
-          className="flex-1"
-          onClick={handleSave}
-          disabled={!hasStrokes || pending}
-        >
+        <Button className="flex-1" onClick={handleSave} disabled={!hasStrokes || pending}>
           {pending ? "Saving…" : "Save signature"}
         </Button>
       </div>

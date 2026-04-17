@@ -81,7 +81,7 @@ function DrawTab({ onSaved }: Readonly<{ onSaved: () => void }>) {
     if (!drawing) return
     const ctx = canvasRef.current?.getContext("2d")
     if (!ctx || !lastPos.current) return
-    ctx.strokeStyle = "#1a1a1a"
+    ctx.strokeStyle = "#ffffff"
     ctx.lineWidth = 2
     ctx.lineCap = "round"
     ctx.lineJoin = "round"
@@ -124,7 +124,7 @@ function DrawTab({ onSaved }: Readonly<{ onSaved: () => void }>) {
 
   return (
     <div className="space-y-3">
-      <div className="border border-input rounded-md overflow-hidden bg-white">
+      <div className="border border-border rounded-md overflow-hidden bg-zinc-900">
         <canvas
           ref={canvasRef}
           width={600}
@@ -202,8 +202,9 @@ function UploadTab({ onSaved }: Readonly<{ onSaved: () => void }>) {
 
   return (
     <div className="space-y-3">
-      <div
-        className="border-2 border-dashed border-input rounded-md p-6 text-center cursor-pointer hover:bg-muted/30 transition-colors"
+      <button
+        type="button"
+        className="w-full border-2 border-dashed border-input rounded-md p-6 text-center cursor-pointer hover:bg-muted/30 transition-colors"
         onClick={() => inputRef.current?.click()}
       >
         <input
@@ -216,17 +217,15 @@ function UploadTab({ onSaved }: Readonly<{ onSaved: () => void }>) {
         <p className="text-sm text-muted-foreground">
           Click to select a PNG or JPG image (max 500 KB)
         </p>
-      </div>
+      </button>
 
       {sizeError && (
         <p className="text-sm text-destructive">{sizeError}</p>
       )}
 
       {preview && (
-        <div className="border border-input rounded-md p-3 bg-white">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={preview} alt="Signature preview" className="max-h-[120px] object-contain" />
-        </div>
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={preview} alt="Signature preview" className="max-h-[80px] object-contain" />
       )}
 
       <Button type="button" size="sm" onClick={handleSave} disabled={saving || !file}>
@@ -251,7 +250,7 @@ function TypeTab({ onSaved }: Readonly<{ onSaved: () => void }>) {
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     if (!name.trim()) return
     ctx.font = "48px cursive"
-    ctx.fillStyle = "#1a1a1a"
+    ctx.fillStyle = "#ffffff"
     ctx.textBaseline = "middle"
     ctx.fillText(name, 20, canvas.height / 2)
   }, [name])
@@ -292,7 +291,7 @@ function TypeTab({ onSaved }: Readonly<{ onSaved: () => void }>) {
       </div>
 
       {name.trim() && (
-        <div className="border border-input rounded-md overflow-hidden bg-white">
+        <div className="border border-border rounded-md overflow-hidden bg-zinc-900">
           <canvas
             ref={previewCanvasRef}
             width={600}
@@ -330,7 +329,7 @@ function QrTab({ onSaved }: Readonly<{ onSaved: () => void }>) {
         setLoading(false)
         return
       }
-      const tok = result.token as string
+      const tok = result.token
       const signUrl = `${globalThis.location.origin}/sign-signature/${tok}`
       const QRCode = await import("qrcode")
       const dataUrl = await QRCode.default.toDataURL(signUrl, { width: 200, margin: 2 })
@@ -447,14 +446,12 @@ export function SignatureSettings({ currentSignature }: Readonly<Props>) {
             Current signature
           </p>
           {currentSignature.signedUrl && (
-            <div className="bg-white border border-input rounded-md p-3 inline-block">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={currentSignature.signedUrl}
-                alt="Current signature"
-                className="max-h-[100px] object-contain"
-              />
-            </div>
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={currentSignature.signedUrl}
+              alt="Current signature"
+              className="max-h-[80px] object-contain"
+            />
           )}
           <div className="flex items-center justify-between">
             <p className="text-xs text-muted-foreground">
