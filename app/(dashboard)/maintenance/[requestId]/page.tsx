@@ -8,6 +8,7 @@ import { MaintenanceActions } from "./MaintenanceActions"
 import { RecordDelayPanel } from "./RecordDelayPanel"
 import { MobileMaintenanceView } from "@/components/mobile/MobileMaintenanceView"
 import { BackLink } from "@/components/ui/BackLink"
+import { CriticalIncidentWrapper } from "./CriticalIncidentWrapper"
 
 interface ContractorUpdate {
   id: string
@@ -119,8 +120,8 @@ export default async function MaintenanceDetailPage({
   const tenant = request.tenant_view as unknown as { first_name: string; last_name: string; phone: string } | null
   const contractor = request.contractor_view as unknown as { first_name: string; last_name: string; company_name: string; email: string; phone: string } | null
 
-  // Get contractor updates, cost allocations, and agent notes in parallel
-  const [{ data: updates }, { data: allocations }, { data: noteLog }] = await Promise.all([
+  // Get contractor updates, cost allocations, agent notes, and incident notifications in parallel
+  const [{ data: updates }, { data: allocations }, { data: noteLog }, { data: incidentNotifs }] = await Promise.all([
     supabase
       .from("contractor_updates")
       .select("*")
@@ -138,6 +139,11 @@ export default async function MaintenanceDetailPage({
       .eq("record_id", requestId)
       .eq("action", "NOTE")
       .order("created_at", { ascending: true }),
+    supabase
+      .from("incident_notifications")
+      .select("id, notified_party, channel, sent_at, failed_reason, contacts(first_name, last_name)")
+      .eq("maintenance_request_id", requestId)
+      .order("sent_at", { ascending: true }),
   ])
 
   const persistedNotes = (noteLog ?? []).map((row) => ({
@@ -159,9 +165,27 @@ export default async function MaintenanceDetailPage({
 
   const timeline = buildTimeline(request, (updates ?? []) as ContractorUpdate[])
 
+  const INSURANCE_BADGE: Record<string, { label: string; cls: string }> = {
+    reported: { label: "Reported to broker",  cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
+    declined: { label: "Not claimed",         cls: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+    unsure:   { label: "Decision pending",    cls: "bg-muted text-muted-foreground" },
+    pending:  { label: "Decision pending",    cls: "bg-muted text-muted-foreground" },
+  }
+  const insuranceBadge = INSURANCE_BADGE[request.insurance_decision ?? ""] ?? INSURANCE_BADGE.pending
+
   return (
     <div>
       <BackLink href="/maintenance" label="Maintenance" />
+
+      {/* Critical incident dialog — shows on page load when unresolved */}
+      {request.severity === "critical" && !request.insurance_decision && (
+        <CriticalIncidentWrapper
+          requestId={requestId}
+          incidentTitle={request.title}
+          unitLabel={unit ? `Unit ${unit.unit_number}` : "Property"}
+          propertyName={unit?.properties.name ?? ""}
+        />
+      )}
       {/* Mobile view */}
       <div className="lg:hidden">
         <MobileMaintenanceView
@@ -215,6 +239,62 @@ export default async function MaintenanceDetailPage({
             </div>
             {request.ai_triage_notes && (
               <p className="text-sm text-muted-foreground">{request.ai_triage_notes}</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Insurance decision — only for critical incidents */}
+      {request.severity === "critical" && (
+        <Card className="mb-4 border-amber-500/20 bg-amber-500/5">
+          <CardHeader className="pb-2 pt-4">
+            <CardTitle className="text-sm font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+              Insurance decision
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm pb-4">
+            {request.insurance_decision ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${insuranceBadge.cls}`}>
+                    {insuranceBadge.label}
+                  </span>
+                  {request.insurance_decision_at && (
+                    <span className="text-xs text-muted-foreground">
+                      · {new Date(request.insurance_decision_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  )}
+                </div>
+                {request.insurance_decision_notes && (
+                  <p className="text-xs text-muted-foreground italic">&quot;{request.insurance_decision_notes}&quot;</p>
+                )}
+                {(incidentNotifs ?? []).length > 0 && (
+                  <div className="pt-1 space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">Notifications sent:</p>
+                    {(incidentNotifs ?? []).map((n) => {
+                      const contact = n.contacts as unknown as { first_name: string; last_name: string } | null
+                      const name = contact ? [contact.first_name, contact.last_name].filter(Boolean).join(" ") : null
+                      const party = n.notified_party === "managing_scheme" ? "Managing scheme" : n.notified_party.charAt(0).toUpperCase() + n.notified_party.slice(1)
+                      return (
+                        <div key={n.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <span className={n.failed_reason ? "text-danger" : "text-success"}>
+                            {n.failed_reason ? "✗" : "✓"}
+                          </span>
+                          <span>{party}{name ? ` · ${name}` : ""}</span>
+                          <span className="text-muted-foreground/60">· {n.channel}</span>
+                          <span className="ml-auto">
+                            {new Date(n.sent_at).toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Insurance decision pending — open this request to resolve.
+              </p>
             )}
           </CardContent>
         </Card>
