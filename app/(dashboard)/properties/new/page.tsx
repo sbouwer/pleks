@@ -1,7 +1,7 @@
-import { createProperty } from "@/lib/actions/properties"
 import { getServerOrgMembership } from "@/lib/auth/server"
 import { redirect } from "next/navigation"
-import { PropertyForm } from "../PropertyForm"
+import { WizardProvider } from "./WizardContext"
+import { WizardShell }   from "./WizardShell"
 
 export default async function NewPropertyPage() {
   const membership = await getServerOrgMembership()
@@ -10,7 +10,9 @@ export default async function NewPropertyPage() {
   return (
     <div>
       <h1 className="font-heading text-3xl mb-6">Add Property</h1>
-      <PropertyForm action={createProperty} />
+      <WizardProvider>
+        <WizardShell />
+      </WizardProvider>
     </div>
   )
 }
