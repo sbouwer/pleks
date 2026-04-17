@@ -36,6 +36,8 @@ interface EligibilityResult {
   isOverQuota: boolean
   sentWithinCsWindow: boolean
   period: string
+  /** Tone override set for this specific template by the org, if any */
+  templateTone?: ToneVariant
 }
 
 async function checkSendEligibility(
@@ -61,16 +63,17 @@ async function checkSendEligibility(
 
   const { data: pref, error: prefErr } = await db
     .from("org_whatsapp_template_preferences")
-    .select("opted_in")
+    .select("opted_in, tone_variant")
     .eq("org_id", orgId)
     .eq("template_id", templateId)
-    .single()
-  if (prefErr && prefErr.code !== "PGRST116") {
+    .maybeSingle()
+  if (prefErr) {
     console.error("[sendWhatsApp] pref load error", prefErr)
   }
   if (pref?.opted_in === false) {
     return { skip: { sent: false, skipped: true, skipReason: "Org has disabled this template" }, isOverQuota: false, sentWithinCsWindow: false, period }
   }
+  const templateTone = (pref?.tone_variant as ToneVariant | null) ?? undefined
 
   const { data: usage, error: usageErr } = await db
     .from("messaging_usage")
@@ -90,12 +93,12 @@ async function checkSendEligibility(
     .eq("is_active", true)
     .gt("expires_at", new Date().toISOString())
     .limit(1)
-    .single()
-  if (csErr && csErr.code !== "PGRST116") {
+    .maybeSingle()
+  if (csErr) {
     console.error("[sendWhatsApp] cs window load error", csErr)
   }
 
-  return { isOverQuota, sentWithinCsWindow: Boolean(csWindow), period }
+  return { isOverQuota, sentWithinCsWindow: Boolean(csWindow), period, templateTone }
 }
 
 // ── Main action ────────────────────────────────────────────────────────────────
@@ -109,7 +112,7 @@ export async function sendWhatsApp(params: SendWhatsAppParams): Promise<SendWhat
     orgTier,
     tenantId,
     toPhone,
-    toneVariant = "professional",
+    toneVariant,
     sentByUserId,
   } = params
 
@@ -147,8 +150,9 @@ export async function sendWhatsApp(params: SendWhatsAppParams): Promise<SendWhat
   if (eligibility.skip) return eligibility.skip
   const { isOverQuota, sentWithinCsWindow, period } = eligibility
 
-  // 7. Resolve tone — caller hint > org preference > org settings > default
-  const resolvedTone = toneVariant ?? (await resolveTone(db, orgId))
+  // 7. Resolve tone — caller hint > per-template org pref > org settings > "professional"
+  // templateTone is scoped to this template (from the eligibility pref row, no extra roundtrip)
+  const resolvedTone = toneVariant ?? eligibility.templateTone ?? (await resolveTone(db, orgId))
 
   // 8. Resolve tone variant body
   const resolvedBody = resolveToneBody(template, resolvedTone)
@@ -258,26 +262,11 @@ function getPeriodDate(): string {
 }
 
 /**
- * Resolve the tone variant to use for a send.
- * Priority: org_whatsapp_template_preferences.tone_variant
- *   → organisations.settings.communication.tone_tenant
- *   → "professional"
+ * Resolve org-wide tone from organisations.settings.
+ * Per-template overrides are already handled by checkSendEligibility (templateTone).
+ * This is the final fallback before "professional".
  */
-async function resolveTone(
-  db: Db,
-  orgId: string,
-): Promise<ToneVariant> {
-  const { data: pref } = await db
-    .from("org_whatsapp_template_preferences")
-    .select("tone_variant")
-    .eq("org_id", orgId)
-    .limit(1)
-    .single()
-
-  if (pref?.tone_variant) {
-    return pref.tone_variant as ToneVariant
-  }
-
+async function resolveTone(db: Db, orgId: string): Promise<ToneVariant> {
   const { data: org } = await db
     .from("organisations")
     .select("settings")

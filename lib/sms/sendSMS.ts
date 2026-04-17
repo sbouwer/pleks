@@ -24,7 +24,7 @@ export async function sendSMS(
       direction: "outbound",
       subject: "SMS skipped — Owner tier",
       body: message,
-      status: "skipped",
+      status: "logged",
       sent_to_phone: to,
     })
     return { sent: false, skipped: true, reason: "SMS not available on Owner tier" }

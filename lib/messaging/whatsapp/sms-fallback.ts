@@ -12,8 +12,8 @@ const MAX_SMS_LENGTH = 160
  */
 export function deriveSmsFromWhatsApp(body: string): string {
   const stripped = body
-    .replace(/\*([^*]+)\*/g, "$1")
-    .replace(/_([^_]+)_/g, "$1")
+    .replaceAll(/\*([^*\n]+)\*/g, "$1")
+    .replaceAll(/_([^_\n]+)_/g, "$1")
 
   if (stripped.length <= MAX_SMS_LENGTH) return stripped
 
