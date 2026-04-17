@@ -31,6 +31,24 @@ VALUES
   ('property-documents',  'property-documents',  false, 20971520,  NULL)
 ON CONFLICT (id) DO NOTHING;
 
+-- ── (c) whatsapp_messages: add 'received' to status CHECK ────────────────────
+-- The initial migration only allowed outbound statuses; inbound messages need 'received'
+ALTER TABLE whatsapp_messages DROP CONSTRAINT IF EXISTS whatsapp_messages_status_check;
+ALTER TABLE whatsapp_messages ADD CONSTRAINT whatsapp_messages_status_check
+  CHECK (status IN ('submitted','sent','delivered','read','failed','received'));
+
+-- ── (d) document_templates: meta_template_name for approval webhook matching ─
+-- The approval webhook from AT carries the Meta template name (e.g. pleks_rent_due_professional)
+-- Store it explicitly so the webhook handler can do a direct lookup instead of re-composing
+ALTER TABLE document_templates
+  ADD COLUMN IF NOT EXISTS meta_template_name text;
+
+-- Unique index: one Meta template name maps to exactly one document_template row
+-- WHERE clause ensures NULLs (unsubmitted templates) don't conflict
+CREATE UNIQUE INDEX IF NOT EXISTS idx_doc_templates_meta_name
+  ON document_templates(meta_template_name)
+  WHERE meta_template_name IS NOT NULL;
+
 -- Storage RLS: authenticated users can read/write their own org's files
 -- Signatures bucket: users can read/write within their own org folder
 CREATE POLICY "signatures_user_access"

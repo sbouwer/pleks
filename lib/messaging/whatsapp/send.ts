@@ -5,6 +5,8 @@ import { sendWhatsAppMessage } from "./provider"
 
 type Db = Awaited<ReturnType<typeof createServiceClient>>
 
+export type ToneVariant = "friendly" | "professional" | "firm"
+
 // ── Interfaces ─────────────────────────────────────────────────────────────────
 
 export interface SendWhatsAppParams {
@@ -15,7 +17,7 @@ export interface SendWhatsAppParams {
   orgTier: string
   tenantId: string
   toPhone: string
-  toneVariant?: "friendly" | "professional" | "firm"
+  toneVariant?: ToneVariant
   sentByUserId?: string
 }
 
@@ -118,11 +120,12 @@ export async function sendWhatsApp(params: SendWhatsAppParams): Promise<SendWhat
 
   const db = await createServiceClient()
 
-  // 2. Load template
+  // 2. Load template — scope=system guard prevents .single() throwing on org-scope duplicates
   const { data: template, error: templateErr } = await db
     .from("document_templates")
-    .select("id, name, meta_template_id, meta_template_status, body_variants, whatsapp_body, merge_fields, whatsapp_meta_variable_map")
+    .select("id, name, meta_template_name, meta_template_id, meta_template_status, body_variants, whatsapp_body, merge_fields, whatsapp_meta_variable_map")
     .eq("template_type", "whatsapp")
+    .eq("scope", "system")
     .eq("name", templateKey)
     .single()
 
@@ -144,20 +147,23 @@ export async function sendWhatsApp(params: SendWhatsAppParams): Promise<SendWhat
   if (eligibility.skip) return eligibility.skip
   const { isOverQuota, sentWithinCsWindow, period } = eligibility
 
-  // 7. Resolve tone variant body
-  const resolvedBody = resolveToneBody(template, toneVariant)
+  // 7. Resolve tone — caller hint > org preference > org settings > default
+  const resolvedTone = toneVariant ?? (await resolveTone(db, orgId))
+
+  // 8. Resolve tone variant body
+  const resolvedBody = resolveToneBody(template, resolvedTone)
   if (!resolvedBody) {
     return { sent: false, error: "No message body found for template" }
   }
 
-  // 8. Build meta template name
-  const slug = slugify(template.name)
-  const metaTemplateName = `pleks_${slug}_${toneVariant}`
+  // 9. Meta template name — read stored value, fall back to composed slug if not yet set
+  const metaTemplateName =
+    (template.meta_template_name as string | null) ?? `pleks_${slugify(template.name)}_${resolvedTone}`
 
-  // 9. Build positional parameters from variable map
+  // 10. Build positional parameters from variable map
   const parameters = buildParameters(template.whatsapp_meta_variable_map, mergeContext)
 
-  // 10. Send via provider
+  // 11. Send via provider
   const sendResult = await sendWhatsAppMessage({
     to: toPhone,
     templateName: metaTemplateName,
@@ -169,7 +175,7 @@ export async function sendWhatsApp(params: SendWhatsAppParams): Promise<SendWhat
   const now = new Date().toISOString()
   const status = sendResult.error ? "failed" : "submitted"
 
-  // 11. Insert whatsapp_messages row
+  // 12. Insert whatsapp_messages row
   const { data: waMsg, error: waMsgErr } = await db
     .from("whatsapp_messages")
     .insert({
@@ -178,7 +184,7 @@ export async function sendWhatsApp(params: SendWhatsAppParams): Promise<SendWhat
       tenant_id: tenantId,
       direction: "outbound",
       template_id: template.id,
-      tone_variant: toneVariant,
+      tone_variant: resolvedTone,
       phone_number: toPhone,
       message_body: resolvedBody,
       merge_context: mergeContext,
@@ -197,7 +203,7 @@ export async function sendWhatsApp(params: SendWhatsAppParams): Promise<SendWhat
     console.error("[sendWhatsApp] whatsapp_messages insert error", waMsgErr)
   }
 
-  // 12. Insert communication_log row
+  // 13. Insert communication_log row
   const { data: logRow, error: logErr } = await db
     .from("communication_log")
     .insert({
@@ -220,7 +226,7 @@ export async function sendWhatsApp(params: SendWhatsAppParams): Promise<SendWhat
     console.error("[sendWhatsApp] communication_log insert error", logErr)
   }
 
-  // 13. Update whatsapp_messages.communication_log_id
+  // 14. Update whatsapp_messages.communication_log_id
   if (waMsg?.id && logRow?.id) {
     const { error: updateErr } = await db
       .from("whatsapp_messages")
@@ -232,8 +238,10 @@ export async function sendWhatsApp(params: SendWhatsAppParams): Promise<SendWhat
     }
   }
 
-  // 14. Increment messaging_usage counters
-  await incrementUsage(db, orgId, period, isOverQuota)
+  // 15. Only count usage when the send actually succeeded
+  if (!sendResult.error) {
+    await incrementUsage(db, orgId, orgTier, period, isOverQuota)
+  }
 
   if (sendResult.error) {
     return { sent: false, error: sendResult.error }
@@ -249,8 +257,48 @@ function getPeriodDate(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`
 }
 
+/**
+ * Resolve the tone variant to use for a send.
+ * Priority: org_whatsapp_template_preferences.tone_variant
+ *   → organisations.settings.communication.tone_tenant
+ *   → "professional"
+ */
+async function resolveTone(
+  db: Db,
+  orgId: string,
+): Promise<ToneVariant> {
+  const { data: pref } = await db
+    .from("org_whatsapp_template_preferences")
+    .select("tone_variant")
+    .eq("org_id", orgId)
+    .limit(1)
+    .single()
+
+  if (pref?.tone_variant) {
+    return pref.tone_variant as ToneVariant
+  }
+
+  const { data: org } = await db
+    .from("organisations")
+    .select("settings")
+    .eq("id", orgId)
+    .single()
+
+  const settings = (org?.settings ?? {}) as Record<string, unknown>
+  const communication = (settings.communication ?? {}) as Record<string, unknown>
+  const tone = communication.tone_tenant as string | undefined
+
+  if (tone === "friendly" || tone === "firm") return tone
+  return "professional"
+}
+
+/** Per-tier overage rate in cents per message */
+function overageRateCents(tier: string): number {
+  return tier === "firm" ? 40 : 50
+}
+
 function slugify(name: string): string {
-  return name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "")
+  return name.toLowerCase().replaceAll(/\s+/g, "_").replaceAll(/[^a-z0-9_]/g, "")
 }
 
 function resolveToneBody(
@@ -281,7 +329,13 @@ function mapStatusForLog(status: string): string {
   return status
 }
 
-async function incrementUsage(db: Db, orgId: string, period: string, isOverQuota: boolean): Promise<void> {
+async function incrementUsage(
+  db: Db,
+  orgId: string,
+  tier: string,
+  period: string,
+  isOverQuota: boolean,
+): Promise<void> {
   const { data: existing, error: fetchErr } = await db
     .from("messaging_usage")
     .select("whatsapp_count, overage_whatsapp, overage_cents")
@@ -294,21 +348,21 @@ async function incrementUsage(db: Db, orgId: string, period: string, isOverQuota
     return
   }
 
+  const rateCents = overageRateCents(tier)
   const updateData: Record<string, unknown> = { last_updated: new Date().toISOString() }
 
   if (existing) {
     updateData.whatsapp_count = existing.whatsapp_count + 1
     if (isOverQuota) {
       updateData.overage_whatsapp = (existing.overage_whatsapp ?? 0) + 1
-      // R0.15 overage per message (15 cents)
-      updateData.overage_cents = (existing.overage_cents ?? 0) + 15
+      updateData.overage_cents = (existing.overage_cents ?? 0) + rateCents
     }
   } else {
     updateData.org_id = orgId
     updateData.period = period
     updateData.whatsapp_count = 1
     updateData.overage_whatsapp = isOverQuota ? 1 : 0
-    updateData.overage_cents = isOverQuota ? 15 : 0
+    updateData.overage_cents = isOverQuota ? rateCents : 0
   }
 
   const { error: upsertErr } = await db
