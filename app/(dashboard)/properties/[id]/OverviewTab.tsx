@@ -42,6 +42,8 @@ interface OverviewTabProps {
     is_sectional_title: boolean | null
     levy_amount_cents: number | null
     description: string | null
+    insurance_provider: string | null
+    insurance_renewal_date: string | null
   }
   landlord: OverviewLandlord | null
   activeUnits: OverviewUnit[]
@@ -53,6 +55,7 @@ interface OverviewTabProps {
   managingAgentName: string | null
   activity: RecentActivityItem[]
   managingScheme: string | null
+  hasManagingScheme: boolean
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -92,6 +95,46 @@ function daysSince(dateStr: string): number {
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24))
 }
 
+function buildingSubLabel(count: number): string {
+  if (count > 1)    return `${count} buildings`
+  if (count === 1)  return "1 building"
+  return "No buildings"
+}
+
+function sectionalTitleLabel(isSectional: boolean | null, titleNumber: string | null): string {
+  if (!isSectional)  return "No"
+  if (titleNumber)   return `Yes · ${titleNumber}`
+  return "Yes"
+}
+
+function occupancySubLabel(vacantUnits: OverviewUnit[]): string {
+  if (vacantUnits.length === 0) return "Fully occupied"
+  const longestDays = vacantUnits.reduce(
+    (max, u) => (u.vacant_since ? Math.max(max, daysSince(u.vacant_since)) : max),
+    0,
+  )
+  const suffix = longestDays > 0 ? ` · ${longestDays}d longest` : ""
+  return `${vacantUnits.length} vacant${suffix}`
+}
+
+function landlordDisplayInfo(landlord: OverviewLandlord | null) {
+  if (!landlord) return { name: null, subtitle: "", idOrRegLabel: "ID number", idOrRegNumber: null }
+  const name = landlord.company_name?.trim()
+    || [landlord.first_name, landlord.last_name].filter(Boolean).join(" ")
+    || "Unknown"
+  const isJuristic = landlord.entity_type === "juristic"
+  return {
+    name,
+    subtitle:       isJuristic ? "Company / Trust" : "Individual",
+    idOrRegLabel:   isJuristic ? "Reg. number" : "ID number",
+    idOrRegNumber:  landlord.registration_number ?? null,
+  }
+}
+
+const TYPE_LABELS: Record<string, string> = {
+  residential: "Residential", commercial: "Commercial", mixed: "Mixed use",
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function OverviewTab({
@@ -107,51 +150,35 @@ export function OverviewTab({
   managingAgentName,
   activity,
   managingScheme,
+  hasManagingScheme,
 }: Readonly<OverviewTabProps>) {
-  const totalUnits  = activeUnits.length
-  const occupied    = activeUnits.filter((u) => u.status === "occupied").length
-  const vacantUnits = activeUnits.filter((u) => u.status === "vacant")
+  const totalUnits    = activeUnits.length
+  const occupied      = activeUnits.filter((u) => u.status === "occupied").length
+  const vacantUnits   = activeUnits.filter((u) => u.status === "vacant")
   const rentRollCents = activeUnits.reduce((s, u) => s + (u.asking_rent_cents ?? 0), 0)
 
-  // Oldest vacancy age
-  const longestVacantDays = vacantUnits.reduce((max, u) => {
-    if (!u.vacant_since) return max
-    return Math.max(max, daysSince(u.vacant_since))
-  }, 0)
+  const occupancySub = occupancySubLabel(vacantUnits)
+  const buildingSub  = buildingSubLabel(buildingCount)
 
-  const longestStr  = longestVacantDays > 0 ? ` · ${longestVacantDays}d longest` : ""
-  const occupancySub = vacantUnits.length > 0
-    ? `${vacantUnits.length} vacant${longestStr}`
-    : "Fully occupied"
+  const { name: landlordName, subtitle: landlordSubtitle, idOrRegLabel, idOrRegNumber } =
+    landlordDisplayInfo(landlord)
 
-  let buildingSub: string
-  if (buildingCount > 1)      buildingSub = `${buildingCount} buildings`
-  else if (buildingCount === 1) buildingSub = "1 building"
-  else                          buildingSub = "No buildings"
+  const arrearsSuffix    = arrearsCount === 1 ? "" : "s"
+  const arrearsTenantSub = arrearsCount > 0 ? `${arrearsCount} tenant${arrearsSuffix}` : undefined
 
-  const landlordName = landlord
-    ? (landlord.company_name?.trim() || [landlord.first_name, landlord.last_name].filter(Boolean).join(" ") || "Unknown")
+  const sectionalTitleValue = sectionalTitleLabel(
+    property.is_sectional_title,
+    property.sectional_title_number,
+  )
+
+  const insuranceRenewalDate = property.insurance_renewal_date
+    ? new Date(property.insurance_renewal_date).toLocaleDateString("en-ZA", {
+        day: "numeric", month: "short", year: "numeric",
+      })
     : null
-
-  let landlordSubtitle = ""
-  if (landlord) {
-    landlordSubtitle = landlord.entity_type === "juristic" ? "Company / Trust" : "Individual"
-  }
-
-  const idOrRegLabel  = landlord?.entity_type === "juristic" ? "Reg. number" : "ID number"
-  const idOrRegNumber = landlord?.registration_number ?? null
-
-  const typeLabel: Record<string, string> = {
-    residential: "Residential", commercial: "Commercial", mixed: "Mixed use",
-  }
-
-  const arrearsPlural    = arrearsCount !== 1 ? "s" : ""
-  const arrearsTenantSub = arrearsCount > 0 ? `${arrearsCount} tenant${arrearsPlural}` : undefined
-
-  let sectionalTitleValue: string
-  if (!property.is_sectional_title)             sectionalTitleValue = "No"
-  else if (property.sectional_title_number)     sectionalTitleValue = `Yes · ${property.sectional_title_number}`
-  else                                          sectionalTitleValue = "Yes"
+  const insurancePeekLabel = insuranceRenewalDate
+    ? `${property.insurance_provider} · renews ${insuranceRenewalDate}`
+    : (property.insurance_provider ?? null)
 
   return (
     <div className="space-y-6">
@@ -227,13 +254,12 @@ export function OverviewTab({
               <span className="text-xs text-muted-foreground uppercase tracking-wide">Property details</span>
             </div>
             <div className="px-4 py-3">
-              <KvRow label="Type" value={typeLabel[property.type ?? ""] ?? property.type ?? "—"} />
+              <KvRow label="Type" value={TYPE_LABELS[property.type ?? ""] ?? property.type ?? "—"} />
               <KvRow label="Erf number" value={property.erf_number ?? <span className="text-muted-foreground">—</span>} />
               <KvRow label="Sectional title" value={sectionalTitleValue} />
-              <KvRow
-                label="Managing scheme"
-                value={managingScheme ?? <span className="text-muted-foreground">None</span>}
-              />
+              {hasManagingScheme && managingScheme && (
+                <KvRow label="Managing scheme" value={managingScheme} />
+              )}
               <KvRow
                 label="Levy / month"
                 value={
@@ -242,7 +268,13 @@ export function OverviewTab({
                     : <span className="text-muted-foreground">N/A</span>
                 }
               />
-              <KvRow label="Total floor area" value={<span className="text-muted-foreground">—</span>} />
+              <KvRow
+                label="Insurance"
+                value={
+                  insurancePeekLabel ??
+                  <Link href={`/properties/${propertyId}?tab=insurance`} className="text-brand hover:underline text-xs">Add policy →</Link>
+                }
+              />
             </div>
           </div>
 

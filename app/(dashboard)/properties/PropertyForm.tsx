@@ -34,6 +34,60 @@ interface PropertyFormProps {
   }
 }
 
+const SCHEME_TYPES = [
+  { value: "body_corporate", label: "Body corporate" },
+  { value: "hoa", label: "HOA" },
+  { value: "share_block", label: "Share block" },
+  { value: "retirement_village", label: "Retirement village" },
+  { value: "other", label: "Other" },
+]
+
+function ManagingSchemeSection() {
+  const [schemeType, setSchemeType] = useState<string>("none")
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-lg font-medium">Managing scheme</h2>
+      <p className="text-sm text-muted-foreground -mt-2">
+        Does this property fall under a body corporate, HOA, or similar scheme?
+      </p>
+      <input type="hidden" name="scheme_type" value={schemeType} />
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {[{ value: "none", label: "None" }, ...SCHEME_TYPES].map((opt) => (
+          <label
+            key={opt.value}
+            className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 cursor-pointer text-sm transition-colors
+              ${schemeType === opt.value
+                ? "border-brand bg-brand/5 font-medium"
+                : "border-border hover:border-muted-foreground/40"}`}
+          >
+            <input
+              type="radio"
+              name="scheme_type_radio"
+              value={opt.value}
+              checked={schemeType === opt.value}
+              onChange={() => setSchemeType(opt.value)}
+              className="sr-only"
+            />
+            {opt.label}
+          </label>
+        ))}
+      </div>
+      {schemeType !== "none" && (
+        <div className="space-y-2">
+          <Label htmlFor="scheme_name">Scheme name</Label>
+          <Input
+            id="scheme_name"
+            name="scheme_name"
+            required
+            placeholder={schemeType === "body_corporate" ? "e.g. BC Belmont Square" : "e.g. Oakdale HOA"}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
 function BodyCorporateSection({ defaultValues }: Readonly<{ defaultValues: PropertyFormProps["defaultValues"] }>) {
   const [isSectional, setIsSectional] = useState(defaultValues?.is_sectional_title ?? false)
 
@@ -177,6 +231,9 @@ export function PropertyForm({ action, defaultValues }: PropertyFormProps) {
 
       {/* Body corporate */}
       <BodyCorporateSection defaultValues={defaultValues} />
+
+      {/* Managing scheme */}
+      <ManagingSchemeSection />
 
       {/* Notes */}
       <div className="space-y-2">

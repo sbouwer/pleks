@@ -1,22 +1,36 @@
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 
-const TABS = [
+const BASE_TABS = [
   { id: "overview",   label: "Overview" },
   { id: "units",      label: "Buildings & units" },
+  { id: "insurance",  label: "Insurance & risk" },
   { id: "operations", label: "Operations" },
   { id: "documents",  label: "Documents" },
 ] as const
 
 interface PropertyTabsProps {
-  activeTab: string
-  propertyId: string
+  activeTab:        string
+  propertyId:       string
+  hasManagingScheme?: boolean
 }
 
-export function PropertyTabs({ activeTab, propertyId }: Readonly<PropertyTabsProps>) {
+export function PropertyTabs({
+  activeTab,
+  propertyId,
+  hasManagingScheme = false,
+}: Readonly<PropertyTabsProps>) {
+  const tabs = hasManagingScheme
+    ? [
+        ...BASE_TABS.slice(0, 3),
+        { id: "scheme", label: "Scheme & compliance" },
+        ...BASE_TABS.slice(3),
+      ]
+    : BASE_TABS
+
   return (
     <div className="flex gap-1 border-b border-border mb-6 overflow-x-auto overflow-y-hidden">
-      {TABS.map((tab) => (
+      {tabs.map((tab) => (
         <Link
           key={tab.id}
           href={`/properties/${propertyId}?tab=${tab.id}`}

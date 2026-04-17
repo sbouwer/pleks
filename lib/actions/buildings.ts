@@ -32,13 +32,10 @@ function extractBuildingFields(formData: FormData) {
     heritage_approved_contractors_only: isHeritage
       ? formData.get("heritage_approved_contractors_only") === "true"
       : false,
-    insurance_policy_number: (formData.get("insurance_policy_number") as string) || null,
-    insurance_provider: (formData.get("insurance_provider") as string) || null,
-    insurance_type: (formData.get("insurance_type") as string) || null,
-    insurance_renewal_date: (formData.get("insurance_renewal_date") as string) || null,
-    insurance_replacement_value_cents: formData.get("insurance_replacement_value")
-      ? Math.round(Number.parseFloat(formData.get("insurance_replacement_value") as string) * 100)
+    replacement_value_cents: formData.get("replacement_value")
+      ? Math.round(Number.parseFloat(formData.get("replacement_value") as string) * 100)
       : null,
+    last_valuation_date: (formData.get("last_valuation_date") as string) || null,
     description: (formData.get("description") as string) || null,
     notes: (formData.get("notes") as string) || null,
   }
