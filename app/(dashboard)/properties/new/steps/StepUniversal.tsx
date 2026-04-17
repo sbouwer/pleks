@@ -104,7 +104,7 @@ function localToAnswers(local: LocalState): UniversalAnswers {
   return {
     wifiAvailable:     local.wifi     ?? "unknown",
     cellSignalQuality: local.cellSignal ?? "unknown",
-    backupPower:       local.backupPower ?? "none",
+    backupPower:       local.backupPower ?? "unknown",
     hasManagingScheme: schemeAnswers.hasManagingScheme,
     schemeType:        schemeAnswers.schemeType,
     schemeName:        local.schemeName || null,
@@ -272,6 +272,7 @@ export function StepUniversal() {
           { value: "solar",     label: "Solar",        sub: "Partial or full" },
           { value: "generator", label: "Generator" },
           { value: "multiple",  label: "Multiple",     sub: "Combination of the above" },
+          { value: "unknown",   label: "Unknown",      sub: "Check with owner" },
         ]}
         value={local.backupPower}
         onChange={(v) => update({ backupPower: v as UniversalAnswers["backupPower"] })}

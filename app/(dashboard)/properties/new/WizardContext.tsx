@@ -42,6 +42,8 @@ export interface LandlordDraft {
   company_name?: string
   email?:        string
   phone?:        string
+  /** For option="later": "owner_email" emails owner when provided; "self" = widget nudges only */
+  later_track?:  "owner_email" | "self"
 }
 
 export interface InsuranceStub {

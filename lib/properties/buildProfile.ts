@@ -14,7 +14,7 @@ import { SCENARIOS, type ScenarioType } from "./scenarios"
 export interface UniversalAnswers {
   wifiAvailable:      "yes" | "no" | "unknown"
   cellSignalQuality:  "good" | "patchy" | "none" | "unknown"
-  backupPower:        "none" | "ups" | "inverter" | "solar" | "generator" | "multiple"
+  backupPower:        "none" | "ups" | "inverter" | "solar" | "generator" | "multiple" | "unknown"
   hasManagingScheme:  boolean
   schemeType:         string | null
   schemeName:         string | null

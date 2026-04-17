@@ -71,8 +71,10 @@ export function StepInsurance() {
   const { state, patch } = useWizard()
 
   const option  = state.insurance?.option ?? null
-  // TODO(60A): when the insurance checklist lands, populate its 5 identification
-  // items from these fields in "confirmed" state; the rest default to "unknown".
+  // TODO(60A): when the insurance checklist lands, populate its 4 identification
+  // items (insurer, policy number, renewal date, replacement value) in "confirmed"
+  // state; the rest default to "unknown". Broker is captured separately on the
+  // BUILD_59 Insurance tab after property creation — not inlined here.
 
   function setOption(o: InsuranceStub["option"]) {
     patch({ insurance: { ...state.insurance, option: o } })
@@ -163,6 +165,11 @@ export function StepInsurance() {
               />
             </div>
           </div>
+          <p className="text-xs text-muted-foreground pt-1">
+            Broker details are captured on the Insurance tab after creation — that&apos;s where
+            the full coverage profile (sums insured per building, warranty tracking, broker
+            contact) lives.
+          </p>
         </div>
       )}
 
