@@ -195,6 +195,18 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
     key: "subscription.founding_expiry_warning", channel: "email", category: "subscriptions", is_mandatory: false,
     description: "Founding agent pricing expires in 35 days — upgrade CTA (cron)",
   },
+  "subscription.payment_failed": {
+    key: "subscription.payment_failed", channel: "email", category: "subscriptions", is_mandatory: true,
+    description: "Payment could not be collected — 14-day grace period starts (billing cascade day 0)",
+  },
+  "subscription.payment_reminder": {
+    key: "subscription.payment_reminder", channel: "email", category: "subscriptions", is_mandatory: true,
+    description: "Payment still overdue — reminder sent ~day 4 of grace period (billing cascade)",
+  },
+  "subscription.account_frozen": {
+    key: "subscription.account_frozen", channel: "email", category: "subscriptions", is_mandatory: true,
+    description: "Grace period elapsed — account frozen, premium features suspended (billing cascade day 14)",
+  },
 
   // ── Portal ────────────────────────────────────────────────────────
   "portal.tenant_invite": {
