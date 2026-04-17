@@ -26,7 +26,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { toast } from "sonner"
-import { Plus, Trash2, Pencil, ChevronUp, ChevronDown, ArrowUpDown } from "lucide-react"
+import { Plus, Trash2, Pencil, ChevronUp, ChevronDown, ArrowUpDown, ShieldAlert } from "lucide-react"
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -679,6 +679,10 @@ export default function TeamPage() {
   const [loading, setLoading]           = useState(false)
   const [currentUserId, setCurrentUser] = useState<string | null>(null)
   const [editingMember, setEditing]     = useState<Member | null>(null)
+  const [showTransfer, setShowTransfer]           = useState(false)
+  const [transferTargetId, setTransferTargetId]   = useState("")
+  const [transferConfirm, setTransferConfirm]     = useState("")
+  const [transferring, setTransferring]           = useState(false)
   const [search, setSearch]             = useState("")
   const [roleFilter, setRoleFilter]     = useState("")
   const [sortCol, setSortCol]           = useState<SortCol>("name")
@@ -862,6 +866,31 @@ export default function TeamPage() {
     setLoading(false)
   }
 
+  async function handleTransferOwnership() {
+    if (!orgId || !transferTargetId) return
+    if (transferConfirm !== "TRANSFER") {
+      toast.error("Type TRANSFER to confirm")
+      return
+    }
+    setTransferring(true)
+    const res = await fetch("/api/team/transfer-ownership", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ newOwnerUserId: transferTargetId, orgId }),
+    })
+    const data = await res.json() as { error?: string }
+    setTransferring(false)
+    if (!res.ok) {
+      toast.error(data.error ?? "Transfer failed")
+    } else {
+      toast.success("Ownership transferred. You are now a Property Manager.")
+      setShowTransfer(false)
+      setTransferTargetId("")
+      setTransferConfirm("")
+      loadMembers(createClient())
+    }
+  }
+
   function handleSaved() {
     const supabase = createClient()
     loadMembers(supabase)
@@ -981,6 +1010,87 @@ export default function TeamPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Transfer ownership — owner only */}
+      {callerIsOwner && (
+        <Card className="mt-6 border-destructive/30">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <ShieldAlert className="h-4 w-4 text-destructive" />
+              Transfer ownership
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!showTransfer ? (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Transfer ownership of this organisation to another team member. You will become a Property Manager and lose owner privileges.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                  onClick={() => setShowTransfer(true)}
+                >
+                  Transfer ownership…
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Select the team member who will become the new owner. This cannot be undone without their consent.
+                </p>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">New owner</p>
+                  <select
+                    className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-brand/40"
+                    value={transferTargetId}
+                    onChange={(e) => setTransferTargetId(e.target.value)}
+                  >
+                    <option value="">— Select team member —</option>
+                    {members
+                      .filter((m) => m.role !== "owner")
+                      .map((m) => (
+                        <option key={m.user_id} value={m.user_id}>
+                          {getMemberDisplayName(m)} ({getRoleLabel(m.role)})
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">
+                    Type <span className="font-mono font-semibold text-destructive">TRANSFER</span> to confirm
+                  </p>
+                  <Input
+                    value={transferConfirm}
+                    onChange={(e) => setTransferConfirm(e.target.value)}
+                    placeholder="TRANSFER"
+                    className="font-mono"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { setShowTransfer(false); setTransferTargetId(""); setTransferConfirm("") }}
+                    disabled={transferring}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleTransferOwnership}
+                    disabled={transferring || !transferTargetId || transferConfirm !== "TRANSFER"}
+                  >
+                    {transferring ? "Transferring…" : "Transfer ownership"}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
