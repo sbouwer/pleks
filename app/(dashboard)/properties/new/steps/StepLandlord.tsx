@@ -264,11 +264,70 @@ export function StepLandlord() {
         />
       )}
 
-      {/* Later — info note */}
+      {/* Later — track picker */}
       {option === "later" && (
-        <div className="rounded-lg border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-          The property will be created without an owner linked. You can add the owner from the
-          property Overview tab at any time. The setup widget will flag it as outstanding.
+        <LaterPanel
+          track={state.landlord?.later_track ?? null}
+          email={state.landlord?.email ?? ""}
+          onChangeTrack={(t) => updateDraft({ later_track: t, email: t === "self" ? undefined : state.landlord?.email })}
+          onChangeEmail={(e) => updateDraft({ email: e, later_track: "owner_email" })}
+        />
+      )}
+    </div>
+  )
+}
+
+// ── Later panel ───────────────────────────────────────────────────────────────
+
+interface LaterPanelProps {
+  track:         "owner_email" | "self" | null
+  email:         string
+  onChangeTrack: (t: "owner_email" | "self") => void
+  onChangeEmail: (e: string) => void
+}
+
+function LaterPanel({ track, email, onChangeTrack, onChangeEmail }: LaterPanelProps) {
+  const TRACKS: Array<{ value: "owner_email" | "self"; label: string; sub: string }> = [
+    { value: "owner_email", label: "Email the owner when I'm ready", sub: "We'll send them a short form to fill in" },
+    { value: "self",        label: "I'll handle it myself",           sub: "Just remind me — no email to the owner" },
+  ]
+
+  return (
+    <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
+      <p className="text-sm font-medium">How should we follow up?</p>
+      <div className="space-y-2">
+        {TRACKS.map((t) => (
+          <button
+            key={t.value}
+            type="button"
+            aria-pressed={track === t.value}
+            onClick={() => onChangeTrack(t.value)}
+            className={cn(
+              "w-full text-left rounded-lg border px-3 py-2 transition-colors",
+              track === t.value
+                ? "border-primary bg-primary/5 ring-1 ring-primary"
+                : "border-border hover:border-primary/40",
+            )}
+          >
+            <span className="block text-sm font-medium">{t.label}</span>
+            <span className="block text-xs text-muted-foreground mt-0.5">{t.sub}</span>
+          </button>
+        ))}
+      </div>
+
+      {track === "owner_email" && (
+        <div className="space-y-1">
+          <label htmlFor="later-owner-email" className="text-xs font-medium block">
+            Owner&apos;s email <span className="text-muted-foreground font-normal">(optional — add later if unsure)</span>
+          </label>
+          <input
+            id="later-owner-email"
+            type="email"
+            placeholder="owner@example.com"
+            value={email}
+            onChange={(e) => onChangeEmail(e.target.value)}
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          />
         </div>
       )}
     </div>

@@ -407,7 +407,7 @@ ALTER TABLE properties
   ADD COLUMN IF NOT EXISTS cell_signal_quality     text
     CHECK (cell_signal_quality IN ('good','patchy','none','unknown')),
   ADD COLUMN IF NOT EXISTS backup_power            text
-    CHECK (backup_power IN ('none','ups','inverter','solar','generator','multiple')),
+    CHECK (backup_power IN ('none','ups','inverter','solar','generator','multiple','unknown')),
 
   -- Commercial operating hours
   ADD COLUMN IF NOT EXISTS operating_hours_preset  text
