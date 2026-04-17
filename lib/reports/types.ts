@@ -44,6 +44,15 @@ export interface ReportFilters {
   from: Date
   to: Date
   propertyIds?: string[]
+  includePeriodComparison?: boolean
+}
+
+export interface PeriodComparison {
+  current: number
+  previous: number
+  delta_cents: number
+  delta_percent: number  // e.g. +12 or -8
+  direction: "up" | "down" | "flat"
 }
 
 export interface PropertySummary {
@@ -91,6 +100,12 @@ export interface PortfolioSummaryData {
   expiring_90d: number
   properties: PropertySummary[]
   flags: PortfolioFlag[]
+  comparison?: {
+    expected_income: PeriodComparison
+    collected_income: PeriodComparison
+    collection_rate: PeriodComparison
+    maintenance_spend: PeriodComparison
+  }
 }
 
 export interface OccupancyRow {

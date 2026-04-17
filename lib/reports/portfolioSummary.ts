@@ -1,6 +1,6 @@
-import { toDateStr } from "./periods"
+import { computePreviousPeriod, toDateStr } from "./periods"
 import { createServiceClient } from "@/lib/supabase/server"
-import type { PortfolioFlag, PortfolioSummaryData, PropertySummary, ReportFilters } from "./types"
+import type { PeriodComparison, PortfolioFlag, PortfolioSummaryData, PropertySummary, ReportFilters } from "./types"
 
 export async function buildPortfolioSummary(filters: ReportFilters): Promise<PortfolioSummaryData> {
   const supabase = await createServiceClient()
@@ -136,6 +136,47 @@ export async function buildPortfolioSummary(filters: ReportFilters): Promise<Por
 
   const flags = buildFlags(arrearsCases, units, leases, propMap, now, todayDate, d30)
 
+  // Optional period comparison — run previous-period income queries
+  let comparison: PortfolioSummaryData["comparison"]
+  if (filters.includePeriodComparison) {
+    const prev = computePreviousPeriod(from, to)
+    const prevFromStr = toDateStr(prev.from)
+    const prevToStr = toDateStr(prev.to)
+    const [prevInvoicesRes, prevPaymentsRes, prevMaintRes] = await Promise.all([
+      supabase
+        .from("rent_invoices")
+        .select("total_amount_cents, amount_paid_cents")
+        .eq("org_id", orgId)
+        .gte("period_from", prevFromStr)
+        .lte("period_to", prevToStr),
+      supabase
+        .from("payments")
+        .select("amount_cents")
+        .eq("org_id", orgId)
+        .gte("payment_date", prevFromStr)
+        .lte("payment_date", prevToStr),
+      supabase
+        .from("maintenance_requests")
+        .select("actual_cost_cents, completed_at")
+        .eq("org_id", orgId)
+        .in("property_id", propIds)
+        .gte("completed_at", prevFromStr)
+        .lte("completed_at", prevToStr),
+    ])
+    const prevExpected = (prevInvoicesRes.data ?? []).reduce((s, i) => s + (i.total_amount_cents ?? 0), 0)
+    const prevCollected = (prevPaymentsRes.data ?? []).reduce((s, p) => s + (p.amount_cents ?? 0), 0)
+    const prevMaint = (prevMaintRes.data ?? []).reduce((s, m) => s + (m.actual_cost_cents ?? 0), 0)
+    const prevCollectionRate = prevExpected > 0 ? Math.round((prevCollected / prevExpected) * 100) : 0
+    const currentCollectionRate = expectedIncome > 0 ? Math.round((collectedIncome / expectedIncome) * 100) : 0
+
+    comparison = {
+      expected_income: makePeriodComparison(expectedIncome, prevExpected),
+      collected_income: makePeriodComparison(collectedIncome, prevCollected),
+      collection_rate: makePeriodComparison(currentCollectionRate, prevCollectionRate),
+      maintenance_spend: makePeriodComparison(maintSpend, prevMaint),
+    }
+  }
+
   // Per-property breakdown
   const propertyBreakdown: PropertySummary[] = propIds.map((pid) => {
     const pUnits = units.filter((u) => u.property_id === pid)
@@ -190,6 +231,7 @@ export async function buildPortfolioSummary(filters: ReportFilters): Promise<Por
     expiring_90d: exp90,
     properties: propertyBreakdown,
     flags,
+    comparison,
   }
 }
 
@@ -207,6 +249,21 @@ function emptyPortfolio(from: Date, to: Date): PortfolioSummaryData {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function makePeriodComparison(current: number, previous: number): PeriodComparison {
+  const delta_cents = current - previous
+  let delta_percent: number
+  if (previous === 0) {
+    delta_percent = current > 0 ? 100 : 0
+  } else {
+    delta_percent = Math.round((delta_cents / previous) * 100)
+  }
+  let direction: PeriodComparison["direction"]
+  if (delta_cents > 0) { direction = "up" }
+  else if (delta_cents < 0) { direction = "down" }
+  else { direction = "flat" }
+  return { current, previous, delta_cents, delta_percent, direction }
+}
 
 type ArrearsCaseRow = {
   oldest_outstanding_date?: string | null
