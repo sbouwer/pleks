@@ -1464,6 +1464,14 @@ CREATE INDEX IF NOT EXISTS idx_info_requests_property ON property_info_requests(
 CREATE INDEX IF NOT EXISTS idx_info_requests_token    ON property_info_requests(token);
 CREATE INDEX IF NOT EXISTS idx_info_requests_status   ON property_info_requests(status, expires_at);
 
+-- Prevent duplicate pending requests for the same topic on the same property.
+-- DEFERRABLE so the save action can resolve/close the old row before inserting a new one.
+ALTER TABLE property_info_requests
+  DROP CONSTRAINT IF EXISTS property_info_requests_topic_status_unique;
+ALTER TABLE property_info_requests
+  ADD CONSTRAINT property_info_requests_topic_status_unique
+  UNIQUE (property_id, topic, status) DEFERRABLE INITIALLY DEFERRED;
+
 DROP TRIGGER IF EXISTS update_property_info_requests_updated_at ON property_info_requests;
 CREATE TRIGGER update_property_info_requests_updated_at
   BEFORE UPDATE ON property_info_requests
