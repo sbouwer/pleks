@@ -61,6 +61,12 @@ export interface PropertySummary {
   maintenance_spend_cents: number
 }
 
+export interface PortfolioFlag {
+  type: "arrears_90d" | "vacant_30d" | "lease_expiring_30d"
+  label: string
+  detail: string
+}
+
 export interface PortfolioSummaryData {
   period: { from: Date; to: Date }
   total_units: number
@@ -84,6 +90,7 @@ export interface PortfolioSummaryData {
   expiring_60d: number
   expiring_90d: number
   properties: PropertySummary[]
+  flags: PortfolioFlag[]
 }
 
 export interface OccupancyRow {
@@ -214,6 +221,8 @@ export interface RentRollRow {
   property_name: string
   unit_number: string
   tenant_name: string | null
+  tenant_email: string | null
+  tenant_phone: string | null
   lease_start: Date | null
   lease_end: Date | null
   lease_type: string
@@ -224,6 +233,8 @@ export interface RentRollRow {
   days_to_expiry: number | null
   last_payment_date: Date | null
   arrears_cents: number
+  escalation_percent: number | null
+  escalation_review_date: Date | null
 }
 
 export interface RentRollData {
