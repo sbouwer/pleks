@@ -26,7 +26,8 @@ export async function buildRentRoll(filters: ReportFilters): Promise<RentRollDat
       id, unit_id, start_date, end_date, is_fixed_term,
       rent_amount_cents, deposit_amount_cents, status,
       debicheck_mandate_status,
-      tenant_view(first_name, last_name)
+      escalation_percent, escalation_review_date,
+      tenant_view(first_name, last_name, email, phone)
     `)
     .eq("org_id", orgId)
     .in("unit_id", unitIds)
@@ -68,7 +69,12 @@ export async function buildRentRoll(filters: ReportFilters): Promise<RentRollDat
   const rows: RentRollRow[] = allUnits.map((unit) => {
     const prop = unit.properties as unknown as { name: string } | null
     const lease = leaseByUnit.get(unit.id)
-    const tenant = lease?.tenant_view as unknown as { first_name: string; last_name: string } | null
+    const tenant = lease?.tenant_view as unknown as {
+      first_name: string
+      last_name: string
+      email: string | null
+      phone: string | null
+    } | null
     const endDate = lease?.end_date ? new Date(lease.end_date) : null
     const daysToExpiry = endDate
       ? Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
@@ -90,6 +96,8 @@ export async function buildRentRoll(filters: ReportFilters): Promise<RentRollDat
       property_name: prop?.name ?? "",
       unit_number: unit.unit_number,
       tenant_name: tenant ? `${tenant.first_name} ${tenant.last_name}` : null,
+      tenant_email: tenant?.email ?? null,
+      tenant_phone: tenant?.phone ?? null,
       lease_start: lease?.start_date ? new Date(lease.start_date) : null,
       lease_end: endDate,
       lease_type: leaseType,
@@ -100,6 +108,8 @@ export async function buildRentRoll(filters: ReportFilters): Promise<RentRollDat
       days_to_expiry: daysToExpiry,
       last_payment_date: lastPay ? new Date(lastPay) : null,
       arrears_cents: arrearsByUnit.get(unit.id) ?? 0,
+      escalation_percent: lease?.escalation_percent ?? null,
+      escalation_review_date: lease?.escalation_review_date ? new Date(lease.escalation_review_date) : null,
     }
   }).sort((a, b) => a.property_name.localeCompare(b.property_name) || a.unit_number.localeCompare(b.unit_number))
 

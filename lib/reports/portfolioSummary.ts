@@ -1,6 +1,6 @@
 import { toDateStr } from "./periods"
 import { createServiceClient } from "@/lib/supabase/server"
-import type { PortfolioSummaryData, PropertySummary, ReportFilters } from "./types"
+import type { PortfolioFlag, PortfolioSummaryData, PropertySummary, ReportFilters } from "./types"
 
 export async function buildPortfolioSummary(filters: ReportFilters): Promise<PortfolioSummaryData> {
   const supabase = await createServiceClient()
@@ -30,7 +30,7 @@ export async function buildPortfolioSummary(filters: ReportFilters): Promise<Por
     await Promise.all([
       supabase
         .from("units")
-        .select("id, property_id, status")
+        .select("id, property_id, status, vacant_since")
         .eq("org_id", orgId)
         .in("property_id", propIds)
         .is("deleted_at", null)
@@ -49,7 +49,7 @@ export async function buildPortfolioSummary(filters: ReportFilters): Promise<Por
         .lte("payment_date", toStr),
       supabase
         .from("arrears_cases")
-        .select("property_id, total_arrears_cents, oldest_outstanding_date, current_step")
+        .select("property_id, unit_id, total_arrears_cents, oldest_outstanding_date, current_step, tenant_name")
         .eq("org_id", orgId)
         .in("status", ["open", "arrangement"]),
       supabase
@@ -122,17 +122,19 @@ export async function buildPortfolioSummary(filters: ReportFilters): Promise<Por
   const d90 = new Date(todayDate); d90.setDate(d90.getDate() + 90)
 
   const exp30 = leases.filter((l) => {
-    const end = new Date(l.end_date!)
+    const end = new Date(l.end_date as string)
     return end >= todayDate && end <= d30
   }).length
   const exp60 = leases.filter((l) => {
-    const end = new Date(l.end_date!)
+    const end = new Date(l.end_date as string)
     return end > d30 && end <= d60
   }).length
   const exp90 = leases.filter((l) => {
-    const end = new Date(l.end_date!)
+    const end = new Date(l.end_date as string)
     return end > d60 && end <= d90
   }).length
+
+  const flags = buildFlags(arrearsCases, units, leases, propMap, now, todayDate, d30)
 
   // Per-property breakdown
   const propertyBreakdown: PropertySummary[] = propIds.map((pid) => {
@@ -140,8 +142,8 @@ export async function buildPortfolioSummary(filters: ReportFilters): Promise<Por
     const pOccupied = pUnits.filter((u) => u.status === "occupied").length
     const pVacant = pUnits.filter((u) => u.status === "vacant").length
     const pNotice = pUnits.filter((u) => u.status === "notice").length
-    const unitIds = pUnits.map((u) => u.id)
-    const pInvoices = invoices.filter((i) => unitIds.includes(i.unit_id))
+    const unitIds = new Set(pUnits.map((u) => u.id))
+    const pInvoices = invoices.filter((i) => unitIds.has(i.unit_id))
     const pExpected = pInvoices.reduce((s, i) => s + (i.total_amount_cents ?? 0), 0)
     const pCollected = pInvoices.reduce((s, i) => s + (i.amount_paid_cents ?? 0), 0)
     const pMaint = maintenance
@@ -187,6 +189,7 @@ export async function buildPortfolioSummary(filters: ReportFilters): Promise<Por
     expiring_60d: exp60,
     expiring_90d: exp90,
     properties: propertyBreakdown,
+    flags,
   }
 }
 
@@ -199,5 +202,85 @@ function emptyPortfolio(from: Date, to: Date): PortfolioSummaryData {
     open_jobs: 0, jobs_overdue_sla: 0, maintenance_spend_cents: 0,
     expiring_30d: 0, expiring_60d: 0, expiring_90d: 0,
     properties: [],
+    flags: [],
   }
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+type ArrearsCaseRow = {
+  oldest_outstanding_date?: string | null
+  tenant_name?: string | null
+  total_arrears_cents?: number | null
+  property_id?: string | null
+  unit_id?: string | null
+  current_step?: number | null
+}
+
+type UnitRow = {
+  id: string
+  property_id: string
+  status: string
+  vacant_since?: string | null
+}
+
+type LeaseRow = {
+  id: string
+  property_id: string
+  end_date: string | null
+  status: string
+}
+
+function buildFlags(
+  arrearsCases: ArrearsCaseRow[],
+  units: UnitRow[],
+  leases: LeaseRow[],
+  propMap: Map<string, string>,
+  now: number,
+  todayDate: Date,
+  d30: Date,
+): PortfolioFlag[] {
+  const MS_30D = 30 * 24 * 3600000
+  const flags: PortfolioFlag[] = []
+
+  for (const c of arrearsCases) {
+    const oldestMs = c.oldest_outstanding_date ? new Date(c.oldest_outstanding_date).getTime() : null
+    if (oldestMs && (now - oldestMs) > MS_30D) {
+      const sinceStr = new Date(c.oldest_outstanding_date as string).toLocaleDateString("en-ZA")
+      flags.push({
+        type: "arrears_90d",
+        label: "Arrears > 30 days",
+        detail: c.tenant_name
+          ? `${c.tenant_name} — outstanding since ${sinceStr}`
+          : `Outstanding arrears case since ${sinceStr}`,
+      })
+    }
+  }
+
+  for (const u of units) {
+    if (u.status === "vacant" && u.vacant_since) {
+      const vacantMs = new Date(u.vacant_since).getTime()
+      if ((now - vacantMs) > MS_30D) {
+        flags.push({
+          type: "vacant_30d",
+          label: "Vacant > 30 days",
+          detail: `Unit at ${propMap.get(u.property_id) ?? "Unknown"} — vacant since ${new Date(u.vacant_since).toLocaleDateString("en-ZA")}`,
+        })
+      }
+    }
+  }
+
+  for (const l of leases) {
+    if (!l.end_date) continue
+    const end = new Date(l.end_date)
+    if (end >= todayDate && end <= d30) {
+      flags.push({
+        type: "lease_expiring_30d",
+        label: "Lease expiring within 30 days",
+        detail: `${propMap.get(l.property_id) ?? "Unknown"} — expires ${end.toLocaleDateString("en-ZA")}`,
+      })
+    }
+  }
+
+  return flags
 }

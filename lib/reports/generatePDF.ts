@@ -1,6 +1,7 @@
 import { formatZAR } from "@/lib/constants"
 import { formatDateShort, formatPeriodLabel } from "./periods"
 import { FONT_STACKS, getFontLink, type ReportBranding } from "./reportBranding"
+import { barChart } from "./svgCharts"
 import type {
   PortfolioSummaryData,
   IncomeCollectionData,
@@ -144,6 +145,33 @@ export function buildPortfolioSummaryHTML(data: PortfolioSummaryData, org: Repor
   const period = periodLabel ?? formatPeriodLabel(data.period.from, data.period.to)
   const outstandingClass = data.outstanding_cents > 0 ? " text-danger" : ""
   const arrearsClass = data.total_arrears_cents > 0 ? " text-danger" : ""
+
+  // Income bar chart: Expected vs Collected vs Outstanding
+  const incomeChart = barChart(
+    [
+      { label: "Expected", value: data.expected_income_cents / 100, color: "#3b82f6" },
+      { label: "Collected", value: data.collected_income_cents / 100, color: "#10b981" },
+      { label: "Outstanding", value: data.outstanding_cents / 100, color: data.outstanding_cents > 0 ? "#ef4444" : "#94a3b8" },
+      { label: "Arrears", value: data.total_arrears_cents / 100, color: data.total_arrears_cents > 0 ? "#f59e0b" : "#94a3b8" },
+    ],
+    400,
+    160,
+    org.accent_color,
+    (v) => `R${(v / 1000).toFixed(0)}k`
+  )
+
+  // Flags section
+  const flagsHtml = data.flags.length > 0
+    ? `<h2>Action Required (${data.flags.length})</h2>
+       <table>
+         <tr><th>Flag</th><th>Detail</th></tr>
+         ${data.flags.map((f) => `<tr>
+           <td class="${f.type === "arrears_90d" ? "text-danger" : "text-warning"}">${f.label}</td>
+           <td>${f.detail}</td>
+         </tr>`).join("")}
+       </table>`
+    : ""
+
   const body = `
     <div class="metric-grid">
       <div class="metric"><div class="label">Total Units</div><div class="value">${data.total_units}</div></div>
@@ -157,6 +185,7 @@ export function buildPortfolioSummaryHTML(data: PortfolioSummaryData, org: Repor
       <div class="metric"><div class="label">Outstanding</div><div class="value${outstandingClass}">${formatZAR(data.outstanding_cents)}</div></div>
       <div class="metric"><div class="label">Total Arrears</div><div class="value${arrearsClass}">${formatZAR(data.total_arrears_cents)}</div></div>
     </div>
+    ${incomeChart ? `<h2>Income Overview</h2><div style="margin-bottom:16px;">${incomeChart}</div>` : ""}
     <h2>Per Property</h2>
     <table>
       <tr><th>Property</th><th>Units</th><th>Occupied</th><th class="text-right">Collection</th><th class="text-right">Maintenance</th></tr>
@@ -165,6 +194,7 @@ export function buildPortfolioSummaryHTML(data: PortfolioSummaryData, org: Repor
         <td class="text-right">${p.collection_rate}%</td><td class="text-right">${formatZAR(p.maintenance_spend_cents)}</td>
       </tr>`).join("")}
     </table>
+    ${flagsHtml}
   `
   return wrapHTML("Portfolio Performance", org, period, body)
 }
@@ -180,7 +210,11 @@ export function buildRentRollHTML(data: RentRollData, org: ReportBranding): stri
       <div class="metric"><div class="label">Arrears</div><div class="value${arrearsClass}">${formatZAR(data.total_arrears_cents)}</div></div>
     </div>
     <table>
-      <tr><th>Property</th><th>Unit</th><th>Tenant</th><th class="text-right">Rent/mo</th><th>Dates</th><th>Method</th><th>Status</th><th class="text-right">Arrears</th></tr>
+      <tr>
+        <th>Property</th><th>Unit</th><th>Tenant</th><th>Contact</th>
+        <th class="text-right">Rent/mo</th><th>Dates</th><th>Escalation</th>
+        <th>Method</th><th>Status</th><th class="text-right">Arrears</th>
+      </tr>
       ${data.rows.map((r) => {
         const m2mSuffix = r.lease_start ? " (M2M)" : ""
         const endSuffix = r.lease_end ? ` – ${formatDateShort(r.lease_end)}` : m2mSuffix
@@ -188,9 +222,18 @@ export function buildRentRollHTML(data: RentRollData, org: ReportBranding): stri
         const rowArrearsClass = r.arrears_cents > 0 ? " text-danger" : ""
         const rentStr = r.monthly_rent_cents ? formatZAR(r.monthly_rent_cents) : "—"
         const arrearsStr = r.arrears_cents ? formatZAR(r.arrears_cents) : "—"
+        const contact = r.tenant_phone ?? r.tenant_email ?? "—"
+        const escalationReview = r.escalation_review_date
+          ? ` (${formatDateShort(r.escalation_review_date)})`
+          : ""
+        const escalation = r.escalation_percent === null
+          ? "—"
+          : `${r.escalation_percent}%${escalationReview}`
         return `<tr>
           <td>${r.property_name}</td><td>${r.unit_number}</td><td>${r.tenant_name ?? "VACANT"}</td>
+          <td>${contact}</td>
           <td class="text-right">${rentStr}</td><td>${leaseDates}</td>
+          <td>${escalation}</td>
           <td>${r.payment_method || "—"}</td><td>${r.status}</td>
           <td class="text-right${rowArrearsClass}">${arrearsStr}</td>
         </tr>`
