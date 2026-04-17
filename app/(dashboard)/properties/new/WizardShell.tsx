@@ -104,10 +104,13 @@ function ProgressDots({ stepIds, currentIndex }: ProgressDotsProps) {
 export function WizardShell() {
   const { state, goNext, goBack, patch } = useWizard()
 
-  const stepIds      = useMemo(() => computeActiveStepIds(state), [state])
+  const stepIds       = useMemo(() => computeActiveStepIds(state), [state])
   const currentStepId = stepIds[state.step] ?? "picker"
-  const isFirst      = state.step === 0
-  const isLast       = state.step === stepIds.length - 1
+  const isFirst       = state.step === 0
+  const isLast        = state.step === stepIds.length - 1
+
+  // Picker step requires a scenario selection before continuing
+  const canContinue = currentStepId !== "picker" || state.scenarioType !== null
 
   function handleSwitchToAdvanced() {
     patch({ mode: "advanced" })
@@ -151,11 +154,11 @@ export function WizardShell() {
         </div>
 
         {!isLast ? (
-          <Button onClick={goNext}>
+          <Button onClick={goNext} disabled={!canContinue}>
             Continue
           </Button>
         ) : (
-          <Button onClick={goNext}>
+          <Button onClick={goNext} disabled={!canContinue}>
             Save property
           </Button>
         )}
