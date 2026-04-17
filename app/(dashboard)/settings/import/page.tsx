@@ -39,6 +39,7 @@ export interface ImportResultData {
     contractors?: number
     landlords?: number
     agentInvites?: number
+    bankAccounts?: number
   }
   skipped: number
   errors: Array<{ row?: number; error?: string; message?: string; [key: string]: unknown }>

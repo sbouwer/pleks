@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { normaliseDate, normaliseCurrencyCents } from "./normalise"
-import { normaliseBranchCode } from "./bankImport"
+import { normaliseBranchCode, hashBankAccount, maskBankAccount } from "./bankImport"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -31,6 +31,7 @@ export interface ImportResult {
   contractorsCreated: number
   landlordsImported: number
   agentInvitesSent: number
+  bankAccountsImported: number
   skipped: number
   errors: ImportError[]
   pendingLandlordLinks: Array<{ pendingLandlordId: string; name: string; email: string }>
@@ -519,9 +520,14 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
       return
     }
 
-    ctx.tenantIdCache.set(email, String(created.id))
+    const tenantId = String(created.id)
+    ctx.tenantIdCache.set(email, tenantId)
     ctx.result.tenantsCreated++
-    await insertNextOfKin(String(created.id), entry.row, ctx.mapping, ctx.orgId, ctx.supabase)
+    await insertNextOfKin(tenantId, entry.row, ctx.mapping, ctx.orgId, ctx.supabase)
+
+    // Insert bank accounts if mapped (ADDENDUM_21B Fix 4)
+    const holderName = `${firstName} ${lastName}`.trim() || (tenantCompany ?? "Unknown")
+    await insertTenantBankAccounts(tenantId, holderName, entry.row, ctx)
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error"
     ctx.result.errors.push({ rowIndex: entry.index, field: "email", message: `Tenant error: ${msg}`, severity: "error" })
@@ -619,6 +625,75 @@ async function insertSingleTenant(params: {
   } else {
     ctx.tenantIdCache.set(email, String(created.id))
     ctx.result.tenantsCreated++
+  }
+}
+
+// ── Bank account insertion ─────────────────────────────────────────────
+
+async function insertTenantBankAccounts(
+  tenantId: string,
+  accountHolderName: string,
+  row: Record<string, string>,
+  ctx: ImportContext
+): Promise<void> {
+  const accounts = [
+    {
+      accountField: "tenant_bank_account_1",
+      bankNameField: "tenant_bank_name_1",
+      branchField: "tenant_bank_branch_1",
+      isPrimary: true,
+    },
+    {
+      accountField: "tenant_bank_account_2",
+      bankNameField: "tenant_bank_name_2",
+      branchField: "tenant_bank_branch_2",
+      isPrimary: false,
+    },
+  ]
+
+  for (const acc of accounts) {
+    const rawAccount = getField(row, acc.accountField, ctx.mapping).trim()
+    if (!rawAccount) continue
+
+    const bankName = getField(row, acc.bankNameField, ctx.mapping).trim() || "Unknown"
+    const rawBranch = getField(row, acc.branchField, ctx.mapping).trim()
+    const branchCode = normaliseBranchCode(rawBranch)
+
+    try {
+      const { error } = await ctx.supabase.from("tenant_bank_accounts").insert({
+        org_id: ctx.orgId,
+        tenant_id: tenantId,
+        bank_name: bankName,
+        account_holder: accountHolderName,
+        account_number: maskBankAccount(rawAccount),
+        account_number_hash: hashBankAccount(rawAccount),
+        branch_code: branchCode,
+        source: "import",
+        imported_from: "tpn",
+        is_primary: acc.isPrimary,
+        consent_given: true,
+        consent_given_at: new Date().toISOString(),
+      })
+
+      if (error) {
+        ctx.result.errors.push({
+          rowIndex: -1,
+          field: acc.accountField,
+          message: `Bank account insert failed: ${error.message}`,
+          severity: "warning",
+        })
+      } else {
+        ctx.result.bankAccountsImported++
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error"
+      ctx.result.errors.push({
+        rowIndex: -1,
+        field: acc.accountField,
+        message: `Bank account error: ${msg}`,
+        severity: "warning",
+      })
+    }
   }
 }
 
@@ -1414,6 +1489,7 @@ export async function runImport(
       contractorsCreated: 0,
       landlordsImported: 0,
       agentInvitesSent: 0,
+      bankAccountsImported: 0,
       skipped: 0,
       errors: [],
       pendingLandlordLinks: [],
