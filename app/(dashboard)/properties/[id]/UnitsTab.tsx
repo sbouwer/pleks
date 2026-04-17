@@ -2,11 +2,14 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { ChevronDown, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatZAR } from "@/lib/constants"
 import { Button } from "@/components/ui/button"
 import { getUnitDescription } from "@/lib/units/typeAwareFields"
+import { AddUnitDialog } from "@/components/properties/AddUnitDialog"
+import { EnableMultiBuildingDialog } from "@/components/properties/EnableMultiBuildingDialog"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -193,23 +196,42 @@ export function UnitsTab({
   tenantByUnit,
   maintenanceByUnit,
 }: Readonly<UnitsTabProps>) {
+  const router = useRouter()
+  const [enableMultiOpen, setEnableMultiOpen] = useState(false)
+
   const isOwner = tier === "owner"
   const visibleBuildings = buildings.filter((b) => b.is_visible_in_ui)
   const isMultiBuilding  = visibleBuildings.length >= 2
+  // Show "+ Add building" once at least one building is visible in UI (multi-building enabled)
+  const multiBuildingEnabled = visibleBuildings.length >= 1
 
   return (
     <div className="space-y-6">
       {/* Action bar */}
       {!isOwner && (
         <div className="flex items-center gap-2">
-          <Button size="sm" render={<Link href={`/properties/${propertyId}/units/new`} />}>
-            + Add unit
-          </Button>
-          <Button size="sm" variant="outline" render={<Link href={`/properties/${propertyId}/buildings/new`} />}>
-            + Add building
-          </Button>
+          <AddUnitDialog
+            propertyId={propertyId}
+            propertyType={propertyType}
+            buildings={visibleBuildings}
+            trigger={<Button size="sm">+ Add unit</Button>}
+            onSuccess={() => router.refresh()}
+            onRequestMultiBuilding={multiBuildingEnabled ? undefined : () => setEnableMultiOpen(true)}
+          />
+          {multiBuildingEnabled && (
+            <Button size="sm" variant="outline" render={<Link href={`/properties/${propertyId}/buildings/new`} />}>
+              + Add building
+            </Button>
+          )}
         </div>
       )}
+
+      <EnableMultiBuildingDialog
+        propertyId={propertyId}
+        open={enableMultiOpen}
+        onOpenChange={setEnableMultiOpen}
+        onSuccess={() => router.refresh()}
+      />
 
       {/* No units */}
       {units.length === 0 && (
