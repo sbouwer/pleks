@@ -12,26 +12,40 @@ interface StepSuccessProps {
   onReset: () => void
 }
 
+type CreatedCounts = ImportResultData["created"]
+
+function plural(n: number, word: string): string {
+  return `${n} ${word}${n === 1 ? "" : "s"}`
+}
+
+function buildSummaryParts(created: CreatedCounts): string[] {
+  const parts: string[] = []
+  if (created.tenants > 0) parts.push(plural(created.tenants, "tenant"))
+  if ((created.contractors ?? 0) > 0) parts.push(plural(created.contractors!, "contractor"))
+  if ((created.landlords ?? 0) > 0) parts.push(plural(created.landlords!, "landlord"))
+  if ((created.agentInvites ?? 0) > 0) parts.push(plural(created.agentInvites!, "team invite"))
+  if (created.units > 0) parts.push(plural(created.units, "unit"))
+  if (created.leases > 0) parts.push(plural(created.leases, "lease"))
+  if ((created.bankAccounts ?? 0) > 0) parts.push(plural(created.bankAccounts!, "bank account"))
+  return parts
+}
+
+function hasAnyRecords(created: CreatedCounts): boolean {
+  return created.tenants > 0 || created.units > 0 || created.leases > 0
+    || (created.contractors ?? 0) > 0 || (created.landlords ?? 0) > 0 || (created.agentInvites ?? 0) > 0
+}
+
+function getHeading(hasRecords: boolean, units: number): string {
+  if (!hasRecords) return "Import completed with errors"
+  if (units > 0) return "Portfolio imported"
+  return "Contacts imported"
+}
+
 export function StepSuccess({ result, onReset }: Readonly<StepSuccessProps>) {
   const [showErrors, setShowErrors] = useState(false)
-  const hasRecords = result.created.tenants > 0 || result.created.units > 0 || result.created.leases > 0
-    || (result.created.contractors ?? 0) > 0 || (result.created.landlords ?? 0) > 0 || (result.created.agentInvites ?? 0) > 0
+  const hasRecords = hasAnyRecords(result.created)
   const hasErrors = result.errors.length > 0
-
-  function getHeading() {
-    if (!hasRecords) return "Import completed with errors"
-    if (result.created.units > 0) return "Portfolio imported"
-    return "Contacts imported"
-  }
-
-  // Build summary lines
-  const summaryParts: string[] = []
-  if (result.created.tenants > 0) summaryParts.push(`${result.created.tenants} tenant${result.created.tenants === 1 ? "" : "s"}`)
-  if ((result.created.contractors ?? 0) > 0) summaryParts.push(`${result.created.contractors} contractor${result.created.contractors === 1 ? "" : "s"}`)
-  if ((result.created.landlords ?? 0) > 0) summaryParts.push(`${result.created.landlords} landlord${result.created.landlords === 1 ? "" : "s"}`)
-  if ((result.created.agentInvites ?? 0) > 0) summaryParts.push(`${result.created.agentInvites} team invite${result.created.agentInvites === 1 ? "" : "s"}`)
-  if (result.created.units > 0) summaryParts.push(`${result.created.units} unit${result.created.units === 1 ? "" : "s"}`)
-  if (result.created.leases > 0) summaryParts.push(`${result.created.leases} lease${result.created.leases === 1 ? "" : "s"}`)
+  const summaryParts = buildSummaryParts(result.created)
 
   return (
     <div className="max-w-lg mx-auto text-center py-8">
@@ -39,7 +53,7 @@ export function StepSuccess({ result, onReset }: Readonly<StepSuccessProps>) {
         {hasRecords ? <CheckCircle2 className="size-8 text-green-500" /> : <AlertTriangle className="size-8 text-amber-500" />}
       </div>
 
-      <h2 className="font-heading text-2xl mb-2">{getHeading()}</h2>
+      <h2 className="font-heading text-2xl mb-2">{getHeading(hasRecords, result.created.units)}</h2>
       <p className="text-muted-foreground text-sm mb-6">
         {summaryParts.length > 0 ? summaryParts.join(" · ") : "0 records created"}
       </p>
