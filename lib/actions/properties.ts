@@ -149,7 +149,8 @@ export async function updateProperty(propertyId: string, formData: FormData) {
 export async function archiveProperty(propertyId: string): Promise<{ error?: string }> {
   const gw = await gateway()
   if (!gw) redirect("/login")
-  const { db } = gw
+  const { db, isAdmin } = gw
+  if (!isAdmin) return { error: "Admin access required" }
 
   // Check for active leases first
   const { count } = await db
@@ -177,7 +178,8 @@ export async function archiveProperty(propertyId: string): Promise<{ error?: str
 export async function deleteProperty(propertyId: string) {
   const gw = await gateway()
   if (!gw) redirect("/login")
-  const { db } = gw
+  const { db, isAdmin } = gw
+  if (!isAdmin) return { error: "Admin access required" }
 
   const { error } = await db
     .from("properties")

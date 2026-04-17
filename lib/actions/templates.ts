@@ -72,7 +72,8 @@ export async function deleteDocumentTemplate(
 ): Promise<{ error?: string }> {
   const gw = await gateway()
   if (!gw) return { error: "Not authenticated" }
-  const { db, orgId } = gw
+  const { db, orgId, isAdmin } = gw
+  if (!isAdmin) return { error: "Admin access required" }
 
   const { error } = await db
     .from("document_templates")
