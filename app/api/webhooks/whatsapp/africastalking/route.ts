@@ -155,53 +155,77 @@ async function maybeSendSmsFallback(
   }
 }
 
+// ── Phone normalization ───────────────────────────────────────────────────────
+
+/** Normalise SA mobile number to E.164 (+27XXXXXXXXX) for contact_phones lookup */
+function normalizeSaPhone(phone: string): string {
+  const cleaned = phone.replaceAll(/[\s-]/g, "")
+  if (cleaned.startsWith("+27")) return cleaned
+  if (cleaned.startsWith("0")) return "+27" + cleaned.slice(1)
+  if (cleaned.startsWith("27") && !cleaned.startsWith("+")) return "+" + cleaned
+  return phone
+}
+
 // ── Inbound message handler ────────────────────────────────────────────────────
 
-async function handleInboundMessage(
+/** Two-step phone → tenant lookup via contact_phones */
+async function lookupTenantByPhone(
   db: Db,
+  fromPhone: string,
+): Promise<{ id: string; org_id: string } | null> {
+  const normalized = normalizeSaPhone(fromPhone)
+
+  const { data: cp, error: cpErr } = await db
+    .from("contact_phones")
+    .select("contact_id")
+    .eq("number", normalized)
+    .limit(1)
+    .single()
+
+  if (cpErr && cpErr.code !== "PGRST116") {
+    console.error("[wa-webhook] contact_phones lookup error", cpErr)
+    return null
+  }
+  if (!cp) {
+    console.warn("[wa-webhook] no contact found for phone", normalized)
+    return null
+  }
+
+  const { data: tenant, error: tErr } = await db
+    .from("tenants")
+    .select("id, org_id")
+    .eq("contact_id", cp.contact_id)
+    .limit(1)
+    .single()
+
+  if (tErr && tErr.code !== "PGRST116") {
+    console.error("[wa-webhook] tenant lookup error", tErr)
+    return null
+  }
+  if (!tenant) {
+    console.warn("[wa-webhook] no tenant found for contact_id", cp.contact_id)
+    return null
+  }
+
+  return tenant
+}
+
+/** Insert wa_message + communication_log rows and cross-link them */
+async function logInboundMessage(
+  db: Db,
+  tenant: { id: string; org_id: string },
+  leaseId: string | null,
   fromPhone: string,
   body: string,
   providerMsgId: string,
-): Promise<void> {
-  // Find tenant by phone
-  const { data: tenant, error: tenantErr } = await db
-    .from("tenants")
-    .select("id, org_id")
-    .eq("phone", fromPhone)
-    .limit(1)
-    .single()
-
-  if (tenantErr) {
-    console.error("[wa-webhook] tenant lookup error", tenantErr)
-    return
-  }
-
-  if (!tenant) {
-    console.warn("[wa-webhook] no tenant found for phone", fromPhone)
-    return
-  }
-
-  // Find active lease
-  const { data: lease, error: leaseErr } = await db
-    .from("leases")
-    .select("id")
-    .eq("tenant_id", tenant.id)
-    .eq("status", "active")
-    .limit(1)
-    .single()
-
-  if (leaseErr && leaseErr.code !== "PGRST116") {
-    console.error("[wa-webhook] lease lookup error", leaseErr)
-  }
-
+): Promise<string | undefined> {
   const now = new Date().toISOString()
 
-  // Insert inbound whatsapp_messages row
-  const { data: waMsg, error: waInsertErr } = await db
+  const { data: waMsg, error: waErr } = await db
     .from("whatsapp_messages")
     .insert({
       org_id: tenant.org_id,
-      lease_id: lease?.id ?? null,
+      lease_id: leaseId,
       tenant_id: tenant.id,
       direction: "inbound",
       phone_number: fromPhone,
@@ -214,17 +238,14 @@ async function handleInboundMessage(
     .select("id")
     .single()
 
-  if (waInsertErr) {
-    console.error("[wa-webhook] inbound wa_messages insert error", waInsertErr)
-  }
+  if (waErr) console.error("[wa-webhook] inbound wa_messages insert error", waErr)
 
-  // Insert communication_log row
-  const { data: logRow, error: logInsertErr } = await db
+  const { data: logRow, error: logErr } = await db
     .from("communication_log")
     .insert({
       org_id: tenant.org_id,
       tenant_id: tenant.id,
-      lease_id: lease?.id ?? null,
+      lease_id: leaseId,
       channel: "whatsapp",
       direction: "inbound",
       body,
@@ -235,28 +256,46 @@ async function handleInboundMessage(
     .select("id")
     .single()
 
-  if (logInsertErr) {
-    console.error("[wa-webhook] inbound communication_log insert error", logInsertErr)
-  }
+  if (logErr) console.error("[wa-webhook] inbound communication_log insert error", logErr)
 
-  // Update communication_log_id on whatsapp_messages
   if (waMsg?.id && logRow?.id) {
     const { error: linkErr } = await db
       .from("whatsapp_messages")
       .update({ communication_log_id: logRow.id })
       .eq("id", waMsg.id)
-
-    if (linkErr) {
-      console.error("[wa-webhook] communication_log_id link error", linkErr)
-    }
+    if (linkErr) console.error("[wa-webhook] communication_log_id link error", linkErr)
   }
 
-  // Open CS window if lease is found
+  return waMsg?.id
+}
+
+async function handleInboundMessage(
+  db: Db,
+  fromPhone: string,
+  body: string,
+  providerMsgId: string,
+): Promise<void> {
+  const tenant = await lookupTenantByPhone(db, fromPhone)
+  if (!tenant) return
+
+  const { data: lease, error: leaseErr } = await db
+    .from("leases")
+    .select("id")
+    .eq("tenant_id", tenant.id)
+    .eq("status", "active")
+    .limit(1)
+    .single()
+
+  if (leaseErr && leaseErr.code !== "PGRST116") {
+    console.error("[wa-webhook] lease lookup error", leaseErr)
+  }
+
+  const waMsgId = await logInboundMessage(db, tenant, lease?.id ?? null, fromPhone, body, providerMsgId)
+
   if (lease?.id) {
-    await openCsWindow(db, lease.id, tenant.id, waMsg?.id)
+    await openCsWindow(db, lease.id, tenant.id, waMsgId)
   }
 
-  // Detect STOP keyword and revoke consent
   if (isStopKeyword(body)) {
     await revokeWhatsAppConsent(db, tenant.id, tenant.org_id, fromPhone)
   }
@@ -319,14 +358,14 @@ async function revokeWhatsAppConsent(
     console.error("[wa-webhook] consent revoke error", consentErr)
   }
 
-  // Audit log
+  // Audit log — action must be one of INSERT/UPDATE/DELETE; changed_by must be UUID or null
   const { error: auditErr } = await db.from("audit_log").insert({
     org_id: orgId,
     table_name: "tenant_messaging_consent",
     record_id: tenantId,
-    action: "WHATSAPP_OPT_OUT",
-    changed_by: "webhook",
-    new_values: { whatsapp_enabled: false, triggered_by_phone: phone },
+    action: "UPDATE",
+    changed_by: null,
+    new_values: { whatsapp_enabled: false, triggered_by_stop_keyword: true, phone },
   })
 
   if (auditErr) {
@@ -358,7 +397,7 @@ async function handleTemplateApproval(
   const { error } = await db
     .from("document_templates")
     .update(update)
-    .eq("meta_template_id", templateName)
+    .eq("meta_template_name", templateName)
 
   if (error) {
     console.error("[wa-webhook] template approval update error", error)

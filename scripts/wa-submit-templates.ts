@@ -16,7 +16,7 @@
 
 import { createClient } from "@supabase/supabase-js"
 import * as dotenv from "dotenv"
-import * as path from "path"
+import * as path from "node:path"
 
 // Load .env.local
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local") })
@@ -85,7 +85,7 @@ function getSupabase() {
 // ── Name/slug helpers ──────────────────────────────────────────────────────────
 
 function slugify(name: string): string {
-  return name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "")
+  return name.toLowerCase().replaceAll(/\s+/g, "_").replaceAll(/[^a-z0-9_]/g, "")
 }
 
 function buildMetaTemplateName(name: string, tone: Tone): string {
@@ -107,11 +107,11 @@ function buildPositionalBody(body: string, mergeFields: string[]): { positionalB
 
   for (const field of mergeFields) {
     // Match {{field}} pattern
-    const escaped = field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    const escaped = field.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)
     const regex = new RegExp(escaped, "g")
     if (positionalBody.includes(field)) {
       const varKey = String(index)
-      varMap[varKey] = { index, merge_field: field.replace(/^\{\{/, "").replace(/\}\}$/, "") }
+      varMap[varKey] = { index, merge_field: field.replaceAll(/^\{\{/, "").replaceAll(/\}\}$/, "") }
       positionalBody = positionalBody.replace(regex, `{{${index}}}`)
       index++
     }
@@ -228,10 +228,75 @@ async function showStatus(): Promise<void> {
 
 // ── Main submission flow ───────────────────────────────────────────────────────
 
+type SupabaseClient = ReturnType<typeof getSupabase>
+
+/** Handle a single tone variant — dry run preview or live AT submission */
+async function submitOneTone(
+  db: SupabaseClient,
+  template: DocumentTemplate,
+  tone: Tone,
+  isDryRun: boolean,
+): Promise<SubmitResult> {
+  const body = resolveBody(template, template.body_variants, tone)
+  if (!body) {
+    console.warn(`  SKIP ${template.name} [${tone}] — no body`)
+    return { templateName: template.name, metaName: "", tone, success: false, error: "no body" }
+  }
+
+  const metaName = buildMetaTemplateName(template.name, tone)
+  const { positionalBody, varMap } = buildPositionalBody(body, template.merge_fields ?? [])
+
+  console.log(`  ${isDryRun ? "WOULD SUBMIT" : "Submitting"}: ${metaName}`)
+
+  if (isDryRun) {
+    console.log(`    Body: ${positionalBody.slice(0, 80)}${positionalBody.length > 80 ? "..." : ""}`)
+    console.log(`    Variables: ${JSON.stringify(varMap)}`)
+    return { templateName: template.name, metaName, tone, success: true }
+  }
+
+  const submitResult = await submitTemplateToAT(metaName, positionalBody, "UTILITY")
+
+  if (submitResult.success) {
+    console.log(`    OK — Meta ID: ${submitResult.metaTemplateId}`)
+    // Store result — meta_template_name is the stable key used by the approval webhook
+    const { error: updateErr } = await db
+      .from("document_templates")
+      .update({
+        meta_template_name: metaName,
+        meta_template_id: submitResult.metaTemplateId ?? metaName,
+        meta_template_status: "pending",
+        whatsapp_meta_submitted_at: new Date().toISOString(),
+        whatsapp_meta_variable_map: varMap,
+        whatsapp_meta_category: "utility",
+      })
+      .eq("id", template.id)
+    if (updateErr) console.error(`    DB update error: ${updateErr.message}`)
+  } else {
+    console.error(`    FAILED: ${submitResult.error}`)
+  }
+
+  await sleep(300)
+  return { templateName: template.name, metaName, tone, success: submitResult.success, metaTemplateId: submitResult.metaTemplateId, error: submitResult.error }
+}
+
+/** Submit all three tone variants for one template */
+async function processTemplate(
+  db: SupabaseClient,
+  template: DocumentTemplate,
+  isDryRun: boolean,
+): Promise<SubmitResult[]> {
+  const tones: Tone[] = ["friendly", "professional", "firm"]
+  const results: SubmitResult[] = []
+  for (const tone of tones) {
+    results.push(await submitOneTone(db, template, tone, isDryRun))
+  }
+  return results
+}
+
 async function run(): Promise<void> {
-  const args = process.argv.slice(2)
-  const isDryRun = args.includes("--dry-run")
-  const isStatus = args.includes("--status")
+  const args = new Set(process.argv.slice(2))
+  const isDryRun = args.has("--dry-run")
+  const isStatus = args.has("--status")
 
   if (isStatus) {
     await showStatus()
@@ -240,7 +305,6 @@ async function run(): Promise<void> {
 
   const db = getSupabase()
 
-  // Load all system WhatsApp templates
   const { data: templates, error: loadErr } = await db
     .from("document_templates")
     .select("id, name, whatsapp_body, body_variants, merge_fields, meta_template_id, meta_template_status, whatsapp_meta_variable_map, whatsapp_meta_submitted_at")
@@ -258,75 +322,17 @@ async function run(): Promise<void> {
     return
   }
 
-  const tones: Tone[] = ["friendly", "professional", "firm"]
-  const results: SubmitResult[] = []
-
   console.log(`\n WhatsApp Template Submission${isDryRun ? " (DRY RUN)" : ""}\n` + "─".repeat(80))
 
+  const allResults: SubmitResult[] = []
   for (const template of templates as DocumentTemplate[]) {
-    const variants = template.body_variants
-    const mergeFields = template.merge_fields ?? []
-
-    for (const tone of tones) {
-      const body = resolveBody(template, variants, tone)
-      if (!body) {
-        console.warn(`  SKIP ${template.name} [${tone}] — no body`)
-        continue
-      }
-
-      const metaName = buildMetaTemplateName(template.name, tone)
-      const { positionalBody, varMap } = buildPositionalBody(body, mergeFields)
-
-      console.log(`  ${isDryRun ? "WOULD SUBMIT" : "Submitting"}: ${metaName}`)
-      if (isDryRun) {
-        console.log(`    Body: ${positionalBody.slice(0, 80)}${positionalBody.length > 80 ? "..." : ""}`)
-        console.log(`    Variables: ${JSON.stringify(varMap)}`)
-        results.push({ templateName: template.name, metaName, tone, success: true })
-        continue
-      }
-
-      const submitResult = await submitTemplateToAT(metaName, positionalBody, "UTILITY")
-
-      if (submitResult.success) {
-        console.log(`    OK — Meta ID: ${submitResult.metaTemplateId}`)
-
-        // Store result in document_templates
-        const { error: updateErr } = await db
-          .from("document_templates")
-          .update({
-            meta_template_id: submitResult.metaTemplateId ?? metaName,
-            meta_template_status: "pending",
-            whatsapp_meta_submitted_at: new Date().toISOString(),
-            whatsapp_meta_variable_map: varMap,
-            whatsapp_meta_category: "utility",
-          })
-          .eq("id", template.id)
-
-        if (updateErr) {
-          console.error(`    DB update error: ${updateErr.message}`)
-        }
-      } else {
-        console.error(`    FAILED: ${submitResult.error}`)
-      }
-
-      results.push({
-        templateName: template.name,
-        metaName,
-        tone,
-        success: submitResult.success,
-        metaTemplateId: submitResult.metaTemplateId,
-        error: submitResult.error,
-      })
-
-      // Brief pause between submissions to avoid rate limiting
-      await sleep(300)
-    }
+    const results = await processTemplate(db, template, isDryRun)
+    allResults.push(...results)
   }
 
-  // Summary
-  const succeeded = results.filter((r) => r.success).length
-  const failed = results.filter((r) => !r.success).length
-  console.log(`\n Summary: ${succeeded} submitted, ${failed} failed out of ${results.length} total`)
+  const succeeded = allResults.filter((r) => r.success).length
+  const failed = allResults.filter((r) => !r.success).length
+  console.log(`\n Summary: ${succeeded} submitted, ${failed} failed out of ${allResults.length} total`)
 }
 
 function resolveBody(
@@ -334,8 +340,7 @@ function resolveBody(
   variants: Record<Tone, string> | null,
   tone: Tone,
 ): string | null {
-  if (variants && variants[tone]) return variants[tone]
-  return template.whatsapp_body ?? null
+  return variants?.[tone] ?? template.whatsapp_body ?? null
 }
 
 function sleep(ms: number): Promise<void> {
