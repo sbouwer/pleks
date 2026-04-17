@@ -87,6 +87,43 @@ export async function updateBuilding(formData: FormData) {
   redirect(`/properties/${propertyId}`)
 }
 
+/**
+ * Enable multi-building mode for a property by making the primary building
+ * visible in the UI and giving it a user-chosen name.
+ */
+export async function enableMultiBuilding(
+  propertyId: string,
+  primaryBuildingName: string,
+): Promise<{ error?: string }> {
+  const gw = await gateway()
+  if (!gw) return { error: "Unauthorised" }
+  const { db, orgId } = gw
+
+  const { data: primary, error: fetchErr } = await db
+    .from("buildings")
+    .select("id")
+    .eq("property_id", propertyId)
+    .eq("org_id", orgId)
+    .eq("is_primary", true)
+    .is("deleted_at", null)
+    .single()
+
+  if (fetchErr || !primary) return { error: "Primary building not found" }
+
+  const safeName = primaryBuildingName.trim() || "Main building"
+
+  const { error } = await db
+    .from("buildings")
+    .update({ is_visible_in_ui: true, name: safeName })
+    .eq("id", primary.id)
+    .eq("org_id", orgId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath(`/properties/${propertyId}`)
+  return {}
+}
+
 export async function fetchBuildingsForProperty(propertyId: string) {
   const gw = await gateway()
   if (!gw) return []

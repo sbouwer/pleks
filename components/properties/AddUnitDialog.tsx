@@ -13,25 +13,48 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+
+export interface AddUnitBuilding {
+  id: string
+  name: string
+}
 
 interface AddUnitDialogProps {
   readonly propertyId: string
   readonly propertyType: string
   readonly trigger: React.ReactNode
+  readonly buildings?: AddUnitBuilding[]
   readonly onSuccess?: () => void
+  readonly onRequestMultiBuilding?: () => void
 }
 
-export function AddUnitDialog({ propertyId, propertyType, trigger, onSuccess }: AddUnitDialogProps) {
+export function AddUnitDialog({
+  propertyId,
+  propertyType,
+  trigger,
+  buildings = [],
+  onSuccess,
+  onRequestMultiBuilding,
+}: AddUnitDialogProps) {
   const [open, setOpen] = useState(false)
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([])
   const [furnished, setFurnished] = useState(false)
+  const [buildingId, setBuildingId] = useState<string>("")
   const [isPending, startTransition] = useTransition()
 
   const fields = getVisibleFields(propertyType as "residential" | "commercial" | "mixed")
   const titleType = propertyType.charAt(0).toUpperCase() + propertyType.slice(1)
+  const isMultiBuilding = buildings.length >= 1
 
   function toggleFeature(feature: string) {
     setSelectedFeatures((prev) =>
@@ -44,9 +67,9 @@ export function AddUnitDialog({ propertyId, propertyType, trigger, onSuccess }: 
     const form = e.currentTarget
     const formData = new FormData(form)
 
-    // Add features manually since they're managed in state
     selectedFeatures.forEach((f) => formData.append("features", f))
     formData.set("furnished", String(furnished))
+    if (buildingId) formData.set("building_id", buildingId)
 
     startTransition(async () => {
       const result = await createUnitData(propertyId, formData)
@@ -57,10 +80,16 @@ export function AddUnitDialog({ propertyId, propertyType, trigger, onSuccess }: 
         setOpen(false)
         setSelectedFeatures([])
         setFurnished(false)
+        setBuildingId("")
         form.reset()
         onSuccess?.()
       }
     })
+  }
+
+  function handleRequestMultiBuilding() {
+    setOpen(false)
+    onRequestMultiBuilding?.()
   }
 
   return (
@@ -72,13 +101,30 @@ export function AddUnitDialog({ propertyId, propertyType, trigger, onSuccess }: 
         </SheetHeader>
 
         <form onSubmit={handleSubmit} className="px-4 pb-4 space-y-4">
+          {/* Building picker — only in multi-building mode */}
+          {isMultiBuilding && (
+            <div className="space-y-1.5">
+              <Label htmlFor="building-picker">Building</Label>
+              <Select value={buildingId} onValueChange={(v) => setBuildingId(v ?? "")}>
+                <SelectTrigger id="building-picker">
+                  <SelectValue placeholder="Select a building…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {buildings.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {/* Unit number */}
           <div className="space-y-1.5">
             <Label htmlFor="unit_number">Unit number *</Label>
             <Input id="unit_number" name="unit_number" required placeholder="e.g. 101" />
           </div>
 
-          {/* Size m² — prominent for commercial */}
+          {/* Size m² */}
           <div className="space-y-1.5">
             <Label htmlFor="size_m2">{fields.sizePrimary ? "Size m² *" : "Size m²"}</Label>
             <Input
@@ -192,6 +238,20 @@ export function AddUnitDialog({ propertyId, propertyType, trigger, onSuccess }: 
           <Button type="submit" className="w-full" disabled={isPending}>
             {isPending ? "Adding..." : "Add unit"}
           </Button>
+
+          {/* Enable multi-building link — only in single-building mode */}
+          {!isMultiBuilding && onRequestMultiBuilding && (
+            <p className="text-xs text-center text-muted-foreground pt-1">
+              Property has multiple buildings?{" "}
+              <button
+                type="button"
+                className="text-brand underline hover:no-underline"
+                onClick={handleRequestMultiBuilding}
+              >
+                Enable multi-building →
+              </button>
+            </p>
+          )}
         </form>
       </SheetContent>
     </Sheet>

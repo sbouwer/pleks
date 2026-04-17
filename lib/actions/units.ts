@@ -21,6 +21,7 @@ function parseUnitFields(formData: FormData) {
     features: formData.getAll("features") as string[],
     asking_rent_cents: formData.get("asking_rent") ? Math.round(Number.parseFloat(formData.get("asking_rent") as string) * 100) : null,
     deposit_amount_cents: formData.get("deposit_amount") ? Math.round(Number.parseFloat(formData.get("deposit_amount") as string) * 100) : null,
+    building_id: (formData.get("building_id") as string) || null,
     managed_by: (formData.get("managed_by") as string) || null,
     notes: (formData.get("notes") as string) || null,
   }
