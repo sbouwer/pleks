@@ -208,6 +208,19 @@ export async function createLease(formData: FormData) {
   await saveClauseSelections(db, formData, lease.id, orgId, f.propertyId)
   await logAcknowledgedConflicts(db, formData, lease.id, orgId, userId)
 
+  // Save tenant messaging consent
+  const consentEmail = formData.get("consent_email") === "true"
+  const consentWhatsApp = formData.get("consent_whatsapp") === "true"
+  const consentSms = formData.get("consent_sms") === "true"
+  const { saveLeaseConsent } = await import("./consent")
+  await saveLeaseConsent({
+    tenantId: f.tenantId,
+    orgId,
+    emailEnabled: consentEmail,
+    whatsappEnabled: consentWhatsApp,
+    smsEnabled: consentSms,
+  })
+
   // Reflect draft tenant on the unit so the property page shows who is linked
   await db.from("units").update({
     prospective_tenant_id: f.tenantId,

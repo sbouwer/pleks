@@ -297,3 +297,33 @@ export async function saveDraftDocument(
   revalidatePath("/documents")
   return { id: data.id }
 }
+
+// ── WhatsApp CS window lookup ─────────────────────────────────────────────────
+
+export async function getActiveCsWindow(leaseId: string): Promise<{
+  isActive: boolean
+  expiresAt: string | null
+}> {
+  const gw = await gateway()
+  if (!gw) return { isActive: false, expiresAt: null }
+  const { db } = gw
+
+  const { data, error } = await db
+    .from("whatsapp_cs_windows")
+    .select("expires_at")
+    .eq("lease_id", leaseId)
+    .eq("is_active", true)
+    .gt("expires_at", new Date().toISOString())
+    .order("expires_at", { ascending: false })
+    .limit(1)
+    .single()
+
+  if (error && error.code !== "PGRST116") {
+    console.error("getActiveCsWindow failed:", error.message)
+  }
+
+  return {
+    isActive: !!data,
+    expiresAt: data?.expires_at ?? null,
+  }
+}

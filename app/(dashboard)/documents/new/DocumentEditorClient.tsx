@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition, useRef } from "react"
+import { useState, useEffect, useTransition, useRef } from "react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -213,6 +213,17 @@ function PreviewPane({
   )
 }
 
+// ─── CS window helpers ───────────────────────────────────────────────────────
+
+function formatTimeRemaining(expiresAt: string): string {
+  const ms = new Date(expiresAt).getTime() - Date.now()
+  if (ms <= 0) return "expired"
+  const hours = Math.floor(ms / (1000 * 60 * 60))
+  const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60))
+  if (hours > 0) return `${hours}h ${minutes}m`
+  return `${minutes}m`
+}
+
 // ─── Main editor component ───────────────────────────────────────────────────
 
 export function DocumentEditorClient({
@@ -236,6 +247,24 @@ export function DocumentEditorClient({
   const [jobId, setJobId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [csWindow, setCsWindow] = useState<{ isActive: boolean; expiresAt: string | null }>({
+    isActive: false,
+    expiresAt: null,
+  })
+
+  const leaseId = leaseContext?.leaseId ?? null
+
+  useEffect(() => {
+    if (!leaseId) return
+    let cancelled = false
+    async function loadCsWindow() {
+      const { getActiveCsWindow } = await import("@/lib/actions/documents")
+      const result = await getActiveCsWindow(leaseId!)
+      if (!cancelled) setCsWindow(result)
+    }
+    loadCsWindow()
+    return () => { cancelled = true }
+  }, [leaseId])
 
   function handleTemplateChange(id: string) {
     const t = allTemplates.find((tmpl) => tmpl.id === id) ?? null
@@ -434,6 +463,20 @@ export function DocumentEditorClient({
           </Button>
         </div>
         <div className="flex items-center gap-2">
+          {csWindow.isActive && csWindow.expiresAt && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => toast.info("Free-text WhatsApp available — coming soon")}
+              >
+                Send via WhatsApp
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                Free window: {formatTimeRemaining(csWindow.expiresAt)}
+              </span>
+            </>
+          )}
           <Button
             variant="outline"
             size="sm"
