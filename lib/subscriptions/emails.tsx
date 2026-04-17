@@ -1,5 +1,6 @@
 /**
- * Subscription lifecycle emails — trial expiry, founding agent warning, activation.
+ * Subscription lifecycle emails — trial expiry, founding agent warning, activation,
+ * and billing past-due / frozen cascade.
  * Called from cron routes and PayFast webhook.
  */
 
@@ -153,5 +154,138 @@ export async function sendSubscriptionActivated(
       </EmailLayout>
     ),
     bodyPreview: `Your Pleks ${tierLabel[tier] ?? tier} (${cycleLabel}) subscription is now active.`,
+  })
+}
+
+// ── Billing cascade emails ────────────────────────────────────────────────────
+
+function formatZARCents(cents: number): string {
+  return `R ${(cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+export async function sendPaymentFailed(
+  org: OrgContact,
+  amountCents: number,
+  gracePeriodEnd: string,
+) {
+  const dueDate = new Date(gracePeriodEnd).toLocaleDateString("en-ZA", {
+    day: "numeric", month: "long", year: "numeric",
+  })
+  const amountLabel = formatZARCents(amountCents)
+
+  return sendEmail({
+    orgId: org.orgId,
+    templateKey: "subscription.payment_failed",
+    to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
+    subject: "Action required: subscription payment overdue",
+    emailElement: (
+      <EmailLayout
+        preview={`Your Pleks payment of ${amountLabel} could not be collected — update your details by ${dueDate}`}
+        branding={org.branding}
+      >
+        <p style={S.body}>Hi {org.adminName ?? org.orgName},</p>
+        <p style={S.body}>
+          Your Pleks subscription payment of <strong style={S.strong}>{amountLabel}</strong> could
+          not be collected.
+        </p>
+        <EmailSectionHeading>What happens next</EmailSectionHeading>
+        <p style={S.body}>
+          You have until <strong style={S.strong}>{dueDate}</strong> to update your payment
+          details. After that date, access to premium features will be suspended until payment
+          is resolved.
+        </p>
+        <EmailButton href={`${APP_URL}/settings/billing`} accentColor={org.branding.accentColor}>
+          Update payment details →
+        </EmailButton>
+        <p style={{ fontSize: 13, color: "#71717a", margin: "12px 0 0" }}>
+          Your data is safe. No leases or documents will be affected.
+          Only premium features will be suspended if payment remains overdue.
+        </p>
+      </EmailLayout>
+    ),
+    bodyPreview: `Your Pleks payment of ${amountLabel} could not be collected. Update your details by ${dueDate}.`,
+  })
+}
+
+export async function sendPaymentReminder(
+  org: OrgContact,
+  amountCents: number,
+  gracePeriodEnd: string,
+) {
+  const dueDate = new Date(gracePeriodEnd).toLocaleDateString("en-ZA", {
+    day: "numeric", month: "long", year: "numeric",
+  })
+  const daysRemaining = Math.max(
+    0,
+    Math.ceil((new Date(gracePeriodEnd).getTime() - Date.now()) / 86400000),
+  )
+  const amountLabel = formatZARCents(amountCents)
+
+  return sendEmail({
+    orgId: org.orgId,
+    templateKey: "subscription.payment_reminder",
+    to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
+    subject: `Reminder: ${daysRemaining} days left to update your payment details`,
+    emailElement: (
+      <EmailLayout
+        preview={`${daysRemaining} days left before your Pleks account is suspended — update payment now`}
+        branding={org.branding}
+      >
+        <p style={S.body}>Hi {org.adminName ?? org.orgName},</p>
+        <p style={S.body}>
+          This is a reminder that your Pleks subscription payment of{" "}
+          <strong style={S.strong}>{amountLabel}</strong> is still overdue.
+        </p>
+        <p style={S.body}>
+          <strong style={S.strong}>{daysRemaining} {daysRemaining === 1 ? "day" : "days"} remain</strong>{" "}
+          before <strong style={S.strong}>{dueDate}</strong>, after which premium features
+          will be suspended.
+        </p>
+        <EmailButton href={`${APP_URL}/settings/billing`} accentColor={org.branding.accentColor}>
+          Resolve payment now →
+        </EmailButton>
+      </EmailLayout>
+    ),
+    bodyPreview: `${daysRemaining} days left before your Pleks account is suspended. Update payment by ${dueDate}.`,
+  })
+}
+
+export async function sendAccountFrozen(
+  org: OrgContact,
+  amountCents: number,
+) {
+  const amountLabel = formatZARCents(amountCents)
+
+  return sendEmail({
+    orgId: org.orgId,
+    templateKey: "subscription.account_frozen",
+    to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
+    subject: "Your Pleks account has been suspended",
+    emailElement: (
+      <EmailLayout
+        preview="Premium features on your Pleks account have been suspended due to an overdue payment"
+        branding={org.branding}
+      >
+        <p style={S.body}>Hi {org.adminName ?? org.orgName},</p>
+        <p style={S.body}>
+          Your Pleks subscription payment of <strong style={S.strong}>{amountLabel}</strong> is
+          now 14 days overdue. Access to premium features has been suspended.
+        </p>
+        <EmailSectionHeading>What is suspended</EmailSectionHeading>
+        <p style={S.body}>
+          WhatsApp notifications, the document editor, FitScore screening, and other premium
+          features are unavailable until payment is resolved.
+          Your data — properties, leases, tenants, and documents — is fully intact and accessible.
+        </p>
+        <EmailSectionHeading>Restore access</EmailSectionHeading>
+        <p style={S.body}>
+          Update your payment details and your account will be restored immediately.
+        </p>
+        <EmailButton href={`${APP_URL}/settings/billing`} accentColor={org.branding.accentColor}>
+          Restore account →
+        </EmailButton>
+      </EmailLayout>
+    ),
+    bodyPreview: `Premium features on your Pleks account have been suspended due to an overdue payment of ${amountLabel}.`,
   })
 }
