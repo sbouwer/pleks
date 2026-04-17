@@ -406,8 +406,7 @@ ALTER TABLE properties
     CHECK (wifi_available IN ('yes','no','unknown')),
   ADD COLUMN IF NOT EXISTS cell_signal_quality     text
     CHECK (cell_signal_quality IN ('good','patchy','none','unknown')),
-  ADD COLUMN IF NOT EXISTS backup_power            text
-    CHECK (backup_power IN ('none','ups','inverter','solar','generator','multiple','unknown')),
+  ADD COLUMN IF NOT EXISTS backup_power            text,
 
   -- Commercial operating hours
   ADD COLUMN IF NOT EXISTS operating_hours_preset  text
@@ -419,6 +418,15 @@ ALTER TABLE properties
     CHECK (after_hours_access IN ('unrestricted','with_notice','not_permitted')),
   ADD COLUMN IF NOT EXISTS after_hours_notice_hours integer,
   ADD COLUMN IF NOT EXISTS after_hours_notes       text;
+
+-- Replay-safe constraint refresh: ADD COLUMN IF NOT EXISTS is a no-op when
+-- the column already exists, so any new CHECK values must be applied via
+-- DROP/ADD CONSTRAINT to update existing databases.
+ALTER TABLE properties
+  DROP CONSTRAINT IF EXISTS properties_backup_power_check;
+ALTER TABLE properties
+  ADD CONSTRAINT properties_backup_power_check
+  CHECK (backup_power IN ('none','ups','inverter','solar','generator','multiple','unknown'));
 
 -- ── (b) Units: is_lettable + industrial attributes + business use ─────────────
 

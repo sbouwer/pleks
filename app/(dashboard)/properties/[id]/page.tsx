@@ -12,6 +12,7 @@ import { InsuranceTab, type InsurancePolicy, type InsuranceBroker, type Insuranc
 import { SchemeTab, type ManagingSchemeData } from "./SchemeTab"
 import { AgentPicker } from "./AgentPicker"
 import { LandlordPicker } from "./LandlordPicker"
+import { CompletenessWidgetWrapper } from "./CompletenessWidgetWrapper"
 import { MobilePropertyView } from "@/components/mobile/MobilePropertyView"
 import { formatZAR } from "@/lib/constants"
 import { subtractBusinessDays } from "@/lib/dates/saPublicHolidays"
@@ -692,6 +693,12 @@ export default async function PropertyDetailPage({
         {/* Tab content */}
         {activeTab === "overview" && overviewData && (
           <>
+            {/* Setup completeness widget — first 30 days post-creation OR until 100% */}
+            <CompletenessWidgetWrapper
+              propertyId={id}
+              orgId={orgId}
+              isOwnerProBrokerVisible={canSeeBroker}
+            />
             {/* LandlordPicker rendered inline for assign flow */}
             {!property.landlord_id && (
               <div className="mb-4">

@@ -5,7 +5,7 @@
  */
 
 export type TemplateChannel  = "email" | "sms" | "both"
-export type TemplateCategory = "applications" | "arrears" | "maintenance" | "inspections" | "leases" | "deposits" | "statements" | "subscriptions" | "portal" | "reports"
+export type TemplateCategory = "applications" | "arrears" | "maintenance" | "inspections" | "leases" | "deposits" | "statements" | "subscriptions" | "portal" | "reports" | "onboarding"
 
 export interface TemplateEntry {
   key: string
@@ -267,6 +267,24 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
     key: "incident.critical_scheme", channel: "email", category: "maintenance", is_mandatory: true,
     description: "Managing scheme / body corporate notified of critical property incident",
   },
+
+  // ── Property info requests (BUILD_60 Phase 13; full templates in Phase 20) ─────
+  "info_request.landlord":             { key: "info_request.landlord",             channel: "email", category: "onboarding", is_mandatory: false, description: "Owner asked to confirm landlord/owner details" },
+  "info_request.landlord_reminder":    { key: "info_request.landlord_reminder",    channel: "email", category: "onboarding", is_mandatory: false, description: "Reminder: landlord details still outstanding" },
+  "info_request.insurance":            { key: "info_request.insurance",            channel: "email", category: "onboarding", is_mandatory: false, description: "Owner asked to confirm insurance policy details" },
+  "info_request.insurance_reminder":   { key: "info_request.insurance_reminder",   channel: "email", category: "onboarding", is_mandatory: false, description: "Reminder: insurance details still outstanding" },
+  "info_request.broker":               { key: "info_request.broker",               channel: "email", category: "onboarding", is_mandatory: false, description: "Broker asked to confirm coverage details" },
+  "info_request.broker_reminder":      { key: "info_request.broker_reminder",      channel: "email", category: "onboarding", is_mandatory: false, description: "Reminder: broker details still outstanding" },
+  "info_request.scheme":               { key: "info_request.scheme",               channel: "email", category: "onboarding", is_mandatory: false, description: "Owner asked to confirm managing scheme contact details" },
+  "info_request.scheme_reminder":      { key: "info_request.scheme_reminder",      channel: "email", category: "onboarding", is_mandatory: false, description: "Reminder: managing scheme details still outstanding" },
+  "info_request.banking":              { key: "info_request.banking",              channel: "email", category: "onboarding", is_mandatory: false, description: "Owner asked to confirm banking details" },
+  "info_request.banking_reminder":     { key: "info_request.banking_reminder",     channel: "email", category: "onboarding", is_mandatory: false, description: "Reminder: banking details still outstanding" },
+  "info_request.documents":            { key: "info_request.documents",            channel: "email", category: "onboarding", is_mandatory: false, description: "Owner asked to provide compliance documents" },
+  "info_request.documents_reminder":   { key: "info_request.documents_reminder",   channel: "email", category: "onboarding", is_mandatory: false, description: "Reminder: compliance documents still outstanding" },
+  "info_request.compliance":           { key: "info_request.compliance",           channel: "email", category: "onboarding", is_mandatory: false, description: "Owner asked to confirm compliance certificate details" },
+  "info_request.compliance_reminder":  { key: "info_request.compliance_reminder",  channel: "email", category: "onboarding", is_mandatory: false, description: "Reminder: compliance certificate details still outstanding" },
+  "info_request.other":                { key: "info_request.other",                channel: "email", category: "onboarding", is_mandatory: false, description: "Generic property info request" },
+  "info_request.other_reminder":       { key: "info_request.other_reminder",       channel: "email", category: "onboarding", is_mandatory: false, description: "Reminder: generic property info request still outstanding" },
 }
 
 /** Returns the template entry or throws if the key is unknown */

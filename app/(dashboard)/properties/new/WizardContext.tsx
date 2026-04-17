@@ -61,6 +61,13 @@ export interface UploadedDoc {
   expires_at?:   string
 }
 
+/** Held in client state during the wizard; uploaded by createPropertyFromWizard on save. */
+export interface PendingDocument {
+  file:        File
+  doc_type:    string
+  expires_at?: string
+}
+
 export interface WizardState {
   mode:         WizardMode
   step:         number
@@ -95,7 +102,8 @@ export interface WizardState {
   insurance: InsuranceStub | null
 
   // Step 8 — Documents
-  documents: UploadedDoc[]
+  documents:        UploadedDoc[]      // populated post-save (saved doc references)
+  pendingDocuments: PendingDocument[]  // client-only: files awaiting upload at save time
 }
 
 export interface WizardContextValue {
@@ -142,9 +150,10 @@ const DEFAULT_STATE: WizardState = {
   afterHoursNoticeHours: null,
   afterHoursNotes:       null,
   landlord:      null,
-  unitLabels:    [],
-  insurance:     null,
-  documents:     [],
+  unitLabels:       [],
+  insurance:        null,
+  documents:        [],
+  pendingDocuments: [],
 }
 
 // ── Context ───────────────────────────────────────────────────────────────────
