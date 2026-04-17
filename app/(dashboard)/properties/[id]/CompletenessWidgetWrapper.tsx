@@ -121,8 +121,9 @@ async function fetchUnitsBreakdown(
 }
 
 function unitHasFullDetails(u: { unit_type: unknown; bedrooms: unknown; bathrooms: unknown; size_m2: unknown }): boolean {
-  const isCommercial = typeof u.unit_type === "string" && u.unit_type.startsWith("commercial")
-  return isCommercial
+  const isNonResidential = typeof u.unit_type === "string"
+    && (u.unit_type.startsWith("commercial") || u.unit_type.startsWith("industrial"))
+  return isNonResidential
     ? u.size_m2 != null
     : u.bedrooms != null && u.bathrooms != null
 }

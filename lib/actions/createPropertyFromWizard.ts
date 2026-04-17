@@ -112,9 +112,13 @@ function initialCompletenessPct(payload: WizardSavePayload, hasDocuments: boolea
 // ── Sub-step: resolve landlord (existing / new / later → null) ──────────────
 
 interface ResolveLandlordResult {
-  ok:           boolean
-  landlordId?:  string | null
-  error?:       string
+  ok:                 boolean
+  landlordId?:        string | null
+  /** Set only when this call created the contact row (so rollback can delete it) */
+  createdContactId?:  string | null
+  /** Set only when this call created the landlord row */
+  createdLandlordId?: string | null
+  error?:             string
 }
 
 async function resolveLandlord(
@@ -162,10 +166,54 @@ async function resolveLandlord(
 
   if (landlordErr || !landlord) {
     console.error("createPropertyFromWizard: landlord insert failed:", landlordErr?.message)
+    // Roll back the orphaned contact we just created
+    await db.from("contacts").delete().eq("id", contact.id).eq("org_id", orgId)
     return { ok: false, error: "Failed to create owner record" }
   }
 
-  return { ok: true, landlordId: landlord.id as string }
+  return {
+    ok:                 true,
+    landlordId:         landlord.id as string,
+    createdContactId:   contact.id as string,
+    createdLandlordId:  landlord.id as string,
+  }
+}
+
+// ── Sub-step: rollback created rows in reverse order ───────────────────────
+
+interface RollbackContext {
+  db:         Db
+  orgId:      string
+  unitsCreated: boolean
+  buildingId?: string | null
+  propertyId?: string | null
+  createdLandlordId?: string | null
+  createdContactId?:  string | null
+}
+
+async function rollbackCreated(ctx: RollbackContext): Promise<void> {
+  // Delete in reverse FK order. Each step is best-effort — log on failure
+  // but keep going so we delete as much as possible.
+  try {
+    if (ctx.unitsCreated && ctx.propertyId) {
+      await ctx.db.from("units").delete().eq("property_id", ctx.propertyId).eq("org_id", ctx.orgId)
+    }
+    if (ctx.buildingId) {
+      await ctx.db.from("buildings").delete().eq("id", ctx.buildingId).eq("org_id", ctx.orgId)
+    }
+    if (ctx.propertyId) {
+      await ctx.db.from("properties").delete().eq("id", ctx.propertyId).eq("org_id", ctx.orgId)
+    }
+    if (ctx.createdLandlordId) {
+      await ctx.db.from("landlords").delete().eq("id", ctx.createdLandlordId).eq("org_id", ctx.orgId)
+    }
+    if (ctx.createdContactId) {
+      await ctx.db.from("contacts").delete().eq("id", ctx.createdContactId).eq("org_id", ctx.orgId)
+    }
+  } catch (rollbackErr) {
+    // Manual rollback is best-effort; surfaces will be caught by data health audits
+    console.error("createPropertyFromWizard: rollback partially failed:", rollbackErr)
+  }
 }
 
 // ── Sub-step: build property insert row ────────────────────────────────────
@@ -191,7 +239,7 @@ function buildPropertyInsertRow(
     address_line1:          [addr.street_number, addr.street_name].filter(Boolean).join(" ") || addr.formatted,
     suburb:                 addr.suburb || null,
     city:                   addr.city,
-    province:               addr.province || "Western Cape",
+    province:               addr.province || null,
     postal_code:            addr.postal_code || null,
     erf_number:             addr.erf_number || null,
     sectional_title_number: addr.sectional_title_number || null,
@@ -423,64 +471,84 @@ export async function createPropertyFromWizard(formData: FormData): Promise<Wiza
 
   const landlordResult = await resolveLandlord(db, orgId, userId, payload)
   if (!landlordResult.ok) return { ok: false, error: landlordResult.error }
-  const landlordId = landlordResult.landlordId ?? null
+  const landlordId        = landlordResult.landlordId ?? null
+  const createdContactId  = landlordResult.createdContactId ?? null
+  const createdLandlordId = landlordResult.createdLandlordId ?? null
 
-  // Insert property
-  const propertyRow = buildPropertyInsertRow(payload, universals, profile, orgId, landlordId)
-  const { data: property, error: propErr } = await db.from("properties")
-    .insert(propertyRow).select("id").single()
+  // ── Atomic-ish insert chain (manual rollback on any failure) ──────────────
+  // Supabase JS has no transaction. Track created IDs and unwind in reverse FK
+  // order if anything fails. ADDENDUM_60A's checklist + warranties will compound
+  // this; revisit with a plpgsql RPC then.
+  let propertyId:  string | null = null
+  let buildingId:  string | null = null
+  let unitsCreated              = false
 
-  if (propErr || !property) {
-    console.error("createPropertyFromWizard: property insert failed:", propErr?.message)
-    return { ok: false, error: propErr?.message ?? "Failed to create property" }
+  try {
+    const propertyRow = buildPropertyInsertRow(payload, universals, profile, orgId, landlordId)
+    const { data: property, error: propErr } = await db.from("properties")
+      .insert(propertyRow).select("id").single()
+    if (propErr || !property) {
+      console.error("createPropertyFromWizard: property insert failed:", propErr?.message)
+      throw new Error(propErr?.message ?? "Failed to create property")
+    }
+    propertyId = property.id as string
+
+    const { data: building, error: bldgErr } = await db.from("buildings").insert({
+      org_id:           orgId,
+      property_id:      propertyId,
+      name:             payload.address!.property_name,
+      building_type:    deriveBuildingType(payload.scenarioType),
+      is_primary:       true,
+      is_visible_in_ui: false,
+      created_by:       userId,
+    }).select("id").single()
+    if (bldgErr || !building) {
+      console.error("createPropertyFromWizard: building insert failed:", bldgErr?.message)
+      throw new Error("Failed to create building")
+    }
+    buildingId = building.id as string
+
+    const unitsToInsert = buildUnitRows(payload, orgId, propertyId, buildingId)
+    const { error: unitsErr } = await db.from("units").insert(unitsToInsert)
+    if (unitsErr) {
+      console.error("createPropertyFromWizard: units insert failed:", unitsErr.message)
+      throw new Error("Failed to create units")
+    }
+    unitsCreated = true
+  } catch (err) {
+    await rollbackCreated({
+      db, orgId,
+      unitsCreated,
+      buildingId,
+      propertyId,
+      createdLandlordId,
+      createdContactId,
+    })
+    return { ok: false, error: err instanceof Error ? err.message : "Failed to create property" }
   }
 
-  const propertyId = property.id as string
+  // Past this point: property + building + units are committed. Subsequent
+  // failures (uploads, info_requests, pct update, audit) are non-fatal —
+  // they leave a usable property the user can repair from the Documents /
+  // Insurance / Overview tabs.
 
-  // Default building
-  const { data: building, error: bldgErr } = await db.from("buildings").insert({
-    org_id:           orgId,
-    property_id:      propertyId,
-    name:             payload.address!.property_name,
-    building_type:    deriveBuildingType(payload.scenarioType),
-    is_primary:       true,
-    is_visible_in_ui: false,
-    created_by:       userId,
-  }).select("id").single()
-
-  if (bldgErr || !building) {
-    console.error("createPropertyFromWizard: building insert failed:", bldgErr?.message)
-    return { ok: false, error: "Failed to create building" }
-  }
-
-  // Skeleton units
-  const unitsToInsert = buildUnitRows(payload, orgId, propertyId, building.id as string)
-  const { error: unitsErr } = await db.from("units").insert(unitsToInsert)
-  if (unitsErr) {
-    console.error("createPropertyFromWizard: units insert failed:", unitsErr.message)
-    return { ok: false, error: "Failed to create units" }
-  }
-
-  // Document uploads
   const uploadedDocCount = await uploadWizardDocuments(
-    { db, orgId, userId, propertyId, buildingId: building.id as string },
+    { db, orgId, userId, propertyId: propertyId!, buildingId: buildingId! },
     formData,
   )
 
-  // Info requests
-  await scheduleInfoRequests(payload, orgId, userId, propertyId, landlordId)
+  await scheduleInfoRequests(payload, orgId, userId, propertyId!, landlordId)
 
-  // Update onboarding pct + audit
   const initialPct = initialCompletenessPct(payload, uploadedDocCount > 0)
   await db.from("properties")
     .update({ onboarding_completed_pct: initialPct })
-    .eq("id", propertyId)
+    .eq("id", propertyId!)
     .eq("org_id", orgId)
 
   await db.from("audit_log").insert({
     org_id:      orgId,
     table_name:  "properties",
-    record_id:   propertyId,
+    record_id:   propertyId!,
     action:      "INSERT",
     changed_by:  userId,
     new_values:  {
@@ -493,5 +561,5 @@ export async function createPropertyFromWizard(formData: FormData): Promise<Wiza
   })
 
   revalidatePath("/properties")
-  return { ok: true, propertyId }
+  return { ok: true, propertyId: propertyId! }
 }

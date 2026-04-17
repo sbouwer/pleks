@@ -45,6 +45,15 @@ function generateToken(): string {
 export async function createPropertyInfoRequest(
   params: CreateInfoRequestParams,
 ): Promise<InfoRequestResult> {
+  // Auth check — this file has "use server", so without this any signed-in
+  // user could call it with another org's IDs and trigger emails on their behalf.
+  // The wizard save action calls us in the same request; cookies/session carry
+  // through nested server-action calls in Next 14, so gateway() resolves here too.
+  const gw = await gateway()
+  if (!gw)                            return { ok: false, error: "Not authenticated" }
+  if (gw.orgId !== params.orgId)      return { ok: false, error: "Org mismatch" }
+  if (gw.userId !== params.requestedBy) return { ok: false, error: "Requester mismatch" }
+
   const service = await createServiceClient()
   const token = generateToken()
 
