@@ -1,6 +1,7 @@
 "use server"
 
 import { createServiceClient } from "@/lib/supabase/server"
+import { sendEmail } from "@/lib/comms/send-email"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -146,6 +147,88 @@ const WRITEBACKS: Record<string, Writeback | undefined> = {
   other:      writebackNotes,
 }
 
+/**
+ * Free-form topics (notes textarea only, no target table). The submitted
+ * text MUST be preserved in the completion event payload — without this the
+ * owner's broker / compliance notes would be lost on submit.
+ */
+const FREE_FORM_TOPICS = new Set(["broker", "compliance", "documents", "other"])
+
+// ── Requester notification (GAP 3 fix — agent gets "owner replied" email) ────
+
+interface RequestRowForNotify {
+  id:           string
+  org_id:       string
+  property_id:  string
+  topic:        string
+  requested_by: string
+}
+
+async function notifyRequester(
+  service: Awaited<ReturnType<typeof createServiceClient>>,
+  req: RequestRowForNotify,
+): Promise<void> {
+  // Fetch requesting user's email + name
+  const { data: user } = await service
+    .from("user_profiles")
+    .select("full_name")
+    .eq("id", req.requested_by)
+    .maybeSingle()
+
+  const { data: authUser } = await service.auth.admin.getUserById(req.requested_by)
+  const email = authUser?.user?.email ?? null
+  if (!email) return   // No email on file — skip silently (log is already recorded)
+
+  const { data: property } = await service
+    .from("properties")
+    .select("name")
+    .eq("id", req.property_id)
+    .maybeSingle()
+
+  const propertyName = property?.name ?? "your property"
+  const agentName    = (user?.full_name as string) ?? "there"
+  const baseUrl      = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "https://pleks.co.za"
+  const link         = `${baseUrl}/properties/${req.property_id}`
+
+  const topicLabel: Record<string, string> = {
+    insurance:  "insurance details",
+    landlord:   "owner / landlord details",
+    broker:     "broker details",
+    scheme:     "managing scheme details",
+    banking:    "banking details",
+    documents:  "documents",
+    compliance: "compliance details",
+    other:      "the requested information",
+  }
+  const label = topicLabel[req.topic] ?? "the requested information"
+
+  const html = `<!DOCTYPE html>
+<html>
+  <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 24px auto; padding: 24px; color: #18181b; line-height: 1.5;">
+    <h2 style="margin: 0 0 16px 0; font-size: 18px;">Owner replied</h2>
+    <p>Hi ${agentName},</p>
+    <p>The owner just submitted the ${label} you requested for <strong>${propertyName}</strong>.</p>
+    <p style="margin: 24px 0;">
+      <a href="${link}" style="background: #18181b; color: white; padding: 10px 18px; border-radius: 6px; text-decoration: none; display: inline-block; font-weight: 500;">View property</a>
+    </p>
+    <p style="font-size: 12px; color: #a1a1aa;">
+      Pleks — your property setup progress just moved forward.
+    </p>
+  </body>
+</html>`
+
+  await sendEmail({
+    orgId:       req.org_id,
+    templateKey: "info_request.completion_notify",
+    to:          { email, name: agentName },
+    subject:     `Owner replied — ${propertyName}`,
+    rawHtml:     html,
+    bodyPreview: `The owner submitted ${label} for ${propertyName}. View at ${link}`,
+    entityType:  "property_info_request",
+    entityId:    req.id,
+  })
+}
+
 // ── Main action ───────────────────────────────────────────────────────────────
 
 export async function submitPropertyInfo(input: SubmitPayload): Promise<SubmitResult> {
@@ -204,10 +287,23 @@ export async function submitPropertyInfo(input: SubmitPayload): Promise<SubmitRe
     .update({ status: "completed", completed_at: completedAt })
     .eq("id", req.id)
 
+  // For free-form topics, preserve submitted values in the event payload
+  // — the strict-writeback topics (insurance/landlord/scheme/banking) already
+  // landed their values on their target tables, so no duplication needed.
+  const isFreeForm = FREE_FORM_TOPICS.has(req.topic as string)
+
   await service.from("property_info_request_events").insert({
     request_id: req.id,
     event_type: "completed",
-    payload:    { fields_submitted: Object.keys(filtered) },
+    payload:    {
+      fields_submitted: Object.keys(filtered),
+      ...(isFreeForm && { values: filtered }),
+    },
+  })
+
+  // Notify the requesting agent (best-effort — don't fail submit if email fails)
+  await notifyRequester(service, req).catch((e) => {
+    console.error("submitPropertyInfo: requester notification failed:", e)
   })
 
   return { ok: true }

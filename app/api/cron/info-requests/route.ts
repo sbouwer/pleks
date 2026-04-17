@@ -122,12 +122,22 @@ async function sendReminderFor(
 
   if (!sendResult.ok) return false
 
-  await service.from("property_info_requests")
+  // Optimistic concurrency guard: only increment if reminder_count is still
+  // the value we read. Protects against concurrent cron runs firing twice.
+  const currentCount = row.reminder_count ?? 0
+  const { data: updated, error: updateErr } = await service.from("property_info_requests")
     .update({
       last_reminder_at: new Date().toISOString(),
-      reminder_count:   (row.reminder_count ?? 0) + 1,
+      reminder_count:   currentCount + 1,
     })
     .eq("id", row.id)
+    .eq("reminder_count", currentCount)
+    .select("id")
+
+  if (updateErr || !updated || updated.length === 0) {
+    // Lost the race — another run already incremented. Don't log a fake event.
+    return false
+  }
 
   await service.from("property_info_request_events").insert({
     request_id:           row.id,
@@ -215,8 +225,9 @@ export async function GET(req: NextRequest) {
   try {
     const expiredCount = await expireStale(service)
 
-    // Owner track: T+3 first, T+7 second (max 2 reminders, 3-day cooldown between)
-    const ownerReminders = await sendRemindersForWindow(service, "owner", 3, 2, 3)
+    // Owner track: T+3 first, T+7 second — 4-day cooldown puts the second
+    // reminder at exactly T+7 (3 + 4 = 7) per spec §12.4.
+    const ownerReminders = await sendRemindersForWindow(service, "owner", 3, 2, 4)
 
     // Broker track: T+5 (max 1 reminder)
     const brokerReminders = await sendRemindersForWindow(service, "broker", 5, 1, 5)

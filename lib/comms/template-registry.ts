@@ -285,6 +285,7 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
   "info_request.compliance_reminder":  { key: "info_request.compliance_reminder",  channel: "email", category: "onboarding", is_mandatory: false, description: "Reminder: compliance certificate details still outstanding" },
   "info_request.other":                { key: "info_request.other",                channel: "email", category: "onboarding", is_mandatory: false, description: "Generic property info request" },
   "info_request.other_reminder":       { key: "info_request.other_reminder",       channel: "email", category: "onboarding", is_mandatory: false, description: "Reminder: generic property info request still outstanding" },
+  "info_request.completion_notify":    { key: "info_request.completion_notify",    channel: "email", category: "onboarding", is_mandatory: false, description: "Notify requesting agent that the owner has submitted the info request" },
 }
 
 /** Returns the template entry or throws if the key is unknown */
