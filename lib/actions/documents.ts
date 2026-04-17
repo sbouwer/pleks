@@ -140,7 +140,7 @@ export async function sendDocument(
     .from("document_generation_jobs")
     .insert({
       org_id: orgId,
-      created_by: userId,
+      user_id: userId,
       template_id: templateId,
       lease_id: leaseId,
       status: "generating",
@@ -211,15 +211,8 @@ export async function sendDocument(
     .eq("id", job.id)
 
   if (leaseId) {
-    await db.from("lease_documents").insert({
-      org_id: orgId,
-      lease_id: leaseId,
-      template_id: templateId,
-      job_id: job.id,
-      subject,
-      recipient_email: recipientEmail,
-      sent_at: new Date().toISOString(),
-    })
+    // lease_documents requires doc_type, title, storage_path — email sends don't produce
+    // a file, so we only log to communication_log for the audit trail.
 
     // 5. Communication log
     await db.from("communication_log").insert({
@@ -228,9 +221,10 @@ export async function sendDocument(
       channel: "email",
       direction: "outbound",
       subject,
-      recipient_email: recipientEmail,
+      body: resolvedHtml,
+      sent_to_email: recipientEmail,
       sent_by: userId,
-      sent_at: new Date().toISOString(),
+      status: "sent",
     })
   }
 
@@ -281,7 +275,7 @@ export async function saveDraftDocument(
     .from("document_generation_jobs")
     .insert({
       org_id: orgId,
-      created_by: userId,
+      user_id: userId,
       template_id: templateId,
       lease_id: leaseId,
       subject,

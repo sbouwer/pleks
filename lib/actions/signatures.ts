@@ -2,7 +2,7 @@
 
 import { gateway } from "@/lib/supabase/gateway"
 import { createServiceClient } from "@/lib/supabase/server"
-import { randomUUID } from "crypto"
+import { randomUUID } from "node:crypto"
 
 export async function saveSignatureDataUrl(
   dataUrl: string,
@@ -17,7 +17,7 @@ export async function saveSignatureDataUrl(
   const buffer = Buffer.from(base64, "base64")
 
   const filename = `${randomUUID()}.png`
-  const storagePath = `signatures/${orgId}/${userId}/${filename}`
+  const storagePath = `${orgId}/${userId}/${filename}`
 
   const { error: uploadError } = await db.storage
     .from("signatures")
@@ -69,7 +69,7 @@ export async function saveSignatureFile(formData: FormData): Promise<{ error?: s
   const buffer = Buffer.from(arrayBuffer)
 
   const filename = `${randomUUID()}.png`
-  const storagePath = `signatures/${orgId}/${userId}/${filename}`
+  const storagePath = `${orgId}/${userId}/${filename}`
 
   const { error: uploadError } = await db.storage
     .from("signatures")
@@ -97,7 +97,7 @@ export async function saveSignatureFile(formData: FormData): Promise<{ error?: s
     user_id: userId,
     org_id: orgId,
     storage_path: storagePath,
-    source: "upload",
+    source: "uploaded_file",
     is_active: true,
   })
 
@@ -162,7 +162,7 @@ export async function saveSignatureFromMobile(
   const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, "")
   const buffer = Buffer.from(base64, "base64")
   const filename = `${randomUUID()}.png`
-  const storagePath = `signatures/${orgId}/${userId}/${filename}`
+  const storagePath = `${orgId}/${userId}/${filename}`
 
   const { error: uploadError } = await db.storage
     .from("signatures")
@@ -185,7 +185,7 @@ export async function saveSignatureFromMobile(
     user_id: userId,
     org_id: orgId,
     storage_path: storagePath,
-    source: "mouse_mobile",
+    source: "qr_phone",
     is_active: true,
   })
 
