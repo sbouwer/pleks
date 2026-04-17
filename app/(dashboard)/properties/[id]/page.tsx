@@ -602,6 +602,17 @@ export default async function PropertyDetailPage({
   const hasManagingScheme = (propRaw.has_managing_scheme as boolean) ?? false
   const managingSchemeId  = (propRaw.managing_scheme_id as string | null) ?? null
 
+  // Broker visibility: Owner Pro (owner tier + any premium lease) and Steward+ can see broker card
+  let canSeeBroker = tier !== "owner"
+  if (tier === "owner") {
+    const { data: sub } = await service
+      .from("subscriptions")
+      .select("owner_pro_lease_count")
+      .eq("org_id", orgId)
+      .maybeSingle()
+    canSeeBroker = (sub?.owner_pro_lease_count ?? 0) > 0
+  }
+
   // Tab-specific data fetching
   const [overviewData, unitsData, operationsData, insuranceData, schemeData] = await Promise.all([
     activeTab === "overview"
@@ -740,11 +751,12 @@ export default async function PropertyDetailPage({
             broker={insuranceData.broker}
             buildings={insuranceData.buildings}
             activeClaims={insuranceData.activeClaims}
+            canSeeBroker={canSeeBroker}
           />
         )}
 
         {activeTab === "scheme" && schemeData && (
-          <SchemeTab propertyId={id} scheme={schemeData} />
+          <SchemeTab propertyId={id} scheme={schemeData} tier={tier ?? "owner"} />
         )}
 
         {activeTab === "scheme" && !schemeData && (

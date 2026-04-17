@@ -46,6 +46,7 @@ interface InsuranceTabProps {
   broker:        InsuranceBroker | null
   buildings:     InsuranceBuildingRow[]
   activeClaims:  InsuranceClaim[]
+  canSeeBroker:  boolean
 }
 
 const POLICY_TYPE_LABELS: Record<string, string> = {
@@ -110,6 +111,7 @@ export function InsuranceTab({
   broker,
   buildings,
   activeClaims,
+  canSeeBroker,
 }: Readonly<InsuranceTabProps>) {
   const editHref = `/properties/${propertyId}/insurance/edit`
 
@@ -175,46 +177,61 @@ export function InsuranceTab({
         )}
       </SectionCard>
 
-      {/* Broker card */}
-      <SectionCard title="Insurance broker" icon={User} editHref={editHref}>
-        {broker ? (
-          <>
-            <div className="flex items-center gap-3 mb-3">
-              <div className="size-8 rounded-full bg-brand/10 flex items-center justify-center shrink-0">
-                <span className="text-xs font-semibold text-brand">
-                  {broker.broker_name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
-                </span>
+      {/* Broker card — gated: Owner Pro+ only */}
+      {canSeeBroker ? (
+        <SectionCard title="Insurance broker" icon={User} editHref={editHref}>
+          {broker ? (
+            <>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="size-8 rounded-full bg-brand/10 flex items-center justify-center shrink-0">
+                  <span className="text-xs font-semibold text-brand">
+                    {broker.broker_name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-sm font-medium">{broker.broker_name}</p>
+                  {broker.broker_email && (
+                    <p className="text-xs text-muted-foreground">{broker.broker_email}</p>
+                  )}
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium">{broker.broker_name}</p>
-                {broker.broker_email && (
-                  <p className="text-xs text-muted-foreground">{broker.broker_email}</p>
-                )}
-              </div>
+              <KvRow label="Phone"            value={broker.broker_phone ?? "—"} />
+              <KvRow label="After hours"      value={broker.after_hours_number ?? "—"} />
+              <KvRow
+                label="Auto-notify (critical)"
+                value={broker.auto_notify_critical ? "Yes" : "No"}
+              />
+              <KvRow
+                label="Notify channels"
+                value={broker.notify_channels.join(", ")}
+              />
+              {broker.notes && (
+                <p className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border/40">
+                  {broker.notes}
+                </p>
+              )}
+            </>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">No broker assigned.</p>
+              <Link href={editHref} className="text-xs text-brand hover:underline">Assign broker →</Link>
             </div>
-            <KvRow label="Phone"            value={broker.broker_phone ?? "—"} />
-            <KvRow label="After hours"      value={broker.after_hours_number ?? "—"} />
-            <KvRow
-              label="Auto-notify (critical)"
-              value={broker.auto_notify_critical ? "Yes" : "No"}
-            />
-            <KvRow
-              label="Notify channels"
-              value={broker.notify_channels.join(", ")}
-            />
-            {broker.notes && (
-              <p className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border/40">
-                {broker.notes}
-              </p>
-            )}
-          </>
-        ) : (
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">No broker assigned.</p>
-            <Link href={editHref} className="text-xs text-brand hover:underline">Assign broker →</Link>
+          )}
+        </SectionCard>
+      ) : (
+        <div className="rounded-xl border border-dashed bg-muted/30 px-4 py-5 space-y-2">
+          <div className="flex items-center gap-2">
+            <User className="h-4 w-4 text-muted-foreground" />
+            <p className="text-sm font-medium">Insurance broker &amp; auto-notify</p>
           </div>
-        )}
-      </SectionCard>
+          <p className="text-xs text-muted-foreground">
+            Add your broker and auto-notify them when a critical incident is logged.
+          </p>
+          <p className="text-xs text-brand font-medium">
+            Upgrade to Owner Pro to unlock broker management and critical incident notifications.
+          </p>
+        </div>
+      )}
 
       {/* Per-building replacement values */}
       {buildings.length > 0 && (
