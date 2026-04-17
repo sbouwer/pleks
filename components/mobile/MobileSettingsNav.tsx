@@ -11,6 +11,13 @@ const SETTINGS_GROUPS = [
       { href: "/settings/team", label: "Team" },
       { href: "/settings/hours", label: "Opening hours" },
       { href: "/settings/branding", label: "Branding" },
+      { href: "/settings/configuration", label: "Configuration" },
+    ],
+  },
+  {
+    title: "Communication",
+    items: [
+      { href: "/settings/communication/templates", label: "Templates" },
     ],
   },
   {
@@ -26,6 +33,12 @@ const SETTINGS_GROUPS = [
       { href: "/settings/finance", label: "Deposits" },
       { href: "/settings/billing", label: "Subscription" },
       { href: "/settings/notifications", label: "Notifications" },
+    ],
+  },
+  {
+    title: "My profile",
+    items: [
+      { href: "/settings/profile/signature", label: "Signature" },
     ],
   },
   {
