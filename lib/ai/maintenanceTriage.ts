@@ -3,6 +3,8 @@ export interface TriageResult {
   urgency: string
   urgency_reason: string
   suggested_action: string
+  severity: "routine" | "elevated" | "urgent" | "critical"
+  insurance_relevant: boolean
 }
 
 const SYSTEM_PROMPT = `You are a property maintenance triage assistant for South African residential properties.
@@ -19,10 +21,18 @@ Given a maintenance request title and description, classify it into:
 
 3. **urgency_reason** — one sentence explaining why this urgency was assigned
 
-4. **suggested_action** — one sentence on what should happen next (e.g. "Contact electrician immediately", "Schedule plumber within 24 hours", "Book painter at next available slot")
+4. **suggested_action** — one sentence on what should happen next
+
+5. **severity** — incident severity for insurance and escalation purposes, one of:
+   - critical: fire, flood, structural damage/collapse, gas leak, major electrical fault, break-in/burglary, burst water main, safety to persons implicated
+   - urgent: significant damage risk or health hazard (geyser failure, sewer backup, major roof leak, broken perimeter security)
+   - elevated: potential for worsening if not addressed promptly (slow leak, partial power loss, minor structural crack)
+   - routine: standard maintenance with no escalation risk
+
+6. **insurance_relevant** — true if the incident is likely to involve an insurance claim (fire, flood, structural damage, theft, major water damage, storm damage), false otherwise
 
 Respond with ONLY valid JSON, no markdown, no explanation:
-{"category":"...","urgency":"...","urgency_reason":"...","suggested_action":"..."}`
+{"category":"...","urgency":"...","urgency_reason":"...","suggested_action":"...","severity":"...","insurance_relevant":false}`
 
 export async function triageMaintenanceRequest(
   title: string,
@@ -38,7 +48,7 @@ export async function triageMaintenanceRequest(
 
     const message = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 200,
+      max_tokens: 250,
       system: SYSTEM_PROMPT,
       messages: [
         {
@@ -49,20 +59,48 @@ export async function triageMaintenanceRequest(
     })
 
     const text = message.content[0].type === "text" ? message.content[0].text.trim() : ""
-    const result = JSON.parse(text) as TriageResult
+    const raw = JSON.parse(text) as Partial<TriageResult>
 
     const validCategories = ["electrical", "plumbing", "hvac", "structural", "roofing", "windows_doors", "appliances", "garden", "pest_control", "painting", "flooring", "security", "access_control", "cleaning", "other"]
-    const validUrgencies = ["emergency", "urgent", "routine", "cosmetic"]
+    const validUrgencies  = ["emergency", "urgent", "routine", "cosmetic"]
+    const validSeverities = ["routine", "elevated", "urgent", "critical"] as const
 
     return {
-      category: validCategories.includes(result.category) ? result.category : "other",
-      urgency: validUrgencies.includes(result.urgency) ? result.urgency : "routine",
-      urgency_reason: result.urgency_reason || "",
-      suggested_action: result.suggested_action || "",
+      category:          validCategories.includes(raw.category ?? "") ? (raw.category ?? "other") : "other",
+      urgency:           validUrgencies.includes(raw.urgency ?? "")   ? (raw.urgency  ?? "routine") : "routine",
+      urgency_reason:    raw.urgency_reason    ?? "",
+      suggested_action:  raw.suggested_action  ?? "",
+      severity:          validSeverities.includes(raw.severity as typeof validSeverities[number]) ? (raw.severity as typeof validSeverities[number]) : "routine",
+      insurance_relevant: raw.insurance_relevant === true,
     }
   } catch {
     return fallbackTriage(title, description)
   }
+}
+
+// ── Severity-only derivation (for updates / tenant-submitted requests) ─────────
+
+export type Severity = "routine" | "elevated" | "urgent" | "critical"
+
+const CRITICAL_KEYWORDS = ["fire", "flood", "gas leak", "collapse", "electrocution", "burst main", "break-in", "burglary", "smoke", "explosion"]
+const CRITICAL_CATEGORIES = new Set(["fire", "flood", "structural", "gas_leak", "electrical_major", "break_in", "water_burst"])
+
+export function deriveSeverityFromTriage(
+  category: string,
+  urgency: string,
+  title: string,
+  description: string,
+): Severity {
+  const text = `${title} ${description}`.toLowerCase()
+  if (
+    CRITICAL_KEYWORDS.some((kw) => text.includes(kw)) ||
+    CRITICAL_CATEGORIES.has(category) ||
+    urgency === "emergency"
+  ) {
+    return "critical"
+  }
+  if (urgency === "urgent") return "urgent"
+  return "routine"
 }
 
 function fallbackTriage(title: string, description: string): TriageResult {
@@ -87,10 +125,15 @@ function fallbackTriage(title: string, description: string): TriageResult {
   else if (text.includes("urgent") || text.includes("no hot water") || text.includes("blocked") || text.includes("broken") || text.includes("no water")) urgency = "urgent"
   else if (text.includes("cosmetic") || text.includes("scuff") || text.includes("minor") || text.includes("touch up")) urgency = "cosmetic"
 
+  const severity = deriveSeverityFromTriage(category, urgency, title, description)
+  const insurance_relevant = CRITICAL_KEYWORDS.some((kw) => text.includes(kw))
+
   return {
     category,
     urgency,
-    urgency_reason: "Classified from keywords — AI triage unavailable.",
+    urgency_reason:   "Classified from keywords — AI triage unavailable.",
     suggested_action: urgency === "emergency" ? "Contact contractor immediately" : "Review and assign contractor",
+    severity,
+    insurance_relevant,
   }
 }
