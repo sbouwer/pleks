@@ -21,7 +21,8 @@ export function SignaturePadCapture({ token, userId, orgId }: SignaturePadCaptur
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const dpr = window.devicePixelRatio || 1
+    // Cap DPR at 2 — higher values produce very large payloads on high-DPI mobile
+    const dpr = Math.min(window.devicePixelRatio || 1, 2)
     const rect = canvas.getBoundingClientRect()
     canvas.width  = rect.width * dpr
     canvas.height = rect.height * dpr
@@ -87,7 +88,8 @@ export function SignaturePadCapture({ token, userId, orgId }: SignaturePadCaptur
       toast.error("Please draw your signature first")
       return
     }
-    const dataUrl = canvas.toDataURL("image/png")
+    // Use JPEG at 0.8 quality — PNG produces 3-5× larger payloads for the same signature
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.8)
 
     startTransition(async () => {
       const { saveSignatureFromMobile } = await import("@/lib/actions/signatures")

@@ -205,15 +205,18 @@ export async function saveSignatureFromMobile(
   if (tokenRow.consumed_at) return { error: "Token already used" }
   if (new Date(tokenRow.expires_at) < new Date()) return { error: "Token expired" }
 
-  // Upload signature
-  const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, "")
-  const buffer = Buffer.from(base64, "base64")
-  const filename = `${randomUUID()}.png`
+  // Upload signature — detect jpeg vs png from data URL
+  const mimeMatch = /^data:(image\/\w+);base64,/.exec(dataUrl)
+  const mimeType  = mimeMatch?.[1] ?? "image/png"
+  const ext       = mimeType === "image/jpeg" ? "jpg" : "png"
+  const base64    = dataUrl.replace(/^data:image\/\w+;base64,/, "")
+  const buffer    = Buffer.from(base64, "base64")
+  const filename  = `${randomUUID()}.${ext}`
   const storagePath = `${orgId}/${userId}/${filename}`
 
   const { error: uploadError } = await db.storage
     .from("signatures")
-    .upload(storagePath, buffer, { contentType: "image/png", upsert: false })
+    .upload(storagePath, buffer, { contentType: mimeType, upsert: false })
 
   if (uploadError) {
     console.error("saveSignatureFromMobile upload:", uploadError.message)
