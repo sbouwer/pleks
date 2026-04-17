@@ -330,7 +330,7 @@ function buildLegacyResidentialRooms(): RoomSuggestion[] {
   }))
 }
 
-function getItemsForRoomType(roomType: string): string[] {
+export function getItemsForRoomType(roomType: string): string[] {
   if (roomType.startsWith("bedroom")) return [...BEDROOM_ITEMS]
   if (roomType === "kitchen") return [...KITCHEN_ITEMS]
   if (roomType.startsWith("bathroom") || roomType === "toilet") return [...BATHROOM_ITEMS]

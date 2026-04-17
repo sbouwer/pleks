@@ -1,12 +1,13 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
-import { CheckCircle2, ClipboardList, ChevronDown, UserRound } from "lucide-react"
+import { CheckCircle2, ClipboardList, ChevronDown, UserRound, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { createInspection } from "@/lib/actions/inspections"
 import { TenantPicker } from "@/components/shared/TenantPicker"
@@ -48,6 +49,8 @@ interface Props {
   initialTenantName: string | null
   initialType: string | null
 }
+
+const PROFILE_REQUIRED_TYPES = ["move_in", "move_out", "periodic"]
 
 const INSPECTION_TYPES = [
   { value: "move_in", label: "Move-in", desc: "Condition at start of tenancy" },
@@ -94,6 +97,8 @@ export function NewInspectionForm({
   const [isPreFilled, setIsPreFilled] = useState(!!initialPropertyId && !!initialUnitId)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  // null = not applicable / not checked yet; true/false = result of check
+  const [profileExists, setProfileExists] = useState<boolean | null>(null)
 
   // Load properties — auto-select if only one
   useEffect(() => {
@@ -230,6 +235,25 @@ export function NewInspectionForm({
     return () => { cancelled = true }
   }, [unitId, initialTenantId])
 
+  // Check for an inspection profile when unit + type combination requires one
+  useEffect(() => {
+    const requiresProfile = PROFILE_REQUIRED_TYPES.includes(inspectionType) && leaseType === "residential"
+    if (!unitId || !requiresProfile) {
+      setProfileExists(null)
+      return
+    }
+    let cancelled = false
+    const supabase = createClient()
+    supabase
+      .from("unit_inspection_profiles")
+      .select("id", { count: "exact", head: true })
+      .eq("unit_id", unitId)
+      .then(({ count }) => {
+        if (!cancelled) setProfileExists((count ?? 0) > 0)
+      })
+    return () => { cancelled = true }
+  }, [unitId, inspectionType, leaseType])
+
   function handlePropertyChange(pid: string) {
     setPropertyId(pid)
     setPropertyName(properties.find((p) => p.id === pid)?.name ?? "")
@@ -263,6 +287,7 @@ export function NewInspectionForm({
   async function handleSubmit() {
     if (!propertyId) { setError("Please select a property"); return }
     if (!unitId) { setError("Please select a unit"); return }
+    if (profileExists === false) { setError("Set up an inspection checklist for this unit first"); return }
     setError("")
     setLoading(true)
 
@@ -277,10 +302,21 @@ export function NewInspectionForm({
 
     const result = await createInspection(fd)
     if (result?.error) {
-      toast.error(result.error)
+      if (result.error === "no_profile") {
+        setProfileExists(false)
+        toast.error("This unit needs an inspection checklist before scheduling this type of inspection.")
+      } else {
+        toast.error(result.error)
+      }
       setLoading(false)
     }
     // On success, createInspection redirects
+  }
+
+  function profileGateLabel(): string {
+    if (inspectionType === "move_in") return "Move-in"
+    if (inspectionType === "move_out") return "Move-out"
+    return "Periodic"
   }
 
   const selectedPropertyName = properties.find((p) => p.id === propertyId)?.name ?? ""
@@ -481,10 +517,39 @@ export function NewInspectionForm({
         </div>
       </section>
 
+      {/* Profile gate warning */}
+      {profileExists === false && (
+        <div className="flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800/40 dark:bg-amber-950/20 dark:text-amber-300">
+          <AlertTriangle className="size-4 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-medium mb-0.5">No inspection checklist for this unit</p>
+            <p>
+              {profileGateLabel()} inspections require a saved room checklist.{" "}
+              {propertyId && unitId && (
+                <>
+                  <Link href={`/properties/${propertyId}/units/${unitId}`} className="underline underline-offset-2">
+                    Set it up from the unit page
+                  </Link>
+                  {", or "}
+                </>
+              )}
+              <button
+                type="button"
+                className="underline underline-offset-2"
+                onClick={() => { setInspectionType("pre_listing"); setProfileExists(null) }}
+              >
+                switch to a pre-listing inspection
+              </button>
+              {" "}to create it on-site.
+            </p>
+          </div>
+        </div>
+      )}
+
       {error && <p className="text-sm text-danger">{error}</p>}
 
       <div className="flex justify-end pt-2">
-        <Button onClick={handleSubmit} disabled={loading} size="lg">
+        <Button onClick={handleSubmit} disabled={loading || profileExists === false} size="lg">
           {loading ? "Creating…" : "Schedule inspection"}
         </Button>
       </div>
