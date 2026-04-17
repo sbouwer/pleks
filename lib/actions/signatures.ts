@@ -128,6 +128,53 @@ export async function removeSignature(): Promise<{ error?: string }> {
   return {}
 }
 
+/**
+ * Creates a one-time token for the QR phone-capture flow.
+ * Token expires in 10 minutes. The mobile page at /sign-signature/[token]
+ * validates this token before showing the signature pad.
+ */
+export async function createSignatureToken(): Promise<{ error?: string; token?: string }> {
+  const gw = await gateway()
+  if (!gw) return { error: "Not authenticated" }
+  const { db, userId, orgId } = gw
+
+  const token = randomUUID()
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
+
+  const { error } = await db.from("signature_sign_tokens").insert({
+    token,
+    user_id: userId,
+    org_id: orgId,
+    expires_at: expiresAt,
+  })
+
+  if (error) {
+    console.error("createSignatureToken:", error.message)
+    return { error: "Could not create QR token" }
+  }
+
+  return { token }
+}
+
+/**
+ * Checks whether the one-time sign token has been consumed (phone capture complete).
+ * Used by the QR polling loop in SignatureSettings.
+ */
+export async function checkTokenConsumed(token: string): Promise<{ consumed: boolean }> {
+  const gw = await gateway()
+  if (!gw) return { consumed: false }
+  const { db, userId } = gw
+
+  const { data } = await db
+    .from("signature_sign_tokens")
+    .select("consumed_at")
+    .eq("token", token)
+    .eq("user_id", userId)
+    .single()
+
+  return { consumed: !!data?.consumed_at }
+}
+
 interface SaveFromMobileParams {
   token: string
   userId: string

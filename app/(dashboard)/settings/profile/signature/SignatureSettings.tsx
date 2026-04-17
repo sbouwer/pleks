@@ -9,9 +9,11 @@ import {
   saveSignatureDataUrl,
   saveSignatureFile,
   removeSignature,
+  createSignatureToken,
+  checkTokenConsumed,
 } from "@/lib/actions/signatures"
 
-type Tab = "draw" | "upload" | "type"
+type Tab = "draw" | "upload" | "type" | "qr"
 
 interface CurrentSignature {
   id: string
@@ -27,7 +29,8 @@ interface Props {
 const SOURCE_LABELS: Record<string, string> = {
   mouse_desktop: "drawing",
   typed_name: "typed name",
-  upload: "upload",
+  uploaded_file: "uploaded image",
+  qr_phone: "phone (QR)",
 }
 
 function formatDate(iso: string): string {
@@ -307,6 +310,94 @@ function TypeTab({ onSaved }: Readonly<{ onSaved: () => void }>) {
   )
 }
 
+// ── QR Tab ────────────────────────────────────────────────────────────────────
+
+function QrTab({ onSaved }: Readonly<{ onSaved: () => void }>) {
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
+  const [token, setToken] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [expired, setExpired] = useState(false)
+  const [genError, setGenError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function init() {
+      const result = await createSignatureToken()
+      if (cancelled) return
+      if (result.error ?? !result.token) {
+        setGenError(result.error ?? "Failed to generate QR code")
+        setLoading(false)
+        return
+      }
+      const tok = result.token as string
+      const signUrl = `${globalThis.location.origin}/sign-signature/${tok}`
+      const QRCode = await import("qrcode")
+      const dataUrl = await QRCode.default.toDataURL(signUrl, { width: 200, margin: 2 })
+      if (cancelled) return
+      setToken(tok)
+      setQrDataUrl(dataUrl)
+      setLoading(false)
+      globalThis.setTimeout(() => { if (!cancelled) setExpired(true) }, 10 * 60 * 1000)
+    }
+
+    init()
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    if (!token || expired) return
+    const id = globalThis.setInterval(async () => {
+      const { consumed } = await checkTokenConsumed(token)
+      if (consumed) {
+        globalThis.clearInterval(id)
+        toast.success("Signature captured from phone")
+        onSaved()
+      }
+    }, 3000)
+    return () => globalThis.clearInterval(id)
+  }, [token, expired, onSaved])
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+        <Loader2 className="size-3.5 animate-spin" />
+        Generating QR code…
+      </div>
+    )
+  }
+
+  if (genError) {
+    return <p className="text-sm text-destructive">{genError}</p>
+  }
+
+  if (expired) {
+    return (
+      <p className="text-sm text-muted-foreground py-4">
+        QR code expired. Switch to another tab and back to generate a new one.
+      </p>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {qrDataUrl && (
+        <div className="border border-input rounded-lg p-4 inline-flex flex-col items-center gap-3 bg-white">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={qrDataUrl} alt="QR code for phone signature" className="size-[200px]" />
+          <p className="text-xs text-muted-foreground text-center max-w-[200px]">
+            Scan with your phone camera, draw your signature, then return here.
+          </p>
+        </div>
+      )}
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Loader2 className="size-3.5 animate-spin" />
+        Waiting for signature from phone…
+      </div>
+    </div>
+  )
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export function SignatureSettings({ currentSignature }: Readonly<Props>) {
@@ -334,9 +425,10 @@ export function SignatureSettings({ currentSignature }: Readonly<Props>) {
   }
 
   const tabs: { id: Tab; label: string }[] = [
-    { id: "draw", label: "Draw" },
+    { id: "draw",   label: "Draw" },
     { id: "upload", label: "Upload" },
-    { id: "type", label: "Type name" },
+    { id: "type",   label: "Type name" },
+    { id: "qr",     label: "Use phone" },
   ]
 
   return (
@@ -414,9 +506,10 @@ export function SignatureSettings({ currentSignature }: Readonly<Props>) {
         </div>
 
         {/* Tab content */}
-        {activeTab === "draw" && <DrawTab onSaved={handleSaved} />}
+        {activeTab === "draw"   && <DrawTab   onSaved={handleSaved} />}
         {activeTab === "upload" && <UploadTab onSaved={handleSaved} />}
-        {activeTab === "type" && <TypeTab onSaved={handleSaved} />}
+        {activeTab === "type"   && <TypeTab   onSaved={handleSaved} />}
+        {activeTab === "qr"     && <QrTab     onSaved={handleSaved} />}
       </div>
     </div>
   )
