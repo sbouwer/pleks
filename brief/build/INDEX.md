@@ -33,7 +33,7 @@
 | 8 | AI model routing | — | Reference |
 | 9 | Reference files | — | Reference |
 
-**Known open work:** BUILD_60 Phases 4–22 (wizard shell, scenario picker, universal questions, scenario-specific follow-ups, owner/landlord step, units step, insurance stub, documents drag-drop, save + completeness summary, completeness widget, info requests system, magic-link public form, reminder cron, onboarding dashboard cards, reclassify action, mobile shell, tier gate refactor, template seeds, educational copy, existing property integration); BUILD_61 route alignment (spec'd, not yet built); ADDENDUM_60A spec; ADDENDUM_61A spec (profile architecture).
+**Known open work:** BUILD_60 Phases 5–22 (wizard shell, scenario picker, universal questions, scenario-specific follow-ups, owner/landlord step, units step, insurance stub, documents drag-drop, save + completeness summary, completeness widget, info requests system, magic-link public form, reminder cron, onboarding dashboard cards, reclassify action, mobile shell, tier gate refactor, template seeds, educational copy, existing property integration); BUILD_61 route alignment (spec'd, not yet built); ADDENDUM_60A spec (insurance checklist); ADDENDUM_61A spec (conditional-rendering audit); BUILD_62 (future: user profile surface buildout — security, preferences, richer profile page — depends on BUILD_61 namespace).
 
 ---
 
@@ -191,22 +191,22 @@ Everything shipped after the UX pass: core workflow forms (lease wizard, inspect
 
 ## 4. Property Operations & Refactors (BUILD_59–61) 🔨
 
-The current work front. Property insurance/broker/managing-scheme architecture (BUILD_59) is fully shipped. The scenario-driven smart property setup wizard (BUILD_60) is in progress — Phases 1–3 of 22 done. BUILD_61 is a mechanical route-alignment refactor spec'd but not yet started.
+The current work front. Property insurance/broker/managing-scheme architecture (BUILD_59) is fully shipped. The scenario-driven smart property setup wizard (BUILD_60) is in progress — Phases 1–4 of 22 done. BUILD_61 is a mechanical route-alignment refactor spec'd but not yet started.
 
 ### Builds
 
 | # | Spec | Status | Description |
 |---|------|--------|-------------|
 | 59 | `BUILD_59_PROPERTY_INSURANCE_SCHEME.md` | ✅ | All 13 phases. Schema in `012_property_extensions.sql` §4–§11. AI triage extended. `CriticalIncidentDialog` + `CriticalIncidentWrapper`. `recordInsuranceDecision` → parallel notify (broker/owner/scheme) → audit trail. 3 React Email templates. Multi-building opt-in via `EnableMultiBuildingDialog`. Phase 13: broker card gated (`canSeeBroker` = `owner_pro_lease_count > 0` for owner tier, always true for Steward+); free Owner sees upgrade prompt. Scheme tab edit link hidden for owner tier (read-only). Monthly levy KvRow + dedicated Levies section card gated to Firm tier only. |
-| 60 | `BUILD_60_SMART_PROPERTY_SETUP.md` | 🔨 | **Phases 1–3 shipped.** Phase 1: Schema in `012_property_extensions.sql` §12 (scenario_type, property_profile JSONB, managed_mode, onboarding tracking, universal questions WiFi/cell/backup power, operating hours, is_lettable + industrial unit columns, business_use_permitted). `property_info_requests` + `property_info_request_events` in `005_operations.sql`. `cron_runs` health table in `010_platform_features.sql` §12. `lib/tier/getActiveLeaseCount.ts` + `canActivateLease.ts`. Owner property count gate removed — lease activation is now the tier gate. Phase 2: `lib/properties/scenarios.ts` (ScenarioMeta + ScenarioQuestion definitions for all 11 SA scenarios with segment, icon, educational bullets, typed questions with group/showWhen); `lib/properties/buildProfile.ts` (pure `buildProfile()` deriving full property_profile JSONB — unit type, furnishing, insurance type/rider, CPA flag, deposit months, lease duration, inspection/clause/welcome-pack keys via lookup tables); `lib/properties/skeletonUnits.ts` (pure `buildSkeletonUnits()` — typed SkeletonUnit arrays for all 11 scenarios including C3 industrial columns, M1 retail+residential split, ≥1 lettable unit guarantee). Phase 3: `WizardContext.tsx` (typed `WizardState`, `WizardProvider`, `useWizard()`, `computeActiveStepIds()` — active step list varies by scenarioType and managedMode); `WizardShell.tsx` (progress dots with ✓ done state, step routing switch, Back/Continue/Save-property nav, advanced-mode toggle); `steps/Step*.tsx` (10 placeholder step components — Picker, Address, Universal, ScenarioFollowUp, OperatingHours, Landlord, Units, Insurance, Documents, Summary); `page.tsx` wrapped in `WizardProvider`. Phases 4–22 pending. |
-| 61 | `BUILD_61_ROUTE_ALIGNMENT.md` | 📝 | Mechanical refactor aligning routes to UI labels: `/payments` → `/billing`, `/contractors` → `/suppliers`, `/settings/finance` → `/settings/deposits`, `/settings/billing` → `/settings/subscription`, `/settings/communication/templates` → `/settings/documents/templates`. Matching `/api/*` renames. 13 permanent HTTP 308 redirects in `next.config.ts` for bookmark/email-link compatibility. Orphan settings audit (`/settings/applications`, `/settings/contractors`, `/settings/reports`). Updates `/managing-schemes` and `/utilities` redirect targets. **Does not touch** `/settings/profile/*` (deferred to ADDENDUM_61A), webhooks, cron routes, or portal route groups (`/contractor/*`, `/portal/*`, `/landlord/*`, `/apply/*`). No tier gate changes. Estimated ~100–150 file touches. |
+| 60 | `BUILD_60_SMART_PROPERTY_SETUP.md` | 🔨 | **Phases 1–4 shipped.** Phase 1: Schema in `012_property_extensions.sql` §12 (scenario_type, property_profile JSONB, managed_mode, onboarding tracking, universal questions WiFi/cell/backup power, operating hours, is_lettable + industrial unit columns, business_use_permitted). `property_info_requests` + `property_info_request_events` in `005_operations.sql`. `cron_runs` health table in `010_platform_features.sql` §12. `lib/tier/getActiveLeaseCount.ts` + `canActivateLease.ts`. Owner property count gate removed — lease activation is now the tier gate. Phase 2: `lib/properties/scenarios.ts` (ScenarioMeta + ScenarioQuestion definitions for all 11 SA scenarios with segment, icon, educational bullets, typed questions with group/showWhen); `lib/properties/buildProfile.ts` (pure `buildProfile()` deriving full property_profile JSONB — unit type, furnishing, insurance type/rider, CPA flag, deposit months, lease duration, inspection/clause/welcome-pack keys via lookup tables); `lib/properties/skeletonUnits.ts` (pure `buildSkeletonUnits()` — typed SkeletonUnit arrays for all 11 scenarios including C3 industrial columns, M1 retail+residential split, ≥1 lettable unit guarantee). Phase 3: `WizardContext.tsx` (typed `WizardState`, `WizardProvider`, `useWizard()`, `computeActiveStepIds()` — active step list varies by scenarioType and managedMode); `WizardShell.tsx` (progress dots with ✓ done state, step routing switch, Back/Continue/Save-property nav, advanced-mode toggle); `steps/Step*.tsx` (10 placeholder step components — Picker, Address, Universal, ScenarioFollowUp, OperatingHours, Landlord, Units, Insurance, Documents, Summary); `page.tsx` wrapped in `WizardProvider`. Phase 4: `StepPicker.tsx` — ownership binary (self_owned / managed_for_owner), 3-segment selector (desktop tabs / mobile native select, reset-on-segment-switch), scenario card grid with Lucide icon + tagline + in-place educational bullet accordion + unit count input for counted scenarios, "Something else → advanced setup" link. `WizardShell.tsx`: Continue button disabled until scenario selected. Phases 5–22 pending. |
+| 61 | `BUILD_61_ROUTE_ALIGNMENT.md` | 📝 | Mechanical refactor aligning routes to UI labels. UI renames: `/payments` → `/billing`, `/contractors` → `/suppliers`, `/settings/finance` → `/settings/deposits`, `/settings/billing` → `/settings/subscription`, `/settings/communication/templates` → `/settings/documents/templates`. Matching `/api/*` renames. **Profile/details split**: `/settings/profile` (org details) moves to `/settings/details` + stub page at `/settings/profile` becomes the user-profile landing (personal info, link to Signature, pointer to Details for agency users) — no redirect, URL is repurposed. `/settings/profile/signature` untouched. Same schema, different presentation — no migration. 13 permanent HTTP 308 redirects. Orphan settings audit (`/settings/applications`, `/settings/contractors`, `/settings/reports`). Updates `/managing-schemes` and `/utilities` redirect targets. **Does not touch**: webhooks, cron routes, portal route groups (`/contractor/*`, `/portal/*`, `/landlord/*`, `/apply/*`). No tier gate changes. User-profile buildout (security/preferences pages) deferred to BUILD_62. Estimated ~100–150 file touches. |
 
 ### Addendums
 
 | Addendum | Parent | Status | Description |
 |----------|--------|--------|-------------|
 | `ADDENDUM_60A_INSURANCE_CHECKLIST.md` | BUILD_60 | 🔬 | ~30-item insurance checklist system per property with three-state items (confirmed/unknown/N/A), broker-brief PDF, annual review flow, warranty tracking (geyser/solar/appliances), integration with BUILD_59 critical incident notification. Platform-authored catalogue in v1, org customisation in v2. Separate conversation scheduled — BUILD_60 leaves hooks. |
-| `ADDENDUM_61A_PROFILE_ARCHITECTURE.md` | BUILD_61 | 🔬 | Split `/settings/profile/*` into proper information architecture: `/settings/org/*` for agency organisation details vs `/settings/account/*` for personal user account (signature, personal contact, etc.). Resolves the current conceptual overlap where `/settings/profile` is the org details page for agencies but a personal profile for landlord orgs, with `/settings/profile/signature` nested under it as a personal-only concept. Requires product decision on landlord-type org (shared surface or dedicated view). Deliberately held separate from BUILD_61's mechanical rename. |
+| `ADDENDUM_61A_CONDITIONAL_RENDERING_AUDIT.md` | BUILD_61 | 🔬 | Small audit spec following the database-unified principle ("same schema, different presentation"). After BUILD_61 ships, verify every Settings page renders sensibly for landlord-type orgs: does `/settings/details` hide agency-only fields (EAAB/FFC/trust account) for landlord orgs; does Branding still make sense for a one-landlord org; does the org-vs-personal framing on `/settings/profile` read correctly for both org types. Scope is audit + conditional-render tweaks, not rebuild. Does not change schema. |
 
 ---
 
@@ -241,7 +241,7 @@ Attorney-reviewed clause and disclaimer text that the platform relies on.
 
 ## 7. Migrations
 
-> File names are in `supabase/migrations/`. Structure is consolidated and domain-scoped — new features amend an existing file rather than creating a new one. See `CLAUDE.md` "HOW TO WORK WITH MIGRATIONS" for the amend-forward rule. Old per-BUILD files are preserved in `supabase/migrations/_archived/` for reference.
+> File names are in `supabase/migrations/`. Structure is consolidated and domain-scoped — new features amend an existing file rather than creating a new one. See `CLAUDE.md` "HOW TO WORK WITH MIGRATIONS" for the amend-forward rule.
 
 ### Active migrations
 
@@ -262,26 +262,21 @@ Attorney-reviewed clause and disclaimer text that the platform relies on.
 
 ### Domain routing for new BUILDs
 
-| Change touches… | Amend |
-|-----------------|-------|
-| portal / billing / auth / team / admin / ownership / bank feeds | `010_platform_features.sql` |
-| documents / templates / WhatsApp / email / SMS / storage | `011_documents_messaging.sql` |
-| property / unit / inspection / insurance / managing scheme | `012_property_extensions.sql` |
-| leases / rent / deposits / arrears / trust / DebiCheck | `004_leases_financials.sql` |
-| maintenance / contractors / HOA / applications / municipal / reports | `005_operations.sql` |
-| contacts / tenants / landlords / `communication_log` core | `002_contacts.sql` |
+When a BUILD needs schema changes, amend the appropriate domain file rather than creating a new migration. Route by what the change touches:
 
-### Archived (pre-consolidation, in `_archived/`)
+| Change touches… | Amend | Notes |
+|-----------------|-------|-------|
+| property / unit / inspection / insurance / managing scheme / building | `012_property_extensions.sql` | Property-side vocabulary |
+| leases / rent / deposits / arrears / trust ledger / DebiCheck / lease charges | `004_leases_financials.sql` | Lease + financial lifecycle |
+| maintenance / contractors / HOA / applications / municipal bills / reports / imports | `005_operations.sql` | Day-to-day operational workflows |
+| contacts / tenants / landlords / `communication_log` core fields | `002_contacts.sql` | Contacts CRM + base comms log |
+| portal / subscription billing / auth / team / admin / ownership / bank feeds / tenant portal / landlord portal / cron health | `010_platform_features.sql` | Platform-level plumbing |
+| documents / templates / signatures / WhatsApp / email / SMS / storage buckets + RLS | `011_documents_messaging.sql` | Anything document-, template-, or messaging-shaped |
+| reference / seed data (prime rates, clause library, rule templates, system templates) | `006_seed.sql` | Idempotent `INSERT … ON CONFLICT DO NOTHING` seeds only |
+| encryption / RLS hardening / `WITH CHECK` policies | `009_security.sql` | Security hardening — cross-table policy work |
+| foundational tables only (`organisations`, `user_orgs`, `audit_log`, `consent_log`, waitlist) | `001_foundation.sql` | Rare. Only if adding or evolving truly foundational auth/tenancy tables. |
 
-| Old file | Absorbed into |
-|----------|---------------|
-| `010_addenda.sql` | 010 §1–§9, §11 + 011 §1 + 012 §1–§3 |
-| `011_owner_pro_billing.sql` | 010 §10 |
-| `012_document_generation.sql` | 011 §1–§9 |
-| `013_whatsapp_integration.sql` | 011 §10–§11 |
-| `014_schema_fixes.sql` | 011 §1 (custom-template fields), §4 (meta_template_name), §12 (storage buckets) |
-| `015_storage_rls.sql` | 011 §13 (path-scoped storage RLS) |
-| `016_property_insurance_scheme.sql` | 012 §4–§11 |
+**Do NOT amend** `007_enhancements.sql` or `008_enhancements2.sql`. These are historical cross-cutting files preserved for replay fidelity. New work goes into the domain-scoped files (010–012) or the other domain files above.
 
 ---
 
