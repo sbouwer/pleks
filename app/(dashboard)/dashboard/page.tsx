@@ -12,6 +12,7 @@ import { AttentionQueue } from "./AttentionQueue"
 import { FinancialsPanel } from "./FinancialsPanel"
 import { LeaseExpiryTimeline } from "./LeaseExpiryTimeline"
 import { ActivityFeed } from "./ActivityFeed"
+import { PropertySetupCards } from "./PropertySetupCards"
 import { formatZARAbbrev } from "@/lib/constants"
 import { getFeesDue } from "@/lib/dashboard/feesDue"
 import { getTrustBalance } from "@/lib/dashboard/trustBalance"
@@ -271,6 +272,13 @@ export default async function DashboardPage() {
         trialTier={sub?.trial_tier}
         isFoundingAgent={!!org?.founding_agent}
         foundingPriceCents={org?.founding_agent_price_cents as number | null}
+      />
+
+      {/* BUILD_60 property setup cards — first property / check imports */}
+      <PropertySetupCards
+        orgId={membership.org_id}
+        totalProperties={totalProperties}
+        isAdmin={membership.role === "owner"}
       />
 
       {/* Onboarding checklist — shown until all steps complete */}

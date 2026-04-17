@@ -13,6 +13,8 @@ import { SchemeTab, type ManagingSchemeData } from "./SchemeTab"
 import { AgentPicker } from "./AgentPicker"
 import { LandlordPicker } from "./LandlordPicker"
 import { CompletenessWidgetWrapper } from "./CompletenessWidgetWrapper"
+import { ReclassifyDialog } from "./ReclassifyDialog"
+import { SCENARIOS, type ScenarioType } from "@/lib/properties/scenarios"
 import { MobilePropertyView } from "@/components/mobile/MobilePropertyView"
 import { formatZAR } from "@/lib/constants"
 import { subtractBusinessDays } from "@/lib/dates/saPublicHolidays"
@@ -566,6 +568,8 @@ export default async function PropertyDetailPage({
   if (!membership) redirect("/login")
   const { org_id: orgId } = membership
   const tier              = membership.tier ?? "owner"
+  // Owners are always admin; other roles (admin, manager) gated server-side on action submit.
+  const isAdminUi         = membership.role === "owner"
 
   const { data: property } = await supabase
     .from("properties")
@@ -675,6 +679,18 @@ export default async function PropertyDetailPage({
               <Badge variant="secondary" className="capitalize">
                 {typeLabel[property.type] ?? property.type}
               </Badge>
+            )}
+            {isAdminUi && propRaw.scenario_type && (
+              <ReclassifyDialog
+                propertyId={id}
+                currentScenario={propRaw.scenario_type as ScenarioType}
+                currentScenarioLabel={
+                  propRaw.scenario_type === "other"
+                    ? "Other / advanced"
+                    : (SCENARIOS[propRaw.scenario_type as Exclude<ScenarioType, "other">]?.label ?? String(propRaw.scenario_type))
+                }
+                unitCount={baseUnits?.length ?? 0}
+              />
             )}
           </div>
           <p className="text-muted-foreground text-sm mt-0.5">{fullAddress}</p>
