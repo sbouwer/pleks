@@ -2,6 +2,27 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { getMembership } from "@/lib/supabase/getMembership"
 
+export async function GET() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+  const service = await createServiceClient()
+  const membership = await getMembership(service, user.id)
+  if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
+
+  const { data, error } = await service
+    .from("landlords")
+    .select("id, contacts(id, first_name, last_name, company_name, primary_email)")
+    .eq("org_id", membership.org_id)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(200)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ landlords: data ?? [] })
+}
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
