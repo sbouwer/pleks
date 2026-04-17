@@ -233,10 +233,50 @@ export async function sendDocument(
 }
 
 export async function generateDocumentPdf(
-  _formData: FormData
-): Promise<{ error?: string; pdfUrl?: string }> {
-  // Stub — PDF generation via pdf-lib is planned for a future update.
-  return { error: "PDF generation not yet implemented" }
+  formData: FormData
+): Promise<{ error?: string; printUrl?: string }> {
+  const gw = await gateway()
+  if (!gw) return { error: "Not authenticated" }
+  const { db, orgId, userId } = gw
+
+  const templateId = formData.get("template_id") as string | null
+  const leaseId = formData.get("lease_id") as string | null
+  const subject = (formData.get("subject") as string) || null
+  const bodyHtml = formData.get("body_html") as string
+  const existingJobId = (formData.get("job_id") as string) || null
+
+  if (!bodyHtml) return { error: "Document body is required" }
+
+  let jobId: string
+
+  if (existingJobId) {
+    const { error } = await db
+      .from("document_generation_jobs")
+      .update({ body_html: bodyHtml, subject, status: "draft" })
+      .eq("id", existingJobId)
+      .eq("org_id", orgId)
+    if (error) return { error: error.message }
+    jobId = existingJobId
+  } else {
+    const { data, error } = await db
+      .from("document_generation_jobs")
+      .insert({
+        org_id: orgId,
+        user_id: userId,
+        template_id: templateId,
+        lease_id: leaseId,
+        subject,
+        body_html: bodyHtml,
+        status: "draft",
+      })
+      .select("id")
+      .single()
+    if (error || !data) return { error: error?.message ?? "Failed to save draft" }
+    jobId = data.id
+  }
+
+  revalidatePath("/documents")
+  return { printUrl: `/api/documents/${jobId}/print?print=1` }
 }
 
 export async function saveDraftDocument(
