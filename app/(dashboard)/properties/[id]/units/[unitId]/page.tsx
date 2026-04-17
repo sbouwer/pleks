@@ -8,6 +8,7 @@ import { Calendar, Wrench, FileText } from "lucide-react"
 import { UnitStatusActions } from "./UnitStatusActions"
 import { UnitAgentPicker } from "./UnitAgentPicker"
 import { UnitClauseProfile } from "@/components/leases/UnitClauseProfile"
+import { InspectionProfileCard } from "./InspectionProfileCard"
 import { ListingSection } from "./ListingSection"
 import { DepositInterestConfig } from "@/components/deposits/DepositInterestConfig"
 import { BackLink } from "@/components/ui/BackLink"
@@ -245,6 +246,16 @@ export default async function UnitDetailPage({
           unitId={unitId}
           currentPrime={primeRateRow?.rate_percent ?? null}
           title="Deposit interest — Unit override"
+        />
+      </div>
+
+      {/* Inspection checklist profile */}
+      <div className="mt-6">
+        <InspectionProfileCard
+          unitId={unitId}
+          propertyId={id}
+          unitType={unit.unit_type ?? null}
+          initialRooms={savedRooms}
         />
       </div>
 

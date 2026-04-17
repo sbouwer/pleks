@@ -4,6 +4,10 @@ import { gateway } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { seedInspectionRooms } from "@/lib/inspections/seedRooms"
+import { saveProfileFromInspection } from "@/lib/inspections/profileHelpers"
+
+// Inspection types that require a saved profile before they can be created
+const PROFILE_REQUIRED_TYPES = ["move_in", "move_out", "periodic"]
 
 export async function createInspection(formData: FormData) {
   const gw = await gateway()
@@ -17,6 +21,22 @@ export async function createInspection(formData: FormData) {
   const inspectionType = formData.get("inspection_type") as string
   const leaseType = formData.get("lease_type") as string || "residential"
   const scheduledDate = formData.get("scheduled_date") as string || null
+
+  // Hard gate: move_in / move_out / periodic require an existing profile
+  if (PROFILE_REQUIRED_TYPES.includes(inspectionType) && leaseType === "residential") {
+    const { count, error: profileCheckErr } = await db
+      .from("unit_inspection_profiles")
+      .select("id", { count: "exact", head: true })
+      .eq("unit_id", unitId)
+
+    if (profileCheckErr) {
+      console.error("createInspection profile check:", profileCheckErr.message)
+    }
+
+    if ((count ?? 0) === 0) {
+      return { error: "no_profile" }
+    }
+  }
 
   const { data: inspection, error } = await db
     .from("inspections")
@@ -39,7 +59,8 @@ export async function createInspection(formData: FormData) {
     return { error: error?.message || "Failed to create inspection" }
   }
 
-  await seedInspectionRooms(db, inspection.id, orgId, leaseType)
+  // Seed rooms — pass unitId so the engine uses profile-first logic
+  await seedInspectionRooms(db, inspection.id, orgId, leaseType, unitId)
 
   await db.from("audit_log").insert({
     org_id: orgId,
@@ -61,7 +82,7 @@ export async function updateInspectionStatus(inspectionId: string, newStatus: st
 
   const { data: inspection } = await db
     .from("inspections")
-    .select("org_id, lease_type, status")
+    .select("org_id, lease_type, status, inspection_type, unit_id")
     .eq("id", inspectionId)
     .single()
 
@@ -69,7 +90,12 @@ export async function updateInspectionStatus(inspectionId: string, newStatus: st
 
   const updates: Record<string, unknown> = { status: newStatus }
 
-  if (newStatus === "completed" && inspection.lease_type === "residential") {
+  // Residential non-pre_listing → open dispute window instead of going straight to completed
+  if (
+    newStatus === "completed" &&
+    inspection.lease_type === "residential" &&
+    inspection.inspection_type !== "pre_listing"
+  ) {
     const now = new Date()
     const closeDate = new Date(now)
     closeDate.setDate(closeDate.getDate() + 7)
@@ -86,10 +112,21 @@ export async function updateInspectionStatus(inspectionId: string, newStatus: st
   if (newStatus === "in_progress") {
     updates.conducted_date = new Date().toISOString()
     // Lazy seed: covers inspections created outside createInspection()
-    await seedInspectionRooms(db, inspectionId, inspection.org_id, inspection.lease_type ?? "residential")
+    await seedInspectionRooms(
+      db,
+      inspectionId,
+      inspection.org_id,
+      inspection.lease_type ?? "residential",
+      inspection.unit_id ?? undefined,
+    )
   }
 
   await db.from("inspections").update(updates).eq("id", inspectionId)
+
+  // Pre-listing completion: save the inspector's room list as the unit's profile
+  if (newStatus === "completed" && inspection.inspection_type === "pre_listing" && inspection.unit_id) {
+    await saveProfileFromInspection(db, inspectionId, inspection.unit_id, inspection.org_id)
+  }
 
   await db.from("audit_log").insert({
     org_id: inspection.org_id,
