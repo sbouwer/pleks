@@ -7,7 +7,22 @@ export async function saveOrgConfiguration(formData: FormData): Promise<{ error?
   if (!gw) return { error: "Not authenticated" }
   const { db, orgId } = gw
 
+  // Fetch existing settings to merge — never clobber keys owned by other subsystems
+  const { data: org, error: fetchError } = await db
+    .from("organisations")
+    .select("settings")
+    .eq("id", orgId)
+    .single()
+
+  if (fetchError) {
+    console.error("saveOrgConfiguration fetch:", fetchError.message)
+    return { error: "Could not load current configuration" }
+  }
+
+  const existing = (org?.settings ?? {}) as Record<string, unknown>
+
   const settings = {
+    ...existing,
     preferences_version: 1,
     communication: {
       tone_tenant: (formData.get("tone_tenant") as string) || "professional",

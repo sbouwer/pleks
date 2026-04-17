@@ -137,22 +137,22 @@ export async function toggleFavourite(
   const { db, userId } = gw
 
   const { data: existing } = await db
-    .from("template_favourites")
-    .select("id")
+    .from("user_template_favourites")
+    .select("user_id")
     .eq("user_id", userId)
     .eq("template_id", templateId)
     .maybeSingle()
 
   if (existing) {
     await db
-      .from("template_favourites")
+      .from("user_template_favourites")
       .delete()
       .eq("user_id", userId)
       .eq("template_id", templateId)
     return { favourited: false }
   }
 
-  await db.from("template_favourites").insert({
+  await db.from("user_template_favourites").insert({
     user_id: userId,
     template_id: templateId,
   })
@@ -169,7 +169,7 @@ export async function setWhatsAppOptIn(
   const { db, orgId } = gw
 
   const { error } = await db
-    .from("whatsapp_template_prefs")
+    .from("org_whatsapp_template_preferences")
     .upsert(
       { org_id: orgId, template_id: templateId, opted_in: optedIn },
       { onConflict: "org_id,template_id" }
@@ -188,9 +188,9 @@ export async function setWhatsAppTone(
   const { db, orgId } = gw
 
   const { error } = await db
-    .from("whatsapp_template_prefs")
+    .from("org_whatsapp_template_preferences")
     .upsert(
-      { org_id: orgId, template_id: templateId, tone },
+      { org_id: orgId, template_id: templateId, tone_variant: tone },
       { onConflict: "org_id,template_id" }
     )
 
@@ -239,6 +239,7 @@ export async function uploadCustomLease(
       custom_template_path: storagePath,
       custom_template_filename: file.name,
       custom_template_uploaded_at: new Date().toISOString(),
+      custom_template_active: true,
     })
     .eq("id", orgId)
 
