@@ -4,7 +4,7 @@ import { useState } from "react"
 import {
   Home, House, Building2, Building, MapPin,
   Briefcase, Warehouse, LayoutGrid, Layers, Network,
-  Info, ChevronUp,
+  Info, ChevronUp, Check,
   type LucideIcon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -16,7 +16,9 @@ import {
   type ScenarioType,
 } from "@/lib/properties/scenarios"
 import { getScenarioEducation } from "@/lib/properties/scenarioEducation"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useWizard, type ManagedMode } from "../WizardContext"
+import { OptionRow } from "../OptionRow"
 
 // ── Icon map ──────────────────────────────────────────────────────────────────
 
@@ -49,24 +51,15 @@ function OwnershipRadio({ value, onChange }: OwnershipRadioProps) {
       <legend className="text-sm font-medium text-foreground mb-2">
         How are you involved with this property?
       </legend>
-      <div className="flex flex-col sm:flex-row gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {options.map((opt) => (
-          <button
+          <OptionRow
             key={opt.value}
-            type="button"
-            role="radio"
-            aria-checked={value === opt.value}
-            onClick={() => onChange(opt.value)}
-            className={cn(
-              "flex-1 text-left rounded-lg border px-4 py-3 transition-colors",
-              value === opt.value
-                ? "border-primary bg-primary/5 ring-1 ring-primary"
-                : "border-border hover:border-primary/40",
-            )}
-          >
-            <span className="block text-sm font-medium">{opt.label}</span>
-            <span className="block text-xs text-muted-foreground mt-0.5">{opt.sub}</span>
-          </button>
+            selected={value === opt.value}
+            onSelect={() => onChange(opt.value)}
+            label={opt.label}
+            sub={opt.sub}
+          />
         ))}
       </div>
     </fieldset>
@@ -102,20 +95,19 @@ function SegmentSelector({ active, onChange }: SegmentSelectorProps) {
         ))}
       </div>
 
-      {/* Mobile: native select */}
+      {/* Mobile: Radix-based dropdown for proper font inheritance */}
       <div className="sm:hidden">
         <label className="text-xs text-muted-foreground mb-1 block">Property type</label>
-        <select
-          value={active}
-          onChange={(e) => onChange(e.target.value as ScenarioSegment)}
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-        >
-          {ALL_SEGMENTS.map((seg) => (
-            <option key={seg.value} value={seg.value}>
-              {seg.label}
-            </option>
-          ))}
-        </select>
+        <Select value={active} onValueChange={(v) => v && onChange(v as ScenarioSegment)}>
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {ALL_SEGMENTS.map((seg) => (
+              <SelectItem key={seg.value} value={seg.value}>{seg.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
     </>
   )
@@ -176,45 +168,71 @@ function ScenarioCard({
       onClick={onSelect}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onSelect() }}
       className={cn(
-        "relative rounded-xl border p-4 cursor-pointer transition-all select-none",
+        "group rounded-lg border transition-colors cursor-pointer select-none",
         selected
-          ? "border-primary bg-primary/5 ring-2 ring-primary ring-offset-1"
+          ? "border-primary bg-primary/[0.04]"
           : "border-border hover:border-primary/40 hover:bg-muted/30",
       )}
     >
-      {/* Icon + title */}
-      <div className="flex items-start gap-2 mb-1">
-        <ScenarioIcon name={scenario.icon} className="w-5 h-5 mt-0.5 text-primary" />
-        <span className="font-medium text-sm leading-tight">{scenario.label}</span>
-      </div>
+      <div className="flex items-center gap-3 p-3">
+        {/* Icon */}
+        <ScenarioIcon
+          name={scenario.icon}
+          className={cn(
+            "w-5 h-5 shrink-0 transition-colors",
+            selected ? "text-primary" : "text-muted-foreground group-hover:text-primary",
+          )}
+        />
 
-      {/* Tagline */}
-      <p className="text-xs text-muted-foreground mb-2 pl-7">{scenario.tagline}</p>
+        {/* Name + one-liner */}
+        <div className="flex-1 min-w-0">
+          <p className="font-medium text-sm leading-tight truncate">{scenario.label}</p>
+          <p className="text-xs text-muted-foreground truncate">{scenario.tagline}</p>
+        </div>
+
+        {/* Info toggle */}
+        <button
+          type="button"
+          aria-label={infoOpen ? "Hide details" : "Show details"}
+          onClick={(e) => { e.stopPropagation(); onToggleInfo() }}
+          className={cn(
+            "rounded-full p-1 transition-colors shrink-0",
+            infoOpen
+              ? "text-primary bg-primary/10"
+              : "text-muted-foreground hover:text-primary hover:bg-primary/10",
+          )}
+        >
+          {infoOpen ? <ChevronUp className="w-4 h-4" /> : <Info className="w-4 h-4" />}
+        </button>
+
+        {/* Tick indicator */}
+        <div
+          className={cn(
+            "flex items-center justify-center w-5 h-5 rounded-full border-2 shrink-0 transition-colors",
+            selected
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-muted-foreground/30 group-hover:border-primary/50",
+          )}
+          aria-hidden
+        >
+          {selected && <Check className="w-3 h-3" strokeWidth={3} />}
+        </div>
+      </div>
 
       {/* Unit count input (counted scenarios only) */}
       {selected && scenario.unitCountMode === "counted" && (
-        <div className="pl-7">
+        <div className="px-3 pb-3 pl-11 -mt-1">
           <UnitCountInput value={unitCount} onChange={onUnitChange} />
         </div>
       )}
 
-      {/* Info toggle */}
-      <button
-        type="button"
-        aria-label={infoOpen ? "Hide details" : "Show details"}
-        onClick={(e) => { e.stopPropagation(); onToggleInfo() }}
-        className="absolute bottom-3 right-3 rounded-full p-1 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-      >
-        {infoOpen ? <ChevronUp className="w-4 h-4" /> : <Info className="w-4 h-4" />}
-      </button>
-
       {/* Educational bullets (expanded) */}
       {infoOpen && (
-        <ul className="mt-3 pl-7 space-y-1.5 border-t pt-3">
+        <ul className="px-3 pb-3 pl-11 space-y-1.5 border-t pt-3">
           {getScenarioEducation(scenario.code).map((bullet) => (
-            <li key={bullet} className="text-xs text-muted-foreground flex gap-1.5">
-              <span className="mt-0.5 shrink-0 text-primary">•</span>
-              {bullet}
+            <li key={bullet} className="text-xs text-muted-foreground flex gap-2 leading-relaxed">
+              <span className="mt-1 shrink-0 text-primary">•</span>
+              <span>{bullet}</span>
             </li>
           ))}
         </ul>
@@ -257,7 +275,14 @@ export function StepPicker() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
+      <div>
+        <h2 className="font-heading text-2xl mb-1">Let&apos;s set up your property</h2>
+        <p className="text-muted-foreground text-sm">
+          A couple of quick choices and we&apos;ll tailor the setup to match your scenario.
+        </p>
+      </div>
+
       <OwnershipRadio
         value={state.managedMode}
         onChange={(v) => patch({ managedMode: v })}
@@ -268,7 +293,7 @@ export function StepPicker() {
 
         <SegmentSelector active={activeSegment} onChange={handleSegmentChange} />
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+        <div className="space-y-2 pt-1">
           {scenarios.map((meta) => (
             <ScenarioCard
               key={meta.code}

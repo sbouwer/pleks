@@ -8,8 +8,14 @@ export default async function NewPropertyPage() {
   if (!membership) redirect("/login")
 
   return (
-    <div>
-      <h1 className="font-heading text-3xl mb-6">Add Property</h1>
+    <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:py-10">
+      <header className="mb-8">
+        <h1 className="font-heading text-3xl font-bold">Add Property</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          A guided setup for South African property realities — sectional title, rental house,
+          commercial, mixed use. Takes about 3–5 minutes.
+        </p>
+      </header>
       <WizardProvider>
         <WizardShell />
       </WizardProvider>

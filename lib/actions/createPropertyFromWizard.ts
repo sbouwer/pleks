@@ -3,7 +3,7 @@
 import { gateway } from "@/lib/supabase/gateway"
 import { revalidatePath } from "next/cache"
 import { buildProfile, type UniversalAnswers } from "@/lib/properties/buildProfile"
-import { buildSkeletonUnits } from "@/lib/properties/skeletonUnits"
+import { buildSkeletonUnits, type SkeletonUnit } from "@/lib/properties/skeletonUnits"
 import type { ScenarioType } from "@/lib/properties/scenarios"
 import { createPropertyInfoRequest } from "./propertyInfoRequests"
 
@@ -50,7 +50,7 @@ export interface WizardSavePayload {
     phone?:        string
     later_track?:  "owner_email" | "self"
   } | null
-  unitLabels: string[]
+  units: SkeletonUnit[]
   insurance: {
     option:                   "now" | "ask_owner" | "later"
     insurer?:                 string
@@ -104,7 +104,7 @@ function initialCompletenessPct(payload: WizardSavePayload, hasDocuments: boolea
 
   if (payload.insurance?.option === "now" && payload.insurance.insurer && payload.insurance.policy_number) pct += 15
   if (hasDocuments) pct += 10
-  if (payload.unitLabels.length > 0) pct += 15
+  if (payload.units.length > 0) pct += 15
 
   return Math.min(pct, 100)
 }
@@ -277,18 +277,21 @@ function buildUnitRows(
   propertyId: string,
   buildingId: string,
 ) {
-  const skeletonUnits = buildSkeletonUnits({
-    scenarioType:    payload.scenarioType,
-    propertyName:    payload.address!.property_name,
-    scenarioAnswers: payload.scenarioAnswers,
-    unitCount:       payload.unitCount,
-  })
+  // Use the wizard-edited unit drafts directly; fall back to skeleton if empty (shouldn't happen)
+  const unitSource = payload.units.length > 0
+    ? payload.units
+    : buildSkeletonUnits({
+        scenarioType:    payload.scenarioType,
+        propertyName:    payload.address!.property_name,
+        scenarioAnswers: payload.scenarioAnswers,
+        unitCount:       payload.unitCount,
+      })
 
-  return skeletonUnits.map((u, i) => ({
+  return unitSource.map((u) => ({
     org_id:                 orgId,
     property_id:            propertyId,
     building_id:            buildingId,
-    unit_number:            payload.unitLabels[i] ?? u.unit_number,
+    unit_number:            u.unit_number,
     unit_type:              u.unit_type,
     bedrooms:               u.bedrooms,
     bathrooms:              u.bathrooms,
@@ -427,7 +430,7 @@ function validatePayload(payload: WizardSavePayload): string | null {
   if (!payload.scenarioType)                return "Scenario type required"
   if (!payload.address)                     return "Address required"
   if (!payload.address.property_name)       return "Property name required"
-  if (payload.unitLabels.length === 0)      return "At least one unit required"
+  if (payload.units.length === 0)           return "At least one unit required"
   return null
 }
 

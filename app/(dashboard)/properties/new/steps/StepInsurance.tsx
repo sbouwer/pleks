@@ -1,8 +1,8 @@
 "use client"
 
-import { cn } from "@/lib/utils"
 import { Info } from "lucide-react"
 import { useWizard, type InsuranceStub } from "../WizardContext"
+import { OptionRow } from "../OptionRow"
 
 // ── Option cards ──────────────────────────────────────────────────────────────
 
@@ -97,23 +97,17 @@ export function StepInsurance() {
 
       <div className="space-y-2">
         <p className="text-sm font-medium">Got the policy details handy?</p>
-        {OPTION_CARDS.map((card) => (
-          <button
-            key={card.value}
-            type="button"
-            aria-pressed={option === card.value}
-            onClick={() => setOption(card.value)}
-            className={cn(
-              "w-full text-left rounded-lg border px-4 py-3 transition-colors",
-              option === card.value
-                ? "border-primary bg-primary/5 ring-1 ring-primary"
-                : "border-border hover:border-primary/40",
-            )}
-          >
-            <span className="block text-sm font-medium">{card.label}</span>
-            <span className="block text-xs text-muted-foreground mt-0.5">{card.sub}</span>
-          </button>
-        ))}
+        <div className="space-y-1.5">
+          {OPTION_CARDS.map((card) => (
+            <OptionRow
+              key={card.value}
+              selected={option === card.value}
+              onSelect={() => setOption(card.value)}
+              label={card.label}
+              sub={card.sub}
+            />
+          ))}
+        </div>
       </div>
 
       {option === "now" && (

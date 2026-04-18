@@ -4,6 +4,7 @@ import { useState, useTransition } from "react"
 import { Check, SkipForward } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { SCENARIOS, type ScenarioType, type ScenarioSegment } from "@/lib/properties/scenarios"
 import { reclassifyProperty } from "@/lib/actions/reclassifyProperty"
@@ -80,16 +81,16 @@ function PropertyClassifyRow({
 
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground whitespace-nowrap">Looks like:</span>
-            <select
-              value={target}
-              onChange={(e) => setTarget(e.target.value as ScenarioType)}
-              className="flex-1 rounded-md border border-input bg-background px-2 py-1.5 text-xs"
-              aria-label={`Scenario for ${row.name}`}
-            >
-              {[...Object.keys(SCENARIOS) as ScenarioType[], "other" as ScenarioType].map((code) => (
-                <option key={code} value={code}>{scenarioOptionLabel(code)}</option>
-              ))}
-            </select>
+            <Select value={target} onValueChange={(v) => setTarget(v as ScenarioType)}>
+              <SelectTrigger size="sm" aria-label={`Scenario for ${row.name}`} className="text-xs flex-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[...Object.keys(SCENARIOS) as ScenarioType[], "other" as ScenarioType].map((code) => (
+                  <SelectItem key={code} value={code}>{scenarioOptionLabel(code)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {error && <p className="text-xs text-destructive">{error}</p>}

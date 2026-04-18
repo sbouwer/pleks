@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import { cn } from "@/lib/utils"
+import { useState, useEffect } from "react"
 import { getScenario } from "@/lib/properties/scenarios"
 import type { UniversalAnswers } from "@/lib/properties/buildProfile"
 import { useWizard } from "../WizardContext"
+import { OptionRow } from "../OptionRow"
 
 // ── Shared radio-group primitive ──────────────────────────────────────────────
 
@@ -24,6 +24,18 @@ interface RadioGroupProps {
 }
 
 function RadioGroup({ label, helpText, options, value, onChange, required }: RadioGroupProps) {
+  // Compact grid — up to 4 columns wide so even longer lists (BC, backup
+  // power) stay scannable without forcing scroll.
+  let gridClass: string
+  if (options.length === 2) {
+    gridClass = "grid grid-cols-2 gap-2"
+  } else if (options.length === 3) {
+    gridClass = "grid grid-cols-1 sm:grid-cols-3 gap-2"
+  } else {
+    // 4+ options → 2 cols on mobile, 4 cols on sm+
+    gridClass = "grid grid-cols-2 sm:grid-cols-4 gap-2"
+  }
+
   return (
     <fieldset className="space-y-2">
       <legend className="text-sm font-medium">
@@ -31,24 +43,15 @@ function RadioGroup({ label, helpText, options, value, onChange, required }: Rad
         {required && <span className="ml-1 text-destructive text-xs">*</span>}
       </legend>
       {helpText && <p className="text-xs text-muted-foreground -mt-1">{helpText}</p>}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <div className={gridClass}>
         {options.map((opt) => (
-          <button
+          <OptionRow
             key={opt.value}
-            type="button"
-            role="radio"
-            aria-checked={value === opt.value}
-            onClick={() => onChange(opt.value)}
-            className={cn(
-              "text-left rounded-lg border px-3 py-2.5 text-sm transition-colors",
-              value === opt.value
-                ? "border-primary bg-primary/5 ring-1 ring-primary"
-                : "border-border hover:border-primary/40",
-            )}
-          >
-            <span className="block font-medium text-sm">{opt.label}</span>
-            {opt.sub && <span className="block text-xs text-muted-foreground mt-0.5">{opt.sub}</span>}
-          </button>
+            selected={value === opt.value}
+            onSelect={() => onChange(opt.value)}
+            label={opt.label}
+            sub={opt.sub}
+          />
         ))}
       </div>
     </fieldset>
@@ -142,29 +145,15 @@ export function StepUniversal() {
     }
   })
 
-  // Sync to wizard context whenever local changes
-  const syncToContext = useCallback(
-    (next: LocalState) => {
-      patch({ universals: localToAnswers(next) })
-    },
-    [patch],
-  )
+  // Sync local → context after every local change (never during render)
+  useEffect(() => {
+    patch({ universals: localToAnswers(local) })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [local])
 
   function update(changes: Partial<LocalState>) {
-    setLocal((prev) => {
-      const next = { ...prev, ...changes }
-      syncToContext(next)
-      return next
-    })
+    setLocal((prev) => ({ ...prev, ...changes }))
   }
-
-  // Pre-populate context on mount if scenario has a preselected scheme
-  useEffect(() => {
-    if (schemePreselected && !state.universals) {
-      syncToContext(local)
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   const showSchemeName =
     local.schemeOption !== null &&
@@ -176,7 +165,7 @@ export function StepUniversal() {
       <div>
         <h2 className="font-heading text-2xl mb-1">A few quick questions</h2>
         <p className="text-muted-foreground text-sm">
-          Applies to every property — helps us tailor leases, inspections, and maintenance.
+          Applies to the property — helps us tailor leases, inspections, and maintenance.
         </p>
       </div>
 
@@ -241,7 +230,7 @@ export function StepUniversal() {
         options={[
           { value: "yes",     label: "Yes" },
           { value: "no",      label: "No" },
-          { value: "unknown", label: "Unknown — check with owner" },
+          { value: "unknown", label: "Unknown", sub: "Check with owner" },
         ]}
         value={local.wifi}
         onChange={(v) => update({ wifi: v as UniversalAnswers["wifiAvailable"] })}

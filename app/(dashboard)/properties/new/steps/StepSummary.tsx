@@ -74,8 +74,8 @@ export function StepSummary() {
       label:  landlordLabel,
     },
     {
-      done:   state.unitLabels.length > 0,
-      label:  `${state.unitLabels.length} unit label${state.unitLabels.length === 1 ? "" : "s"}`,
+      done:   state.units.length > 0,
+      label:  `${state.units.length} unit${state.units.length === 1 ? "" : "s"} configured`,
     },
     {
       done:   state.insurance?.option === "now",
