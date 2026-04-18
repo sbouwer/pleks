@@ -76,6 +76,11 @@ export interface WizardData {
   arrearsMargin: string
   cpaApplies: boolean
   tenantIsJuristic: boolean
+  isFranchiseAgreement: boolean
+  tenantJuristicType: string | null
+  tenantTurnoverUnder2m: boolean | null
+  tenantAssetUnder2m: boolean | null
+  tenantSizeBandsCapturedAt: string | null
   // Step 1 — metadata (not editable, from property/unit fetch)
   isSectionalTitle: boolean
   parkingBays: number
@@ -156,6 +161,11 @@ export function LeaseWizard({
     arrearsMargin: "2",
     cpaApplies: true,
     tenantIsJuristic: false,
+    isFranchiseAgreement: false,
+    tenantJuristicType: null,
+    tenantTurnoverUnder2m: null,
+    tenantAssetUnder2m: null,
+    tenantSizeBandsCapturedAt: null,
     isSectionalTitle: false,
     parkingBays: 0,
     hasSchemeRules: false,

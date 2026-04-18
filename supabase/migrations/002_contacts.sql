@@ -713,3 +713,76 @@ CREATE OR REPLACE FUNCTION get_org_member_by_email(
     AND uo.deleted_at IS NULL
   LIMIT 1;
 $$ LANGUAGE sql STABLE SECURITY DEFINER;
+
+
+-- ─────────────────────────────────────────────────────────────
+-- 12. CPA CLASSIFICATION (ADDENDUM_04A)
+-- ─────────────────────────────────────────────────────────────
+-- juristic_type, size bands, and captured_at for CPA s5(2)(b)/s6 test.
+-- Only meaningful when entity_type = 'organisation'.
+-- The derivation helper (lib/leases/cpaApplicability.ts) reads these at lease activation.
+
+ALTER TABLE contacts
+  ADD COLUMN IF NOT EXISTS juristic_type text
+    CHECK (juristic_type IN (
+      'sole_proprietor', 'pty_ltd', 'cc',
+      'trust', 'partnership', 'npc', 'other_juristic'
+    )),
+  ADD COLUMN IF NOT EXISTS turnover_under_2m boolean,
+  ADD COLUMN IF NOT EXISTS asset_value_under_2m boolean,
+  ADD COLUMN IF NOT EXISTS size_bands_captured_at timestamptz;
+
+COMMENT ON COLUMN contacts.juristic_type IS
+  'Juristic sub-classification. Only meaningful when entity_type=organisation. '
+  'Sole proprietor kept here for UI cases where user selects it on a business-tenant form; '
+  'legally a sole prop is a natural person and the CPA derivation helper treats it as such.';
+COMMENT ON COLUMN contacts.turnover_under_2m IS
+  'Annual turnover below R2 million (CPA s6 threshold). NULL = unknown. '
+  'Only consulted for juristic tenants at lease activation.';
+COMMENT ON COLUMN contacts.asset_value_under_2m IS
+  'Asset value below R2 million (CPA s6 threshold). NULL = unknown.';
+COMMENT ON COLUMN contacts.size_bands_captured_at IS
+  'When the size bands were last confirmed by the user. NULL or >12 months '
+  'triggers a re-confirmation prompt in the lease wizard.';
+
+-- Rebuild tenant_view to expose the new CPA classification fields
+CREATE OR REPLACE VIEW tenant_view AS
+SELECT
+  t.id,
+  t.org_id,
+  t.contact_id,
+  -- Identity from contacts
+  c.entity_type,
+  c.first_name,
+  c.last_name,
+  c.company_name,
+  COALESCE(NULLIF(TRIM(COALESCE(c.contact_first_name, '') || ' ' || COALESCE(c.contact_last_name, '')), ''), NULL) AS contact_person,
+  c.id_number,
+  c.id_number_hash,
+  c.id_type,
+  c.date_of_birth,
+  c.nationality,
+  c.primary_email       AS email,
+  c.primary_phone       AS phone,
+  -- Tenant-specific
+  t.employer_name,
+  t.employer_phone,
+  t.occupation,
+  t.employment_type,
+  t.preferred_contact,
+  t.popia_consent_given,
+  t.popia_consent_given_at,
+  t.portal_access_enabled,
+  t.blacklisted,
+  t.blacklisted_reason,
+  c.notes,
+  -- CPA classification (ADDENDUM_04A)
+  c.juristic_type,
+  c.turnover_under_2m,
+  c.asset_value_under_2m,
+  c.size_bands_captured_at,
+  t.created_at,
+  t.updated_at,
+  t.deleted_at
+FROM tenants t
+JOIN contacts c ON c.id = t.contact_id;

@@ -12,6 +12,10 @@ export interface PickedTenant {
   name: string
   phone: string | null
   entity_type: string | null
+  juristic_type: string | null
+  turnover_under_2m: boolean | null
+  asset_value_under_2m: boolean | null
+  size_bands_captured_at: string | null
 }
 
 interface TenantRow {
@@ -22,6 +26,10 @@ interface TenantRow {
   entity_type: string | null
   email: string | null
   phone: string | null
+  juristic_type: string | null
+  turnover_under_2m: boolean | null
+  asset_value_under_2m: boolean | null
+  size_bands_captured_at: string | null
 }
 
 function displayName(t: TenantRow): string {
@@ -74,7 +82,16 @@ export function TenantPicker({ orgId, onSelect, trigger, returnTo, align = "left
   }, [open])
 
   function handleSelect(t: TenantRow) {
-    onSelect({ id: t.id, name: displayName(t), phone: t.phone ?? null, entity_type: t.entity_type })
+    onSelect({
+      id: t.id,
+      name: displayName(t),
+      phone: t.phone ?? null,
+      entity_type: t.entity_type,
+      juristic_type: t.juristic_type ?? null,
+      turnover_under_2m: t.turnover_under_2m ?? null,
+      asset_value_under_2m: t.asset_value_under_2m ?? null,
+      size_bands_captured_at: t.size_bands_captured_at ?? null,
+    })
     close()
   }
 

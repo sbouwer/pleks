@@ -36,7 +36,6 @@ export interface ProfileDefaults {
   furnishing_status:            string | null
   insurance_type:               string
   insurance_rider:              string | null
-  cpa_applicable:               boolean
   default_deposit_months:       number
   default_lease_duration_months: number
   inspection_profile_key:       string
@@ -93,14 +92,6 @@ const INSURANCE_RIDER_BY_USE: Record<string, string> = {
   home_office_only:     "sublet_home_office",
   practice_consultancy: "practice_liability",
   commercial_activity:  "commercial_rider",
-}
-
-/** CPA applicable per scenario segment */
-const CPA_BY_SCENARIO: Record<ScenarioType, boolean> = {
-  r1: true, r2: true, r3: true, r4: true, r5: true, r6: true, r7: true,
-  c1: false, c2: false, c3: false, c4: false, c5: false, c6: false,
-  m1: true, m2: true, m3: true, m4: true,
-  other: true,
 }
 
 /** Default lease duration (months) */
@@ -348,7 +339,6 @@ export function buildProfile(input: BuildProfileInput): PropertyProfile {
     furnishing_status:            furnishing,
     insurance_type:               INSURANCE_TYPE_BY_SCENARIO[scenarioType],
     insurance_rider:              rider,
-    cpa_applicable:               CPA_BY_SCENARIO[scenarioType],
     default_deposit_months:       depositMo,
     default_lease_duration_months: LEASE_DURATION_BY_SCENARIO[scenarioType],
     inspection_profile_key:       deriveInspectionProfileKey(scenarioType, scenarioAnswers),

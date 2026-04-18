@@ -695,6 +695,8 @@ export default async function LeaseDetailPage({
               escalation_review_date: lease.escalation_review_date ?? null,
               payment_due_day: parsePaymentDueDay(lease.payment_due_day),
               is_fixed_term: lease.is_fixed_term ?? null,
+              cpa_applies_at_signing: (lease as unknown as { cpa_applies_at_signing: string | null }).cpa_applies_at_signing ?? null,
+              cpa_determination_category: (lease as unknown as { cpa_determination_category: string | null }).cpa_determination_category ?? null,
             }}
             latestInvoice={latestInvoice}
             arrearsCase={arrearsCase}

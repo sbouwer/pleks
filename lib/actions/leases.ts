@@ -11,6 +11,7 @@ type LeaseFormFields = {
   leaseType: string
   tenantIsJuristic: boolean
   cpaApplies: boolean
+  isFranchiseAgreement: boolean
   startDate: string
   endDate: string | null
   isFixedTerm: boolean
@@ -59,6 +60,7 @@ function parseLeaseFormData(formData: FormData): LeaseFormFields {
     leaseType,
     tenantIsJuristic: formData.get("tenant_is_juristic") === "true",
     cpaApplies,
+    isFranchiseAgreement: formData.get("is_franchise_agreement") === "true",
     startDate,
     endDate,
     isFixedTerm,
@@ -175,6 +177,7 @@ export async function createLease(formData: FormData) {
       lease_type: f.leaseType,
       tenant_is_juristic: f.tenantIsJuristic,
       cpa_applies: f.cpaApplies,
+      is_franchise_agreement: f.isFranchiseAgreement,
       start_date: f.startDate,
       end_date: f.endDate,
       is_fixed_term: f.isFixedTerm,
@@ -359,14 +362,13 @@ export async function markAsSigned(leaseId: string) {
   const { activateLeaseCascade } = await import("@/lib/leases/activateLeaseCascade")
   const { checkLeasePrerequisites } = await import("@/lib/leases/checkPrerequisites")
   const { canActivateLease } = await import("@/lib/tier/canActivateLease")
+  const { determineCpaApplicability } = await import("@/lib/leases/cpaApplicability")
 
   const gw = await gateway()
   if (!gw) redirect("/login")
   const { db, userId, orgId } = gw
 
   // Tier gate (BUILD_60): Owner tier = 1 active lease, Steward = 20, Firm = ∞.
-  // The old properties.count check was removed in Phase 1; lease activation
-  // is now the tier boundary.
   const tierCheck = await canActivateLease(orgId)
   if (!tierCheck.ok) {
     return { error: tierCheck.reason ?? "You've reached your active lease limit. Upgrade to activate more." }
@@ -376,6 +378,61 @@ export async function markAsSigned(leaseId: string) {
   if (!prereqs.canProceed) {
     return { error: `${prereqs.failCount} prerequisite(s) not met` }
   }
+
+  // CPA gate (ADDENDUM_04A): derive and snapshot CPA applicability at signing time.
+  const { data: lease, error: leaseErr } = await db
+    .from("leases")
+    .select("tenant_id, is_franchise_agreement")
+    .eq("id", leaseId)
+    .eq("org_id", orgId)
+    .single()
+  if (leaseErr || !lease) return { error: "Lease not found" }
+
+  const { data: contact, error: contactErr } = await db
+    .from("contacts")
+    .select("entity_type, juristic_type, turnover_under_2m, asset_value_under_2m, size_bands_captured_at")
+    .eq("id", lease.tenant_id)
+    .single()
+  if (contactErr || !contact) return { error: "Tenant contact not found" }
+
+  const cpaDetermination = determineCpaApplicability({
+    tenant: {
+      entityType: (contact.entity_type as string | null),
+      juristicType: (contact.juristic_type as string | null),
+      turnoverUnder2m: (contact.turnover_under_2m as boolean | null),
+      assetValueUnder2m: (contact.asset_value_under_2m as boolean | null),
+      sizeBandsCapturedAt: (contact.size_bands_captured_at as string | null),
+    },
+    lease: { isFranchiseAgreement: (lease.is_franchise_agreement as boolean) ?? false },
+  })
+
+  if (!cpaDetermination.canActivate) {
+    return { error: "CPA status is indeterminate. Confirm the tenant's annual turnover and asset value before activating." }
+  }
+
+  const { error: cpaUpdateErr } = await db
+    .from("leases")
+    .update({
+      cpa_applies_at_signing: cpaDetermination.applies,
+      cpa_determination_category: cpaDetermination.category,
+      cpa_determination_notes: cpaDetermination.notes,
+      cpa_determined_at: new Date().toISOString(),
+    })
+    .eq("id", leaseId)
+    .eq("org_id", orgId)
+  if (cpaUpdateErr) return { error: cpaUpdateErr.message }
+
+  await db.from("audit_log").insert({
+    org_id: orgId,
+    user_id: userId,
+    action: "cpa_determination_snapshot",
+    table_name: "leases",
+    record_id: leaseId,
+    new_values: {
+      cpa_applies_at_signing: cpaDetermination.applies,
+      cpa_determination_category: cpaDetermination.category,
+    },
+  })
 
   try {
     const result = await activateLeaseCascade(db, leaseId, orgId, "manual", userId)
