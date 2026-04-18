@@ -21,6 +21,8 @@ export interface WizardAddress {
   formatted:              string
   street_number:          string
   street_name:            string
+  /** Building name, unit number, floor, etc. */
+  address_line2:          string
   suburb:                 string
   city:                   string
   province:               string

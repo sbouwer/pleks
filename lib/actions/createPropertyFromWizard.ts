@@ -21,6 +21,7 @@ export interface WizardSavePayload {
     formatted:               string
     street_number:           string
     street_name:             string
+    address_line2:           string
     suburb:                  string
     city:                    string
     province:                string
