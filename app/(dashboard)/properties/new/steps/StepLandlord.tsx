@@ -188,13 +188,6 @@ export function StepLandlord() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="font-heading text-2xl mb-1">Who owns this property?</h2>
-        <p className="text-muted-foreground text-sm">
-          The owner receives statements and insurance requests &mdash; they don&apos;t need a Pleks account.
-        </p>
-      </div>
-
       {/* Option cards */}
       <div className="space-y-1.5">
         {OPTION_CARDS.map((card) => (

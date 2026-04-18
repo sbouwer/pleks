@@ -277,12 +277,7 @@ export function StepScenarioFollowUp() {
   )
 
   if (!scenario) {
-    return (
-      <div className="space-y-2">
-        <h2 className="font-heading text-2xl">Property details</h2>
-        <p className="text-muted-foreground text-sm">Please select a property type first.</p>
-      </div>
-    )
+    return <p className="text-sm text-muted-foreground">Please select a property type first.</p>
   }
 
   // Group questions by purpose, preserving definition order within each group
@@ -296,7 +291,6 @@ export function StepScenarioFollowUp() {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="font-heading text-2xl mb-1">A bit more about your property</h2>
         <p className="text-muted-foreground text-sm">
           Specific to <strong>{scenario.label}</strong>
           {" — "}these answers shape your lease clauses and inspection profile.

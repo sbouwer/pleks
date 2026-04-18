@@ -88,13 +88,6 @@ export function StepInsurance() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="font-heading text-2xl mb-1">Insurance details</h2>
-        <p className="text-muted-foreground text-sm">
-          Optional — you can always update this from the Insurance tab.
-        </p>
-      </div>
-
       <div className="space-y-2">
         <p className="text-sm font-medium">Got the policy details handy?</p>
         <div className="space-y-1.5">

@@ -82,14 +82,9 @@ CREATE TABLE IF NOT EXISTS buildings (
                                 'grade_3b', 'local_significance'
                               )) DEFAULT 'none',
   heritage_reference          text,
-  insurance_policy_number     text,
-  insurance_provider          text,
-  insurance_type              text CHECK (insurance_type IN (
-                                'standard_buildings', 'heritage_specialist',
-                                'commercial_property', 'sectional_title', 'other'
-                              )),
-  insurance_renewal_date      date,
-  insurance_replacement_value_cents bigint,
+  -- NOTE: insurance columns moved to properties table in migration 016.
+  -- Per-building replacement value kept for underwriting granularity
+  -- (added via migration 016: replacement_value_cents, last_valuation_date).
   maintenance_rhythm          text NOT NULL DEFAULT 'standard'
                               CHECK (maintenance_rhythm IN (
                                 'standard', 'heritage', 'new_build', 'industrial', 'custom'
@@ -128,6 +123,7 @@ CREATE TABLE IF NOT EXISTS units (
   is_archived         boolean NOT NULL DEFAULT false,
   market_rent_cents   integer,
   asking_rent_cents   integer,
+  access_instructions text,
   notes               text,
   created_at          timestamptz NOT NULL DEFAULT now(),
   updated_at          timestamptz NOT NULL DEFAULT now(),

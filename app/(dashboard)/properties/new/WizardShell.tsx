@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useWizard, computeActiveStepIds, type WizardState } from "./WizardContext"
@@ -19,20 +20,26 @@ import { StepInsurance }        from "./steps/StepInsurance"
 import { StepDocuments }        from "./steps/StepDocuments"
 import { StepSummary }          from "./steps/StepSummary"
 
-// ── Step label map ─────────────────────────────────────────────────────────────
+// ── Step metadata ──────────────────────────────────────────────────────────────
 
-const STEP_LABELS: Record<string, string> = {
-  picker:   "Property type",
-  address:  "Address",
-  universal: "Details",
-  followup: "Specifics",
-  hours:    "Hours",
-  landlord: "Owner",
-  units:    "Units",
-  insurance: "Insurance",
-  documents: "Documents",
-  summary:  "Review",
+interface StepMeta { label: string; title: string; subtitle: string }
+
+const STEP_META: Record<string, StepMeta> = {
+  picker:    { label: "Property type", title: "Let's set up your property",       subtitle: "A couple of quick choices and we'll tailor the setup to your scenario." },
+  universal: { label: "Details",       title: "A few quick questions",            subtitle: "Applies to this property — helps us tailor leases, inspections, and maintenance." },
+  address:   { label: "Address",       title: "Where is the property?",           subtitle: "Used to pre-fill lease clauses, route municipal info, and label statements." },
+  followup:  { label: "Specifics",     title: "A bit more about your property",   subtitle: "Scenario-specific details to round out the profile." },
+  hours:     { label: "Hours",         title: "Operating hours",                  subtitle: "Sets access window defaults in lease clauses and inspection scheduling." },
+  landlord:  { label: "Owner",         title: "Who owns this property?",          subtitle: "Link the owner now or add them after setup." },
+  units:     { label: "Units",         title: "Units",                            subtitle: "Pre-filled from your earlier answers — adjust anything that differs." },
+  insurance: { label: "Insurance",     title: "Insurance details",                subtitle: "Optional — you can always update this from the Insurance tab." },
+  documents: { label: "Documents",     title: "Upload documents",                 subtitle: "Title deed, compliance certificates — optional now, required before leasing." },
+  summary:   { label: "Review",        title: "Review & save",                    subtitle: "Check everything before creating the property." },
 }
+
+const STEP_LABELS: Record<string, string> = Object.fromEntries(
+  Object.entries(STEP_META).map(([k, v]) => [k, v.label]),
+)
 
 // ── Step renderer ──────────────────────────────────────────────────────────────
 
@@ -206,8 +213,19 @@ export function WizardShell() {
     )
   }
 
+  const stepMeta = STEP_META[currentStepId]
+
   return (
     <div>
+      {/* Dynamic page header with back link */}
+      <div className="mb-3">
+        <Link href="/properties" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mb-2">
+          ← Properties
+        </Link>
+        <h1 className="font-heading text-2xl font-bold leading-tight">{stepMeta?.title ?? "Add Property"}</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">{stepMeta?.subtitle ?? ""}</p>
+      </div>
+
       <ProgressDots stepIds={stepIds} currentIndex={state.step} />
 
       {/* Fixed-height card: content scrolls, footer stays pinned */}
