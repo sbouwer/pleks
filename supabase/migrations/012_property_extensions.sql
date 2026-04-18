@@ -459,3 +459,33 @@ ALTER TABLE units
 -- Index for scenario queries
 CREATE INDEX IF NOT EXISTS idx_properties_scenario_type ON properties(scenario_type)
   WHERE scenario_type IS NOT NULL;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §12.1  SCENARIO EXPANSION  (BUILD_60 Addendum — 11 → 17 scenarios)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Adds r6 (student housing), r7 (farm/smallholding), c5 (standalone retail),
+-- c6 (self-storage), m3 (office + residential), m4 (guesthouse / B&B).
+-- Also adds 'farm_specialist' to insurance_policy_type.
+
+-- Scenario type CHECK constraint (drop-and-add for idempotency)
+ALTER TABLE properties
+  DROP CONSTRAINT IF EXISTS properties_scenario_type_check;
+ALTER TABLE properties
+  ADD CONSTRAINT properties_scenario_type_check
+  CHECK (scenario_type IN (
+    'r1','r2','r3','r4','r5','r6','r7',
+    'c1','c2','c3','c4','c5','c6',
+    'm1','m2','m3','m4',
+    'other'
+  ));
+
+-- Insurance policy type gains farm_specialist
+ALTER TABLE properties
+  DROP CONSTRAINT IF EXISTS properties_insurance_policy_type_check;
+ALTER TABLE properties
+  ADD CONSTRAINT properties_insurance_policy_type_check
+  CHECK (insurance_policy_type IN (
+    'standard_buildings','heritage_specialist',
+    'commercial_property','sectional_title',
+    'farm_specialist','other'
+  ));

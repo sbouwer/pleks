@@ -143,7 +143,11 @@ function getBedroomOptions(scenarioType: string | null) {
       { value: "other", label: "Other" },
     ]
   }
-  // r4 (block) / r5 (estate) — units may differ
+  if (scenarioType === "r6") {
+    // Student rooms — each unit is always 1 bedroom
+    return [{ value: "1", label: "1" }]
+  }
+  // r4, r5, r7 — units may differ
   return [
     { value: "0",     label: "Studio" },
     { value: "1",     label: "1" },
@@ -177,7 +181,7 @@ export function StepUniversal() {
   const preselectedScheme   = scenario?.preselectSchemeType ?? null
   const schemePreselected   = preselectedScheme !== null
 
-  const isResidential = ["r1","r2","r3","r4","r5"].includes(state.scenarioType ?? "")
+  const isResidential = ["r1","r2","r3","r4","r5","r6","r7"].includes(state.scenarioType ?? "")
 
   // Derive initial local state from existing universals / hints
   const [local, setLocal] = useState<LocalState>(() => {

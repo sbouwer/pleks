@@ -2,7 +2,7 @@
  * lib/properties/scenarios.ts
  *
  * Scenario definitions for the smart property setup wizard (BUILD_60).
- * 11 SA property scenarios across 3 segments, plus an "other" escape hatch.
+ * 17 SA property scenarios across 3 segments, plus an "other" escape hatch.
  *
  * Pure data — no side effects. Consumed by:
  *   - ScenarioPicker (wizard UI)
@@ -13,9 +13,9 @@
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type ScenarioType =
-  | "r1" | "r2" | "r3" | "r4" | "r5"
-  | "c1" | "c2" | "c3" | "c4"
-  | "m1" | "m2"
+  | "r1" | "r2" | "r3" | "r4" | "r5" | "r6" | "r7"
+  | "c1" | "c2" | "c3" | "c4" | "c5" | "c6"
+  | "m1" | "m2" | "m3" | "m4"
   | "other"
 
 export type ScenarioSegment = "residential" | "commercial_industrial" | "mixed"
@@ -369,6 +369,225 @@ export const SCENARIOS: Record<Exclude<ScenarioType, "other">, ScenarioMeta> = {
     ],
   },
 
+  r7: {
+    code:             "r7",
+    segment:          "residential",
+    label:            "Farm or smallholding",
+    tagline:          "Rural property — main house, cottages, and land.",
+    icon:             "Trees",
+    unitCountMode:    "counted",
+    defaultUnitCount: 2,
+    questions: [
+      {
+        id:       "dwelling_mix",
+        group:    "unit_details",
+        label:    "Dwellings on the property",
+        helpText: "Each dwelling becomes its own unit record for inspections and leases.",
+        type:     "multiselect",
+        required: false,
+        options: [
+          { value: "main_house",     label: "Main house / farmhouse" },
+          { value: "cottage",        label: "Cottage(s)" },
+          { value: "staff_quarters", label: "Staff quarters" },
+          { value: "converted_barn", label: "Converted barn / loft" },
+          { value: "rondavel",       label: "Rondavel / outbuilding dwelling" },
+        ],
+      },
+      {
+        id:       "property_size",
+        group:    "property_level",
+        label:    "Property size",
+        type:     "radio",
+        required: false,
+        options: [
+          { value: "lt_1ha",  label: "Under 1 hectare (large stand)" },
+          { value: "1_5ha",   label: "1–5 hectares (smallholding)" },
+          { value: "5_21ha",  label: "5–21 hectares (agricultural holding)" },
+          { value: "gt_21ha", label: "Over 21 hectares (farm)" },
+        ],
+      },
+      {
+        id:       "zoning",
+        group:    "property_level",
+        label:    "Zoning",
+        helpText: "Affects rates, insurance, and permitted activities.",
+        type:     "radio",
+        required: false,
+        options: [
+          { value: "residential_agricultural", label: "Residential with agricultural rights" },
+          { value: "agricultural",             label: "Agricultural" },
+          { value: "residential_only",         label: "Residential only" },
+          { value: "unsure",                   label: "Unsure — check title deed" },
+        ],
+      },
+      {
+        id:       "agricultural_activity",
+        group:    "property_level",
+        label:    "Agricultural activity",
+        type:     "multiselect",
+        required: false,
+        options: [
+          { value: "none_lifestyle",     label: "None — lifestyle only" },
+          { value: "crops",              label: "Crops" },
+          { value: "livestock",          label: "Livestock" },
+          { value: "horses_equestrian",  label: "Horses / equestrian" },
+          { value: "poultry",            label: "Poultry" },
+          { value: "commercial_farming", label: "Commercial farming" },
+          { value: "hunting_game",       label: "Hunting / game" },
+        ],
+      },
+      {
+        id:       "water_source",
+        group:    "operational",
+        label:    "Water source",
+        type:     "multiselect",
+        required: false,
+        options: [
+          { value: "municipal",       label: "Municipal" },
+          { value: "borehole",        label: "Borehole" },
+          { value: "rainwater_tanks", label: "Rainwater / JoJo tanks" },
+          { value: "river_dam",       label: "River / dam" },
+          { value: "shared_supply",   label: "Shared supply" },
+        ],
+      },
+      {
+        id:       "power_source",
+        group:    "operational",
+        label:    "Power source",
+        type:     "multiselect",
+        required: false,
+        options: [
+          { value: "eskom",         label: "Eskom grid" },
+          { value: "solar",         label: "Solar" },
+          { value: "generator",     label: "Generator" },
+          { value: "off_grid",      label: "Fully off-grid" },
+          { value: "shared_supply", label: "Shared supply" },
+        ],
+      },
+      {
+        id:       "sanitation",
+        group:    "operational",
+        label:    "Sanitation",
+        type:     "radio",
+        required: false,
+        options: [
+          { value: "municipal_sewer",  label: "Municipal sewer" },
+          { value: "septic",           label: "Septic tank" },
+          { value: "conservancy_tank", label: "Conservancy tank" },
+          { value: "french_drain",     label: "French drain" },
+        ],
+      },
+      {
+        id:       "access",
+        group:    "operational",
+        label:    "Road access",
+        type:     "radio",
+        required: false,
+        options: [
+          { value: "public_road",         label: "Public tarred road" },
+          { value: "private_road_shared", label: "Private road — shared" },
+          { value: "private_road_own",    label: "Private road — own" },
+          { value: "gated_estate_agri",   label: "Within a gated agricultural estate" },
+        ],
+      },
+      {
+        id:       "esta_applicable",
+        group:    "property_level",
+        label:    "ESTA may apply to occupiers",
+        helpText: "Extension of Security of Tenure Act — usually applies to occupiers on land >1ha who've lived there 10+ years.",
+        type:     "toggle",
+        required: false,
+      },
+    ],
+  },
+
+  r6: {
+    code:             "r6",
+    segment:          "residential",
+    label:            "Student housing / shared house",
+    tagline:          "Rooms let individually in one house — shared kitchen and bathrooms.",
+    icon:             "Users",
+    unitCountMode:    "counted",
+    defaultUnitCount: 4,
+    questions: [
+      {
+        id:          "institution_nearby",
+        group:       "property_level",
+        label:       "Nearest institution",
+        helpText:    "Drives NSFAS and academic-calendar defaults.",
+        type:        "text",
+        required:    false,
+        placeholder: "e.g. Stellenbosch University, TUT Pretoria",
+      },
+      {
+        id:       "lease_cycle",
+        group:    "property_level",
+        label:    "Typical lease cycle",
+        type:     "radio",
+        required: false,
+        options: [
+          { value: "academic_year_10m", label: "Academic year (10 months)" },
+          { value: "academic_year_11m", label: "Academic year (11 months)" },
+          { value: "calendar_year",     label: "Calendar year (12 months)" },
+        ],
+      },
+      {
+        id:       "nsfas_accredited",
+        group:    "property_level",
+        label:    "NSFAS-accredited",
+        helpText: "Enables NSFAS-compatible invoicing and clause defaults.",
+        type:     "toggle",
+        required: false,
+      },
+      {
+        id:       "bathroom_sharing",
+        group:    "unit_details",
+        label:    "Bathroom arrangement",
+        type:     "radio",
+        required: false,
+        options: [
+          { value: "shared_all",    label: "All bathrooms shared" },
+          { value: "shared_some",   label: "Some shared, some en-suite" },
+          { value: "en_suite_each", label: "En-suite per room" },
+        ],
+      },
+      {
+        id:       "meals_included",
+        group:    "operational",
+        label:    "Meals included in rent?",
+        type:     "toggle",
+        required: false,
+      },
+      {
+        id:       "utilities_in_rent",
+        group:    "operational",
+        label:    "Utilities bundled into rent?",
+        helpText: "Typical for student housing — water, electricity, WiFi included.",
+        type:     "toggle",
+        required: false,
+      },
+      {
+        id:       "furnished",
+        group:    "unit_details",
+        label:    "Room furnishing",
+        type:     "radio",
+        required: false,
+        options: [
+          { value: "unfurnished",    label: "Unfurnished" },
+          { value: "semi_furnished", label: "Bed + desk provided" },
+          { value: "furnished",      label: "Fully furnished" },
+        ],
+      },
+      {
+        id:       "key_deposit_enabled",
+        group:    "operational",
+        label:    "Key / access deposit required?",
+        type:     "toggle",
+        required: false,
+      },
+    ],
+  },
+
   // ── Commercial / Industrial ──────────────────────────────────────────────────
 
   c1: {
@@ -641,6 +860,175 @@ export const SCENARIOS: Record<Exclude<ScenarioType, "other">, ScenarioMeta> = {
     ],
   },
 
+  c5: {
+    code:             "c5",
+    segment:          "commercial_industrial",
+    label:            "Standalone retail / shopfront",
+    tagline:          "Single shop, salon, restaurant or showroom — ground-level trading space.",
+    icon:             "Store",
+    unitCountMode:    "fixed",
+    defaultUnitCount: 1,
+    questions: [
+      {
+        id:          "shopfront_m2",
+        group:       "unit_details",
+        label:       "Lettable trading area (m²)",
+        type:        "number",
+        required:    false,
+        min:         1,
+        placeholder: "80",
+      },
+      {
+        id:       "trading_use",
+        group:    "unit_details",
+        label:    "Trading use",
+        type:     "radio",
+        required: false,
+        options: [
+          { value: "retail",       label: "Retail / shop" },
+          { value: "restaurant",   label: "Restaurant / food" },
+          { value: "salon_health", label: "Salon / health / wellness" },
+          { value: "showroom",     label: "Showroom" },
+          { value: "other",        label: "Other trading use" },
+        ],
+      },
+      {
+        id:       "liquor_licence_held",
+        group:    "property_level",
+        label:    "Liquor licence held?",
+        type:     "toggle",
+        required: false,
+      },
+      {
+        id:       "extractor_vent_installed",
+        group:    "unit_details",
+        label:    "Extractor vent / fume hood installed?",
+        helpText: "Required for restaurants and food prep — landlord obligation.",
+        type:     "toggle",
+        required: false,
+        showWhen: { questionId: "trading_use", value: "restaurant" },
+      },
+      {
+        id:       "shopfront_signage_rights",
+        group:    "property_level",
+        label:    "Shopfront signage rights",
+        type:     "radio",
+        required: false,
+        options: [
+          { value: "full",      label: "Full — tenant designs their signage" },
+          { value: "regulated", label: "Regulated by landlord / scheme" },
+          { value: "none",      label: "No external signage permitted" },
+        ],
+      },
+      {
+        id:       "walk_in_customer_frontage",
+        group:    "property_level",
+        label:    "Customer frontage",
+        type:     "radio",
+        required: false,
+        options: [
+          { value: "street", label: "Street-facing" },
+          { value: "mall",   label: "Inside a mall / centre" },
+          { value: "arcade", label: "Arcade or passage" },
+        ],
+      },
+      PARKING_BAYS_QUESTION,
+      {
+        id:       "current_tenant_status",
+        group:    "property_level",
+        label:    "Current occupancy",
+        type:     "radio",
+        required: false,
+        options: [
+          { value: "vacant",   label: "Vacant" },
+          { value: "tenanted", label: "Currently tenanted" },
+        ],
+      },
+    ],
+  },
+
+  c6: {
+    code:             "c6",
+    segment:          "commercial_industrial",
+    label:            "Self-storage facility",
+    tagline:          "Many small lockable storage units rented short-term.",
+    icon:             "Package",
+    unitCountMode:    "counted",
+    defaultUnitCount: 30,
+    questions: [
+      {
+        id:       "unit_size_mix",
+        group:    "unit_details",
+        label:    "Unit sizes offered",
+        type:     "multiselect",
+        required: false,
+        options: [
+          { value: "sub_5m2",  label: "Under 5 m² (lockers / small)" },
+          { value: "5_10m2",   label: "5–10 m²" },
+          { value: "10_20m2",  label: "10–20 m²" },
+          { value: "20_50m2",  label: "20–50 m²" },
+          { value: "gt_50m2",  label: "Over 50 m² (large / vehicle)" },
+        ],
+      },
+      {
+        id:       "access_model",
+        group:    "operational",
+        label:    "Tenant access",
+        type:     "radio",
+        required: false,
+        options: [
+          { value: "24_7_code",              label: "24/7 code or biometric access" },
+          { value: "business_hours_staffed", label: "Business hours only, staffed" },
+          { value: "appointment_only",       label: "By appointment" },
+        ],
+      },
+      {
+        id:       "climate_controlled_units",
+        group:    "unit_details",
+        label:    "Climate-controlled units available?",
+        type:     "toggle",
+        required: false,
+      },
+      {
+        id:       "vehicle_storage_permitted",
+        group:    "unit_details",
+        label:    "Vehicle storage permitted?",
+        type:     "toggle",
+        required: false,
+      },
+      {
+        id:          "drive_up_units_count",
+        group:       "unit_details",
+        label:       "Drive-up accessible units",
+        type:        "number",
+        required:    false,
+        min:         0,
+        placeholder: "10",
+      },
+      {
+        id:       "typical_lease_duration",
+        group:    "property_level",
+        label:    "Typical lease duration",
+        helpText: "Self-storage usually runs month-to-month.",
+        type:     "radio",
+        required: false,
+        options: [
+          { value: "month_to_month", label: "Month-to-month" },
+          { value: "3_month_min",    label: "3-month minimum" },
+          { value: "6_month_min",    label: "6-month minimum" },
+        ],
+      },
+      {
+        id:       "prohibited_goods_clause_strict",
+        group:    "operational",
+        label:    "Strict prohibited-goods clause?",
+        helpText: "Required when storing near food, chemicals, or flammables. Enables the enhanced prohibited-goods clause.",
+        type:     "toggle",
+        required: false,
+      },
+    ],
+  },
+
   // ── Mixed use ────────────────────────────────────────────────────────────────
 
   m1: {
@@ -736,6 +1124,152 @@ export const SCENARIOS: Record<Exclude<ScenarioType, "other">, ScenarioMeta> = {
           { value: "visitor_parking", label: "Visitor parking" },
           { value: "loading_courts",  label: "Loading courts" },
         ],
+      },
+    ],
+  },
+
+  m3: {
+    code:             "m3",
+    segment:          "mixed",
+    label:            "Office + residential mixed",
+    tagline:          "Professional offices below, residential units above.",
+    icon:             "Building2",
+    unitCountMode:    "counted",
+    defaultUnitCount: 4,
+    questions: [
+      {
+        id:          "office_unit_count",
+        group:       "unit_details",
+        label:       "Office units",
+        type:        "number",
+        required:    false,
+        min:         1,
+        placeholder: "2",
+      },
+      {
+        id:          "residential_unit_count",
+        group:       "unit_details",
+        label:       "Residential units",
+        type:        "number",
+        required:    false,
+        min:         1,
+        placeholder: "2",
+      },
+      {
+        id:          "office_size_m2",
+        group:       "unit_details",
+        label:       "Average office unit size (m²)",
+        type:        "number",
+        required:    false,
+        min:         1,
+        placeholder: "120",
+      },
+      {
+        id:       "residential_bedroom_mix",
+        group:    "unit_details",
+        label:    "Residential units — typical layout",
+        helpText: "Applied to all residential skeletons. You can adjust each unit after creation.",
+        type:     "radio",
+        required: false,
+        options: [
+          { value: "studio", label: "Studio" },
+          { value: "1bed",   label: "1 bedroom" },
+          { value: "2bed",   label: "2 bedrooms" },
+          { value: "mixed",  label: "Mixed layouts" },
+        ],
+      },
+      {
+        id:       "separate_entrances",
+        group:    "property_level",
+        label:    "Office and residential have separate entrances?",
+        type:     "toggle",
+        required: false,
+      },
+      {
+        id:       "parking_model",
+        group:    "property_level",
+        label:    "Parking model",
+        type:     "radio",
+        required: false,
+        options: [
+          { value: "shared",    label: "Shared pool" },
+          { value: "split",     label: "Split between uses" },
+          { value: "allocated", label: "Allocated per tenant" },
+        ],
+      },
+    ],
+  },
+
+  m4: {
+    code:             "m4",
+    segment:          "mixed",
+    label:            "Guesthouse or B&B",
+    tagline:          "Owner-run property with guest rooms and long-stay units.",
+    icon:             "BedDouble",
+    unitCountMode:    "counted",
+    defaultUnitCount: 2,
+    questions: [
+      {
+        id:       "owner_resides_onsite",
+        group:    "property_level",
+        label:    "Does the owner live on-site?",
+        type:     "toggle",
+        required: false,
+      },
+      {
+        id:          "guest_room_count",
+        group:       "unit_details",
+        label:       "Guest rooms (short-stay)",
+        helpText:    "Rooms rented nightly to guests — tracked for compliance, not leased through Pleks.",
+        type:        "number",
+        required:    false,
+        min:         0,
+        placeholder: "6",
+      },
+      {
+        id:          "long_stay_unit_count",
+        group:       "unit_details",
+        label:       "Long-stay units (monthly+)",
+        helpText:    "These get real leases — staff quarters, on-site manager, extended-stay tenants.",
+        type:        "number",
+        required:    false,
+        min:         0,
+        placeholder: "1",
+      },
+      {
+        id:       "grading_council_stars",
+        group:    "property_level",
+        label:    "TGCSA grading",
+        type:     "radio",
+        required: false,
+        options: [
+          { value: "ungraded", label: "Ungraded" },
+          { value: "1",        label: "1 star" },
+          { value: "2",        label: "2 stars" },
+          { value: "3",        label: "3 stars" },
+          { value: "4",        label: "4 stars" },
+          { value: "5",        label: "5 stars" },
+        ],
+      },
+      {
+        id:       "licences_held",
+        group:    "operational",
+        label:    "Licences and certificates held",
+        type:     "multiselect",
+        required: false,
+        options: [
+          { value: "business_licence", label: "Business licence" },
+          { value: "liquor_licence",   label: "Liquor licence" },
+          { value: "food_handling",    label: "Food handling / health" },
+          { value: "fire_compliance",  label: "Fire compliance certificate" },
+        ],
+      },
+      {
+        id:       "parking_on_site",
+        group:    "property_level",
+        label:    "On-site guest parking?",
+        type:     "toggle",
+        required: false,
       },
     ],
   },

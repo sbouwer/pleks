@@ -98,6 +98,54 @@ export const SCENARIO_EDUCATION: Record<Exclude<ScenarioType, "other">, string[]
     "Portfolio reporting can filter by building type so you see commercial vs residential performance separately.",
     "Development-scale insurance typically requires a specialist commercial broker — flag this in the setup.",
   ],
+
+  r6: [
+    "Each room is its own leased unit — the common areas (kitchen, bathrooms) belong to the property.",
+    "Academic-year lease cycles (10 months) are supported; Pleks adjusts charge schedules automatically.",
+    "NSFAS-accredited properties get NSFAS-compatible invoice formats and payment-tracking defaults.",
+    "CPA applies to student leases — a tenant can cancel with 20 business days' notice if circumstances change.",
+    "Key and access deposits are common in student housing — track them separately from the rental deposit.",
+  ],
+
+  r7: [
+    "Each dwelling (main house, cottage, rondavel) gets its own unit record, inspection checklist, and lease.",
+    "ESTA may protect long-term occupiers on land over 1 hectare — take legal advice before issuing notice.",
+    "Farm specialist insurance is mandatory for agricultural land; standard buildings cover is usually insufficient.",
+    "Borehole, septic tank, and off-grid power are tracked as property attributes and flagged in the lease.",
+    "Staff quarters with is_lettable=false are tracked for compliance but are not leased through Pleks.",
+  ],
+
+  c5: [
+    "Single-tenant retail: one unit, one lease — straightforward commercial lease governed by contract law.",
+    "VAT applies to the lease if you're VAT-registered (commercial property rentals are taxable supplies).",
+    "Signage rights, shopfront modifications, and permitted trading hours should be explicit in the lease.",
+    "Extractor vents and fit-out obligations are landlord vs tenant flashpoints — document them upfront.",
+    "Liquor licence compliance sits with the tenant, but a change of use affects your insurance — flag it.",
+  ],
+
+  c6: [
+    "Month-to-month leases are the norm for self-storage — Pleks charges roll automatically each billing cycle.",
+    "Each storage unit is its own lettable unit — locking, access, and inspection are tracked per unit.",
+    "Prohibited goods clauses (chemicals, flammables, food) are legally important — enable the strict version.",
+    "Vehicle storage changes your insurance risk profile; confirm this is covered under your commercial policy.",
+    "24/7 access via code or biometric is standard — document the access model in lease terms.",
+  ],
+
+  m3: [
+    "Office and residential units each get separate lease templates — CPA on residential, not on commercial.",
+    "VAT applies to office leases if you're VAT-registered; residential units are VAT-exempt.",
+    "Separate entrances strongly recommended to avoid noise, security, and insurance complications.",
+    "Parking allocation (shared vs split) is one of the most common disputes in mixed-use buildings.",
+    "Commercial property insurance with a residential rider is required — confirm cover with your broker.",
+  ],
+
+  m4: [
+    "Guest rooms (short-stay) are tracked for compliance but are not leased through Pleks.",
+    "Long-stay units (monthly+) get full leases — staff quarters, managers, extended-stay tenants.",
+    "TGCSA grading affects insurance expectations and marketing copy — keep it current.",
+    "Liquor and food handling licences are tracked in the Specifics tab and flagged at renewal.",
+    "CPA applies to long-stay residential units; hospitality-specific regulations cover short-stay guests.",
+  ],
 }
 
 /** Returns the bullets for a scenario, or an empty array for "other". */

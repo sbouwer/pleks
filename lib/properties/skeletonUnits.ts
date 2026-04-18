@@ -305,6 +305,104 @@ function m2(input: SkeletonInput): SkeletonUnit[] {
   )
 }
 
+function r6(input: SkeletonInput): SkeletonUnit[] {
+  const { scenarioAnswers: a, unitCount = 4 } = input
+  const furnishing = safeFurnishing(a.furnished)
+  return Array.from({ length: unitCount }, (_, i) =>
+    baseUnit({
+      unit_number:       `Room ${i + 1}`,
+      unit_type:         "residential_student_room",
+      bedrooms:          1,
+      furnishing_status: furnishing,
+    }),
+  )
+}
+
+function r7(input: SkeletonInput): SkeletonUnit[] {
+  const { scenarioAnswers: a } = input
+  const mix = (a.dwelling_mix as string[] | undefined) ?? ["main_house"]
+  const UNIT_TYPE_MAP: Record<string, { type: string; label: string; lettable: boolean }> = {
+    main_house:     { type: "residential_farmhouse", label: "Main house",     lettable: true  },
+    cottage:        { type: "residential_cottage",   label: "Cottage",        lettable: true  },
+    staff_quarters: { type: "residential_staff",     label: "Staff quarters", lettable: false },
+    converted_barn: { type: "residential_loft",      label: "Converted barn", lettable: true  },
+    rondavel:       { type: "residential_rondavel",  label: "Rondavel",       lettable: true  },
+  }
+  const units: SkeletonUnit[] = mix.flatMap((key) => {
+    const meta = UNIT_TYPE_MAP[key]
+    if (!meta) return []
+    return [baseUnit({ unit_number: meta.label, unit_type: meta.type, is_lettable: meta.lettable })]
+  })
+  if (units.length === 0) {
+    units.push(baseUnit({ unit_number: "Main house", unit_type: "residential_farmhouse", is_lettable: true }))
+  }
+  return units
+}
+
+function c5(input: SkeletonInput): SkeletonUnit[] {
+  const { propertyName, scenarioAnswers: a } = input
+  return [
+    baseUnit({
+      unit_number: propertyName,
+      unit_type:   "commercial_retail",
+      size_m2:     a.shopfront_m2 != null ? Number(a.shopfront_m2) : null,
+    }),
+  ]
+}
+
+function c6(input: SkeletonInput): SkeletonUnit[] {
+  const { unitCount = 30 } = input
+  return Array.from({ length: unitCount }, (_, i) =>
+    baseUnit({
+      unit_number: `Unit ${String(i + 1).padStart(3, "0")}`,
+      unit_type:   "commercial_storage",
+    }),
+  )
+}
+
+const BEDROOM_MIX_TYPE: Record<string, string> = {
+  studio: "residential_studio",
+  "1bed": "residential_1bed",
+  "2bed": "residential_2bed",
+}
+const BEDROOM_MIX_COUNT: Record<string, number> = {
+  studio: 0, "1bed": 1, "2bed": 2,
+}
+
+function m3(input: SkeletonInput): SkeletonUnit[] {
+  const { scenarioAnswers: a } = input
+  const officeCount      = Math.max(1, Number(a.office_unit_count      ?? 1))
+  const residentialCount = Math.max(1, Number(a.residential_unit_count ?? 1))
+  const bedroomMix       = String(a.residential_bedroom_mix ?? "1bed")
+  const resType  = BEDROOM_MIX_TYPE[bedroomMix]  ?? "residential_unknown"
+  const resBeds  = BEDROOM_MIX_COUNT[bedroomMix] ?? null
+
+  const offices = Array.from({ length: officeCount }, (_, i) =>
+    baseUnit({ unit_number: `Office ${i + 1}`, unit_type: "commercial_office" }),
+  )
+  const flats = Array.from({ length: residentialCount }, (_, i) =>
+    baseUnit({
+      unit_number: `Flat ${String.fromCharCode(65 + i)}`,
+      unit_type:   bedroomMix === "mixed" ? "residential_unknown" : resType,
+      bedrooms:    bedroomMix === "mixed" ? null : resBeds,
+    }),
+  )
+  return [...offices, ...flats]
+}
+
+function m4(input: SkeletonInput): SkeletonUnit[] {
+  const { scenarioAnswers: a } = input
+  const guestCount = Math.max(0, Number(a.guest_room_count     ?? 0))
+  const longCount  = Math.max(1, Number(a.long_stay_unit_count ?? 1))
+  const guests = Array.from({ length: guestCount }, (_, i) =>
+    baseUnit({ unit_number: `Guest room ${i + 1}`, unit_type: "hospitality_guest_room", is_lettable: false }),
+  )
+  const longStay = Array.from({ length: longCount }, (_, i) =>
+    baseUnit({ unit_number: `Long-stay unit ${i + 1}`, unit_type: "hospitality_long_stay" }),
+  )
+  return [...guests, ...longStay]
+}
+
 function other(input: SkeletonInput): SkeletonUnit[] {
   const { propertyName } = input
   return [
@@ -321,18 +419,10 @@ function other(input: SkeletonInput): SkeletonUnit[] {
 type Generator = (input: SkeletonInput) => SkeletonUnit[]
 
 const GENERATORS: Record<ScenarioType, Generator> = {
-  r1:    r1,
-  r2:    r2,
-  r3:    r3,
-  r4:    r4,
-  r5:    r5,
-  c1:    c1,
-  c2:    c2,
-  c3:    c3,
-  c4:    c4,
-  m1:    m1,
-  m2:    m2,
-  other: other,
+  r1, r2, r3, r4, r5, r6, r7,
+  c1, c2, c3, c4, c5, c6,
+  m1, m2, m3, m4,
+  other,
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────
