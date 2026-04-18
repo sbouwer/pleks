@@ -3,6 +3,7 @@
 import { useState, useRef, type DragEvent, type ChangeEvent } from "react"
 import { Upload, X, FileText } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useWizard, type PendingDocument } from "../WizardContext"
 
 // ── Document types ────────────────────────────────────────────────────────────
@@ -157,16 +158,16 @@ export function StepDocuments() {
                     <p className="text-sm font-medium truncate">{doc.file.name}</p>
                     <p className="text-xs text-muted-foreground">{formatFileSize(doc.file.size)}</p>
                   </div>
-                  <select
-                    value={doc.doc_type}
-                    onChange={(e) => updateDoc(i, { doc_type: e.target.value })}
-                    className="rounded-md border border-input bg-background px-2 py-1.5 text-xs"
-                    aria-label="Document type"
-                  >
-                    {DOC_TYPES.map((t) => (
-                      <option key={t.value} value={t.value}>{t.label}</option>
-                    ))}
-                  </select>
+                  <Select value={doc.doc_type} onValueChange={(v) => updateDoc(i, { doc_type: v ?? "other" })}>
+                    <SelectTrigger size="sm" aria-label="Document type" className="text-xs min-w-[10rem]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DOC_TYPES.map((t) => (
+                        <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <button
                     type="button"
                     onClick={() => removeAt(i)}

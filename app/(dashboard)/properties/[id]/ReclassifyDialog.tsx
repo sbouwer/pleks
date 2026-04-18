@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tag } from "lucide-react"
 import { SCENARIOS, type ScenarioType, type ScenarioSegment } from "@/lib/properties/scenarios"
 import { reclassifyProperty } from "@/lib/actions/reclassifyProperty"
@@ -88,22 +89,19 @@ export function ReclassifyDialog({
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="reclassify-scenario" className="text-sm font-medium block">
-              Change to:
-            </label>
-            <select
-              id="reclassify-scenario"
-              value={target}
-              onChange={(e) => setTarget(e.target.value as ScenarioType | "")}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="">Select a scenario…</option>
-              {options.map((o) => (
-                <option key={o.code} value={o.code} disabled={o.code === currentScenario}>
-                  {o.segmentLabel} &mdash; {o.label}
-                </option>
-              ))}
-            </select>
+            <span className="text-sm font-medium block">Change to:</span>
+            <Select value={target} onValueChange={(v) => setTarget(v as ScenarioType | "")}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select a scenario…" />
+              </SelectTrigger>
+              <SelectContent>
+                {options.map((o) => (
+                  <SelectItem key={o.code} value={o.code} disabled={o.code === currentScenario}>
+                    {o.segmentLabel} — {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="text-xs text-muted-foreground space-y-1">

@@ -1,7 +1,7 @@
 "use client"
 
-import { cn } from "@/lib/utils"
 import { useWizard } from "../WizardContext"
+import { OptionRow } from "../OptionRow"
 
 // ── Preset options ────────────────────────────────────────────────────────────
 
@@ -38,24 +38,15 @@ function RadioGroup({ label, options, value, onChange }: RadioGroupProps) {
   return (
     <fieldset className="space-y-2">
       <legend className="text-sm font-medium">{label}</legend>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <div className="space-y-1.5">
         {options.map((opt) => (
-          <button
+          <OptionRow
             key={opt.value}
-            type="button"
-            role="radio"
-            aria-checked={value === opt.value}
-            onClick={() => onChange(opt.value)}
-            className={cn(
-              "text-left rounded-lg border px-3 py-2.5 text-sm transition-colors",
-              value === opt.value
-                ? "border-primary bg-primary/5 ring-1 ring-primary"
-                : "border-border hover:border-primary/40",
-            )}
-          >
-            <span className="block font-medium text-sm">{opt.label}</span>
-            {opt.sub && <span className="block text-xs text-muted-foreground mt-0.5">{opt.sub}</span>}
-          </button>
+            selected={value === opt.value}
+            onSelect={() => onChange(opt.value)}
+            label={opt.label}
+            sub={opt.sub}
+          />
         ))}
       </div>
     </fieldset>

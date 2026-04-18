@@ -10,6 +10,7 @@ import {
 } from "react"
 import type { ScenarioType } from "@/lib/properties/scenarios"
 import type { UniversalAnswers } from "@/lib/properties/buildProfile"
+import type { SkeletonUnit } from "@/lib/properties/skeletonUnits"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -68,6 +69,9 @@ export interface PendingDocument {
   expires_at?: string
 }
 
+/** Editable unit record held in the wizard before save. */
+export type UnitDraft = SkeletonUnit
+
 export interface WizardState {
   mode:         WizardMode
   step:         number
@@ -95,8 +99,8 @@ export interface WizardState {
   // Step 5 — Owner / landlord (managed_for_owner only)
   landlord: LandlordDraft | null
 
-  // Step 6 — Unit labels
-  unitLabels: string[]
+  // Step 6 — Unit drafts (pre-filled from skeletonUnits, fully editable)
+  units: UnitDraft[]
 
   // Step 7 — Insurance stub
   insurance: InsuranceStub | null
@@ -121,7 +125,11 @@ const COMMERCIAL_OR_MIXED: ScenarioType[] = ["c1", "c2", "c3", "c4", "m1", "m2"]
 
 /** Returns the ordered list of active step indices (0-based into STEP_IDS). */
 export function computeActiveStepIds(state: Pick<WizardState, "scenarioType" | "managedMode">): string[] {
-  const ids = ["picker", "address", "universal", "followup"]
+  // After picking the scenario, jump straight to universal property questions
+  // (managing scheme, WiFi, signal, backup power) — these apply to every
+  // scenario and benefit from the picker context being fresh. Address comes
+  // next, then scenario-specific follow-ups.
+  const ids = ["picker", "universal", "address", "followup"]
 
   if (state.scenarioType && COMMERCIAL_OR_MIXED.includes(state.scenarioType)) {
     ids.push("hours")
@@ -150,7 +158,7 @@ const DEFAULT_STATE: WizardState = {
   afterHoursNoticeHours: null,
   afterHoursNotes:       null,
   landlord:      null,
-  unitLabels:       [],
+  units:            [],
   insurance:        null,
   documents:        [],
   pendingDocuments: [],

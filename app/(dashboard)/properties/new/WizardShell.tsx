@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import { useWizard, computeActiveStepIds, type WizardState } from "./WizardContext"
 import { createPropertyFromWizard, type WizardSavePayload } from "@/lib/actions/createPropertyFromWizard"
 import { PropertyForm } from "../PropertyForm"
@@ -71,7 +72,7 @@ function toSavePayload(state: WizardState): WizardSavePayload {
     afterHoursNoticeHours: state.afterHoursNoticeHours,
     afterHoursNotes:       state.afterHoursNotes,
     landlord:              state.landlord,
-    unitLabels:            state.unitLabels,
+    units:                 state.units,
     insurance:             state.insurance,
   }
 }
@@ -84,42 +85,52 @@ interface ProgressDotsProps {
 }
 
 function ProgressDots({ stepIds, currentIndex }: ProgressDotsProps) {
+  const currentLabel = STEP_LABELS[stepIds[currentIndex] ?? ""] ?? ""
+  const total        = stepIds.length
+  const pct          = total === 1 ? 100 : Math.round((currentIndex / (total - 1)) * 100)
+
   return (
     <nav aria-label="Wizard progress" className="mb-8">
-      <ol className="flex items-center gap-1 flex-wrap">
+      {/* Text + bar for clarity across widths */}
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm font-medium">{currentLabel}</span>
+        <span className="text-xs text-muted-foreground">Step {currentIndex + 1} of {total}</span>
+      </div>
+      <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+        <div
+          className="h-full bg-primary transition-all duration-300"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+
+      {/* Dot row — condensed on mobile, labels appear on larger widths */}
+      <ol className="flex items-center justify-between gap-1 mt-4 flex-wrap">
         {stepIds.map((id, i) => {
           const done    = i < currentIndex
           const active  = i === currentIndex
           const pending = i > currentIndex
           return (
-            <li key={id} className="flex items-center gap-1">
+            <li key={id} className="flex items-center gap-1.5 min-w-0">
               <span
                 aria-current={active ? "step" : undefined}
-                className={[
-                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-medium transition-colors",
+                className={cn(
+                  "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-medium transition-colors",
                   done    && "bg-primary text-primary-foreground",
-                  active  && "ring-2 ring-primary bg-primary/10 text-primary",
-                  pending && "bg-muted text-muted-foreground",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
+                  active  && "bg-primary/15 text-primary ring-2 ring-primary",
+                  pending && "bg-muted text-muted-foreground/60",
+                )}
               >
                 {done ? "✓" : i + 1}
               </span>
               <span
-                className={[
-                  "hidden sm:inline text-xs",
+                className={cn(
+                  "hidden md:inline text-[11px] truncate",
                   active  && "font-medium text-foreground",
                   !active && "text-muted-foreground",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
+                )}
               >
                 {STEP_LABELS[id] ?? id}
               </span>
-              {i < stepIds.length - 1 && (
-                <span className="mx-1 text-muted-foreground/40 text-xs select-none">›</span>
-              )}
             </li>
           )
         })}
@@ -141,12 +152,15 @@ export function WizardShell() {
   const isFirst       = state.step === 0
   const isLast        = state.step === stepIds.length - 1
 
-  // Picker step requires a scenario selection before continuing
-  const canContinue = currentStepId !== "picker" || state.scenarioType !== null
-
-  function handleSwitchToAdvanced() {
-    patch({ mode: "advanced" })
-  }
+  // Per-step "can continue" gates
+  const canContinue = (() => {
+    if (currentStepId === "picker") return state.scenarioType !== null
+    if (currentStepId === "address") {
+      const a = state.address
+      return !!(a && a.street_name.trim() && a.city.trim() && a.province && a.property_name.trim())
+    }
+    return true
+  })()
 
   function handlePrimary() {
     if (!isLast) {
@@ -193,39 +207,36 @@ export function WizardShell() {
   }
 
   return (
-    <div className="max-w-2xl">
+    <div>
       <ProgressDots stepIds={stepIds} currentIndex={state.step} />
 
-      <div className="min-h-64">
-        {renderStep(currentStepId)}
-      </div>
-
-      {saveError && (
-        <div className="mt-4 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-          {saveError}
+      {/* Fixed-height card: content scrolls, footer stays pinned */}
+      <div className="rounded-2xl border bg-card shadow-sm flex flex-col" style={{ height: "calc(100vh - 280px)", minHeight: "520px", maxHeight: "680px" }}>
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto px-5 py-6 sm:px-8 sm:py-8">
+          {renderStep(currentStepId)}
         </div>
-      )}
 
-      <div className="mt-8 flex items-center justify-between border-t pt-6">
-        <div className="flex items-center gap-3">
-          {!isFirst && !isSaving && (
-            <Button variant="outline" onClick={goBack}>
-              Back
-            </Button>
+        {/* Pinned footer */}
+        <div className="shrink-0 border-t bg-card rounded-b-2xl">
+          {saveError && (
+            <div className="mx-5 mt-3 sm:mx-8 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+              {saveError}
+            </div>
           )}
-          <button
-            type="button"
-            className="text-xs text-muted-foreground underline-offset-2 hover:underline disabled:opacity-50"
-            onClick={handleSwitchToAdvanced}
-            disabled={isSaving}
-          >
-            Switch to advanced setup
-          </button>
+          <div className="flex items-center justify-between px-5 py-4 sm:px-8">
+            <div>
+              {!isFirst && !isSaving && (
+                <Button variant="outline" onClick={goBack}>
+                  Back
+                </Button>
+              )}
+            </div>
+            <Button onClick={handlePrimary} disabled={!canContinue || isSaving} size="lg">
+              {primaryButtonLabel(isLast, isSaving)}
+            </Button>
+          </div>
         </div>
-
-        <Button onClick={handlePrimary} disabled={!canContinue || isSaving}>
-          {primaryButtonLabel(isLast, isSaving)}
-        </Button>
       </div>
     </div>
   )

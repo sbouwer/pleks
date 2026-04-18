@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { useWizard, type LandlordDraft } from "../WizardContext"
+import { OptionRow } from "../OptionRow"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -195,23 +196,15 @@ export function StepLandlord() {
       </div>
 
       {/* Option cards */}
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {OPTION_CARDS.map((card) => (
-          <button
+          <OptionRow
             key={card.value}
-            type="button"
-            aria-pressed={option === card.value}
-            onClick={() => setOption(card.value)}
-            className={cn(
-              "w-full text-left rounded-lg border px-4 py-3 transition-colors",
-              option === card.value
-                ? "border-primary bg-primary/5 ring-1 ring-primary"
-                : "border-border hover:border-primary/40",
-            )}
-          >
-            <span className="block text-sm font-medium">{card.label}</span>
-            <span className="block text-xs text-muted-foreground mt-0.5">{card.sub}</span>
-          </button>
+            selected={option === card.value}
+            onSelect={() => setOption(card.value)}
+            label={card.label}
+            sub={card.sub}
+          />
         ))}
       </div>
 
@@ -295,23 +288,15 @@ function LaterPanel({ track, email, onChangeTrack, onChangeEmail }: LaterPanelPr
   return (
     <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
       <p className="text-sm font-medium">How should we follow up?</p>
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         {TRACKS.map((t) => (
-          <button
+          <OptionRow
             key={t.value}
-            type="button"
-            aria-pressed={track === t.value}
-            onClick={() => onChangeTrack(t.value)}
-            className={cn(
-              "w-full text-left rounded-lg border px-3 py-2 transition-colors",
-              track === t.value
-                ? "border-primary bg-primary/5 ring-1 ring-primary"
-                : "border-border hover:border-primary/40",
-            )}
-          >
-            <span className="block text-sm font-medium">{t.label}</span>
-            <span className="block text-xs text-muted-foreground mt-0.5">{t.sub}</span>
-          </button>
+            selected={track === t.value}
+            onSelect={() => onChangeTrack(t.value)}
+            label={t.label}
+            sub={t.sub}
+          />
         ))}
       </div>
 
