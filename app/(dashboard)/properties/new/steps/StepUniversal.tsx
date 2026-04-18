@@ -150,9 +150,9 @@ export function StepUniversal() {
               ? "Body corporate (pre-selected for sectional title)"
               : "Homeowners association (pre-selected for estate)"}
           </span>
-          <div className="mt-2">
-            <label htmlFor="scheme-name-preselected" className="text-xs text-muted-foreground block mb-1">
-              Scheme name <span className="text-muted-foreground">(optional)</span>
+          <div className="mt-2 flex items-center gap-3">
+            <label htmlFor="scheme-name-preselected" className="w-32 shrink-0 text-sm font-medium text-right">
+              Scheme name
             </label>
             <input
               id="scheme-name-preselected"
@@ -164,7 +164,7 @@ export function StepUniversal() {
                   ? "e.g. Vineyard Heights Body Corporate"
                   : "e.g. Blue Ridge Estate HOA"
               }
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-shadow"
             />
           </div>
         </div>
@@ -174,7 +174,7 @@ export function StepUniversal() {
             label="Managing scheme?"
             options={[
               { value: "no",             label: "No" },
-              { value: "body_corporate", label: "Body corp" },
+              { value: "body_corporate", label: "Body Corporate" },
               { value: "hoa",            label: "HOA" },
               { value: "share_block",    label: "Share block" },
               { value: "other_scheme",   label: "Other" },
@@ -184,8 +184,8 @@ export function StepUniversal() {
             onChange={(v) => update({ schemeOption: v as SchemeOption })}
           />
           {showSchemeName && (
-            <div>
-              <label htmlFor="scheme-name" className="text-xs font-medium block mb-1">
+            <div className="flex items-center gap-3">
+              <label htmlFor="scheme-name" className="w-32 shrink-0 text-sm font-medium text-right">
                 Scheme name <span className="text-destructive">*</span>
               </label>
               <input
@@ -194,7 +194,7 @@ export function StepUniversal() {
                 value={local.schemeName}
                 onChange={(e) => update({ schemeName: e.target.value })}
                 placeholder="e.g. Vineyard Heights Body Corporate"
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-shadow"
               />
             </div>
           )}
