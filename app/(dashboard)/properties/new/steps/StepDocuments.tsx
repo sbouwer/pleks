@@ -97,14 +97,6 @@ export function StepDocuments() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="font-heading text-2xl mb-1">Upload documents</h2>
-        <p className="text-muted-foreground text-sm">
-          Optional — title deed, compliance certificates, insurance docs, anything you&apos;d like
-          stored alongside this property.
-        </p>
-      </div>
-
       {/* Drop zone */}
       <button
         type="button"

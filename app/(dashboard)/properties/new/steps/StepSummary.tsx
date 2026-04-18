@@ -32,8 +32,6 @@ export function StepSummary() {
   const { state } = useWizard()
 
   const scenario = state.scenarioType ? getScenario(state.scenarioType) : null
-  const propertyName = state.address?.property_name ?? "this property"
-
   const insuranceLabel = (() => {
     if (!state.insurance) return "Insurance — not yet captured"
     if (state.insurance.option === "now") return "Insurance — basics added"
@@ -94,13 +92,9 @@ export function StepSummary() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="font-heading text-2xl mb-1">Ready to create {propertyName}</h2>
-        <p className="text-muted-foreground text-sm">
-          Setup: <strong>{pct}% complete</strong>. We&apos;ll remind you about open items in 7 days &mdash; you can
-          always come back to the property page.
-        </p>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        Setup: <strong>{pct}% complete</strong>. We&apos;ll remind you about open items in 7 days — you can always come back to the property page.
+      </p>
 
       <div className="rounded-lg border bg-muted/20 p-4">
         <ul className="divide-y divide-border/50">

@@ -218,23 +218,11 @@ export function StepUnits() {
   }
 
   if (!scenario) {
-    return (
-      <div className="space-y-2">
-        <h2 className="font-heading text-2xl">Unit details</h2>
-        <p className="text-muted-foreground text-sm">Please select a property type first.</p>
-      </div>
-    )
+    return <p className="text-sm text-muted-foreground">Please select a property type first.</p>
   }
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="font-heading text-2xl mb-1">Units</h2>
-        <p className="text-muted-foreground text-sm">
-          Each row is a lettable unit inside the building. Pre-filled from your earlier answers.
-        </p>
-      </div>
-
       {/* Column headers */}
       <div className="flex flex-wrap items-center gap-2 px-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
         <span className="w-5" />

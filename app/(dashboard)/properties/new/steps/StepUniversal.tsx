@@ -1,62 +1,48 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { cn } from "@/lib/utils"
 import { getScenario } from "@/lib/properties/scenarios"
 import type { UniversalAnswers } from "@/lib/properties/buildProfile"
 import { useWizard } from "../WizardContext"
-import { OptionRow } from "../OptionRow"
 
-// ── Shared radio-group primitive ──────────────────────────────────────────────
+// ── Inline segmented picker (single row) ──────────────────────────────────────
 
-interface RadioOption {
-  value: string
-  label: string
-  sub?:  string
-}
+interface SegOption { value: string; label: string }
 
-interface RadioGroupProps {
+interface InlineSegmentProps {
   label:    string
-  helpText?: string
-  options:  RadioOption[]
+  options:  SegOption[]
   value:    string | null
   onChange: (v: string) => void
-  required?: boolean
 }
 
-function RadioGroup({ label, helpText, options, value, onChange, required }: RadioGroupProps) {
-  // Compact grid — up to 4 columns wide so even longer lists (BC, backup
-  // power) stay scannable without forcing scroll.
-  let gridClass: string
-  if (options.length === 2) {
-    gridClass = "grid grid-cols-2 gap-2"
-  } else if (options.length === 3) {
-    gridClass = "grid grid-cols-1 sm:grid-cols-3 gap-2"
-  } else {
-    // 4+ options → 2 cols on mobile, 4 cols on sm+
-    gridClass = "grid grid-cols-2 sm:grid-cols-4 gap-2"
-  }
-
+function InlineSegment({ label, options, value, onChange }: Readonly<InlineSegmentProps>) {
   return (
-    <fieldset className="space-y-2">
-      <legend className="text-sm font-medium">
-        {label}
-        {required && <span className="ml-1 text-destructive text-xs">*</span>}
-      </legend>
-      {helpText && <p className="text-xs text-muted-foreground -mt-1">{helpText}</p>}
-      <div className={gridClass}>
-        {options.map((opt) => (
-          <OptionRow
+    <div className="flex items-center gap-3">
+      <span className="w-32 shrink-0 text-sm font-medium text-right leading-none">{label}</span>
+      <div className="flex rounded-md border border-border overflow-hidden">
+        {options.map((opt, i) => (
+          <button
             key={opt.value}
-            selected={value === opt.value}
-            onSelect={() => onChange(opt.value)}
-            label={opt.label}
-            sub={opt.sub}
-          />
+            type="button"
+            onClick={() => onChange(opt.value)}
+            className={cn(
+              "px-3 py-1.5 text-xs font-medium transition-colors",
+              i > 0 && "border-l border-border",
+              value === opt.value
+                ? "bg-primary text-primary-foreground"
+                : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+            )}
+          >
+            {opt.label}
+          </button>
         ))}
       </div>
-    </fieldset>
+    </div>
   )
 }
+
 
 // ── Scheme section ────────────────────────────────────────────────────────────
 
@@ -68,14 +54,6 @@ type SchemeOption =
   | "other_scheme"
   | "not_sure"
 
-const SCHEME_OPTIONS: RadioOption[] = [
-  { value: "no",             label: "No" },
-  { value: "body_corporate", label: "Body corporate",          sub: "Sectional title scheme (STSMA)" },
-  { value: "hoa",            label: "Homeowners association",   sub: "HOA" },
-  { value: "share_block",    label: "Share block" },
-  { value: "other_scheme",   label: "Other scheme" },
-  { value: "not_sure",       label: "Not sure", sub: "Check with owner later" },
-]
 
 function schemeOptionToAnswers(opt: SchemeOption): Pick<UniversalAnswers, "hasManagingScheme" | "schemeType"> {
   if (opt === "no" || opt === "not_sure") {
@@ -161,13 +139,7 @@ export function StepUniversal() {
     local.schemeOption !== "not_sure"
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="font-heading text-2xl mb-1">A few quick questions</h2>
-        <p className="text-muted-foreground text-sm">
-          Applies to the property — helps us tailor leases, inspections, and maintenance.
-        </p>
-      </div>
+    <div className="space-y-6">
 
       {/* BC / scheme */}
       {schemePreselected ? (
@@ -197,13 +169,19 @@ export function StepUniversal() {
           </div>
         </div>
       ) : (
-        <div className="space-y-3">
-          <RadioGroup
-            label="Is this property part of a managing scheme?"
-            options={SCHEME_OPTIONS}
+        <div className="space-y-2">
+          <InlineSegment
+            label="Managing scheme?"
+            options={[
+              { value: "no",             label: "No" },
+              { value: "body_corporate", label: "Body corp" },
+              { value: "hoa",            label: "HOA" },
+              { value: "share_block",    label: "Share block" },
+              { value: "other_scheme",   label: "Other" },
+              { value: "not_sure",       label: "Not sure" },
+            ]}
             value={local.schemeOption}
             onChange={(v) => update({ schemeOption: v as SchemeOption })}
-            required
           />
           {showSchemeName && (
             <div>
@@ -224,22 +202,20 @@ export function StepUniversal() {
       )}
 
       {/* WiFi / fibre */}
-      <RadioGroup
-        label="Active WiFi or fibre connection at this property?"
-        helpText="Connectivity is now treated as a utility — drives clause defaults in the lease wizard."
+      <InlineSegment
+        label="Active WiFi / fibre?"
         options={[
           { value: "yes",     label: "Yes" },
           { value: "no",      label: "No" },
-          { value: "unknown", label: "Unknown", sub: "Check with owner" },
+          { value: "unknown", label: "Unknown" },
         ]}
         value={local.wifi}
         onChange={(v) => update({ wifi: v as UniversalAnswers["wifiAvailable"] })}
       />
 
       {/* Cell signal */}
-      <RadioGroup
-        label="Cell phone signal quality at the property"
-        helpText="Poor signal triggers an offline-sync reminder before inspection visits."
+      <InlineSegment
+        label="Cell signal"
         options={[
           { value: "good",    label: "Good" },
           { value: "patchy",  label: "Patchy" },
@@ -251,17 +227,16 @@ export function StepUniversal() {
       />
 
       {/* Backup power */}
-      <RadioGroup
-        label="Backup power setup"
-        helpText="Determines utility clause defaults and insurance rider notes."
+      <InlineSegment
+        label="Backup power"
         options={[
           { value: "none",      label: "None" },
-          { value: "ups",       label: "UPS",          sub: "Computer / internet only" },
-          { value: "inverter",  label: "Inverter",     sub: "Lights and plugs" },
-          { value: "solar",     label: "Solar",        sub: "Partial or full" },
+          { value: "ups",       label: "UPS" },
+          { value: "inverter",  label: "Inverter" },
+          { value: "solar",     label: "Solar" },
           { value: "generator", label: "Generator" },
-          { value: "multiple",  label: "Multiple",     sub: "Combination of the above" },
-          { value: "unknown",   label: "Unknown",      sub: "Check with owner" },
+          { value: "multiple",  label: "Multiple" },
+          { value: "unknown",   label: "Unknown" },
         ]}
         value={local.backupPower}
         onChange={(v) => update({ backupPower: v as UniversalAnswers["backupPower"] })}

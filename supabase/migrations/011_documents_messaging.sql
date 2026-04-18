@@ -1,27 +1,51 @@
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 012_document_generation.sql
--- ADDENDUM_57E — Templates, Signatures, Document Editor & Messaging
--- Creates: user_signatures, signature_sign_tokens, document_templates,
---          user_template_favourites, org_whatsapp_template_preferences,
---          document_generation_jobs
--- Amends:  lease_documents (adds generation_job_id + generated_letter doc_type)
---          organisations (adds document branding columns + settings jsonb)
--- Seeds:   system letter, email, and WhatsApp templates (idempotent)
+-- 011_documents_messaging.sql
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Documents, templates, signatures, messaging (email / SMS / WhatsApp), and
+-- the storage buckets that hold their artefacts.
+--
+-- This file absorbs:
+--   • 57E Templates, Signatures, Document Editor & Messaging
+--   • BUILD_58 WhatsApp Business API integration
+--   • Storage buckets for signatures, lease templates, property documents
+--   • Path-scoped storage RLS policies
+--   • lease_documents vault
+--   • communication_log delivery-tracking & polymorphic reference columns
+--
+-- AMEND-FORWARD RULE: new document types, template system features, messaging
+-- channels (future: Telegram, Signal, in-app), new storage buckets for
+-- generated artefacts — all go as a new §N section at the bottom of this file.
+--
+-- Fully idempotent — safe to re-run on any DB state.
 -- ═══════════════════════════════════════════════════════════════════════════════
 
--- ── 1. organisations — add document branding + settings columns ────────────────
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §1  ORGANISATION DOCUMENT BRANDING & CUSTOM LEASE METADATA
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Note: custom_template_path and custom_template_active are defined in
+-- 001_foundation.sql (as part of the lease customisation fields).  The
+-- additional companion columns below track filename and upload timestamp
+-- for the templates UI (57E).
+
 ALTER TABLE organisations
-  ADD COLUMN IF NOT EXISTS eaab_ffc                 text,
-  ADD COLUMN IF NOT EXISTS logo_path                text,
-  ADD COLUMN IF NOT EXISTS document_footer_text     text,
-  ADD COLUMN IF NOT EXISTS document_primary_font    text DEFAULT 'inter',
-  ADD COLUMN IF NOT EXISTS document_brand_colour    text DEFAULT '#2563eb',
-  ADD COLUMN IF NOT EXISTS settings                 jsonb NOT NULL DEFAULT '{}';
+  ADD COLUMN IF NOT EXISTS eaab_ffc                    text,
+  ADD COLUMN IF NOT EXISTS logo_path                   text,
+  ADD COLUMN IF NOT EXISTS document_footer_text        text,
+  ADD COLUMN IF NOT EXISTS document_primary_font       text DEFAULT 'inter',
+  ADD COLUMN IF NOT EXISTS document_brand_colour       text DEFAULT '#2563eb',
+  ADD COLUMN IF NOT EXISTS settings                    jsonb NOT NULL DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS custom_template_filename    text,
+  ADD COLUMN IF NOT EXISTS custom_template_uploaded_at timestamptz;
 
 COMMENT ON COLUMN organisations.settings IS
   'Org-wide configuration defaults. Schema: { preferences_version, communication: { tone_tenant, tone_owner, managed_by_label, sms_fallback_enabled, sms_fallback_delay_hours } }';
 
--- ── 2. user_signatures ────────────────────────────────────────────────────────
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §2  USER SIGNATURES
+-- ═══════════════════════════════════════════════════════════════════════════════
+
 CREATE TABLE IF NOT EXISTS user_signatures (
   id           uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id      uuid        NOT NULL REFERENCES auth.users(id),
@@ -44,11 +68,17 @@ CREATE INDEX IF NOT EXISTS idx_user_signatures_user
 
 ALTER TABLE user_signatures ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users manage own signatures" ON user_signatures;
 CREATE POLICY "Users manage own signatures" ON user_signatures
   FOR ALL USING (user_id = auth.uid())
   WITH CHECK (user_id = auth.uid());
 
--- ── 3. signature_sign_tokens ──────────────────────────────────────────────────
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §3  SIGNATURE SIGN TOKENS
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Short-lived tokens for the QR-phone signature capture flow.
+
 CREATE TABLE IF NOT EXISTS signature_sign_tokens (
   token        text        PRIMARY KEY,
   user_id      uuid        NOT NULL REFERENCES auth.users(id),
@@ -64,58 +94,75 @@ CREATE INDEX IF NOT EXISTS idx_signature_tokens_expires
 ALTER TABLE signature_sign_tokens ENABLE ROW LEVEL SECURITY;
 
 -- Users can read their own tokens; no INSERT via client (server-side only)
+DROP POLICY IF EXISTS "Users view own tokens" ON signature_sign_tokens;
 CREATE POLICY "Users view own tokens" ON signature_sign_tokens
   FOR SELECT USING (user_id = auth.uid());
 
--- ── 4. document_templates ─────────────────────────────────────────────────────
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §4  DOCUMENT TEMPLATES
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Unified table for letter, email, and WhatsApp templates.
+-- scope = 'system' (platform-provided seeds, org_id NULL) or 'organisation'.
+-- Meta approval columns track submission status for WhatsApp templates.
+
 CREATE TABLE IF NOT EXISTS document_templates (
-  id                   uuid  PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id               uuid  REFERENCES organisations(id),  -- NULL for system scope
-  scope                text  NOT NULL CHECK (scope IN ('system', 'organisation')),
-  template_type        text  NOT NULL CHECK (template_type IN ('letter', 'email', 'whatsapp')),
-  name                 text  NOT NULL,
-  description          text,
-  category             text  NOT NULL DEFAULT 'other',
+  id                              uuid  PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id                          uuid  REFERENCES organisations(id),  -- NULL for system scope
+  scope                           text  NOT NULL CHECK (scope IN ('system', 'organisation')),
+  template_type                   text  NOT NULL CHECK (template_type IN ('letter', 'email', 'whatsapp')),
+  name                            text  NOT NULL,
+  description                     text,
+  category                        text  NOT NULL DEFAULT 'other',
   -- Body content
-  body_html            text,               -- letters + emails (HTML)
-  body_json            jsonb,              -- TipTap document JSON
-  body_variants        jsonb,              -- {friendly, professional, firm} for system templates
-  subject              text,               -- emails only
-  whatsapp_header      text,
-  whatsapp_body        text,               -- professional variant default
-  whatsapp_footer      text,
-  -- Meta approval (whatsapp only)
-  meta_template_id     text,
-  meta_template_status text  CHECK (meta_template_status IN ('pending', 'approved', 'rejected')),
+  body_html                       text,               -- letters + emails (HTML)
+  body_json                       jsonb,              -- TipTap document JSON
+  body_variants                   jsonb,              -- {friendly, professional, firm} for system templates
+  subject                         text,               -- emails only
+  whatsapp_header                 text,
+  whatsapp_body                   text,               -- professional variant default
+  whatsapp_footer                 text,
+  -- Meta (WhatsApp Business) approval
+  meta_template_id                text,
+  meta_template_name              text,               -- human-readable id used by AT approval webhook
+  meta_template_status            text  CHECK (meta_template_status IN ('pending', 'approved', 'rejected')),
+  whatsapp_meta_variable_map      jsonb,
+  whatsapp_meta_category          text  CHECK (whatsapp_meta_category IN ('utility', 'marketing', 'authentication')),
+  whatsapp_meta_submitted_at      timestamptz,
+  whatsapp_meta_approved_at       timestamptz,
+  whatsapp_meta_rejection_reason  text,
   -- Metadata
-  legal_flag           text  CHECK (legal_flag IN ('wet_ink_only', 'aes_recommended')),
-  merge_fields         text[],
-  usage_count          int   NOT NULL DEFAULT 0,
-  last_used_at         timestamptz,
-  is_deletable         boolean NOT NULL DEFAULT true,
-  created_by           uuid  REFERENCES auth.users(id),
-  created_at           timestamptz NOT NULL DEFAULT now(),
-  updated_at           timestamptz NOT NULL DEFAULT now()
+  legal_flag                      text  CHECK (legal_flag IN ('wet_ink_only', 'aes_recommended')),
+  merge_fields                    text[],
+  usage_count                     int   NOT NULL DEFAULT 0,
+  last_used_at                    timestamptz,
+  is_deletable                    boolean NOT NULL DEFAULT true,
+  created_by                      uuid  REFERENCES auth.users(id),
+  created_at                      timestamptz NOT NULL DEFAULT now(),
+  updated_at                      timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_document_templates_org
-  ON document_templates(org_id);
-CREATE INDEX IF NOT EXISTS idx_document_templates_scope_type
-  ON document_templates(scope, template_type);
-CREATE INDEX IF NOT EXISTS idx_document_templates_category
-  ON document_templates(category);
+CREATE INDEX        IF NOT EXISTS idx_document_templates_org        ON document_templates(org_id);
+CREATE INDEX        IF NOT EXISTS idx_document_templates_scope_type ON document_templates(scope, template_type);
+CREATE INDEX        IF NOT EXISTS idx_document_templates_category   ON document_templates(category);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_doc_templates_meta_name
+  ON document_templates(meta_template_name)
+  WHERE meta_template_name IS NOT NULL;
 
 ALTER TABLE document_templates ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "System templates visible to all" ON document_templates;
 CREATE POLICY "System templates visible to all" ON document_templates
   FOR SELECT USING (scope = 'system');
 
+DROP POLICY IF EXISTS "Org templates visible to org members" ON document_templates;
 CREATE POLICY "Org templates visible to org members" ON document_templates
   FOR SELECT USING (
     scope = 'organisation'
     AND org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid())
   );
 
+DROP POLICY IF EXISTS "Only admins modify org templates" ON document_templates;
 CREATE POLICY "Only admins modify org templates" ON document_templates
   FOR ALL USING (
     scope = 'organisation'
@@ -125,7 +172,11 @@ CREATE POLICY "Only admins modify org templates" ON document_templates
     )
   );
 
--- ── 5. user_template_favourites ───────────────────────────────────────────────
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §5  USER TEMPLATE FAVOURITES
+-- ═══════════════════════════════════════════════════════════════════════════════
+
 CREATE TABLE IF NOT EXISTS user_template_favourites (
   user_id     uuid NOT NULL REFERENCES auth.users(id),
   template_id uuid NOT NULL REFERENCES document_templates(id) ON DELETE CASCADE,
@@ -135,11 +186,17 @@ CREATE TABLE IF NOT EXISTS user_template_favourites (
 
 ALTER TABLE user_template_favourites ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users manage own favourites" ON user_template_favourites;
 CREATE POLICY "Users manage own favourites" ON user_template_favourites
   FOR ALL USING (user_id = auth.uid())
   WITH CHECK (user_id = auth.uid());
 
--- ── 6. org_whatsapp_template_preferences ─────────────────────────────────────
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §6  ORG WHATSAPP TEMPLATE PREFERENCES
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Per-org opt-in + tone variant selection for system WhatsApp templates.
+
 CREATE TABLE IF NOT EXISTS org_whatsapp_template_preferences (
   org_id       uuid NOT NULL REFERENCES organisations(id),
   template_id  uuid NOT NULL REFERENCES document_templates(id),
@@ -152,6 +209,7 @@ CREATE TABLE IF NOT EXISTS org_whatsapp_template_preferences (
 
 ALTER TABLE org_whatsapp_template_preferences ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Org admins manage WA preferences" ON org_whatsapp_template_preferences;
 CREATE POLICY "Org admins manage WA preferences" ON org_whatsapp_template_preferences
   FOR ALL USING (
     org_id IN (
@@ -160,7 +218,11 @@ CREATE POLICY "Org admins manage WA preferences" ON org_whatsapp_template_prefer
     )
   );
 
--- ── 7. document_generation_jobs ───────────────────────────────────────────────
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §7  DOCUMENT GENERATION JOBS
+-- ═══════════════════════════════════════════════════════════════════════════════
+
 CREATE TABLE IF NOT EXISTS document_generation_jobs (
   id                  uuid  PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id              uuid  NOT NULL REFERENCES organisations(id),
@@ -191,30 +253,82 @@ CREATE INDEX IF NOT EXISTS idx_doc_gen_jobs_org     ON document_generation_jobs(
 
 ALTER TABLE document_generation_jobs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Org members view org doc jobs" ON document_generation_jobs;
 CREATE POLICY "Org members view org doc jobs" ON document_generation_jobs
   FOR SELECT USING (
     org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid())
   );
 
+DROP POLICY IF EXISTS "Users modify own doc jobs" ON document_generation_jobs;
 CREATE POLICY "Users modify own doc jobs" ON document_generation_jobs
   FOR ALL USING (user_id = auth.uid())
   WITH CHECK (user_id = auth.uid());
 
--- ── 8. lease_documents — add generation_job_id + widen doc_type ───────────────
-ALTER TABLE lease_documents
-  ADD COLUMN IF NOT EXISTS generation_job_id uuid REFERENCES document_generation_jobs(id);
 
--- Widen doc_type CHECK to include generated_letter
-ALTER TABLE lease_documents DROP CONSTRAINT IF EXISTS lease_documents_doc_type_check;
-ALTER TABLE lease_documents ADD CONSTRAINT lease_documents_doc_type_check
-  CHECK (doc_type IN (
-    'signed_lease', 'welcome_pack_tenant', 'welcome_pack_landlord',
-    'lod', 's14_notice', 'section_4_notice', 'tribunal_submission',
-    'statement_tenant', 'statement_owner', 'inspection_report',
-    'amendment', 'generated_letter', 'other'
-  ));
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §8  LEASE DOCUMENTS VAULT  (was 015_lease_documents.sql)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Permanent storage of PDFs associated with a lease: signed lease, welcome
+-- packs, letters of demand, s14/s4 notices, tribunal submissions, statements,
+-- inspection reports, amendments, and generated letters from §7 jobs.
 
--- ── 9. Seed system templates (idempotent) ─────────────────────────────────────
+CREATE TABLE IF NOT EXISTS lease_documents (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id          uuid NOT NULL REFERENCES organisations(id),
+  lease_id        uuid NOT NULL REFERENCES leases(id) ON DELETE CASCADE,
+  doc_type        text NOT NULL CHECK (doc_type IN (
+                    'signed_lease',
+                    'welcome_pack_tenant',
+                    'welcome_pack_landlord',
+                    'lod',
+                    's14_notice',
+                    'section_4_notice',
+                    'tribunal_submission',
+                    'statement_tenant',
+                    'statement_owner',
+                    'inspection_report',
+                    'amendment',
+                    'generated_letter',
+                    'other'
+                  )),
+  title             text NOT NULL,
+  storage_path      text NOT NULL,
+  file_size_bytes   bigint,
+  generated_by      text,
+  generation_job_id uuid REFERENCES document_generation_jobs(id),
+  created_at        timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_lease_documents_lease ON lease_documents(lease_id);
+CREATE INDEX IF NOT EXISTS idx_lease_documents_org   ON lease_documents(org_id);
+CREATE INDEX IF NOT EXISTS idx_lease_documents_type  ON lease_documents(doc_type);
+
+ALTER TABLE lease_documents ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "lease_docs_org_select" ON lease_documents;
+CREATE POLICY "lease_docs_org_select" ON lease_documents
+  FOR SELECT USING (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+  );
+
+DROP POLICY IF EXISTS "lease_docs_org_insert" ON lease_documents;
+CREATE POLICY "lease_docs_org_insert" ON lease_documents
+  FOR INSERT WITH CHECK (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+  );
+
+DROP POLICY IF EXISTS "lease_docs_org_delete" ON lease_documents;
+CREATE POLICY "lease_docs_org_delete" ON lease_documents
+  FOR DELETE USING (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+  );
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §9  SYSTEM TEMPLATE SEEDS  (letters, emails, WhatsApp)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- 27 system templates (8 letters + 8 emails + 11 WhatsApp). Idempotent via
+-- NOT EXISTS guard — re-running will not create duplicates.
 
 -- ── 9a. Letter templates ──────────────────────────────────────────────────────
 INSERT INTO document_templates (scope, template_type, name, description, category, body_html, merge_fields, legal_flag, is_deletable)
@@ -499,3 +613,237 @@ WHERE NOT EXISTS (
   SELECT 1 FROM document_templates
   WHERE scope = 'system' AND template_type = 'whatsapp' AND name = v.name
 );
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §10  COMMUNICATION LOG EXTENSIONS
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- communication_log is defined in 002_contacts.sql (immutable message log).
+-- These additional columns added for WhatsApp delivery tracking & polymorphic
+-- entity references (BUILD_58).
+--
+-- entity_type/entity_id: polymorphic foreign key to whatever the comm relates to
+--   (lease, maintenance request, application, invoice, etc.)
+-- delivered_at / opened_at / failed_reason: delivery lifecycle tracking populated
+--   from provider webhooks (Resend, Africa's Talking)
+-- provider_response: raw webhook payload for debugging / reconciliation
+-- metadata: free-form JSON for template variables, channel-specific flags, etc.
+-- triggered_by: auth.users.id of the user who triggered the send (cron = NULL)
+
+ALTER TABLE communication_log
+  ADD COLUMN IF NOT EXISTS entity_type       text,
+  ADD COLUMN IF NOT EXISTS entity_id         uuid,
+  ADD COLUMN IF NOT EXISTS metadata          jsonb DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS provider_response jsonb,
+  ADD COLUMN IF NOT EXISTS delivered_at      timestamptz,
+  ADD COLUMN IF NOT EXISTS opened_at         timestamptz,
+  ADD COLUMN IF NOT EXISTS failed_reason     text,
+  ADD COLUMN IF NOT EXISTS triggered_by      uuid REFERENCES auth.users(id);
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §11  WHATSAPP INTEGRATION  (BUILD_58)
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- 11a. whatsapp_messages
+CREATE TABLE IF NOT EXISTS whatsapp_messages (
+  id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id                uuid NOT NULL REFERENCES organisations(id),
+  lease_id              uuid REFERENCES leases(id),
+  tenant_id             uuid REFERENCES tenants(id),
+  direction             text NOT NULL CHECK (direction IN ('inbound', 'outbound')),
+  template_id           uuid REFERENCES document_templates(id),
+  tone_variant          text CHECK (tone_variant IN ('friendly', 'professional', 'firm')),
+  phone_number          text NOT NULL,
+  message_body          text NOT NULL,
+  merge_context         jsonb,
+  provider              text NOT NULL DEFAULT 'africastalking',
+  provider_message_id   text,
+  meta_template_name    text,
+  status                text NOT NULL CHECK (status IN (
+                          'submitted','sent','delivered','read','failed','received'
+                        )),
+  failure_reason        text,
+  submitted_at          timestamptz NOT NULL DEFAULT now(),
+  sent_at               timestamptz,
+  delivered_at          timestamptz,
+  read_at               timestamptz,
+  failed_at             timestamptz,
+  sms_fallback_sent_at  timestamptz,
+  sent_within_cs_window boolean NOT NULL DEFAULT false,
+  cost_cents            int,
+  communication_log_id  uuid REFERENCES communication_log(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_wa_messages_org          ON whatsapp_messages(org_id);
+CREATE INDEX IF NOT EXISTS idx_wa_messages_lease        ON whatsapp_messages(lease_id);
+CREATE INDEX IF NOT EXISTS idx_wa_messages_tenant       ON whatsapp_messages(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_wa_messages_status       ON whatsapp_messages(status);
+CREATE INDEX IF NOT EXISTS idx_wa_messages_provider_id  ON whatsapp_messages(provider_message_id);
+
+ALTER TABLE whatsapp_messages ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "wa_messages_select" ON whatsapp_messages;
+CREATE POLICY "wa_messages_select" ON whatsapp_messages
+  FOR SELECT USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid()));
+
+DROP POLICY IF EXISTS "wa_messages_insert" ON whatsapp_messages;
+CREATE POLICY "wa_messages_insert" ON whatsapp_messages
+  FOR INSERT WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid()));
+
+-- 11b. tenant_messaging_consent
+CREATE TABLE IF NOT EXISTS tenant_messaging_consent (
+  tenant_id             uuid PRIMARY KEY REFERENCES tenants(id),
+  org_id                uuid NOT NULL REFERENCES organisations(id),
+  email_enabled         boolean NOT NULL DEFAULT true,
+  whatsapp_enabled      boolean NOT NULL DEFAULT false,
+  sms_enabled           boolean NOT NULL DEFAULT false,
+  consent_captured_at   timestamptz,
+  consent_captured_by   text,
+  consent_captured_ip   inet,
+  last_updated          timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE tenant_messaging_consent ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "consent_select" ON tenant_messaging_consent;
+CREATE POLICY "consent_select" ON tenant_messaging_consent
+  FOR SELECT USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid()));
+
+DROP POLICY IF EXISTS "consent_all_admins" ON tenant_messaging_consent;
+CREATE POLICY "consent_all_admins" ON tenant_messaging_consent
+  FOR ALL USING (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND is_admin = true)
+  );
+
+-- 11c. whatsapp_cs_windows (24-hour customer service windows)
+CREATE TABLE IF NOT EXISTS whatsapp_cs_windows (
+  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  lease_id            uuid NOT NULL REFERENCES leases(id) ON DELETE CASCADE,
+  tenant_id           uuid NOT NULL REFERENCES tenants(id),
+  opened_at           timestamptz NOT NULL DEFAULT now(),
+  expires_at          timestamptz NOT NULL,
+  trigger_message_id  uuid REFERENCES whatsapp_messages(id),
+  is_active           boolean NOT NULL DEFAULT true
+);
+
+CREATE INDEX IF NOT EXISTS idx_cs_windows_lease   ON whatsapp_cs_windows(lease_id) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_cs_windows_expires ON whatsapp_cs_windows(expires_at);
+
+ALTER TABLE whatsapp_cs_windows ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "cs_windows_select" ON whatsapp_cs_windows;
+CREATE POLICY "cs_windows_select" ON whatsapp_cs_windows
+  FOR SELECT USING (
+    lease_id IN (
+      SELECT id FROM leases WHERE org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid())
+    )
+  );
+
+-- 11d. messaging_usage (monthly quota and overage tracking)
+CREATE TABLE IF NOT EXISTS messaging_usage (
+  org_id              uuid NOT NULL REFERENCES organisations(id),
+  period              date NOT NULL,
+  whatsapp_count      int NOT NULL DEFAULT 0,
+  sms_count           int NOT NULL DEFAULT 0,
+  email_count         int NOT NULL DEFAULT 0,
+  quota_whatsapp      int NOT NULL DEFAULT 400,
+  quota_email         int NOT NULL DEFAULT 5000,
+  overage_whatsapp    int NOT NULL DEFAULT 0,
+  overage_email       int NOT NULL DEFAULT 0,
+  overage_cents       int NOT NULL DEFAULT 0,
+  last_updated        timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (org_id, period)
+);
+
+ALTER TABLE messaging_usage ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "usage_select" ON messaging_usage;
+CREATE POLICY "usage_select" ON messaging_usage
+  FOR SELECT USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid()));
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §12  STORAGE BUCKETS
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Buckets for signature images, lease template uploads, and property documents.
+-- RLS policies below (§13) scope access by path prefix.
+--
+-- NOTE: Supabase hosted may require creating buckets via Dashboard → Storage.
+-- The INSERT below works with supabase CLI local migrations.
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES
+  ('signatures',         'signatures',         false, 5242880,  ARRAY['image/png','image/jpeg','image/webp']),
+  ('lease-templates',    'lease-templates',    false, 10485760, ARRAY['application/pdf','application/vnd.openxmlformats-officedocument.wordprocessingml.document']),
+  ('property-documents', 'property-documents', false, 20971520, NULL)
+ON CONFLICT (id) DO NOTHING;
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §13  STORAGE RLS  (path-scoped — was 015_storage_rls.sql)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Path-prefix scoped access to the three buckets.
+-- Server actions use the service-role client (bypasses RLS), so this doesn't
+-- affect current code paths — but any future client-side storage access needs
+-- proper scoping to avoid cross-org exposure.
+
+-- 13a. Signatures — path: {org_id}/{user_id}/{filename}
+-- Users may only access their own subfolder inside their org.
+DROP POLICY IF EXISTS "signatures_user_access" ON storage.objects;
+CREATE POLICY "signatures_user_access"
+  ON storage.objects FOR ALL
+  USING (
+    bucket_id = 'signatures'
+    AND (storage.foldername(name))[1] IN (
+      SELECT org_id::text FROM user_orgs
+      WHERE user_id = auth.uid() AND deleted_at IS NULL
+    )
+    AND (storage.foldername(name))[2] = auth.uid()::text
+  )
+  WITH CHECK (
+    bucket_id = 'signatures'
+    AND (storage.foldername(name))[1] IN (
+      SELECT org_id::text FROM user_orgs
+      WHERE user_id = auth.uid() AND deleted_at IS NULL
+    )
+    AND (storage.foldername(name))[2] = auth.uid()::text
+  );
+
+-- 13b. Lease templates — path: {org_id}/{filename}
+DROP POLICY IF EXISTS "lease_templates_org_access" ON storage.objects;
+CREATE POLICY "lease_templates_org_access"
+  ON storage.objects FOR ALL
+  USING (
+    bucket_id = 'lease-templates'
+    AND (storage.foldername(name))[1] IN (
+      SELECT org_id::text FROM user_orgs
+      WHERE user_id = auth.uid() AND deleted_at IS NULL
+    )
+  )
+  WITH CHECK (
+    bucket_id = 'lease-templates'
+    AND (storage.foldername(name))[1] IN (
+      SELECT org_id::text FROM user_orgs
+      WHERE user_id = auth.uid() AND deleted_at IS NULL
+    )
+  );
+
+-- 13c. Property documents — path: {org_id}/{property_id}/{document_type}/{filename}
+DROP POLICY IF EXISTS "property_documents_org_access" ON storage.objects;
+CREATE POLICY "property_documents_org_access"
+  ON storage.objects FOR ALL
+  USING (
+    bucket_id = 'property-documents'
+    AND (storage.foldername(name))[1] IN (
+      SELECT org_id::text FROM user_orgs
+      WHERE user_id = auth.uid() AND deleted_at IS NULL
+    )
+  )
+  WITH CHECK (
+    bucket_id = 'property-documents'
+    AND (storage.foldername(name))[1] IN (
+      SELECT org_id::text FROM user_orgs
+      WHERE user_id = auth.uid() AND deleted_at IS NULL
+    )
+  );

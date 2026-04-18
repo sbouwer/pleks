@@ -39,3 +39,8 @@ docuseal_data/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# generated reports
+schema-drift-report.md
+sonar-report.txt
+sonar-results.json

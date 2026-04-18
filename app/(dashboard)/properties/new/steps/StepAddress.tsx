@@ -229,13 +229,6 @@ export function StepAddress() {
 
   return (
     <div className="space-y-3">
-      <div>
-        <h2 className="font-heading text-2xl mb-0.5">Where is the property?</h2>
-        <p className="text-muted-foreground text-xs">
-          Used to pre-fill lease clauses, route municipal info, and label statements.
-        </p>
-      </div>
-
       <PlacesSearch onPlace={(partial) => {
         setPropertyNameTouched(false)
         update(partial)

@@ -63,14 +63,7 @@ export function StepOperatingHours() {
     state.operatingHoursPreset === "custom"
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="font-heading text-2xl mb-1">Operating hours</h2>
-        <p className="text-muted-foreground text-sm">
-          Drives access rules, after-hours clauses, and maintenance scheduling.
-        </p>
-      </div>
-
+    <div className="space-y-6">
       <RadioGroup
         label="Operating hours for this building"
         options={PRESET_OPTIONS}

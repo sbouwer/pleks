@@ -18,7 +18,7 @@ import {
 import { getScenarioEducation } from "@/lib/properties/scenarioEducation"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useWizard, type ManagedMode } from "../WizardContext"
-import { OptionRow } from "../OptionRow"
+
 
 // ── Icon map ──────────────────────────────────────────────────────────────────
 
@@ -41,28 +41,29 @@ interface OwnershipRadioProps {
   onChange: (v: ManagedMode) => void
 }
 
-function OwnershipRadio({ value, onChange }: OwnershipRadioProps) {
-  const options: Array<{ value: ManagedMode; label: string; sub: string }> = [
-    { value: "self_owned",          label: "I own it",                    sub: "The property is in your name or your entity" },
-    { value: "managed_for_owner",   label: "I manage it for someone else", sub: "You're the managing agent; someone else owns it" },
-  ]
+function OwnershipRadio({ value, onChange }: Readonly<OwnershipRadioProps>) {
   return (
-    <fieldset>
-      <legend className="text-sm font-medium text-foreground mb-2">
-        How are you involved with this property?
-      </legend>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {options.map((opt) => (
-          <OptionRow
-            key={opt.value}
-            selected={value === opt.value}
-            onSelect={() => onChange(opt.value)}
-            label={opt.label}
-            sub={opt.sub}
-          />
+    <div className="flex items-center gap-3">
+      <span className="text-sm font-medium shrink-0">Your role</span>
+      <div className="flex rounded-md border border-border overflow-hidden">
+        {(["self_owned", "managed_for_owner"] as ManagedMode[]).map((v, i) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => onChange(v)}
+            className={cn(
+              "px-3 py-1.5 text-xs font-medium transition-colors",
+              i > 0 && "border-l border-border",
+              value === v
+                ? "bg-primary text-primary-foreground"
+                : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+            )}
+          >
+            {v === "self_owned" ? "I own it" : "I manage it for someone else"}
+          </button>
         ))}
       </div>
-    </fieldset>
+    </div>
   )
 }
 
@@ -264,9 +265,12 @@ export function StepPicker() {
   }
 
   function handleSelectScenario(meta: ScenarioMeta) {
+    const scenarioChanged = meta.code !== state.scenarioType
     patch({
       scenarioType: meta.code,
       unitCount:    meta.unitCountMode === "counted" ? state.unitCount || meta.defaultUnitCount : meta.defaultUnitCount,
+      // Reset universals when scenario changes so scheme pre-selection starts fresh
+      ...(scenarioChanged ? { universals: null, units: [] } : {}),
     })
   }
 
@@ -275,14 +279,7 @@ export function StepPicker() {
   }
 
   return (
-    <div className="space-y-7">
-      <div>
-        <h2 className="font-heading text-2xl mb-1">Let&apos;s set up your property</h2>
-        <p className="text-muted-foreground text-sm">
-          A couple of quick choices and we&apos;ll tailor the setup to match your scenario.
-        </p>
-      </div>
-
+    <div className="space-y-6">
       <OwnershipRadio
         value={state.managedMode}
         onChange={(v) => patch({ managedMode: v })}
