@@ -243,11 +243,20 @@ export function WizardShell() {
             </div>
           )}
           <div className="flex items-center justify-between px-5 py-4 sm:px-8">
-            <div>
+            <div className="flex items-center gap-3">
               {!isFirst && !isSaving && (
                 <Button variant="outline" onClick={goBack}>
                   Back
                 </Button>
+              )}
+              {currentStepId === "picker" && (
+                <button
+                  type="button"
+                  onClick={() => patch({ mode: "advanced" })}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Something else → Advanced setup
+                </button>
               )}
             </div>
             <Button onClick={handlePrimary} disabled={!canContinue || isSaving} size="lg">
