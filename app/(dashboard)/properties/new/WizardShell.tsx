@@ -229,7 +229,7 @@ export function WizardShell() {
       <ProgressDots stepIds={stepIds} currentIndex={state.step} />
 
       {/* Fixed-height card: content scrolls, footer stays pinned */}
-      <div className="rounded-2xl border bg-card shadow-sm flex flex-col" style={{ height: "550px", minHeight: "550px", maxHeight: "550px" }}>
+      <div className="rounded-2xl border bg-card shadow-sm flex flex-col h-[calc(100svh-13rem)] md:h-[550px] md:min-h-[550px] md:max-h-[550px]">
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto px-5 py-6 sm:px-8 sm:py-8">
           {renderStep(currentStepId)}
