@@ -90,7 +90,7 @@ function ProgressDots({ stepIds, currentIndex }: ProgressDotsProps) {
   const pct          = total === 1 ? 100 : Math.round((currentIndex / (total - 1)) * 100)
 
   return (
-    <nav aria-label="Wizard progress" className="mb-8">
+    <nav aria-label="Wizard progress" className="mb-4">
       {/* Text + bar for clarity across widths */}
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium">{currentLabel}</span>
