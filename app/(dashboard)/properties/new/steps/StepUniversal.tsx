@@ -301,44 +301,44 @@ export function StepUniversal() {
         <div className="border-t pt-4 space-y-3">
 
           {/* Bedrooms — scenario-specific options, encodes unit type too */}
-          <div className="flex items-center gap-3">
-            <span className="w-32 shrink-0 text-sm font-medium text-right leading-none">Bedrooms</span>
+          <div className="space-y-1.5">
             <InlineSegment
-              label=""
+              label="Bedrooms"
               options={getBedroomOptions(state.scenarioType)}
               value={local.bedroomPick}
               onChange={(v) => update({ bedroomPick: v, bedroomsOther: null })}
             />
             {local.bedroomPick === "other" && (
-              <input
-                type="text"
-                inputMode="numeric"
-                aria-label="Bedroom count"
-                placeholder="—"
-                value={local.bedroomsOther ?? ""}
-                onChange={(e) => {
-                  const n = e.target.value === "" ? null : Number(e.target.value)
-                  update({ bedroomsOther: Number.isNaN(n ?? 0) ? null : n })
-                }}
-                className="w-16 rounded-md border border-input bg-background px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-shadow"
-              />
+              <div className="flex items-center gap-3">
+                <span className="w-32 shrink-0" aria-hidden />
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  aria-label="Bedroom count"
+                  placeholder="How many?"
+                  autoFocus
+                  value={local.bedroomsOther ?? ""}
+                  onChange={(e) => {
+                    const n = e.target.value === "" ? null : Number(e.target.value)
+                    update({ bedroomsOther: Number.isNaN(n ?? 0) ? null : n })
+                  }}
+                  className="w-28 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-shadow"
+                />
+              </div>
             )}
           </div>
 
           {/* Bathrooms — capped at 2 for flatlets */}
-          <div className="flex items-center gap-3">
-            <span className="w-32 shrink-0 text-sm font-medium text-right leading-none">Bathrooms</span>
-            <InlineSegment
-              label=""
-              options={
-                state.scenarioType === "r1"
-                  ? [{ value: "1", label: "1" }, { value: "2", label: "2" }]
-                  : [{ value: "1", label: "1" }, { value: "2", label: "2" }, { value: "3", label: "3+" }]
-              }
-              value={local.bathrooms !== null ? String(local.bathrooms) : null}
-              onChange={(v) => update({ bathrooms: Number(v) })}
-            />
-          </div>
+          <InlineSegment
+            label="Bathrooms"
+            options={
+              state.scenarioType === "r1"
+                ? [{ value: "1", label: "1" }, { value: "2", label: "2" }]
+                : [{ value: "1", label: "1" }, { value: "2", label: "2" }, { value: "3", label: "3+" }]
+            }
+            value={local.bathrooms !== null ? String(local.bathrooms) : null}
+            onChange={(v) => update({ bathrooms: Number(v) })}
+          />
 
           <InlineSegment
             label="Furnished"
