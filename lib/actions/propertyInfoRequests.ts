@@ -1,6 +1,6 @@
 "use server"
 
-import { randomBytes } from "crypto"
+import { randomBytes } from "node:crypto"
 import { gateway } from "@/lib/supabase/gateway"
 import { createServiceClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
@@ -189,7 +189,7 @@ export async function sendInfoRequestReminder(requestId: string): Promise<InfoRe
 
   const { data: req, error } = await service
     .from("property_info_requests")
-    .select("id, property_id, org_id, topic, recipient_type, recipient_email, token, status")
+    .select("id, property_id, org_id, topic, recipient_type, recipient_email, token, status, reminder_count")
     .eq("id", requestId)
     .single()
 
@@ -208,6 +208,7 @@ export async function sendInfoRequestReminder(requestId: string): Promise<InfoRe
     token:          req.token as string,
     propertyId:     req.property_id as string,
     isReminder:     true,
+    reminderCount:  (req.reminder_count as number ?? 0) + 1,
   })
 
   if (sendResult.ok) {
