@@ -8,6 +8,7 @@ import { createLease } from "@/lib/actions/leases"
 import { toast } from "sonner"
 import { formatZAR } from "@/lib/constants"
 import type { WizardData } from "../LeaseWizard"
+import { determineCpaApplicability } from "@/lib/leases/cpaApplicability"
 
 interface Props {
   data: WizardData
@@ -47,6 +48,20 @@ function SectionHeader({ title, onEdit }: Readonly<{ title: string; onEdit: () =
 export function ReviewStep({ data, onBack, onEdit }: Readonly<Props>) {
   const [loading, setLoading] = useState(false)
 
+  const cpaDetermination = determineCpaApplicability({
+    tenant: {
+      entityType: data.tenantIsJuristic ? "organisation" : "individual",
+      juristicType: data.tenantJuristicType,
+      turnoverUnder2m: data.tenantTurnoverUnder2m,
+      assetValueUnder2m: data.tenantAssetUnder2m,
+      sizeBandsCapturedAt: data.tenantSizeBandsCapturedAt,
+    },
+    lease: { isFranchiseAgreement: data.isFranchiseAgreement },
+  })
+  let cpaAppliesToDisplay = "Unknown — confirm tenant size bands"
+  if (cpaDetermination.applies === "yes") cpaAppliesToDisplay = "Yes"
+  else if (cpaDetermination.applies === "no") cpaAppliesToDisplay = "No"
+
   const leasePeriod = (() => {
     if (!data.startDate) return "—"
     if (!data.isFixedTerm) return `From ${data.startDate} (month-to-month)`
@@ -78,6 +93,7 @@ export function ReviewStep({ data, onBack, onEdit }: Readonly<Props>) {
     formData.set("lease_type", data.leaseType)
     formData.set("tenant_is_juristic", String(data.tenantIsJuristic))
     formData.set("cpa_applies", String(data.cpaApplies))
+    formData.set("is_franchise_agreement", String(data.isFranchiseAgreement))
     formData.set("start_date", data.startDate)
     if (data.endDate) formData.set("end_date", data.endDate)
     formData.set("is_fixed_term", String(data.isFixedTerm))
@@ -146,7 +162,7 @@ export function ReviewStep({ data, onBack, onEdit }: Readonly<Props>) {
           <Row label="Period" value={leasePeriod} />
           <Row label="Escalation" value={`${data.escalationPercent}% ${data.escalationType === "fixed" ? "fixed" : data.escalationType} on ${escalationReviewDate}`} />
           <Row label="Payment due" value={formatDueDay(data.paymentDueDay)} />
-          {data.cpaApplies && <Row label="CPA s14" value="Applies — 20 business days' notice required" />}
+          <Row label="CPA applies" value={cpaAppliesToDisplay} />
         </CardContent>
       </Card>
 
@@ -188,9 +204,18 @@ export function ReviewStep({ data, onBack, onEdit }: Readonly<Props>) {
         </div>
       </div>
 
+      {!cpaDetermination.canActivate && (
+        <div className="flex items-start gap-3 rounded-lg border border-danger/30 bg-danger/5 px-4 py-3 text-sm">
+          <AlertTriangle className="size-4 text-danger mt-0.5 flex-shrink-0" />
+          <p className="text-danger">
+            CPA status is indeterminate. Go back to the Tenant step and confirm the tenant&apos;s annual turnover and asset value before creating this lease.
+          </p>
+        </div>
+      )}
+
       <div className="flex justify-between">
         <Button variant="outline" onClick={onBack}>← Back</Button>
-        <Button onClick={handleCreate} disabled={loading}>
+        <Button onClick={handleCreate} disabled={loading || !cpaDetermination.canActivate}>
           {loading ? "Creating…" : "Create lease"}
         </Button>
       </div>

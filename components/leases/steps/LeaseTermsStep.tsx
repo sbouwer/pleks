@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Info } from "lucide-react"
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
 import type { WizardData } from "../LeaseWizard"
+import { determineCpaApplicability } from "@/lib/leases/cpaApplicability"
 
 interface Props {
   data: WizardData
@@ -54,7 +55,20 @@ export function LeaseTermsStep({ data, onBack, onNext }: Readonly<Props>) {
 
   const isResidential = data.leaseType === "residential"
   const tenantIsJuristic = data.tenantIsJuristic
-  const cpaApplies = isResidential && !tenantIsJuristic
+  const cpaDetermination = determineCpaApplicability({
+    tenant: {
+      entityType: tenantIsJuristic ? "organisation" : "individual",
+      juristicType: data.tenantJuristicType,
+      turnoverUnder2m: data.tenantTurnoverUnder2m,
+      assetValueUnder2m: data.tenantAssetUnder2m,
+      sizeBandsCapturedAt: data.tenantSizeBandsCapturedAt,
+    },
+    lease: { isFranchiseAgreement: data.isFranchiseAgreement },
+  })
+  const cpaApplies = cpaDetermination.applies === "yes"
+  let cpaStatusLabel = "CPA s14 n/a"
+  if (cpaDetermination.applies === "yes") cpaStatusLabel = "CPA s14 applies"
+  else if (cpaDetermination.applies === "indeterminate") cpaStatusLabel = "CPA status unknown"
 
   function handleStartDateChange(value: string) {
     setStartDate(value)
@@ -144,7 +158,7 @@ export function LeaseTermsStep({ data, onBack, onNext }: Readonly<Props>) {
         </label>
         {isResidential && (
           <span className="flex items-center gap-1.5 text-xs text-muted-foreground ml-auto">
-            {cpaApplies ? "CPA s14 applies" : "CPA s14 n/a (juristic)"}
+            {cpaStatusLabel}
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger>
@@ -152,14 +166,19 @@ export function LeaseTermsStep({ data, onBack, onNext }: Readonly<Props>) {
                 </TooltipTrigger>
                 <TooltipContent side="top" className="flex-col items-start max-w-72 gap-2 py-3 px-3.5 leading-relaxed">
                   <p className="font-semibold">CPA s14 — Fixed-term lease cancellation</p>
-                  {cpaApplies ? (
+                  {cpaDetermination.applies === "yes" && (
                     <>
-                      <p>This tenant is a natural person on a residential lease — CPA s14 applies automatically. They may cancel at any time on 20 business days&apos; written notice.</p>
+                      <p>CPA s14 applies. The tenant may cancel at any time on 20 business days&apos; written notice.</p>
                       <p><span className="font-medium">Cancellation penalty:</span> 20% × monthly rent × months remaining — payable within 7 days. Falls away for any month the unit is re-let.</p>
                     </>
-                  ) : (
-                    <p>The tenant is a juristic person (company / CC / trust). CPA s14 does not apply — the lease terms govern cancellation.</p>
                   )}
+                  {cpaDetermination.applies === "no" && (
+                    <p>CPA s14 does not apply — the lease terms govern cancellation.</p>
+                  )}
+                  {cpaDetermination.applies === "indeterminate" && (
+                    <p>CPA status cannot be determined until the tenant&apos;s turnover and asset value are confirmed.</p>
+                  )}
+                  <p className="text-xs text-muted-foreground/70 italic">{cpaDetermination.notes}</p>
                   <p className="opacity-60 border-t border-current/20 pt-1.5 w-full">
                     See lease clause:{" "}
                     <a

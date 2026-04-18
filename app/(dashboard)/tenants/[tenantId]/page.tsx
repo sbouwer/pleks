@@ -7,7 +7,7 @@ import { QuickActions } from "@/components/contacts/QuickActions"
 import { SectionCard } from "@/components/contacts/SectionCard"
 import { RelationshipCard } from "@/components/contacts/RelationshipCard"
 import { StatGrid } from "@/components/contacts/StatGrid"
-import { TenantContactSection, TenantIdentitySection, TenantEmploymentSection, TenantAddressSection } from "./TenantSections"
+import { TenantContactSection, TenantIdentitySection, TenantEmploymentSection, TenantAddressSection, TenantJuristicSection } from "./TenantSections"
 import { MobileTenantView } from "@/components/mobile/MobileTenantView"
 import { formatZAR } from "@/lib/constants"
 
@@ -260,6 +260,15 @@ export default async function TenantDetailPage({
               occupation={tenant.occupation ?? null}
               employmentType={tenant.employment_type ?? null}
               preferredContact={tenant.preferred_contact ?? null}
+            />
+          )}
+          {tenant.entity_type !== "individual" && (
+            <TenantJuristicSection
+              contactId={tenant.contact_id}
+              juristicType={(tenant as Record<string, unknown>).juristic_type as string | null ?? null}
+              turnoverUnder2m={(tenant as Record<string, unknown>).turnover_under_2m as boolean | null ?? null}
+              assetValueUnder2m={(tenant as Record<string, unknown>).asset_value_under_2m as boolean | null ?? null}
+              sizeBandsCapturedAt={(tenant as Record<string, unknown>).size_bands_captured_at as string | null ?? null}
             />
           )}
           <TenantAddressSection entityId={tenantId} address={(addresses ?? [])[0] ?? null} />

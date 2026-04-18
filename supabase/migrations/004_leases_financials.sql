@@ -1292,3 +1292,39 @@ RETURNS void AS $$
     interest_last_calculated_at = now()
   WHERE id = p_case_id;
 $$ LANGUAGE sql;
+
+
+-- =============================================================================
+-- ADDENDUM_04A: CPA APPLICABILITY SNAPSHOT
+-- =============================================================================
+-- Franchise flag and three-state CPA snapshot set at lease activation.
+-- The authoritative CPA state lives here — not on the property profile.
+-- Future s14 auto-renewal notice logic reads cpa_applies_at_signing.
+
+ALTER TABLE leases
+  ADD COLUMN IF NOT EXISTS is_franchise_agreement boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS cpa_applies_at_signing text
+    CHECK (cpa_applies_at_signing IN ('yes', 'no', 'indeterminate')),
+  ADD COLUMN IF NOT EXISTS cpa_determination_category text
+    CHECK (cpa_determination_category IN (
+      'natural_person',
+      'franchise_agreement',
+      'juristic_under_threshold',
+      'juristic_over_threshold',
+      'indeterminate_bands'
+    )),
+  ADD COLUMN IF NOT EXISTS cpa_determination_notes text,
+  ADD COLUMN IF NOT EXISTS cpa_determined_at timestamptz;
+
+COMMENT ON COLUMN leases.is_franchise_agreement IS
+  'CPA s5(6): franchise agreements always attract CPA protection regardless '
+  'of tenant entity or size.';
+COMMENT ON COLUMN leases.cpa_applies_at_signing IS
+  'Snapshot of CPA applicability at lease activation. Three-state: '
+  'yes | no | indeterminate. Lease activation is blocked when this would '
+  'be indeterminate — user must resolve size bands before signing.';
+COMMENT ON COLUMN leases.cpa_determination_category IS
+  'Structured reason for the cpa_applies_at_signing value. '
+  'Used for reporting and Tribunal audit.';
+COMMENT ON COLUMN leases.cpa_determination_notes IS
+  'Audit notes capturing the actual values considered at signing.';

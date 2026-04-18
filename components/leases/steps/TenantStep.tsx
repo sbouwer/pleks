@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { useOrg } from "@/hooks/useOrg"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -8,6 +8,7 @@ import { CheckCircle2, UserRound, ChevronDown, Plus, X } from "lucide-react"
 import { TenantPicker } from "@/components/shared/TenantPicker"
 import type { PickedTenant } from "@/components/shared/TenantPicker"
 import type { WizardData, CoTenant } from "../LeaseWizard"
+import { updateContactJuristicFields } from "@/lib/actions/contacts"
 
 interface Props {
   data: WizardData
@@ -66,14 +67,46 @@ export function TenantStep({ data, onBack, onNext }: Readonly<Props>) {
   const org = orgId ?? ""
 
   const [tenantIsJuristic, setTenantIsJuristic] = useState(data.tenantIsJuristic)
+  const [isFranchiseAgreement, setIsFranchiseAgreement] = useState(data.isFranchiseAgreement)
+  const [tenantJuristicType, setTenantJuristicType] = useState(data.tenantJuristicType)
+  const [turnoverUnder2m, setTurnoverUnder2m] = useState(data.tenantTurnoverUnder2m)
+  const [assetUnder2m, setAssetUnder2m] = useState(data.tenantAssetUnder2m)
+  const [sizeBandsCapturedAt, setSizeBandsCapturedAt] = useState(data.tenantSizeBandsCapturedAt)
+  const [savingBands, setSavingBands] = useState(false)
+
+  const isSoleProp = tenantJuristicType === "sole_proprietor"
+  const bandsStale = useMemo(() => {
+    if (!sizeBandsCapturedAt) return false
+    // eslint-disable-next-line react-hooks/purity
+    return Date.now() - new Date(sizeBandsCapturedAt).getTime() > 365 * 24 * 60 * 60 * 1000
+  }, [sizeBandsCapturedAt])
+  const showBandsPrompt = tenantIsJuristic && !isSoleProp && (turnoverUnder2m === null || assetUnder2m === null || bandsStale)
+  const showFranchiseFlag = tenantIsJuristic && !isSoleProp && tenantId !== ""
 
   function handleSelectMain(t: PickedTenant) {
     setTenantId(t.id)
     setTenantName(t.name)
-    setTenantIsJuristic(t.entity_type === "juristic")
-    // Remove co-tenant if same person
+    const isJuristic = t.entity_type !== "individual" && t.entity_type !== null
+    setTenantIsJuristic(isJuristic)
+    setTenantJuristicType(t.juristic_type)
+    setTurnoverUnder2m(t.turnover_under_2m)
+    setAssetUnder2m(t.asset_value_under_2m)
+    setSizeBandsCapturedAt(t.size_bands_captured_at)
     setCoTenants((prev) => prev.filter((c) => c.id !== t.id))
     setError("")
+  }
+
+  async function handleSaveBands() {
+    if (!tenantId) return
+    setSavingBands(true)
+    await updateContactJuristicFields({
+      contactId: tenantId,
+      juristicType: tenantJuristicType,
+      turnoverUnder2m,
+      assetValueUnder2m: assetUnder2m,
+    })
+    setSavingBands(false)
+    setSizeBandsCapturedAt(new Date().toISOString())
   }
 
   function handleSelectCo(t: PickedTenant) {
@@ -90,8 +123,22 @@ export function TenantStep({ data, onBack, onNext }: Readonly<Props>) {
 
   function handleNext() {
     if (!tenantId) { setError("Please select a tenant"); return }
+    if (showBandsPrompt && !savingBands) {
+      setError("Confirm the tenant's annual turnover and asset value before continuing.")
+      return
+    }
     setError("")
-    onNext({ tenantId, tenantName, coTenants, tenantIsJuristic })
+    onNext({
+      tenantId,
+      tenantName,
+      coTenants,
+      tenantIsJuristic,
+      isFranchiseAgreement,
+      tenantJuristicType,
+      tenantTurnoverUnder2m: turnoverUnder2m,
+      tenantAssetUnder2m: assetUnder2m,
+      tenantSizeBandsCapturedAt: sizeBandsCapturedAt,
+    })
   }
 
   return (
@@ -157,6 +204,85 @@ export function TenantStep({ data, onBack, onNext }: Readonly<Props>) {
           ) : (
             <button type="button" onClick={() => setAddingCo(true)} className="flex items-center gap-1.5 text-sm text-brand hover:underline">
               <Plus className="size-3.5" /> Add co-tenant
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Franchise flag — only for juristic non-sole-prop tenants */}
+      {showFranchiseFlag && (
+        <div className="rounded-lg border border-border/60 bg-muted/20 px-4 py-3 space-y-2">
+          <p className="text-sm font-medium">Is this a franchise agreement?</p>
+          <p className="text-xs text-muted-foreground">
+            Franchise agreements have full CPA protection regardless of tenant size (CPA s5(6)).
+          </p>
+          <div className="flex gap-4">
+            {(["yes", "no"] as const).map((v) => (
+              <label key={v} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  checked={isFranchiseAgreement === (v === "yes")}
+                  onChange={() => setIsFranchiseAgreement(v === "yes")}
+                  className="accent-brand"
+                />
+                {v === "yes" ? "Yes — franchise agreement" : "No"}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Stale / missing size bands — only for juristic non-franchise non-sole-prop */}
+      {showBandsPrompt && !isFranchiseAgreement && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 px-4 py-3 space-y-3">
+          <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+            Confirm {tenantName}&apos;s size for CPA determination
+          </p>
+          <p className="text-xs text-amber-700 dark:text-amber-400">
+            {bandsStale ? "Size bands are over 12 months old — please re-confirm." : "Size bands not yet captured."}
+          </p>
+          <div className="space-y-2">
+            <div className="space-y-1">
+              <p className="text-xs font-medium">Annual turnover</p>
+              <div className="flex gap-4">
+                {([["true", "Below R2m"], ["false", "R2m or more"]] as const).map(([v, l]) => (
+                  <label key={v} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <input
+                      type="radio"
+                      checked={String(turnoverUnder2m) === v}
+                      onChange={() => setTurnoverUnder2m(v === "true")}
+                      className="accent-brand"
+                    />
+                    {l}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs font-medium">Asset value</p>
+              <div className="flex gap-4">
+                {([["true", "Below R2m"], ["false", "R2m or more"]] as const).map(([v, l]) => (
+                  <label key={v} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <input
+                      type="radio"
+                      checked={String(assetUnder2m) === v}
+                      onChange={() => setAssetUnder2m(v === "true")}
+                      className="accent-brand"
+                    />
+                    {l}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+          {turnoverUnder2m !== null && assetUnder2m !== null && (
+            <button
+              type="button"
+              onClick={handleSaveBands}
+              disabled={savingBands}
+              className="text-xs font-medium text-amber-800 dark:text-amber-300 underline underline-offset-2 hover:no-underline disabled:opacity-50"
+            >
+              {savingBands ? "Saving…" : "Save and continue"}
             </button>
           )}
         </div>

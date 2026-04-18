@@ -35,7 +35,7 @@ export const STALE_TIME = {
 export async function fetchTenants(supabase: SupabaseClient, orgId: string) {
   const { data } = await supabase
     .from("tenant_view")
-    .select("id, contact_id, entity_type, first_name, last_name, company_name, email, phone")
+    .select("id, contact_id, entity_type, first_name, last_name, company_name, email, phone, juristic_type, turnover_under_2m, asset_value_under_2m, size_bands_captured_at")
     .eq("org_id", orgId)
     .is("deleted_at", null)
   return data ?? []

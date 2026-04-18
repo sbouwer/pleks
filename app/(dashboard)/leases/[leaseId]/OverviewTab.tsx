@@ -27,6 +27,8 @@ interface OverviewLease {
   escalation_review_date: string | null
   payment_due_day: number | null
   is_fixed_term: boolean | null
+  cpa_applies_at_signing: string | null
+  cpa_determination_category: string | null
 }
 
 interface OverviewLandlord {
@@ -424,6 +426,18 @@ export function OverviewTab({
           )}
         </div>
       </div>
+
+      {lease.cpa_applies_at_signing && (
+        <div className="rounded-xl border bg-card px-4 py-3 flex items-center gap-3">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 shrink-0">CPA</span>
+          <span className={`text-xs font-medium ${lease.cpa_applies_at_signing === "yes" ? "text-brand" : "text-muted-foreground"}`}>
+            {lease.cpa_applies_at_signing === "yes" ? "Applies" : "Does not apply"}
+          </span>
+          {lease.cpa_determination_category && (
+            <span className="text-xs text-muted-foreground">· {lease.cpa_determination_category.replaceAll("_", " ")}</span>
+          )}
+        </div>
+      )}
 
       {rentCents > 0 && (
         <YtdSection
