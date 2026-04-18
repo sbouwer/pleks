@@ -73,12 +73,18 @@ const INSURANCE_TYPE_BY_SCENARIO: Record<ScenarioType, string> = {
   r3: "sectional_title",
   r4: "standard_buildings",
   r5: "standard_buildings",
+  r6: "standard_buildings",
+  r7: "farm_specialist",
   c1: "commercial_property",
   c2: "commercial_property",
   c3: "commercial_property",
   c4: "commercial_property",
+  c5: "commercial_property",
+  c6: "commercial_property",
   m1: "commercial_property",
   m2: "commercial_property",
+  m3: "commercial_property",
+  m4: "commercial_property",
   other: "standard_buildings",
 }
 
@@ -91,18 +97,20 @@ const INSURANCE_RIDER_BY_USE: Record<string, string> = {
 
 /** CPA applicable per scenario segment */
 const CPA_BY_SCENARIO: Record<ScenarioType, boolean> = {
-  r1: true, r2: true, r3: true, r4: true, r5: true,
-  c1: false, c2: false, c3: false, c4: false,
-  m1: true,  // mixed — residential units trigger CPA, commercial don't; default true (conservative)
-  m2: true,
+  r1: true, r2: true, r3: true, r4: true, r5: true, r6: true, r7: true,
+  c1: false, c2: false, c3: false, c4: false, c5: false, c6: false,
+  m1: true, m2: true, m3: true, m4: true,
   other: true,
 }
 
 /** Default lease duration (months) */
 const LEASE_DURATION_BY_SCENARIO: Record<ScenarioType, number> = {
   r1: 12, r2: 12, r3: 12, r4: 12, r5: 12,
-  c1: 24, c2: 24, c3: 24, c4: 24,
-  m1: 12, m2: 12,
+  r6: 10,   // academic year default
+  r7: 12,
+  c1: 24, c2: 24, c3: 24, c4: 24, c5: 24,
+  c6: 1,    // self-storage month-to-month
+  m1: 12, m2: 12, m3: 12, m4: 12,
   other: 12,
 }
 
@@ -136,8 +144,11 @@ function flatletToUnitType(flatletType: string): string {
 const FIXED_UNIT_TYPE: Partial<Record<ScenarioType, string>> = {
   r2: "residential_house",
   r5: "residential_unknown",
+  r6: "residential_student_room",
   c3: "industrial_warehouse",
   c4: "commercial",
+  c5: "commercial_retail",
+  c6: "commercial_storage",
   m1: "commercial_retail",
   m2: "commercial",
 }
@@ -176,10 +187,11 @@ function deriveFurnishingStatus(
   scenario: ScenarioType,
   answers: Record<string, unknown>,
 ): string | null {
-  const residential = ["r1", "r2", "r3", "r4", "r5"]
+  const residential = ["r1", "r2", "r3", "r4", "r5", "r6", "r7"]
   if (!residential.includes(scenario)) return null
 
   if (scenario === "r1") return String(answers.furnished ?? "unfurnished")
+  if (scenario === "r6") return String(answers.furnished ?? "unfurnished")
   if (scenario === "r4") {
     if (answers.identical_layout === true && answers.furnishing_default) {
       return String(answers.furnishing_default)
@@ -216,10 +228,16 @@ function deriveInspectionProfileKey(
     r3:    "residential_apartment",
     r4:    "residential_block",
     r5:    "residential_estate",
+    r6:    "residential_student_shared",
+    r7:    "residential_farm_smallholding",
     c3:    "industrial_warehouse",
     c4:    "commercial_park",
+    c5:    "commercial_shopfront",
+    c6:    "commercial_self_storage",
     m1:    "mixed_retail_residential",
     m2:    "mixed_development",
+    m3:    "mixed_office_residential",
+    m4:    "hospitality_guesthouse",
     other: "generic",
   }
   if (profileKeys[scenario]) return profileKeys[scenario]!
@@ -247,16 +265,26 @@ function deriveClauseProfileKey(
     const use = String(answers.business_use ?? "not_permitted")
     return use === "not_permitted" ? "residential_standard" : "residential_home_office"
   }
+  if (scenario === "r7") {
+    return answers.esta_applicable === true
+      ? "residential_farm_with_staff_esta"
+      : "residential_farm_smallholding"
+  }
   const clauseKeys: Partial<Record<ScenarioType, string>> = {
     r3:    "residential_sectional_title",
     r4:    "residential_block",
     r5:    "residential_estate",
+    r6:    "residential_student_shared",
     c1:    "commercial_single_tenant",
     c2:    "commercial_multi_tenant",
     c3:    "commercial_industrial",
     c4:    "commercial_park",
+    c5:    "commercial_retail_standalone",
+    c6:    "commercial_self_storage",
     m1:    "mixed_use",
     m2:    "mixed_use",
+    m3:    "mixed_office_residential",
+    m4:    "hospitality_long_stay_mixed",
     other: "generic",
   }
   return clauseKeys[scenario] ?? "residential_standard"
@@ -276,12 +304,18 @@ function deriveWelcomePackTemplate(
     r3:    "residential_sectional_title",
     r4:    "residential_block_unit",
     r5:    "residential_estate_unit",
+    r6:    "residential_student",
+    r7:    "residential_farm_smallholding",
     c1:    "commercial_single",
     c2:    "commercial_multi",
     c3:    "industrial_warehouse",
     c4:    "commercial_park",
+    c5:    "commercial_retail_standalone",
+    c6:    "commercial_self_storage",
     m1:    "mixed_retail",
     m2:    "mixed_development",
+    m3:    "mixed_office_residential",
+    m4:    "hospitality_guesthouse",
     other: "generic",
   }
   return templates[scenario] ?? "generic"

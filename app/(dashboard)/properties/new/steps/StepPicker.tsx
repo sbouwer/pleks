@@ -4,6 +4,7 @@ import { useState } from "react"
 import {
   Home, House, Building2, Building, MapPin,
   Briefcase, Warehouse, LayoutGrid, Layers, Network,
+  Users, Trees, Store, Package, BedDouble,
   Info, ChevronUp, Check,
   type LucideIcon,
 } from "lucide-react"
@@ -27,6 +28,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Buildings: Building,   // lucide has Building, not Buildings
   MapPin, Briefcase,
   Building, Warehouse, LayoutGrid, Layers, Network,
+  Users, Trees, Store, Package, BedDouble,
 }
 
 function ScenarioIcon({ name, className }: { name: string; className?: string }) {

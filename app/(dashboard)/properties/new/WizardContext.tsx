@@ -132,7 +132,7 @@ export interface WizardContextValue {
 
 // ── Step applicability ────────────────────────────────────────────────────────
 
-const COMMERCIAL_OR_MIXED: ScenarioType[] = ["c1", "c2", "c3", "c4", "m1", "m2"]
+const COMMERCIAL_OR_MIXED: ScenarioType[] = ["c1", "c2", "c3", "c4", "c5", "c6", "m1", "m2", "m3", "m4"]
 
 /** Returns the ordered list of active step indices (0-based into STEP_IDS). */
 export function computeActiveStepIds(state: Pick<WizardState, "scenarioType" | "managedMode">): string[] {

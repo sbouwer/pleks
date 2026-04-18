@@ -13,9 +13,9 @@ import { useWizard } from "../WizardContext"
 type Segment = "residential" | "commercial" | "industrial" | "mixed"
 
 function getSegment(scenarioType: string): Segment {
-  if (["r1","r2","r3","r4","r5"].includes(scenarioType)) return "residential"
-  if (scenarioType === "c3")                              return "industrial"
-  if (["c1","c2","c4"].includes(scenarioType))            return "commercial"
+  if (["r1","r2","r3","r4","r5","r6","r7"].includes(scenarioType)) return "residential"
+  if (scenarioType === "c3")                                        return "industrial"
+  if (["c1","c2","c4","c5","c6"].includes(scenarioType))            return "commercial"
   return "mixed"
 }
 
