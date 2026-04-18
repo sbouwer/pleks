@@ -16,7 +16,7 @@
 
 import { NextRequest } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import { sendInfoRequestEmail } from "@/lib/info-requests/sendInfoRequestEmail"
+import { sendInfoRequestEmail, sendInfoRequestSelfTrackNudge } from "@/lib/info-requests/sendInfoRequestEmail"
 import type { InfoRequestTopic } from "@/lib/info-requests/sendInfoRequestEmail"
 
 function getServiceClient() {
@@ -118,6 +118,7 @@ async function sendReminderFor(
     token:          row.token,
     propertyId:     row.property_id,
     isReminder:     true,
+    reminderCount:  (row.reminder_count ?? 0) + 1,
   })
 
   if (!sendResult.ok) return false
@@ -178,37 +179,56 @@ async function sendRemindersForWindow(
   return sent
 }
 
-// ── Sub-step: self-track T+30 email nudge ─────────────────────────────────────
-// Self-managed track is widget-only, but the spec calls for one T+30 email
-// to the requesting user. Here we simply log an event — actual in-app
-// notification UI is part of a later phase.
+// ── Sub-step: self-track T+30 email nudge ────────────────────────────────────
 
-async function logSelfTrackNudge(service: ServiceClient): Promise<number> {
+async function sendSelfTrackNudges(service: ServiceClient): Promise<number> {
   const cutoffIso = new Date(Date.now() - 30 * DAY_MS).toISOString()
   const { data: rows } = await service
     .from("property_info_requests")
-    .select("id, last_reminder_at")
+    .select("id, org_id, property_id, topic, requested_by, last_reminder_at")
     .eq("status", "pending")
     .eq("recipient_type", "self")
     .lt("created_at", cutoffIso)
     .is("last_reminder_at", null)
     .limit(500)
 
-  const ids = (rows ?? []).map((r) => r.id as string)
-  if (ids.length === 0) return 0
+  if (!rows || rows.length === 0) return 0
 
-  await service.from("property_info_requests")
-    .update({ last_reminder_at: new Date().toISOString(), reminder_count: 1 })
-    .in("id", ids)
+  let sent = 0
+  const nowIso = new Date().toISOString()
 
-  await service.from("property_info_request_events").insert(
-    ids.map((id) => ({
-      request_id: id,
-      event_type: "email_reminder_sent",
-      payload:    { track: "self", note: "T+30 nudge logged; in-app surface pending" },
-    })),
-  )
-  return ids.length
+  for (const row of rows) {
+    const { data: authUser } = await service.auth.admin.getUserById(row.requested_by as string)
+    const email = authUser?.user?.email ?? null
+    if (!email) continue
+
+    const result = await sendInfoRequestSelfTrackNudge({
+      orgId:          row.org_id as string,
+      requestId:      row.id as string,
+      topic:          row.topic as InfoRequestTopic,
+      recipientEmail: email,
+      propertyId:     row.property_id as string,
+      daysElapsed:    30,
+    })
+
+    if (!result.ok) continue
+
+    await service.from("property_info_requests")
+      .update({ last_reminder_at: nowIso, reminder_count: 1 })
+      .eq("id", row.id)
+
+    await service.from("property_info_request_events").insert({
+      request_id:           row.id,
+      event_type:           "email_reminder_sent",
+      channel:              "email",
+      communication_log_id: result.logId ?? null,
+      payload:              { track: "self" },
+    })
+
+    sent++
+  }
+
+  return sent
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────────
@@ -232,8 +252,8 @@ export async function GET(req: NextRequest) {
     // Broker track: T+5 (max 1 reminder)
     const brokerReminders = await sendRemindersForWindow(service, "broker", 5, 1, 5)
 
-    // Self track: T+30 one-off nudge log
-    const selfNudges = await logSelfTrackNudge(service)
+    // Self track: T+30 one-off email nudge
+    const selfNudges = await sendSelfTrackNudges(service)
 
     const totalProcessed = expiredCount + ownerReminders + brokerReminders + selfNudges
 
