@@ -101,6 +101,15 @@ export interface WizardState {
   // Step 5 — Owner / landlord (managed_for_owner only)
   landlord: LandlordDraft | null
 
+  // Step 2 — Unit hints (set in Details step, applied when building skeleton units)
+  unitHints: {
+    unitType:         string | null
+    bedrooms:         number | null
+    bathrooms:        number | null
+    furnishingStatus: "unfurnished" | "semi_furnished" | "furnished" | null
+    sizeM2:           number | null
+  }
+
   // Step 6 — Unit drafts (pre-filled from skeletonUnits, fully editable)
   units: UnitDraft[]
 
@@ -160,6 +169,7 @@ const DEFAULT_STATE: WizardState = {
   afterHoursNoticeHours: null,
   afterHoursNotes:       null,
   landlord:      null,
+  unitHints: { unitType: null, bedrooms: null, bathrooms: null, furnishingStatus: null, sizeM2: null },
   units:            [],
   insurance:        null,
   documents:        [],

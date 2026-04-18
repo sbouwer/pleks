@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { getScenario } from "@/lib/properties/scenarios"
 import type { UniversalAnswers } from "@/lib/properties/buildProfile"
+import type { WizardState } from "../WizardContext"
 import { useWizard } from "../WizardContext"
 
 // ── Inline segmented picker (single row) ──────────────────────────────────────
@@ -69,12 +70,87 @@ function answersToSchemeOption(universals: UniversalAnswers): SchemeOption {
 
 // ── Local state type ──────────────────────────────────────────────────────────
 
+type UnitHints = WizardState["unitHints"]
+type FurnishingVal = "unfurnished" | "semi_furnished" | "furnished"
+
 interface LocalState {
-  schemeOption: SchemeOption | null
-  schemeName:   string
-  wifi:         UniversalAnswers["wifiAvailable"] | null
-  cellSignal:   UniversalAnswers["cellSignalQuality"] | null
-  backupPower:  UniversalAnswers["backupPower"] | null
+  schemeOption:  SchemeOption | null
+  schemeName:    string
+  wifi:          UniversalAnswers["wifiAvailable"] | null
+  cellSignal:    UniversalAnswers["cellSignalQuality"] | null
+  backupPower:   UniversalAnswers["backupPower"] | null
+  // Unit hints — bedroomPick encodes both unit type and count
+  bedroomPick:   string | null   // "0","1","2","3","other","mixed"
+  bedroomsOther: number | null   // only used when bedroomPick === "other"
+  furnishing:    FurnishingVal | null
+  bathrooms:     number | null
+  sizeM2:        number | null
+}
+
+// Bedroom pick ↔ unitType / bedrooms conversion
+function pickToUnitType(pick: string | null): string | null {
+  if (pick === "0")     return "residential_studio"
+  if (pick === "1")     return "residential_1bed"
+  if (pick === "2")     return "residential_2bed"
+  if (pick === "3")     return "residential_3bed"
+  if (pick !== null)    return "residential_unknown"
+  return null
+}
+
+function pickToBedrooms(pick: string | null, otherCount: number | null): number | null {
+  if (pick === null || pick === "mixed") return null
+  if (pick === "other") return otherCount
+  return Number(pick)
+}
+
+function hintsToBedroomPick(unitType: string | null, bedrooms: number | null): string | null {
+  if (unitType === "residential_studio") return "0"
+  if (unitType === "residential_1bed")   return "1"
+  if (unitType === "residential_2bed")   return "2"
+  if (unitType === "residential_3bed")   return "3"
+  if (unitType === "residential_unknown" && bedrooms === null) return "mixed"
+  if (bedrooms !== null) return bedrooms <= 3 ? String(bedrooms) : "other"
+  return null
+}
+
+function getBedroomOptions(scenarioType: string | null) {
+  if (scenarioType === "r1") {
+    // Flatlet/cottage — small, rarely 3+
+    return [
+      { value: "0",     label: "Studio" },
+      { value: "1",     label: "1" },
+      { value: "2",     label: "2" },
+      { value: "other", label: "Other" },
+    ]
+  }
+  if (scenarioType === "r2") {
+    // Rental house — full house, no studio
+    return [
+      { value: "1",     label: "1" },
+      { value: "2",     label: "2" },
+      { value: "3",     label: "3" },
+      { value: "4",     label: "4" },
+      { value: "other", label: "5+" },
+    ]
+  }
+  if (scenarioType === "r3") {
+    // Sectional title apartment
+    return [
+      { value: "0",     label: "Studio" },
+      { value: "1",     label: "1" },
+      { value: "2",     label: "2" },
+      { value: "3",     label: "3" },
+      { value: "other", label: "Other" },
+    ]
+  }
+  // r4 (block) / r5 (estate) — units may differ
+  return [
+    { value: "0",     label: "Studio" },
+    { value: "1",     label: "1" },
+    { value: "2",     label: "2" },
+    { value: "3",     label: "3" },
+    { value: "mixed", label: "Mixed" },
+  ]
 }
 
 function localToAnswers(local: LocalState): UniversalAnswers {
@@ -101,8 +177,18 @@ export function StepUniversal() {
   const preselectedScheme   = scenario?.preselectSchemeType ?? null
   const schemePreselected   = preselectedScheme !== null
 
-  // Derive initial local state from existing universals (or scenario defaults)
+  const isResidential = ["r1","r2","r3","r4","r5"].includes(state.scenarioType ?? "")
+
+  // Derive initial local state from existing universals / hints
   const [local, setLocal] = useState<LocalState>(() => {
+    const h = state.unitHints
+    const base = {
+      bedroomPick:   hintsToBedroomPick(h.unitType, h.bedrooms),
+      bedroomsOther: h.bedrooms !== null && h.bedrooms > 3 ? h.bedrooms : null,
+      furnishing:    h.furnishingStatus,
+      bathrooms:     h.bathrooms,
+      sizeM2:        h.sizeM2,
+    }
     if (state.universals) {
       return {
         schemeOption: schemePreselected
@@ -112,6 +198,7 @@ export function StepUniversal() {
         wifi:        state.universals.wifiAvailable,
         cellSignal:  state.universals.cellSignalQuality,
         backupPower: state.universals.backupPower,
+        ...base,
       }
     }
     return {
@@ -120,12 +207,20 @@ export function StepUniversal() {
       wifi:         null,
       cellSignal:   null,
       backupPower:  null,
+      ...base,
     }
   })
 
-  // Sync local → context after every local change (never during render)
+  // Sync local → context (universals + unitHints) after every local change
   useEffect(() => {
-    patch({ universals: localToAnswers(local) })
+    const hints: UnitHints = {
+      unitType:         pickToUnitType(local.bedroomPick),
+      bedrooms:         pickToBedrooms(local.bedroomPick, local.bedroomsOther),
+      bathrooms:        local.bathrooms,
+      furnishingStatus: local.furnishing,
+      sizeM2:           local.sizeM2,
+    }
+    patch({ universals: localToAnswers(local), unitHints: hints })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [local])
 
@@ -198,6 +293,79 @@ export function StepUniversal() {
               />
             </div>
           )}
+        </div>
+      )}
+
+      {/* Unit details — residential scenarios */}
+      {isResidential && (
+        <div className="border-t pt-4 space-y-3">
+
+          {/* Bedrooms — scenario-specific options, encodes unit type too */}
+          <div className="flex items-center gap-3">
+            <span className="w-32 shrink-0 text-sm font-medium text-right leading-none">Bedrooms</span>
+            <InlineSegment
+              label=""
+              options={getBedroomOptions(state.scenarioType)}
+              value={local.bedroomPick}
+              onChange={(v) => update({ bedroomPick: v, bedroomsOther: null })}
+            />
+            {local.bedroomPick === "other" && (
+              <input
+                type="text"
+                inputMode="numeric"
+                aria-label="Bedroom count"
+                placeholder="—"
+                value={local.bedroomsOther ?? ""}
+                onChange={(e) => {
+                  const n = e.target.value === "" ? null : Number(e.target.value)
+                  update({ bedroomsOther: Number.isNaN(n ?? 0) ? null : n })
+                }}
+                className="w-16 rounded-md border border-input bg-background px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-shadow"
+              />
+            )}
+          </div>
+
+          {/* Bathrooms — capped at 2 for flatlets */}
+          <div className="flex items-center gap-3">
+            <span className="w-32 shrink-0 text-sm font-medium text-right leading-none">Bathrooms</span>
+            <InlineSegment
+              label=""
+              options={
+                state.scenarioType === "r1"
+                  ? [{ value: "1", label: "1" }, { value: "2", label: "2" }]
+                  : [{ value: "1", label: "1" }, { value: "2", label: "2" }, { value: "3", label: "3+" }]
+              }
+              value={local.bathrooms !== null ? String(local.bathrooms) : null}
+              onChange={(v) => update({ bathrooms: Number(v) })}
+            />
+          </div>
+
+          <InlineSegment
+            label="Furnished"
+            options={[
+              { value: "unfurnished",    label: "No" },
+              { value: "semi_furnished", label: "Semi" },
+              { value: "furnished",      label: "Yes" },
+            ]}
+            value={local.furnishing}
+            onChange={(v) => update({ furnishing: v as FurnishingVal })}
+          />
+
+          <div className="flex items-center gap-3">
+            <label htmlFor="unit-size" className="w-32 shrink-0 text-sm font-medium text-right">Size m²</label>
+            <input
+              id="unit-size"
+              type="text"
+              inputMode="numeric"
+              placeholder="e.g. 85"
+              value={local.sizeM2 ?? ""}
+              onChange={(e) => {
+                const n = e.target.value === "" ? null : Number(e.target.value)
+                update({ sizeM2: Number.isNaN(n ?? 0) ? null : n })
+              }}
+              className="w-24 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-shadow"
+            />
+          </div>
         </div>
       )}
 

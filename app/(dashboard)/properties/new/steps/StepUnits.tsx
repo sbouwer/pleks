@@ -190,7 +190,17 @@ export function StepUnits() {
       scenarioAnswers: state.scenarioAnswers,
       unitCount:       state.unitCount,
     })
-    patch({ units: skeleton, unitCount: skeleton.length })
+    // Apply unit hints from the Details step over the skeleton
+    const h = state.unitHints
+    const withHints = skeleton.map((u) => ({
+      ...u,
+      ...(h.unitType         !== null && { unit_type:         h.unitType }),
+      ...(h.bedrooms         !== null && { bedrooms:          h.bedrooms }),
+      ...(h.bathrooms        !== null && { bathrooms:         h.bathrooms }),
+      ...(h.furnishingStatus !== null && { furnishing_status: h.furnishingStatus }),
+      ...(h.sizeM2           !== null && { size_m2:           h.sizeM2 }),
+    }))
+    patch({ units: withHints, unitCount: withHints.length })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.scenarioType, state.unitCount])
 

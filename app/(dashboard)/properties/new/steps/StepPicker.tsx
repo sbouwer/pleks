@@ -187,8 +187,8 @@ function ScenarioCard({
 
         {/* Name + one-liner */}
         <div className="flex-1 min-w-0">
-          <p className="font-medium text-sm leading-tight truncate">{scenario.label}</p>
-          <p className="text-xs text-muted-foreground truncate">{scenario.tagline}</p>
+          <p className="font-medium text-sm leading-tight">{scenario.label}</p>
+          <p className="text-xs text-muted-foreground leading-snug">{scenario.tagline}</p>
         </div>
 
         {/* Info toggle */}
@@ -274,10 +274,6 @@ export function StepPicker() {
     })
   }
 
-  function handleAdvancedSetup() {
-    patch({ scenarioType: "other", mode: "advanced" })
-  }
-
   return (
     <div className="space-y-6">
       <OwnershipRadio
@@ -290,7 +286,7 @@ export function StepPicker() {
 
         <SegmentSelector active={activeSegment} onChange={handleSegmentChange} />
 
-        <div className="space-y-2 pt-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
           {scenarios.map((meta) => (
             <ScenarioCard
               key={meta.code}
@@ -308,15 +304,6 @@ export function StepPicker() {
         </div>
       </div>
 
-      <div className="pt-2">
-        <button
-          type="button"
-          onClick={handleAdvancedSetup}
-          className="text-sm text-muted-foreground underline-offset-2 hover:underline hover:text-foreground transition-colors"
-        >
-          Something else → advanced setup
-        </button>
-      </div>
     </div>
   )
 }
