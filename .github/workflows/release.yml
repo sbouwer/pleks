@@ -1,0 +1,62 @@
+# .github/workflows/release.yml
+# Runs only on main pushes. Creates a semver tag, updates CHANGELOG.md,
+# publishes a GitHub Release with notes. No npm publish.
+
+name: Release
+
+on:
+  push:
+    branches: [main]
+  # Manual re-trigger in case a release workflow was skipped/failed.
+  workflow_dispatch: {}
+
+permissions:
+  contents: write         # push CHANGELOG commit + create tag
+  issues: write           # semantic-release may comment on related issues
+  pull-requests: write    # semantic-release may comment on related PRs
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    name: Wait for CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: lewagon/wait-on-check-action@v1.3.4
+        with:
+          ref: ${{ github.sha }}
+          check-regexp: '(Lint & Typecheck|Security|Dependency CVE scan)'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 10
+          running-workflow-name: 'Release'
+
+  release:
+    name: Semantic Release
+    needs: gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Semantic Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Unset GIT_AUTHOR_* / GIT_COMMITTER_* — semantic-release
+          # sets them from `@semantic-release/git` config.
+        run: npx semantic-release
