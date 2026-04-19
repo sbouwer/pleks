@@ -33,4 +33,4 @@ jobs:
             style
             revert
           requireScope: false
-          subjectPattern: ^[a-z].+$
+          # No subjectPattern — Dependabot uses "Bump X from Y to Z" (capital B, not configurable)
