@@ -37,40 +37,11 @@ jobs:
       - name: Typecheck + Lint (npm run check)
         run: npm run check
 
-  build:
-    name: Build (Next.js)
-    needs: quick-check
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: '.nvmrc'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci --prefer-offline --no-audit
-
-      - name: Build
-        run: npm run build
-        env:
-          # Placeholder values — production secrets are Vercel's problem.
-          # CI only needs values that satisfy Next.js build-time env checks.
-          NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
-          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY: ci-placeholder-key
-
-      - name: Upload .next build
-        uses: actions/upload-artifact@v4
-        with:
-          name: next-build-${{ github.sha }}
-          path: |
-            .next/
-            !.next/cache/
-          retention-days: 3
-          if-no-files-found: error
+  # NOTE: No `build` job in CI.
+  # Vercel handles production and preview builds directly. Running `next build`
+  # in CI would duplicate Vercel's work and require embedding real Supabase
+  # credentials (several pages prerender with live data). The Vercel preview
+  # deploy that fires on every PR is the authoritative build signal.
 
   security-scan:
     name: Security (static Supabase checks)

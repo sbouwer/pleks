@@ -28,7 +28,7 @@ jobs:
       - uses: lewagon/wait-on-check-action@v1.3.4
         with:
           ref: ${{ github.sha }}
-          check-regexp: '(Lint & Typecheck|Build \(Next\.js\)|Security|Dependency CVE scan)'
+          check-regexp: '(Lint & Typecheck|Security|Dependency CVE scan)'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           wait-interval: 10
           running-workflow-name: 'Release'
