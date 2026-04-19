@@ -72,6 +72,47 @@ export default async function MyPage() {
 
 ---
 
+## ⚠ MANDATORY: CONVENTIONAL COMMIT MESSAGES
+
+Every commit to `main` drives semantic-release. Release notes and version bumps
+are generated from commit messages. Format matters.
+
+**PR titles** (which become the squash-merged commit on `main`) MUST follow:
+
+  <type>(<scope>)?: <subject>
+
+Allowed types and their release effect:
+
+| Type       | Release        | Use for                                     |
+|------------|----------------|---------------------------------------------|
+| `feat`     | minor          | New user-visible feature                    |
+| `fix`      | patch          | Bug fix                                     |
+| `perf`     | patch          | Performance improvement                     |
+| `refactor` | no release     | Code change without behaviour change        |
+| `chore`    | no release     | Tooling, config, dependency updates         |
+| `docs`     | no release     | Documentation only                          |
+| `test`     | no release     | Adding or fixing tests                      |
+| `build`    | no release     | Build system or external deps               |
+| `ci`       | no release     | CI/CD configuration                         |
+| `style`    | no release     | Code style (not CSS) — whitespace, linting  |
+| `revert`   | patch          | Revert a previous commit                    |
+
+Breaking changes: add `!` after type (e.g. `feat!: rename /portal to /tenant`)
+AND a `BREAKING CHANGE:` footer in the commit body explaining the migration.
+
+Subject line: lowercase, imperative, under 72 chars, no trailing period.
+
+Examples:
+- `feat: add passkey enrolment to settings`
+- `fix(auth): reject expired step-up challenges`
+- `chore(deps): bump @supabase/ssr from 0.9.0 to 0.10.0`
+- `feat!: move /portal URLs to /tenant`
+
+The `pr-title` CI job rejects PRs whose titles don't match. PR titles can be
+edited after opening — edit, don't force-push.
+
+---
+
 ## ⚠ MANDATORY: SECURITY AUDIT BEFORE DEPLOYMENT
 
 Before every deployment to production, run the full security audit:
