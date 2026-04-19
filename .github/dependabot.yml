@@ -1,0 +1,82 @@
+# .github/dependabot.yml
+# Keeps npm and github-actions dependencies current.
+# Grouped updates to keep review queue manageable.
+
+version: 2
+updates:
+  # ─────────────────────────────────────────
+  # npm dependencies (root package.json)
+  # ─────────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "Africa/Johannesburg"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    labels:
+      - "dependencies"
+    groups:
+      # All minor+patch bumps in a single weekly PR per cohort
+      production-dependencies:
+        dependency-type: "production"
+        update-types: ["minor", "patch"]
+      development-dependencies:
+        dependency-type: "development"
+        update-types: ["minor", "patch"]
+      # React + Next ecosystem: group the big players so we don't
+      # get partial upgrades that break type compatibility
+      react-ecosystem:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+          - "next"
+          - "eslint-config-next"
+      supabase-ecosystem:
+        patterns:
+          - "@supabase/*"
+      tiptap-ecosystem:
+        patterns:
+          - "@tiptap/*"
+      fullcalendar-ecosystem:
+        patterns:
+          - "@fullcalendar/*"
+      tanstack-ecosystem:
+        patterns:
+          - "@tanstack/*"
+      semantic-release-ecosystem:
+        patterns:
+          - "semantic-release"
+          - "@semantic-release/*"
+          - "conventional-changelog-*"
+    # Major-version bumps are NOT grouped — each gets its own PR
+    # so the reviewer can read release notes individually.
+    # No group rule = default one-PR-per-dependency for majors.
+    ignore:
+      # Pin Node types to match engine version — don't auto-bump
+      # to a major Node types version ahead of the runtime.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+
+  # ─────────────────────────────────────────
+  # GitHub Actions workflow dependencies
+  # ─────────────────────────────────────────
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(ci)"
+    labels:
+      - "ci"
+      - "dependencies"
+    groups:
+      actions-minor-patch:
+        update-types: ["minor", "patch"]

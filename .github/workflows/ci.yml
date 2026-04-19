@@ -1,0 +1,149 @@
+# .github/workflows/ci.yml
+# Runs on every PR and every push to main. Gates merging.
+# Does NOT release — that's release.yml.
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref == 'refs/heads/main' && github.run_id || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  quick-check:
+    name: Lint & Typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Typecheck + Lint (npm run check)
+        run: npm run check
+
+  build:
+    name: Build (Next.js)
+    needs: quick-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Build
+        run: npm run build
+        env:
+          # Placeholder values — production secrets are Vercel's problem.
+          # CI only needs values that satisfy Next.js build-time env checks.
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY: ci-placeholder-key
+
+      - name: Upload .next build
+        uses: actions/upload-artifact@v4
+        with:
+          name: next-build-${{ github.sha }}
+          path: |
+            .next/
+            !.next/cache/
+          retention-days: 3
+          if-no-files-found: error
+
+  security-scan:
+    name: Security (static Supabase checks)
+    needs: quick-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Run security:ci (no-localhost subset)
+        run: npm run security:ci
+        env:
+          SUPABASE_URL: ${{ secrets.CI_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.CI_SUPABASE_SERVICE_ROLE_KEY }}
+        # These secrets are optional. If not set, security:ci should
+        # short-circuit with a warning rather than failing the job.
+        # The full security audit remains a pre-deploy local step.
+        continue-on-error: false
+
+  dependency-scan:
+    name: Dependency CVE scan (Trivy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy (strict on main, advisory on PR)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'HIGH,CRITICAL'
+          exit-code: ${{ github.ref == 'refs/heads/main' && '1' || '0' }}
+          ignore-unfixed: true
+
+  pr-title:
+    name: PR title (Conventional Commits)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      pull-requests: read
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            perf
+            refactor
+            chore
+            docs
+            test
+            build
+            ci
+            style
+            revert
+          requireScope: false
+          subjectPattern: ^[a-z].+$
+          subjectPatternError: |
+            The PR title subject must start with a lowercase letter.
+            Example: `feat: add passkey enrolment to settings`
+          validateSingleCommit: false
