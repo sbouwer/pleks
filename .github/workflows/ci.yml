@@ -113,8 +113,5 @@ jobs:
             style
             revert
           requireScope: false
-          subjectPattern: ^[a-z].+$
-          subjectPatternError: |
-            The PR title subject must start with a lowercase letter.
-            Example: `feat: add passkey enrolment to settings`
+          # No subjectPattern — Dependabot uses "Bump X from Y to Z" (capital B, not configurable)
           validateSingleCommit: false
