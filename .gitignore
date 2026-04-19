@@ -44,3 +44,6 @@ next-env.d.ts
 schema-drift-report.md
 sonar-report.txt
 sonar-results.json
+
+# Claude Code internal state
+.claude/
