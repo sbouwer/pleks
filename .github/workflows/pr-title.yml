@@ -1,0 +1,36 @@
+# .github/workflows/pr-title.yml
+# Re-validates the PR title whenever it changes, even if no code has been pushed.
+# The pr-title job in ci.yml handles the initial validation; this handles edits.
+
+name: PR Title
+
+on:
+  pull_request_target:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            perf
+            refactor
+            chore
+            docs
+            test
+            build
+            ci
+            style
+            revert
+          requireScope: false
+          subjectPattern: ^[a-z].+$

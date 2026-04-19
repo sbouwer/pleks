@@ -27,19 +27,36 @@ const ROOT = resolve(__dirname, "../..")
 
 // ─── Load .env.local ─────────────────────────────────────────
 function loadEnv() {
-  const raw = readFileSync(resolve(ROOT, ".env.local"), "utf-8")
-  const env = {}
-  for (const line of raw.split("\n")) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith("#")) continue
-    const eq = trimmed.indexOf("=")
-    if (eq === -1) continue
-    env[trimmed.slice(0, eq)] = trimmed.slice(eq + 1)
+  try {
+    const raw = readFileSync(resolve(ROOT, ".env.local"), "utf-8")
+    const env = {}
+    for (const line of raw.split("\n")) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith("#")) continue
+      const eq = trimmed.indexOf("=")
+      if (eq === -1) continue
+      env[trimmed.slice(0, eq)] = trimmed.slice(eq + 1)
+    }
+    return env
+  } catch {
+    return {}
   }
-  return env
 }
 
-const ENV = loadEnv()
+// ─── CLI flags ───────────────────────────────────────────────
+const args = process.argv.slice(2)
+const singleCategory = args.includes("--category") ? parseInt(args[args.indexOf("--category") + 1]) : null
+const quickMode = args.includes("--quick")
+const ciMode = args.includes("--ci")
+
+const ENV = ciMode
+  ? {
+      NEXT_PUBLIC_SUPABASE_URL: process.env.SUPABASE_URL,
+      SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    }
+  : loadEnv()
+
 const SUPABASE_URL = ENV.NEXT_PUBLIC_SUPABASE_URL
 const ANON_KEY = ENV.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
 const SERVICE_KEY = ENV.SUPABASE_SERVICE_ROLE_KEY
@@ -54,11 +71,6 @@ const ADMIN_SECRET = ENV.ADMIN_SECRET
 // Without these, Cat 2 authenticated test is skipped with a notice.
 const TEST_ORG1_JWT = ENV.TEST_ORG1_JWT || null
 const TEST_ORG2_ID  = ENV.TEST_ORG2_ID  || null
-
-// ─── CLI flags ───────────────────────────────────────────────
-const args = process.argv.slice(2)
-const singleCategory = args.includes("--category") ? parseInt(args[args.indexOf("--category") + 1]) : null
-const quickMode = args.includes("--quick")
 
 // ─── Report accumulator ─────────────────────────────────────
 const findings = []
@@ -999,7 +1011,24 @@ function printReport() {
 // ═══════════════════════════════════════════════════════════════
 // MAIN
 // ═══════════════════════════════════════════════════════════════
+async function runCiMode() {
+  console.log("🔒 Pleks Security Audit Suite — CI mode (cats 1, 2, 5, 7)")
+  if (!SUPABASE_URL || !SERVICE_KEY) {
+    console.log("skipped: CI secrets absent")
+    console.log("Set CI_SUPABASE_URL + CI_SUPABASE_SERVICE_ROLE_KEY in GitHub secrets to enable static-RLS scanning.")
+    process.exit(0)
+  }
+  console.log(`   Target: ${SUPABASE_URL}`)
+  console.log("")
+  for (const fn of [cat1_unauthenticatedAccess, cat2_crossOrgLeakage, cat5_fileStorage, cat7_rlsPolicyAudit]) {
+    try { await fn() } catch (e) { console.error(`\n❌ Crashed: ${e.message}`) }
+  }
+  printReport()
+}
+
 async function main() {
+  if (ciMode) { await runCiMode(); return }
+
   console.log("🔒 Pleks Security Audit Suite")
   console.log(`   Target: ${SUPABASE_URL}`)
   console.log(`   App:    ${APP_URL}`)
