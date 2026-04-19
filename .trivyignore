@@ -1,0 +1,13 @@
+# .trivyignore
+# Documented CVE suppressions — architectural exceptions, not hidden risks.
+# Each entry has a justification and an expiration date for annual review.
+# Review by: 2027-04-19
+
+# xlsx CVE-2023-30533 (Prototype Pollution) — SUPPRESS
+# xlsx CVE-2024-22363 (ReDoS) — SUPPRESS
+# Rationale: xlsx is intentionally retained because TPN GL statement parsing
+# requires XLSX.SSF.parse_date_code and low-level cell addressing that ExcelJS
+# cannot replicate. Risk is mitigated at the API route level (authenticated
+# endpoints only, no user-controlled formula execution). See BUILD_22 architecture.
+CVE-2023-30533
+CVE-2024-22363
