@@ -1,6 +1,6 @@
 # Pleks Build Specs — Master Index
 
-> Last updated: 2026-04-19 — ADDENDUM_00D shipped and closed. Post-ADDENDUM_00D spec reconciliation audit: BUILD_63 now declares BUILD_61 + BUILD_62 as hard dependencies (`/tenant/*` paths require BUILD_61; `auth_events` substrate requires BUILD_62); BUILD_63 §9.2 + BUILD_62 §8.3 reconcile on dual-write pattern for `tenant_portal_login` (auth_events for security telemetry + audit_log for Tribunal evidence, linked by session_id); ADDENDUM_61B adopts same dual-write for `role_switched` events; BUILD_62 §7.4 expanded with release-flow sequencing (semantic-release + Vercel auto-deploy, conventional-commit PR discipline); BUILD_61 implementation steps re-scoped as 14-PR sequence with conventional-commit titles per step. ADDENDUM_00D_CI_CD spec'd: first-class GitHub Actions CI, semantic-release (tag + CHANGELOG + GitHub Release, no npm publish), Dependabot with grouped weekly PRs, conventional-commits enforcement via PR-title lint, Trivy CVE scanning, security-audit CI subset (localhost-free categories 1/2/5/7). BUILD_62 (Authentication & Account Security) spec'd: claims reserved BUILD_62 slot for native Supabase hardening (Part A) + passkey/WebAuthn layer (Part B). BUILD_61 scope expanded to absorb subdomain + role namespace + route security; ADDENDUM_61B added.
+> Last updated: 2026-04-20 — Added Phase 9 (Compliance & Legal Surfaces): BUILD_64 (Sovereign Trust Account), BUILD_65 (POPIA Customer-Facing Surface). Added ADDENDUM_00E–00H (error monitoring, user feedback, uptime monitoring, cost/usage dashboards). PROCESSING_PURPOSES.md (brief/legal/) updated to v4. Handover doc _HANDOVER_BUILD_65_66.md added to reference files. Post-ADDENDUM_00D spec reconciliation audit: BUILD_63 now declares BUILD_61 + BUILD_62 as hard dependencies (`/tenant/*` paths require BUILD_61; `auth_events` substrate requires BUILD_62); BUILD_63 §9.2 + BUILD_62 §8.3 reconcile on dual-write pattern for `tenant_portal_login` (auth_events for security telemetry + audit_log for Tribunal evidence, linked by session_id); ADDENDUM_61B adopts same dual-write for `role_switched` events; BUILD_62 §7.4 expanded with release-flow sequencing (semantic-release + Vercel auto-deploy, conventional-commit PR discipline); BUILD_61 implementation steps re-scoped as 14-PR sequence with conventional-commit titles per step. ADDENDUM_00D_CI_CD spec'd: first-class GitHub Actions CI, semantic-release (tag + CHANGELOG + GitHub Release, no npm publish), Dependabot with grouped weekly PRs, conventional-commits enforcement via PR-title lint, Trivy CVE scanning, security-audit CI subset (localhost-free categories 1/2/5/7). BUILD_62 (Authentication & Account Security) spec'd: claims reserved BUILD_62 slot for native Supabase hardening (Part A) + passkey/WebAuthn layer (Part B). BUILD_61 scope expanded to absorb subdomain + role namespace + route security; ADDENDUM_61B added.
 > This file is the source of truth for build spec numbering, relationships, and status.
 >
 > Naming:
@@ -30,11 +30,12 @@
 | 5 | Authentication & Account Security | BUILD_62 | 📝 Spec'd |
 | 6 | Tenant Communication Lifecycle | BUILD_63 | 📝 Spec'd |
 | 7 | Legal / CPA | ADDENDUM_04A | ✅ Done |
-| 8 | Infrastructure fixes (cross-cutting) | ADDENDUM_00A–D | ✅ Done |
-| 9 | Legal specs | `brief/legal/` | ✅ Approved |
-| 10 | Migrations | `supabase/migrations/001–014` | 🔨 013+014 added by BUILD_62 |
-| 11 | AI model routing | — | Reference |
-| 12 | Reference files | — | Reference |
+| 8 | Infrastructure fixes (cross-cutting) | ADDENDUM_00A–H | 🔨 00A–D done · 00E–H spec'd |
+| 9 | Compliance & Legal Surfaces | BUILD_64–65 | 📝 Spec'd |
+| 10 | Legal specs | `brief/legal/` | ✅ Approved |
+| 11 | Migrations | `supabase/migrations/001–014` | 🔨 013+014 added by BUILD_62 |
+| 12 | AI model routing | — | Reference |
+| 13 | Reference files | — | Reference |
 
 **Known open work:** BUILD_60 Addendum — 6 new scenarios (r6, r7, c5, c6, m3, m4) shipped with new clause/welcome-pack/inspection-profile keys; template authoring for these keys is Phase 21+ content work — lease wizard and welcome pack fall back to generic templates in the interim; BUILD_60 Phase 2 unit tests deferred — repo has no test harness yet, will be addressed when vitest is stood up (separate task, not blocking); BUILD_60 006_seed.sql demo data deferred (completeness widget should be tested against real seed in one pass); BUILD_60 tier-aware “Unknown” copy on universal questions (spec §19.3) deferred as cosmetic polish — needs `useTier()` wiring; BUILD_60 C2/C3 identical-layout toggle not shipped — R4-only for v1, per-unit editing covers the gap; **BUILD_61 expanded (spec'd, not yet built)** — now absorbs subdomain introduction (`app.pleks.co.za` product, apex marketing), `/portal/*` → `/tenant/*` and `/contractor/*` → `/supplier/*` role namespace renames, route security manifest, and central `/login` gateway alongside the original route-alignment scope; **ADDENDUM_61B (spec'd, not yet built)** — multi-role navigation: role selector landing + in-session role switcher + `pleks_active_role` cookie mechanics, sits on top of BUILD_61 structural refactor; ADDENDUM_60A spec (insurance checklist); ADDENDUM_61A spec (conditional-rendering audit); BUILD_63 Tenant Communication Lifecycle (spec'd, not yet built — now authored against `/tenant/*` URLs post-BUILD_61; WhatsApp-primary with SMS backup, tone variants via Meta-approved templates + React Email components, closes 20+ registered-but-unwired templates, adds audit-grade delivery tracking for Tribunal readiness; DebiCheck comms deferred post-PMF); **BUILD_62 Authentication & Account Security (spec'd, not yet built)** — claims the reserved BUILD_62 slot. Part A (native Supabase hardening): Tier 0 Auth config (HIBP leaked-password check, 10-char password policy, session tuning), mandatory TOTP enrolment on two devices for all agent accounts, AAL-based step-up auth on trust-account-adjacent actions (refund approvals, bank detail changes, team role changes, tenant data deletion, bulk export), `/settings/security/sessions` + `/settings/team/sessions` + `/tenant/account/security` + `/landlord/account/security` + `/supplier/account/security` UI, new-device login-notification emails via Resend, `security.txt` + `security@pleks.co.za` disclosure channel. Part B (passkey/WebAuthn layer): SimpleWebAuthn + custom session-minting bridge via `generateLink`, `user_passkeys` schema, registration and authentication ceremonies (discoverable + allowList), device management UI, agent recovery via mandatory second TOTP factor, capability-detection fallback for older devices. RP ID locked: `app.pleks.co.za` production, `localhost` dev; no intermediate staging. Introduces `auth_events` as dedicated authentication audit substrate — BUILD_63's `tenant_portal_login` will consume this table. Part A independently shippable if Part B slips. 30-day build parallel to WhatsApp + Searchworx. Migrations 013 (auth security) + 014 (passkeys). Preferences and richer profile page deferred to future BUILD_64.
 
@@ -239,6 +240,17 @@ Audit-grade tenant-facing communication system. Today only 4 automated comms fir
 
 ---
 
+## 6b. Phase 9 — Compliance & Legal Surfaces 📝
+
+Sovereign positioning in trust account management and POPIA compliance. Two builds that together make regulatory compliance a product feature rather than a liability.
+
+| # | Spec | Status | Description |
+|---|------|--------|-------------|
+| 64 | `BUILD_64_SOVEREIGN_TRUST_ACCOUNT.md` | 📝 | **Sovereign Trust Account Management.** Pleks-as-observer, not trustee — agency keeps their own Section 86 trust account; Pleks reconciles, reports, audits. Four deliverables: (1) architectural invariant (`trustee_role_allowed` constraint + enforcement trigger in `001_foundation.sql`) ensuring Pleks can never become trustee; (2) monthly reconciliation close workflow — period-close lock + immutable signed-off record (`trust_reconciliation_periods`, `trust_audit_exports`); (3) EAAB/PPRA-compliant audit export (PDF + CSV); (4) positioning surface (`/for-agents/trust-account` marketing page + landlord-portal read-only `/landlord/trust-summary`). Fixes `bank_recon_sessions` phantom reference in `trust-ledger/page.tsx:95`. Un-defers BUILD_50 Part A (OFX/CSV/QIF import); Part B (Yodlee) stays deferred. Schema amendments to `004_leases_financials.sql` + `001_foundation.sql`. New `lib/trust/` (close, audit-export, invariants). New ESLint rule forbidding payment-initiation API calls. |
+| 65 | `BUILD_65_POPIA_CUSTOMER_SURFACE.md` | 📝 | **POPIA Customer-Facing Surface.** Seven POPIA rights (access, correction, deletion, objection, portability, restriction, automated-decision) plus eighth Pleks-commitment right (full erasure/"nuke"). Structured `data_subject_requests` workflow with 30-day SLA enforcement. Self-service data export (PDF + JSON + ZIP with BUILD_64 manifest-hash tamper-evidence). Consent log viewer with immutable versioned privacy policy at `/privacy/versions/[version]`. Platform-admin cross-agency Operator dashboard for requests routed to Pleks directly. Daily `popia-retention-purge` cron. Schema in `010_platform_features.sql` (`data_subject_requests`, `popia_exports`, `privacy_policy_versions`, `retention_policies_snapshot`). New `lib/popia/` + `lib/exports/bundle.ts`. `popia-exports` Storage bucket. React Email templates: `popia.request_received`, `popia.request_approved`, `popia.request_rejected`, `popia.nuke_confirmation`, `popia.export_ready`, `popia.policy_update`. PROCESSING_PURPOSES.md (`brief/legal/`) is this build's foundational deliverable. |
+
+---
+
 ## 7. Legal / CPA (ADDENDUM_04A) ✅
 
 Tenant entity classification for CPA applicability determination at lease activation. Anchored on BUILD_04 (leases) since the derivation and enforcement live at lease lifecycle.
@@ -260,13 +272,18 @@ Platform-level fixes that apply across every phase. Kept separate so they're not
 | `ADDENDUM_00A_TIER_COOKIE_FIX.md` | ✅ | Tier cookie staleness fix — `maxAge: 300` in `proxy.ts`, `refetchInterval: 5min` in `useTier()`, `/api/auth/refresh-tier` endpoint |
 | `ADDENDUM_00B_OPERATING_HOURS.md` | ✅ | Office hours + emergency contact on organisations — `settings/hours` page + `HoursForm` |
 | `ADDENDUM_00C_SETTINGS_SIDEBAR.md` | ✅ | `SettingsSidebar` replaces main nav when `pathname.startsWith("/settings")`; mobile drill-down via `MobileSettingsNav` |
-| `ADDENDUM_00D_CI_CD.md` | ✅ | **First-class CI/CD and version-control automation — shipped.** Three GitHub Actions workflows: `ci.yml` (lint+typecheck / security:ci subset / Trivy CVE / pr-title — NO build job; Vercel's preview deploy is the authoritative build signal), `release.yml` (main-only, gated on CI, runs semantic-release), `pr-title.yml` (re-validates title on edit). Semantic-release: commit-analyzer + release-notes-generator + github only — no changelog/git plugins, no pushback to `main`; GitHub Releases page is the changelog. First tag will be `v1.0.0`. Dependabot weekly npm (grouped by ecosystem) + monthly github-actions; subject-case rule dropped for Dependabot compat. `.nvmrc` Node 20; `engines.node >=20.9.0`; `security:ci` script (cats 1, 2, 5, 7; exits 0 if CI secrets absent). `.trivyignore` suppresses xlsx CVEs (CVE-2023-30533, CVE-2024-22363) with architectural justification + 2027-04-19 review date. Branch protection ruleset on `main`: squash-only, required checks = Lint & Typecheck / Security / Trivy / PR title; Repository-admin bypass for hotfixes. `production` environment created. Standing CC conventional-commit instruction in `CLAUDE.md`. 20 design decisions (D-CI-01–D-CI-20). Tier 2: test-matrix + coverage when vitest lands. Tier 3: CODEOWNERS + required approvals when team grows. |
+| `ADDENDUM_00D_CI_CD.md` | ✅ | **First-class CI/CD and version-control automation — shipped.** (see full description in prior sessions) Three GitHub Actions workflows: `ci.yml` (lint+typecheck / security:ci subset / Trivy CVE / pr-title — NO build job; Vercel's preview deploy is the authoritative build signal), `release.yml` (main-only, gated on CI, runs semantic-release), `pr-title.yml` (re-validates title on edit). Semantic-release: commit-analyzer + release-notes-generator + github only — no changelog/git plugins, no pushback to `main`; GitHub Releases page is the changelog. First tag will be `v1.0.0`. Dependabot weekly npm (grouped by ecosystem) + monthly github-actions; subject-case rule dropped for Dependabot compat. `.nvmrc` Node 20; `engines.node >=20.9.0`; `security:ci` script (cats 1, 2, 5, 7; exits 0 if CI secrets absent). `.trivyignore` suppresses xlsx CVEs (CVE-2023-30533, CVE-2024-22363) with architectural justification + 2027-04-19 review date. Branch protection ruleset on `main`: squash-only, required checks = Lint & Typecheck / Security / Trivy / PR title; Repository-admin bypass for hotfixes. `production` environment created. Standing CC conventional-commit instruction in `CLAUDE.md`. 20 design decisions (D-CI-01–D-CI-20). Tier 2: test-matrix + coverage when vitest lands. Tier 3: CODEOWNERS + required approvals when team grows. |
+
+| `ADDENDUM_00E_ERROR_MONITORING.md` | 📝 | Sentry error monitoring with POPIA-safe PII scrubbing. Client + server + edge runtime capture; org_id + user_id context (no identifying info); release correlation; Slack alerting on new error type or rate spike. Session replay deferred. Touches `sentry.*.config.ts`, `instrumentation.ts`, `lib/observability/scrubbing.ts`, `next.config.ts`, `/api/health` stub. Must land before BUILD_61 runtime refactor. |
+| `ADDENDUM_00F_USER_FEEDBACK.md` | 📝 | In-app structured feedback capture (bugs / improvements / feature requests / praise). `feedback_submissions` + `feedback_replies` tables in `010_platform_features.sql`. Floating `FeedbackButton` on all role layouts; `/admin/feedback` (platform-admin) + `/settings/feedback` (org-admin). Reply-via-email through existing `lib/comms/send-email.ts`. No third-party service. |
+| `ADDENDUM_00G_UPTIME_MONITORING.md` | 📝 | Better Stack uptime monitoring pinging `/api/health` every minute from 3 regions. Full `/api/health` implementation (shallow fast-path + authenticated deep probe for DB / Resend / Storage / cron freshness). Public status page at `app/(public)/status/page.tsx`. Slack `#pleks-ops` alert within 60s of sustained failure. No schema changes. Depends on ADDENDUM_00E `/api/health` stub. |
+| `ADDENDUM_00H_COST_USAGE_DASHBOARDS.md` | 📝 | Cost & usage observability for pre-PMF unit economics. `ai_usage` + `platform_cost_snapshots` tables in `010_platform_features.sql`. `lib/ai/client.ts` wrapper unifying all 4 existing Anthropic call sites with per-org token + cost logging. Daily cron (`cost-snapshots`) at 08:30 SAST. `/admin/platform-health` per-org cost/revenue/margin view. Depends on BUILD_58 (`messaging_usage`), ADDENDUM_57E email choke point, BUILD_60 (`cron_runs`). |
 
 Note: there are two `ADDENDUM_00A_*` files by design — `ADDENDUM_00A_ENCRYPTION_AT_REST.md` (listed under Phase 1, part of BUILD_00 security) and `ADDENDUM_00A_TIER_COOKIE_FIX.md` (above, infrastructure layer). Same prefix, different scope.
 
 ---
 
-## 9. Legal specs (`brief/legal/`)
+## 10. Legal specs (`brief/legal/`)
 
 Attorney-reviewed clause and disclaimer text that the platform relies on.
 
@@ -281,7 +298,7 @@ Attorney-reviewed clause and disclaimer text that the platform relies on.
 
 ---
 
-## 10. Migrations
+## 11. Migrations
 
 > File names are in `supabase/migrations/`. Structure is consolidated and domain-scoped — new features amend an existing file rather than creating a new one. See `CLAUDE.md` "HOW TO WORK WITH MIGRATIONS" for the amend-forward rule.
 
@@ -324,7 +341,7 @@ When a BUILD needs schema changes, amend the appropriate domain file rather than
 
 ---
 
-## 11. AI cost model
+## 12. AI cost model
 
 | AI use | Model | Cost gate | Rationale |
 |--------|-------|-----------|-----------|
@@ -343,7 +360,7 @@ When a BUILD needs schema changes, amend the appropriate domain file rather than
 
 ---
 
-## 12. Reference files
+## 13. Reference files
 
 Supporting docs in `brief/build/` that aren't specs themselves.
 
@@ -353,3 +370,4 @@ Supporting docs in `brief/build/` that aren't specs themselves.
 | `CLAUDE_CODE_INSTRUCTIONS.md` | Standing Claude Code instructions |
 | `SEARCHWORX_PRICING_REFERENCE.md` | Searchworx per-check pricing |
 | `_SUPERSEDED_ADDENDUM_37A_OWNER_VIEW.md` | Superseded owner view draft — kept for historical reference |
+| `_HANDOVER_BUILD_65_66.md` | Handover doc from the session that produced ADDENDUM_00E–00H + BUILD_64–65. Strategic decisions, architectural patterns, open questions for BUILD_66. |
