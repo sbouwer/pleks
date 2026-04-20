@@ -727,7 +727,7 @@ Every third party Pleks uses in the course of processing personal information. F
 
 - **Role:** Backend-as-a-service — Postgres database, authentication, storage, realtime, edge functions
 - **Domicile:** US parent, with regional data residency available (current Pleks project region: **[region to be confirmed — configurable per project]**)
-- **Purposes served:** A1–A12 (all Pleks-RP), B1–B23 (all Operator) — Supabase is the foundational data platform
+- **Purposes served:** A1–A12 (all Pleks-RP), B1–B25 (all Operator) — Supabase is the foundational data platform
 - **Contract instrument:** Supabase Terms of Service + Data Processing Addendum with Standard Contractual Clauses
 - **Sub-Operator hierarchy:** Supabase uses AWS as its underlying cloud provider (separate sub-processor agreement)
 - **Safeguards:** encryption at rest (AES-256 per Supabase), encryption in transit (TLS 1.2+), RLS enforced for all client queries, service role reserved for server-side only, gateway helper enforces org-scoped queries per CLAUDE.md gateway discipline
@@ -811,7 +811,7 @@ Every third party Pleks uses in the course of processing personal information. F
 
 - **Role:** Next.js hosting, edge-function invocation, CDN
 - **Domicile:** US (San Francisco) with global edge presence
-- **Purposes served:** A1–A12, B1–B23 — hosts the entire Pleks application
+- **Purposes served:** A1–A12, B1–B25 — hosts the entire Pleks application
 - **Contract instrument:** Vercel Terms of Service + Data Processing Addendum
 - **Safeguards:** TLS in transit; Vercel does not retain request bodies beyond normal HTTP edge-log retention (configurable, default 30 days); CSP headers applied; logs POPIA-scrubbed consistent with ADDENDUM_00E
 
