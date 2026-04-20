@@ -19,7 +19,7 @@ Under POPIA you are the **Responsible Party** for every natural person whose per
 
 - The Responsible Party is **accountable** for the processing (POPIA s8). The Operator is not.
 - The Responsible Party must maintain its own processing-purpose register. This document is not that register for you. It describes what Pleks does; your register must describe what your agency does, with Pleks listed as one of your Operators.
-- The Responsible Party is the primary recipient of data-subject requests under POPIA s23–s25. Pleks supports the Responsible Party in responding within the 30-day statutory window (s19(2)(c)) but does not respond in the Responsible Party's place.
+- The Responsible Party is the primary recipient of data-subject requests under POPIA s23–s25. Pleks provides tooling to facilitate data-subject-rights requests and to assist Responsible Parties in responding within the 30-day statutory window (s19(2)(c)). Pleks does not assume responsibility for the agency's compliance with POPIA obligations; the duty to respond to a subject request remains with the Responsible Party, and Pleks's role is limited to the Operator's s21 support obligations as described in the Pleks Operator Agreement.
 - The Information Regulator's complaint procedure under POPIA Chapter 10 runs against the Responsible Party. Pleks cannot stand between a data subject and the Regulator on an agency's behalf.
 
 **What this document does for an agency adopting Pleks:** it gives you an accurate, structured description of Pleks's role as your Operator, which you can incorporate into your own processing-purpose register with confidence. Most of the work of describing Pleks-mediated processing is already done; you add your agency's context (who your data subjects are, what your lawful bases are for collecting their information in the first place, your own retention decisions where agency-specific, and which other Operators you use outside Pleks).
@@ -53,16 +53,26 @@ Pleks has deliberately declined custodial authority in two structurally symmetri
 
 These are twin moats. The Operator-Responsible-Party split in this register is the POPIA expression of the "Pleks is not the trustee" doctrine.
 
+### Mixed-role processing clarification
+
+Certain platform features are processed by Pleks as an independent Responsible Party even where those features are initiated within an agency workflow. The clearest examples are:
+
+- **Purpose A8 (platform-level billing and subscriptions)** — Pleks bills the agency for platform use; Pleks is the Responsible Party for that billing relationship despite the agency being the data subject.
+- **Purpose B9 (application fee processing via PayFast)** — despite being housed in Part B, this is a Pleks-RP purpose with no agency involvement in the funds flow. The transaction is between Pleks and the applicant directly; Pleks receives the payment from the applicant, pays Searchworx for the underlying credit report (Purpose B4), and retains the balance as platform service revenue covering the operation and maintenance of the application-processing service. **No portion of the application fee flows to the agency under any tier or commercial arrangement between Pleks and the agency.** The purpose is listed under B because the workflow is initiated by an agency-operated application flow, but the controller relationship and the financial flow are both Pleks↔applicant.
+- **Part A observability purposes (A3 error monitoring, A5 uptime, A6 cost/usage, A10 audit log, A12 platform administration)** — these operate across all organisations on the platform; Pleks is the Responsible Party for the observability artefacts themselves, even where the observed activity is agency-operated processing.
+
+These mixed-role activities are structurally and logically separated from agency-operated processing, each under its own lawful basis, and the existence of any Pleks-RP layer over a cross-cutting platform concern does not alter the Operator relationship for Part B purposes. Pleks is not a joint controller for agency-operated data; the RP relationships described here concern distinct processing activities directed at distinct personal information.
+
 ---
 
 ## Information Officer
 
 ### Pleks (for Pleks-RP purposes — Part A)
 
-- **Information Officer:** [Information Officer — to be confirmed before first paying agency customer] · Bouwer Property Group (trading as Pleks)
+- **Information Officer:** Stéan Bouwer · Bouwer Property Group (trading as Pleks)
 - **Email:** privacy@pleks.co.za
-- **Postal address:** [to be confirmed]
-- **POPIA registration number:** [pending — IR registration for private Responsible Parties is optional but common; will be confirmed before first paying customer]
+- **Postal address:** [to be confirmed — will be published before first paying agency customer]
+- **POPIA registration number:** [pending — IR registration for private Responsible Parties is optional but common; to be filed before first paying customer]
 
 ### Agency (for Operator purposes — Part B)
 
@@ -82,6 +92,27 @@ The Regulator's contact details are surfaced alongside every rights-exercise sur
 
 ---
 
+## Security safeguards (POPIA s19)
+
+Pleks implements appropriate technical and organisational measures to secure personal information against loss, damage, unauthorised access, and unlawful processing, consistent with POPIA s19 and the register's accountability posture. Current measures:
+
+- **Encryption in transit** — TLS 1.2+ for all client-server and server-server connections; HSTS enforced on public surfaces; no plaintext fallback
+- **Encryption at rest** — AES-256 at the database layer via Supabase; Storage bucket contents encrypted at rest; sensitive fields (bank account numbers, TOTP secrets, passkey credentials) encrypted column-level where applicable
+- **Role-based access control** — Postgres Row-Level Security (RLS) enforced on every table carrying personal information; service-role access reserved for server-side with gateway helper enforcing organisation-scoped queries; no broad-access admin views
+- **Authentication** — magic-link auth for tenant/landlord/supplier roles; password + mandatory MFA for agent roles per BUILD_62; MFA-fresh step-up required for fiduciary-class actions (erasure approval, export release, trust sign-off) per BUILD_62 Part A and BUILD_65 D-POPIA-10
+- **Immutable audit logging** — every state-changing operation recorded in `audit_log` with actor, target, event type, timestamp, and change payload; no UPDATE or DELETE policies on the log itself; retention 7 years per Purpose A10
+- **PII scrubbing for observability** — error monitoring (Sentry), log aggregation, and third-party observability tools receive PII-scrubbed events only; scrubber at `lib/observability/scrubbing.ts` runs pre-transmission and strips request bodies from sensitive routes plus PII patterns (email, phone, SA ID, bank account) from remaining payloads; opt-out respected per ADDENDUM_00E
+- **Storage-path RLS** — Supabase Storage policies constrain access to object paths matching the requesting user's organisation or subject identity; signed URLs with TTL for all sensitive downloads; no public bucket access to customer data
+- **Operator contractual controls** — every third-party Operator (Appendix A) operates under a Data Processing Addendum with SCCs where cross-border, SOC 2 or equivalent certifications where available, and documented retention and breach-notification terms
+- **Sovereign-trust discipline** — Pleks holds no client funds; client funds reside in the agency's own Section 86 trust account at the agency's own bank; no outbound payment rails from Pleks (BUILD_64 invariant enforced at schema, code, ESLint, and UI layers)
+- **Sovereign-data discipline** — Pleks is Operator for agency-operated data; agency is Responsible Party; Pleks's cross-agency admin surfaces (`/admin/popia-requests`) route to the correct Responsible Party and never execute agency-data operations directly (BUILD_65 D-POPIA-17 invariant)
+- **Incident response** — breach detection via Sentry + audit-log review; notification to affected Responsible Parties within 24 hours of detection per the Operator Agreement; notification to data subjects and the Information Regulator per the agency's own s22 breach-notification obligations
+- **Retention enforcement** — automated daily retention purge per BUILD_65 §5.6; retention-aware erasure cascade per D-POPIA-06; hierarchy rule per the maintenance discipline section
+
+Security controls are reviewed continuously and updated in line with evolving risk. New processing purposes introduced by subsequent build specifications must document their security posture as part of the purpose entry; deviations from the defaults above require explicit justification.
+
+---
+
 ## How to maintain this register
 
 This register is maintained as a living document. Every new processing purpose introduced by a subsequent Pleks build specification (BUILD_66, BUILD_67, and any ADDENDUM that adds processing) appends a new row to this register in the same structured format. The version number (`2026.1` at initial publication) increments on every material change, and material changes also insert a row in the **Change log** below.
@@ -96,6 +127,18 @@ Authoring discipline:
 
 Non-material changes (typo fixes, formatting, clarifications that don't alter processing substance) increment the patch component of the version number (`2026.1.1`) and are noted in the change log without triggering the material-change re-consent flow. Material changes (new purpose, new Operator, new cross-border transfer, retention period change, lawful basis change, new data category, new recipient) increment the version number to `2026.2` (or equivalent) and trigger the re-consent notification flow per BUILD_65 §5.
 
+### Retention hierarchy rule
+
+Where multiple retention periods apply to the same record, Pleks enforces the longest applicable statutory, contractual, or evidentiary retention period. Purpose-level retention periods in this register represent **minimum retention commitments** and may be overridden where:
+
+- a longer statutory retention period applies (e.g., Tax Administration Act s29 — 5 years from last entry; PPRA trust-record obligations; FIC Act s23 — 5 years from termination of business relationship; SARS tax record retention; Companies Act record retention),
+- the record forms part of the audit trail (Purpose A10 — 7 years), in which case audit-log retention governs for the audit-trail aspects of the record,
+- the record is in scope of an active legal hold, subject-request restriction (per BUILD_65 `request_type='restriction'`), ongoing Tribunal dispute, ongoing FIC investigation, or subpoena, in which case retention continues until the hold is released.
+
+Data-subject erasure requests are executed subject to this hierarchy. Records subject to mandatory retention are excluded from deletion workflows until the applicable retention period has expired; see `lib/popia/retention.ts` `isErasableNow()` for the enforcement implementation and D-POPIA-06 in BUILD_65 for the policy-layer doctrine.
+
+Where this register cites a specific retention period under a purpose, that period is the minimum commitment. Where a longer period applies under this hierarchy, the longer period controls without requiring a register amendment.
+
 ---
 
 ## Change log
@@ -103,7 +146,7 @@ Non-material changes (typo fixes, formatting, clarifications that don't alter pr
 | Version | Date | Change | Material? |
 |---------|------|--------|-----------|
 | 2026.1 | 2026-05-01 | Initial publication of the register. Covers 12 Pleks-RP purposes and 25 Pleks-Operator purposes established through BUILD_00–BUILD_65. | Initial — no re-consent flow triggered |
-| 2026.1 (pre-launch revision) | 2026-04-20 | Pre-launch architectural review (two review rounds). Added Purpose B24 (FICA / KYC documentation storage for Accountable Institutions) to make explicit the Operator role in storing CDD documents that agencies already capture via BUILD_02 and BUILD_03 flows. Added Purpose B25 (agency-originated direct marketing to tenants and landlords — reserved placeholder) to document that this processing is architecturally possible but not currently deployed. Enhanced Purpose B12 (Trust account reconciliation) with supplier-disbursement language, masked-bank-account-number data category, and supplier data subjects. Added explicit POPIA s20 + s21 reference to the Pleks Operator Agreement mention in the Controllers section. Corrected FIC Act section citations in B24 draft — record-keeping duty (FIC Act s22) and retention period (FIC Act s23) correctly cited; prior draft incorrectly referenced the RMCP and training sections. | Non-material — no new processing commences; B12 enhancements clarify existing processing; B24 documents existing data capture more explicitly; B25 is a reserved placeholder. Register not yet in effect (effective_from 2026-05-01). No re-consent flow needed. |
+| 2026.1 (pre-launch revision) | 2026-04-20 | Pre-launch architectural review (three review rounds) plus founder corrections. Structural additions: retention-hierarchy rule, mixed-role processing clarification, security-safeguards (POPIA s19) section, incidental-s26 executive summary. New purposes: B24 (FICA / KYC documentation storage) and B25 (agency-originated direct marketing — reserved placeholder). Purpose enhancements: B3 (third-party data subjects — references, employer contacts; removed hardcoded fee amounts), B5 (POPIA s71 explanation and challenge rights for FitScore), B9 (application-fee flow corrected — funds flow Pleks↔applicant with no agency portion; specific fee amounts removed as they vary with underlying cost changes), B12 (supplier disbursements, masked bank account numbers, retention-hierarchy alignment), B22 (explicit AI-assistive-only global safeguard), B23 (data-subject responsibility clarification). Information Officer designated (Stéan Bouwer) for Part A Pleks-RP purposes. Corrections: FIC Act section citations fixed (s22/s23 record-keeping, not s42/s43 RMCP/training); POPIA s72(1) subsection numbering corrected throughout Appendix B and in-line purpose references to match the actual ordering in POPIA Act 4 of 2013 s72(1); cross-border transfer basis language expanded with specific reference to the EU 2021/914 SCC framework as implementation mechanism. Added explicit POPIA s20 + s21 reference to the Pleks Operator Agreement mention in the Controllers section. | Non-material — no new processing commences; enhancements clarify existing processing; B25 is a reserved placeholder; corrections fix drafting errors. Register not yet in effect (effective_from 2026-05-01). No re-consent flow needed. |
 
 ---
 
@@ -120,7 +163,7 @@ These are the purposes for which Pleks itself is the Responsible Party. The lawf
 - **Personal data categories:** email address, password hash (bcrypt via Supabase Auth), session tokens, IP address, user agent, authentication event timestamps
 - **Data subject categories:** every natural person who creates a Pleks account — agency staff, tenants, landlords, suppliers, applicants, platform administrators
 - **Recipients / Operators:** Supabase (auth backend + database — see Appendix A), Resend (delivery of authentication-related emails such as magic links and new-device notifications)
-- **Cross-border transfer:** Yes — see Appendix B. Basis: s72(1)(b) standard contractual clauses in the Pleks ↔ Operator DPA with each vendor.
+- **Cross-border transfer:** Yes — see Appendix B. Basis: s72(1)(a) standard contractual clauses in the Pleks ↔ Operator DPA with each vendor.
 - **Retention:** session records deleted 30 days after expiry; `auth_events` retained 7 years for security and Tribunal evidentiary purposes; account deletion purges authentication records 30 days after account closure except those legally required to be retained
 - **DPIA required:** No — standard authentication processing
 - **Related specifications:** BUILD_01 (auth, organisations, onboarding), BUILD_62 (authentication security — password policy, session tuning, new-device notification emails)
@@ -135,7 +178,7 @@ These are the purposes for which Pleks itself is the Responsible Party. The lawf
 - **Personal data categories:** TOTP secret (encrypted at rest), passkey credential ID, passkey public key, credential counter, authenticator AAGUID, device name (user-provided label), enrolment and authentication event timestamps, IP address at enrolment
 - **Data subject categories:** every natural person who enrols in MFA on their Pleks account; mandatory for agent roles, optional for tenant/landlord/supplier
 - **Recipients / Operators:** Supabase (storage of MFA records), SimpleWebAuthn (passkey verification library, executed in-process — not a network Operator), Resend (delivery of MFA enrolment and unenrolment notifications)
-- **Cross-border transfer:** Yes — see Appendix B. Basis: s72(1)(b) SCCs.
+- **Cross-border transfer:** Yes — see Appendix B. Basis: s72(1)(a) SCCs.
 - **Retention:** 7 years alongside `auth_events`; revoked passkey records soft-deleted and purged after 30 days
 - **DPIA required:** No — MFA processing is a POPIA s19 safeguard, not a processing activity that creates new risk
 - **Related specifications:** BUILD_62 (authentication security — Parts A and B cover TOTP and passkeys respectively)
@@ -150,7 +193,7 @@ These are the purposes for which Pleks itself is the Responsible Party. The lawf
 - **Personal data categories:** user ID (UUID), organisation ID (UUID), role (agent/tenant/landlord/supplier), release version, error type, stack trace, (possibly) route path with query parameters stripped. **No** email, name, phone, IP address, browser fingerprint, request body, response body, session cookie, or local variable values.
 - **Data subject categories:** any Pleks user whose browser or server session triggers an exception
 - **Recipients / Operators:** Sentry (US-based error-monitoring SaaS — see Appendix A)
-- **Cross-border transfer:** Yes — Sentry is US-based. Basis: s72(1)(b) SCCs via Sentry DPA + POPIA-safe scrubber removing PII at source
+- **Cross-border transfer:** Yes — Sentry is US-based. Basis: s72(1)(a) SCCs via Sentry DPA + POPIA-safe scrubber removing PII at source
 - **Retention:** 90 days at Sentry (Sentry's default); Pleks does not retain error events independently
 - **DPIA required:** No — aggressive PII scrubbing reduces risk below DPIA threshold
 - **Related specifications:** ADDENDUM_00E (error monitoring with POPIA scrubber); BUILD_65 adds POPIA-adjacent routes to the scrubber denylist
@@ -165,7 +208,7 @@ These are the purposes for which Pleks itself is the Responsible Party. The lawf
 - **Personal data categories:** user ID, organisation ID, active role, feedback category, free-text submission body (may contain arbitrary PII the user chooses to include), submission URL with query parameters stripped, viewport, user agent, release version, reply thread (if any)
 - **Data subject categories:** Pleks platform users who submit feedback
 - **Recipients / Operators:** Supabase (storage), Resend (reply delivery)
-- **Cross-border transfer:** Yes — see Appendix B. Basis: s72(1)(b) SCCs.
+- **Cross-border transfer:** Yes — see Appendix B. Basis: s72(1)(a) SCCs.
 - **Retention:** indefinite for non-deleted submissions (product development memory); soft-deletion on user account closure replaces user_id with NULL but retains the content for pattern recognition; submitter's free-text body redacted to "[deleted by user]" on explicit deletion request
 - **DPIA required:** No — voluntary submission by the user with the user as the source of the PII; scrubber-exempt (free-text field may genuinely contain PII; protection is via RLS and access restriction rather than scrubbing)
 - **Related specifications:** ADDENDUM_00F (in-app feedback with org-admin + platform-admin routing)
@@ -180,7 +223,7 @@ These are the purposes for which Pleks itself is the Responsible Party. The lawf
 - **Personal data categories:** none in direct probe traffic; probe bodies contain only component health status text, no user-identifying information
 - **Data subject categories:** none (probes are system-to-system)
 - **Recipients / Operators:** Better Stack (uptime monitoring SaaS — see Appendix A), Slack (alert delivery)
-- **Cross-border transfer:** Yes — Better Stack is US-based, Slack is US-based. Basis: s72(1)(b) SCCs + the fact that no personal information is transmitted in probe traffic.
+- **Cross-border transfer:** Yes — Better Stack is US-based, Slack is US-based. Basis: s72(1)(a) SCCs + the fact that no personal information is transmitted in probe traffic.
 - **Retention:** 30 days rolling at Better Stack; public status page retains 30 days of component-level uptime data
 - **DPIA required:** No — no personal information processed
 - **Related specifications:** ADDENDUM_00G (uptime monitoring via Better Stack + public status page)
@@ -194,7 +237,7 @@ These are the purposes for which Pleks itself is the Responsible Party. The lawf
 - **Personal data categories:** organisation ID, purpose of AI call (e.g., `maintenance_triage`), model, token counts, cost in cents, latency, success/error code, last-user-login-at (per `auth_events`), invocation counts. **No** prompt text, **no** response text, **no** PII in metadata — only structured purpose-specific context.
 - **Data subject categories:** none directly; data is aggregated at the organisation level. Individual users are not identified in cost records.
 - **Recipients / Operators:** Supabase (storage), Vercel (function invocation counts via management API when `VERCEL_API_TOKEN` configured), Anthropic (AI call cost attribution — downstream of Purpose B22)
-- **Cross-border transfer:** Yes — see Appendix B. Basis: s72(1)(b) SCCs.
+- **Cross-border transfer:** Yes — see Appendix B. Basis: s72(1)(a) SCCs.
 - **Retention:** `ai_usage` rows 2 years; `platform_cost_snapshots` 36 months; `messaging_usage` and `subscription_charges` 5 years (tax record retention)
 - **DPIA required:** No — aggregate processing without PII
 - **Related specifications:** ADDENDUM_00H (cost/usage dashboards, `lib/ai/client.ts` wrapper as choke point)
@@ -208,7 +251,7 @@ These are the purposes for which Pleks itself is the Responsible Party. The lawf
 - **Personal data categories:** email address, self-declared role (Agent / Landlord / Property Manager), consent timestamp, IP address, user agent
 - **Data subject categories:** prospective Pleks customers
 - **Recipients / Operators:** Supabase (storage in `waitlist` table), Resend (confirmation and launch emails)
-- **Cross-border transfer:** Yes — see Appendix B. Basis: s72(1)(a) consent (subject opts into the waitlist with full knowledge of the marketing purpose).
+- **Cross-border transfer:** Yes — see Appendix B. Basis: s72(1)(b) consent (subject opts into the waitlist with full knowledge of the marketing purpose).
 - **Retention:** until account creation (waitlist entry linked to user via matching email), or 12 months from submission if no account created, whichever comes first
 - **DPIA required:** No — voluntary opt-in to a named marketing purpose
 - **Related specifications:** BUILD_01 (waitlist table in `001_foundation.sql`), CLAUDE.md Task 4 (opt-in landing page)
@@ -223,7 +266,7 @@ These are the purposes for which Pleks itself is the Responsible Party. The lawf
 - **Personal data categories:** organisation billing contact name, email, phone, billing address, VAT number, invoice history, charge history, tier and feature selection, subscription state
 - **Data subject categories:** organisation billing contacts (typically the agency principal or accounts administrator)
 - **Recipients / Operators:** Supabase (storage), Resend (invoice email delivery), PayFast (payment processing for initial Owner Pro charges; broader billing rail TBD), Anthropic (if AI is used for invoice generation — not currently)
-- **Cross-border transfer:** Yes — see Appendix B. Basis: s72(1)(b) SCCs and s72(2) necessity for performance of contract.
+- **Cross-border transfer:** Yes — see Appendix B. Basis: s72(1)(a) SCCs and s72(1)(c) necessity for performance of contract.
 - **Retention:** 5 years from the date of the most recent charge (Tax Administration Act s29)
 - **DPIA required:** No — standard commercial billing
 - **Related specifications:** ADDENDUM_57F (Owner Pro per-lease billing), BUILD_00_PAYFAST_ARCHITECTURE
@@ -251,7 +294,7 @@ These are the purposes for which Pleks itself is the Responsible Party. The lawf
 - **Personal data categories:** actor user ID, actor IP address, target entity identifiers (may include tenant ID, landlord ID, lease ID, etc.), event type, before-and-after values of changed fields (may incidentally include PII), timestamp
 - **Data subject categories:** the actor who performed the operation; indirectly, any data subject whose record was modified
 - **Recipients / Operators:** Supabase (storage)
-- **Cross-border transfer:** Yes — see Appendix B. Basis: s72(1)(b) SCCs.
+- **Cross-border transfer:** Yes — see Appendix B. Basis: s72(1)(a) SCCs.
 - **Retention:** 7 years (aligns with standard SA business records retention and PPRA audit timelines); `auth_events` retention matches
 - **DPIA required:** No — regulatory-mandated accountability record
 - **Related specifications:** BUILD_00 (foundational audit_log table), BUILD_62 (auth_events companion table), every build that writes audit entries
@@ -281,7 +324,7 @@ These are the purposes for which Pleks itself is the Responsible Party. The lawf
 - **Personal data categories:** organisation ID, organisation name, agency FFC number and expiry, last-user-login timestamp, aggregated activity signals (cron invocation counts, active lease count), cost attribution (downstream of Purpose A6)
 - **Data subject categories:** agencies (juristic persons — limited POPIA applicability) and agency principals (named contacts on the organisation record — natural persons, POPIA-covered)
 - **Recipients / Operators:** Supabase (storage), Resend (customer-success outreach emails when a platform admin clicks "Reach out" on an overdue agency)
-- **Cross-border transfer:** Yes — see Appendix B. Basis: s72(1)(b) SCCs.
+- **Cross-border transfer:** Yes — see Appendix B. Basis: s72(1)(a) SCCs.
 - **Retention:** operational signals retained indefinitely while the organisation is active; account closure purges platform-admin observability records after the retention window for billing records expires (5 years — tax record retention controls)
 - **DPIA required:** No — no cross-agency aggregate custodial view exists; per-agency drill-down reads via service role are the same data the agency itself has access to in its own workspace
 - **Related specifications:** ADDENDUM_00H (cost dashboards), BUILD_64 (trust-health), BUILD_65 (popia-requests routing), ADDENDUM_00F (feedback)
@@ -328,14 +371,14 @@ Each purpose in Part B describes what Pleks does on behalf of the agency. **The 
 - **Description:** Accept rental applications from prospective tenants via the public `/apply/[slug]` portal. Capture application form data, supporting documents (ID, proof of income, bank statements, employer letter), and consent records. Support the agency's shortlist-and-screen workflow.
 - **Controller:** Agency (Responsible Party); Pleks (Operator)
 - **Lawful basis (POPIA s11) (agency's):** s11(1)(a) consent (applicant submits the form and consents to processing for purposes of the specific application) + s11(1)(b) pre-contractual steps taken at the data subject's request (POPIA s11(1)(b) includes pre-contract processing)
-- **Personal data categories:** full name, ID number, date of birth, contact phone, contact email, employment details, employer contact details, salary, dependent / household member details, previous rental history and landlord references, supporting documents
+- **Personal data categories:** full name, ID number, date of birth, contact phone, contact email, employment details, employer contact details, salary, dependent / household member details, previous rental history, landlord references, employer references, and any other third-party contact details provided by the applicant (e.g., character references, next of kin, emergency contacts), supporting documents
 - **Data subject categories:** primary applicant; co-applicants on joint applications; household members declared in the application; references named by the applicant; applicant's employer contact named
 - **Recipients / Operators:** Supabase (storage), PayFast (application fee payment processing), Searchworx (credit check — see Purpose B4), Anthropic (income extraction from bank statements — see Purpose B22), DocuSeal (document signing when the application becomes a lease — see Purpose B6)
 - **Cross-border transfer:** Yes — see Appendix B.
 - **Retention:** rejected applications 12 months from rejection (POPIA minimisation); approved applications absorbed into the lease retention window (5 years post-termination)
 - **DPIA required:** No — routine rental application processing, with clear consent at the point of data collection
 - **Related specifications:** BUILD_16 (application pipeline), BUILD_48 (applicant portal), ADDENDUM_16A (joint application), ADDENDUM_16B (motivation field), ADDENDUM_03A (foreign nationals)
-- **Notes:** The applicant pays the application fee (R399 single, R749 joint) via PayFast directly — the agency never pays for a credit check. The applicant's consent to the credit check is captured explicitly before the check is initiated (see Purpose B4).
+- **Notes:** The applicant pays the application fee via PayFast directly — the agency never pays for a credit check. The fee is a Pleks-to-applicant service charge; the agency receives no portion of it. See Purpose B9 for fee structure and funds flow. The applicant's consent to the credit check is captured explicitly before the check is initiated (see Purpose B4). **Third-party data subjects:** where an application form captures personal information about parties other than the applicant themselves (landlord references, employer contacts, character references, household members, emergency contacts), the agency, as Responsible Party, is responsible for ensuring it has a lawful basis under POPIA s11 to collect and process that third-party data. Pleks, as Operator, stores what the agency collects; the sufficiency of consent or of the agency's legitimate-interest balancing for each third party named is the agency's own s17 accountability obligation.
 
 ## Purpose B4 — Credit checking (Searchworx)
 
@@ -361,11 +404,11 @@ Each purpose in Part B describes what Pleks does on behalf of the agency. **The 
 - **Personal data categories:** derivative of Purpose B4 + declared income, verified income, rental history, employment information
 - **Data subject categories:** rental applicants
 - **Recipients / Operators:** Anthropic (Claude Sonnet generates the FitScore rationale narrative via `lib/ai/client.ts` with purpose `fitscore_summary`), Supabase (storage)
-- **Cross-border transfer:** Yes — Anthropic processing is US-based (see Appendix B). Basis: s72(1)(b) SCCs and s72(1)(a) consent (applicant consented to the processing purpose at Purpose B4 which includes derivative FitScore generation as disclosed).
+- **Cross-border transfer:** Yes — Anthropic processing is US-based (see Appendix B). Basis: s72(1)(a) SCCs and s72(1)(b) consent (applicant consented to the processing purpose at Purpose B4 which includes derivative FitScore generation as disclosed).
 - **Retention:** follows Purpose B4 (12 months or lease termination, whichever later)
 - **DPIA required:** Yes — automated decision-making adjacent processing; POPIA s71 (automated processing) prohibits automated decisions that have legal or similarly significant effect without human intervention. FitScore is explicitly designed to support, not replace, human agent judgment; this is documented in the DPIA and in the UI (every applicant is shown to the agent regardless of score, preventing a hidden-bias discrimination claim).
 - **Related specifications:** BUILD_14 (FitScore), ADDENDUM_00H (AI wrapper for cost attribution)
-- **Notes:** The "show every applicant regardless of score" requirement is a non-negotiable in the system prompt and in the spec lineage — it is a legal protection against discrimination claims (Equality Act 4 of 2000, Rental Housing Act s4(1) prohibition on unfair discrimination) and a product decision.
+- **Notes:** The "show every applicant regardless of score" requirement is a non-negotiable in the system prompt and in the spec lineage — it is a legal protection against discrimination claims (Equality Act 4 of 2000, Rental Housing Act s4(1) prohibition on unfair discrimination) and a product decision. **POPIA s71 subject rights:** FitScore is a recommendation engine only; the final decision to approve or decline an application remains exclusively with the agency's human user. No automated decision producing legal or similarly significant effects is taken without human involvement, in compliance with POPIA s71(1). Data subjects may request sufficient information about the underlying logic of the FitScore calculation under POPIA s71(2)(a), and may make representations regarding any decision taken using the score under POPIA s71(3)(c); such requests are handled via the data-subject-request workflow (Purpose B23) with the agency as Responsible Party.
 
 ## Purpose B6 — Lease generation, signing, and document management
 
@@ -376,7 +419,7 @@ Each purpose in Part B describes what Pleks does on behalf of the agency. **The 
 - **Personal data categories:** full names, ID numbers, dates of birth, contact details, employment details, signatures (drawn or uploaded), signatures of co-tenants and landlords
 - **Data subject categories:** tenants, co-tenants, landlords, sureties if any, agents signing on behalf of agency, witnesses
 - **Recipients / Operators:** Supabase Storage (signed lease PDF), DocuSeal (signing platform — see Appendix A), Resend (signing invitation emails), Anthropic (clause conflict checking and lease template drafting — Purpose B22)
-- **Cross-border transfer:** Yes — see Appendix B. Basis: s72(1)(b) SCCs and s72(2) necessity for performance of the lease contract itself.
+- **Cross-border transfer:** Yes — see Appendix B. Basis: s72(1)(a) SCCs and s72(1)(c) necessity for performance of the lease contract itself.
 - **Retention:** 5 years post-termination (Prescription Act + PPRA mandate practice)
 - **DPIA required:** No — lease generation is the core agency activity
 - **Related specifications:** BUILD_04 (leases), BUILD_32 (lease template UX), BUILD_33 (lease activation), BUILD_34 (lease doc formatting), ADDENDUM_31A / 31B (clause UX and conflicts), ADDENDUM_33A (flexible signing)
@@ -413,7 +456,7 @@ Each purpose in Part B describes what Pleks does on behalf of the agency. **The 
 ## Purpose B9 — Application fee processing (PayFast)
 
 - **Purpose name (internal):** `payfast_application_fees`
-- **Description:** Accept the R399 single or R749 joint rental application fee from the applicant directly via PayFast. The applicant pays; the agency does not. Pleks charges the applicant a platform fee, and the balance flows to the agency (or to Pleks depending on the tier contract).
+- **Description:** Accept the applicant's rental application fee directly via PayFast. The fee is a Pleks-to-applicant service charge structured to cover (a) the cost of the underlying credit bureau report payable to Searchworx (see Purpose B4) and (b) Pleks's cost of operating and maintaining the application-processing service. **The agency receives no portion of this fee; funds from the application fee do not flow to the agency under any tier or commercial arrangement between Pleks and the agency.** The fee amount is set by Pleks from time to time based on changes in the underlying Searchworx pricing and Pleks operating costs, and is disclosed to the applicant at the point of payment before the transaction is committed; variations in the fee amount are reflected in the in-product disclosure, not by amending this register.
 - **Controller:** Pleks (Responsible Party — the transaction is between Pleks and the applicant, not between agency and applicant at the PayFast layer); agency is notified of the payment but does not originate it
 - **Lawful basis (POPIA s11):** s11(1)(a) consent (the applicant initiates payment knowing the purpose) + s11(1)(b) performance of contract
 - **Personal data categories:** applicant name, email, ID number (passed to PayFast), payment amount, transaction reference, card or EFT method indicator (not full card number — PayFast is the PCI boundary)
@@ -462,7 +505,7 @@ Each purpose in Part B describes what Pleks does on behalf of the agency. **The 
 - **Data subject categories:** every natural person whose money flows through the agency's trust account — tenants paying rent and deposit, landlords receiving rental disbursements, suppliers receiving payment for maintenance and other services
 - **Recipients / Operators:** Supabase (storage), Anthropic (variance explanation narrative — Purpose B22, `trust_audit_narrative` purpose)
 - **Cross-border transfer:** Yes for AI processing (see Appendix B); bank data import is a local file upload or future Yodlee feed.
-- **Retention:** 5 years from the close of the reconciliation period — the formal commitment, matching PPRA trust-record retention, Tax Administration Act s29 business-record retention, and D-POPIA-02. Pleks's operational practice may retain for longer given storage cost is negligible and the regulatory value of long tails in audit contexts is high, but 5 years is the register commitment.
+- **Retention:** Minimum 5 years from the close of the reconciliation period, in accordance with PPRA trust-record retention, Tax Administration Act s29 business-record retention, and D-POPIA-02. Where a longer period applies under the retention-hierarchy rule (e.g., audit-log retention of 7 years per Purpose A10 for records incorporated into audit trails, or FICA retention for records that double as FICA evidence), the longer period controls. Pleks's operational practice may retain for longer given storage cost is negligible and the regulatory value of long tails in audit contexts is high.
 - **DPIA required:** No — regulatory-mandated accounting processing
 - **Related specifications:** BUILD_64 (sovereign trust — full doctrine and invariant enforcement), BUILD_09 (bank reconciliation), BUILD_50 Part A (OFX/CSV/QIF import)
 - **Notes:** Pleks never holds trust funds; the reconciliation describes the agency's own bank account activity. This is the sovereign-trust invariant.
@@ -621,11 +664,11 @@ Each purpose in Part B describes what Pleks does on behalf of the agency. **The 
 - **Personal data categories:** depends on the sub-purpose; inspection photos, bank statement content, communication text, lease clauses, maintenance descriptions, credit check outputs
 - **Data subject categories:** tenants, landlords, applicants — follows the underlying purpose
 - **Recipients / Operators:** Anthropic (see Appendix A)
-- **Cross-border transfer:** **Yes — Anthropic's API infrastructure is US-based.** Basis: s72(1)(b) SCCs via Anthropic's DPA + s72(1)(a) consent where the sub-purpose requires explicit consent (e.g., credit check derivatives).
+- **Cross-border transfer:** **Yes — Anthropic's API infrastructure is US-based.** Basis: s72(1)(a) SCCs via Anthropic's DPA + s72(1)(b) consent where the sub-purpose requires explicit consent (e.g., credit check derivatives).
 - **Retention:** Pleks does not retain prompts or responses; `ai_usage` (cost metadata, no PII) retained 2 years per Purpose A6
 - **DPIA required:** Yes (composite) — AI-assisted processing is novel and has privacy implications; the DPIA covers the wrapper, the purpose enumeration, and the no-PII-in-metadata discipline. Individual sub-purposes do not trigger additional DPIA unless they introduce new data categories.
 - **Related specifications:** ADDENDUM_00H (AI wrapper + cost observability), every build that adds a new `AiPurpose` enum value
-- **Notes:** The ESLint `no-restricted-imports` rule enforces that no code imports `@anthropic-ai/sdk` directly — every AI call must go through `lib/ai/client.ts`. This is the choke point that makes AI purpose accounting possible.
+- **Notes:** The ESLint `no-restricted-imports` rule enforces that no code imports `@anthropic-ai/sdk` directly — every AI call must go through `lib/ai/client.ts`. This is the choke point that makes AI purpose accounting possible. **Global AI safeguard (POPIA s71):** AI outputs across all sub-purposes are used as assistive tools only and are never the sole basis for decisions that produce legal or similarly significant effects on a data subject. Every sub-purpose that informs a decision (FitScore → tenancy approval; inspection assessment → deposit deduction; LOD generation → formal demand; arrears communication → escalation) is reviewed by a human agent before action, and the review is recorded in the audit trail for the underlying decision. Data-subject rights under s71(2)(a) (information about the logic) and s71(3)(c) (right to make representations) apply to any AI-assisted decision and are routed through the data-subject-request workflow (Purpose B23).
 
 ## Purpose B23 — POPIA data-subject request handling
 
@@ -640,6 +683,7 @@ Each purpose in Part B describes what Pleks does on behalf of the agency. **The 
 - **Retention:** the `data_subject_requests` row is immutable history (never deleted); the export artefact is retained with a 7-day download link and kept indefinitely on the server side for regeneration; resolution notes retained alongside the request
 - **DPIA required:** No — the purpose is POPIA-mandated accountability processing
 - **Related specifications:** BUILD_65 (POPIA customer-facing surface) — this purpose is the reflexive one the BUILD_65 spec and this register both exist to enable
+- **Notes on retention override:** erasure requests and the full-erasure (`nuke`) request type are executed subject to the retention-hierarchy rule in the maintenance discipline section. Records subject to mandatory statutory retention (FICA s23, PPRA trust records, RHA inspection retention, Tax Administration Act s29, active-legal-hold records) are excluded from deletion workflows and remain retained for the applicable period; subjects are informed at request submission via the pre-submission carve-out disclosure screen per BUILD_65 §5.2. This is not a defect of the erasure right but a POPIA-recognised limit — s24 rights are exercised against the backdrop of other applicable law.
 
 ---
 
@@ -652,11 +696,11 @@ Each purpose in Part B describes what Pleks does on behalf of the agency. **The 
 - **Personal data categories:** full name, ID number, passport number (foreign nationals), date of birth, nationality, residential address, proof-of-address document (utility bill, bank statement), employment and income details where collected, source-of-funds documentation where applicable, risk rating assigned by the agency, CDD decision record, EDD notes if higher-risk, beneficial ownership chain where the client is a juristic person
 - **Data subject categories:** landlords as agency clients (primary — the estate-agent-to-landlord relationship is the typical FICA trigger in rental work); beneficial owners of juristic landlords; other parties only where a specific transaction triggers CDD under the agency's Risk Management and Compliance Programme. Residential-lease tenants are generally not FICA subjects in rental-mandate contexts; an agency may nevertheless perform limited CDD-adjacent checks on tenants under other legal frameworks (CPA, Immigration Act for foreign nationals) and those documents are captured here if the agency uses them as part of a broader risk-based approach.
 - **Recipients / Operators:** Supabase (storage of documents and structured CDD records); Anthropic (only if AI-assisted OCR or document extraction is used via `lib/ai/client.ts` — covered under Purpose B22)
-- **Cross-border transfer:** Yes — Supabase is US-routed regardless of whether OCR is used. Basis: s72(1)(b) SCCs + s72(1)(c) necessity for the agency's compliance with SA law; the data originates in SA and returns to SA for agency access.
+- **Cross-border transfer:** Yes — Supabase is US-routed regardless of whether OCR is used. Basis: s72(1)(a) adequate protection via SCCs + s72(1)(d) necessity for the agency's compliance with SA law; the data originates in SA and returns to SA for agency access.
 - **Retention:** 5 years from the end of the business relationship (FIC Act s23); 5 years from the date of the relevant transaction for transaction records; longer if the agency is subject to an ongoing FIC investigation (in which case retention continues until instructed otherwise). This retention clock is independent of the lease retention clock (Purpose B6) — the two run in parallel and the longer controls.
 - **DPIA required:** No — FICA compliance is a well-established regulatory processing category with statutorily prescribed safeguards
 - **Related specifications:** none dedicated currently — CDD documents are captured via the standard document-upload flow in BUILD_02 (properties / landlords) and BUILD_03 (tenants / applications); a Tier 2 ADDENDUM would add FICA-specific workflow (CDD checklist UI, EDD templates, retention countdown display, risk-rating audit trail, RMCP review dashboard) if customer demand warrants it
-- **Notes:** Pleks does not integrate with the FIC's goAML reporting system, does not generate Suspicious Transaction Reports, and does not interpret risk ratings. These remain entirely agency responsibilities. Agencies carrying FICA obligations must complete their own Risk Management and Compliance Programme (FIC Act s42) and Implementation (s42A), and should ensure Pleks is referenced as an Operator / record-storage partner within that RMCP.
+- **Notes:** Pleks does not integrate with the FIC's goAML reporting system, does not generate Suspicious Transaction Reports, and does not interpret risk ratings. These remain entirely agency responsibilities. Agencies carrying FICA obligations must complete their own Risk Management and Compliance Programme (FIC Act s42) and Implementation (s42A), and should ensure Pleks is referenced as an Operator / record-storage partner within that RMCP. **Statutory retention override:** data-subject rights to erasure or restriction under POPIA s24 do not apply to FICA records during the statutory retention period; such records are excluded from deletion workflows until FIC Act s23 retention has expired. See the retention-hierarchy rule in the maintenance discipline section.
 
 ## Purpose B25 — Agency-originated direct marketing to tenants and landlords via the platform [reserved — not currently deployed]
 
@@ -798,35 +842,39 @@ Every third party Pleks uses in the course of processing personal information. F
 
 # Appendix B — Cross-border transfer schedule
 
-Every transfer of personal information outside South Africa. Under POPIA s72, cross-border transfers require one of the following bases:
+Every transfer of personal information outside South Africa. Under POPIA s72 (Act 4 of 2013), cross-border transfers require one of the following bases:
 
-- **s72(1)(a)** — data subject has consented to the transfer
-- **s72(1)(b)** — transfer is necessary for the performance of a contract between the data subject and the Responsible Party, or of pre-contract steps at the subject's request
-- **s72(1)(c)** — transfer is necessary for the conclusion or performance of a contract concluded in the interest of the data subject between the Responsible Party and a third party
-- **s72(1)(d)** — transfer is for the benefit of the data subject and consent cannot reasonably be obtained; benefit would likely be given
-- **s72(1)(e)** — recipient is subject to a law or binding corporate rules or binding agreement providing an adequate level of protection substantially similar to POPIA (this is the typical SCC basis in SaaS operator agreements)
+- **s72(1)(a)** — the recipient is subject to a law, binding corporate rules, or binding agreement providing an adequate level of protection substantially similar to POPIA (this is the typical "SCC" basis in SaaS Operator agreements)
+- **s72(1)(b)** — the data subject has consented to the transfer
+- **s72(1)(c)** — the transfer is necessary for the performance of a contract between the data subject and the Responsible Party, or of pre-contract steps at the subject's request
+- **s72(1)(d)** — the transfer is necessary for the conclusion or performance of a contract concluded in the interest of the data subject between the Responsible Party and a third party
+- **s72(1)(e)** — the transfer is for the benefit of the data subject and consent cannot reasonably be obtained, but would likely be given if it could be
+
+**SCC framework (s72(1)(a) implementation).** Cross-border transfers to jurisdictions without an SA Information Regulator adequacy determination (including the United States, where most Pleks Operators are domiciled) are governed by Standard Contractual Clauses aligned with EU Commission Implementing Decision (EU) 2021/914 — the predominant SaaS-industry SCC standard — incorporated into each vendor's Data Processing Addendum and relied upon as the "binding agreement providing an adequate level of protection substantially similar to POPIA" under s72(1)(a). Where appropriate, supplementary transfer impact assessments and additional technical and organisational safeguards (encryption, pseudonymisation, access control, logging) reinforce the adequacy assessment. Where required for specific processing activities, transfers are further justified under s72(1)(b) (data subject consent — e.g., for credit-check derivative processing at Purpose B4) or s72(1)(c) (necessity for performance of a contract between the data subject and the Responsible Party — e.g., for transactional lease communications at Purpose B17).
 
 | Recipient | Domicile | Purposes served | Primary basis | Supporting instrument |
 |-----------|----------|-----------------|---------------|-----------------------|
-| Supabase | US (with regional routing) | A1–A12, B1–B25 (B24 active; B25 when deployed) | s72(1)(e) SCCs | Supabase DPA |
-| Anthropic | US | B22 (and its sub-purposes) | s72(1)(e) SCCs + s72(1)(a) explicit consent for credit-check derivatives | Anthropic Enterprise DPA (zero-retention) |
-| Sentry | US | A3 | s72(1)(e) SCCs | Sentry DPA |
-| Resend | US | A1, A2, A4, A7, A8, A9, A10, A12, B2, B10, B11, B16, B17, B20, B21, B23 | s72(1)(e) SCCs + s72(1)(b) performance of contract | Resend DPA |
-| Meta (via Africa's Talking) | US / IE | B17 (WhatsApp) | s72(1)(e) SCCs + s72(1)(a) consent at WhatsApp opt-in | Meta Business Platform terms |
-| Africa's Talking | Kenya | B2, B11, B15, B16, B17, B18 | s72(1)(e) SCCs; Kenya has a Data Protection Act (2019) providing substantially similar protection | Africa's Talking DPA |
-| Better Stack | US | A5 | s72(1)(e) SCCs; no PII transferred | Better Stack DPA |
-| Vercel | US (with global edge) | A1–A12, B1–B25 (hosting) | s72(1)(e) SCCs | Vercel DPA |
-| GitHub | US | contributor identities only; no customer data | s72(1)(e) SCCs | GitHub Terms |
+| Supabase | US (with regional routing) | A1–A12, B1–B25 | s72(1)(a) SCCs | Supabase DPA |
+| Anthropic | US | B22 (and its sub-purposes) | s72(1)(a) SCCs + s72(1)(b) explicit consent for credit-check derivatives | Anthropic Enterprise DPA (zero-retention) |
+| Sentry | US | A3 | s72(1)(a) SCCs | Sentry DPA |
+| Resend | US | A1, A2, A4, A7, A8, A9, A10, A12, B2, B10, B11, B16, B17, B20, B21, B23 | s72(1)(a) SCCs + s72(1)(c) performance of contract | Resend DPA |
+| Meta (via Africa's Talking) | US / IE | B17 (WhatsApp) | s72(1)(a) SCCs + s72(1)(b) consent at WhatsApp opt-in | Meta Business Platform terms |
+| Africa's Talking | Kenya | B2, B11, B15, B16, B17, B18 | s72(1)(a) SCCs; Kenya has a Data Protection Act (2019) providing substantially similar protection | Africa's Talking DPA |
+| Better Stack | US | A5 | s72(1)(a) SCCs; no PII transferred | Better Stack DPA |
+| Vercel | US (with global edge) | A1–A12, B1–B25 (hosting) | s72(1)(a) SCCs | Vercel DPA |
+| GitHub | US | contributor identities only; no customer data | s72(1)(a) SCCs | GitHub Terms |
 
 **Domestic-only recipients (no s72 transfer):** Peach Payments (SA), PayFast (SA), Searchworx (SA), mobile network operators via Africa's Talking downstream (SA). DocuSeal is self-hosted — no external transfer.
 
-**SCC framework:** Pleks's standard Operator-to-subprocessor contractual clauses are modeled on the EU GDPR SCCs adapted for POPIA compatibility. Each vendor's DPA either uses its own SCC equivalent or accepts Pleks's SCCs as a schedule.
+**SCC framework:** Pleks's standard Operator-to-subprocessor contractual clauses are modelled on EU Commission Implementing Decision (EU) 2021/914 SCCs adapted for POPIA compatibility. Each vendor's DPA either uses its own SCC equivalent or accepts Pleks's SCCs as a schedule.
 
 ---
 
 # Appendix C — Special personal information map (POPIA s26)
 
 POPIA s26 defines "special personal information" as information concerning a data subject's religious or philosophical beliefs, race or ethnic origin, trade union membership, political persuasion, health or sex life, biometric information, or criminal behaviour. Processing of s26 categories is generally prohibited unless a s27 justification applies.
+
+**Summary — incidental special personal information.** Certain Pleks processing activities may incidentally involve personal information that is adjacent to s26 categories, including: health-related information that tenants may disclose when describing a maintenance issue (B15), biometric or identifying information incidentally visible in inspection photographs (B14), sensitive personal details that may appear in application supporting documents (B3), and civil judgment history surfaced by credit checks (B4, which is s26-adjacent but not s26 under the strict SA definition — see C3 below). Such processing is incidental to the primary purpose, not actively solicited, not indexed or processed as s26 data, and is subject to strict access control, minimisation, and security safeguards in line with s19 and the register's data-protection posture generally. The per-category detail below records where each incidental boundary lies.
 
 **Pleks does not deliberately process s26 categories.** The following boundaries are documented honestly because they may touch s26-adjacent data incidentally:
 
