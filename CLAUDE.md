@@ -4,6 +4,24 @@
 
 ---
 
+## CONNECTED MCP SERVERS
+
+All of the following are connected and available in every session. Use them directly — no setup needed.
+
+| Server | Capability |
+|--------|-----------|
+| **GitHub** (`sbouwer/pleks`) | PRs, issues, CI runs, code search, branch management |
+| **Supabase** | Execute SQL, apply migrations, get logs, list tables, check advisors |
+| **Vercel** | List/check deployments, build logs, runtime logs, project info |
+| **Figma** | Read designs, get screenshots, convert designs to code |
+| **Gmail** | Search threads, create drafts (bouwer.stean@gmail.com) |
+| **Google Calendar** | Read/create/update events |
+| **Google Drive** | Read, search, and create files |
+
+Default to using these instead of asking the user to copy-paste data. For example: check GitHub for open PRs rather than asking; check Vercel for deployment status rather than asking; query Supabase directly rather than asking for schema details.
+
+---
+
 ## ⚠ MANDATORY: RUN CHECKS BEFORE EVERY COMMIT
 
 Before committing ANY changes, run:
