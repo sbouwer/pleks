@@ -1,7 +1,8 @@
 import Link from "next/link"
-import Image from "next/image"
 import { PublicNav } from "./PublicNav"
+import { PublicThemeProvider } from "./PublicThemeProvider"
 import { FooterColumns } from "@/components/marketing/FooterColumns"
+import "./public.css"
 
 export default function PublicLayout({
   children,
@@ -9,48 +10,59 @@ export default function PublicLayout({
   children: React.ReactNode
 }>) {
   return (
-    <div className="min-h-screen flex flex-col">
+    <PublicThemeProvider>
       <PublicNav />
-      <main className="flex-1">{children}</main>
-      <footer className="border-t border-border/40 bg-surface">
-        <div className="max-w-6xl mx-auto px-4 pt-12 pb-12">
-          <div className="grid grid-cols-1 md:grid-cols-[1.5fr_1fr_1fr_1fr] gap-0 md:gap-10 mb-10">
-            {/* Brand — always visible */}
-            <div className="space-y-4 pb-6 md:pb-0 border-b border-border/30 md:border-none">
-              <Image src="/logo.svg" alt="Pleks" width={100} height={32} className="h-8 w-auto opacity-90" />
-              <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
-                Built from the inside out.
-                <br />
-                <span className="text-foreground/70">Every feature earned in the field.</span>
+      <main>{children}</main>
+
+      <footer className="pub-hairline-t" style={{ background: "var(--paper-sunk)" }}>
+        <div className="pub-wrap" style={{ paddingTop: 48, paddingBottom: 48 }}>
+
+          {/* Brand + columns grid */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "clamp(180px, 30%, 240px) 1fr 1fr 1fr",
+            gap: 40,
+            marginBottom: 40,
+          }}>
+            {/* Brand — wordmark matches nav */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <Link href="/" className="pub-wordmark" aria-label="Pleks">
+                pl<span className="pub-wm-e">e<span className="pub-wm-cut" aria-hidden="true" /></span>ks
+                <span className="pub-wm-tld">.co.za</span>
+              </Link>
+              <p className="pub-small" style={{ maxWidth: "28ch", margin: 0 }}>
+                Built from the inside out.<br />
+                <span style={{ color: "var(--ink-soft)" }}>Every feature earned in the field.</span>
               </p>
               <Link
                 href="/early-access"
-                className="inline-flex items-center gap-1.5 text-sm text-brand hover:text-brand/80 transition-colors font-medium"
+                className="pub-small"
+                style={{ color: "var(--amber-ink)", fontWeight: 500 }}
               >
                 Get early access →
               </Link>
             </div>
 
-            {/* Product / Legal / Contact — accordion on mobile, columns on desktop */}
             <FooterColumns />
           </div>
 
           {/* Bottom bar */}
-          <div className="border-t border-border/30 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <p className="text-xs text-muted-foreground">
+          <div className="pub-hairline-t" style={{ paddingTop: 24, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+            <p className="pub-xs" style={{ margin: 0 }}>
               &copy; {new Date().getFullYear()} Pleks (Pty) Ltd. Built in South Africa.
             </p>
             <a
               href="https://yoros.co.za"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              className="pub-xs"
+              style={{ color: "var(--ink-faint)" }}
             >
               Built by Yoros
             </a>
           </div>
         </div>
       </footer>
-    </div>
+    </PublicThemeProvider>
   )
 }

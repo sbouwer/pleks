@@ -1,271 +1,538 @@
+import { getSiteContent } from "@/lib/supabase/public"
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Wallet, CalendarCheck, ShieldCheck, ArrowRight, ArrowDown } from "lucide-react"
-import { formatZAR, FOUNDING_AGENT_PRICE_CENTS } from "@/lib/constants"
-import { FeatureExplorer } from "@/components/marketing/FeatureExplorer"
-import { CostComparison } from "@/components/marketing/CostComparison"
-import { ProductPreview } from "@/components/marketing/ProductPreview"
+import { RentRollSVG }           from "./svgs/RentRollSVG"
+import { IsometricBuildingsSVG } from "./svgs/IsometricBuildingsSVG"
+import { FitScoreSVG }            from "./svgs/FitScoreSVG"
+import { PricingSVG }             from "./svgs/PricingSVG"
+import { PegboardSVG }            from "./svgs/PegboardSVG"
+
+export const revalidate = 3600
 
 export const metadata = {
   title: "Pleks — SA Property Management, Built Right",
-  description: "Every corner of this product was designed by someone who has done the work — inspections, arrears, HOA setup, Tribunal. Built for how property management actually works in South Africa.",
+  description: "Built by a practitioner who did it for eleven years. Applicant-paid FitScore screening. Automated DebiCheck collections. Tribunal-ready documentation by default.",
 }
 
-function IsometricBuildings() {
-  return (
-    <svg viewBox="0 0 400 340" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-auto">
-      {/* Ground grid */}
-      {[0, 1, 2, 3, 4, 5].map((i) => (
-        <line key={`gx${i}`} x1={60 + i * 56} y1={280} x2={120 + i * 56} y2={310} stroke="var(--brand)" strokeOpacity={0.08} strokeWidth={0.5} />
-      ))}
-      {[0, 1, 2, 3, 4, 5].map((i) => (
-        <line key={`gy${i}`} x1={340 - i * 56} y1={280} x2={280 - i * 56} y2={310} stroke="var(--brand)" strokeOpacity={0.08} strokeWidth={0.5} />
-      ))}
-
-      {/* Building 1 — tall, back left */}
-      <g opacity={0.15}>
-        <path d="M100,100 L160,70 L220,100 L220,260 L160,290 L100,260 Z" stroke="var(--brand)" strokeWidth={1} />
-        <path d="M160,70 L160,290" stroke="var(--brand)" strokeWidth={0.5} />
-        <path d="M100,100 L160,130 L220,100" stroke="var(--brand)" strokeWidth={0.5} />
-        {[0, 1, 2, 3, 4, 5].map((i) => (
-          <line key={`b1f${i}`} x1={100} y1={130 + i * 22} x2={160} y2={160 + i * 22} stroke="var(--brand)" strokeWidth={0.3} />
-        ))}
-      </g>
-
-      {/* Building 2 — medium, mid right */}
-      <g opacity={0.5}>
-        <path d="M180,150 L240,120 L300,150 L300,270 L240,300 L180,270 Z" stroke="var(--brand)" strokeWidth={1.2} />
-        <path d="M240,120 L240,300" stroke="var(--brand)" strokeWidth={0.5} />
-        <path d="M180,150 L240,180 L300,150" stroke="var(--brand)" strokeWidth={0.5} />
-        {[0, 1, 2, 3].map((i) => (
-          <line key={`b2f${i}`} x1={180} y1={180 + i * 24} x2={240} y2={210 + i * 24} stroke="var(--brand)" strokeWidth={0.4} />
-        ))}
-        {[0, 1, 2, 3].map((i) => (
-          <line key={`b2r${i}`} x1={240} y1={210 + i * 24} x2={300} y2={180 + i * 24} stroke="var(--brand)" strokeWidth={0.3} />
-        ))}
-      </g>
-
-      {/* Building 3 — short accent, front right */}
-      <g opacity={0.9}>
-        <path d="M260,200 L310,175 L360,200 L360,280 L310,305 L260,280 Z" stroke="var(--brand)" strokeWidth={1.5} />
-        <path d="M310,175 L310,305" stroke="var(--brand)" strokeWidth={0.7} />
-        <path d="M260,200 L310,225 L360,200" stroke="var(--brand)" strokeWidth={0.7} />
-        {[0, 1, 2].map((i) => (
-          <line key={`b3f${i}`} x1={260} y1={225 + i * 20} x2={310} y2={250 + i * 20} stroke="var(--brand)" strokeWidth={0.5} />
-        ))}
-      </g>
-
-      {/* Small accent block — front left */}
-      <g opacity={0.3}>
-        <path d="M70,220 L110,200 L150,220 L150,275 L110,295 L70,275 Z" stroke="var(--brand)" strokeWidth={0.8} />
-        <path d="M110,200 L110,295" stroke="var(--brand)" strokeWidth={0.4} />
-      </g>
-    </svg>
-  )
+const DEFAULTS: Record<string, string> = {
+  notice:             "Founding-agent cohort now open — seven seats remaining",
+  hero_sub:           "Every action immutably logged. PII encrypted, masked on screen, consent-recorded before every credit check. Applicants pay for their own Pleks Credit Report — you get a FitScore, not a 40-page data-dump. Built by someone who did your job for eleven years.",
+  hero_cta_primary:   "Start free — 1 unit, no card",
+  hero_cta_secondary: "Book a 20-min demo",
+  hero_meta_1_n:      "R 0",
+  hero_meta_1_l:      "Client money Pleks ever holds",
+  hero_meta_2_n:      "14 / 21",
+  hero_meta_2_l:      "Day deposit return — tracked automatically",
+  hero_meta_3_n:      "11 yrs",
+  hero_meta_3_l:      "Practitioner-built, not consultant-designed",
+  why_sub:            "Every other claim on this page — the automation, the statements, the rent collection — falls out of getting these two right. Everything else is table stakes.",
+  artefact_sub:       "Most rental software sells screenshots. The artefact below is what your landlords, the Tribunal, and your accountant actually see.",
+  story_body_1:       "I ran rental portfolios in Johannesburg and Cape Town from 2014 to 2025. I used the incumbent platforms, a Sage export, and a spreadsheet I emailed to my landlords on the 3rd of every month. I watched colleagues lose deposit disputes they should have won because the paper trail was in four systems.",
+  story_body_2:       "Pleks is the product that would have saved me those Tribunal appearances. Every design decision in here is a specific frustration I remember the month and the flat it happened in. If you've done this work, you'll recognise it. If you haven't, no piece of software will teach you to.",
+  story_sig_name:     "Stéan B.",
+  story_sig_title:    "Founder, Pleks",
+  story_sig_meta:     "PPRA 2019-0088 · NAMA member 2020–2024",
+  pricing_sub:        "Priced per active lease, not per address or per seat. Vacancies cost you nothing. Your bill on the 1st is the bill on the 1st — and if it ever changes, your accountant knows 30 days before it does.",
+  founding_sub:       "In exchange for being first, I'll ask for a thirty-minute call a month while we're still in the first year — because that's how you get software written by someone who's actually listening.",
+  founding_counter:   "03 / 10 claimed · Joburg, Cape Town, Durban",
 }
 
-export default function HomePage() {
+function c(content: Record<string, string>, key: string): string {
+  return content[key] ?? DEFAULTS[key] ?? ""
+}
+
+const CREDS = [
+  { yr: "2014", txt: "Joined Seeff Sandton — rental portfolio trainee",         sub: "First portfolio: 11 units, manual Excel rent roll",             rgt: "start"     },
+  { yr: "2017", txt: "Built first PPRA-compliant trust recon spreadsheet",      sub: "Reconciled against ABSA bank feed, 200+ units",                rgt: "origin"    },
+  { yr: "2019", txt: "PPRA FFC issued · 2019-0088",                             sub: "Registered property practitioner, principal",                  rgt: "licensed"  },
+  { yr: "2021", txt: "First Tribunal deposit dispute defended",                  sub: "Won on inspection photo metadata — the idea for Pleks",        rgt: "formative" },
+  { yr: "2023", txt: "Left agency role · began building Pleks",                 sub: "Full-time, SA-hosted, practitioner-directed",                  rgt: "pivot"     },
+  { yr: "2025", txt: "Closed pilot with 4 agencies · 312 units on platform",   sub: "Cape Town & Johannesburg · zero data incidents",               rgt: "pilot"     },
+  { yr: "2026", txt: "Public v1.0 · founding-agent cohort opens",               sub: "Cape Town, Johannesburg, Durban",                              rgt: "now"       },
+]
+
+const TIERS = [
+  { name: "Steward",   leases: "Up to 15 active leases",  price: "699",   perLease: "R47 per lease at cap", desc: "Solo practitioners just holding their own book." },
+  { name: "Growth",    leases: "Up to 30 active leases",  price: "1,199", perLease: "R40 per lease at cap", desc: "Building a book, two pairs of hands, one landlord at a time." },
+  { name: "Portfolio", leases: "Up to 75 active leases",  price: "2,599", perLease: "R35 per lease at cap", desc: "A small agency running a real portfolio, with a trust account that reconciles nightly.", featured: true as const },
+  { name: "Firm",      leases: "Up to 150 active leases", price: "4,499", perLease: "R30 per lease at cap", desc: "Established firms with a principal, multiple agents, and HOAs on the side." },
+]
+
+const AUDIT_ROWS = [
+  { line: "Platform · per-user fee",              incumbent: "R400–R800 per user / mo",   pleks: "Tier fee only"        },
+  { line: "Credit & background checks",           incumbent: "R70–R200 per applicant",    pleks: "Applicant pays direct" },
+  { line: "SMS & WhatsApp notifications",         incumbent: "R0.35–R0.60 each, metered", pleks: "Tier fee only"        },
+  { line: "Trust-account module",                 incumbent: "R300–R600 / mo add-on",     pleks: "Tier fee only"        },
+  { line: "Inspection app",                       incumbent: "R250–R400 / mo add-on",     pleks: "Tier fee only"        },
+  { line: "E-signature",                          incumbent: "R15–R45 per lease signed",  pleks: "Tier fee only"        },
+  { line: "Bank-feed / accounting integration",   incumbent: "R200–R350 / mo",            pleks: "Tier fee only"        },
+  { line: "Onboarding & data migration",          incumbent: "R3,500–R8,000 one-off",     pleks: "Free"                 },
+  { line: "AI-drafted Tribunal bundle",           incumbent: "Not offered · manual",      pleks: "Included"             },
+]
+
+const INCLUDED = [
+  "Trust account reconciliation",      "Applicant FitScore · unlimited",
+  "Landlord portal + monthly statements","Inspection app · iOS + Android",
+  "E-signature on every lease",        "WhatsApp + SMS reminders",
+  "Debit-order rent collection",       "Tenant application portal",
+  "Contractor + work-order portal",    "Arrears automation + letter pack",
+  "AI-drafted Tribunal bundle",        "Immutable audit log · 7 yr retention",
+  "Onboarding + data migration",       "POPIA consent + DSAR tooling",
+  "Accounting export · Xero + Sage",   "Support · ZA business hours",
+]
+
+const PILLAR_1 = [
+  { g: "A", bold: "Immutable audit log.",         rest: " 7-year retention, Merkle-hashed, exportable as a signed Tribunal bundle." },
+  { g: "B", bold: "PII encrypted at rest.",       rest: " AES-256, KMS-rotated. Masked by default in every screen; viewer-ID and reason logged on every unmask." },
+  { g: "C", bold: "Consent-gated credit checks.", rest: " POPIA §11 consent_token required — check is refused if missing, expired, or withdrawn." },
+  { g: "D", bold: "Row-level segregation.",        rest: " org_id on every table, enforced at the database. No cross-agency leakage is possible, not just unlikely." },
+  { g: "E", bold: "SA-resident, SA-owned.",        rest: " Supabase JHB region. No sub-processor outside the country without explicit opt-in." },
+]
+
+const PILLAR_2 = [
+  { g: "A", bold: "Applicant-paid.",         rest: " PayFast redirect, receipt emailed. Joint applications billed once. No charge ever lands on your agency account." },
+  { g: "B", bold: "FitScore 0–100.",         rest: " Weighted: credit (40) · income affordability (30) · tenancy history (20) · ID/deeds integrity (10). AI-drafted rationale, practitioner-reviewed." },
+  { g: "C", bold: "Every applicant shown.",  rest: " Low scores don't get filtered out — legal protection for you, transparency for them." },
+  { g: "D", bold: "30% affordability rule.", rest: " Flagged explicitly. No guessing what 'marginal' means." },
+  { g: "E", bold: "Shortlist → sign.",       rest: " Accept an applicant and the debit mandate, lease draft, and move-in inspection slot are queued automatically." },
+]
+
+export default async function HomePage() {
+  const content = await getSiteContent()
+
   return (
-    <div>
-      {/* ─── SECTION 1: Hero ─── */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-brand/5 via-transparent to-transparent pointer-events-none" />
-        <div className="max-w-6xl mx-auto px-4 pt-24 pb-20 md:pt-36 md:pb-28">
-          <div className="md:grid md:grid-cols-[1fr_40%] md:items-center md:gap-8">
-            {/* Left: text */}
-            <div>
-              <h1 className="font-heading text-4xl md:text-6xl leading-[1.1] tracking-tight mb-6">
-                SA Property Management,
-                <br />
-                <span className="text-brand">Built Right.</span>
-              </h1>
-              <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mb-10 leading-relaxed">
-                Every corner of this product was designed by someone who has done the work — inspections, debt collection, HOA setup, Tribunal submissions, tenant screening. Not read about it. Done it. Then automated.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4">
-                <Button size="lg" className="text-base h-13 px-8" render={<Link href="/onboarding" />}>
-                  Start free — 1 unit <ArrowRight className="ml-2 size-4" />
-                </Button>
-                <Button size="lg" variant="outline" className="text-base h-13 px-8" render={<a href="#features" />}>
-                  See how it works <ArrowDown className="ml-2 size-4" />
-                </Button>
-              </div>
-            </div>
-
-            {/* Right: isometric illustration */}
-            <div className="hidden md:block" style={{ maskImage: "linear-gradient(to right, black 60%, transparent 100%)" }}>
-              <IsometricBuildings />
-            </div>
+    <>
+      {/* ── Notice strip ── */}
+      <div className="pub-notice">
+        <div className="pub-notice-inner pub-wrap">
+          <div>
+            <span className="pub-notice-dot" />
+            {c(content, "notice")}
+          </div>
+          <div style={{ display: "flex", gap: 18, alignItems: "center" }}>
+            <span style={{ color: "oklch(0.75 0.01 260)" }}>Pleks v1.0 · Johannesburg, ZA</span>
+            <Link href="/onboarding">Claim a seat →</Link>
           </div>
         </div>
-      </section>
-
-      {/* ─── SECTION 2: Pain points ─── */}
-      <section className="relative overflow-hidden max-w-6xl mx-auto px-4 py-16 md:py-24">
-        {/* Decorative amber hexagon */}
-        <div className="absolute -top-20 -right-20 w-[400px] h-[400px] opacity-[0.04] pointer-events-none">
-          <svg viewBox="0 0 200 200" className="w-full h-full text-brand">
-            <polygon
-              points="100,0 200,50 200,150 100,200 0,150 0,50"
-              fill="currentColor"
-              transform="rotate(15, 100, 100)"
-            />
-          </svg>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
-          <Card className="border-l-4 border-l-brand bg-surface hover:bg-surface-elevated transition-colors">
-            <CardContent className="pt-6 space-y-3">
-              <Wallet className="size-8 text-brand" />
-              <h3 className="font-heading text-xl">The credit check problem</h3>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                Tired of paying R310 per credit check? With Pleks, applicants pay for their own screening.
-                You get the FitScore. You never pay for a check.
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-l-4 border-l-brand bg-surface hover:bg-surface-elevated transition-colors">
-            <CardContent className="pt-6 space-y-3">
-              <CalendarCheck className="size-8 text-brand" />
-              <h3 className="font-heading text-xl">The rent collection problem</h3>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                Still chasing EFTs every month? Pleks creates a DebiCheck mandate with the lease.
-                Rent collects automatically. Every month.
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-l-4 border-l-brand bg-surface hover:bg-surface-elevated transition-colors">
-            <CardContent className="pt-6 space-y-3">
-              <ShieldCheck className="size-8 text-brand" />
-              <h3 className="font-heading text-xl">The compliance problem</h3>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                What happens at the Rental Housing Tribunal? Every inspection, deposit, and arrears letter
-                is logged and exportable as a Tribunal bundle. Automatically.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      </section>
-
-      {/* ─── SECTION 3: How it works ─── */}
-      <section id="features" className="bg-surface/50 py-16 md:py-24">
-        <div className="max-w-6xl mx-auto px-4">
-
-          <div className="mb-12 md:mb-16">
-            <p className="text-brand text-sm font-semibold uppercase tracking-widest mb-3">
-              How it works
-            </p>
-            <h2 className="font-heading text-3xl md:text-4xl max-w-lg">
-              From listing to statement in three steps
-            </h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
-            <div className="hidden md:block absolute top-10 left-[33%] right-[33%] h-px bg-gradient-to-r from-brand/40 via-brand/20 to-brand/40 pointer-events-none" />
-
-            <div className="relative bg-surface rounded-xl p-6 border border-border/50 hover:border-brand/30 transition-colors group">
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-9 h-9 rounded-full bg-brand flex items-center justify-center shrink-0">
-                  <span className="text-primary-foreground font-bold text-sm">1</span>
-                </div>
-                <div className="h-px flex-1 bg-border/50" />
-              </div>
-              <h3 className="font-heading text-xl mb-3 group-hover:text-brand transition-colors">List and screen</h3>
-              <p className="text-sm text-muted-foreground leading-relaxed mb-5">
-                Create a listing. Applicants apply free. Pleks extracts income from their bank statement automatically.
-              </p>
-              <div className="flex items-center gap-2 text-xs text-brand font-medium">
-                <div className="w-1.5 h-1.5 rounded-full bg-brand" />
-                Free for every applicant — no barrier to apply
-              </div>
-            </div>
-
-            <div className="relative bg-surface rounded-xl p-6 border border-brand/30 ring-1 ring-brand/10 hover:border-brand/50 transition-colors group">
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-9 h-9 rounded-full bg-brand flex items-center justify-center shrink-0">
-                  <span className="text-primary-foreground font-bold text-sm">2</span>
-                </div>
-                <div className="h-px flex-1 bg-border/50" />
-              </div>
-              <h3 className="font-heading text-xl mb-3 group-hover:text-brand transition-colors">Shortlist and verify</h3>
-              <p className="text-sm text-muted-foreground leading-relaxed mb-5">
-                Shortlisted applicants pay for their own credit check. You get a full FitScore — credit, income ratio, rental history, employment, judgements.
-              </p>
-              <div className="flex items-center gap-2 text-xs text-brand font-medium">
-                <div className="w-1.5 h-1.5 rounded-full bg-brand" />
-                Paid by the applicant — never by you
-              </div>
-            </div>
-
-            <div className="relative bg-surface rounded-xl p-6 border border-border/50 hover:border-brand/30 transition-colors group">
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-9 h-9 rounded-full bg-brand flex items-center justify-center shrink-0">
-                  <span className="text-primary-foreground font-bold text-sm">3</span>
-                </div>
-                <div className="h-px flex-1 bg-border/50" />
-              </div>
-              <h3 className="font-heading text-xl mb-3 group-hover:text-brand transition-colors">Sign, collect, report</h3>
-              <p className="text-sm text-muted-foreground leading-relaxed mb-5">
-                Lease signed digitally. DebiCheck mandate created. Rent collects automatically. Owner statements generate with one click.
-              </p>
-              <div className="flex items-center gap-2 text-xs text-brand font-medium">
-                <div className="w-1.5 h-1.5 rounded-full bg-brand" />
-                Automated from signature to statement
-              </div>
-            </div>
-          </div>
-
-          <p className="text-sm text-muted-foreground mt-8 text-center">
-            Most agents are fully set up and collecting rent within 48 hours.
-          </p>
-
-        </div>
-      </section>
-
-      {/* ─── SECTION 3.5: Product Preview ─── */}
-      <ProductPreview />
-
-      {/* ─── SECTION 4: Feature Explorer (with dot grid) ─── */}
-      <div
-        style={{
-          backgroundImage: "radial-gradient(circle, rgba(232,168,56,0.12) 1px, transparent 1px)",
-          backgroundSize: "24px 24px",
-        }}
-      >
-        <FeatureExplorer />
       </div>
 
-      {/* ─── SECTION 5: Cost Comparison ─── */}
-      <CostComparison />
+      {/* ── Hero ── */}
+      <section className="pub-hero">
+        <RentRollSVG />
+        <div className="pub-wrap">
+          <div className="pub-hero-eyebrow">
+            <span className="pub-chip">
+              <svg className="pub-chip-glyph" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <path d="M8 1 1.5 4v4.2C1.5 11.6 4.3 14.4 8 15c3.7-.6 6.5-3.4 6.5-6.8V4L8 1Zm0 2.2 4.5 2v3C12.5 10.6 10.5 12.7 8 13.3 5.5 12.7 3.5 10.6 3.5 8.2v-3L8 3.2Z"/>
+              </svg>
+              POPIA · RHA · CPA · EAAB — by default
+            </span>
+            <span className="pub-chip-divider" />
+            <span className="pub-chip pub-mono" style={{ fontSize: 11 }}>
+              v1.0 · <span style={{ color: "var(--ink-faint)" }}>SA-hosted</span>
+            </span>
+          </div>
 
-      {/* ─── SECTION 6: Founding agent CTA ─── */}
-      <section className="relative bg-brand-dim py-16 md:py-20 overflow-hidden">
-        {/* Amber glow */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-brand/10 rounded-full blur-[80px]" />
-        </div>
+          <h1 className="pub-display" style={{ margin: "0 0 28px", maxWidth: "18ch" }}>
+            Rental management that{" "}
+            <span className="amber-wash-underline">keeps the receipts</span>{" "}
+            <em style={{ fontStyle: "normal", color: "var(--ink-faint)", fontWeight: 400 }}>
+              — so the Tribunal never has to ask.
+            </em>
+          </h1>
 
-        <div className="relative max-w-3xl mx-auto px-4 text-center">
-          <Badge className="bg-brand/20 text-brand border-brand/30 mb-4">Limited</Badge>
-          <h2 className="font-heading text-3xl md:text-4xl mb-4">10 founding agent spots</h2>
-          <p className="text-lg text-muted-foreground mb-2">
-            {formatZAR(FOUNDING_AGENT_PRICE_CENTS)}/month for your first 24 months.
+          <p className="pub-body-lg" style={{ maxWidth: "56ch", margin: "0 0 40px" }}>
+            {c(content, "hero_sub")}
           </p>
-          <p className="text-sm text-muted-foreground mb-8">
-            Then standard R599/month. No contract.
-          </p>
-          <Button size="lg" className="text-base h-13 px-8" render={<Link href="/early-access" />}>
-            Claim founding agent price <ArrowRight className="ml-2 size-4" />
-          </Button>
-          <p className="text-xs text-muted-foreground mt-4">
-            Steward tier. Up to 20 units. Price locks for 24 months then moves to standard rate.
-          </p>
+
+          <div className="pub-hero-ctas">
+            <Link href="/onboarding" className="pub-btn pub-btn-primary">
+              {c(content, "hero_cta_primary")}
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M3 8h10m0 0L8.5 3.5M13 8l-4.5 4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="square"/>
+              </svg>
+            </Link>
+            <Link href="/contact" className="pub-btn pub-btn-ghost">
+              {c(content, "hero_cta_secondary")}
+            </Link>
+          </div>
+
+          <div className="pub-hero-meta">
+            {[
+              { n: c(content, "hero_meta_1_n"), l: c(content, "hero_meta_1_l") },
+              { n: c(content, "hero_meta_2_n"), l: c(content, "hero_meta_2_l") },
+              { n: c(content, "hero_meta_3_n"), l: c(content, "hero_meta_3_l") },
+            ].map((m, i) => (
+              <div key={i} className="pub-hero-meta-item">
+                <div className="n pub-tnum">{m.n}</div>
+                <div className="l">{m.l}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
-    </div>
+
+      {/* ── Divider band ── */}
+      <div className="pub-divider-band" aria-hidden="true">
+        <svg viewBox="0 0 1440 84" preserveAspectRatio="none">
+          <line x1="0" y1="42" x2="1440" y2="42" stroke="oklch(0.82 0.01 85)" strokeWidth="1" strokeDasharray="2 6"/>
+          <g stroke="oklch(0.68 0.14 65)" strokeWidth="1.2">
+            {[60,180,300,420,540,900,1020,1140,1260,1380].map(x => (
+              <line key={x} x1={x} y1="36" x2={x} y2="48"/>
+            ))}
+          </g>
+          <g fill="none" stroke="oklch(0.55 0.015 260)" strokeWidth="1.1" opacity="0.55">
+            <path d="M100 60 L100 50 L115 42 L130 50 L130 60 Z"/>
+            <path d="M200 60 L200 48 L212 40 L224 48 L236 40 L248 48 L248 60 Z"/>
+            <path d="M360 60 L360 52 L372 44 L384 52 L384 60 Z"/>
+            <rect x="640" y="44" width="80" height="16"/>
+            <path d="M640 44 L680 28 L720 44"/>
+            <rect x="820" y="46" width="40" height="14"/>
+            <path d="M1080 60 L1080 50 L1094 42 L1108 50 L1108 60 Z"/>
+          </g>
+        </svg>
+        <div className="pub-divider-stamp">
+          <span className="d" />
+          PLEKS · ERF 00417 · SURVEY 2026
+        </div>
+      </div>
+
+      {/* ── Why Pleks ── */}
+      <section id="why" className="pub-block" style={{ position: "relative", overflow: "hidden" }}>
+        <div className="pub-wrap">
+          <div className="pub-section-head" style={{ position: "relative" }}>
+            <div>
+              <div className="pub-eyebrow" style={{ marginBottom: 12 }}>
+                <span className="amber-rule" />Why Pleks
+              </div>
+              <h2 className="pub-h1" style={{ maxWidth: "26ch", margin: 0 }}>
+                Two things the others don&apos;t do. We built the{" "}
+                <span className="amber-wash-underline">product around them.</span>
+              </h2>
+            </div>
+            <p className="pub-body" style={{ maxWidth: "62ch" }}>{c(content, "why_sub")}</p>
+            <IsometricBuildingsSVG />
+          </div>
+
+          <div className="pub-pillars">
+            <div className="pub-pillar">
+              <div className="pub-pillar-kicker"><span className="num">01</span> SECURITY · POSTURE</div>
+              <h3>Every action keeps a receipt. Your clients&apos; PII never leaves the vault unmasked.</h3>
+              <p>The <code style={{ fontFamily: "var(--pub-mono)", fontSize: 13, background: "var(--paper-sunk)", padding: "1px 6px", borderRadius: 3 }}>audit_log</code> table is append-only — no UPDATE, no DELETE, ever. Identity numbers, bank details and addresses are encrypted at rest, decrypted only for the credit report call, and masked for every UI render. Each credit check carries a signed consent_token — no consent, no check, no exceptions.</p>
+              <ul className="pub-pillar-list">
+                {PILLAR_1.map(item => (
+                  <li key={item.g}>
+                    <span className="g">{item.g}</span>
+                    <span><strong>{item.bold}</strong>{item.rest}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="pub-pillar">
+              <div className="pub-pillar-kicker"><span className="num">02</span> SCREENING · ECONOMICS</div>
+              <h3>Applicants pay. You get a FitScore, not a 40-page credit report.</h3>
+              <p>Applicants submit details, consent, and pay for their own Pleks Credit Report directly. We run credit, ID and deeds checks and hand back a single decision-ready number with the rationale attached. You never pay for a check that goes nowhere. You never read a raw credit report you aren&apos;t trained to interpret.</p>
+              <ul className="pub-pillar-list">
+                {PILLAR_2.map(item => (
+                  <li key={item.g}>
+                    <span className="g">{item.g}</span>
+                    <span><strong>{item.bold}</strong>{item.rest}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── The Work ── */}
+      <section id="artefact" className="pub-artefact">
+        <div className="pub-wrap">
+          <div className="pub-section-head" style={{ position: "relative" }}>
+            <div>
+              <div className="pub-eyebrow" style={{ marginBottom: 12 }}>
+                <span className="amber-rule" />The work
+              </div>
+              <h2 className="pub-h1" style={{ maxWidth: "18ch", margin: 0 }}>
+                What Pleks <span className="amber-wash-underline">puts on the page.</span>
+              </h2>
+            </div>
+            <p className="pub-body" style={{ maxWidth: "62ch" }}>{c(content, "artefact_sub")}</p>
+            <FitScoreSVG />
+          </div>
+
+          <div className="pub-artefact-frame">
+            <div className="pub-artefact-tabs" role="tablist">
+              <button className="pub-artefact-tab" type="button" aria-selected="true" role="tab"><span className="dot"/>Landlord statement</button>
+              <button className="pub-artefact-tab" type="button" aria-selected="false" role="tab"><span className="dot"/>Applicant FitScore</button>
+              <button className="pub-artefact-tab" type="button" aria-selected="false" role="tab"><span className="dot"/>Applicant fee receipt</button>
+            </div>
+
+            <div style={{ padding: 36, overflowX: "auto" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 36, paddingBottom: 28, borderBottom: "1px solid var(--rule-strong)", marginBottom: 20 }}>
+                <div>
+                  <div style={{ fontSize: 13, color: "var(--ink-mute)", letterSpacing: "0.04em", textTransform: "uppercase", fontWeight: 600, marginBottom: 10 }}>Landlord statement · March 2026</div>
+                  <h3 style={{ margin: "0 0 6px", fontSize: 28, letterSpacing: "-0.02em", fontWeight: 500 }}>Mrs. A. van Zyl</h3>
+                  <div style={{ fontSize: 13.5, color: "var(--ink-soft)", lineHeight: 1.5 }}>17 Loop Street, Bo-Kaap, Cape Town, 8001 · Unit A (2B/1B) · Tenant: N. Dlamini</div>
+                  <div style={{ fontFamily: "var(--pub-mono)", fontSize: 12, color: "var(--ink-mute)", marginTop: 6 }}>ref · STMT-2026-03-A0417 · rent_roll R 13,500.00</div>
+                </div>
+                <div style={{ textAlign: "right", fontSize: 12.5, color: "var(--ink-mute)" }}>
+                  <strong style={{ color: "var(--ink)", fontWeight: 500, display: "block" }}>Rox &amp; Co Property Management</strong>
+                  PPRA FFC 2026 · 2025-0041<br/>
+                  Trust acc · ABSA 407 889 1204<br/>
+                  Statement issued · 03 Apr 2026
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", borderBottom: "1px solid var(--rule-strong)" }}>
+                {([
+                  { lbl: "Opening balance",      val: "R 0.00",      amber: false },
+                  { lbl: "Receipts",             val: "R 13,500.00", amber: false },
+                  { lbl: "Fees & disbursements", val: "−R 1,687.50", amber: false },
+                  { lbl: "Payable to you",       val: "R 11,812.50", amber: true  },
+                ] as const).map(cell => (
+                  <div key={cell.lbl} style={{ padding: "20px 24px", borderRight: "1px solid var(--rule)", background: cell.amber ? "var(--amber-wash)" : undefined }}>
+                    <div style={{ fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--ink-mute)", marginBottom: 8 }}>{cell.lbl}</div>
+                    <div style={{ fontSize: 22, fontFamily: "var(--pub-mono)", fontVariantNumeric: "tabular-nums" }}>{cell.val}</div>
+                  </div>
+                ))}
+              </div>
+
+              <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 24, fontSize: 13 }}>
+                <thead>
+                  <tr>
+                    {(["Date","Description","Reference","Debit","Credit","Balance"] as const).map((h, i) => (
+                      <th key={h} style={{ textAlign: i >= 3 ? "right" : "left", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase", fontWeight: 600, color: "var(--ink-mute)", padding: "0 12px 12px", borderBottom: "1px solid var(--rule-strong)" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {([
+                    { date: "01 Mar", desc: "Opening balance",                   ref: "—",           debit: "—",        credit: "—",         bal: "0.00",       tag: null,    closing: false },
+                    { date: "02 Mar", desc: "Rent received — debit order",        ref: "DO-M2431-03", debit: "—",        credit: "13,500.00", bal: "13,500.00",  tag: "rent",  closing: false },
+                    { date: "02 Mar", desc: "Management fee (10%)",               ref: "FEE-0417-03", debit: "1,350.00", credit: "—",         bal: "12,150.00",  tag: "fee",   closing: false },
+                    { date: "14 Mar", desc: "Geyser element — plumber invoice",   ref: "MX-8821",     debit: "287.50",   credit: "—",         bal: "11,862.50",  tag: "maint", closing: false },
+                    { date: "14 Mar", desc: "VAT on fee",                         ref: "VAT-0417-03", debit: "50.00",    credit: "—",         bal: "11,812.50",  tag: "vat",   closing: false },
+                    { date: "31 Mar", desc: "Payable to landlord — pending EFT",  ref: "PAY-0417-03", debit: "—",        credit: "—",         bal: "11,812.50",  tag: null,    closing: true  },
+                  ] as const).map((row, i) => (
+                    <tr key={i} style={{ background: row.closing ? "var(--paper-sunk)" : undefined }}>
+                      <td style={{ padding: "11px 12px", borderBottom: "1px solid var(--rule)", fontFamily: "var(--pub-mono)", fontSize: 12, color: "var(--ink-mute)" }}>{row.date}</td>
+                      <td style={{ padding: "11px 12px", borderBottom: "1px solid var(--rule)", fontWeight: row.closing ? 600 : undefined }}>
+                        {row.desc}
+                        {row.tag && <span style={{ display: "inline-block", fontSize: 10.5, letterSpacing: "0.04em", textTransform: "uppercase", padding: "1px 6px", borderRadius: 3, background: "var(--paper-sunk)", border: "1px solid var(--rule)", color: "var(--ink-mute)", marginLeft: 8, fontFamily: "var(--pub-mono)" }}>{row.tag}</span>}
+                      </td>
+                      <td style={{ padding: "11px 12px", borderBottom: "1px solid var(--rule)", fontFamily: "var(--pub-mono)", fontSize: 12, color: "var(--ink-mute)" }}>{row.ref}</td>
+                      <td style={{ padding: "11px 12px", borderBottom: "1px solid var(--rule)", textAlign: "right", fontFamily: "var(--pub-mono)", fontVariantNumeric: "tabular-nums" }}>{row.debit}</td>
+                      <td style={{ padding: "11px 12px", borderBottom: "1px solid var(--rule)", textAlign: "right", fontFamily: "var(--pub-mono)", fontVariantNumeric: "tabular-nums" }}>{row.credit}</td>
+                      <td style={{ padding: "11px 12px", borderBottom: "1px solid var(--rule)", textAlign: "right", fontFamily: "var(--pub-mono)", fontVariantNumeric: "tabular-nums", fontWeight: row.closing ? 600 : undefined }}>{row.bal}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 24, paddingTop: 24, marginTop: 12, borderTop: "1px solid var(--rule)", fontSize: 11.5, color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ color: "var(--positive)" }}>●</span>
+                  Trust reconciled 31 Mar 23:59 · ΔR0.00
+                </div>
+                <div>doc_hash · 0x 9b7c 2e01 4a3f · signed by Pleks</div>
+                <div>audit entries #4780–#4811 · exportable</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Who built this ── */}
+      <section id="story" className="pub-story" style={{ overflow: "hidden" }}>
+        <PegboardSVG />
+        <div className="pub-wrap">
+          <div className="pub-story-grid">
+            <div className="pub-story-text">
+              <div className="pub-eyebrow" style={{ marginBottom: 16 }}>
+                <span className="amber-rule" />Who built this
+              </div>
+              <h2 className="pub-h1" style={{ margin: "0 0 28px" }}>
+                I did your job for eleven years. Then I built the software I{" "}
+                <span className="amber-wash-underline">wished existed.</span>
+              </h2>
+              <p>{c(content, "story_body_1")}</p>
+              <p>{c(content, "story_body_2")}</p>
+              <div className="pub-story-sig">
+                <div className="pub-sig-mark">{c(content, "story_sig_name")}</div>
+                <div className="pub-sig-meta">
+                  {c(content, "story_sig_title")}<br/>
+                  <span className="pub-mono" style={{ fontSize: 11.5 }}>{c(content, "story_sig_meta")}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="pub-creds">
+              <div className="pub-creds-head">
+                <div className="t">Practitioner ledger</div>
+                <div className="n">rows 1–7</div>
+              </div>
+              {CREDS.map(row => (
+                <div key={row.yr} className="pub-cred">
+                  <span className="yr">{row.yr}</span>
+                  <span className="txt">{row.txt}<span className="sub">{row.sub}</span></span>
+                  <span className="rgt">{row.rgt}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Pricing ── */}
+      <section id="pricing" className="pub-pricing">
+        <div className="pub-wrap">
+          <div className="pub-section-head" style={{ position: "relative" }}>
+            <div>
+              <div className="pub-eyebrow" style={{ marginBottom: 12 }}>
+                <span className="amber-rule" />Pricing
+              </div>
+              <h2 className="pub-h1" style={{ maxWidth: "26ch", margin: 0 }}>
+                One fee. <span className="amber-wash-underline">Written on the wall.</span> No per-user, per-check, per-SMS tax.
+              </h2>
+            </div>
+            <p className="pub-body" style={{ maxWidth: "62ch" }}>{c(content, "pricing_sub")}</p>
+            <PricingSVG />
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 20px", border: "1px solid var(--rule)", borderRadius: "var(--r-md)", background: "var(--paper-sunk)", marginBottom: 28, flexWrap: "wrap", fontSize: 14, color: "var(--ink-soft)" }}>
+            <span style={{ fontFamily: "var(--pub-mono)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", background: "var(--amber)", color: "var(--ink)", padding: "3px 8px", borderRadius: 3, flexShrink: 0 }}>Owner · free</span>
+            <span>Managing your own rental? Pleks is free for a single lease, forever. No card, no trial clock.</span>
+            <Link href="/onboarding" style={{ marginLeft: "auto", color: "var(--amber-ink)", borderBottom: "1px solid var(--amber)", paddingBottom: 1, fontSize: 13, whiteSpace: "nowrap" }}>Start as an owner →</Link>
+          </div>
+
+          <div className="pub-tier-grid" style={{ marginBottom: 32 }}>
+            {TIERS.map(tier => (
+              <div key={tier.name} className="pub-tier">
+                {"featured" in tier && <div className="pub-tier-badge">Most popular</div>}
+                <div className="pub-tier-name">{tier.name}</div>
+                <div className="pub-tier-price">
+                  <span className="currency">R</span>{tier.price}<span className="period">/mo</span>
+                </div>
+                <div className="pub-tier-sub">{tier.leases}</div>
+                <div style={{ fontSize: 12, color: "var(--ink-faint)", marginBottom: 20, fontFamily: "var(--pub-mono)" }}>{tier.perLease}</div>
+                <p style={{ fontSize: 13, color: "var(--ink-mute)", lineHeight: 1.55, marginBottom: 24 }}>{tier.desc}</p>
+                <Link href="/onboarding" className="pub-btn pub-btn-primary pub-tier-cta" style={{ justifyContent: "center" }}>
+                  Start as {tier.name}
+                </Link>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ border: "1px solid var(--rule)", borderRadius: "var(--r-md)", background: "var(--paper-sunk)", padding: "28px 32px", marginBottom: 40 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 14, fontWeight: 600 }}>Included in every tier</span>
+              <span style={{ flex: 1, height: 1, background: "var(--rule)", minWidth: 32 }} />
+              <span style={{ fontSize: 12, color: "var(--amber-ink)", fontFamily: "var(--pub-mono)" }}>No add-ons · No per-use fees</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "0 24px" }}>
+              {INCLUDED.map(item => (
+                <div key={item} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", fontSize: 13, color: "var(--ink-soft)", borderBottom: "1px solid var(--rule)" }}>
+                  <span style={{ color: "var(--amber-ink)", fontWeight: 700, flexShrink: 0 }}>✓</span>
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 32 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+              <div>
+                <div className="pub-eyebrow" style={{ marginBottom: 6 }}><span className="amber-rule" />A quick audit</div>
+                <h3 style={{ margin: 0, fontSize: 22, letterSpacing: "-0.015em", fontWeight: 500 }}>Where your current software bill goes.</h3>
+              </div>
+              <div style={{ fontSize: 12, color: "var(--ink-faint)", fontFamily: "var(--pub-mono)" }}>SA rental platforms · Apr 2026</div>
+            </div>
+            <div style={{ border: "1px solid var(--rule)", borderRadius: "var(--r-md)", overflow: "hidden" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                <thead>
+                  <tr>
+                    {(["Line item","Industry standard","Pleks"] as const).map((h, i) => (
+                      <th key={h} style={{ textAlign: "left", fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600, color: i === 2 ? "var(--ink)" : "var(--ink-mute)", padding: "14px 20px", borderBottom: i === 2 ? "2px solid var(--amber)" : "1px solid var(--rule-strong)", background: "var(--paper-sunk)" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {AUDIT_ROWS.map(row => (
+                    <tr key={row.line}>
+                      <td style={{ padding: "14px 20px", borderBottom: "1px solid var(--rule)", color: "var(--ink)", fontWeight: 500 }}>{row.line}</td>
+                      <td style={{ padding: "14px 20px", borderBottom: "1px solid var(--rule)", color: "var(--ink-mute)" }}>{row.incumbent}</td>
+                      <td style={{ padding: "14px 20px", borderBottom: "1px solid var(--rule)", color: "var(--amber-ink)", fontWeight: 600, background: "oklch(0.985 0.012 75 / 0.3)" }}>{row.pleks}</td>
+                    </tr>
+                  ))}
+                  <tr>
+                    <td style={{ padding: "18px 20px", background: "var(--ink)", color: "var(--paper)", fontWeight: 600 }}>Your software bill on the 1st</td>
+                    <td style={{ padding: "18px 20px", background: "var(--ink)", color: "oklch(0.75 0.01 260)" }}>Assembled from 4–6 line items · variable</td>
+                    <td style={{ padding: "18px 20px", background: "var(--amber)", color: "var(--ink)", fontWeight: 600, fontSize: 15 }}>One number. Known 30 days ahead of any change.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 24, alignItems: "center", padding: "24px 28px", border: "1px solid var(--rule)", borderRadius: "var(--r-md)", background: "var(--paper-sunk)" }}>
+            <p style={{ margin: 0, fontSize: 14, color: "var(--ink-soft)", lineHeight: 1.6, maxWidth: "56ch" }}>
+              <strong style={{ color: "var(--ink)" }}>If Pleks costs you more per month than what you&apos;re paying today, I want to know.</strong>{" "}
+              I&apos;ll get on a call, walk the numbers with you, and if the maths doesn&apos;t land I&apos;ll tell you so myself — no form, no SDR.
+            </p>
+            <a href="mailto:stean@pleks.co.za" style={{ fontFamily: "var(--pub-mono)", fontSize: 13, color: "var(--ink)", borderBottom: "1px solid var(--rule-strong)", paddingBottom: 1, whiteSpace: "nowrap" }}>stean@pleks.co.za</a>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Divider 2 (into founding) ── */}
+      <div className="pub-divider-band" aria-hidden="true" style={{ background: "linear-gradient(180deg, var(--paper) 0%, oklch(0.96 0.016 70) 50%, oklch(0.20 0.018 265) 100%)" }}>
+        <svg viewBox="0 0 1440 84" preserveAspectRatio="none">
+          <line x1="0" y1="42" x2="1440" y2="42" stroke="oklch(0.82 0.01 85)" strokeWidth="1" strokeDasharray="2 6"/>
+          <g stroke="oklch(0.68 0.14 65)" strokeWidth="1.2">
+            {[120,320,520,720,920,1120,1320].map(x => (
+              <line key={x} x1={x} y1="36" x2={x} y2="48"/>
+            ))}
+          </g>
+        </svg>
+        <div className="pub-divider-stamp" style={{ borderColor: "oklch(0.68 0.14 65 / 0.5)", color: "var(--amber-ink)" }}>
+          <span className="d" />
+          FOUNDING AGENTS · 2026 COHORT
+        </div>
+      </div>
+
+      {/* ── Founding agent CTA ── */}
+      <section id="founding" style={{
+        background: "radial-gradient(ellipse at 15% 0%, oklch(0.32 0.09 65) 0%, transparent 55%), radial-gradient(ellipse at 95% 100%, oklch(0.28 0.06 45) 0%, transparent 50%), linear-gradient(180deg, oklch(0.20 0.018 265) 0%, oklch(0.15 0.012 260) 100%)",
+        padding: "88px 0",
+        position: "relative",
+        overflow: "hidden",
+      }}>
+        <div className="pub-wrap" style={{ position: "relative", zIndex: 1 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 48, alignItems: "center" }}>
+            <div>
+              <h2 style={{ margin: "0 0 12px", fontSize: "clamp(26px, 3vw, 36px)", lineHeight: 1.1, letterSpacing: "-0.02em", fontWeight: 500, color: "oklch(0.95 0.005 85)", maxWidth: "20ch" }}>
+                {c(content, "founding_heading")}
+              </h2>
+              <p style={{ margin: 0, color: "oklch(0.75 0.01 260)", maxWidth: "48ch", fontSize: 15 }}>
+                {c(content, "founding_sub")}
+              </p>
+              <div style={{ fontFamily: "var(--pub-mono)", fontSize: 12, color: "oklch(0.60 0.01 260)", display: "flex", gap: 10, alignItems: "center", marginTop: 18 }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--amber)", display: "inline-block", flexShrink: 0 }} />
+                {c(content, "founding_counter")}
+              </div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <Link href="/onboarding" className="pub-btn" style={{ background: "var(--amber)", color: "var(--ink)", justifyContent: "center" }}>
+                Claim a founding seat
+              </Link>
+              <Link href="/contact" className="pub-btn" style={{ color: "oklch(0.95 0.005 85)", border: "1px solid oklch(1 0 0 / 0.18)", background: "transparent", justifyContent: "center" }}>
+                Or book a demo first
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+    </>
   )
 }

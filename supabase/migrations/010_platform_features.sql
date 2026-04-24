@@ -472,3 +472,57 @@ CREATE TABLE IF NOT EXISTS cron_runs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_cron_runs_job_started ON cron_runs(job_name, started_at DESC);
+
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §13  MARKETING SITE CONTENT  (BUILD_HOMEPAGE)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Simple key/value store for editable marketing copy. Admins edit via
+-- /admin/site-content. Homepage reads via anon key (public SELECT policy).
+-- No org_id — this is global site content, not tenant data.
+
+CREATE TABLE IF NOT EXISTS site_content (
+  key        text PRIMARY KEY,
+  value      text NOT NULL DEFAULT '',
+  label      text NOT NULL DEFAULT '',
+  section    text NOT NULL DEFAULT '',
+  sort_order integer NOT NULL DEFAULT 0,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE site_content ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "site_content_public_read" ON site_content;
+CREATE POLICY "site_content_public_read" ON site_content
+  FOR SELECT USING (true);
+
+-- Seed default content
+INSERT INTO site_content (key, label, section, sort_order, value) VALUES
+  ('notice_text',         'Notice strip text',          'global',  1,  'Founding-agent cohort now open — 10 spots at R299/mo, locked for life.'),
+  ('notice_link_label',   'Notice strip link label',    'global',  2,  'Reserve your spot →'),
+  ('notice_link_href',    'Notice strip link URL',      'global',  3,  '/early-access'),
+  ('hero_headline',       'Hero headline',              'hero',    1,  'SA Property Management, Built Right'),
+  ('hero_sub',            'Hero subheadline',           'hero',    2,  'Built by someone who has done it for 11 years. Free applicant pre-screening. Automated DebiCheck collections. Tribunal-ready documentation. Always.'),
+  ('hero_cta_primary',    'Hero primary CTA label',     'hero',    3,  'Start free — 1 unit'),
+  ('hero_cta_secondary',  'Hero secondary CTA label',   'hero',    4,  'Book a demo'),
+  ('hero_meta_1_n',       'Hero stat 1 number',         'hero',    5,  '312'),
+  ('hero_meta_1_l',       'Hero stat 1 label',          'hero',    6,  'Units in pilot'),
+  ('hero_meta_2_n',       'Hero stat 2 number',         'hero',    7,  '4'),
+  ('hero_meta_2_l',       'Hero stat 2 label',          'hero',    8,  'Agencies'),
+  ('hero_meta_3_n',       'Hero stat 3 number',         'hero',    9,  '0'),
+  ('hero_meta_3_l',       'Hero stat 3 label',          'hero',    10, 'Data incidents'),
+  ('why_headline',        'Why Pleks headline',         'why',     1,  'We build around them.'),
+  ('why_sub',             'Why Pleks subtext',          'why',     2,  'Three parts of your business where most platforms make you fit their workflow. Pleks fits yours.'),
+  ('pillar_1_title',      'Pillar 1 title',             'why',     3,  'The applicant'),
+  ('pillar_1_body',       'Pillar 1 body',              'why',     4,  'Applicants apply free. They pay for the credit check — R399 — only when you shortlist them. You see a FitScore, not a raw report.'),
+  ('pillar_2_title',      'Pillar 2 title',             'why',     5,  'The tenant'),
+  ('pillar_2_body',       'Pillar 2 body',              'why',     6,  'DebiCheck mandate created with the lease. Runs automatically. Every payment logged against the unit. Arrears letters drafted, not typed.'),
+  ('pillar_3_title',      'Pillar 3 title',             'why',     7,  'The building'),
+  ('pillar_3_body',       'Pillar 3 body',              'why',     8,  'Heritage buildings, sectional title, and freehold on the same erf. Inspections logged with GPS-stamped photos. Tribunal bundles in one click.'),
+  ('story_headline',      'Story headline',             'story',   1,  'I did your job for eleven years. Then I built the software I wished existed.'),
+  ('story_body_1',        'Story paragraph 1',          'story',   2,  'I ran rental portfolios in Johannesburg and Cape Town from 2014 to 2025. I used the incumbent platforms, a Sage export, and a spreadsheet I emailed to my landlords on the 3rd of every month. I watched colleagues lose deposit disputes they should have won because the paper trail was in four systems.'),
+  ('story_body_2',        'Story paragraph 2',          'story',   3,  'Pleks is the product that would have saved me those Tribunal appearances. Every design decision in here is a specific frustration I remember the month and the flat it happened in. If you''ve done this work, you''ll recognise it.'),
+  ('pricing_headline',    'Pricing headline',           'pricing', 1,  'Transparent pricing. No credit-check fees.'),
+  ('pricing_sub',         'Pricing subtext',            'pricing', 2,  'Start free on 1 unit. Founding-agent cohort locks your rate for life.')
+ON CONFLICT (key) DO NOTHING;
