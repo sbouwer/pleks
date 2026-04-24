@@ -5,6 +5,7 @@ import { IsometricBuildingsSVG } from "./svgs/IsometricBuildingsSVG"
 import { FitScoreSVG }            from "./svgs/FitScoreSVG"
 import { PricingSVG }             from "./svgs/PricingSVG"
 import { PegboardSVG }            from "./svgs/PegboardSVG"
+import { VaultDoorSVG }           from "./svgs/VaultDoorSVG"
 
 export const revalidate = 3600
 
@@ -340,6 +341,107 @@ export default async function HomePage() {
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* ── The Pleks Charter ── */}
+      <section id="charter" className="pub-charter">
+        <div className="pub-wrap">
+          <div className="pub-section-head" style={{ position: "relative" }}>
+            <div>
+              <div className="pub-eyebrow" style={{ marginBottom: 12 }}>
+                <span className="amber-rule" />The Pleks Charter
+              </div>
+              <h2 className="pub-h1" style={{ maxWidth: "32ch", margin: 0 }}>
+                Your data is yours. Your landlord&apos;s money is theirs. We&apos;re just the{" "}
+                <span className="amber-wash-underline">filing cabinet</span> — and it opens from both sides.
+              </h2>
+            </div>
+            <p className="pub-body" style={{ maxWidth: "62ch" }}>
+              Eight commitments we&apos;ve put in writing, not in marketing copy. Every one exists because the alternative has bitten someone in this industry. Every one is enforceable — by you, by your tenants, by the Information Regulator.
+            </p>
+            <VaultDoorSVG />
+          </div>
+
+          <ol className="pub-charter-grid">
+            {([
+              {
+                num: "01 · TRUST MONEY",
+                title: "We never hold your landlord's money.",
+                body: "Client funds stay in your Section 86 trust account, at your own bank, under your own FFC. Pleks has no outbound payment rail — and the codebase can't grow one without rewriting the schema, the lint rules, and the UI layer.",
+                foot: "Enforced at 4 layers · zero custodial authority by design",
+              },
+              {
+                num: "02 · TENANT DATA",
+                title: "We never hold your tenant's bank details either.",
+                body: "Rent moves tenant-bank to your-bank on a mandate their bank holds against yours. We observe the reconciliation — we don't run the rail. If Pleks vanished tomorrow, the debit orders would keep running.",
+                foot: "No inbound payment rail, either",
+              },
+              {
+                num: "03 · PORTABILITY",
+                title: "You can leave any month. We'll help you pack.",
+                body: "Full export on demand — every lease, tenant, inspection photo with original EXIF, statement, mandate, audit entry. Signed, hashed, timestamped. No contract gate, no exit fee, no 'premium migration' tier. Your portfolio was always yours.",
+                foot: "PDF + JSON + ZIP bundle · SHA-256 manifest hash",
+              },
+              {
+                num: "04 · ACCESS CONTINUITY",
+                title: "Overdue doesn't lock you out.",
+                body: "If we ever need to chase you for an invoice, we'll chase the invoice. Nobody's rent roll becomes the collateral. You can see, export and migrate your data regardless of account state — contractually, not conditionally.",
+                foot: "Written into every Operator agreement",
+              },
+              {
+                num: "05 · RIGHT TO BE FORGOTTEN",
+                title: "Your tenant's erasure request actually works.",
+                body: "When a tenant asks to be forgotten, we execute it within 30 days — with the narrow statutory carve-outs (FICA 5 years, PPRA trust records, Tribunal holds) disclosed before they submit, not after. No silent retention, no 'anonymised' workaround.",
+                foot: "Retention-aware cascade · carve-outs disclosed pre-submission",
+              },
+              {
+                num: "06 · NO TRAINING, NO SELLING, NO TRACKING",
+                title: "You're not a dataset. Your tenants aren't a dataset.",
+                body: "Our AI provider runs zero-retention on every call: prompts and responses exist for the round-trip, then they're gone. We've deliberately not deployed Mixpanel, Amplitude, Google Analytics, or any other product-analytics vendor on the authenticated product.",
+                foot: "Anthropic zero-retention DPA · no third-party analytics, ever",
+              },
+              {
+                num: "07 · AGENCY ISOLATION",
+                title: "Your applicants don't inherit another agency's history.",
+                body: "FitScore uses that applicant's four declared inputs — affordability, credit, rental history, employment stability. Outcomes aren't pooled across agencies. Your judgement isn't diluted by someone else's mandate, and your book isn't leaked into someone else's model.",
+                foot: "Zero cross-org data aggregation anywhere in the product",
+              },
+              {
+                num: "08 · BREACH POSTURE",
+                title: "If something goes wrong, you hear within 24 hours.",
+                body: "POPIA gives us 72. We've committed to 24 in every Operator agreement, and we publish the post-mortem publicly. Your tenants' path to the Information Regulator is open and signposted on every privacy page — we don't get to stand between them and the complaint.",
+                foot: "24-hour breach notification · IR escalation path always surfaced",
+              },
+            ] as const).map(item => (
+              <li key={item.num} className="pub-charter-item">
+                <div className="pub-charter-num">{item.num}</div>
+                <h3 className="pub-charter-title">{item.title}</h3>
+                <p className="pub-charter-body">{item.body}</p>
+                <p className="pub-charter-foot">{item.foot}</p>
+              </li>
+            ))}
+          </ol>
+
+          <aside className="pub-charter-register">
+            <div>
+              <div className="pub-eyebrow" style={{ marginBottom: 10 }}><span className="amber-rule" />The long version, if you want it</div>
+              <h3 className="reg-h3">The Processing-Purpose Register.</h3>
+              <p className="reg-p">
+                Every processing activity Pleks performs — who it touches, why, how long it stays, which third party sees it, on what legal basis. Version-controlled, publicly hosted, every change logged. Most SaaS companies keep this kind of document internal. We publish it.
+              </p>
+            </div>
+            <div className="reg-right">
+              <div className="pub-charter-stamp">
+                <span className="v">v2026.1</span>
+                <span>·</span>
+                <span>Effective 2026-05-01</span>
+                <span>·</span>
+                <span className="hash">hash 0x7a2f…c4e1</span>
+              </div>
+              <a href="/privacy" className="pub-charter-cta">Read the register →</a>
+            </div>
+          </aside>
         </div>
       </section>
 
