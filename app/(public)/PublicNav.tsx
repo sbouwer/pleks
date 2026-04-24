@@ -7,17 +7,26 @@ import { createClient } from "@/lib/supabase/client"
 import { usePublicTheme } from "./PublicThemeProvider"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 
+async function handleLogout() {
+  const supabase = createClient()
+  await supabase.auth.signOut()
+  globalThis.location.href = "/"
+}
+
 const NAV_LINKS = [
-  { href: "/pricing",    label: "Pricing" },
-  { href: "/for-agents", label: "For Agents" },
-  { href: "/migrate",    label: "Migrate" },
+  { href: "/#why",       label: "Why Pleks" },
+  { href: "/#artefact",  label: "The work" },
+  { href: "/#charter",   label: "Charter" },
+  { href: "/#story",     label: "Who built this" },
+  { href: "/#pricing",   label: "Pricing" },
+  { href: "/#founding",  label: "Founding agents" },
 ]
 
 export function PublicNav() {
-  const [mobileOpen, setMobileOpen]   = useState(false)
-  const [profileOpen, setProfileOpen] = useState(false)
-  // undefined = auth state unknown (SSR/first paint); null = not logged in; object = logged in
-  const [user, setUser]               = useState<{ email?: string } | null | undefined>(undefined)
+  const [mobileOpen, setMobileOpen]     = useState(false)
+  const [profileOpen, setProfileOpen]   = useState(false)
+  // undefined = checking; null = logged out; object = logged in
+  const [user, setUser]                 = useState<{ email?: string } | null | undefined>(undefined)
   const [scrollHidden, setScrollHidden] = useState(false)
   const lastScrollRef                   = useRef(0)
   const { theme, toggle }               = usePublicTheme()
@@ -29,7 +38,7 @@ export function PublicNav() {
       .catch(() => setUser(null))
   }, [])
 
-  // Only hide on scroll when viewport is mobile-width
+  // Hide nav on scroll-down on mobile only
   useEffect(() => {
     const handleScroll = () => {
       if (globalThis.innerWidth >= 768) return
@@ -40,12 +49,6 @@ export function PublicNav() {
     globalThis.addEventListener("scroll", handleScroll, { passive: true })
     return () => globalThis.removeEventListener("scroll", handleScroll)
   }, [])
-
-  async function handleLogout() {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    globalThis.location.href = "/"
-  }
 
   return (
     <header
@@ -58,40 +61,36 @@ export function PublicNav() {
         transform: scrollHidden ? "translateY(-100%)" : "translateY(0)",
       }}
     >
-      <nav
-        className="pub-wrap"
-        style={{ height: 64, display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", gap: 32 }}
-      >
-        {/* Left: wordmark */}
-        <Link href="/" className="pub-wordmark" aria-label="Pleks" style={{ fontSize: 20 }}>
-          pl<span className="pub-wm-e">e<span className="pub-wm-cut" aria-hidden="true" /></span>ks
+      <div className="pub-wrap" style={{ height: 64, display: "flex", alignItems: "center", gap: 32 }}>
+
+        {/* Wordmark */}
+        <Link href="/" className="pub-wordmark" aria-label="Pleks" style={{ fontSize: 20, flexShrink: 0 }}>
+          {"pl"}<span className="pub-wm-e">{"e"}<span className="pub-wm-cut" aria-hidden="true" /></span>{"ks"}
           <span className="pub-wm-tld">.co.za</span>
         </Link>
 
-        {/* Centre: nav links — hidden on mobile, flex on md+ */}
-        <div className="hidden md:flex" style={{ alignItems: "center", justifyContent: "center", gap: 24 }}>
+        {/* Centre nav — desktop only */}
+        <nav aria-label="Site sections" className="hidden md:flex" style={{ flex: 1, justifyContent: "center", gap: 6 }}>
           {NAV_LINKS.map(link => (
             <Link
               key={link.href}
               href={link.href}
-              className="pub-small"
-              style={{ color: "var(--ink-mute)", transition: "color .15s" }}
-              onMouseEnter={e => (e.currentTarget.style.color = "var(--ink)")}
-              onMouseLeave={e => (e.currentTarget.style.color = "var(--ink-mute)")}
+              style={{
+                fontSize: 13.5, color: "var(--ink-mute)", padding: "6px 10px",
+                borderRadius: "var(--r-sm)", transition: "color .15s, background .15s",
+                whiteSpace: "nowrap",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.color = "var(--ink)"; e.currentTarget.style.background = "var(--paper-sunk)" }}
+              onMouseLeave={e => { e.currentTarget.style.color = "var(--ink-mute)"; e.currentTarget.style.background = "transparent" }}
             >
               {link.label}
             </Link>
           ))}
-          {/* Only show Start free once we know the auth state (user !== undefined) */}
-          {user === null && (
-            <Link href="/onboarding" className="pub-btn pub-btn-ghost" style={{ padding: "7px 14px", fontSize: 13 }}>
-              Start free
-            </Link>
-          )}
-        </div>
+        </nav>
 
-        {/* Right: theme toggle + auth + hamburger */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "flex-end" }}>
+        {/* Right actions */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto", flexShrink: 0 }}>
+
           {/* Theme toggle */}
           <button
             type="button"
@@ -107,68 +106,75 @@ export function PublicNav() {
             {theme === "light" ? <Moon size={15} /> : <Sun size={15} />}
           </button>
 
-          {/* Desktop auth — only rendered once auth state is known */}
-          {user !== undefined && (
-            user ? (
-              <div className="relative hidden md:block">
-                <button
-                  type="button"
-                  onClick={() => setProfileOpen(!profileOpen)}
-                  style={{
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    width: 32, height: 32, borderRadius: "50%",
-                    background: "oklch(0.68 0.14 65 / 0.12)", color: "var(--amber-ink)", cursor: "pointer",
-                    border: "none",
-                  }}
-                  aria-label="Account menu"
-                >
-                  <User size={15} />
-                </button>
-                {profileOpen && (
-                  <>
+          {/* Auth — desktop */}
+          {user ? (
+            /* Logged in: profile menu */
+            <div className="relative hidden md:block">
+              <button
+                type="button"
+                onClick={() => setProfileOpen(p => !p)}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  width: 32, height: 32, borderRadius: "50%",
+                  background: "oklch(0.68 0.14 65 / 0.12)", color: "var(--amber-ink)",
+                  cursor: "pointer", border: "none",
+                }}
+                aria-label="Account menu"
+              >
+                <User size={15} />
+              </button>
+              {profileOpen && (
+                <>
+                  <button
+                    type="button"
+                    style={{ position: "fixed", inset: 0, zIndex: 40, cursor: "default", background: "transparent", border: "none" }}
+                    onClick={() => setProfileOpen(false)}
+                    aria-label="Close"
+                  />
+                  <div style={{
+                    position: "absolute", right: 0, top: 40, zIndex: 50, width: 200,
+                    borderRadius: "var(--r-md)", border: "1px solid var(--rule)",
+                    background: "var(--paper-raised)", boxShadow: "var(--shadow-2)", padding: "4px 0",
+                  }}>
+                    <p className="pub-xs" style={{ padding: "8px 12px", borderBottom: "1px solid var(--rule)", margin: 0 }}>
+                      {user.email}
+                    </p>
+                    <Link
+                      href="/dashboard"
+                      style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", fontSize: 13, color: "var(--ink)" }}
+                      onClick={() => setProfileOpen(false)}
+                    >
+                      <LayoutDashboard size={14} style={{ color: "var(--ink-mute)" }} /> Dashboard
+                    </Link>
                     <button
                       type="button"
-                      style={{ position: "fixed", inset: 0, zIndex: 40, cursor: "default", background: "transparent", border: "none" }}
-                      onClick={() => setProfileOpen(false)}
-                      aria-label="Close menu"
-                    />
-                    <div style={{
-                      position: "absolute", right: 0, top: 40, zIndex: 50,
-                      width: 200, borderRadius: "var(--r-md)", border: "1px solid var(--rule)",
-                      background: "var(--paper-raised)", boxShadow: "var(--shadow-2)", padding: "4px 0",
-                    }}>
-                      <p className="pub-xs" style={{ padding: "8px 12px", borderBottom: "1px solid var(--rule)", margin: 0 }}>
-                        {user.email}
-                      </p>
-                      <Link
-                        href="/dashboard"
-                        style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", fontSize: 13, color: "var(--ink)" }}
-                        onClick={() => setProfileOpen(false)}
-                      >
-                        <LayoutDashboard size={14} style={{ color: "var(--ink-mute)" }} />
-                        Dashboard
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={handleLogout}
-                        style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", fontSize: 13, color: "var(--critical)", width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer" }}
-                      >
-                        <LogOut size={14} />
-                        Log out
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            ) : (
+                      onClick={handleLogout}
+                      style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", fontSize: 13, color: "var(--critical)", width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer" }}
+                    >
+                      <LogOut size={14} /> Log out
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            /* Logged out (or still checking): always show both buttons */
+            <>
               <Link
                 href="/login"
-                className="pub-btn pub-btn-primary hidden md:inline-flex"
+                className="pub-btn pub-btn-ghost hidden md:inline-flex"
                 style={{ padding: "7px 14px", fontSize: 13 }}
               >
                 Sign in
               </Link>
-            )
+              <Link
+                href="/onboarding"
+                className="pub-btn pub-btn-primary hidden md:inline-flex"
+                style={{ padding: "7px 14px", fontSize: 13 }}
+              >
+                Start free
+              </Link>
+            </>
           )}
 
           {/* Hamburger — mobile only */}
@@ -181,17 +187,17 @@ export function PublicNav() {
             <Menu size={20} />
           </button>
         </div>
-      </nav>
+      </div>
 
       {/* Mobile sheet */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetContent side="bottom" className="rounded-t-xl pb-8">
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, padding: "16px 0" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "16px 0" }}>
             {NAV_LINKS.map(link => (
               <Link
                 key={link.href}
                 href={link.href}
-                style={{ padding: "12px 8px", fontSize: 14, color: "var(--ink-mute)", borderRadius: "var(--r-sm)" }}
+                style={{ padding: "11px 8px", fontSize: 14, color: "var(--ink-mute)", borderRadius: "var(--r-sm)" }}
                 onClick={() => setMobileOpen(false)}
               >
                 {link.label}
@@ -203,9 +209,9 @@ export function PublicNav() {
               type="button"
               onClick={toggle}
               style={{
-                display: "flex", alignItems: "center", gap: 10,
-                padding: "10px 8px", fontSize: 14, color: "var(--ink-soft)",
-                background: "none", border: "none", cursor: "pointer", textAlign: "left",
+                display: "flex", alignItems: "center", gap: 10, padding: "10px 8px",
+                fontSize: 14, color: "var(--ink-soft)", background: "none", border: "none",
+                cursor: "pointer", textAlign: "left",
               }}
             >
               {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
@@ -224,7 +230,7 @@ export function PublicNav() {
                 <button
                   type="button"
                   onClick={handleLogout}
-                  style={{ padding: "10px 8px", fontSize: 14, color: "var(--critical)", textAlign: "left", background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 8 }}
+                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 8px", fontSize: 14, color: "var(--critical)", textAlign: "left", background: "none", border: "none", cursor: "pointer" }}
                 >
                   <LogOut size={16} /> Log out
                 </button>
