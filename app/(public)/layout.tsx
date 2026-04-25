@@ -2,6 +2,7 @@ import Link from "next/link"
 import { PublicNav } from "./PublicNav"
 import { PublicThemeProvider } from "./PublicThemeProvider"
 import { FooterColumns } from "@/components/marketing/FooterColumns"
+import { AccentBracket } from "@/components/ui/AccentBracket"
 import "./public.css"
 
 export default function PublicLayout({
@@ -26,8 +27,8 @@ export default function PublicLayout({
           }}>
             {/* Brand — wordmark matches nav */}
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <Link href="/" className="pub-wordmark" aria-label="Pleks">
-                pl<span className="pub-wm-e">e<span className="pub-wm-cut" aria-hidden="true" /></span>ks
+              <Link href="/" className="pub-wordmark" aria-label="Pleks" style={{ alignSelf: "flex-start" }}>
+                <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
                 <span className="pub-wm-tld">.co.za</span>
               </Link>
               <p className="pub-small" style={{ maxWidth: "28ch", margin: 0 }}>
