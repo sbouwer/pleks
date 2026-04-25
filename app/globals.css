@@ -209,7 +209,7 @@ table.ledger tr.paid td:first-child::before {
 /* Amber bracket accent — wraps a single letter; bracket floats top-right with breathing room */
 .accent-bracket { position: relative; display: inline-block; }
 .accent-bracket-mark {
-  position: absolute; top: -0.22em; right: -0.1em;
+  position: absolute; top: -0.12em; right: -0.1em;
   width: 0.3em; height: 0.3em;
   border-top: 2px solid var(--amber); border-right: 2px solid var(--amber);
   pointer-events: none;
