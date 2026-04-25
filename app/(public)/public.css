@@ -64,9 +64,16 @@
   font-family: var(--pub-sans); text-decoration: none;
 }
 .pub-btn-primary { background: var(--ink); color: var(--paper); }
-.pub-btn-primary:hover { filter: brightness(0.88); }
+.pub-btn-primary:hover {
+  background: var(--amber); color: var(--ink);
+  box-shadow: 0 0 0 3px oklch(0.68 0.14 65 / 0.22);
+}
 .pub-btn-ghost { color: var(--ink); border-color: var(--rule-strong); background: transparent; }
-.pub-btn-ghost:hover { background: var(--paper-sunk); }
+.pub-btn-ghost:hover {
+  background: var(--amber-wash); color: var(--amber-ink);
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px oklch(0.68 0.14 65 / 0.15);
+}
 
 /* ── Notice strip ────────────────────────────────────────────────────────── */
 .pub-notice {

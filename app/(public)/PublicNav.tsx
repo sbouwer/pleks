@@ -119,7 +119,7 @@ export function PublicNav() {
                   transition: "color .15s, background .15s",
                   whiteSpace: "nowrap",
                 }}
-                onMouseEnter={e => { e.currentTarget.style.color = "var(--ink)"; e.currentTarget.style.background = "var(--paper-sunk)" }}
+                onMouseEnter={e => { e.currentTarget.style.color = "var(--amber-ink)"; e.currentTarget.style.background = "var(--amber-wash)" }}
                 onMouseLeave={e => { e.currentTarget.style.color = isActive ? "var(--ink)" : "var(--ink-soft)"; e.currentTarget.style.background = "transparent" }}
               >
                 {link.label}
@@ -143,6 +143,8 @@ export function PublicNav() {
 
           {/* Theme toggle */}
           <button type="button" onClick={toggle} style={ICON_BTN}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "var(--amber-wash)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--amber)"; (e.currentTarget as HTMLButtonElement).style.color = "var(--amber-ink)" }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "var(--paper-sunk)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--rule)"; (e.currentTarget as HTMLButtonElement).style.color = "var(--ink-mute)" }}
             aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}>
             {theme === "light" ? <Moon size={15} /> : <Sun size={15} />}
           </button>
