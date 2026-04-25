@@ -5,8 +5,8 @@ import { RentRollSVG }           from "./svgs/RentRollSVG"
 import { IsometricBuildingsSVG } from "./svgs/IsometricBuildingsSVG"
 import { FitScoreSVG }            from "./svgs/FitScoreSVG"
 import { PricingSVG }             from "./svgs/PricingSVG"
-import { PegboardSVG }            from "./svgs/PegboardSVG"
 import { VaultDoorSVG }           from "./svgs/VaultDoorSVG"
+import { FounderSection }         from "@/components/marketing/founder/FounderSection"
 
 export const revalidate = 3600
 
@@ -27,11 +27,6 @@ const DEFAULTS: Record<string, string> = {
   hero_meta_3_l:      "Legal, development, management. Hands on each.",
   why_sub:            "Every other claim on this page — the automation, the statements, the rent collection — falls out of getting these two right. Everything else is table stakes.",
   artefact_sub:       "Most rental software sells screenshots. The artefact below is what your landlords, the Tribunal, and your accountant actually see.",
-  story_body_1:       "I ran rental portfolios in Johannesburg and Cape Town from 2014 to 2025. I used the incumbent platforms, a Sage export, and a spreadsheet I emailed to my landlords on the 3rd of every month. I watched colleagues lose deposit disputes they should have won because the paper trail was in four systems.",
-  story_body_2:       "Pleks is the product that would have saved me those Tribunal appearances. Every design decision in here is a specific frustration I remember the month and the flat it happened in. If you've done this work, you'll recognise it. If you haven't, no piece of software will teach you to.",
-  story_sig_name:     "Stéan B.",
-  story_sig_title:    "Founder, Pleks",
-  story_sig_meta:     "PPRA 2019-0088 · NAMA member 2020–2024",
   pricing_sub:        "Priced per active lease, not per address or per seat. Vacancies cost you nothing. Your bill on the 1st is the bill on the 1st — and if it ever changes, your accountant knows 30 days before it does.",
   founding_sub:       "In exchange for being first, I'll ask for a thirty-minute call a month while we're still in the first year — because that's how you get software written by someone who's actually listening.",
   founding_counter:   "03 / 10 claimed · Joburg, Cape Town, Durban",
@@ -40,16 +35,6 @@ const DEFAULTS: Record<string, string> = {
 function c(content: Record<string, string>, key: string): string {
   return content[key] ?? DEFAULTS[key] ?? ""
 }
-
-const CREDS = [
-  { yr: "2014", txt: "Joined Seeff Sandton — rental portfolio trainee",         sub: "First portfolio: 11 units, manual Excel rent roll",             rgt: "start"     },
-  { yr: "2017", txt: "Built first PPRA-compliant trust recon spreadsheet",      sub: "Reconciled against ABSA bank feed, 200+ units",                rgt: "origin"    },
-  { yr: "2019", txt: "PPRA FFC issued · 2019-0088",                             sub: "Registered property practitioner, principal",                  rgt: "licensed"  },
-  { yr: "2021", txt: "First Tribunal deposit dispute defended",                  sub: "Won on inspection photo metadata — the idea for Pleks",        rgt: "formative" },
-  { yr: "2023", txt: "Left agency role · began building Pleks",                 sub: "Full-time, SA-hosted, practitioner-directed",                  rgt: "pivot"     },
-  { yr: "2025", txt: "Closed pilot with 4 agencies · 312 units on platform",   sub: "Cape Town & Johannesburg · zero data incidents",               rgt: "pilot"     },
-  { yr: "2026", txt: "Public v1.0 · founding-agent cohort opens",               sub: "Cape Town, Johannesburg, Durban",                              rgt: "now"       },
-]
 
 const TIERS = [
   { name: "Steward",    leaseCap: 15,   leases: "Up to 15 active leases",   price: "699",   perLease: "That's roughly R47 per lease at cap", desc: "Solo practitioners just holding their own book." },
@@ -446,45 +431,7 @@ export default async function HomePage() {
       </section>
 
       {/* ── Who built this ── */}
-      <section id="story" className="pub-story" style={{ overflow: "hidden" }}>
-        <PegboardSVG />
-        <div className="pub-wrap">
-          <div className="pub-story-grid">
-            <div className="pub-story-text">
-              <div className="pub-eyebrow" style={{ marginBottom: 16 }}>
-                <span className="amber-rule" />Who built this
-              </div>
-              <h2 className="pub-h1" style={{ margin: "0 0 28px" }}>
-                I did your job for eleven years. Then I built the software I{" "}
-                <span className="amber-wash-underline">wished existed.</span>
-              </h2>
-              <p>{c(content, "story_body_1")}</p>
-              <p>{c(content, "story_body_2")}</p>
-              <div className="pub-story-sig">
-                <div className="pub-sig-mark">{c(content, "story_sig_name")}</div>
-                <div className="pub-sig-meta">
-                  {c(content, "story_sig_title")}<br/>
-                  <span className="pub-mono" style={{ fontSize: 11.5 }}>{c(content, "story_sig_meta")}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="pub-creds">
-              <div className="pub-creds-head">
-                <div className="t">Practitioner ledger</div>
-                <div className="n">rows 1–7</div>
-              </div>
-              {CREDS.map(row => (
-                <div key={row.yr} className="pub-cred">
-                  <span className="yr">{row.yr}</span>
-                  <span className="txt">{row.txt}<span className="sub">{row.sub}</span></span>
-                  <span className="rgt">{row.rgt}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
+      <FounderSection />
 
       {/* ── Pricing ── */}
       <section id="pricing" className="pub-pricing">
