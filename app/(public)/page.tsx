@@ -51,10 +51,11 @@ const CREDS = [
 ]
 
 const TIERS = [
-  { name: "Steward",   leases: "Up to 15 active leases",  price: "699",   perLease: "R47 per lease at cap", desc: "Solo practitioners just holding their own book." },
-  { name: "Growth",    leases: "Up to 30 active leases",  price: "1,199", perLease: "R40 per lease at cap", desc: "Building a book, two pairs of hands, one landlord at a time." },
-  { name: "Portfolio", leases: "Up to 75 active leases",  price: "2,599", perLease: "R35 per lease at cap", desc: "A small agency running a real portfolio, with a trust account that reconciles nightly.", featured: true as const },
-  { name: "Firm",      leases: "Up to 150 active leases", price: "4,499", perLease: "R30 per lease at cap", desc: "Established firms with a principal, multiple agents, and HOAs on the side." },
+  { name: "Steward",    leases: "Up to 15 active leases",   price: "699",   perLease: "R47 per lease at cap", desc: "Solo practitioners just holding their own book." },
+  { name: "Growth",     leases: "Up to 30 active leases",   price: "1,199", perLease: "R40 per lease at cap", desc: "Building a book, two pairs of hands, one landlord at a time." },
+  { name: "Portfolio",  leases: "Up to 75 active leases",   price: "2,599", perLease: "R35 per lease at cap", desc: "A small agency running a real portfolio, with a trust account that reconciles nightly.", featured: true as const },
+  { name: "Firm",       leases: "Up to 150 active leases",  price: "4,499", perLease: "R30 per lease at cap", desc: "Established firms with a principal, multiple agents, and HOAs on the side." },
+  { name: "Beyond 150", leases: "Custom · Bespoke",         price: null,    perLease: "One call · ZA hours",  desc: "More than 150 active leases? The pricing bends for you too — that's a conversation, not a form." },
 ]
 
 const AUDIT_ROWS = [
@@ -501,7 +502,7 @@ export default async function HomePage() {
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 20px", border: "1px solid var(--rule)", borderRadius: "var(--r-md)", background: "var(--paper-sunk)", marginBottom: 28, flexWrap: "wrap", fontSize: 14, color: "var(--ink-soft)" }}>
-            <span style={{ fontFamily: "var(--pub-mono)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", background: "var(--amber)", color: "var(--ink)", padding: "3px 8px", borderRadius: 3, flexShrink: 0 }}>Owner · free</span>
+            <span style={{ fontFamily: "var(--pub-mono)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", border: "1px solid var(--amber)", color: "var(--amber-ink)", padding: "3px 8px", borderRadius: 3, flexShrink: 0 }}>Owner · free</span>
             <span>Managing your own rental? Pleks is free for a single lease, forever. No card, no trial clock.</span>
             <Link href="/onboarding" style={{ marginLeft: "auto", color: "var(--amber-ink)", borderBottom: "1px solid var(--amber)", paddingBottom: 1, fontSize: 13, whiteSpace: "nowrap" }}>Start as an owner →</Link>
           </div>
@@ -511,15 +512,25 @@ export default async function HomePage() {
               <div key={tier.name} className="pub-tier">
                 {"featured" in tier && <div className="pub-tier-badge">Most popular</div>}
                 <div className="pub-tier-name">{tier.name}</div>
-                <div className="pub-tier-price">
-                  <span className="currency">R</span>{tier.price}<span className="period">/mo</span>
-                </div>
-                <div className="pub-tier-sub">{tier.leases}</div>
-                <div style={{ fontSize: 12, color: "var(--ink-faint)", marginBottom: 20, fontFamily: "var(--pub-mono)" }}>{tier.perLease}</div>
-                <p style={{ fontSize: 13, color: "var(--ink-mute)", lineHeight: 1.55, marginBottom: 24 }}>{tier.desc}</p>
-                <Link href="/onboarding" className="btn-pleks pub-tier-cta" style={{ justifyContent: "center" }}>
-                  Start as {tier.name}
-                </Link>
+                <p style={{ fontSize: 13, color: "var(--ink-mute)", lineHeight: 1.55, marginBottom: 16, marginTop: 0 }}>{tier.desc}</p>
+                <div className="pub-tier-sub" style={{ textTransform: "uppercase", letterSpacing: "0.05em", fontSize: 11 }}>{tier.leases}</div>
+                {tier.price ? (
+                  <div className="pub-tier-price">
+                    <span className="currency">R</span>{tier.price}<span className="period">/mo</span>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 28, fontWeight: 500, letterSpacing: "-0.02em", margin: "8px 0 4px", color: "var(--ink)" }}>Let&apos;s talk</div>
+                )}
+                <div style={{ fontSize: 12, color: "var(--ink-faint)", marginBottom: 24, fontFamily: "var(--pub-mono)" }}>{tier.perLease}</div>
+                {tier.price ? (
+                  <Link href="/onboarding" style={{ fontSize: 13, fontWeight: 500, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    Start as {tier.name} →
+                  </Link>
+                ) : (
+                  <Link href="/contact" style={{ fontSize: 13, fontWeight: 500, color: "var(--amber-ink)", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    Email the founder →
+                  </Link>
+                )}
               </div>
             ))}
           </div>
