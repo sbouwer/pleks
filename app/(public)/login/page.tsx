@@ -3,7 +3,6 @@
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -141,12 +140,14 @@ function LoginContent() {
             <p className="text-sm text-muted-foreground mb-4">
               We sent a link to <strong>{email}</strong>
             </p>
-            <Button
-              variant="outline"
+            <button
+              type="button"
+              className="pub-btn pub-btn-ghost"
+              style={{ width: "100%", justifyContent: "center", fontSize: 14, height: 36 }}
               onClick={() => { setMagicLinkSent(false); setMagicLinkMode(false) }}
             >
               Back to login
-            </Button>
+            </button>
           </CardContent>
         </Card>
       </div>
@@ -224,10 +225,15 @@ function LoginContent() {
                 </div>
               </div>
             )}
-            <Button type="submit" className="w-full" disabled={loading}>
+            <button
+              type="submit"
+              className="pub-btn pub-btn-primary"
+              style={{ width: "100%", justifyContent: "center", fontSize: 14, height: 36 }}
+              disabled={loading}
+            >
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {getButtonLabel(magicLinkMode, loading)}
-            </Button>
+            </button>
           </form>
 
           <div className="mt-4 text-center">

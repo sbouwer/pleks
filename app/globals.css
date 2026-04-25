@@ -141,6 +141,17 @@
   }
 }
 
+/* ── Shadcn button hover — plain CSS so Tailwind JIT isn't required ───────
+   Darken on hover for all variants; amber ring for primary buttons.   ──── */
+[data-slot="button"]:not(:disabled):hover {
+  filter: brightness(0.88);
+  transition: filter .15s, box-shadow .15s;
+}
+[data-slot="button"].bg-primary:not(:disabled):hover {
+  filter: brightness(0.84);
+  box-shadow: 0 0 0 3px oklch(0.68 0.14 65 / 0.28);
+}
+
 /* ── Pleks design-system components ───────────────────────────────────────
    Use --ink / --paper / --amber throughout. In the app (dark) these resolve
    to --foreground / --background / --brand. On the public site (.pleks-public)
