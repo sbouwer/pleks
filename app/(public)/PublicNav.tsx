@@ -73,7 +73,7 @@ export function PublicNav() {
       <div className="pub-wrap" style={{ height: 64, display: "flex", alignItems: "center", gap: 24 }}>
 
         {/* Wordmark */}
-        <Link href="/" className="pub-wordmark" aria-label="Pleks" style={{ fontSize: 20, flexShrink: 0 }}>
+        <Link href="/" className="pub-wordmark" aria-label="Pleks" style={{ flexShrink: 0 }}>
           {"pl"}<span className="pub-wm-e">{"e"}<span className="pub-wm-cut" aria-hidden="true" /></span>{"ks"}
           <span className="pub-wm-tld">.co.za</span>
         </Link>

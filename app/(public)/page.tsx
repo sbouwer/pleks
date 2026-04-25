@@ -110,7 +110,7 @@ export default async function HomePage() {
             {c(content, "notice")}
           </div>
           <div style={{ display: "flex", gap: 18, alignItems: "center" }}>
-            <span style={{ color: "oklch(0.75 0.01 260)" }}>Pleks v1.0 · Johannesburg, ZA</span>
+            <span style={{ color: "oklch(0.75 0.01 260)" }}>Pleks · Western Cape, ZA</span>
             <Link href="/onboarding">Claim a seat →</Link>
           </div>
         </div>
@@ -129,7 +129,7 @@ export default async function HomePage() {
             </span>
             <span className="pub-chip-divider" />
             <span className="pub-chip pub-mono" style={{ fontSize: 11 }}>
-              v1.0 · <span style={{ color: "var(--ink-faint)" }}>SA-hosted</span>
+              <span style={{ color: "var(--ink-faint)" }}>SA-hosted</span>
             </span>
           </div>
 
@@ -154,6 +154,9 @@ export default async function HomePage() {
             </Link>
             <Link href="/contact" className="pub-btn pub-btn-ghost">
               {c(content, "hero_cta_secondary")}
+            </Link>
+            <Link href="/#artefact" style={{ fontSize: 13.5, color: "var(--ink-mute)", textDecoration: "underline", textUnderlineOffset: "3px", textDecorationColor: "var(--rule-strong)" }}>
+              Or see what it produces
             </Link>
           </div>
 

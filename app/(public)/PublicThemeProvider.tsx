@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useContext, useState } from "react"
+import { createContext, useContext, useEffect, useState, startTransition } from "react"
 
 type Theme = "light" | "dark"
 
@@ -16,11 +16,17 @@ export function usePublicTheme() {
 }
 
 export function PublicThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(() => {
-    if (globalThis.window === undefined) return "light"
+  // Always "light" on server and initial client render — both agree, no hydration mismatch.
+  // After mount, startTransition syncs from localStorage as a non-urgent update.
+  // suppressHydrationWarning on the wrapper div silences the expected data-theme diff.
+  const [theme, setTheme] = useState<Theme>("light")
+
+  useEffect(() => {
     const stored = localStorage.getItem("pleks-pub-theme")
-    return stored === "dark" || stored === "light" ? stored : "light"
-  })
+    if (stored === "dark" || stored === "light") {
+      startTransition(() => setTheme(stored))
+    }
+  }, [])
 
   function toggle() {
     setTheme(prev => {
@@ -32,7 +38,7 @@ export function PublicThemeProvider({ children }: { children: React.ReactNode })
 
   return (
     <Ctx.Provider value={{ theme, toggle }}>
-      <div className="pleks-public" data-theme={theme}>
+      <div className="pleks-public" data-theme={theme} suppressHydrationWarning>
         {children}
       </div>
     </Ctx.Provider>
