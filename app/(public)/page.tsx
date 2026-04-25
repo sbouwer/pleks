@@ -191,7 +191,7 @@ export default async function HomePage() {
         </svg>
         <div className="pub-divider-stamp">
           <span className="d" />
-          PLEKS · ERF 00417 · SURVEY 2026
+          {`PLEKS · ERF 00417 · SURVEY ${new Date().getFullYear()}`}
         </div>
       </div>
 
