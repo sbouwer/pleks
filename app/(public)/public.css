@@ -285,7 +285,7 @@
 .pub-tier-price .currency { font-size: 18px; font-weight: 400; vertical-align: super; margin-right: 2px; color: var(--ink-soft); }
 .pub-tier-price .period   { font-size: 14px; font-weight: 400; color: var(--ink-mute); }
 .pub-tier-talk  { font-size: 26px; font-weight: 500; letter-spacing: -0.02em; color: var(--ink); font-family: var(--pub-mono); margin-bottom: 4px; }
-.pub-tier-per   { font-size: 12px; font-family: var(--pub-mono); color: var(--ink-faint); padding-bottom: 20px; }
+.pub-tier-per        { font-size: 12px; font-family: var(--pub-mono); color: var(--ink-faint); padding-bottom: 20px; }
 .pub-tier-cta   { font-size: 13px; font-weight: 600; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
 .pub-tier-cta-amber { color: var(--amber-ink); }
 

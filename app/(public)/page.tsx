@@ -52,10 +52,10 @@ const CREDS = [
 ]
 
 const TIERS = [
-  { name: "Steward",    leaseCap: 15,   leases: "Up to 15 active leases",   price: "699",   perLease: "R47 per lease at cap", desc: "Solo practitioners just holding their own book." },
-  { name: "Growth",     leaseCap: 30,   leases: "Up to 30 active leases",   price: "1,199", perLease: "R40 per lease at cap", desc: "Building a book, two pairs of hands, one landlord at a time." },
-  { name: "Portfolio",  leaseCap: 75,   leases: "Up to 75 active leases",   price: "2,599", perLease: "R35 per lease at cap", desc: "A small agency running a real portfolio, with a trust account that reconciles nightly." },
-  { name: "Firm",       leaseCap: 150,  leases: "Up to 150 active leases",  price: "4,499", perLease: "R30 per lease at cap", desc: "Established firms with a principal, multiple agents, and HOAs on the side." },
+  { name: "Steward",    leaseCap: 15,   leases: "Up to 15 active leases",   price: "699",   perLease: "That's roughly R47 per lease at cap", desc: "Solo practitioners just holding their own book." },
+  { name: "Growth",     leaseCap: 30,   leases: "Up to 30 active leases",   price: "1,199", perLease: "That's roughly R40 per lease at cap", desc: "Building a book, two pairs of hands, one landlord at a time." },
+  { name: "Portfolio",  leaseCap: 75,   leases: "Up to 75 active leases",   price: "2,599", perLease: "That's roughly R35 per lease at cap", desc: "A small agency running a real portfolio, with a trust account that reconciles nightly." },
+  { name: "Firm",       leaseCap: 150,  leases: "Up to 150 active leases",  price: "4,499", perLease: "That's roughly R30 per lease at cap", desc: "Established firms with a principal, multiple agents, and HOAs on the side." },
   { name: "Beyond 150", leaseCap: null, leases: "Custom · Bespoke",         price: null,    perLease: "One call · ZA hours",  desc: "More than 150 active leases? The pricing bends for you too — that's a conversation, not a form." },
 ] satisfies import("./TierGrid").TierData[]
 
@@ -162,8 +162,8 @@ export default async function HomePage() {
               { n: c(content, "hero_meta_1_n"), l: c(content, "hero_meta_1_l") },
               { n: c(content, "hero_meta_2_n"), l: c(content, "hero_meta_2_l") },
               { n: c(content, "hero_meta_3_n"), l: c(content, "hero_meta_3_l") },
-            ].map((m, i) => (
-              <div key={i} className="pub-hero-meta-item">
+            ].map((m) => (
+              <div key={m.l} className="pub-hero-meta-item">
                 <div className="n pub-tnum">{m.n}</div>
                 <div className="l">{m.l}</div>
               </div>
@@ -315,8 +315,8 @@ export default async function HomePage() {
                     { date: "14 Mar", desc: "Geyser element — plumber invoice",   ref: "MX-8821",     debit: "287.50",   credit: "—",         bal: "11,862.50",  tag: "maint", closing: false },
                     { date: "14 Mar", desc: "VAT on fee",                         ref: "VAT-0417-03", debit: "50.00",    credit: "—",         bal: "11,812.50",  tag: "vat",   closing: false },
                     { date: "31 Mar", desc: "Payable to landlord — pending EFT",  ref: "PAY-0417-03", debit: "—",        credit: "—",         bal: "11,812.50",  tag: null,    closing: true  },
-                  ] as const).map((row, i) => (
-                    <tr key={i} style={{ background: row.closing ? "var(--paper-sunk)" : undefined }}>
+                  ] as const).map((row) => (
+                    <tr key={row.ref} style={{ background: row.closing ? "var(--paper-sunk)" : undefined }}>
                       <td style={{ padding: "11px 12px", borderBottom: "1px solid var(--rule)", fontFamily: "var(--pub-mono)", fontSize: 12, color: "var(--ink-mute)" }}>{row.date}</td>
                       <td style={{ padding: "11px 12px", borderBottom: "1px solid var(--rule)", fontWeight: row.closing ? 600 : undefined }}>
                         {row.desc}
@@ -333,7 +333,7 @@ export default async function HomePage() {
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 24, paddingTop: 24, marginTop: 12, borderTop: "1px solid var(--rule)", fontSize: 11.5, color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ color: "var(--positive)" }}>●</span>
+                  <span style={{ color: "var(--positive)" }}>●</span>{" "}
                   Trust reconciled 31 Mar 23:59 · ΔR0.00
                 </div>
                 <div>doc_hash · 0x 9b7c 2e01 4a3f · signed by Pleks</div>
@@ -589,7 +589,7 @@ export default async function HomePage() {
           </g>
         </svg>
         <div className="pub-divider-stamp" style={{ borderColor: "oklch(0.68 0.14 65 / 0.5)", color: "var(--amber-ink)" }}>
-          <span className="d" />
+          <span className="d" />{" "}
           FOUNDING AGENTS · 2026 COHORT
         </div>
       </div>
