@@ -1,5 +1,6 @@
 import { getSiteContent } from "@/lib/supabase/public"
 import Link from "next/link"
+import { TierGrid } from "./TierGrid"
 import { RentRollSVG }           from "./svgs/RentRollSVG"
 import { IsometricBuildingsSVG } from "./svgs/IsometricBuildingsSVG"
 import { FitScoreSVG }            from "./svgs/FitScoreSVG"
@@ -51,12 +52,12 @@ const CREDS = [
 ]
 
 const TIERS = [
-  { name: "Steward",    leases: "Up to 15 active leases",   price: "699",   perLease: "R47 per lease at cap", desc: "Solo practitioners just holding their own book." },
-  { name: "Growth",     leases: "Up to 30 active leases",   price: "1,199", perLease: "R40 per lease at cap", desc: "Building a book, two pairs of hands, one landlord at a time." },
-  { name: "Portfolio",  leases: "Up to 75 active leases",   price: "2,599", perLease: "R35 per lease at cap", desc: "A small agency running a real portfolio, with a trust account that reconciles nightly.", featured: true as const },
-  { name: "Firm",       leases: "Up to 150 active leases",  price: "4,499", perLease: "R30 per lease at cap", desc: "Established firms with a principal, multiple agents, and HOAs on the side." },
-  { name: "Beyond 150", leases: "Custom · Bespoke",         price: null,    perLease: "One call · ZA hours",  desc: "More than 150 active leases? The pricing bends for you too — that's a conversation, not a form." },
-]
+  { name: "Steward",    leaseCap: 15,   leases: "Up to 15 active leases",   price: "699",   perLease: "R47 per lease at cap", desc: "Solo practitioners just holding their own book." },
+  { name: "Growth",     leaseCap: 30,   leases: "Up to 30 active leases",   price: "1,199", perLease: "R40 per lease at cap", desc: "Building a book, two pairs of hands, one landlord at a time." },
+  { name: "Portfolio",  leaseCap: 75,   leases: "Up to 75 active leases",   price: "2,599", perLease: "R35 per lease at cap", desc: "A small agency running a real portfolio, with a trust account that reconciles nightly." },
+  { name: "Firm",       leaseCap: 150,  leases: "Up to 150 active leases",  price: "4,499", perLease: "R30 per lease at cap", desc: "Established firms with a principal, multiple agents, and HOAs on the side." },
+  { name: "Beyond 150", leaseCap: null, leases: "Custom · Bespoke",         price: null,    perLease: "One call · ZA hours",  desc: "More than 150 active leases? The pricing bends for you too — that's a conversation, not a form." },
+] satisfies import("./TierGrid").TierData[]
 
 const AUDIT_ROWS = [
   { line: "Platform · per-user fee",              incumbent: "R400–R800 per user / mo",   pleks: "Tier fee only"        },
@@ -501,38 +502,19 @@ export default async function HomePage() {
             <PricingSVG />
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 20px", border: "1px solid var(--rule)", borderRadius: "var(--r-md)", background: "var(--paper-sunk)", marginBottom: 28, flexWrap: "wrap", fontSize: 14, color: "var(--ink-soft)" }}>
-            <span style={{ fontFamily: "var(--pub-mono)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", border: "1px solid var(--amber)", color: "var(--amber-ink)", padding: "3px 8px", borderRadius: 3, flexShrink: 0 }}>Owner · free</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 20px", border: "1px solid var(--rule)", borderRadius: "var(--r-md)", background: "var(--paper-sunk)", marginBottom: 20, flexWrap: "wrap", fontSize: 14, color: "var(--ink-soft)" }}>
+            <span style={{ fontFamily: "var(--pub-mono)", fontSize: 10.5, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", border: "1px solid var(--amber)", color: "var(--amber-ink)", padding: "4px 12px", borderRadius: 3, flexShrink: 0 }}>Owner · free</span>
             <span>Managing your own rental? Pleks is free for a single lease, forever. No card, no trial clock.</span>
             <Link href="/onboarding" style={{ marginLeft: "auto", color: "var(--amber-ink)", borderBottom: "1px solid var(--amber)", paddingBottom: 1, fontSize: 13, whiteSpace: "nowrap" }}>Start as an owner →</Link>
           </div>
 
-          <div className="pub-tier-grid" style={{ marginBottom: 32 }}>
-            {TIERS.map(tier => (
-              <div key={tier.name} className="pub-tier">
-                {"featured" in tier && <div className="pub-tier-badge">Most popular</div>}
-                <div className="pub-tier-name">{tier.name}</div>
-                <p style={{ fontSize: 13, color: "var(--ink-mute)", lineHeight: 1.55, marginBottom: 16, marginTop: 0 }}>{tier.desc}</p>
-                <div className="pub-tier-sub" style={{ textTransform: "uppercase", letterSpacing: "0.05em", fontSize: 11 }}>{tier.leases}</div>
-                {tier.price ? (
-                  <div className="pub-tier-price">
-                    <span className="currency">R</span>{tier.price}<span className="period">/mo</span>
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 28, fontWeight: 500, letterSpacing: "-0.02em", margin: "8px 0 4px", color: "var(--ink)" }}>Let&apos;s talk</div>
-                )}
-                <div style={{ fontSize: 12, color: "var(--ink-faint)", marginBottom: 24, fontFamily: "var(--pub-mono)" }}>{tier.perLease}</div>
-                {tier.price ? (
-                  <Link href="/onboarding" style={{ fontSize: 13, fontWeight: 500, color: "var(--ink)", display: "inline-flex", alignItems: "center", gap: 4 }}>
-                    Start as {tier.name} →
-                  </Link>
-                ) : (
-                  <Link href="/contact" style={{ fontSize: 13, fontWeight: 500, color: "var(--amber-ink)", display: "inline-flex", alignItems: "center", gap: 4 }}>
-                    Email the founder →
-                  </Link>
-                )}
-              </div>
-            ))}
+          <TierGrid tiers={TIERS} />
+
+          <div className="pub-no-cliff">
+            <span className="pub-no-cliff-label">No cliff</span>
+            <p className="pub-no-cliff-body" style={{ margin: 0 }}>
+              Pleks watches your active-lease count quietly in the background. When you cross a tier limit, we email you <em>and</em> your accountant <strong>30 days before</strong> your plan changes — with the new monthly amount and the date it kicks in. You can always switch back. <strong>Nothing auto-upgrades without notice.</strong> The line item on your bank statement is the line item on your bank statement — until you tell us otherwise.
+            </p>
           </div>
 
           <div style={{ border: "1px solid var(--rule)", borderRadius: "var(--r-md)", background: "var(--paper-sunk)", padding: "28px 32px", marginBottom: 40 }}>

@@ -242,9 +242,11 @@
   position: relative; overflow: hidden;
 }
 @media (max-width: 720px) { .pub-pricing { padding: 64px 0; } }
+/* Tier grid — subgrid keeps every row aligned across all 5 cards */
 .pub-tier-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: auto auto auto auto auto auto; /* name desc leases price perlease cta */
   gap: 0;
   border: 1px solid var(--rule);
   border-radius: var(--r-md);
@@ -252,36 +254,68 @@
   background: var(--paper-raised);
 }
 .pub-tier {
-  padding: 32px 28px 36px;
+  padding: 28px 22px;
+  grid-row: 1 / -1;
+  display: grid;
+  grid-template-rows: subgrid;
+  align-items: start;
   border-right: 1px solid var(--rule);
-  position: relative;
 }
 .pub-tier:last-child { border-right: 0; }
-@media (max-width: 860px) {
-  .pub-tier-grid { grid-template-columns: 1fr 1fr; }
+.pub-tier-active { background: var(--amber-wash); }
+
+/* Mobile: drop subgrid, stack as 2-col then 1-col */
+@media (max-width: 900px) {
+  .pub-tier-grid { grid-template-columns: 1fr 1fr; grid-template-rows: none; }
+  .pub-tier { grid-row: auto; display: flex; flex-direction: column; }
   .pub-tier:nth-child(2n) { border-right: 0; }
   .pub-tier:nth-child(n+3) { border-top: 1px solid var(--rule); }
 }
-@media (max-width: 540px) {
+@media (max-width: 480px) {
   .pub-tier-grid { grid-template-columns: 1fr; }
   .pub-tier { border-right: 0; border-bottom: 1px solid var(--rule); }
   .pub-tier:last-child { border-bottom: 0; }
 }
-.pub-tier-name { font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-mute); margin-bottom: 16px; }
+
+.pub-tier-name  { font-size: 12px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink); padding-bottom: 12px; }
+.pub-tier-desc  { font-size: 13px; color: var(--ink-soft); line-height: 1.55; margin: 0 0 14px; }
+.pub-tier-sub   { font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-mute); margin-bottom: 10px; }
+.pub-tier-sub strong { font-weight: 700; color: var(--ink); }
 .pub-tier-price { font-size: 32px; font-weight: 500; letter-spacing: -0.03em; margin-bottom: 4px; font-variant-numeric: tabular-nums; }
 .pub-tier-price .currency { font-size: 18px; font-weight: 400; vertical-align: super; margin-right: 2px; color: var(--ink-soft); }
-.pub-tier-price .period { font-size: 14px; font-weight: 400; color: var(--ink-mute); }
-.pub-tier-sub { font-size: 13px; color: var(--ink-mute); margin-bottom: 24px; }
-.pub-tier-cta { width: 100%; }
+.pub-tier-price .period   { font-size: 14px; font-weight: 400; color: var(--ink-mute); }
+.pub-tier-talk  { font-size: 26px; font-weight: 500; letter-spacing: -0.02em; color: var(--ink); font-family: var(--pub-mono); margin-bottom: 4px; }
+.pub-tier-per   { font-size: 12px; font-family: var(--pub-mono); color: var(--ink-faint); padding-bottom: 20px; }
+.pub-tier-cta   { font-size: 13px; font-weight: 600; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.pub-tier-cta-amber { color: var(--amber-ink); }
+
+/* NO CLIFF notice */
+.pub-no-cliff {
+  display: flex; gap: 20px; align-items: baseline;
+  border: 1px solid var(--rule); border-left: 3px solid var(--amber);
+  border-radius: var(--r-md); background: var(--paper-sunk);
+  padding: 20px 24px; margin-bottom: 40px; line-height: 1.6;
+}
+.pub-no-cliff-label {
+  font-family: var(--pub-mono); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-mute);
+  white-space: nowrap; flex-shrink: 0; padding-top: 2px;
+}
+.pub-no-cliff-body { font-size: 13.5px; color: var(--ink-soft); }
+
+/* Lease counter — hide number input spinners */
+.pub-lease-input {
+  width: 58px; border: none; background: transparent;
+  text-align: center; font-size: 14px; font-family: var(--pub-mono);
+  padding: 7px 4px; outline: none; color: var(--ink);
+  -moz-appearance: textfield;
+}
+.pub-lease-input::-webkit-inner-spin-button,
+.pub-lease-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
 .pub-tier-features { margin: 0; padding: 24px 0 0; border-top: 1px solid var(--rule); list-style: none; }
 .pub-tier-features li { font-size: 13px; color: var(--ink-soft); padding: 6px 0; display: flex; gap: 8px; align-items: baseline; }
 .pub-tier-features li::before { content: "·"; color: var(--amber); font-weight: 700; flex-shrink: 0; }
-.pub-tier-badge {
-  position: absolute; top: 0; right: 0;
-  background: var(--ink); color: var(--paper);
-  font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
-  padding: 4px 10px; border-radius: 0 0 0 var(--r-sm);
-}
 
 /* ── Story / Who built this ───────────────────────────────────────────────── */
 .pub-story {
