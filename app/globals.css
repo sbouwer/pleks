@@ -206,6 +206,15 @@ table.ledger tr.paid td:first-child::before {
   width: 3px; height: 18px; background: var(--amber);
 }
 
+/* Amber bracket accent — wraps a single letter; bracket floats top-right with breathing room */
+.accent-bracket { position: relative; display: inline-block; }
+.accent-bracket-mark {
+  position: absolute; top: -0.22em; right: -0.1em;
+  width: 0.3em; height: 0.3em;
+  border-top: 2px solid var(--amber); border-right: 2px solid var(--amber);
+  pointer-events: none;
+}
+
 /* Tag — line + dot */
 .tag-stoep {
   display: inline-flex; align-items: center; gap: 8px;

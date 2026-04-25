@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { Menu, User, LogIn, LogOut, LayoutDashboard, Sun, Moon } from "lucide-react"
+import { AccentBracket } from "@/components/ui/AccentBracket"
 import { createClient } from "@/lib/supabase/client"
 import { usePublicTheme } from "./PublicThemeProvider"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
@@ -96,7 +97,7 @@ export function PublicNav() {
         {/* Wordmark */}
         <Link href="/" className="pub-wordmark" aria-label="Pleks" style={{ flexShrink: 0 }}>
           <span className="pub-wm-name">
-            {"plek"}<span className="pub-wm-s">{"s"}<span className="pub-wm-cut" aria-hidden="true" /></span>
+            {"plek"}<AccentBracket>{"s"}</AccentBracket>
           </span>
           <span className="pub-wm-tld">.co.za</span>
         </Link>
