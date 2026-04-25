@@ -510,3 +510,83 @@
 
 /* ── Dark overrides for paper-sunk surfaces ──────────────────────────────── */
 .pleks-public[data-theme="dark"] .pub-gap { background: var(--paper-sunk); }
+
+/* ── Onboarding wizard ───────────────────────────────────────────────────── */
+.ob-progress-track {
+  height: 2px; background: var(--rule); border-radius: 99px; overflow: hidden;
+}
+.ob-progress-fill {
+  height: 100%; background: var(--amber);
+  border-radius: 99px; transition: width 300ms ease;
+}
+
+.ob-label {
+  font-size: 13px; font-weight: 500; color: var(--ink); display: block;
+}
+.ob-input {
+  width: 100%; padding: 9px 12px;
+  border: 1px solid var(--rule-strong); border-radius: var(--r-sm);
+  background: var(--paper); color: var(--ink);
+  font-size: 14px; font-family: var(--pub-sans);
+  transition: border-color .15s, box-shadow .15s; outline: none;
+  -webkit-appearance: none; appearance: none;
+}
+.ob-input:focus {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px oklch(0.68 0.14 65 / 0.12);
+}
+.ob-input::placeholder { color: var(--ink-faint); }
+.ob-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23999' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 34px; cursor: pointer;
+}
+[data-theme="dark"] .ob-select { color-scheme: dark; }
+
+.ob-field { display: flex; flex-direction: column; gap: 7px; }
+
+.ob-type-card {
+  width: 100%; display: flex; align-items: center; gap: 14px;
+  padding: 14px 16px; border-radius: var(--r-sm);
+  border: 1px solid var(--rule); background: var(--paper-raised);
+  cursor: pointer; text-align: left;
+  transition: border-color .15s, background .15s;
+}
+.ob-type-card:hover {
+  border-color: oklch(0.68 0.14 65 / 0.45);
+  background: var(--amber-wash);
+}
+
+.ob-notice {
+  padding: 12px 14px; border-radius: var(--r-sm);
+  border: 1px solid; font-size: 13px; line-height: 1.55;
+}
+.ob-notice-info {
+  border-color: oklch(0.7 0.06 230 / 0.22);
+  background: oklch(0.97 0.012 230 / 0.8);
+  color: var(--ink-soft);
+}
+.ob-notice-warn {
+  border-color: oklch(0.68 0.14 65 / 0.25);
+  background: var(--amber-wash);
+  color: var(--ink-soft);
+}
+[data-theme="dark"] .ob-notice-info {
+  background: oklch(0.2 0.025 230 / 0.5);
+  border-color: oklch(0.45 0.07 230 / 0.35);
+}
+
+.ob-email-alert {
+  padding: 12px 14px; border-radius: var(--r-sm);
+  border: 1px solid oklch(0.68 0.14 65 / 0.35);
+  background: var(--amber-wash);
+  display: flex; align-items: flex-start; gap: 10px;
+}
+
+.ob-check-row {
+  display: flex; align-items: flex-start; gap: 10px; cursor: pointer;
+}
+.ob-check-row input[type="checkbox"] {
+  accent-color: var(--amber); margin-top: 2px; flex-shrink: 0;
+}

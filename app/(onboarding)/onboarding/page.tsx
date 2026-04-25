@@ -2,85 +2,107 @@
 
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent } from "@/components/ui/card"
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select"
 import { createAccountAndOrg, type OnboardingData } from "@/lib/actions/onboarding"
 import { toast } from "sonner"
-import { ArrowLeft, ArrowRight, Plus, X, Building2, User, Users, Heart, Eye, Info } from "lucide-react"
+import { ArrowLeft, ArrowRight, Plus, X, Building2, User, Users, Heart, Eye, EyeOff, Info } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import Link from "next/link"
 
 type UserType = "owner" | "agent" | "agency" | "family" | "exploring"
-
-interface BankFieldsProps {
-  bankName: string
-  setBankName: (v: string) => void
-  accountHolder: string
-  setAccountHolder: (v: string) => void
-  accountNumber: string
-  setAccountNumber: (v: string) => void
-  branchCode: string
-  setBranchCode: (v: string) => void
-  accountType: string
-  setAccountType: (v: string) => void
-}
-
-function BankFields({ bankName, setBankName, accountHolder, setAccountHolder, accountNumber, setAccountNumber, branchCode, setBranchCode, accountType, setAccountType }: Readonly<BankFieldsProps>) {
-  return (
-    <div className="space-y-4 mt-4">
-      <div className="space-y-2">
-        <Label>Bank name *</Label>
-        <Select value={bankName} onValueChange={(v) => setBankName(v ?? "")}>
-          <SelectTrigger><SelectValue placeholder="Select bank" /></SelectTrigger>
-          <SelectContent>
-            {SA_BANKS.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="space-y-2">
-        <Label>Account holder name</Label>
-        <Input value={accountHolder} onChange={(e) => setAccountHolder(e.target.value)} />
-      </div>
-      <div className="space-y-2">
-        <Label>Account number</Label>
-        <Input value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} placeholder="Optional" />
-      </div>
-      <div className="space-y-2">
-        <Label>Branch code</Label>
-        <Input value={branchCode} onChange={(e) => setBranchCode(e.target.value)} placeholder="Optional" />
-      </div>
-      <div className="space-y-2">
-        <Label>Account type</Label>
-        <Select value={accountType} onValueChange={(v) => setAccountType(v ?? "savings")}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="savings">Savings</SelectItem>
-            <SelectItem value="cheque">Cheque</SelectItem>
-            <SelectItem value="transmission">Transmission</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-    </div>
-  )
-}
 
 const SA_BANKS = [
   "ABSA", "Capitec", "FNB", "Investec", "Nedbank", "Standard Bank",
   "African Bank", "Discovery Bank", "TymeBank", "Other",
 ]
 
+// ── Micro-components ─────────────────────────────────────────────────────────
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="ob-field">
+      <label className="ob-label">{label}</label>
+      {children}
+    </div>
+  )
+}
+
+function Btn({
+  children, onClick, disabled = false, variant = "primary", style,
+}: {
+  children: React.ReactNode; onClick?: () => void; disabled?: boolean
+  variant?: "primary" | "ghost"; style?: React.CSSProperties
+}) {
+  return (
+    <button
+      type="button"
+      className={`pub-btn ${variant === "primary" ? "pub-btn-primary" : "pub-btn-ghost"}`}
+      style={{ width: "100%", justifyContent: "center", ...style }}
+      onClick={onClick}
+      disabled={disabled}
+    >
+      {children}
+    </button>
+  )
+}
+
+// ── Bank fields ───────────────────────────────────────────────────────────────
+
+interface BankFieldsProps {
+  bankName: string; setBankName: (v: string) => void
+  accountHolder: string; setAccountHolder: (v: string) => void
+  accountNumber: string; setAccountNumber: (v: string) => void
+  branchCode: string; setBranchCode: (v: string) => void
+  accountType: string; setAccountType: (v: string) => void
+}
+
+function BankFields({
+  bankName, setBankName, accountHolder, setAccountHolder,
+  accountNumber, setAccountNumber, branchCode, setBranchCode,
+  accountType, setAccountType,
+}: Readonly<BankFieldsProps>) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 16 }}>
+      <Field label="Bank name *">
+        <select className="ob-input ob-select" value={bankName} onChange={(e) => setBankName(e.target.value)}>
+          <option value="">Select bank</option>
+          {SA_BANKS.map((b) => <option key={b} value={b}>{b}</option>)}
+        </select>
+      </Field>
+      <Field label="Account holder name">
+        <input className="ob-input" value={accountHolder} onChange={(e) => setAccountHolder(e.target.value)} />
+      </Field>
+      <Field label="Account number">
+        <input className="ob-input" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} placeholder="Optional" />
+      </Field>
+      <Field label="Branch code">
+        <input className="ob-input" value={branchCode} onChange={(e) => setBranchCode(e.target.value)} placeholder="Optional" />
+      </Field>
+      <Field label="Account type">
+        <select className="ob-input ob-select" value={accountType} onChange={(e) => setAccountType(e.target.value)}>
+          <option value="savings">Savings</option>
+          <option value="cheque">Cheque</option>
+          <option value="transmission">Transmission</option>
+        </select>
+      </Field>
+    </div>
+  )
+}
+
+// ── Page shell ────────────────────────────────────────────────────────────────
+
 export default function OnboardingPage() {
   return (
-    <Suspense fallback={<div className="text-sm text-muted-foreground text-center mt-20">Loading...</div>}>
+    <Suspense fallback={
+      <div style={{ textAlign: "center", paddingTop: 40, color: "var(--ink-mute)", fontSize: 14 }}>
+        Loading…
+      </div>
+    }>
       <OnboardingWizard />
     </Suspense>
   )
 }
+
+// ── Wizard ────────────────────────────────────────────────────────────────────
 
 function OnboardingWizard() {
   const router = useRouter()
@@ -91,7 +113,7 @@ function OnboardingWizard() {
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(false)
 
-  // Shared state
+  // Shared
   const [name, setName] = useState("")
   const [phone, setPhone] = useState("")
   const [address, setAddress] = useState("")
@@ -116,7 +138,7 @@ function OnboardingWizard() {
   // Team invites
   const [invites, setInvites] = useState<Array<{ email: string; role: string }>>([{ email: "", role: "property_manager" }])
 
-  // Account creation (final step)
+  // Account creation
   const [acctEmail, setAcctEmail] = useState("")
   const [acctPassword, setAcctPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -124,7 +146,6 @@ function OnboardingWizard() {
   const [isAlreadyAuthenticated, setIsAlreadyAuthenticated] = useState(false)
   const [skipQuickFinish, setSkipQuickFinish] = useState(false)
 
-  // Check if user already has a Supabase auth session
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser()
@@ -137,19 +158,16 @@ function OnboardingWizard() {
           if (typeof fullName === "string" && fullName) setName(fullName)
         }
       })
-      .catch(() => {
-        // Not authenticated — that's fine, they'll create an account
-      })
+      .catch(() => {})
   }, [])
 
   function getTotalSteps(): number {
     if (!userType) return 0
     if (userType === "exploring") return 1
-    // Account creation step added unless already authenticated
     const acctStep = isAlreadyAuthenticated ? 0 : 1
     if (userType === "owner" || userType === "family") return 3 + acctStep
     if (userType === "agent") return 4 + acctStep
-    return 5 + acctStep // agency
+    return 5 + acctStep
   }
 
   function handleTypeSelect(type: UserType) {
@@ -157,10 +175,7 @@ function OnboardingWizard() {
     setStep(1)
   }
 
-  function getManagementScope(): string {
-    if (userType === "agent" || userType === "agency") return "others_only"
-    return "own_only"
-  }
+  function getManagementScope() { return (userType === "agent" || userType === "agency") ? "others_only" : "own_only" }
 
   function getBankAccountType(): "trust" | "deposit_holding" | "ppra_trust" {
     if (ppraStatus === "registered") return "ppra_trust"
@@ -169,26 +184,18 @@ function OnboardingWizard() {
   }
 
   function buildOrgName(): string {
-    if (userType === "owner" || userType === "family") {
-      return name ? `${name.split(" ")[0]}'s Properties` : "My Properties"
-    }
+    if (userType === "owner" || userType === "family") return name ? `${name.split(" ")[0]}'s Properties` : "My Properties"
     return tradingAs || name
   }
 
   async function handleCompleteResult(result: Awaited<ReturnType<typeof createAccountAndOrg>>, submitData: OnboardingData) {
     if (result?.error) {
-      if (result.errorType === "already_exists") {
-        globalThis.location.href = "/dashboard"
-        return
-      }
-      if (result.errorType === "email_exists") {
-        setEmailExists(true)
-      }
+      if (result.errorType === "already_exists") { globalThis.location.href = "/dashboard"; return }
+      if (result.errorType === "email_exists") setEmailExists(true)
       toast.error(result.error)
       setLoading(false)
       return
     }
-    // Sign in client-side to avoid cookie-setting inside a streaming server action
     if (!submitData.isAlreadyAuthenticated && submitData.password) {
       const supabase = createClient()
       await supabase.auth.signInWithPassword({ email: submitData.email, password: submitData.password })
@@ -198,7 +205,6 @@ function OnboardingWizard() {
 
   async function handleComplete() {
     setLoading(true)
-
     if (userType === "exploring") {
       if (typeof globalThis.window !== "undefined") {
         globalThis.localStorage.setItem("pleks_demo_name", name)
@@ -206,7 +212,6 @@ function OnboardingWizard() {
       }
       return
     }
-
     const submitData: OnboardingData = {
       userType: userType!,
       name: buildOrgName(),
@@ -232,7 +237,6 @@ function OnboardingWizard() {
       password: isAlreadyAuthenticated ? undefined : acctPassword,
       isAlreadyAuthenticated,
     }
-
     const result = await createAccountAndOrg(submitData)
     await handleCompleteResult(result, submitData)
   }
@@ -240,11 +244,7 @@ function OnboardingWizard() {
   async function handleQuickFinish() {
     setLoading(true)
     const emailToUse = acctEmail || email
-    if (!emailToUse) {
-      toast.error("Session error — please refresh and try again.")
-      setLoading(false)
-      return
-    }
+    if (!emailToUse) { toast.error("Session error — please refresh and try again."); setLoading(false); return }
     const result = await createAccountAndOrg({
       userType: "owner",
       name: name ? `${name.split(" ")[0]}'s Properties` : "My Properties",
@@ -257,14 +257,8 @@ function OnboardingWizard() {
       isAlreadyAuthenticated: true,
     })
     if (result?.error) {
-      if (result.errorType === "already_exists") {
-        globalThis.location.href = "/dashboard"
-        return
-      }
-      if (result.errorType === "auth_required") {
-        globalThis.location.href = `/login?redirect=/onboarding&email=${encodeURIComponent(emailToUse)}`
-        return
-      }
+      if (result.errorType === "already_exists") { globalThis.location.href = "/dashboard"; return }
+      if (result.errorType === "auth_required") { globalThis.location.href = `/login?redirect=/onboarding&email=${encodeURIComponent(emailToUse)}`; return }
       toast.error(result.error)
       setLoading(false)
       return
@@ -274,106 +268,87 @@ function OnboardingWizard() {
 
   async function checkEmailExists(emailToCheck: string) {
     if (!emailToCheck || emailToCheck.length < 5) return
-    const res = await fetch("/api/auth/check-email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: emailToCheck.trim() }),
-    })
-    if (res.ok) {
-      const data = await res.json()
-      setEmailExists(data.exists === true)
-    }
+    const res = await fetch("/api/auth/check-email", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: emailToCheck.trim() }) })
+    if (res.ok) { const data = await res.json(); setEmailExists(data.exists === true) }
   }
 
   const totalSteps = getTotalSteps()
   const progress = totalSteps > 0 ? (step / totalSteps) * 100 : 0
 
   const progressBar = (
-    <div className="mb-6">
-      <div className="h-1 bg-border/50 rounded-full overflow-hidden">
-        <div className="h-full bg-brand transition-all duration-300 rounded-full" style={{ width: `${progress}%` }} />
+    <div style={{ marginBottom: 36 }}>
+      <div className="ob-progress-track">
+        <div className="ob-progress-fill" style={{ width: `${progress}%` }} />
       </div>
-      <div className="flex items-center justify-between mt-2">
-        <button type="button" onClick={() => setStep(step === 1 ? 0 : step - 1)} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
-          <ArrowLeft className="size-3" /> Back
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
+        <button type="button" onClick={() => setStep(step === 1 ? 0 : step - 1)}
+          style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, color: "var(--ink-mute)", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+          <ArrowLeft size={12} /> Back
         </button>
-        <span className="text-xs text-muted-foreground">Step {step} of {totalSteps}</span>
+        <span style={{ fontSize: 12, color: "var(--ink-faint)" }}>Step {step} of {totalSteps}</span>
       </div>
     </div>
   )
 
-  // ─── Shared "almost there" / account creation step ──────
+  // ── Shared steps ───────────────────────────────────────────────────────────
 
   function renderAccountStep() {
     return (
-      <div className="max-w-sm mx-auto">
+      <div>
         {progressBar}
-        <h2 className="font-heading text-xl mb-1">Almost there</h2>
-        <p className="text-sm text-muted-foreground mb-6">Create your account to save your setup.</p>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="acct-email">Email address *</Label>
-            <Input
-              id="acct-email"
-              type="email"
-              autoComplete="email"
+        <h2 style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.015em", margin: "0 0 6px" }}>Almost there</h2>
+        <p className="pub-small" style={{ margin: "0 0 28px" }}>Create your account to save your setup.</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <Field label="Email address *">
+            <input
+              className="ob-input" type="email" autoComplete="email"
               value={acctEmail}
               onChange={(e) => { setAcctEmail(e.target.value); setEmailExists(false) }}
               onBlur={() => checkEmailExists(acctEmail)}
               placeholder="you@example.com"
-              required
             />
             {emailExists && (
-              <div className="rounded-md bg-brand/5 border border-brand/30 p-3 text-sm flex items-start gap-2">
-                <Info className="size-4 text-brand shrink-0 mt-0.5" />
+              <div className="ob-email-alert">
+                <Info size={14} style={{ color: "var(--amber-ink)", flexShrink: 0, marginTop: 1 }} />
                 <div>
-                  <p className="font-medium text-foreground">This email is already registered.</p>
-                  <p className="text-muted-foreground text-xs mt-0.5">
+                  <p style={{ fontWeight: 500, fontSize: 13, color: "var(--ink)", margin: "0 0 2px" }}>This email is already registered.</p>
+                  <p style={{ fontSize: 12, color: "var(--ink-soft)", margin: 0 }}>
                     Did you start setting up before?{" "}
-                    <button
-                      type="button"
+                    <button type="button"
                       onClick={() => { globalThis.location.href = `/login?redirect=/onboarding&email=${encodeURIComponent(acctEmail)}` }}
-                      className="text-brand underline"
-                    >
+                      style={{ color: "var(--amber-ink)", textDecoration: "underline", background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: "inherit" }}>
                       Sign in to continue →
                     </button>
                   </p>
                 </div>
               </div>
             )}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="acct-password">Password *</Label>
-            <div className="relative">
-              <Input
-                id="acct-password"
+          </Field>
+          <Field label="Password *">
+            <div style={{ position: "relative" }}>
+              <input
+                className="ob-input"
                 type={showPassword ? "text" : "password"}
                 autoComplete="new-password"
                 value={acctPassword}
                 onChange={(e) => setAcctPassword(e.target.value)}
                 placeholder="At least 8 characters"
-                className="pr-10"
-                required
-                minLength={8}
+                style={{ paddingRight: 40 }}
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                tabIndex={-1}
-              >
-                {showPassword ? <X className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              <button type="button" onClick={() => setShowPassword((v) => !v)} tabIndex={-1}
+                style={{ position: "absolute", right: 11, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--ink-mute)", display: "flex", alignItems: "center" }}>
+                {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
               </button>
             </div>
-          </div>
-          <Button className="w-full" onClick={handleComplete} disabled={loading || !acctEmail.trim() || acctPassword.length < 8}>
-            {loading ? "Creating account..." : "Create account →"}
-          </Button>
-          <p className="text-center text-xs text-muted-foreground">
+          </Field>
+          <Btn onClick={handleComplete} disabled={loading || !acctEmail.trim() || acctPassword.length < 8}>
+            {loading ? "Creating account…" : "Create account →"}
+          </Btn>
+          <p style={{ textAlign: "center", fontSize: 12, color: "var(--ink-mute)", margin: 0 }}>
             By creating an account you agree to our{" "}
-            <Link href="/terms" className="underline underline-offset-2 hover:text-foreground">Terms</Link>{" "}
+            <Link href="/terms" style={{ color: "var(--ink-soft)", textDecoration: "underline" }}>Terms</Link>{" "}
             and{" "}
-            <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">Privacy Policy</Link>
+            <Link href="/privacy" style={{ color: "var(--ink-soft)", textDecoration: "underline" }}>Privacy Policy</Link>
           </p>
         </div>
       </div>
@@ -382,272 +357,258 @@ function OnboardingWizard() {
 
   function renderAllSetStep(subtitle?: string) {
     return (
-      <div className="max-w-sm mx-auto">
+      <div>
         {progressBar}
-        <h2 className="font-heading text-xl mb-4">You&apos;re all set</h2>
-        <p className="text-sm text-muted-foreground mb-6">
-          {subtitle ?? "Your free Owner account is ready."}
-        </p>
-        <Button className="w-full" onClick={handleComplete} disabled={loading}>
-          {loading ? "Setting up..." : "Go to dashboard →"}
-        </Button>
+        <h2 style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.015em", margin: "0 0 8px" }}>You&apos;re all set</h2>
+        <p className="pub-small" style={{ margin: "0 0 28px" }}>{subtitle ?? "Your free Owner account is ready."}</p>
+        <Btn onClick={handleComplete} disabled={loading}>
+          {loading ? "Setting up…" : "Go to dashboard →"}
+        </Btn>
       </div>
     )
   }
 
-  // ─── Step group: Owner / Family ──────────────────────────
+  // ── Owner / Family ─────────────────────────────────────────────────────────
 
   function renderOwnerFamilyStep() {
-    if (step === 1) {
-      return (
-        <div className="max-w-sm mx-auto">
-          {progressBar}
-          <h2 className="font-heading text-xl mb-1">Tell us about yourself</h2>
-          <p className="text-sm text-muted-foreground mb-6">Just the basics — no company details needed.</p>
-          <div className="space-y-4">
-            <div className="space-y-2"><Label>Your name *</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" required /></div>
-            <div className="space-y-2"><Label>Phone number *</Label><Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="082 000 0000" type="tel" required /></div>
-            <div className="space-y-2"><Label>City &amp; Province</Label><Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Cape Town, WC" /></div>
-            <Button className="w-full" onClick={() => setStep(2)} disabled={!name.trim() || !phone.trim()}>Continue →</Button>
+    if (step === 1) return (
+      <div>
+        {progressBar}
+        <h2 style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.015em", margin: "0 0 6px" }}>Tell us about yourself</h2>
+        <p className="pub-small" style={{ margin: "0 0 28px" }}>Just the basics — no company details needed.</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <Field label="Your name *"><input className="ob-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" /></Field>
+          <Field label="Phone number *"><input className="ob-input" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="082 000 0000" /></Field>
+          <Field label="City & Province"><input className="ob-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Cape Town, WC" /></Field>
+          <Btn onClick={() => setStep(2)} disabled={!name.trim() || !phone.trim()}>Continue →</Btn>
+        </div>
+      </div>
+    )
+
+    if (step === 2) return (
+      <div>
+        {progressBar}
+        <h2 style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.015em", margin: "0 0 6px" }}>Deposit account</h2>
+        <p className="pub-small" style={{ margin: "0 0 16px" }}>Do you have a separate account for holding tenant deposits?</p>
+        <div className="ob-notice ob-notice-info" style={{ marginBottom: 20 }}>
+          The Rental Housing Act requires deposits to be held in a separate interest-bearing account. This can be a savings account at any SA bank.
+        </div>
+        {hasBankAccount === null && (
+          <div style={{ display: "flex", gap: 10 }}>
+            <Btn variant="ghost" style={{ flex: 1, width: "auto" }} onClick={() => setHasBankAccount(true)}>Yes, I have one</Btn>
+            <Btn variant="ghost" style={{ flex: 1, width: "auto" }} onClick={() => setHasBankAccount(false)}>Not yet</Btn>
           </div>
-        </div>
-      )
-    }
-    if (step === 2) {
-      return (
-        <div className="max-w-sm mx-auto">
-          {progressBar}
-          <h2 className="font-heading text-xl mb-1">Deposit account</h2>
-          <p className="text-sm text-muted-foreground mb-4">Do you have a separate account for holding tenant deposits?</p>
-          <Card className="mb-4 border-blue-500/20 bg-blue-500/5">
-            <CardContent className="py-3 text-xs text-blue-200 leading-relaxed">
-              The Rental Housing Act requires deposits to be held in a separate interest-bearing account. This can be a savings account at any SA bank.
-            </CardContent>
-          </Card>
-          {hasBankAccount === null && (
-            <div className="flex gap-3">
-              <Button variant="outline" className="flex-1" onClick={() => setHasBankAccount(true)}>Yes, I have one</Button>
-              <Button variant="outline" className="flex-1" onClick={() => setHasBankAccount(false)}>Not yet</Button>
+        )}
+        {hasBankAccount === true && (
+          <>
+            <BankFields bankName={bankName} setBankName={setBankName} accountHolder={accountHolder} setAccountHolder={setAccountHolder} accountNumber={accountNumber} setAccountNumber={setAccountNumber} branchCode={branchCode} setBranchCode={setBranchCode} accountType={accountType} setAccountType={setAccountType} />
+            <Btn style={{ marginTop: 16 }} onClick={() => setStep(3)} disabled={!bankName}>Continue →</Btn>
+          </>
+        )}
+        {hasBankAccount === false && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 4 }}>
+            <div className="ob-notice ob-notice-warn">
+              Deposit receipts and Tribunal documentation will be restricted until you add this. You can add it later in Settings.
             </div>
-          )}
-          {hasBankAccount === true && (
-            <>
-              <BankFields bankName={bankName} setBankName={setBankName} accountHolder={accountHolder} setAccountHolder={setAccountHolder} accountNumber={accountNumber} setAccountNumber={setAccountNumber} branchCode={branchCode} setBranchCode={setBranchCode} accountType={accountType} setAccountType={setAccountType} />
-              <Button className="w-full mt-4" onClick={() => setStep(3)} disabled={!bankName}>Continue →</Button>
-            </>
-          )}
-          {hasBankAccount === false && (
-            <div className="space-y-4 mt-4">
-              <Card className="border-amber-500/20 bg-amber-500/5">
-                <CardContent className="py-3 text-xs text-amber-200 leading-relaxed">
-                  Deposit receipts and Tribunal documentation will be restricted until you add this. You can add it later in Settings.
-                </CardContent>
-              </Card>
-              <label className="flex items-start gap-2 cursor-pointer">
-                <input type="checkbox" checked={bankDeclineAck} onChange={(e) => setBankDeclineAck(e.target.checked)} className="accent-brand mt-0.5" />
-                <span className="text-xs text-muted-foreground">I understand — I&apos;ll set this up later</span>
-              </label>
-              <Button className="w-full" onClick={() => setStep(3)} disabled={!bankDeclineAck}>Continue →</Button>
-            </div>
-          )}
-        </div>
-      )
-    }
-    if (step === 3) {
-      return isAlreadyAuthenticated ? renderAllSetStep("Your free Owner account is ready.") : renderAccountStep()
-    }
+            <label className="ob-check-row">
+              <input type="checkbox" checked={bankDeclineAck} onChange={(e) => setBankDeclineAck(e.target.checked)} />
+              <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>I understand — I&apos;ll set this up later</span>
+            </label>
+            <Btn onClick={() => setStep(3)} disabled={!bankDeclineAck}>Continue →</Btn>
+          </div>
+        )}
+      </div>
+    )
+
+    if (step === 3) return isAlreadyAuthenticated ? renderAllSetStep("Your free Owner account is ready.") : renderAccountStep()
     return null
   }
 
-  // ─── Step group: Agent / Agency shared steps ─────────────
+  // ── Agent / Agency shared ──────────────────────────────────────────────────
 
   function renderAgentAgencyStep() {
-    if (step === 2) {
-      return (
-        <div className="max-w-sm mx-auto">
-          {progressBar}
-          <h2 className="font-heading text-xl mb-1">Are you registered with the PPRA?</h2>
-          <Card className="my-4 border-blue-500/20 bg-blue-500/5">
-            <CardContent className="py-3 text-xs text-blue-200 leading-relaxed">
-              The Property Practitioners Act 22 of 2019 requires anyone managing property for others to register with the PPRA and hold a valid Fidelity Fund Certificate (FFC).
-            </CardContent>
-          </Card>
-          {ppraStatus === null && (
-            <div className="space-y-2">
-              <Button variant="outline" className="w-full justify-start" onClick={() => setPpraStatus("registered")}>Yes, I&apos;m registered</Button>
-              <Button variant="outline" className="w-full justify-start" onClick={() => setPpraStatus("in_progress")}>Not yet — I&apos;m in the process</Button>
-              <Button variant="outline" className="w-full justify-start" onClick={() => setPpraStatus("none")}>No — I manage informally</Button>
-            </div>
-          )}
-          {ppraStatus === "registered" && (
-            <div className="space-y-4">
-              <div className="space-y-2"><Label>FFC Number (optional)</Label><Input value={ppraFfc} onChange={(e) => setPpraFfc(e.target.value)} placeholder="Your FFC number" /></div>
-              <Button className="w-full" onClick={() => setStep(3)}>Continue →</Button>
-            </div>
-          )}
-          {ppraStatus !== null && ppraStatus !== "registered" && (
-            <div className="space-y-4">
-              <Card className="border-amber-500/20 bg-amber-500/5">
-                <CardContent className="py-3 text-xs text-amber-200 leading-relaxed">
-                  You can still use Pleks. Note that managing property for others without PPRA registration may have legal implications.
-                </CardContent>
-              </Card>
-              <Button className="w-full" onClick={() => setStep(3)}>Continue →</Button>
-            </div>
-          )}
+    if (step === 2) return (
+      <div>
+        {progressBar}
+        <h2 style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.015em", margin: "0 0 16px" }}>Are you registered with the PPRA?</h2>
+        <div className="ob-notice ob-notice-info" style={{ marginBottom: 20 }}>
+          The Property Practitioners Act 22 of 2019 requires anyone managing property for others to register with the PPRA and hold a valid Fidelity Fund Certificate (FFC).
         </div>
-      )
-    }
-    if (step === 3) {
-      return (
-        <div className="max-w-sm mx-auto">
-          {progressBar}
-          <h2 className="font-heading text-xl mb-1">Trust account</h2>
-          <p className="text-sm text-muted-foreground mb-4">
-            {ppraStatus === "registered" ? "Do you have a PPRA-registered trust account?" : "Do you have a separate account for holding tenant funds?"}
-          </p>
-          {hasBankAccount === null && (
-            <div className="flex gap-3">
-              <Button variant="outline" className="flex-1" onClick={() => setHasBankAccount(true)}>Yes</Button>
-              <Button variant="outline" className="flex-1" onClick={() => setHasBankAccount(false)}>Not yet</Button>
+        {ppraStatus === null && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <Btn variant="ghost" onClick={() => setPpraStatus("registered")}>Yes, I&apos;m registered</Btn>
+            <Btn variant="ghost" onClick={() => setPpraStatus("in_progress")}>Not yet — I&apos;m in the process</Btn>
+            <Btn variant="ghost" onClick={() => setPpraStatus("none")}>No — I manage informally</Btn>
+          </div>
+        )}
+        {ppraStatus === "registered" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <Field label="FFC Number (optional)"><input className="ob-input" value={ppraFfc} onChange={(e) => setPpraFfc(e.target.value)} placeholder="Your FFC number" /></Field>
+            <Btn onClick={() => setStep(3)}>Continue →</Btn>
+          </div>
+        )}
+        {ppraStatus !== null && ppraStatus !== "registered" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div className="ob-notice ob-notice-warn">
+              You can still use Pleks. Note that managing property for others without PPRA registration may have legal implications.
             </div>
-          )}
-          {hasBankAccount === true && (
-            <>
-              <BankFields bankName={bankName} setBankName={setBankName} accountHolder={accountHolder} setAccountHolder={setAccountHolder} accountNumber={accountNumber} setAccountNumber={setAccountNumber} branchCode={branchCode} setBranchCode={setBranchCode} accountType={accountType} setAccountType={setAccountType} />
-              <Button className="w-full mt-4" onClick={() => setStep(4)} disabled={!bankName}>Continue →</Button>
-            </>
-          )}
-          {hasBankAccount === false && (
-            <div className="space-y-4 mt-4">
-              <Card className="border-amber-500/20 bg-amber-500/5">
-                <CardContent className="py-3 text-xs text-amber-200 leading-relaxed">
-                  Owner statements and deposit management will be restricted until you add banking details. You can add them later in Settings.
-                </CardContent>
-              </Card>
-              <label className="flex items-start gap-2 cursor-pointer">
-                <input type="checkbox" checked={bankDeclineAck} onChange={(e) => setBankDeclineAck(e.target.checked)} className="accent-brand mt-0.5" />
-                <span className="text-xs text-muted-foreground">I understand — I&apos;ll set this up later</span>
-              </label>
-              <Button className="w-full" onClick={() => setStep(4)} disabled={!bankDeclineAck}>Continue →</Button>
+            <Btn onClick={() => setStep(3)}>Continue →</Btn>
+          </div>
+        )}
+      </div>
+    )
+
+    if (step === 3) return (
+      <div>
+        {progressBar}
+        <h2 style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.015em", margin: "0 0 6px" }}>Trust account</h2>
+        <p className="pub-small" style={{ margin: "0 0 16px" }}>
+          {ppraStatus === "registered" ? "Do you have a PPRA-registered trust account?" : "Do you have a separate account for holding tenant funds?"}
+        </p>
+        {hasBankAccount === null && (
+          <div style={{ display: "flex", gap: 10 }}>
+            <Btn variant="ghost" style={{ flex: 1, width: "auto" }} onClick={() => setHasBankAccount(true)}>Yes</Btn>
+            <Btn variant="ghost" style={{ flex: 1, width: "auto" }} onClick={() => setHasBankAccount(false)}>Not yet</Btn>
+          </div>
+        )}
+        {hasBankAccount === true && (
+          <>
+            <BankFields bankName={bankName} setBankName={setBankName} accountHolder={accountHolder} setAccountHolder={setAccountHolder} accountNumber={accountNumber} setAccountNumber={setAccountNumber} branchCode={branchCode} setBranchCode={setBranchCode} accountType={accountType} setAccountType={setAccountType} />
+            <Btn style={{ marginTop: 16 }} onClick={() => setStep(4)} disabled={!bankName}>Continue →</Btn>
+          </>
+        )}
+        {hasBankAccount === false && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 4 }}>
+            <div className="ob-notice ob-notice-warn">
+              Owner statements and deposit management will be restricted until you add banking details. You can add them later in Settings.
             </div>
-          )}
-        </div>
-      )
-    }
+            <label className="ob-check-row">
+              <input type="checkbox" checked={bankDeclineAck} onChange={(e) => setBankDeclineAck(e.target.checked)} />
+              <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>I understand — I&apos;ll set this up later</span>
+            </label>
+            <Btn onClick={() => setStep(4)} disabled={!bankDeclineAck}>Continue →</Btn>
+          </div>
+        )}
+      </div>
+    )
+
     return null
   }
 
-  // ─── Step group: Agent ───────────────────────────────────
+  // ── Agent ──────────────────────────────────────────────────────────────────
 
   function renderAgentStep() {
-    if (step === 1) {
-      return (
-        <div className="max-w-sm mx-auto">
-          {progressBar}
-          <h2 className="font-heading text-xl mb-4">Tell us about yourself</h2>
-          <div className="space-y-4">
-            <div className="space-y-2"><Label>Your full name *</Label><Input value={name} onChange={(e) => setName(e.target.value)} required /></div>
-            <div className="space-y-2"><Label>Trading name *</Label><Input value={tradingAs} onChange={(e) => setTradingAs(e.target.value)} placeholder="e.g. Smith Property Management" required /></div>
-            <div className="space-y-2"><Label>Phone number *</Label><Input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" required /></div>
-            <div className="space-y-2"><Label>City &amp; Province</Label><Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Cape Town, WC" /></div>
-            <div className="space-y-2"><Label>Company reg number</Label><Input value={regNumber} onChange={(e) => setRegNumber(e.target.value)} placeholder="Optional" /></div>
-            <Button className="w-full" onClick={() => setStep(2)} disabled={!name.trim() || !tradingAs.trim() || !phone.trim()}>Continue →</Button>
-          </div>
+    if (step === 1) return (
+      <div>
+        {progressBar}
+        <h2 style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.015em", margin: "0 0 24px" }}>Tell us about yourself</h2>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <Field label="Your full name *"><input className="ob-input" value={name} onChange={(e) => setName(e.target.value)} /></Field>
+          <Field label="Trading name *"><input className="ob-input" value={tradingAs} onChange={(e) => setTradingAs(e.target.value)} placeholder="e.g. Smith Property Management" /></Field>
+          <Field label="Phone number *"><input className="ob-input" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} /></Field>
+          <Field label="City & Province"><input className="ob-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Cape Town, WC" /></Field>
+          <Field label="Company reg number"><input className="ob-input" value={regNumber} onChange={(e) => setRegNumber(e.target.value)} placeholder="Optional" /></Field>
+          <Btn onClick={() => setStep(2)} disabled={!name.trim() || !tradingAs.trim() || !phone.trim()}>Continue →</Btn>
         </div>
-      )
-    }
+      </div>
+    )
     const shared = renderAgentAgencyStep()
     if (shared) return shared
-    if (step === 4) {
-      return isAlreadyAuthenticated
-        ? renderAllSetStep("Your free Owner account is ready. Upgrade to Steward or Portfolio anytime from Settings.")
-        : renderAccountStep()
-    }
+    if (step === 4) return isAlreadyAuthenticated
+      ? renderAllSetStep("Your account is ready. Upgrade to Steward or Portfolio anytime from Settings.")
+      : renderAccountStep()
     return null
   }
 
-  // ─── Step group: Agency ──────────────────────────────────
+  // ── Agency ─────────────────────────────────────────────────────────────────
 
   function renderAgencyStep() {
-    if (step === 1) {
-      return (
-        <div className="max-w-sm mx-auto">
-          {progressBar}
-          <h2 className="font-heading text-xl mb-4">Tell us about your agency</h2>
-          <div className="space-y-4">
-            <div className="space-y-2"><Label>Agency / company name *</Label><Input value={name} onChange={(e) => setName(e.target.value)} required /></div>
-            <div className="space-y-2"><Label>Trading as</Label><Input value={tradingAs} onChange={(e) => setTradingAs(e.target.value)} placeholder="If different from company name" /></div>
-            <div className="space-y-2"><Label>Registration number *</Label><Input value={regNumber} onChange={(e) => setRegNumber(e.target.value)} required /></div>
-            <div className="space-y-2"><Label>VAT number</Label><Input value={vatNumber} onChange={(e) => setVatNumber(e.target.value)} placeholder="Optional" /></div>
-            <div className="space-y-2"><Label>Phone number *</Label><Input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" required /></div>
-            <div className="space-y-2"><Label>City &amp; Province</Label><Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Cape Town, WC" /></div>
-            <Button className="w-full" onClick={() => setStep(2)} disabled={!name.trim() || !regNumber.trim() || !phone.trim()}>Continue →</Button>
-          </div>
+    if (step === 1) return (
+      <div>
+        {progressBar}
+        <h2 style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.015em", margin: "0 0 24px" }}>Tell us about your agency</h2>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <Field label="Agency / company name *"><input className="ob-input" value={name} onChange={(e) => setName(e.target.value)} /></Field>
+          <Field label="Trading as"><input className="ob-input" value={tradingAs} onChange={(e) => setTradingAs(e.target.value)} placeholder="If different from company name" /></Field>
+          <Field label="Registration number *"><input className="ob-input" value={regNumber} onChange={(e) => setRegNumber(e.target.value)} /></Field>
+          <Field label="VAT number"><input className="ob-input" value={vatNumber} onChange={(e) => setVatNumber(e.target.value)} placeholder="Optional" /></Field>
+          <Field label="Phone number *"><input className="ob-input" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} /></Field>
+          <Field label="City & Province"><input className="ob-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Cape Town, WC" /></Field>
+          <Btn onClick={() => setStep(2)} disabled={!name.trim() || !regNumber.trim() || !phone.trim()}>Continue →</Btn>
         </div>
-      )
-    }
+      </div>
+    )
     const shared = renderAgentAgencyStep()
     if (shared) return shared
-    if (step === 4) {
-      return (
-        <div className="max-w-sm mx-auto">
-          {progressBar}
-          <h2 className="font-heading text-xl mb-1">Invite your team</h2>
-          <p className="text-sm text-muted-foreground mb-4">Add team members now or skip and invite later from Settings.</p>
-          <div className="space-y-3">
-            {invites.map((invite, i) => (
-              <div key={`invite-${i}`} className="flex gap-2">
-                <Input placeholder="Email" type="email" value={invite.email} onChange={(e) => { const u = [...invites]; u[i] = { ...u[i], email: e.target.value }; setInvites(u) }} className="flex-1" />
-                <Select value={invite.role} onValueChange={(v) => { const u = [...invites]; u[i] = { ...u[i], role: v ?? "property_manager" }; setInvites(u) }}>
-                  <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="property_manager">Property Manager</SelectItem>
-                    <SelectItem value="letting_agent">Letting Agent</SelectItem>
-                    <SelectItem value="accountant">Accountant</SelectItem>
-                    <SelectItem value="maintenance_manager">Maintenance</SelectItem>
-                  </SelectContent>
-                </Select>
-                {invites.length > 1 && <Button variant="ghost" size="icon" onClick={() => setInvites(invites.filter((_, j) => j !== i))}><X className="size-4" /></Button>}
-              </div>
-            ))}
-            <button type="button" onClick={() => setInvites([...invites, { email: "", role: "property_manager" }])} className="text-xs text-brand hover:underline flex items-center gap-1">
-              <Plus className="size-3" /> Add another
-            </button>
-          </div>
-          <div className="flex gap-3 mt-6">
-            <Button variant="outline" className="flex-1" onClick={() => { setInvites([]); setStep(5) }}>Skip for now</Button>
-            <Button className="flex-1" onClick={() => setStep(5)}>Send invites &amp; continue →</Button>
-          </div>
+    if (step === 4) return (
+      <div>
+        {progressBar}
+        <h2 style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.015em", margin: "0 0 6px" }}>Invite your team</h2>
+        <p className="pub-small" style={{ margin: "0 0 24px" }}>Add team members now or skip and invite later from Settings.</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {invites.map((invite, i) => (
+            <div key={`invite-${i}`} style={{ display: "flex", gap: 8 }}>
+              <input
+                className="ob-input" type="email" placeholder="Email" style={{ flex: 1, width: "auto" }}
+                value={invite.email}
+                onChange={(e) => { const u = [...invites]; u[i] = { ...u[i], email: e.target.value }; setInvites(u) }}
+              />
+              <select
+                className="ob-input ob-select" style={{ width: 148, flexShrink: 0 }}
+                value={invite.role}
+                onChange={(e) => { const u = [...invites]; u[i] = { ...u[i], role: e.target.value }; setInvites(u) }}
+              >
+                <option value="property_manager">Property Manager</option>
+                <option value="letting_agent">Letting Agent</option>
+                <option value="accountant">Accountant</option>
+                <option value="maintenance_manager">Maintenance</option>
+              </select>
+              {invites.length > 1 && (
+                <button type="button" onClick={() => setInvites(invites.filter((_, j) => j !== i))}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 38, height: 38, border: "1px solid var(--rule)", borderRadius: "var(--r-sm)", background: "none", cursor: "pointer", color: "var(--ink-mute)", flexShrink: 0 }}>
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+          ))}
+          <button type="button" onClick={() => setInvites([...invites, { email: "", role: "property_manager" }])}
+            style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--amber-ink)", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+            <Plus size={12} /> Add another
+          </button>
         </div>
-      )
-    }
-    if (step === 5) {
-      return isAlreadyAuthenticated
-        ? renderAllSetStep("Your free Owner account is ready. Upgrade to Steward or Portfolio anytime from Settings.")
-        : renderAccountStep()
-    }
+        <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
+          <Btn variant="ghost" style={{ flex: 1, width: "auto" }} onClick={() => { setInvites([]); setStep(5) }}>Skip for now</Btn>
+          <Btn style={{ flex: 1, width: "auto" }} onClick={() => setStep(5)}>Send invites &amp; continue →</Btn>
+        </div>
+      </div>
+    )
+    if (step === 5) return isAlreadyAuthenticated
+      ? renderAllSetStep("Your account is ready. Upgrade to Steward or Portfolio anytime from Settings.")
+      : renderAccountStep()
     return null
   }
 
-  // ─── Main render dispatch ────────────────────────────────
+  // ── Main dispatch ──────────────────────────────────────────────────────────
 
-  // Returning user quick-finish (step 0, already authenticated)
+  // Returning user quick-finish
   if (step === 0 && isAlreadyAuthenticated && !isSetup && !skipQuickFinish) {
     const displayName = name?.split(" ")[0] || acctEmail?.split("@")[0] || ""
     return (
-      <div className="max-w-sm mx-auto space-y-6">
-        <div className="text-center">
-          <h1 className="font-heading text-2xl mb-2">Welcome back{displayName ? `, ${displayName}` : ""}</h1>
-          <p className="text-sm text-muted-foreground">You started setting up before. Let&apos;s finish your account.</p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+        <div style={{ textAlign: "center" }}>
+          <h1 style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.02em", margin: "0 0 8px" }}>
+            Welcome back{displayName ? `, ${displayName}` : ""}
+          </h1>
+          <p className="pub-small" style={{ margin: 0 }}>You started setting up before. Let&apos;s finish your account.</p>
         </div>
-        <div className="space-y-4">
-          <div className="space-y-2"><Label>Your name</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name (optional)" /></div>
-          <div className="space-y-2"><Label>Phone number</Label><Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="082 000 0000" type="tel" /></div>
-          <Button className="w-full" onClick={handleQuickFinish} disabled={loading || (!name.trim())}>
-            {loading ? "Setting up..." : "Go to dashboard →"}
-          </Button>
-          <button type="button" onClick={() => setSkipQuickFinish(true)} className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors">
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <Field label="Your name"><input className="ob-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name (optional)" /></Field>
+          <Field label="Phone number"><input className="ob-input" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="082 000 0000" /></Field>
+          <Btn onClick={handleQuickFinish} disabled={loading || !name.trim()}>
+            {loading ? "Setting up…" : "Go to dashboard →"}
+          </Btn>
+          <button type="button" onClick={() => setSkipQuickFinish(true)}
+            style={{ fontSize: 12.5, color: "var(--ink-mute)", background: "none", border: "none", cursor: "pointer", textAlign: "center" }}>
             I want to choose a different account type
           </button>
         </div>
@@ -655,55 +616,63 @@ function OnboardingWizard() {
     )
   }
 
-  // Type selection (step 0)
+  // Type selection
   if (step === 0) {
     const allTypes: Array<{ type: UserType; icon: typeof Building2; title: string; desc: string }> = [
-      { type: "owner", icon: Building2, title: "I own rental properties", desc: "Manage your own portfolio" },
-      { type: "agent", icon: User, title: "I'm a property agent / manager", desc: "You manage properties for clients" },
-      { type: "agency", icon: Users, title: "We're a team or agency", desc: "Multiple staff, business entity" },
-      { type: "family", icon: Heart, title: "I'm helping a family member or friend", desc: "Informal arrangement, not a business" },
-      { type: "exploring", icon: Eye, title: "Just exploring for now", desc: "I want to see what Pleks can do" },
+      { type: "owner",     icon: Building2, title: "I own rental properties",         desc: "Manage your own portfolio" },
+      { type: "agent",     icon: User,      title: "I'm a property agent / manager",  desc: "You manage properties for clients" },
+      { type: "agency",    icon: Users,     title: "We're a team or agency",           desc: "Multiple staff, business entity" },
+      { type: "family",    icon: Heart,     title: "I'm helping a family member",      desc: "Informal arrangement, not a business" },
+      { type: "exploring", icon: Eye,       title: "Just exploring for now",           desc: "I want to see what Pleks can do" },
     ]
     const types = isSetup ? allTypes.filter((t) => t.type !== "exploring") : allTypes
     return (
-      <div className="max-w-lg mx-auto space-y-6">
-        <div className="text-center">
-          <h1 className="font-heading text-2xl mb-2">{isSetup ? "Choose your account type" : "How will you be using Pleks?"}</h1>
-          <p className="text-sm text-muted-foreground">{isSetup ? "You're upgrading from demo mode." : "We'll set up your account to match."}</p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+        <div style={{ textAlign: "center" }}>
+          <h1 style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.02em", margin: "0 0 8px" }}>
+            {isSetup ? "Choose your account type" : "How will you be using Pleks?"}
+          </h1>
+          <p className="pub-small" style={{ margin: 0 }}>
+            {isSetup ? "You're upgrading from demo mode." : "We'll set up your account to match."}
+          </p>
         </div>
-        <div className="space-y-3">
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {types.map((t) => (
-            <Card key={t.type} className="cursor-pointer hover:border-brand/50 transition-colors" onClick={() => handleTypeSelect(t.type)}>
-              <CardContent className="py-4 flex items-center gap-4">
-                <t.icon className="size-6 text-brand shrink-0" />
-                <div><p className="text-sm font-medium">{t.title}</p><p className="text-xs text-muted-foreground">{t.desc}</p></div>
-                <ArrowRight className="size-4 text-muted-foreground ml-auto shrink-0" />
-              </CardContent>
-            </Card>
+            <button key={t.type} type="button" className="ob-type-card" onClick={() => handleTypeSelect(t.type)}>
+              <t.icon size={18} style={{ color: "var(--amber-ink)", flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: 14, fontWeight: 500, color: "var(--ink)", margin: 0 }}>{t.title}</p>
+                <p style={{ fontSize: 12.5, color: "var(--ink-mute)", margin: "2px 0 0" }}>{t.desc}</p>
+              </div>
+              <ArrowRight size={13} style={{ color: "var(--ink-faint)", flexShrink: 0 }} />
+            </button>
           ))}
         </div>
-        {isSetup && <Button variant="ghost" size="sm" onClick={() => router.push("/demo")} className="w-full text-muted-foreground">← Back to demo</Button>}
+        {isSetup && (
+          <button type="button" onClick={() => router.push("/demo")}
+            style={{ fontSize: 13, color: "var(--ink-mute)", background: "none", border: "none", cursor: "pointer", textAlign: "center" }}>
+            ← Back to demo
+          </button>
+        )}
       </div>
     )
   }
 
-  // Exploring: single step
-  if (userType === "exploring") {
-    return (
-      <div className="max-w-sm mx-auto">
-        {progressBar}
-        <h2 className="font-heading text-xl mb-1">What&apos;s your name?</h2>
-        <p className="text-sm text-muted-foreground mb-6">That&apos;s all we need to get you started.</p>
-        <div className="space-y-4">
-          <div className="space-y-2"><Label>Your name *</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" required /></div>
-          <div className="space-y-2"><Label>Phone number</Label><Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Optional" type="tel" /></div>
-          <Button className="w-full" onClick={handleComplete} disabled={!name.trim() || loading}>
-            {loading ? "Setting up..." : "Explore Pleks →"}
-          </Button>
-        </div>
+  // Exploring
+  if (userType === "exploring") return (
+    <div>
+      {progressBar}
+      <h2 style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.015em", margin: "0 0 6px" }}>What&apos;s your name?</h2>
+      <p className="pub-small" style={{ margin: "0 0 28px" }}>That&apos;s all we need to get you started.</p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <Field label="Your name *"><input className="ob-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" /></Field>
+        <Field label="Phone number"><input className="ob-input" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Optional" /></Field>
+        <Btn onClick={handleComplete} disabled={!name.trim() || loading}>
+          {loading ? "Setting up…" : "Explore Pleks →"}
+        </Btn>
       </div>
-    )
-  }
+    </div>
+  )
 
   if (userType === "owner" || userType === "family") return renderOwnerFamilyStep()
   if (userType === "agent") return renderAgentStep()
