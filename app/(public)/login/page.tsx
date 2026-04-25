@@ -8,8 +8,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import Link from "next/link"
-import Image from "next/image"
 import { Eye, EyeOff, Loader2 } from "lucide-react"
+import { AccentBracket } from "@/components/ui/AccentBracket"
 
 function getButtonLabel(isMagicLink: boolean, isLoading: boolean) {
   if (isMagicLink) return isLoading ? "Sending link..." : "Send login link"
@@ -130,7 +130,11 @@ function LoginContent() {
       <div className="flex items-center justify-center min-h-screen px-4">
         <Card className="w-full max-w-sm">
           <CardHeader className="text-center">
-            <CardTitle><Image src="/logo.svg" alt="Pleks" width={114} height={32} className="h-8 w-auto mx-auto" /></CardTitle>
+            <CardTitle>
+              <Link href="/" className="pub-wordmark" aria-label="Pleks" style={{ justifyContent: "center" }}>
+                <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
+              </Link>
+            </CardTitle>
             <CardDescription>Check your email for a login link.</CardDescription>
           </CardHeader>
           <CardContent className="text-center">
@@ -153,7 +157,11 @@ function LoginContent() {
     <div className="flex items-center justify-center min-h-screen px-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <CardTitle><Image src="/logo.svg" alt="Pleks" width={114} height={32} className="h-8 w-auto mx-auto" /></CardTitle>
+          <CardTitle>
+              <Link href="/" className="pub-wordmark" aria-label="Pleks" style={{ justifyContent: "center" }}>
+                <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
+              </Link>
+            </CardTitle>
           <CardDescription>Sign in to your account</CardDescription>
         </CardHeader>
         <CardContent>
