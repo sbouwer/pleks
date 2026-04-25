@@ -86,6 +86,20 @@ const PILLAR_2 = [
 export default async function HomePage() {
   const content = await getSiteContent()
 
+  // ── Dynamic dates (server-rendered; revalidated hourly via revalidate=3600) ─
+  const now      = new Date()
+  const prev     = new Date(now.getFullYear(), now.getMonth() - 1, 1) // 1st of last month
+  const lastDay  = new Date(now.getFullYear(), now.getMonth(), 0)     // last day of last month
+  const stmtMonLong  = prev.toLocaleString("en-ZA", { month: "long"  })   // "March"
+  const stmtMonAbbr  = prev.toLocaleString("en-ZA", { month: "short" })   // "Mar"
+  const stmtYear     = prev.getFullYear()
+  const stmtMM       = String(prev.getMonth() + 1).padStart(2, "0")        // "03"
+  const stmtSlug     = `${stmtYear}-${stmtMM}`                             // "2026-03"
+  const lastDayDD    = String(lastDay.getDate()).padStart(2, "0")           // "31"
+  const lastDayLabel = `${lastDayDD} ${stmtMonAbbr}`                       // "31 Mar"
+  const todayLabel   = `${String(now.getDate()).padStart(2, "0")} ${now.toLocaleString("en-ZA", { month: "short" })} ${now.getFullYear()}`
+  const auditLabel   = `${now.toLocaleString("en-ZA", { month: "short" })} ${now.getFullYear()}`
+
   return (
     <>
       {/* ── Notice strip ── */}
@@ -257,16 +271,16 @@ export default async function HomePage() {
             <div style={{ padding: 36, overflowX: "auto" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 36, paddingBottom: 28, borderBottom: "1px solid var(--rule-strong)", marginBottom: 20 }}>
                 <div>
-                  <div style={{ fontSize: 13, color: "var(--ink-mute)", letterSpacing: "0.04em", textTransform: "uppercase", fontWeight: 600, marginBottom: 10 }}>Landlord statement · March 2026</div>
+                  <div style={{ fontSize: 13, color: "var(--ink-mute)", letterSpacing: "0.04em", textTransform: "uppercase", fontWeight: 600, marginBottom: 10 }}>{`Landlord statement · ${stmtMonLong} ${stmtYear}`}</div>
                   <h3 style={{ margin: "0 0 6px", fontSize: 28, letterSpacing: "-0.02em", fontWeight: 500 }}>Mrs. A. van Zyl</h3>
                   <div style={{ fontSize: 13.5, color: "var(--ink-soft)", lineHeight: 1.5 }}>17 Loop Street, Bo-Kaap, Cape Town, 8001 · Unit A (2B/1B) · Tenant: N. Dlamini</div>
-                  <div style={{ fontFamily: "var(--pub-mono)", fontSize: 12, color: "var(--ink-mute)", marginTop: 6 }}>ref · STMT-2026-03-A0417 · rent_roll R 13,500.00</div>
+                  <div style={{ fontFamily: "var(--pub-mono)", fontSize: 12, color: "var(--ink-mute)", marginTop: 6 }}>{`ref · STMT-${stmtSlug}-A0417 · rent_roll R 13,500.00`}</div>
                 </div>
                 <div style={{ textAlign: "right", fontSize: 12.5, color: "var(--ink-mute)" }}>
                   <strong style={{ color: "var(--ink)", fontWeight: 500, display: "block" }}>Rox &amp; Co Property Management</strong>
-                  PPRA FFC 2026 · 2025-0041<br/>
+                  {`PPRA FFC ${now.getFullYear()} · 2025-0041`}<br/>
                   Trust acc · ABSA 407 889 1204<br/>
-                  Statement issued · 03 Apr 2026
+                  {`Statement issued · ${todayLabel}`}
                 </div>
               </div>
 
@@ -294,13 +308,13 @@ export default async function HomePage() {
                 </thead>
                 <tbody>
                   {([
-                    { date: "01 Mar", desc: "Opening balance",                   ref: "—",           debit: "—",        credit: "—",         bal: "0.00",       tag: null,    closing: false },
-                    { date: "02 Mar", desc: "Rent received — debit order",        ref: "DO-M2431-03", debit: "—",        credit: "13,500.00", bal: "13,500.00",  tag: "rent",  closing: false },
-                    { date: "02 Mar", desc: "Management fee (10%)",               ref: "FEE-0417-03", debit: "1,350.00", credit: "—",         bal: "12,150.00",  tag: "fee",   closing: false },
-                    { date: "14 Mar", desc: "Geyser element — plumber invoice",   ref: "MX-8821",     debit: "287.50",   credit: "—",         bal: "11,862.50",  tag: "maint", closing: false },
-                    { date: "14 Mar", desc: "VAT on fee",                         ref: "VAT-0417-03", debit: "50.00",    credit: "—",         bal: "11,812.50",  tag: "vat",   closing: false },
-                    { date: "31 Mar", desc: "Payable to landlord — pending EFT",  ref: "PAY-0417-03", debit: "—",        credit: "—",         bal: "11,812.50",  tag: null,    closing: true  },
-                  ] as const).map((row) => (
+                    { date: `01 ${stmtMonAbbr}`, desc: "Opening balance",                   ref: "—",                              debit: "—",        credit: "—",         bal: "0.00",       tag: null,    closing: false },
+                    { date: `02 ${stmtMonAbbr}`, desc: "Rent received — debit order",        ref: `DO-M2431-${stmtMM}`,             debit: "—",        credit: "13,500.00", bal: "13,500.00",  tag: "rent",  closing: false },
+                    { date: `02 ${stmtMonAbbr}`, desc: "Management fee (10%)",               ref: `FEE-0417-${stmtMM}`,             debit: "1,350.00", credit: "—",         bal: "12,150.00",  tag: "fee",   closing: false },
+                    { date: `14 ${stmtMonAbbr}`, desc: "Geyser element — plumber invoice",   ref: "MX-8821",                        debit: "287.50",   credit: "—",         bal: "11,862.50",  tag: "maint", closing: false },
+                    { date: `14 ${stmtMonAbbr}`, desc: "VAT on fee",                         ref: `VAT-0417-${stmtMM}`,             debit: "50.00",    credit: "—",         bal: "11,812.50",  tag: "vat",   closing: false },
+                    { date: lastDayLabel,         desc: "Payable to landlord — pending EFT",  ref: `PAY-0417-${stmtMM}`,             debit: "—",        credit: "—",         bal: "11,812.50",  tag: null,    closing: true  },
+                  ]).map((row) => (
                     <tr key={row.ref} style={{ background: row.closing ? "var(--paper-sunk)" : undefined }}>
                       <td style={{ padding: "11px 12px", borderBottom: "1px solid var(--rule)", fontFamily: "var(--pub-mono)", fontSize: 12, color: "var(--ink-mute)" }}>{row.date}</td>
                       <td style={{ padding: "11px 12px", borderBottom: "1px solid var(--rule)", fontWeight: row.closing ? 600 : undefined }}>
@@ -319,7 +333,7 @@ export default async function HomePage() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 24, paddingTop: 24, marginTop: 12, borderTop: "1px solid var(--rule)", fontSize: 11.5, color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ color: "var(--positive)" }}>●</span>{" "}
-                  Trust reconciled 31 Mar 23:59 · ΔR0.00
+                  {`Trust reconciled ${lastDayLabel} 23:59 · ΔR0.00`}
                 </div>
                 <div>doc_hash · 0x 9b7c 2e01 4a3f · signed by Pleks</div>
                 <div>audit entries #4780–#4811 · exportable</div>
@@ -486,7 +500,7 @@ export default async function HomePage() {
                 <div className="pub-eyebrow" style={{ marginBottom: 6 }}><span className="amber-rule" />A quick audit</div>
                 <h3 style={{ margin: 0, fontSize: 22, letterSpacing: "-0.015em", fontWeight: 500 }}>Where your current software bill goes.</h3>
               </div>
-              <div style={{ fontSize: 12, color: "var(--ink-faint)", fontFamily: "var(--pub-mono)" }}>SA rental platforms · Apr 2026</div>
+              <div style={{ fontSize: 12, color: "var(--ink-faint)", fontFamily: "var(--pub-mono)" }}>{`SA rental platforms · ${auditLabel}`}</div>
             </div>
             <div style={{ border: "1px solid var(--rule)", borderRadius: "var(--r-md)", overflow: "hidden" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
