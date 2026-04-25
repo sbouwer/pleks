@@ -37,6 +37,7 @@ export function PublicNav() {
   // undefined = checking; null = logged out; object = logged in
   const [user, setUser]                 = useState<{ email?: string } | null | undefined>(undefined)
   const [scrollHidden, setScrollHidden] = useState(false)
+  const [activeSection, setActiveSection] = useState("")
   const lastScrollRef                   = useRef(0)
   const { theme, toggle }               = usePublicTheme()
 
@@ -45,6 +46,26 @@ export function PublicNav() {
     supabase.auth.getUser()
       .then(({ data }) => setUser(data.user ? { email: data.user.email ?? undefined } : null))
       .catch(() => setUser(null))
+  }, [])
+
+  // Scrollspy — activate nav link matching the section in the upper viewport
+  useEffect(() => {
+    const ids = NAV_LINKS.map(l => l.href.replace("/#", ""))
+    const els = ids.map(id => document.getElementById(id)).filter((el): el is HTMLElement => el !== null)
+    const io = new IntersectionObserver(
+      entries => {
+        entries.forEach(e => {
+          // Only mark active once the user has scrolled past the hero
+          if (e.isIntersecting && globalThis.scrollY > 80) setActiveSection(e.target.id)
+        })
+      },
+      { rootMargin: "-20% 0px -60% 0px", threshold: 0 },
+    )
+    els.forEach(el => io.observe(el))
+    // Clear active state when scrolled back to the top
+    const onScroll = () => { if (globalThis.scrollY < 80) setActiveSection("") }
+    globalThis.addEventListener("scroll", onScroll, { passive: true })
+    return () => { io.disconnect(); globalThis.removeEventListener("scroll", onScroll) }
   }, [])
 
   // Hide nav on scroll-down on mobile only
@@ -80,28 +101,35 @@ export function PublicNav() {
 
         {/* Centre nav — desktop only */}
         <nav aria-label="Site sections" className="hidden md:flex" style={{ flex: 1, justifyContent: "center", gap: 2, alignItems: "center" }}>
-          {NAV_LINKS.map(link => (
-            <Link
-              key={link.href}
-              href={link.href}
-              style={{
-                fontSize: 13.5, fontWeight: 500, color: "var(--ink-soft)",
-                padding: "6px 11px", borderRadius: "var(--r-sm)",
-                transition: "color .15s, background .15s",
-                whiteSpace: "nowrap",
-              }}
-              onMouseEnter={e => { e.currentTarget.style.color = "var(--ink)"; e.currentTarget.style.background = "var(--paper-sunk)" }}
-              onMouseLeave={e => { e.currentTarget.style.color = "var(--ink-soft)"; e.currentTarget.style.background = "transparent" }}
-            >
-              {link.label}
-            </Link>
-          ))}
+          {NAV_LINKS.map(link => {
+            const id = link.href.replace("/#", "")
+            const isActive = activeSection === id
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={isActive ? "stoep" : undefined}
+                style={{
+                  fontSize: 13.5, fontWeight: 500,
+                  color: isActive ? "var(--ink)" : "var(--ink-soft)",
+                  padding: isActive ? "6px 11px 4px" : "6px 11px",
+                  borderRadius: "var(--r-sm)",
+                  transition: "color .15s, background .15s",
+                  whiteSpace: "nowrap",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.color = "var(--ink)"; e.currentTarget.style.background = "var(--paper-sunk)" }}
+                onMouseLeave={e => { e.currentTarget.style.color = isActive ? "var(--ink)" : "var(--ink-soft)"; e.currentTarget.style.background = "transparent" }}
+              >
+                {link.label}
+              </Link>
+            )
+          })}
           {/* Start free CTA — sits right after the last nav link, hidden when logged in */}
           {!user && (
             <Link
               href="/onboarding"
-              className="pub-btn pub-btn-primary"
-              style={{ padding: "7px 14px", fontSize: 13, fontWeight: 600, marginLeft: 8 }}
+              className="btn-pleks"
+              style={{ fontSize: 13, marginLeft: 8 }}
             >
               Start free
             </Link>
@@ -201,10 +229,10 @@ export function PublicNav() {
               </>
             ) : (
               <>
-                <Link href="/login" className="pub-btn pub-btn-ghost" style={{ justifyContent: "center", gap: 8 }}>
+                <Link href="/login" className="btn-pleks ghost" style={{ justifyContent: "center" }}>
                   <LogIn size={15} /> Sign in
                 </Link>
-                <Link href="/onboarding" className="pub-btn pub-btn-primary" style={{ justifyContent: "center" }}>
+                <Link href="/onboarding" className="btn-pleks" style={{ justifyContent: "center" }}>
                   Start free
                 </Link>
               </>

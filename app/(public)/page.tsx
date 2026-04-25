@@ -141,13 +141,13 @@ export default async function HomePage() {
           </p>
 
           <div className="pub-hero-ctas">
-            <Link href="/onboarding" className="pub-btn pub-btn-primary">
+            <Link href="/onboarding" className="btn-pleks">
               {c(content, "hero_cta_primary")}
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                 <path d="M3 8h10m0 0L8.5 3.5M13 8l-4.5 4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="square"/>
               </svg>
             </Link>
-            <Link href="/contact" className="pub-btn pub-btn-ghost">
+            <Link href="/contact" className="btn-pleks ghost">
               {c(content, "hero_cta_secondary")}
             </Link>
             <Link href="/#artefact" style={{ fontSize: 13.5, color: "var(--ink-mute)", textDecoration: "underline", textUnderlineOffset: "3px", textDecorationColor: "var(--rule-strong)" }}>
@@ -517,7 +517,7 @@ export default async function HomePage() {
                 <div className="pub-tier-sub">{tier.leases}</div>
                 <div style={{ fontSize: 12, color: "var(--ink-faint)", marginBottom: 20, fontFamily: "var(--pub-mono)" }}>{tier.perLease}</div>
                 <p style={{ fontSize: 13, color: "var(--ink-mute)", lineHeight: 1.55, marginBottom: 24 }}>{tier.desc}</p>
-                <Link href="/onboarding" className="pub-btn pub-btn-primary pub-tier-cta" style={{ justifyContent: "center" }}>
+                <Link href="/onboarding" className="btn-pleks pub-tier-cta" style={{ justifyContent: "center" }}>
                   Start as {tier.name}
                 </Link>
               </div>
@@ -623,10 +623,10 @@ export default async function HomePage() {
               </div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <Link href="/onboarding" className="pub-btn" style={{ background: "var(--amber)", color: "var(--ink)", justifyContent: "center" }}>
+              <Link href="/onboarding" className="btn-pleks" style={{ background: "var(--amber)", color: "var(--ink)", justifyContent: "center" }}>
                 Claim a founding seat
               </Link>
-              <Link href="/contact" className="pub-btn" style={{ color: "oklch(0.95 0.005 85)", border: "1px solid oklch(1 0 0 / 0.18)", background: "transparent", justifyContent: "center" }}>
+              <Link href="/contact" className="btn-pleks ghost" style={{ color: "oklch(0.95 0.005 85)", borderColor: "oklch(1 0 0 / 0.18)", justifyContent: "center" }}>
                 Or book a demo first
               </Link>
             </div>
