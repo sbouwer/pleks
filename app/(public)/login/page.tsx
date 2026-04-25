@@ -23,6 +23,34 @@ export default function LoginPage() {
   )
 }
 
+// Injected as a literal <style> tag — browser CSS :hover, zero dependency on
+// React events, Tailwind JIT, or CSS file loading order.
+const LOGIN_HOVER_CSS = `
+  #pleks-login-submit:not(:disabled):hover {
+    background: oklch(0.54 0.14 65) !important;
+    box-shadow: 0 0 0 3px oklch(0.68 0.14 65 / 0.28) !important;
+  }
+  #pleks-login-back:hover {
+    background: oklch(0.96 0.03 75) !important;
+    border-color: oklch(0.68 0.14 65) !important;
+    color: oklch(0.32 0.08 65) !important;
+  }
+`
+const BTN_PRIMARY: React.CSSProperties = {
+  width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
+  gap: 8, padding: "9px 18px", borderRadius: 5, fontSize: 14, fontWeight: 600,
+  lineHeight: 1.5, cursor: "pointer", border: "none",
+  background: "oklch(0.68 0.14 65)", color: "oklch(0.18 0.012 260)",
+  transition: "background .15s, box-shadow .15s",
+}
+const BTN_GHOST: React.CSSProperties = {
+  width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
+  gap: 8, padding: "9px 18px", borderRadius: 5, fontSize: 14, fontWeight: 600,
+  lineHeight: 1.5, cursor: "pointer", border: "1px solid oklch(0.78 0.008 85)",
+  background: "transparent", color: "oklch(0.18 0.012 260)",
+  transition: "background .15s, border-color .15s, color .15s",
+}
+
 function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -54,7 +82,7 @@ function LoginContent() {
       })
   }, [router, redirectParam])
 
-  async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
+  async function handleLogin(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
     setError(null)
     setLoading(true)
@@ -141,9 +169,9 @@ function LoginContent() {
               We sent a link to <strong>{email}</strong>
             </p>
             <button
+              id="pleks-login-back"
               type="button"
-              className="pub-btn pub-btn-ghost"
-              style={{ width: "100%", justifyContent: "center", fontSize: 14, height: 36 }}
+              style={BTN_GHOST}
               onClick={() => { setMagicLinkSent(false); setMagicLinkMode(false) }}
             >
               Back to login
@@ -172,6 +200,7 @@ function LoginContent() {
             </div>
           )}
 
+          <style dangerouslySetInnerHTML={{ __html: LOGIN_HOVER_CSS }} />
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -226,9 +255,9 @@ function LoginContent() {
               </div>
             )}
             <button
+              id="pleks-login-submit"
               type="submit"
-              className="pub-btn pub-btn-primary"
-              style={{ width: "100%", justifyContent: "center", fontSize: 14, height: 36 }}
+              style={BTN_PRIMARY}
               disabled={loading}
             >
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
