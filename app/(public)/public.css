@@ -124,13 +124,13 @@
   position: absolute;
   top: 50%; right: -3%;
   transform: translateY(-50%);
-  width: 45%; max-width: 580px; height: auto;
+  width: 38%; max-width: 493px; height: auto;
   pointer-events: none; z-index: 0;
   opacity: 0.18; color: var(--amber-ink);
   -webkit-mask-image: linear-gradient(to left, black 0%, black 85%, transparent 100%);
           mask-image: linear-gradient(to left, black 0%, black 85%, transparent 100%);
 }
-@media (max-width: 1100px) { .pub-erf-hero-bg { max-width: 460px; opacity: 0.15; } }
+@media (max-width: 1100px) { .pub-erf-hero-bg { max-width: 391px; opacity: 0.15; } }
 @media (max-width: 960px)  { .pub-erf-hero-bg { display: none; } }
 
 /* ── Gap / competitor table ──────────────────────────────────────────────── */
