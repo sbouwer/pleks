@@ -79,7 +79,7 @@ export function PublicNav() {
         </Link>
 
         {/* Centre nav — desktop only */}
-        <nav aria-label="Site sections" className="hidden md:flex" style={{ flex: 1, justifyContent: "center", gap: 2 }}>
+        <nav aria-label="Site sections" className="hidden md:flex" style={{ flex: 1, justifyContent: "center", gap: 2, alignItems: "center" }}>
           {NAV_LINKS.map(link => (
             <Link
               key={link.href}
@@ -96,6 +96,16 @@ export function PublicNav() {
               {link.label}
             </Link>
           ))}
+          {/* Start free CTA — sits right after the last nav link, hidden when logged in */}
+          {!user && (
+            <Link
+              href="/onboarding"
+              className="pub-btn pub-btn-primary"
+              style={{ padding: "7px 14px", fontSize: 13, fontWeight: 600, marginLeft: 8 }}
+            >
+              Start free
+            </Link>
+          )}
         </nav>
 
         {/* Right actions */}
@@ -147,14 +157,6 @@ export function PublicNav() {
             /* Logged out (or checking): LogIn icon — same bordered style, no text */
             <Link href="/login" className="hidden md:flex" style={ICON_BTN} aria-label="Sign in">
               <LogIn size={15} />
-            </Link>
-          )}
-
-          {/* Start free CTA — always visible, only when not logged in */}
-          {!user && (
-            <Link href="/onboarding" className="pub-btn pub-btn-primary hidden md:inline-flex"
-              style={{ padding: "8px 16px", fontSize: 13.5, fontWeight: 600 }}>
-              Start free
             </Link>
           )}
 

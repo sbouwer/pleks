@@ -64,9 +64,7 @@
   font-family: var(--pub-sans); text-decoration: none;
 }
 .pub-btn-primary { background: var(--ink); color: var(--paper); }
-.pub-btn-primary:hover { background: oklch(0.12 0.012 260); }
-.pleks-public[data-theme="dark"] .pub-btn-primary { background: var(--paper); color: var(--ink); }
-.pleks-public[data-theme="dark"] .pub-btn-primary:hover { background: var(--paper-raised); }
+.pub-btn-primary:hover { filter: brightness(0.88); }
 .pub-btn-ghost { color: var(--ink); border-color: var(--rule-strong); background: transparent; }
 .pub-btn-ghost:hover { background: var(--paper-sunk); }
 
