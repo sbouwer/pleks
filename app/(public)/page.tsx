@@ -16,15 +16,14 @@ export const metadata = {
 
 const DEFAULTS: Record<string, string> = {
   notice:             "Founding-agent cohort now open — seven seats remaining",
-  hero_sub:           "Every action immutably logged. PII encrypted, masked on screen, consent-recorded before every credit check. Applicants pay for their own Pleks Credit Report — you get a FitScore, not a 40-page data-dump. Built by someone who did your job for eleven years.",
   hero_cta_primary:   "Start free — 1 unit, no card",
   hero_cta_secondary: "Book a 20-min demo",
   hero_meta_1_n:      "R 0",
   hero_meta_1_l:      "Client money Pleks ever holds",
   hero_meta_2_n:      "14 / 21",
-  hero_meta_2_l:      "Day deposit return — tracked automatically",
-  hero_meta_3_n:      "11 yrs",
-  hero_meta_3_l:      "Practitioner-built, not consultant-designed",
+  hero_meta_2_l:      "Day deposit clock, tracked automatically",
+  hero_meta_3_n:      "Full cycle",
+  hero_meta_3_l:      "Legal, development, management. Hands on each.",
   why_sub:            "Every other claim on this page — the automation, the statements, the rent collection — falls out of getting these two right. Everything else is table stakes.",
   artefact_sub:       "Most rental software sells screenshots. The artefact below is what your landlords, the Tribunal, and your accountant actually see.",
   story_body_1:       "I ran rental portfolios in Johannesburg and Cape Town from 2014 to 2025. I used the incumbent platforms, a Sage export, and a spreadsheet I emailed to my landlords on the 3rd of every month. I watched colleagues lose deposit disputes they should have won because the paper trail was in four systems.",
@@ -127,22 +126,18 @@ export default async function HomePage() {
               </svg>
               POPIA · RHA · CPA · EAAB — by default
             </span>
-            <span className="pub-chip-divider" />
-            <span className="pub-chip pub-mono" style={{ fontSize: 11 }}>
-              <span style={{ color: "var(--ink-faint)" }}>SA-hosted</span>
-            </span>
           </div>
 
-          <h1 className="pub-display" style={{ margin: "0 0 28px", maxWidth: "18ch" }}>
-            Rental management that{" "}
-            <span className="amber-wash-underline">keeps the receipts</span>{" "}
-            <em style={{ fontStyle: "normal", color: "var(--ink-faint)", fontWeight: 400 }}>
-              — so the Tribunal never has to ask.
-            </em>
+          <h1 className="pub-display" style={{ margin: "0 0 28px", maxWidth: "22ch" }}>
+            Rent collected. Landlords paid.{" "}
+            <span className="amber-wash-underline">Deposits returned on the day.</span>
           </h1>
 
+          <p className="pub-body-lg" style={{ maxWidth: "56ch", margin: "0 0 16px" }}>
+            Pleks runs the boring half of South African property management — on the legal timetable, in the legal language, with the paperwork already filed before the question gets asked.
+          </p>
           <p className="pub-body-lg" style={{ maxWidth: "56ch", margin: "0 0 40px" }}>
-            {c(content, "hero_sub")}
+            Built across all three sides of the cycle: leases drafted and arrears chased on one side, contractor schedules and HOA approvals on the second, the rent roll and the trust account on the third.
           </p>
 
           <div className="pub-hero-ctas">
