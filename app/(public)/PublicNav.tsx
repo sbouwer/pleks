@@ -99,7 +99,6 @@ export function PublicNav() {
           <span className="pub-wm-name">
             {"plek"}<AccentBracket>{"s"}</AccentBracket>
           </span>
-          <span className="pub-wm-tld">.co.za</span>
         </Link>
 
         {/* Centre nav — desktop only */}
