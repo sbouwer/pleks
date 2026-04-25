@@ -4,6 +4,7 @@
   padding: 104px 0;
   border-bottom: 1px solid var(--rule);
   overflow: hidden;
+  position: relative;
 }
 @media (max-width: 720px) { .section { padding: 64px 0; } }
 

@@ -1,4 +1,5 @@
 import { FounderTimeline, type MomentData } from "./FounderTimeline"
+import { PegboardSVG } from "@/app/(public)/svgs/PegboardSVG"
 import styles from "./founder.module.css"
 
 const MOMENTS: MomentData[] = [
@@ -49,13 +50,13 @@ const MOMENTS: MomentData[] = [
 export function FounderSection() {
   return (
     <section id="story" className={styles.section}>
+      <PegboardSVG />
       <div className="pub-wrap">
 
         {/* Heading */}
         <div className={styles.head}>
           <div className={styles.eyebrow}>
-            <span className="amber-rule" />
-            WHO BUILT THIS · HOW IT CAME TO BE
+            <span className="amber-rule" />WHO BUILT THIS · HOW IT CAME TO BE
           </div>
           <h2 className={styles.h2}>The product I kept wishing existed.</h2>
           <p className={styles.lede}>
