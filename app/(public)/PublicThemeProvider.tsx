@@ -1,8 +1,24 @@
 "use client"
 
-import { createContext, useContext, useEffect, useState, startTransition } from "react"
+import { createContext, useContext, useSyncExternalStore } from "react"
 
 type Theme = "light" | "dark"
+
+const STORAGE_KEY = "pleks-pub-theme"
+
+function subscribe(cb: () => void) {
+  globalThis.addEventListener("storage", cb)
+  return () => globalThis.removeEventListener("storage", cb)
+}
+
+function getSnapshot(): Theme {
+  const v = localStorage.getItem(STORAGE_KEY)
+  return v === "dark" ? "dark" : "light"
+}
+
+function getServerSnapshot(): Theme {
+  return "light"
+}
 
 interface ThemeCtx {
   theme: Theme
@@ -15,25 +31,16 @@ export function usePublicTheme() {
   return useContext(Ctx)
 }
 
-export function PublicThemeProvider({ children }: { children: React.ReactNode }) {
-  // Always "light" on server and initial client render — both agree, no hydration mismatch.
-  // After mount, startTransition syncs from localStorage as a non-urgent update.
+export function PublicThemeProvider({ children }: Readonly<{ children: React.ReactNode }>) {
+  // useSyncExternalStore — server renders "light", client syncs from localStorage.
   // suppressHydrationWarning on the wrapper div silences the expected data-theme diff.
-  const [theme, setTheme] = useState<Theme>("light")
-
-  useEffect(() => {
-    const stored = localStorage.getItem("pleks-pub-theme")
-    if (stored === "dark" || stored === "light") {
-      startTransition(() => setTheme(stored))
-    }
-  }, [])
+  const theme = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
 
   function toggle() {
-    setTheme(prev => {
-      const next = prev === "light" ? "dark" : "light"
-      localStorage.setItem("pleks-pub-theme", next)
-      return next
-    })
+    const next = theme === "light" ? "dark" : "light"
+    localStorage.setItem(STORAGE_KEY, next)
+    // localStorage.setItem doesn't fire a storage event within the same tab, so dispatch manually.
+    globalThis.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY, newValue: next }))
   }
 
   return (
