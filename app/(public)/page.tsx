@@ -109,7 +109,7 @@ export default async function HomePage() {
             {c(content, "notice")}
           </div>
           <div style={{ display: "flex", gap: 18, alignItems: "center" }}>
-            <span style={{ color: "oklch(0.75 0.01 260)" }}>Pleks · Western Cape, ZA</span>
+            <span style={{ color: "var(--ink-faint)" }}>Pleks · Western Cape, ZA</span>
             <Link href="/onboarding">Claim a seat →</Link>
           </div>
         </div>
@@ -562,12 +562,12 @@ export default async function HomePage() {
                     <tr key={row.line}>
                       <td style={{ padding: "14px 20px", borderBottom: "1px solid var(--rule)", color: "var(--ink)", fontWeight: 500 }}>{row.line}</td>
                       <td style={{ padding: "14px 20px", borderBottom: "1px solid var(--rule)", color: "var(--ink-mute)" }}>{row.incumbent}</td>
-                      <td style={{ padding: "14px 20px", borderBottom: "1px solid var(--rule)", color: "var(--amber-ink)", fontWeight: 600, background: "oklch(0.985 0.012 75 / 0.3)" }}>{row.pleks}</td>
+                      <td style={{ padding: "14px 20px", borderBottom: "1px solid var(--rule)", color: "var(--amber-ink)", fontWeight: 600, background: "var(--amber-wash)" }}>{row.pleks}</td>
                     </tr>
                   ))}
                   <tr>
                     <td style={{ padding: "18px 20px", background: "var(--ink)", color: "var(--paper)", fontWeight: 600 }}>Your software bill on the 1st</td>
-                    <td style={{ padding: "18px 20px", background: "var(--ink)", color: "oklch(0.75 0.01 260)" }}>Assembled from 4–6 line items · variable</td>
+                    <td style={{ padding: "18px 20px", background: "var(--ink)", color: "var(--ink-faint)" }}>Assembled from 4–6 line items · variable</td>
                     <td style={{ padding: "18px 20px", background: "var(--amber)", color: "var(--ink)", fontWeight: 600, fontSize: 15 }}>One number. Known 30 days ahead of any change.</td>
                   </tr>
                 </tbody>
