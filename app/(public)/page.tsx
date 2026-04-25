@@ -623,7 +623,7 @@ export default async function HomePage() {
               </div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <Link href="/onboarding" className="btn-pleks" style={{ background: "var(--amber)", color: "var(--ink)", justifyContent: "center" }}>
+              <Link href="/onboarding" className="btn-pleks amber" style={{ justifyContent: "center" }}>
                 Claim a founding seat
               </Link>
               <Link href="/contact" className="btn-pleks ghost" style={{ color: "oklch(0.95 0.005 85)", borderColor: "oklch(1 0 0 / 0.18)", justifyContent: "center" }}>
