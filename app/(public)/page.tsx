@@ -81,19 +81,19 @@ const INCLUDED = [
 ]
 
 const PILLAR_1 = [
-  { g: "A", bold: "Immutable audit log.",         rest: " 7-year retention, Merkle-hashed, exportable as a signed Tribunal bundle." },
-  { g: "B", bold: "PII encrypted at rest.",       rest: " AES-256, KMS-rotated. Masked by default in every screen; viewer-ID and reason logged on every unmask." },
-  { g: "C", bold: "Consent-gated credit checks.", rest: " POPIA §11 consent_token required — check is refused if missing, expired, or withdrawn." },
-  { g: "D", bold: "Row-level segregation.",        rest: " org_id on every table, enforced at the database. No cross-agency leakage is possible, not just unlikely." },
-  { g: "E", bold: "SA-resident, SA-owned.",        rest: " Supabase JHB region. No sub-processor outside the country without explicit opt-in." },
+  { g: "A", bold: "Inspections that hold up.",                  rest: " Photos carry their own time and address. A tenant can't argue the date when the camera knows it." },
+  { g: "B", bold: "Deposit clock, built in.",                   rest: " 14 days no claim, 21 days with one. Every deduction itemised; wear-and-tear separated from damage so you're never deducting what you shouldn't." },
+  { g: "C", bold: "Consent on file before every credit check.", rest: " No \"we never agreed to that\" three months later. POPIA-compliant by default — not after you've trained your staff for an afternoon." },
+  { g: "D", bold: "One file per tenant. One file per unit.",    rest: " Whoever handled it, whatever month it was — it's all in the same place, in the order it happened." },
+  { g: "E", bold: "Arrears letters drafted for you.",           rest: " Reviewed by you before they leave. Tone steps up by stage — reminder, demand, pre-Tribunal — so the right letter goes out at the right time." },
 ]
 
 const PILLAR_2 = [
-  { g: "A", bold: "Applicant-paid.",         rest: " PayFast redirect, receipt emailed. Joint applications billed once. No charge ever lands on your agency account." },
-  { g: "B", bold: "FitScore 0–100.",         rest: " Weighted: credit (40) · income affordability (30) · tenancy history (20) · ID/deeds integrity (10). AI-drafted rationale, practitioner-reviewed." },
-  { g: "C", bold: "Every applicant shown.",  rest: " Low scores don't get filtered out — legal protection for you, transparency for them." },
-  { g: "D", bold: "30% affordability rule.", rest: " Flagged explicitly. No guessing what 'marginal' means." },
-  { g: "E", bold: "Shortlist → sign.",       rest: " Accept an applicant and the debit mandate, lease draft, and move-in inspection slot are queued automatically." },
+  { g: "A", bold: "Applicants pay, not you.",                       rest: " Joint applications billed once. The check happens before they take up an afternoon of your time." },
+  { g: "B", bold: "FitScore 0–100.",                                 rest: " One number combining credit history, affordability, tenancy references, and ID integrity — with each component shown separately so you can see what tipped the score." },
+  { g: "C", bold: "Every applicant shown, every time.",              rest: " Low scores aren't filtered out. The decision is yours to make — and the record proves it was yours." },
+  { g: "D", bold: "30% affordability rule flagged automatically.",   rest: " No guessing what \"marginal\" means when income-to-rent gets close to the line." },
+  { g: "E", bold: "Shortlist to signed lease — no re-typing.",       rest: " Accept an applicant and the debit order mandate, lease draft, and move-in inspection are queued for you." },
 ]
 
 export default async function HomePage() {
@@ -214,31 +214,31 @@ export default async function HomePage() {
 
           <div className="pub-pillars">
             <div className="pub-pillar">
-              <div className="pub-pillar-kicker"><span className="num">01</span> SECURITY · POSTURE</div>
-              <h3>Every action keeps a receipt. Your clients&apos; PII never leaves the vault unmasked.</h3>
-              <p>The <code style={{ fontFamily: "var(--pub-mono)", fontSize: 13, background: "var(--paper-sunk)", padding: "1px 6px", borderRadius: 3 }}>audit_log</code> table is append-only — no UPDATE, no DELETE, ever. Identity numbers, bank details and addresses are encrypted at rest, decrypted only for the credit report call, and masked for every UI render. Each credit check carries a signed consent_token — no consent, no check, no exceptions.</p>
-              <ul className="pub-pillar-list">
-                {PILLAR_1.map(item => (
-                  <li key={item.g}>
-                    <span className="g">{item.g}</span>
-                    <span><strong>{item.bold}</strong>{item.rest}</span>
-                  </li>
-                ))}
-              </ul>
+              <div className="pub-pillar-head">
+                <div className="pub-pillar-kicker"><span className="num">01</span> RECORDS · KEPT</div>
+                <h3>When the question gets asked, the answer is already on file.</h3>
+                <p>Inspections remember when and where they were taken. The deposit clock tracks its own deadline. Every credit check is tied to the consent that allowed it. Every letter, every signed lease, every change to a unit is filed in the order it happened — and exported in one click when a Tribunal, an attorney, or a new staff member needs to see it.</p>
+              </div>
+              {PILLAR_1.map(item => (
+                <div key={item.g} className="pub-pillar-item">
+                  <span className="g">{item.g}</span>
+                  <span><strong>{item.bold}</strong>{item.rest}</span>
+                </div>
+              ))}
             </div>
 
             <div className="pub-pillar">
-              <div className="pub-pillar-kicker"><span className="num">02</span> SCREENING · ECONOMICS</div>
-              <h3>Applicants pay. You get a FitScore, not a 40-page credit report.</h3>
-              <p>Applicants submit details, consent, and pay for their own Pleks Credit Report directly. We run credit, ID and deeds checks and hand back a single decision-ready number with the rationale attached. You never pay for a check that goes nowhere. You never read a raw credit report you aren&apos;t trained to interpret.</p>
-              <ul className="pub-pillar-list">
-                {PILLAR_2.map(item => (
-                  <li key={item.g}>
-                    <span className="g">{item.g}</span>
-                    <span><strong>{item.bold}</strong>{item.rest}</span>
-                  </li>
-                ))}
-              </ul>
+              <div className="pub-pillar-head">
+                <div className="pub-pillar-kicker"><span className="num">02</span> SCREENING · ECONOMICS</div>
+                <h3>Applicants pay. You get a FitScore, not a 40-page credit report.</h3>
+                <p>Applicants submit their details, consent, and pay for their own credit check directly. We run the bureau, ID, and deeds checks and hand you a single decision-ready number with a plain-English rationale attached. You don&apos;t pay for a check that goes nowhere. You don&apos;t read a credit report at 9pm on a Sunday.</p>
+              </div>
+              {PILLAR_2.map(item => (
+                <div key={item.g} className="pub-pillar-item">
+                  <span className="g">{item.g}</span>
+                  <span><strong>{item.bold}</strong>{item.rest}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>

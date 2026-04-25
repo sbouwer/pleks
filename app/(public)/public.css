@@ -165,21 +165,26 @@
 .pub-section-head .pub-eyebrow { margin-bottom: 12px; }
 
 /* ── Pillar grid (Why Pleks) ──────────────────────────────────────────────*/
+/* ── Pillar cards — subgrid so A–E rows align across both columns ── */
 .pub-pillars {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+  display: grid; grid-template-columns: 1fr 1fr;
+  grid-template-rows: repeat(6, auto); /* head + 5 items */
+  gap: 0;
   border: 1px solid var(--rule); border-radius: var(--r-md);
   overflow: hidden; background: var(--paper-raised);
 }
-@media (max-width: 860px) { .pub-pillars { grid-template-columns: 1fr; } }
 .pub-pillar {
-  padding: 36px 36px 40px;
+  grid-row: 1 / -1;
+  display: grid; grid-template-rows: subgrid;
   border-right: 1px solid var(--rule);
 }
 .pub-pillar:last-child { border-right: 0; }
 @media (max-width: 860px) {
-  .pub-pillar { border-right: 0; border-bottom: 1px solid var(--rule); }
+  .pub-pillars { grid-template-columns: 1fr; grid-template-rows: unset; }
+  .pub-pillar  { grid-row: auto; display: block; border-right: 0; border-bottom: 1px solid var(--rule); }
   .pub-pillar:last-child { border-bottom: 0; }
 }
+.pub-pillar-head { padding: 36px 36px 24px; }
 .pub-pillar-kicker {
   display: inline-flex; align-items: center; gap: 8px;
   font-family: var(--pub-mono); font-size: 11px; color: var(--ink-mute); margin-bottom: 20px;
@@ -189,15 +194,19 @@
   padding: 2px 6px; border-radius: 3px; font-size: 10.5px; letter-spacing: 0.08em;
 }
 .pub-pillar h3 { margin: 0 0 14px; font-size: 26px; line-height: 1.15; letter-spacing: -0.02em; font-weight: 500; }
-.pub-pillar p  { margin: 0 0 20px; font-size: 15px; color: var(--ink-soft); line-height: 1.55; }
-.pub-pillar-list { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--rule); }
-.pub-pillar-list li {
-  padding: 12px 0; border-bottom: 1px solid var(--rule);
+.pub-pillar p  { margin: 0; font-size: 15px; color: var(--ink-soft); line-height: 1.55; }
+.pub-pillar-item {
+  padding: 10px 36px;
   display: grid; grid-template-columns: 16px 1fr; gap: 10px;
   font-size: 13.5px; align-items: start;
+  /* top rule inset to match content width — no full-bleed lines */
+  background-image: linear-gradient(var(--rule), var(--rule));
+  background-size: calc(100% - 72px) 1px;
+  background-position: 36px 0;
+  background-repeat: no-repeat;
 }
-.pub-pillar-list li:last-child { border-bottom: 0; }
-.pub-pillar-list .g { color: var(--amber-ink); font-family: var(--pub-mono); font-size: 11px; padding-top: 2px; }
+.pub-pillar-item:last-child { padding-bottom: 28px; }
+.pub-pillar-item .g { color: var(--amber-ink); font-family: var(--pub-mono); font-size: 11px; padding-top: 2px; }
 
 /* ── Artefact / The Work section ─────────────────────────────────────────── */
 .pub-artefact {
