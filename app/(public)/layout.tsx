@@ -29,7 +29,6 @@ export default function PublicLayout({
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <Link href="/" className="pub-wordmark" aria-label="Pleks" style={{ alignSelf: "flex-start" }}>
                 <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
-                <span className="pub-wm-tld">.co.za</span>
               </Link>
               <p className="pub-small" style={{ maxWidth: "28ch", margin: 0 }}>
                 Built from the inside out.<br />
