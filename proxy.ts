@@ -2,36 +2,35 @@ import { type NextRequest, NextResponse } from "next/server"
 import { updateSession } from "@/lib/supabase/middleware"
 import { createServiceClient } from "@/lib/supabase/server"
 import { AUTH_COOKIE_OPTS } from "@/lib/auth/cookie-config"
+import { ROUTE_MANIFEST, AGENT_ROLES, type SessionRole } from "@/lib/routing/manifest"
 import type { User } from "@supabase/supabase-js"
 
-const PUBLIC_ROUTES = ["/", "/pricing", "/login", "/forgot-password", "/reset-password",
-  "/for-agents", "/for-landlords", "/early-access", "/migrate",
-  "/privacy", "/terms", "/credit-check-policy", "/contact",
-  "/register", "/onboarding"]
-const AUTH_ROUTES = ["/auth"]
-const WEBHOOK_ROUTES = ["/api/webhooks", "/api/cron", "/api/waitlist", "/api/admin"]
+// ── Bypass lists (checked before manifest) ───────────────────────────────────
+const WEBHOOK_PREFIXES = ["/api/webhooks", "/api/cron", "/api/waitlist", "/api/admin"]
 
-
-function isPublicRoute(pathname: string) {
-  return (
-    PUBLIC_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/")) ||
-    AUTH_ROUTES.some((r) => pathname.startsWith(r)) ||
-    pathname.startsWith("/apply") || pathname.startsWith("/demo") ||
-    pathname.startsWith("/api/payfast") || pathname.startsWith("/api/payments") ||
-    pathname.startsWith("/api/import") || pathname.startsWith("/api/reports") ||
-    pathname.startsWith("/api/auth") ||
-    pathname.startsWith("/api/applications/") ||
-    pathname.startsWith("/api/unsubscribe") ||
-    pathname.startsWith("/api/approve")
-  )
+// ── Manifest lookup — longest prefix wins ────────────────────────────────────
+function matchManifest(pathname: string) {
+  let best: string | null = null
+  for (const prefix of Object.keys(ROUTE_MANIFEST)) {
+    if (pathname === prefix || pathname.startsWith(prefix + "/")) {
+      if (!best || prefix.length > best.length) best = prefix
+    }
+  }
+  return best ? ROUTE_MANIFEST[best] : null
 }
 
-function isOrgCheckSkipped(pathname: string) {
-  return pathname.startsWith("/onboarding") || pathname.startsWith("/demo") ||
-    pathname.startsWith("/contractor") || pathname.startsWith("/supplier") ||
-    pathname.startsWith("/portal") || pathname.startsWith("/tenant")
+// ── Admin gate ───────────────────────────────────────────────────────────────
+function checkAdminAuth(pathname: string, request: NextRequest): NextResponse | null {
+  if (!pathname.startsWith("/admin")) return null
+  if (pathname === "/admin/login") return NextResponse.next()
+  const adminToken = request.cookies.get("pleks_admin_token")?.value
+  const adminSecret = process.env.ADMIN_SECRET
+  if (!adminSecret || adminToken !== adminSecret)
+    return NextResponse.redirect(new URL("/admin/login", request.url))
+  return NextResponse.next()
 }
 
+// ── Org cookie helpers ────────────────────────────────────────────────────────
 function deriveTierFromSub(sub: {
   tier: string; status: string
   trial_tier?: string | null; trial_ends_at?: string | null; trial_converted?: boolean | null
@@ -46,20 +45,10 @@ function deriveTierFromSub(sub: {
 
 function extractCachedOrgId(raw: string): string | null {
   try {
-    const p = JSON.parse(raw) as { org_id?: string }
-    return p.org_id ?? null
+    return (JSON.parse(raw) as { org_id?: string }).org_id ?? null
   } catch {
-    return null // old "1" format
+    return null
   }
-}
-
-function checkAdminAuth(pathname: string, request: NextRequest): NextResponse | null {
-  if (!pathname.startsWith("/admin")) return null
-  if (pathname === "/admin/login") return NextResponse.next()
-  const adminToken = request.cookies.get("pleks_admin_token")?.value
-  const adminSecret = process.env.ADMIN_SECRET
-  if (!adminSecret || adminToken !== adminSecret) return NextResponse.redirect(new URL("/admin/login", request.url))
-  return NextResponse.next()
 }
 
 async function refreshOrgCookieParallel(
@@ -84,7 +73,7 @@ async function setOrgCookiesFromDb(
   const { data: orgs } = await service
     .from("user_orgs").select("org_id, role").eq("user_id", user.id).is("deleted_at", null).limit(1)
 
-  if (!orgs?.length) return !hasOrgCookieRaw // true = redirect to onboarding
+  if (!orgs?.length) return !hasOrgCookieRaw
 
   const orgId = orgs[0].org_id
   const { data: sub } = await service
@@ -98,7 +87,9 @@ async function setOrgCookiesFromDb(
   return false
 }
 
-async function ensureOrgCookies(user: User, request: NextRequest, supabaseResponse: NextResponse): Promise<NextResponse | null> {
+async function ensureOrgCookies(
+  user: User, request: NextRequest, supabaseResponse: NextResponse
+): Promise<NextResponse | null> {
   const hasOrgCookieRaw = request.cookies.get("pleks_has_org")?.value
   const orgDetailCookieRaw = request.cookies.get("pleks_org")?.value
   if (hasOrgCookieRaw && orgDetailCookieRaw) return null
@@ -115,19 +106,34 @@ async function ensureOrgCookies(user: User, request: NextRequest, supabaseRespon
   return shouldRedirect ? NextResponse.redirect(new URL("/onboarding", request.url)) : null
 }
 
+// ── Main proxy ────────────────────────────────────────────────────────────────
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  // Admin gate — checked before everything else
   const adminResponse = checkAdminAuth(pathname, request)
   if (adminResponse) return adminResponse
 
-  if (WEBHOOK_ROUTES.some((r) => pathname.startsWith(r))) return NextResponse.next()
+  // Webhooks / cron / waitlist / admin-API — bypass session handling entirely
+  if (WEBHOOK_PREFIXES.some((p) => pathname.startsWith(p))) return NextResponse.next()
 
-  if (isPublicRoute(pathname)) {
+  // Manifest lookup
+  const rule = matchManifest(pathname)
+
+  // API routes not in manifest and unknown paths — refresh session, pass through.
+  // API handlers authenticate themselves; unknown paths get Next.js 404.
+  if (!rule) {
     const { supabaseResponse } = await updateSession(request)
     return supabaseResponse
   }
 
+  // Public route — refresh session, pass through (no user required)
+  if (!rule.auth) {
+    const { supabaseResponse } = await updateSession(request)
+    return supabaseResponse
+  }
+
+  // Protected route — require a valid Supabase session
   const { user, supabaseResponse } = await updateSession(request)
 
   if (!user) {
@@ -137,9 +143,24 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  if (!isOrgCheckSkipped(pathname)) {
-    const redirect = await ensureOrgCookies(user, request, supabaseResponse)
-    if (redirect) return redirect
+  // Agent role enforcement — only for routes whose allowed roles are all agent roles.
+  // Portal routes (tenant, landlord, supplier) enforce auth in their own layouts.
+  if (rule.roles && rule.roles.every(r => (AGENT_ROLES as readonly string[]).includes(r))) {
+    const raw = request.cookies.get("pleks_org")?.value
+    if (raw) {
+      try {
+        const { role } = JSON.parse(raw) as { role?: string }
+        if (role && !(rule.roles as readonly SessionRole[]).includes(role as SessionRole)) {
+          return NextResponse.redirect(new URL("/login", request.url))
+        }
+      } catch { /* malformed cookie — let ensureOrgCookies sort it out */ }
+    }
+  }
+
+  // Org cookie (skipped for portals, onboarding, and demo)
+  if (!rule.skipOrgCheck) {
+    const orgRedirect = await ensureOrgCookies(user, request, supabaseResponse)
+    if (orgRedirect) return orgRedirect
   }
 
   return supabaseResponse
