@@ -187,7 +187,14 @@ export function PublicNav() {
             </div>
           ) : (
             /* Logged out (or checking): LogIn icon — same bordered style, no text */
-            <Link href="/login" className="hidden md:flex" style={ICON_BTN} aria-label="Sign in">
+            <Link
+              href="/login"
+              className="hidden md:flex"
+              style={ICON_BTN}
+              aria-label="Sign in"
+              onMouseEnter={e => { e.currentTarget.style.background = "var(--amber-wash)"; e.currentTarget.style.borderColor = "var(--amber)"; e.currentTarget.style.color = "var(--amber-ink)" }}
+              onMouseLeave={e => { e.currentTarget.style.background = "var(--paper-sunk)"; e.currentTarget.style.borderColor = "var(--rule)"; e.currentTarget.style.color = "var(--ink-mute)" }}
+            >
               <LogIn size={15} />
             </Link>
           )}
