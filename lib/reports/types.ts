@@ -26,7 +26,6 @@ export type ReportType =
   | "vat_summary"
   | "trust_reconciliation"
   | "tenant_payment_history"
-  | "debit_order_report"
   | "tenant_directory"
   | "property_performance"
   | "vacancy_analysis"
@@ -156,10 +155,6 @@ export interface IncomeCollectionData {
   collected_income_cents: number
   outstanding_cents: number
   collection_rate: number
-  debicheck_collected_cents: number
-  debicheck_count: number
-  eft_collected_cents: number
-  eft_count: number
 }
 
 export interface ArrearsAgingRow {
@@ -396,24 +391,6 @@ export interface TenantPaymentHistoryData {
   total_invoiced_cents: number
   total_paid_cents: number
   total_outstanding_cents: number
-}
-
-export interface DebitOrderRow {
-  tenant_name: string
-  unit_number: string
-  property_name: string
-  amount_cents: number
-  status: string
-  last_collection_date: string | null
-  next_collection_date: string | null
-}
-
-export interface DebitOrderReportData {
-  as_at: Date
-  rows: DebitOrderRow[]
-  total_mandates: number
-  active_mandates: number
-  total_amount_cents: number
 }
 
 export interface TenantDirectoryRow {
@@ -681,7 +658,6 @@ export const REPORT_TIER_ACCESS: Record<ReportType, string[]> = {
   vacancy_analysis:        ["steward", "portfolio", "firm"],
   municipal_costs:         ["steward", "portfolio", "firm"],
   tenant_payment_history:  ["steward", "portfolio", "firm"],
-  debit_order_report:      ["steward", "portfolio", "firm"],
   // Portfolio — +3 (total 23)
   contractor_performance:  ["portfolio", "firm"],
   maintenance_sla:         ["portfolio", "firm"],
@@ -711,7 +687,6 @@ export const REPORT_LABELS: Record<ReportType, string> = {
   vat_summary:            "VAT Summary",
   trust_reconciliation:   "Trust Reconciliation",
   tenant_payment_history: "Tenant Payment History",
-  debit_order_report:     "Debit Order Report",
   tenant_directory:       "Tenant Directory",
   property_performance:   "Property Performance",
   vacancy_analysis:       "Vacancy Analysis",
@@ -741,7 +716,6 @@ export const REPORT_DESCRIPTIONS: Record<ReportType, string> = {
   vat_summary:            "Output VAT (fees) vs input VAT (expenses) for the period.",
   trust_reconciliation:   "Trust account credits and debits with opening/closing balance.",
   tenant_payment_history: "Payment and invoice history per tenant for the period.",
-  debit_order_report:     "All DebiCheck mandates — status, last collection, and next run date.",
   tenant_directory:       "Contact list of all active tenants with unit and lease end date.",
   property_performance:   "Per-property gross income, expenses, and net income.",
   vacancy_analysis:       "Currently vacant units, days vacant, and estimated lost income.",

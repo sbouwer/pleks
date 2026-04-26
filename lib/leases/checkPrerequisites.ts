@@ -216,8 +216,7 @@ export async function checkLeasePrerequisites(
   const moveInWarning = await checkMoveInInspection(supabase, leaseId)
   if (moveInWarning) items.push(moveInWarning)
 
-  // W2. DebiCheck — always skip (no debicheck_enabled on org in current schema)
-  // W3. Property rules — skip (no property_rules_id on leases yet)
+  // W2. Property rules — skip (no property_rules_id on leases yet)
 
   const failCount = items.filter((i) => i.status === "fail").length
   const warningCount = items.filter((i) => i.status === "warning").length

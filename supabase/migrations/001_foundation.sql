@@ -604,6 +604,46 @@ CREATE OR REPLACE FUNCTION get_org_member_by_email(
   LIMIT 1;
 $$ LANGUAGE sql STABLE SECURITY DEFINER;
 
+-- ═══════════════════════════════════════════════════════════════
+-- §N  BUILD_66 (contact page): contact_leads — public /contact form submissions
+-- ═══════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS contact_leads (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name            text NOT NULL,
+  email           text NOT NULL,
+  phone           text,
+  intent          text NOT NULL DEFAULT 'general'
+    CHECK (intent IN ('founding', 'support', 'general')),
+  message         text,
+  user_agent      text,
+  referrer        text,
+  utm_source      text,
+  utm_campaign    text,
+  status          text NOT NULL DEFAULT 'new'
+    CHECK (status IN ('new', 'contacted', 'demoed', 'closed_won', 'closed_lost', 'spam')),
+  contacted_at    timestamptz,
+  closed_at       timestamptz,
+  notes           text,
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  updated_at      timestamptz NOT NULL DEFAULT now()
+);
+
+DROP TRIGGER IF EXISTS update_contact_leads_updated_at ON contact_leads;
+CREATE TRIGGER update_contact_leads_updated_at
+  BEFORE UPDATE ON contact_leads
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE INDEX IF NOT EXISTS idx_contact_leads_created_at ON contact_leads(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_contact_leads_status     ON contact_leads(status);
+CREATE INDEX IF NOT EXISTS idx_contact_leads_intent     ON contact_leads(intent);
+
+ALTER TABLE contact_leads ENABLE ROW LEVEL SECURITY;
+
+COMMENT ON TABLE contact_leads IS
+  'Inbound leads from the public /contact page. No RLS policies — service-role only, '
+  'written by the submitContactForm server action and read by admin-only UI.';
+
 -- contractor_contacts: multiple people per contractor firm
 CREATE TABLE IF NOT EXISTS public.contractor_contacts (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),

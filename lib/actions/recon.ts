@@ -171,7 +171,7 @@ export async function createBankImport(formData: FormData): Promise<{
 
   // PDF: queue for AI extraction (existing flow), return early
   if (format === "pdf") {
-    revalidatePath("/payments/reconciliation")
+    revalidatePath("/billing/reconciliation")
     return { success: true, importId, source: "upload" }
   }
 
@@ -238,7 +238,7 @@ export async function createBankImport(formData: FormData): Promise<{
     matched_at: new Date().toISOString(),
   }).eq("id", importId)
 
-  revalidatePath("/payments/reconciliation")
+  revalidatePath("/billing/reconciliation")
   return { success: true, importId, matched, total: insertedCount, source }
 }
 
@@ -269,7 +269,7 @@ export async function resolveStatementLine(
   const { error } = await db.from("bank_statement_lines").update(updates).eq("id", lineId)
   if (error) return { error: error.message }
 
-  revalidatePath("/payments/reconciliation")
+  revalidatePath("/billing/reconciliation")
   return { success: true }
 }
 
@@ -279,7 +279,7 @@ export async function runAutoMatch(importId: string) {
   const { db, orgId } = gw
 
   const matched = await autoMatchLines(db, orgId, importId)
-  revalidatePath("/payments/reconciliation")
+  revalidatePath("/billing/reconciliation")
   return { matched }
 }
 
@@ -328,7 +328,7 @@ export async function signOffReconciliation(importId: string) {
     })
   }
 
-  revalidatePath("/payments/reconciliation")
+  revalidatePath("/billing/reconciliation")
   return { success: true }
 }
 

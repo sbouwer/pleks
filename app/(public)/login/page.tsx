@@ -123,9 +123,9 @@ function LoginContent() {
     } else if (redirectParam) {
       router.push(redirectParam)
     } else if (membership.role === "tenant") {
-      router.push("/portal")
+      router.push("/tenant")
     } else if (membership.role === "contractor") {
-      router.push("/contractor")
+      router.push("/supplier")
     } else {
       router.push("/dashboard")
     }

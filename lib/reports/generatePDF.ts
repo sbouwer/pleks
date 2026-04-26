@@ -19,7 +19,6 @@ import type {
   VatSummaryData,
   TrustReconciliationData,
   TenantPaymentHistoryData,
-  DebitOrderReportData,
   TenantDirectoryData,
   PropertyPerformanceData,
   VacancyAnalysisData,
@@ -291,7 +290,6 @@ export function buildIncomeCollectionHTML(data: IncomeCollectionData, org: Repor
       <div class="metric"><div class="label">Expected</div><div class="value">${formatZAR(data.expected_income_cents)}</div></div>
       <div class="metric"><div class="label">Collected</div><div class="value">${formatZAR(data.collected_income_cents)} (${data.collection_rate}%)</div></div>
       <div class="metric"><div class="label">Outstanding</div><div class="value text-danger">${formatZAR(data.outstanding_cents)}</div></div>
-      <div class="metric"><div class="label">DebiCheck</div><div class="value">${formatZAR(data.debicheck_collected_cents)} (${data.debicheck_count})</div></div>
     </div>
     <table>
       <tr><th>Unit</th><th>Tenant</th><th>Invoice</th><th class="text-right">Expected</th><th class="text-right">Received</th><th>Status</th></tr>
@@ -465,31 +463,6 @@ export function buildTenantPaymentHistoryHTML(data: TenantPaymentHistoryData, or
     </table>
   `
   return wrapHTML("Tenant Payment History", org, periodStr, body)
-}
-
-export function buildDebitOrderReportHTML(data: DebitOrderReportData, org: ReportBranding): string {
-  const periodStr = `As at ${formatDateShort(data.as_at)}`
-  const body = `
-    <div class="metric-grid">
-      <div class="metric"><div class="label">Total Mandates</div><div class="value">${data.total_mandates}</div></div>
-      <div class="metric"><div class="label">Active Mandates</div><div class="value">${data.active_mandates}</div></div>
-      <div class="metric"><div class="label">Total Amount</div><div class="value">${formatZAR(data.total_amount_cents)}</div></div>
-    </div>
-    <table>
-      <tr><th>Tenant</th><th>Unit</th><th>Property</th><th class="text-right">Amount</th><th>Status</th><th>Last Collection</th><th>Next Collection</th></tr>
-      ${data.rows.map((r) => {
-        const amountStr = formatZAR(r.amount_cents)
-        const lastCollection = r.last_collection_date ?? "—"
-        const nextCollection = r.next_collection_date ?? "—"
-        return `<tr>
-          <td>${r.tenant_name}</td><td>${r.unit_number}</td><td>${r.property_name}</td>
-          <td class="text-right">${amountStr}</td><td>${r.status}</td>
-          <td>${lastCollection}</td><td>${nextCollection}</td>
-        </tr>`
-      }).join("")}
-    </table>
-  `
-  return wrapHTML("Debit Order Report", org, periodStr, body)
 }
 
 export function buildTenantDirectoryHTML(data: TenantDirectoryData, org: ReportBranding): string {

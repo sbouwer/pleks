@@ -55,7 +55,7 @@ export function UpgradeCta({ title, description, dismissKey }: UpgradeCtaProps) 
           size="sm"
           variant="outline"
           className="mt-3 h-7 text-xs gap-1"
-          render={<Link href="/settings/billing" />}
+          render={<Link href="/settings/subscription" />}
         >
           Compare plans <ArrowUpRight className="size-3" />
         </Button>

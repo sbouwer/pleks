@@ -15,8 +15,10 @@ const STATUS_CONFIG: Record<TenantStatus, { label: string; className: string }> 
 }
 
 const PAYMENT_METHOD_LABEL: Record<string, string> = {
-  debicheck: "DebiCheck",
-  eft:       "EFT",
+  eft:                "EFT",
+  cash:               "Cash",
+  card:               "Card",
+  bank_recon_matched: "Bank recon",
 }
 
 export default function DemoTenantsPage() {

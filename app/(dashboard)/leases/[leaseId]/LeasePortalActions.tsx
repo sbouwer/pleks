@@ -6,8 +6,6 @@ import { toast } from "sonner"
 import { Link2, ShieldOff, Copy, Check, Loader2, MessageCircle, Send, ChevronDown } from "lucide-react"
 import { generateTenantPortalLink, revokeTenantPortalAccess } from "@/lib/portal/inviteTenant"
 import { emailLeaseToTenant } from "./actions"
-import { canUseLeaseFeature } from "@/lib/billing/leaseFeatures"
-import { PremiumFeatureGate } from "@/components/billing/PremiumFeatureGate"
 import type { TenantContactInfo } from "./ContactsTab"
 
 interface Props {
@@ -16,30 +14,16 @@ interface Props {
   readonly leaseId: string
   readonly portalInviteSentAt: string | null
   readonly hasAuthUser: boolean
-  readonly premiumEnabled: boolean
-  readonly orgTier: string | null
-  readonly subscriptionStatus: string | null
-  readonly premiumSlotsUsed: number
-  readonly leaseLabel: string | null
 }
 
-export function LeasePortalActions({ tenantId, allTenants, leaseId, portalInviteSentAt, hasAuthUser, premiumEnabled, orgTier, subscriptionStatus, premiumSlotsUsed, leaseLabel }: Props) {
+export function LeasePortalActions({ tenantId, allTenants, leaseId, portalInviteSentAt, hasAuthUser }: Props) {
   const [generating, setGenerating] = useState(false)
   const [revoking, setRevoking] = useState(false)
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [emailing, setEmailing] = useState(false)
   const [whatsappOpen, setWhatsappOpen] = useState(false)
-  const [gateOpen, setGateOpen] = useState(false)
-  // Optimistically track premium state after gate enables it
-  const [localPremiumEnabled, setLocalPremiumEnabled] = useState(premiumEnabled)
   const whatsappRef = useRef<HTMLDivElement>(null)
-
-  const canWhatsApp = canUseLeaseFeature(
-    { premium_enabled: localPremiumEnabled, org_tier: orgTier },
-    "whatsapp",
-    subscriptionStatus,
-  )
 
   useEffect(() => {
     if (!whatsappOpen) return
@@ -101,13 +85,13 @@ export function LeasePortalActions({ tenantId, allTenants, leaseId, portalInvite
           Email lease
         </Button>
 
-        {/* WhatsApp link — gated by premium; single tenant: generate directly; multiple: pick first */}
+        {/* WhatsApp link — single tenant: generate directly; multiple: pick first */}
         {hasMultipleTenants ? (
           <div ref={whatsappRef} className="relative">
             <Button
               size="sm"
               variant="outline"
-              onClick={() => { if (canWhatsApp) { setWhatsappOpen(v => !v) } else { setGateOpen(true) } }}
+              onClick={() => setWhatsappOpen(v => !v)}
               disabled={generating}
             >
               {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Link2 className="h-3.5 w-3.5 mr-1.5" />}
@@ -137,23 +121,13 @@ export function LeasePortalActions({ tenantId, allTenants, leaseId, portalInvite
           <Button
             size="sm"
             variant="outline"
-            onClick={() => { if (canWhatsApp) { handleGenerateLink(tenantId) } else { setGateOpen(true) } }}
+            onClick={() => handleGenerateLink(tenantId)}
             disabled={generating}
           >
             {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Link2 className="h-3.5 w-3.5 mr-1.5" />}
             WhatsApp link
           </Button>
         )}
-
-        <PremiumFeatureGate
-          open={gateOpen}
-          onClose={() => setGateOpen(false)}
-          feature="whatsapp"
-          leaseId={leaseId}
-          leaseLabel={leaseLabel}
-          usedSlots={premiumSlotsUsed}
-          onEnabled={() => setLocalPremiumEnabled(true)}
-        />
 
         {(hasAuthUser || portalInviteSentAt) && (
           <Button

@@ -478,7 +478,6 @@ export default async function LeaseDetailPage({
     maintenanceCostRes,
     primaryAddressRes,
     managingAgentRes,
-    subscriptionRes,
   ] = await Promise.all([
     supabase
       .from("lease_co_tenants")
@@ -565,8 +564,6 @@ export default async function LeaseDetailPage({
       : Promise.resolve({ data: [], error: null }),
     // Managing agent name — empty string returns no rows (no ternary needed)
     supabase.from("user_profiles").select("full_name, first_name, last_name").eq("id", managingAgentId ?? "").maybeSingle(),
-    // Subscription tier for premium feature gating
-    supabase.from("subscriptions").select("tier, status, owner_pro_lease_count").eq("org_id", lease.org_id).maybeSingle(),
   ])
 
   const coTenantsRaw = (coTenantsRes.data ?? []) as unknown as CoTenantRow[]
@@ -613,11 +610,6 @@ export default async function LeaseDetailPage({
   const allTenants = buildAllTenants(tv, lease.tenant_id, coTenantsRaw, primaryContact, primaryPortalStatus, primaryAddress)
 
   const managedByLabel = resolveAgentName(managingAgentRes.data as { full_name: string | null; first_name: string | null; last_name: string | null } | null)
-
-  const subscriptionRow = subscriptionRes.data as { tier: string | null; status: string | null; owner_pro_lease_count: number | null } | null
-  const orgTier = subscriptionRow?.tier ?? null
-  const subscriptionStatus = subscriptionRow?.status ?? null
-  const premiumSlotsUsed = subscriptionRow?.owner_pro_lease_count ?? 0
 
   const llIdOrReg = getIdOrReg(landlordRaw?.entity_type, null, landlordRaw?.registration_number)
   const contactsLandlord: LandlordContactInfo | null = landlordRaw ? {
@@ -730,7 +722,6 @@ export default async function LeaseDetailPage({
               escalation_type: lease.escalation_type ?? null,
               escalation_review_date: lease.escalation_review_date ?? null,
               payment_due_day: lease.payment_due_day ?? null,
-              debicheck_mandate_status: lease.debicheck_mandate_status ?? null,
               start_date: lease.start_date ?? null,
               end_date: lease.end_date ?? null,
               is_fixed_term: lease.is_fixed_term ?? null,
@@ -771,11 +762,6 @@ export default async function LeaseDetailPage({
             primaryTenantId={lease.tenant_id ?? null}
             portfolioOverviewSentAt={portfolioOverviewSentAt}
             portfolioOverviewOutdated={portfolioOverviewOutdated}
-            premiumEnabled={lease.premium_enabled ?? false}
-            orgTier={orgTier}
-            subscriptionStatus={subscriptionStatus}
-            premiumSlotsUsed={premiumSlotsUsed}
-            tenantDisplayText={tenantDisplayText}
           />
         )}
 
@@ -800,7 +786,6 @@ export default async function LeaseDetailPage({
                 ? Number.parseInt(lease.payment_due_day, 10) || null
                 : (lease.payment_due_day ?? null)
             }
-            debicheckStatus={lease.debicheck_mandate_status ?? null}
             paymentMethod={financeExtras?.paymentMethod ?? null}
             paymentReference={financeExtras?.paymentReference ?? null}
             ytdCollectedCents={ytdPayments.reduce((s, p) => s + p.amount_cents, 0)}

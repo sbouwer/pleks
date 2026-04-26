@@ -5,7 +5,7 @@
 **Unlocks:** no other builds block on this, but it is a release-gate for first production agency customer
 **Slot rationale:** claims the reserved BUILD_62 slot previously earmarked as "user profile surface — security, preferences, richer profile page." Scope narrowed to the security surface only. Preferences + broader profile polish deferred to BUILD_64 or a later addendum.
 
-**Touches:** `lib/auth/`, `lib/security/`, `lib/messaging/` (login-notification template), `proxy.ts`, `app/(auth)/login/`, `app/settings/security/`, `app/settings/team/sessions/`, `app/tenant/account/security/`, `app/landlord/account/security/`, `app/supplier/account/security/`, `app/api/auth/`, `supabase/migrations/013_auth_security.sql`, `supabase/migrations/014_passkeys.sql`, Supabase Auth configuration in the dashboard, Resend templates, `public/.well-known/security.txt`
+**Touches:** `lib/auth/`, `lib/security/`, `lib/messaging/` (login-notification template), `proxy.ts`, `app/(auth)/login/`, `app/settings/security/`, `app/settings/team/sessions/`, `app/tenant/account/security/`, `app/landlord/account/security/`, `app/supplier/account/security/`, `app/api/auth/`, `supabase/migrations/010_platform_features.sql` (amend-forward — see §5.2 + §B.X), Supabase Auth configuration in the dashboard, Resend templates, `public/.well-known/security.txt`
 
 **Scope:** close the single-factor-auth gap that exists across all account types today. Deliver mandatory TOTP for agent accounts with step-up on trust-account-adjacent actions, session-management UI on both agent and user-portal surfaces, new-device login notifications, and a full WebAuthn/passkey layer with `localhost` + `app.pleks.co.za` environment isolation. Establish `auth_events` as the dedicated authentication audit table so BUILD_63 can wire its `tenant_portal_login` events into the same substrate (BUILD_63 adopts a dual-write pattern to `auth_events` + `audit_log` per BUILD_63 §9.2 — both tables serve different consumers and retention windows).
 
@@ -80,7 +80,7 @@ Does not block:
 
 ## 5 · Part A — Native Supabase Hardening
 
-Ships in weeks 1–2 of the 30-day plan. Closes the POPIA and trust-account gaps on native features alone. Every feature in Part A uses either Supabase Auth primitives, existing infrastructure (Resend, `audit_log`, `consent_log`), or one new migration (`013_auth_security.sql`).
+Ships in weeks 1–2 of the 30-day plan. Closes the POPIA and trust-account gaps on native features alone. Every feature in Part A uses either Supabase Auth primitives, existing infrastructure (Resend, `audit_log`, `consent_log`), or new schema appended into `010_platform_features.sql` (per amend-forward rule).
 
 ### 5.1 Tier 0 — Supabase Auth configuration
 
@@ -101,13 +101,17 @@ One-time configuration changes in the Supabase dashboard. No code required. Appl
 
 Verification: after applying, run a test that (a) tries to register with a known-breached password like `Password1!` and gets rejected, and (b) inspects a fresh access token and confirms a 1-hour expiry.
 
-### 5.2 Migration `013_auth_security.sql`
+### 5.2 Schema appended to `010_platform_features.sql`
 
-New tables. Applied as a forward-only migration per the amend-forward rule. No modifications to 001–012.
+New tables. Per the platform amend-forward rule (INDEX.md §11), schema lives inside `010_platform_features.sql` rather than a new migration file. CC appends a new section to 010 with the SQL below.
 
 ```sql
--- supabase/migrations/013_auth_security.sql
+-- Appended to supabase/migrations/010_platform_features.sql
 -- BUILD_62 Part A: authentication security substrate
+--
+-- Section header in 010: "BUILD_62 PART A — AUTHENTICATION SECURITY"
+-- Tables: auth_events, login_notifications_sent, device_fingerprints, step_up_challenges
+-- Helpers: is_mfa_fresh(int), purge_old_auth_events()
 
 -- 5.2.1 auth_events — dedicated authentication audit table
 CREATE TABLE auth_events (
@@ -708,11 +712,16 @@ Add to `package.json`:
 
 Both are MIT-licensed, actively maintained, widely used (Okta, 1Password, Passage use SimpleWebAuthn or its patterns). Zero per-use cost.
 
-### 6.3 Migration `014_passkeys.sql`
+### 6.3 Schema appended to `010_platform_features.sql` (continued)
+
+Per amend-forward rule, the passkey tables also append into `010_platform_features.sql`, in a sub-section after the Part A schema. CC adds the SQL below under a section header `BUILD_62 PART B — PASSKEY (WebAuthn) LAYER`.
 
 ```sql
--- supabase/migrations/014_passkeys.sql
+-- Appended to supabase/migrations/010_platform_features.sql
 -- BUILD_62 Part B: passkey (WebAuthn) layer
+--
+-- Section header in 010: "BUILD_62 PART B — PASSKEY (WebAuthn) LAYER"
+-- Tables: user_passkeys, passkey_challenges
 
 CREATE TABLE user_passkeys (
   id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1478,11 +1487,11 @@ Post-ADDENDUM_00D, deployment is automated through semantic-release + Vercel. Do
 2. **Each PR merges to `main`** via squash-merge. CI jobs gate the merge (`Lint & Typecheck`, `Security (static Supabase checks)`, `Dependency CVE scan (Trivy)`, `PR title (Conventional Commits)`).
 3. **Merge to `main` triggers `release.yml`.** Semantic-release reads conventional commits since the last tag, cuts `vX.Y.0` (feat → minor bump), creates a GitHub Release with auto-generated notes.
 4. **Vercel auto-deploys from `main`** after the tag lands. This is the production deploy.
-5. **Apply migrations 013 and 014 to production Supabase.** Do this AFTER the Vercel deploy is green (code that reads `auth_events` is live; the table now exists to serve it). Migrations apply via Supabase CLI or dashboard.
+5. **Apply schema amendments to production Supabase.** Do this AFTER the Vercel deploy is green (code that reads `auth_events` is live; the table now exists to serve it). Schema lives inside `010_platform_features.sql` (amended in Part A and Part B PRs). Apply via Supabase CLI (`supabase db push`) or dashboard. Per amend-forward rule, applying 010 to a fresh DB plays back the full file including the new sections; applying to an existing DB requires either a fresh re-run of 010 in a clean environment or an out-of-band ALTER set committed alongside the spec PR. CC: produce both the in-010 amendment and the standalone forward ALTER set as `supabase/migrations/_forward/build_62_auth.sql` (not numbered — helper file applied manually) for the production cutover. After cutover, the helper file is deleted; future fresh installs replay 010 with the new sections inline.
 6. **Configure Supabase Auth dashboard policies** per §5.1 (leaked-password protection, password policy, session caps). These are runtime-settable and do not require a deploy.
 7. **Schedule `pg_cron` jobs** per §5.2 (`purge-auth-events` monthly, `purge-expired-challenges` every 15 min).
 8. **Smoke test on production** per the checklist below.
-9. **Rollback if anything breaks.** Vercel's "Instant Rollback" redeploys a previous tag in seconds. Migration rollback is per-migration via their `DOWN` sections in 013/014.
+9. **Rollback if anything breaks.** Vercel's "Instant Rollback" redeploys a previous tag in seconds. Schema rollback requires a forward DROP/ALTER reversal script — see `supabase/migrations/_forward/build_62_rollback.sql` (CC produces alongside the cutover script).
 
 **Do not:** commit directly to `main` (branch protection prevents this anyway), tag manually (`git tag v1.2.3 && git push --tags` — semantic-release owns tagging), run `npm run build` on CI expecting signal (Vercel handles it), or skip the conventional-commit format (the `PR title` CI check rejects non-conforming titles).
 
@@ -1491,8 +1500,7 @@ Post-ADDENDUM_00D, deployment is automated through semantic-release + Vercel. Do
 ### 7.5 First-deploy checklist
 
 - [ ] Supabase Dashboard Auth policies configured per §5.1
-- [ ] Migration 013 applied to production
-- [ ] Migration 014 applied to production
+- [ ] Schema amendments to `010_platform_features.sql` applied to production (Part A tables + Part B tables, via `_forward/build_62_auth.sql` cutover script)
 - [ ] `pg_cron` jobs scheduled for `purge-auth-events` (monthly) and `purge-expired-challenges` (every 15 min)
 - [ ] `NEXT_PUBLIC_RP_ID` and `NEXT_PUBLIC_EXPECTED_ORIGIN` set in Vercel production env vars
 - [ ] `security@pleks.co.za` email alias live and monitored
@@ -1516,7 +1524,7 @@ Post-ADDENDUM_00D, deployment is automated through semantic-release + Vercel. Do
 - [ ] Agent session `pleks_auth_ttl` cookie caps at 7 days
 - [ ] Tenant/landlord/supplier session caps at 30 days
 
-**Migration 013**
+**Schema (Part A tables, appended to `010_platform_features.sql`)**
 - [ ] `auth_events` table created with all 24 event types in CHECK constraint (plus `'role_switched'` added for ADDENDUM_61B dual-write consumption — see ADDENDUM_61B security considerations §4)
 - [ ] `auth_events` has no UPDATE or DELETE policy (append-only enforced)
 - [ ] `login_notifications_sent` table created with unique `(user_id, device_fingerprint)`
@@ -1569,7 +1577,7 @@ Post-ADDENDUM_00D, deployment is automated through semantic-release + Vercel. Do
 
 ### 8.2 Part B — Passkey layer
 
-**Migration 014**
+**Schema (Part B tables, appended to `010_platform_features.sql`)**
 - [ ] `user_passkeys` created with unique `credential_id`
 - [ ] `passkey_challenges` created with 5-minute default expiry
 - [ ] RLS policies verified: user can SELECT own passkeys, can UPDATE (label/revoke); no client INSERT/DELETE
@@ -1639,7 +1647,7 @@ On the BUILD_62 PRs, verify in CI:
 - [ ] `PR title (Conventional Commits)` passes
 - [ ] Vercel preview deploy succeeds and renders `/settings/security` without runtime errors
 
-The `Security (static Supabase checks)` check is the most valuable gate for BUILD_62 — new tables + new RLS policies are exactly what the CI subset is designed to catch. If this PR is the first time `CI_SUPABASE_URL` is actually being used in anger, verify the dev/CI Supabase project has migrations 013 and 014 applied before the CI run.
+The `Security (static Supabase checks)` check is the most valuable gate for BUILD_62 — new tables + new RLS policies are exactly what the CI subset is designed to catch. If this PR is the first time `CI_SUPABASE_URL` is actually being used in anger, verify the dev/CI Supabase project has the appended Part A and Part B sections of `010_platform_features.sql` applied before the CI run.
 
 ---
 

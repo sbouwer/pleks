@@ -110,6 +110,6 @@ export async function recordPayment(formData: FormData) {
     new_values: { amount_cents: amountCents, method: paymentMethod, invoice_id: invoiceId },
   })
 
-  revalidatePath("/payments")
+  revalidatePath("/billing")
   return { success: true, receiptNumber }
 }

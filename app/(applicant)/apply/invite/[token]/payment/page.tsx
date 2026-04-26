@@ -25,7 +25,7 @@ export default function PaymentPage() {
     let cancelled = false
     async function loadPayment() {
       try {
-        const res = await fetch("/api/payments/screening", {
+        const res = await fetch("/api/billing/screening", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ token }),

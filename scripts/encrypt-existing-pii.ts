@@ -73,7 +73,6 @@ const TASKS: EncryptTask[] = [
   { table: "applications", column: "permit_number" },
   { table: "application_co_applicants", column: "id_number" },
   { table: "application_guarantors", column: "id_number" },
-  { table: "debicheck_mandates", column: "debtor_account_number" },
 ]
 
 async function encryptTable(task: EncryptTask): Promise<number> {

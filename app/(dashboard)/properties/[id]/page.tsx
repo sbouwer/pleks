@@ -9,6 +9,7 @@ import { UnitsTab, type UnitTabData, type BuildingTabData } from "./UnitsTab"
 import { PropertyDocumentsTab } from "./PropertyDocumentsTab"
 import { OperationsTab, type RecentInspection, type RecentMaintenance, type ComplianceItem, type AuditItem } from "./OperationsTab"
 import { InsuranceTab, type InsurancePolicy, type InsuranceBroker, type InsuranceBuildingRow, type InsuranceClaim } from "./InsuranceTab"
+import type { ChecklistItemRow } from "./InsuranceChecklist"
 import { SchemeTab, type ManagingSchemeData } from "./SchemeTab"
 import { AgentPicker } from "./AgentPicker"
 import { LandlordPicker } from "./LandlordPicker"
@@ -432,6 +433,7 @@ interface InsuranceData {
   broker:       InsuranceBroker | null
   buildings:    InsuranceBuildingRow[]
   activeClaims: InsuranceClaim[]
+  checklist:    ChecklistItemRow[]
 }
 
 async function fetchInsuranceData(
@@ -440,7 +442,7 @@ async function fetchInsuranceData(
   orgId: string,
   property: Record<string, unknown>,
 ): Promise<InsuranceData> {
-  const [{ data: brokerRow }, { data: buildings }, { data: claims }] = await Promise.all([
+  const [{ data: brokerRow }, { data: buildings }, { data: claims }, { data: checklistRows }] = await Promise.all([
     service
       .from("property_brokers")
       .select("broker_contact_id, auto_notify_critical, notify_channels, after_hours_number, notes, contacts(id, first_name, last_name, company_name, email, phone)")
@@ -461,6 +463,15 @@ async function fetchInsuranceData(
       .not("status", "in", "(cancelled,closed)")
       .order("created_at", { ascending: false })
       .limit(10),
+    service
+      .from("property_insurance_checklists")
+      .select(`
+        id, item_code, state, confirmed_at, confirmed_via, notes, renewal_reset_at,
+        insurance_checklist_items!inner(label, description, help_text, severity, is_auto_derived, sort_order)
+      `)
+      .eq("property_id", propertyId)
+      .eq("org_id", orgId)
+      .order("insurance_checklist_items(sort_order)", { ascending: true }),
   ])
 
   let broker: InsuranceBroker | null = null
@@ -496,6 +507,23 @@ async function fetchInsuranceData(
     broker,
     buildings:    (buildings ?? []) as InsuranceBuildingRow[],
     activeClaims: (claims ?? []) as InsuranceClaim[],
+    checklist:    (checklistRows ?? []).map((r) => {
+      const item = r.insurance_checklist_items as unknown as Record<string, unknown>
+      return {
+        id:             r.id,
+        item_code:      r.item_code,
+        state:          r.state as ChecklistItemRow["state"],
+        confirmed_at:   r.confirmed_at ?? null,
+        confirmed_via:  r.confirmed_via ?? null,
+        notes:          r.notes ?? null,
+        renewal_reset_at: r.renewal_reset_at ?? null,
+        label:          (item?.label as string) ?? r.item_code,
+        description:    (item?.description as string) ?? "",
+        help_text:      (item?.help_text as string | null) ?? null,
+        severity:       ((item?.severity as ChecklistItemRow["severity"]) ?? "important"),
+        is_auto_derived: (item?.is_auto_derived as boolean) ?? false,
+      } satisfies ChecklistItemRow
+    }),
   }
 }
 
@@ -613,16 +641,8 @@ export default async function PropertyDetailPage({
   const hasManagingScheme = (propRaw.has_managing_scheme as boolean) ?? false
   const managingSchemeId  = (propRaw.managing_scheme_id as string | null) ?? null
 
-  // Broker visibility: Owner Pro (owner tier + any premium lease) and Steward+ can see broker card
-  let canSeeBroker = tier !== "owner"
-  if (tier === "owner") {
-    const { data: sub } = await service
-      .from("subscriptions")
-      .select("owner_pro_lease_count")
-      .eq("org_id", orgId)
-      .maybeSingle()
-    canSeeBroker = (sub?.owner_pro_lease_count ?? 0) > 0
-  }
+  // Broker visibility: Steward+ tiers see the insurance broker card; free Owner does not.
+  const canSeeBroker = tier !== "owner"
 
   // Tab-specific data fetching
   const [overviewData, unitsData, operationsData, insuranceData, schemeData] = await Promise.all([
@@ -783,6 +803,8 @@ export default async function PropertyDetailPage({
             buildings={insuranceData.buildings}
             activeClaims={insuranceData.activeClaims}
             canSeeBroker={canSeeBroker}
+            checklist={insuranceData.checklist}
+            canTick={tier !== "owner"}
           />
         )}
 

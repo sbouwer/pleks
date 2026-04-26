@@ -1,6 +1,6 @@
 /**
  * GET /api/cron/billing-cascade
- * Runs daily. Manages the subscription past-due → frozen lifecycle:
+ * Runs daily. Manages the subscription past-due → cancelled lifecycle for paid tiers:
  *
  *   Stage A — active → past_due
  *     Subscriptions with amount_cents > 0 whose current_period_end has passed
@@ -11,9 +11,14 @@
  *     past_due subscriptions with ~10 days left on grace_period_end receive
  *     a payment reminder (deduped via communication_log).
  *
- *   Stage C — past_due → frozen
- *     past_due subscriptions whose grace_period_end has elapsed are frozen.
- *     Premium features are blocked by canUseLeaseFeature() reading status="frozen".
+ *   Stage C — past_due → cancelled
+ *     past_due subscriptions whose grace_period_end has elapsed are cancelled.
+ *     canWrite() in lib/billing/subscriptionStatus.ts excludes 'cancelled', so
+ *     this hard-locks landlord write access. Customer must re-subscribe.
+ *
+ *   NOTE: copy + audit_log action key + email template still use "frozen" /
+ *   "account_frozen" labels — those are user-facing strings and will be renamed
+ *   in a follow-up pass alongside the email template content rewrite.
  */
 
 import { NextRequest } from "next/server"
@@ -81,7 +86,7 @@ export async function GET(req: NextRequest) {
 
   let markedPastDue = 0
   let reminded = 0
-  let frozen = 0
+  let cancelled = 0
 
   // ── Stage A: active → past_due ────────────────────────────────────────────
   // Only paid subscriptions (amount_cents > 0) whose billing period has elapsed.
@@ -172,26 +177,26 @@ export async function GET(req: NextRequest) {
     reminded++
   }
 
-  // ── Stage C: past_due → frozen ────────────────────────────────────────────
-  const { data: expiredGrace, error: frozenErr } = await supabase
+  // ── Stage C: past_due → cancelled ─────────────────────────────────────────
+  const { data: expiredGrace, error: cancelErr } = await supabase
     .from("subscriptions")
     .select("id, org_id, amount_cents")
     .eq("status", "past_due")
     .gt("amount_cents", 0)
     .lt("grace_period_end", now.toISOString())
 
-  if (frozenErr) {
-    console.error("billing-cascade Stage C query failed:", frozenErr.message)
+  if (cancelErr) {
+    console.error("billing-cascade Stage C query failed:", cancelErr.message)
   }
 
   for (const sub of expiredGrace ?? []) {
-    const { error: freezeErr } = await supabase
+    const { error: cancelUpdateErr } = await supabase
       .from("subscriptions")
-      .update({ status: "frozen", frozen_since: now.toISOString() })
+      .update({ status: "cancelled", cancelled_at: now.toISOString() })
       .eq("id", sub.id)
 
-    if (freezeErr) {
-      console.error("billing-cascade Stage C update failed:", sub.id, freezeErr.message)
+    if (cancelUpdateErr) {
+      console.error("billing-cascade Stage C update failed:", sub.id, cancelUpdateErr.message)
       continue
     }
 
@@ -201,13 +206,15 @@ export async function GET(req: NextRequest) {
       record_id: sub.org_id,
       action: "UPDATE",
       new_values: {
-        action: "account_frozen",
+        action: "subscription_cancelled_after_grace",
         amount_cents: sub.amount_cents,
-        frozen_at: now.toISOString(),
+        cancelled_at: now.toISOString(),
       },
     })
 
-    // Send frozen notification (dedup: skip if already sent in last 20 days)
+    // Send cancellation notification (dedup: skip if already sent in last 20 days).
+    // Email function name + template key kept as sendAccountFrozen / "account_frozen"
+    // for now — pending follow-up rename of the email copy itself.
     const twentyDaysAgo = new Date(now.getTime() - 20 * 24 * 60 * 60 * 1000)
     const sent = await alreadySent(sub.org_id, "subscription.account_frozen", twentyDaysAgo)
     if (!sent) {
@@ -217,8 +224,8 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    frozen++
+    cancelled++
   }
 
-  return Response.json({ ok: true, marked_past_due: markedPastDue, reminded, frozen })
+  return Response.json({ ok: true, marked_past_due: markedPastDue, reminded, cancelled })
 }

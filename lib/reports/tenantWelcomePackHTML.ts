@@ -235,7 +235,7 @@ function buildPage3(data: TenantWelcomePackData): string {
     <div class="option-row">
       <div class="option-num">1</div>
       <div>
-        <div style="font-weight:600;margin-bottom:4px;">EFT / Bank Transfer (preferred)</div>
+        <div style="font-weight:600;margin-bottom:4px;">EFT / Bank Transfer</div>
         <table class="kv-table" style="margin-bottom:0;">
           ${bankNameRow}
           ${accountHolderRow}
@@ -247,30 +247,6 @@ function buildPage3(data: TenantWelcomePackData): string {
       </div>
     </div>
   ` : `<p style="color:#64748b;font-size:10px;margin-bottom:12px;">Please contact your property manager for bank details.</p>`
-
-  let debiCheckLabel = "Not set up"
-  let debiCheckBadge = `<span class="badge badge-grey">Not set up</span>`
-  let debiStatusNote = " — your agent will set this up if applicable."
-  if (data.debiCheckStatus === "active") {
-    debiCheckLabel = "Active — rent will be collected automatically"
-    debiCheckBadge = `<span class="badge badge-green">Active</span>`
-    debiStatusNote = ` — collected on the ${data.paymentDueDay}.`
-  } else if (data.debiCheckStatus === "pending") {
-    debiCheckLabel = "Pending authentication"
-    debiCheckBadge = `<span class="badge badge-amber">Pending</span>`
-    debiStatusNote = " — please complete authentication at your bank."
-  }
-
-  const debiSection = `
-    <div class="option-row">
-      <div class="option-num">2</div>
-      <div>
-        <div style="font-weight:600;margin-bottom:4px;">DebiCheck (automatic collection)</div>
-        <div style="font-size:11px;">Status: ${debiCheckBadge}</div>
-        <div style="font-size:10px;color:#64748b;margin-top:4px;">${debiCheckLabel}${debiStatusNote}</div>
-      </div>
-    </div>
-  `
 
   let arrearMarginText = ""
   if (data.arrearInterestMarginPercent !== null) {
@@ -286,7 +262,6 @@ function buildPage3(data: TenantWelcomePackData): string {
       <h2>How to Pay Your Rent</h2>
       <div style="margin-bottom:14px;">
         ${eftSection}
-        ${debiSection}
       </div>
       ${lateSection}
     </div>

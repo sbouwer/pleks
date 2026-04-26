@@ -1,20 +1,13 @@
 "use client"
 
-import { ExternalLink, LogOut, UserCircle } from "lucide-react"
+import { useState } from "react"
+import { ExternalLink, LogOut, Moon, Sun, User, UserCircle } from "lucide-react"
 import { GlobalSearch } from "@/components/layout/GlobalSearch"
-import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { SyncIndicator } from "@/components/layout/SyncIndicator"
+import { usePortalTheme } from "@/components/layout/PortalThemeProvider"
 import { useUser } from "@/hooks/useUser"
 import { useOrg } from "@/hooks/useOrg"
 import { useRouter } from "next/navigation"
-import { SyncIndicator } from "@/components/layout/SyncIndicator"
 
 interface TopbarProps {
   readonly settingsHref?: string
@@ -25,17 +18,13 @@ interface TopbarProps {
 export function Topbar({
   settingsHref = "/settings",
   visitSiteHref = "/",
-  visitSiteLabel = "Visit Site",
+  visitSiteLabel = "Visit site",
 }: TopbarProps) {
   const { user } = useUser()
   const { displayName } = useOrg()
+  const { theme, toggle } = usePortalTheme()
   const router = useRouter()
-
-  const fullName = user?.user_metadata?.full_name as string | undefined
-  const emailInitials = user?.email ? user.email.substring(0, 2).toUpperCase() : "?"
-  const initials = fullName
-    ? fullName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)
-    : emailInitials
+  const [profileOpen, setProfileOpen] = useState(false)
 
   async function handleSignOut() {
     await fetch("/api/auth/logout", { method: "POST" })
@@ -43,59 +32,99 @@ export function Topbar({
   }
 
   return (
-    <header className="relative flex items-center justify-between h-16 px-4 lg:px-6 border-b border-border bg-card">
+    <header style={{
+      position: "sticky", top: 0, zIndex: 40,
+      background: "color-mix(in oklch, var(--background) 94%, transparent)",
+      backdropFilter: "saturate(140%) blur(8px)",
+      borderBottom: "1px solid var(--rule)",
+      height: 64, display: "flex", alignItems: "center",
+      padding: "0 16px 0 20px", gap: 16, flexShrink: 0,
+    }}>
+
       {/* Left: org name */}
-      <div className="flex items-center gap-3">
-        {displayName && (
-          <span className="text-sm font-medium text-muted-foreground hidden sm:inline">
-            {displayName}
-          </span>
-        )}
-      </div>
+      <span className="hidden sm:inline" style={{ fontSize: 13, fontWeight: 500, color: "var(--ink-mute)" }}>
+        {displayName}
+      </span>
 
       {/* Centre: global search — desktop only */}
       <div className="absolute left-1/2 -translate-x-1/2 hidden lg:flex">
         <GlobalSearch />
       </div>
 
-      {/* Right: sync indicator + visit site + profile */}
-      <div className="flex items-center gap-2">
+      {/* Right: actions */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
         <SyncIndicator />
 
-        <Button
-          size="sm"
-          className="hidden sm:inline-flex bg-brand text-primary-foreground hover:bg-brand-hover"
-          render={<a href={visitSiteHref} target="_blank" rel="noopener noreferrer" aria-label={visitSiteLabel} />}
+        {/* Theme toggle */}
+        <button
+          type="button"
+          onClick={toggle}
+          className="pub-icon-btn"
+          aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
         >
-          <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-          {visitSiteLabel}
-        </Button>
+          {theme === "light" ? <Moon size={15} /> : <Sun size={15} />}
+        </button>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <Avatar className="h-8 w-8">
-              <AvatarFallback className="bg-brand/10 text-brand text-xs font-semibold">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <div className="px-2 py-1.5">
-              {fullName && <p className="text-sm font-medium">{fullName}</p>}
-              <p className="text-xs text-muted-foreground">{user?.email}</p>
-            </div>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push(settingsHref)}>
-              <UserCircle className="mr-2 h-4 w-4" />
-              Settings
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleSignOut}>
-              <LogOut className="mr-2 h-4 w-4" />
-              Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {/* Visit site */}
+        <a
+          href={visitSiteHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="pub-icon-btn hidden sm:flex"
+          aria-label={visitSiteLabel}
+        >
+          <ExternalLink size={15} />
+        </a>
+
+        {/* Profile */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setProfileOpen(p => !p)}
+            className="pub-icon-btn pub-icon-btn--active"
+            aria-label="Account menu"
+          >
+            <User size={15} />
+          </button>
+
+          {profileOpen && (
+            <>
+              {/* Backdrop */}
+              <button
+                type="button"
+                aria-label="Close menu"
+                onClick={() => setProfileOpen(false)}
+                style={{ position: "fixed", inset: 0, zIndex: 40, cursor: "default", background: "transparent", border: "none" }}
+              />
+              {/* Dropdown */}
+              <div style={{
+                position: "absolute", right: 0, top: 42, zIndex: 50, minWidth: 200,
+                borderRadius: "var(--r-md)", border: "1px solid var(--rule)",
+                background: "var(--paper-raised)", boxShadow: "var(--shadow-2)", padding: "4px 0",
+              }}>
+                <p style={{ padding: "8px 12px", borderBottom: "1px solid var(--rule)", margin: 0, fontSize: 12, color: "var(--ink-mute)" }}>
+                  {user?.email}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { setProfileOpen(false); router.push(settingsHref) }}
+                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", fontSize: 13, color: "var(--ink)", width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer" }}
+                >
+                  <UserCircle size={14} style={{ color: "var(--ink-mute)" }} />
+                  Settings
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", fontSize: 13, color: "var(--danger)", width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer" }}
+                >
+                  <LogOut size={14} />
+                  Sign out
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </header>
   )

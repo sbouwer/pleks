@@ -75,7 +75,7 @@ const ALL_FIELDS = [
   { value: "owner_bank_account", label: "Owner bank account", entity: "owner" },
   { value: "owner_bank_branch", label: "Owner bank branch", entity: "owner" },
   { value: "owner_bank_type", label: "Owner bank type", entity: "owner" },
-  // Bank fields (tenant DebiCheck)
+  // Bank fields (tenant)
   { value: "tenant_bank_account_1", label: "Tenant bank account (encrypted)", entity: "bank" },
   { value: "tenant_bank_name_1", label: "Tenant bank name", entity: "bank" },
   { value: "tenant_bank_branch_1", label: "Tenant branch code", entity: "bank" },
@@ -171,8 +171,8 @@ export function Step2Mapping({
           <CardContent className="pt-4 space-y-3">
             <p className="text-sm font-medium">Bank account numbers detected in your file</p>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              These will be stored encrypted and used only for DebiCheck mandate setup and deposit refund processing.
-              Imported bank details are marked as unverified until confirmed via DebiCheck authentication.
+              These will be stored encrypted and used only for deposit refund processing.
+              Imported bank details are marked as unverified until confirmed.
             </p>
             <div className="flex gap-3">
               <Button size="sm" onClick={() => { setBankNoticeShown(true); setBankImportAccepted(true) }}>

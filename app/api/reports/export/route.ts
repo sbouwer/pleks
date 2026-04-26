@@ -17,7 +17,6 @@ import { buildExpenseReport } from "@/lib/reports/expenseReport"
 import { buildVatSummary } from "@/lib/reports/vatSummary"
 import { buildTrustReconciliation } from "@/lib/reports/trustReconciliation"
 import { buildTenantPaymentHistory } from "@/lib/reports/tenantPaymentHistory"
-import { buildDebitOrderReport } from "@/lib/reports/debitOrderReport"
 import { buildTenantDirectory } from "@/lib/reports/tenantDirectory"
 import { buildPropertyPerformance } from "@/lib/reports/propertyPerformance"
 import { buildVacancyAnalysis } from "@/lib/reports/vacancyAnalysis"
@@ -40,7 +39,6 @@ import {
   exportVatSummaryCSV,
   exportTrustReconciliationCSV,
   exportTenantPaymentHistoryCSV,
-  exportDebitOrderReportCSV,
   exportTenantDirectoryCSV,
   exportPropertyPerformanceCSV,
   exportVacancyAnalysisCSV,
@@ -69,7 +67,6 @@ import {
   buildVatSummaryHTML,
   buildTrustReconciliationHTML,
   buildTenantPaymentHistoryHTML,
-  buildDebitOrderReportHTML,
   buildTenantDirectoryHTML,
   buildPropertyPerformanceHTML,
   buildVacancyAnalysisHTML,
@@ -98,7 +95,6 @@ async function buildCSV(reportType: string, filters: ReportFilters): Promise<str
     case "vat_summary":            return exportVatSummaryCSV(await buildVatSummary(filters))
     case "trust_reconciliation":   return exportTrustReconciliationCSV(await buildTrustReconciliation(filters))
     case "tenant_payment_history": return exportTenantPaymentHistoryCSV(await buildTenantPaymentHistory(filters))
-    case "debit_order_report":     return exportDebitOrderReportCSV(await buildDebitOrderReport(filters))
     case "tenant_directory":       return exportTenantDirectoryCSV(await buildTenantDirectory(filters))
     case "property_performance":   return exportPropertyPerformanceCSV(await buildPropertyPerformance(filters))
     case "vacancy_analysis":       return exportVacancyAnalysisCSV(await buildVacancyAnalysis(filters))
@@ -144,7 +140,6 @@ async function buildPDF(reportType: string, filters: ReportFilters, orgId: strin
     case "vat_summary":            return buildVatSummaryHTML(await buildVatSummary(filters), orgInfo, pl)
     case "trust_reconciliation":   return buildTrustReconciliationHTML(await buildTrustReconciliation(filters), orgInfo, pl)
     case "tenant_payment_history": return buildTenantPaymentHistoryHTML(await buildTenantPaymentHistory(filters), orgInfo, pl)
-    case "debit_order_report":     return buildDebitOrderReportHTML(await buildDebitOrderReport(filters), orgInfo)
     case "tenant_directory":       return buildTenantDirectoryHTML(await buildTenantDirectory(filters), orgInfo)
     case "property_performance":   return buildPropertyPerformanceHTML(await buildPropertyPerformance(filters), orgInfo, pl)
     case "vacancy_analysis":       return buildVacancyAnalysisHTML(await buildVacancyAnalysis(filters), orgInfo)

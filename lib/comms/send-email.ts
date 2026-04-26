@@ -46,6 +46,11 @@ export interface SendEmailParams {
   entityId?: string
   triggeredBy?: string       // user ID — omit for cron/system
   replyTo?: string           // defaults to org's configured email
+  attachments?: Array<{
+    filename: string
+    content: string | Buffer  // base64 string or Buffer
+    contentType?: string
+  }>
 }
 
 export interface SendEmailResult {
@@ -175,6 +180,13 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailResul
       subject: params.subject,
       html,
       replyTo: replyTo,
+      ...(params.attachments && params.attachments.length > 0 && {
+        attachments: params.attachments.map((a) => ({
+          filename: a.filename,
+          content: a.content,
+          content_type: a.contentType,
+        })),
+      }),
       tags: [
         { name: "org_id", value: params.orgId },
         { name: "template", value: template.key },

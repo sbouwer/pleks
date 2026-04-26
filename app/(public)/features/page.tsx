@@ -14,8 +14,8 @@ const FEATURES = [
   },
   {
     icon: CreditCard,
-    title: "DebiCheck collections",
-    description: "DebiCheck mandate created alongside the lease. Automatic debit orders each month — no manual collection, no chasing.",
+    title: "Bank reconciliation",
+    description: "Upload your trust account statement and Pleks matches every line — debit orders, EFTs, cash deposits — to a lease, an invoice, or an expense. Catches missed payments. Triggers arrears automatically.",
     tier: "Starter",
   },
   {
@@ -99,7 +99,7 @@ export default function FeaturesPage() {
             Everything SA property management actually needs
           </h1>
           <p className="text-muted-foreground text-lg">
-            Built by someone who has managed SA rental portfolios for over 11 years.
+            Built by someone who has managed SA rental portfolios end to end.
             Not adapted from a UK or US product.
           </p>
           <div className="flex items-center justify-center gap-3 pt-2">

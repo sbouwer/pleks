@@ -23,29 +23,10 @@ export function IncomeTab({ orgId, filters }: Props) {
     <ReportShell title="Income Collection" loading={loading} error={error} onExportCSV={handleExportCSV}>
       {data && (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             <MetricCard label="Expected" value={formatZAR(data.expected_income_cents)} />
             <MetricCard label="Collected" value={formatZAR(data.collected_income_cents)} sub={`(${data.collection_rate}%)`} variant="success" />
             <MetricCard label="Outstanding" value={formatZAR(data.outstanding_cents)} variant={data.outstanding_cents > 0 ? "danger" : "default"} />
-            <MetricCard label="DebiCheck" value={formatZAR(data.debicheck_collected_cents)} sub={`(${data.debicheck_count})`} />
-          </div>
-
-          {/* Payment method breakdown */}
-          <div className="grid grid-cols-2 gap-3">
-            <Card>
-              <CardContent className="pt-4">
-                <p className="text-xs text-muted-foreground">DebiCheck tenants</p>
-                <p className="font-heading text-lg">{data.debicheck_count}</p>
-                <p className="text-xs text-muted-foreground">{formatZAR(data.debicheck_collected_cents)} collected</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <p className="text-xs text-muted-foreground">EFT tenants</p>
-                <p className="font-heading text-lg">{data.eft_count}</p>
-                <p className="text-xs text-muted-foreground">{formatZAR(data.eft_collected_cents)} collected</p>
-              </CardContent>
-            </Card>
           </div>
 
           {/* Invoice table */}

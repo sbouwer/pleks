@@ -6,6 +6,7 @@ import { getScenario } from "@/lib/properties/scenarios"
 import type { UniversalAnswers } from "@/lib/properties/buildProfile"
 import type { WizardState } from "../WizardContext"
 import { useWizard } from "../WizardContext"
+import { useTier } from "@/hooks/useTier"
 
 // ── Inline segmented picker (single row) ──────────────────────────────────────
 
@@ -176,6 +177,8 @@ function localToAnswers(local: LocalState): UniversalAnswers {
 
 export function StepUniversal() {
   const { state, patch } = useWizard()
+  const { tier } = useTier()
+  const showAgentFlagCopy = tier === "portfolio" || tier === "firm"
 
   const scenario            = state.scenarioType ? getScenario(state.scenarioType) : null
   const preselectedScheme   = scenario?.preselectSchemeType ?? null
@@ -340,7 +343,7 @@ export function StepUniversal() {
                 ? [{ value: "1", label: "1" }, { value: "2", label: "2" }]
                 : [{ value: "1", label: "1" }, { value: "2", label: "2" }, { value: "3", label: "3+" }]
             }
-            value={local.bathrooms !== null ? String(local.bathrooms) : null}
+            value={local.bathrooms === null ? null : String(local.bathrooms)}
             onChange={(v) => update({ bathrooms: Number(v) })}
           />
 
@@ -374,45 +377,66 @@ export function StepUniversal() {
       )}
 
       {/* WiFi / fibre */}
-      <InlineSegment
-        label="Active WiFi / fibre?"
-        options={[
-          { value: "yes",     label: "Yes" },
-          { value: "no",      label: "No" },
-          { value: "unknown", label: "Unknown" },
-        ]}
-        value={local.wifi}
-        onChange={(v) => update({ wifi: v as UniversalAnswers["wifiAvailable"] })}
-      />
+      <div className="space-y-1">
+        <InlineSegment
+          label="Active WiFi / fibre?"
+          options={[
+            { value: "yes",     label: "Yes" },
+            { value: "no",      label: "No" },
+            { value: "unknown", label: "Unknown" },
+          ]}
+          value={local.wifi}
+          onChange={(v) => update({ wifi: v as UniversalAnswers["wifiAvailable"] })}
+        />
+        {showAgentFlagCopy && local.wifi === "unknown" && (
+          <p className="pl-36 text-xs text-muted-foreground">
+            We&apos;ll flag this for the servicing agent to confirm on their first site visit.
+          </p>
+        )}
+      </div>
 
       {/* Cell signal */}
-      <InlineSegment
-        label="Cell signal"
-        options={[
-          { value: "good",    label: "Good" },
-          { value: "patchy",  label: "Patchy" },
-          { value: "none",    label: "None" },
-          { value: "unknown", label: "Unknown" },
-        ]}
-        value={local.cellSignal}
-        onChange={(v) => update({ cellSignal: v as UniversalAnswers["cellSignalQuality"] })}
-      />
+      <div className="space-y-1">
+        <InlineSegment
+          label="Cell signal"
+          options={[
+            { value: "good",    label: "Good" },
+            { value: "patchy",  label: "Patchy" },
+            { value: "none",    label: "None" },
+            { value: "unknown", label: "Unknown" },
+          ]}
+          value={local.cellSignal}
+          onChange={(v) => update({ cellSignal: v as UniversalAnswers["cellSignalQuality"] })}
+        />
+        {showAgentFlagCopy && local.cellSignal === "unknown" && (
+          <p className="pl-36 text-xs text-muted-foreground">
+            We&apos;ll flag this for the servicing agent to confirm on their first site visit.
+          </p>
+        )}
+      </div>
 
       {/* Backup power */}
-      <InlineSegment
-        label="Backup power"
-        options={[
-          { value: "none",      label: "None" },
-          { value: "ups",       label: "UPS" },
-          { value: "inverter",  label: "Inverter" },
-          { value: "solar",     label: "Solar" },
-          { value: "generator", label: "Generator" },
-          { value: "multiple",  label: "Multiple" },
-          { value: "unknown",   label: "Unknown" },
-        ]}
-        value={local.backupPower}
-        onChange={(v) => update({ backupPower: v as UniversalAnswers["backupPower"] })}
-      />
+      <div className="space-y-1">
+        <InlineSegment
+          label="Backup power"
+          options={[
+            { value: "none",      label: "None" },
+            { value: "ups",       label: "UPS" },
+            { value: "inverter",  label: "Inverter" },
+            { value: "solar",     label: "Solar" },
+            { value: "generator", label: "Generator" },
+            { value: "multiple",  label: "Multiple" },
+            { value: "unknown",   label: "Unknown" },
+          ]}
+          value={local.backupPower}
+          onChange={(v) => update({ backupPower: v as UniversalAnswers["backupPower"] })}
+        />
+        {showAgentFlagCopy && local.backupPower === "unknown" && (
+          <p className="pl-36 text-xs text-muted-foreground">
+            We&apos;ll flag this for the servicing agent to confirm on their first site visit.
+          </p>
+        )}
+      </div>
     </div>
   )
 }

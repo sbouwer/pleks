@@ -64,7 +64,7 @@ export async function emailLeaseToTenant(leaseId: string): Promise<SendEmailResu
 
   const orgSettings = await fetchOrgSettings(orgId)
   const branding = buildBranding(orgSettings)
-  const portalUrl = `${process.env.NEXT_PUBLIC_APP_URL}/portal`
+  const portalUrl = `${process.env.NEXT_PUBLIC_APP_URL}/tenant`
 
   const emailElement = (
     <EmailLayout

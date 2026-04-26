@@ -143,7 +143,7 @@ export default function TrustLedgerPage() {
           <Button variant="outline" size="sm" onClick={handleCSVDownload}>
             <Download className="h-3.5 w-3.5 mr-1.5" /> Export CSV
           </Button>
-          <Button variant="outline" size="sm" render={<Link href="/payments/reconciliation" />}>
+          <Button variant="outline" size="sm" render={<Link href="/billing/reconciliation" />}>
             Reconcile →
           </Button>
         </div>

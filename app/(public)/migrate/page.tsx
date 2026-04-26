@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { ArrowRight, Download, AlertTriangle, CheckCircle2, Clock } from "lucide-react"
+import { ArrowRight, Download, CheckCircle2, Clock } from "lucide-react"
 
 export const metadata = {
   title: "Switch to Pleks | Move your portfolio in a weekend",
@@ -72,20 +72,21 @@ export default function MigratePage() {
         </CardContent>
       </Card>
 
-      {/* DebiCheck warning */}
-      <Card className="border-amber-200 bg-amber-50/50 dark:bg-amber-950/20">
+      {/* Debit-order continuity */}
+      <Card className="border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/20">
         <CardContent className="pt-4">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="size-5 text-amber-600 mt-0.5 shrink-0" />
+            <CheckCircle2 className="size-5 text-emerald-600 mt-0.5 shrink-0" />
             <div>
-              <p className="text-sm font-medium text-amber-800 dark:text-amber-400">
-                Debit order mandates cannot be transferred
+              <p className="text-sm font-medium text-emerald-800 dark:text-emerald-400">
+                Your debit orders keep running
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                Existing DebiCheck or NAEDO mandates from your current system are
-                bank-to-bank agreements that cannot be moved. You&apos;ll need to create
-                new DebiCheck mandates for each debit order tenant. This takes 2–5
-                business days — plan your cut-over date accordingly.
+                DebiCheck and NAEDO mandates are between your tenant&apos;s bank
+                and yours — Pleks doesn&apos;t touch the rail. Existing debit
+                orders continue unchanged after you switch. Pleks watches your
+                bank statement and matches each collection to the lease
+                automatically.
               </p>
             </div>
           </div>

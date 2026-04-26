@@ -10,6 +10,8 @@ export type MomentData = {
   tagColour: "slate" | "amber"
   title: string
   body: string
+  /** Optional substring of `body` to wrap in `.amber-wash-underline`. Must match exactly. */
+  bodyHighlight?: string
   foot: string
   phase: "slate" | "amber" | "now"
 }

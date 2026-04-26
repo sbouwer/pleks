@@ -55,7 +55,7 @@ export async function updateArrearsStatus(
     })
   }
 
-  revalidatePath("/payments/arrears")
+  revalidatePath("/billing/arrears")
   return { success: true }
 }
 
@@ -96,6 +96,6 @@ export async function recordPaymentArrangement(
     })
   }
 
-  revalidatePath("/payments/arrears")
+  revalidatePath("/billing/arrears")
   return { success: true }
 }

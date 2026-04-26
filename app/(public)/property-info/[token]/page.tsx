@@ -1,21 +1,23 @@
 import { notFound } from "next/navigation"
 import { createServiceClient } from "@/lib/supabase/server"
 import { PropertyInfoForm } from "./PropertyInfoForm"
+import { ChecklistInfoForm, type ChecklistItemDef } from "./ChecklistInfoForm"
 
 interface Props {
   params: Promise<{ token: string }>
 }
 
 interface RequestRow {
-  id:             string
-  org_id:         string
-  property_id:    string
-  topic:          string
-  missing_fields: string[]
-  status:         string
-  expires_at:     string
-  completed_at:   string | null
-  viewed_at:      string | null
+  id:               string
+  org_id:           string
+  property_id:      string
+  topic:            string
+  missing_fields:   string[]
+  status:           string
+  expires_at:       string
+  completed_at:     string | null
+  viewed_at:        string | null
+  scenario_context: Record<string, unknown> | null
 }
 
 // ── State screens ─────────────────────────────────────────────────────────────
@@ -39,7 +41,7 @@ export default async function PropertyInfoPage({ params }: Readonly<Props>) {
 
   const { data: req, error } = await service
     .from("property_info_requests")
-    .select("id, org_id, property_id, topic, missing_fields, status, expires_at, completed_at, viewed_at")
+    .select("id, org_id, property_id, topic, missing_fields, status, expires_at, completed_at, viewed_at, scenario_context")
     .eq("token", token)
     .single<RequestRow>()
 
@@ -88,6 +90,12 @@ export default async function PropertyInfoPage({ params }: Readonly<Props>) {
     : ""
   const agencyLabel = org?.name ?? "Your property manager"
 
+  // Detect checklist mode — set by createInsuranceChecklistOwnerRequest
+  const ctx = req.scenario_context ?? {}
+  const checklistItems = Array.isArray(ctx.checklist_items)
+    ? (ctx.checklist_items as ChecklistItemDef[])
+    : null
+
   return (
     <div className="max-w-lg mx-auto px-4 py-12">
       <header className="mb-8 space-y-2">
@@ -98,13 +106,22 @@ export default async function PropertyInfoPage({ params }: Readonly<Props>) {
         {addressLabel && <p className="text-sm text-muted-foreground">{addressLabel}</p>}
       </header>
 
-      <PropertyInfoForm
-        token={token}
-        requestId={req.id}
-        topic={req.topic}
-        missingFields={req.missing_fields ?? []}
-        agencyName={agencyLabel}
-      />
+      {checklistItems ? (
+        <ChecklistInfoForm
+          token={token}
+          requestId={req.id}
+          items={checklistItems}
+          agencyName={agencyLabel}
+        />
+      ) : (
+        <PropertyInfoForm
+          token={token}
+          requestId={req.id}
+          topic={req.topic}
+          missingFields={req.missing_fields ?? []}
+          agencyName={agencyLabel}
+        />
+      )}
     </div>
   )
 }

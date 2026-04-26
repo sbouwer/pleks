@@ -5,42 +5,52 @@ interface ActivityFeedProps {
   items: ActivityItem[]
 }
 
-export function ActivityFeed({ items }: ActivityFeedProps) {
+export function ActivityFeed({ items }: Readonly<ActivityFeedProps>) {
   return (
-    <div className="rounded-xl border bg-card">
-      <div className="border-b px-4 py-3">
-        <h2 className="text-sm font-semibold">Recent activity</h2>
+    <div className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className="flex items-center justify-between border-b border-border px-5 py-4">
+        <h2 className="flex items-center gap-2.5 text-[15px] font-semibold tracking-tight">
+          <span className="inline-block h-0.5 w-4 shrink-0 bg-amber-400"></span>
+          {"Recent activity"}
+        </h2>
       </div>
 
       {items.length === 0 ? (
-        <div className="px-4 py-8 text-center">
+        <div className="px-5 py-8 text-center">
           <p className="text-sm text-muted-foreground">
             No recent activity. Payments, lease changes, and maintenance updates will appear here.
           </p>
         </div>
       ) : (
-        <ul className="divide-y">
-          {items.map((item) => {
+        <ul>
+          {items.map((item, i) => {
             const inner = (
-              <div className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-muted/40">
-                <span
-                  className="mt-1 h-2 w-2 shrink-0 rounded-full"
-                  style={{ backgroundColor: item.dotColor }}
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-medium">{item.title}</p>
+              <div className="grid grid-cols-[40px_1fr_auto] items-start gap-2.5 px-5 py-2.5 transition-colors hover:bg-muted/20">
+                <span className="pt-0.5 font-mono text-[11px] text-muted-foreground/50">
+                  #{String(i + 1).padStart(2, "0")}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[12.5px] leading-snug">
+                    <span
+                      className="mr-2 inline-block h-1.5 w-1.5 rounded-full align-middle"
+                      style={{ backgroundColor: item.dotColor }}
+                    />
+                    {item.title}
+                  </p>
                   {item.subtitle && (
-                    <p className="truncate text-[11px] text-muted-foreground">{item.subtitle}</p>
+                    <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
+                      {item.subtitle}
+                    </p>
                   )}
                 </div>
-                <span className="shrink-0 text-[11px] text-muted-foreground">
+                <span className="shrink-0 pt-0.5 font-mono text-[10.5px] whitespace-nowrap text-muted-foreground">
                   {relativeTime(item.timestamp)}
                 </span>
               </div>
             )
 
             return (
-              <li key={item.id}>
+              <li key={item.id} className="border-b border-border last:border-b-0">
                 {item.href ? <Link href={item.href}>{inner}</Link> : inner}
               </li>
             )
