@@ -123,16 +123,17 @@ export function RoadPath({
         const phase = phases[i]
         const isNow = phase === "now"
         const isAmber = phase === "amber" || isNow
-        const fill = isNow ? "var(--amber-ink)" : "var(--paper)"
         const stroke = isAmber ? "var(--amber-ink)" : "var(--rule-strong)"
-        const sw = isAmber ? 2.5 : 2
+        let sw = 1.5
+        if (isNow) sw = 2.5
+        else if (isAmber) sw = 2
         return (
           <circle
             key={i}
             cx={pos.pinX}
             cy={pos.pinY}
             r={7}
-            fill={fill}
+            fill="var(--amber)"
             stroke={stroke}
             strokeWidth={sw}
           />
