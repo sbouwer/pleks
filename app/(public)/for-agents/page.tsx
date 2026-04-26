@@ -161,26 +161,27 @@ export default function ForAgentsPage() {
         </div>
       </section>
 
-      {/* ─── DebiCheck built in ─── */}
+      {/* ─── Bank reconciliation built in ─── */}
       <section className="py-16 md:py-24">
         <div className="max-w-5xl mx-auto px-4">
           <div className="flex items-center gap-3 mb-4">
             <Banknote className="size-8 text-brand" />
             <h2 className="font-heading text-3xl md:text-4xl">
-              DebiCheck built in
+              Bank reconciliation built in
             </h2>
           </div>
           <p className="text-muted-foreground max-w-2xl mb-8 leading-relaxed">
-            A DebiCheck mandate is created at the same time as the lease — not
-            bolted on later. If a tenant rejects or revokes their mandate, the
-            system flags the lease as at-risk and starts the arrears workflow
-            automatically.
+            Upload your trust account statement and Pleks matches every line
+            — debit orders, EFTs, cash deposits — to a lease, an invoice,
+            or an expense. If a payment misses, the arrears workflow starts on
+            its own. The debit-order rail itself stays where it belongs:
+            between your tenant&apos;s bank and yours.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {[
-              "Mandate created with lease",
-              "Auto-collect on the 1st",
-              "Auto-arrears on rejection",
+              "Auto-match every line",
+              "Catches missed payments",
+              "Auto-arrears on shortfall",
             ].map((item) => (
               <div
                 key={item}

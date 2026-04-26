@@ -51,7 +51,7 @@ const tiers = [
     popular: true,
     base: "Everything in Steward",
     extras: [
-      "DebiCheck collections",
+      "Arrears interest at prime rate",
       "Arrears automation",
       "Application pipeline",
       "Municipal bills",
@@ -99,7 +99,7 @@ const FAQ = [
   },
   {
     q: "What's the difference between Steward and Portfolio?",
-    a: "Steward covers up to 20 units with bank recon, owner statements, and inspections. Portfolio adds DebiCheck collections, arrears automation, and the full application pipeline.",
+    a: "Steward covers up to 20 units with bank recon, owner statements, and inspections. Portfolio adds arrears automation, the full application pipeline, and AI bank statement extraction.",
   },
   {
     q: "Do you support trust accounts?",

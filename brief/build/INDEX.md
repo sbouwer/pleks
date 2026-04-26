@@ -327,7 +327,7 @@ When a BUILD needs schema changes, amend the appropriate domain file rather than
 | Change touches… | Amend | Notes |
 |-----------------|-------|-------|
 | property / unit / inspection / insurance / managing scheme / building | `012_property_extensions.sql` | Property-side vocabulary |
-| leases / rent / deposits / arrears / trust ledger / DebiCheck / lease charges | `004_leases_financials.sql` | Lease + financial lifecycle |
+| leases / rent / deposits / arrears / trust ledger / lease charges | `004_leases_financials.sql` | Lease + financial lifecycle |
 | maintenance / contractors / HOA / applications / municipal bills / reports / imports | `005_operations.sql` | Day-to-day operational workflows |
 | contacts / tenants / landlords / `communication_log` core fields | `002_contacts.sql` | Contacts CRM + base comms log |
 | portal / subscription billing / auth / team / admin / ownership / bank feeds / tenant portal / landlord portal / cron health | `010_platform_features.sql` | Platform-level plumbing |

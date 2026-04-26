@@ -12,7 +12,7 @@ export const revalidate = 3600
 
 export const metadata = {
   title: "Pleks — SA Property Management, Built Right",
-  description: "Built across all three sides of the property cycle: legal, development, management. Applicant-paid FitScore screening. Automated DebiCheck collections. Tribunal-ready documentation by default.",
+  description: "Built across all three sides of the property cycle: legal, development, management. Applicant-paid FitScore screening. Bank reconciliation that catches every payment. Tribunal-ready documentation by default.",
 }
 
 const DEFAULTS: Record<string, string> = {
