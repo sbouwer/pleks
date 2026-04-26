@@ -3,10 +3,27 @@ import { updateSession } from "@/lib/supabase/middleware"
 import { createServiceClient } from "@/lib/supabase/server"
 import { AUTH_COOKIE_OPTS } from "@/lib/auth/cookie-config"
 import { ROUTE_MANIFEST, AGENT_ROLES, type SessionRole } from "@/lib/routing/manifest"
+import { resolveHostContext } from "@/lib/routing/hostname"
 import type { User } from "@supabase/supabase-js"
 
 // ── Bypass lists (checked before manifest) ───────────────────────────────────
 const WEBHOOK_PREFIXES = ["/api/webhooks", "/api/cron", "/api/waitlist", "/api/admin"]
+
+// ── Subdomain split ───────────────────────────────────────────────────────────
+// In production: pleks.co.za = marketing apex, app.pleks.co.za = product.
+// Paths served on the apex; all others redirect to the app subdomain.
+const APEX_PREFIXES = [
+  "/pricing", "/for-agents", "/for-landlords", "/early-access", "/migrate",
+  "/privacy", "/terms", "/credit-check-policy", "/contact", "/status",
+  "/demo", "/marketing",
+]
+
+function isApexPath(pathname: string): boolean {
+  if (pathname === "/") return true
+  return APEX_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"))
+}
+
+const APP_HOSTNAME = "app.pleks.co.za"
 
 // ── Manifest lookup — longest prefix wins ────────────────────────────────────
 function matchManifest(pathname: string) {
@@ -106,58 +123,45 @@ async function ensureOrgCookies(
   return shouldRedirect ? NextResponse.redirect(new URL("/onboarding", request.url)) : null
 }
 
-// ── Main proxy ────────────────────────────────────────────────────────────────
-export async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl
+// ── Agent role gate ───────────────────────────────────────────────────────────
+// Only enforced when all allowed roles are agent roles; portal layouts handle
+// portal-role enforcement themselves.
+function checkAgentRoleGate(
+  rule: NonNullable<ReturnType<typeof matchManifest>>,
+  request: NextRequest
+): NextResponse | null {
+  if (!rule.roles) return null
+  if (!rule.roles.every(r => (AGENT_ROLES as readonly string[]).includes(r))) return null
 
-  // Admin gate — checked before everything else
-  const adminResponse = checkAdminAuth(pathname, request)
-  if (adminResponse) return adminResponse
+  const raw = request.cookies.get("pleks_org")?.value
+  if (!raw) return null
 
-  // Webhooks / cron / waitlist / admin-API — bypass session handling entirely
-  if (WEBHOOK_PREFIXES.some((p) => pathname.startsWith(p))) return NextResponse.next()
+  try {
+    const { role } = JSON.parse(raw) as { role?: string }
+    if (role && !rule.roles.includes(role as SessionRole)) {
+      return NextResponse.redirect(new URL("/login", request.url))
+    }
+  } catch { /* malformed cookie — ensureOrgCookies will redirect */ }
+  return null
+}
 
-  // Manifest lookup
-  const rule = matchManifest(pathname)
-
-  // API routes not in manifest and unknown paths — refresh session, pass through.
-  // API handlers authenticate themselves; unknown paths get Next.js 404.
-  if (!rule) {
-    const { supabaseResponse } = await updateSession(request)
-    return supabaseResponse
-  }
-
-  // Public route — refresh session, pass through (no user required)
-  if (!rule.auth) {
-    const { supabaseResponse } = await updateSession(request)
-    return supabaseResponse
-  }
-
-  // Protected route — require a valid Supabase session
+// ── Protected-route handler ───────────────────────────────────────────────────
+async function handleProtectedRoute(
+  rule: NonNullable<ReturnType<typeof matchManifest>>,
+  request: NextRequest
+): Promise<NextResponse> {
   const { user, supabaseResponse } = await updateSession(request)
 
   if (!user) {
     const url = request.nextUrl.clone()
     url.pathname = "/login"
-    url.searchParams.set("redirect", pathname)
+    url.searchParams.set("redirect", request.nextUrl.pathname)
     return NextResponse.redirect(url)
   }
 
-  // Agent role enforcement — only for routes whose allowed roles are all agent roles.
-  // Portal routes (tenant, landlord, supplier) enforce auth in their own layouts.
-  if (rule.roles && rule.roles.every(r => (AGENT_ROLES as readonly string[]).includes(r))) {
-    const raw = request.cookies.get("pleks_org")?.value
-    if (raw) {
-      try {
-        const { role } = JSON.parse(raw) as { role?: string }
-        if (role && !(rule.roles as readonly SessionRole[]).includes(role as SessionRole)) {
-          return NextResponse.redirect(new URL("/login", request.url))
-        }
-      } catch { /* malformed cookie — let ensureOrgCookies sort it out */ }
-    }
-  }
+  const roleRedirect = checkAgentRoleGate(rule, request)
+  if (roleRedirect) return roleRedirect
 
-  // Org cookie (skipped for portals, onboarding, and demo)
   if (!rule.skipOrgCheck) {
     const orgRedirect = await ensureOrgCookies(user, request, supabaseResponse)
     if (orgRedirect) return orgRedirect
@@ -166,8 +170,39 @@ export async function proxy(request: NextRequest) {
   return supabaseResponse
 }
 
+// ── Main proxy ────────────────────────────────────────────────────────────────
+export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl
+
+  // Webhooks / cron / waitlist / admin-API — bypass everything
+  if (WEBHOOK_PREFIXES.some((p) => pathname.startsWith(p))) return NextResponse.next()
+
+  // Production subdomain split: non-marketing paths on the apex redirect to app.pleks.co.za
+  const host = request.headers.get("host") ?? ""
+  if (resolveHostContext(host) === "marketing" && !isApexPath(pathname)) {
+    const dest = request.nextUrl.clone()
+    dest.host = APP_HOSTNAME
+    return NextResponse.redirect(dest, 308)
+  }
+
+  // Admin gate (only reached on app subdomain in production)
+  const adminResponse = checkAdminAuth(pathname, request)
+  if (adminResponse) return adminResponse
+
+  // Manifest lookup
+  const rule = matchManifest(pathname)
+
+  // No manifest entry (API self-auth or unknown path) or public route — refresh session + pass through
+  if (!rule?.auth) {
+    const { supabaseResponse } = await updateSession(request)
+    return supabaseResponse
+  }
+
+  return handleProtectedRoute(rule, request)
+}
+
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    String.raw`/((?!_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)`,
   ],
 }
