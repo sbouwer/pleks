@@ -256,11 +256,17 @@ export default async function DashboardPage() {
     <div className="space-y-5">
       {/* Greeting */}
       <div>
-        <h1 className="font-heading text-2xl">
-          {greeting}, {firstName}
+        <div className="mb-1.5 flex items-center gap-2.5">
+          <span className="inline-block h-0.5 w-6 shrink-0 bg-amber-400"></span>
+          <p className="font-mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            {dateStr}
+          </p>
+        </div>
+        <h1 className="font-heading text-[28px] leading-tight tracking-tight">
+          {greeting}, {firstName}.
         </h1>
-        <p className="text-sm text-muted-foreground">
-          Here&apos;s your portfolio at a glance — {dateStr}
+        <p className="mt-1.5 text-[13.5px] text-muted-foreground">
+          Here&apos;s your portfolio at a glance.
         </p>
       </div>
 
@@ -310,27 +316,42 @@ export default async function DashboardPage() {
         </Card>
       )}
 
-      {/* Five metric cards — immediate */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <MetricCard label="Properties" value={String(totalProperties)} href="/properties" />
-        <MetricCard label="Units" value={String(totalUnits)} href="/properties" />
+      {/* KPI strip — connected panel */}
+      <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-border md:grid-cols-5">
+        <MetricCard
+          label="Properties"
+          value={String(totalProperties)}
+          href="/properties"
+          className="border-b border-r border-border md:border-b-0"
+        />
+        <MetricCard
+          label="Units"
+          value={String(totalUnits)}
+          href="/properties"
+          className="border-b border-border md:border-b-0 md:border-r"
+        />
         <MetricCard
           label="Occupancy"
           value={`${occupancyPercent}%`}
           subtext={vacantUnits > 0 ? `${vacantUnits} vacant` : "Fully occupied"}
           subtextVariant={vacantUnits > 0 ? "warning" : "success"}
           href="/reports"
+          dotColor={vacantUnits > 0 ? "#EF9F27" : "#1D9E75"}
+          className="border-b border-r border-border md:border-b-0"
         />
         <MetricCard
           label="Monthly rent roll"
           value={collectionRate ? formatZARAbbrev(collectionRate.totalRentRoll) : "R 0"}
           href="/reports"
+          className="border-b border-border md:border-b-0 md:border-r"
         />
         <MetricCard
           label="Collection rate"
           value={collectionRate ? `${collectionRate.collectionRate}%` : "—"}
           progressBar={collectionRate?.collectionRate ?? 0}
           href="/billing"
+          dotColor="#1D9E75"
+          className="col-span-2 md:col-span-1"
         />
       </div>
 

@@ -6,11 +6,14 @@ interface LeaseExpiryTimelineProps {
   leases: ExpiringLease[]
 }
 
-export function LeaseExpiryTimeline({ leases }: LeaseExpiryTimelineProps) {
+export function LeaseExpiryTimeline({ leases }: Readonly<LeaseExpiryTimelineProps>) {
   return (
-    <div className="rounded-xl border bg-card">
-      <div className="border-b px-4 py-3">
-        <h2 className="text-sm font-semibold">Lease expiry</h2>
+    <div className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className="flex items-center justify-between border-b border-border px-5 py-4">
+        <h2 className="flex items-center gap-2.5 text-[15px] font-semibold tracking-tight">
+          <span className="inline-block h-0.5 w-4 shrink-0 bg-amber-400"></span>
+          {"Lease expiry"}
+        </h2>
       </div>
 
       {leases.length === 0 ? (

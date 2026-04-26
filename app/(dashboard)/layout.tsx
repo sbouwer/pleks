@@ -8,6 +8,7 @@ import { NavigationProgress } from "@/components/layout/NavigationProgress"
 import { PortfolioPrefetcher } from "@/components/providers/PortfolioPrefetcher"
 import { KeyboardShortcuts } from "@/components/layout/KeyboardShortcuts"
 import { SyncEngineClient } from "@/components/layout/SyncEngineClient"
+import { PortalThemeProvider } from "@/components/layout/PortalThemeProvider"
 
 export default function DashboardLayout({
   children,
@@ -15,7 +16,7 @@ export default function DashboardLayout({
   children: React.ReactNode
 }>) {
   return (
-    <div className="pleks-portal flex h-screen overflow-hidden">
+    <PortalThemeProvider>
       <NavigationProgress />
       <PortfolioPrefetcher />
       <Sidebar />
@@ -27,6 +28,6 @@ export default function DashboardLayout({
         <KeyboardShortcuts />
         <SyncEngineClient />
       </div>
-    </div>
+    </PortalThemeProvider>
   )
 }

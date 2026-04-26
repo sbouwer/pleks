@@ -236,7 +236,7 @@ export function StepUnits() {
 
   function fillAllFromFirst() {
     if (state.units.length < 2) return
-    const { unit_number: _, ...shared } = state.units[0]
+    const { unit_number: _, ...shared } = state.units[0] // eslint-disable-line sonarjs/no-unused-vars
     const next = state.units.map((u, i) => i === 0 ? u : { ...u, ...shared })
     patch({ units: next })
     setFillDone(true)

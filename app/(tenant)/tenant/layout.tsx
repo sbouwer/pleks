@@ -4,6 +4,7 @@ import { useCallback, useState } from "react"
 import { PortalSidebar, PORTAL_NAV_GROUPS } from "@/components/layout/PortalSidebar"
 import { Topbar } from "@/components/layout/TopBar"
 import { MobileNav } from "@/components/layout/MobileNav"
+import { PortalThemeProvider } from "@/components/layout/PortalThemeProvider"
 
 export default function PortalLayout({
   children,
@@ -14,7 +15,7 @@ export default function PortalLayout({
   const handleOpenChange = useCallback((open: boolean) => setMobileNavOpen(open), [])
 
   return (
-    <div className="pleks-portal flex h-screen overflow-hidden">
+    <PortalThemeProvider>
       <PortalSidebar />
       <MobileNav
         open={mobileNavOpen}
@@ -24,11 +25,9 @@ export default function PortalLayout({
         badge="Tenant"
       />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <Topbar
-          settingsHref="/tenant/account"
-        />
+        <Topbar settingsHref="/tenant/account" />
         <main className="flex-1 overflow-y-auto bg-muted/30 p-6">{children}</main>
       </div>
-    </div>
+    </PortalThemeProvider>
   )
 }

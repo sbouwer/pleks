@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Menu } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
+import { AccentBracket } from "@/components/ui/AccentBracket"
 
 export interface NavGroup {
   title: string
@@ -71,14 +71,16 @@ export function SidebarContent({
           </button>
         ) : (
           <>
-            <Link href={homeHref} className="flex items-center gap-2">
-              <Image src="/logo-dark.svg" alt="Pleks" width={90} height={26} className="h-7 w-auto" priority />
+            <div className="flex items-center gap-2">
+              <Link href={homeHref} className="pub-wordmark" style={{ fontSize: 20 }} aria-label="Pleks">
+                <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
+              </Link>
               {badge && (
                 <span className="text-[10px] text-muted-foreground bg-surface-elevated px-1.5 py-0.5 rounded">
                   {badge}
                 </span>
               )}
-            </Link>
+            </div>
             {onToggleCollapse && (
               <button
                 onClick={onToggleCollapse}
