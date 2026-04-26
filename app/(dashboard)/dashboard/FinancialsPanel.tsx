@@ -64,7 +64,7 @@ export function FinancialsPanel({
             {formatZAR(outstanding)}
           </p>
           {outstanding > 0 && (
-            <Link href="/payments/arrears" className="text-[11px] text-red-600 hover:underline">
+            <Link href="/billing/arrears" className="text-[11px] text-red-600 hover:underline">
               View arrears →
             </Link>
           )}

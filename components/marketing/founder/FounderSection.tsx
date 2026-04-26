@@ -8,13 +8,14 @@ const MOMENTS: MomentData[] = [
     year: "2004 — 2014", tag: "LEGAL", tagColour: "slate",
     title: "A decade inside legal practice.",
     body: "Two law firms, one custom-built case-management system. The years where the discipline of paperwork-that-holds-up settled in — every contract dated, every change captured, every file ready when someone needed it.",
+    bodyHighlight: "paperwork-that-holds-up",
     foot: "Where the audit-trail discipline came from",
   },
   {
     id: 2, side: "right", phase: "slate",
     year: "2014 — 2020", tag: "DEV", tagColour: "slate",
     title: "Property development from the ground up.",
-    body: "Philippi Village. Container Walk. Mixed-use complexes. The years where contractor management, scheme governance, and the realities of getting a building out of the ground replaced theoretical legal work.",
+    body: "Mixed-use developments, commercial complexes, retail builds. The years where contractor management, scheme governance, and the realities of getting a building out of the ground replaced theoretical legal work.",
     foot: "Where the contractor-side knowledge came from",
   },
   {
@@ -22,13 +23,15 @@ const MOMENTS: MomentData[] = [
     year: "2020 — 2024", tag: "MGMT", tagColour: "slate",
     title: "Active rental portfolio management.",
     body: "Reports. Tenant comms. Move-ins, move-outs. Deposit reconciliations. The day-to-day work where most of the existing software fell short — and where the gap that became Pleks first got named.",
+    bodyHighlight: "the gap that became Pleks first got named",
     foot: "Where the day-to-day pain came from",
   },
   {
     id: 4, side: "right", phase: "amber",
     year: "2024", tag: "IDEA", tagColour: "amber",
     title: "The product the market wasn't building.",
-    body: "Started sketching Pleks as the alternative — not another listing portal, not another lightweight rent-collector. The system the regulated 70% of property management actually needs, that incumbents had skipped.",
+    body: "Started sketching Pleks as the alternative — not another listing portal, not another lightweight rent-collector. The system the incumbents had skipped, built for the regulated 70% where the work actually lives.",
+    bodyHighlight: "the regulated 70%",
     foot: "Where the spec for Pleks was written",
   },
   {
@@ -74,9 +77,9 @@ export function FounderSection() {
 
         {/* Founder block */}
         <div className={styles.founderBlock}>
-          <span className={styles.sigName}>Stéan B.</span>
+          <span className={`stoep ${styles.sigName}`}>Stéan Bouwer</span>
           <span className={styles.sigMeta}>Founder, Pleks</span>
-          <span className={styles.sigMeta}>Cape Town · Twenty years building software for regulated work</span>
+          <span className={styles.sigMeta}>Western Cape · Twenty years building software for regulated work</span>
         </div>
 
       </div>

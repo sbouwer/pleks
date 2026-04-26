@@ -3,7 +3,7 @@ import { redirect } from "next/navigation"
 import { getServerOrgMembership } from "@/lib/auth/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { OPERATIONAL_QUERY_KEYS, STALE_TIME, fetchPayments } from "@/lib/queries/portfolio"
-import { PaymentsPageClient } from "./PaymentsPageClient"
+import { BillingPageClient } from "./BillingPageClient"
 
 export default async function PaymentsPage() {
   const membership = await getServerOrgMembership()
@@ -21,7 +21,7 @@ export default async function PaymentsPage() {
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <PaymentsPageClient orgId={orgId} />
+      <BillingPageClient orgId={orgId} />
     </HydrationBoundary>
   )
 }

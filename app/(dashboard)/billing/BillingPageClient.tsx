@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { EmptyState } from "@/components/shared/EmptyState"
-import { BatchPaymentEntry } from "@/components/payments/BatchPaymentEntry"
+import { BatchPaymentEntry } from "@/components/billing/BatchPaymentEntry"
 import { CreditCard, Plus, List, LayoutList, MessageSquare, Loader2, Upload } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import { OPERATIONAL_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
@@ -29,7 +29,7 @@ const STATUS_MAP: Record<string, "pending" | "active" | "completed" | "arrears">
 
 interface Props { orgId: string }
 
-export function PaymentsPageClient({ orgId }: Readonly<Props>) {
+export function BillingPageClient({ orgId }: Readonly<Props>) {
   const queryClient = useQueryClient()
   const queryKey = OPERATIONAL_QUERY_KEYS.payments(orgId)
   const { data: list = [], dataUpdatedAt } = useQuery({
@@ -102,10 +102,10 @@ export function PaymentsPageClient({ orgId }: Readonly<Props>) {
               <List className="size-3.5" /> Invoices
             </button>
           </div>
-          <Button size="sm" variant="outline" render={<Link href="/payments/bulk-import" />}>
+          <Button size="sm" variant="outline" render={<Link href="/billing/bulk-import" />}>
             <Upload className="h-4 w-4 mr-1" /> Bulk import
           </Button>
-          <Button render={<Link href="/payments/invoices/new" />}>
+          <Button render={<Link href="/billing/invoices/new" />}>
             <Plus className="h-4 w-4 mr-1" /> Add Invoice
           </Button>
         </div>
@@ -114,7 +114,7 @@ export function PaymentsPageClient({ orgId }: Readonly<Props>) {
           <Button size="sm" variant="outline" onClick={handleSendReminders} disabled={sendingReminders}>
             {sendingReminders ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MessageSquare className="h-3.5 w-3.5" />}
           </Button>
-          <Button size="sm" render={<Link href="/payments/invoices/new" />}>
+          <Button size="sm" render={<Link href="/billing/invoices/new" />}>
             <Plus className="h-4 w-4" />
           </Button>
         </div>

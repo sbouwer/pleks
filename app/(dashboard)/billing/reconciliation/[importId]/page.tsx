@@ -47,7 +47,7 @@ export default async function ReconDetailPage({
 
   return (
     <div>
-      <BackLink href="/payments/reconciliation" label="Reconciliation" />
+      <BackLink href="/billing/reconciliation" label="Reconciliation" />
       <div className="flex items-start justify-between mb-6">
         <div>
           <h1 className="font-heading text-3xl">{imp.detected_bank?.toUpperCase() || "Bank"} Statement</h1>

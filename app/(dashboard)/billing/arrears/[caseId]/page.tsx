@@ -60,7 +60,7 @@ export default async function ArrearsDetailPage({
 
   return (
     <div>
-      <BackLink href="/payments/arrears" label="Arrears" />
+      <BackLink href="/billing/arrears" label="Arrears" />
       <div className="flex items-start justify-between mb-6">
         <div>
           <div className="flex items-center gap-3">

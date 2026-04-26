@@ -188,7 +188,7 @@ export default function BulkImportPage() {
               <Button onClick={() => { setStep("input"); setCsvText(""); setMatchedRows([]); setSelectedRows(new Set()) }}>
                 Import more
               </Button>
-              <Link href="/payments">
+              <Link href="/billing">
                 <Button variant="outline">View payments</Button>
               </Link>
             </div>
@@ -304,7 +304,7 @@ export default function BulkImportPage() {
       <div className="hidden lg:block">
         <div className="max-w-2xl mx-auto space-y-6 pb-12">
           <div>
-            <Link href="/payments" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-2">
+            <Link href="/billing" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-2">
               <ArrowLeft className="h-3.5 w-3.5" />
               Back to payments
             </Link>

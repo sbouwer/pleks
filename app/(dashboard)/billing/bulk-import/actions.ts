@@ -225,6 +225,6 @@ export async function confirmBulkPayments(payments: ConfirmedPayment[]): Promise
     if (ok) created++
   }
 
-  revalidatePath("/payments")
+  revalidatePath("/billing")
   return { created }
 }

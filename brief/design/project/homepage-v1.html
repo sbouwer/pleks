@@ -1,0 +1,985 @@
+<!doctype html>
+<html lang="en-ZA">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pleks — rental management built by a practitioner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles/tokens.css" />
+<style>
+  /* ===== Layout primitives ===== */
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 32px; }
+  @media (max-width: 720px) { .wrap { padding: 0 20px; } }
+
+  /* ===== Top bar ===== */
+  .topbar {
+    position: sticky; top: 0; z-index: 40;
+    background: color-mix(in oklch, var(--paper) 92%, transparent);
+    backdrop-filter: saturate(140%) blur(8px);
+    border-bottom: 1px solid var(--rule);
+  }
+  .topbar-inner { display: flex; align-items: center; justify-content: space-between; height: 64px; gap: 32px; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-mark { width: 26px; height: 26px; }
+  .brand-word { font-size: 20px; letter-spacing: -0.02em; font-weight: 600; }
+  .brand-word .tld { color: var(--ink-faint); font-weight: 500; }
+  .nav { display: flex; gap: 28px; align-items: center; }
+  .nav a { font-size: 14px; color: var(--ink-soft); transition: color .15s; }
+  .nav a:hover { color: var(--ink); }
+  .top-actions { display: flex; gap: 10px; align-items: center; }
+  @media (max-width: 900px) { .nav { display: none; } }
+
+  /* ===== Buttons ===== */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 14px; font-weight: 500; line-height: 1;
+    padding: 11px 16px; border-radius: var(--r-sm);
+    border: 1px solid transparent; cursor: pointer; transition: all .15s;
+    font-family: inherit;
+  }
+  .btn-primary { background: var(--ink); color: var(--paper); }
+  .btn-primary:hover { background: oklch(0.12 0.012 260); }
+  .btn-ghost { color: var(--ink); border-color: var(--rule-strong); background: transparent; }
+  .btn-ghost:hover { background: var(--paper-sunk); }
+  .btn-link { padding: 0; background: transparent; color: var(--ink); border-bottom: 1px solid var(--rule-strong); border-radius: 0; padding-bottom: 2px; }
+  .btn-link:hover { border-color: var(--ink); }
+
+  /* ===== Notice strip ===== */
+  .notice {
+    background: var(--ink); color: var(--paper);
+    font-size: 12.5px; letter-spacing: 0.01em;
+  }
+  .notice-inner {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 9px 32px; gap: 24px;
+  }
+  .notice-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--amber); display: inline-block; margin-right: 10px; box-shadow: 0 0 0 3px oklch(0.68 0.14 65 / 0.22); }
+  .notice a { border-bottom: 1px solid oklch(1 0 0 / 0.3); padding-bottom: 1px; }
+
+  /* ===== Hero ===== */
+  .hero {
+    padding: 88px 0 96px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    /* subtle paper grain */
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background-image:
+      radial-gradient(circle at 20% 10%, oklch(0.68 0.14 65 / 0.03), transparent 40%),
+      radial-gradient(circle at 85% 80%, oklch(0.48 0.04 230 / 0.03), transparent 50%);
+  }
+  .hero-grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 72px; align-items: start; position: relative; }
+  @media (max-width: 960px) { .hero-grid { grid-template-columns: 1fr; gap: 48px; } }
+
+  .hero-eyebrow { display: flex; align-items: center; gap: 12px; margin-bottom: 28px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 11.5px; letter-spacing: 0.05em; font-weight: 500;
+    padding: 5px 10px; border-radius: 999px;
+    background: var(--paper-raised); border: 1px solid var(--rule); color: var(--ink-soft);
+  }
+  .chip .glyph { width: 12px; height: 12px; color: var(--amber-ink); }
+  .chip-divider { width: 1px; height: 12px; background: var(--rule-strong); }
+
+  .hero h1 { margin: 0 0 28px; }
+  .hero h1 em { font-style: normal; color: var(--ink-faint); font-weight: 400; }
+  .hero h1 u { text-decoration: none; background-image: linear-gradient(180deg, transparent 62%, var(--amber-wash) 62%, var(--amber-wash) 92%, transparent 92%); }
+
+  .hero p.lede { max-width: 56ch; margin: 0 0 40px; }
+  .hero-ctas { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .hero-meta { margin-top: 44px; display: flex; gap: 40px; flex-wrap: wrap; }
+  .hero-meta-item { }
+  .hero-meta-item .n { font-size: 22px; font-weight: 500; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .hero-meta-item .l { font-size: 12.5px; color: var(--ink-mute); margin-top: 2px; }
+
+  /* ===== Receipt / proof card in hero ===== */
+  .proof {
+    background: var(--paper-raised);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-md);
+    overflow: hidden;
+    box-shadow: var(--shadow-2);
+    font-feature-settings: "tnum";
+  }
+  .proof-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; border-bottom: 1px solid var(--rule);
+    background: var(--paper-sunk);
+  }
+  .proof-title { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-mute); letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600; }
+  .proof-title .live {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--positive);
+    box-shadow: 0 0 0 3px oklch(0.52 0.12 150 / 0.2);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: 1;} 50% { opacity: 0.55; } }
+  .proof-tabs { display: flex; gap: 2px; font-size: 11.5px; color: var(--ink-mute); }
+  .proof-tabs span { padding: 3px 8px; border-radius: 3px; }
+  .proof-tabs span.on { background: var(--ink); color: var(--paper); }
+
+  .proof-body { padding: 16px 18px 0; }
+  .proof-meta {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px;
+    font-size: 12px; padding-bottom: 14px; border-bottom: 1px dashed var(--rule);
+  }
+  .proof-meta dt { color: var(--ink-mute); margin-bottom: 2px; }
+  .proof-meta dd { margin: 0; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+  .proof-row {
+    display: grid; grid-template-columns: 22px 1fr auto;
+    gap: 12px; padding: 11px 0;
+    border-bottom: 1px solid var(--rule);
+    font-size: 13px;
+    align-items: flex-start;
+  }
+  .proof-row:last-child { border-bottom: 0; }
+  .proof-row .ix { color: var(--ink-faint); font-family: var(--mono); font-size: 11px; padding-top: 2px; }
+  .proof-row .evt { color: var(--ink); }
+  .proof-row .evt .sub { color: var(--ink-mute); font-size: 12px; display: block; margin-top: 2px; font-family: var(--mono); }
+  .proof-row .ts { color: var(--ink-mute); font-family: var(--mono); font-size: 11.5px; text-align: right; white-space: nowrap; padding-top: 2px; }
+
+  .proof-foot {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; background: var(--paper-sunk);
+    border-top: 1px solid var(--rule);
+    font-size: 11.5px; color: var(--ink-mute); font-family: var(--mono);
+  }
+  .proof-foot .seal { display: flex; align-items: center; gap: 8px; color: var(--ink-soft); }
+  .proof-foot .seal .hash { color: var(--ink-faint); }
+
+  /* ===== Gap nav (competitor callout) ===== */
+  .gap {
+    margin-top: 24px;
+    border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
+    padding: 48px 0;
+    background: var(--paper-sunk);
+  }
+  .gap-grid { display: grid; grid-template-columns: 280px 1fr; gap: 56px; align-items: start; }
+  @media (max-width: 860px) { .gap-grid { grid-template-columns: 1fr; gap: 24px; } }
+  .gap-head .t-eyebrow { margin-bottom: 10px; }
+  .gap-head h2 { margin: 0 0 12px; }
+  .gap-head p { margin: 0; font-size: 14px; color: var(--ink-mute); max-width: 24ch; }
+
+  .gap-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .gap-table th { text-align: left; font-weight: 500; font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-mute); padding: 0 0 12px; }
+  .gap-table th.pleks { color: var(--ink); }
+  .gap-table td { padding: 14px 0; border-top: 1px solid var(--rule); vertical-align: top; }
+  .gap-table td.row-label { color: var(--ink); font-weight: 500; width: 34%; }
+  .gap-table td.competitor { color: var(--ink-mute); }
+  .gap-table td.pleks { color: var(--ink); position: relative; }
+  .mark-x { color: var(--ink-faint); font-family: var(--mono); margin-right: 6px; }
+  .mark-c { color: var(--ink-mute); font-family: var(--mono); margin-right: 6px; }
+  .mark-t { color: var(--amber-ink); font-family: var(--mono); margin-right: 6px; }
+
+  /* ===== Section ===== */
+  section.block { padding: 104px 0; border-bottom: 1px solid var(--rule); }
+  section.block h2.section-h { margin: 0 0 20px; max-width: 26ch; }
+  section.block .lede { max-width: 62ch; }
+  .section-head { display: grid; grid-template-columns: 0.6fr 1fr; gap: 56px; margin-bottom: 64px; align-items: end; }
+  @media (max-width: 860px) { .section-head { grid-template-columns: 1fr; gap: 16px; margin-bottom: 40px; } }
+  .section-head .t-eyebrow { margin-bottom: 12px; }
+
+  /* ===== Why two parts ===== */
+  .pillars { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1px solid var(--rule); border-radius: var(--r-md); overflow: hidden; background: var(--paper-raised); }
+  @media (max-width: 860px) { .pillars { grid-template-columns: 1fr; } }
+  .pillar { padding: 36px 36px 40px; border-right: 1px solid var(--rule); }
+  .pillar:last-child { border-right: 0; border-top: 0; }
+  @media (max-width: 860px) { .pillar { border-right: 0; border-bottom: 1px solid var(--rule); } .pillar:last-child { border-bottom: 0; } }
+  .pillar-kicker { display: inline-flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 11px; color: var(--ink-mute); margin-bottom: 20px; }
+  .pillar-kicker .num { background: var(--ink); color: var(--paper); padding: 2px 6px; border-radius: 3px; font-size: 10.5px; letter-spacing: 0.08em; }
+  .pillar h3 { margin: 0 0 14px; font-size: 26px; line-height: 1.15; letter-spacing: -0.02em; font-weight: 500; }
+  .pillar p { margin: 0 0 20px; font-size: 15px; color: var(--ink-soft); line-height: 1.55; }
+  .pillar-list { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--rule); }
+  .pillar-list li { padding: 12px 0; border-bottom: 1px solid var(--rule); display: grid; grid-template-columns: 16px 1fr; gap: 10px; font-size: 13.5px; align-items: start; }
+  .pillar-list li:last-child { border-bottom: 0; }
+  .pillar-list .g { color: var(--amber-ink); font-family: var(--mono); font-size: 11px; padding-top: 2px; }
+
+  /* ===== Artefact evidence block ===== */
+  .artefact {
+    background: var(--paper-sunk);
+    padding: 96px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .artefact .section-head h2 { max-width: 18ch; }
+  .artefact-frame {
+    background: var(--paper-raised); border: 1px solid var(--rule); border-radius: var(--r-md);
+    overflow: hidden; box-shadow: var(--shadow-2);
+  }
+  .artefact-tabs {
+    display: flex; background: var(--paper-sunk); border-bottom: 1px solid var(--rule);
+    padding: 0 18px;
+  }
+  .artefact-tab {
+    padding: 14px 16px; font-size: 13px; color: var(--ink-mute); cursor: pointer;
+    border-bottom: 2px solid transparent; transition: all .15s; display: inline-flex; align-items: center; gap: 8px;
+    font-family: inherit; background: transparent; border-left: 0; border-right: 0; border-top: 0;
+  }
+  .artefact-tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+  .artefact-tab:hover { color: var(--ink); }
+  .artefact-tab .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-faint); }
+  .artefact-tab[aria-selected="true"] .dot { background: var(--amber); }
+
+  .artefact-body { padding: 36px; }
+  @media (max-width: 720px) { .artefact-body { padding: 20px; } }
+
+  /* Statement */
+  .stmt-head { display: grid; grid-template-columns: 1fr auto; gap: 36px; padding-bottom: 28px; border-bottom: 1px solid var(--rule-strong); }
+  .stmt-head .title { font-size: 13px; color: var(--ink-mute); letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600; margin-bottom: 10px; }
+  .stmt-head .ref { font-family: var(--mono); font-size: 12px; color: var(--ink-mute); margin-top: 6px; }
+  .stmt-head h3 { margin: 0; font-size: 28px; letter-spacing: -0.02em; font-weight: 500; }
+  .stmt-head .who { font-size: 13.5px; color: var(--ink-soft); margin-top: 8px; line-height: 1.5; }
+  .stmt-head .right { text-align: right; font-size: 12.5px; color: var(--ink-mute); }
+  .stmt-head .right strong { color: var(--ink); font-weight: 500; display: block; font-variant-numeric: tabular-nums; }
+
+  .stmt-sum { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border-bottom: 1px solid var(--rule-strong); }
+  .stmt-sum .cell { padding: 20px 24px; border-right: 1px solid var(--rule); }
+  .stmt-sum .cell:last-child { border-right: 0; background: var(--amber-wash); }
+  .stmt-sum .lbl { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-mute); margin-bottom: 8px; }
+  .stmt-sum .val { font-size: 22px; font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+  @media (max-width: 720px) { .stmt-sum { grid-template-columns: repeat(2, 1fr); } .stmt-sum .cell:nth-child(2) { border-right: 0; } .stmt-sum .cell:nth-child(1),.stmt-sum .cell:nth-child(2) { border-bottom: 1px solid var(--rule); } }
+
+  .stmt-table { width: 100%; border-collapse: collapse; margin-top: 24px; font-size: 13px; }
+  .stmt-table thead th {
+    text-align: left; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+    font-weight: 600; color: var(--ink-mute); padding: 0 12px 12px;
+    border-bottom: 1px solid var(--rule-strong);
+  }
+  .stmt-table thead th.num { text-align: right; }
+  .stmt-table tbody td { padding: 11px 12px; border-bottom: 1px solid var(--rule); font-variant-numeric: tabular-nums; vertical-align: top; }
+  .stmt-table tbody td:first-child { padding-left: 0; color: var(--ink-mute); font-family: var(--mono); font-size: 12px; }
+  .stmt-table tbody td.desc { color: var(--ink); }
+  .stmt-table tbody td.desc .tag { display: inline-block; font-size: 10.5px; letter-spacing: 0.04em; text-transform: uppercase; padding: 1px 6px; border-radius: 3px; background: var(--paper-sunk); border: 1px solid var(--rule); color: var(--ink-mute); margin-left: 8px; font-family: var(--mono); }
+  .stmt-table tbody td.num { text-align: right; font-family: var(--mono); }
+  .stmt-table tbody tr.closing td { font-weight: 600; background: var(--paper-sunk); border-top: 1px solid var(--rule-strong); border-bottom-color: var(--rule-strong); }
+
+  .stmt-foot {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px;
+    padding-top: 24px; margin-top: 12px; border-top: 1px solid var(--rule);
+    font-size: 11.5px; color: var(--ink-mute); font-family: var(--mono);
+  }
+  @media (max-width: 720px) { .stmt-foot { grid-template-columns: 1fr; gap: 12px; } }
+  .stmt-foot .seal-row { display: flex; align-items: center; gap: 8px; }
+  .stmt-foot .seal-row .ok { color: var(--positive); }
+
+  /* FitScore card */
+  .fit-layout { display: grid; grid-template-columns: 280px 1fr; gap: 40px; align-items: start; }
+  @media (max-width: 860px) { .fit-layout { grid-template-columns: 1fr; gap: 28px; } }
+  .fit-dial {
+    position: relative; width: 240px; height: 240px; margin: 0 auto;
+  }
+  .fit-dial svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .fit-dial .score { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .fit-dial .score .n { font-size: 56px; font-weight: 500; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+  .fit-dial .score .out { font-size: 12px; color: var(--ink-mute); font-family: var(--mono); margin-top: -6px; }
+  .fit-dial .score .tier { margin-top: 8px; font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--positive); font-weight: 600; }
+  .fit-applicant { margin-top: 14px; text-align: center; }
+  .fit-applicant .nm { font-weight: 500; }
+  .fit-applicant .id { font-family: var(--mono); color: var(--ink-mute); font-size: 11.5px; margin-top: 2px; }
+
+  .fit-breakdown { font-size: 13px; }
+  .fit-row { display: grid; grid-template-columns: 1.2fr 80px 1fr 48px; gap: 14px; padding: 13px 0; border-bottom: 1px solid var(--rule); align-items: center; }
+  .fit-row:last-child { border-bottom: 0; }
+  .fit-row .lbl { color: var(--ink); font-weight: 500; }
+  .fit-row .lbl .sub { display: block; color: var(--ink-mute); font-size: 11.5px; font-weight: 400; margin-top: 2px; }
+  .fit-row .val { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+  .fit-row .val.pos { color: var(--positive); }
+  .fit-row .val.neg { color: var(--critical); }
+  .fit-row .val.cau { color: var(--caution); }
+  .fit-row .bar { height: 4px; background: var(--paper-sunk); border-radius: 2px; overflow: hidden; }
+  .fit-row .bar .f { height: 100%; background: var(--ink); }
+  .fit-row .bar .f.pos { background: var(--positive); }
+  .fit-row .bar .f.cau { background: var(--caution); }
+  .fit-row .bar .f.neg { background: var(--critical); }
+  .fit-row .w { text-align: right; color: var(--ink-mute); font-size: 11.5px; font-family: var(--mono); }
+
+  .fit-rationale {
+    margin-top: 20px; padding: 16px; background: var(--paper-sunk); border: 1px solid var(--rule); border-radius: var(--r-sm);
+    font-size: 13px; color: var(--ink-soft); line-height: 1.55;
+  }
+  .fit-rationale .rk { font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-mute); margin-bottom: 6px; font-family: var(--mono); }
+
+  /* Applicant fee receipt */
+  .fee-rec { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+  @media (max-width: 720px) { .fee-rec { grid-template-columns: 1fr; } }
+  .fee-box { border: 1px solid var(--rule); border-radius: var(--r-sm); padding: 20px; background: var(--paper-raised); }
+  .fee-box h4 { margin: 0 0 14px; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .fee-line { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed var(--rule); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .fee-line:last-child { border-bottom: 0; padding-top: 12px; border-top: 1px solid var(--rule-strong); font-weight: 600; font-size: 15px; }
+  .fee-line .k { color: var(--ink-mute); font-family: var(--mono); font-size: 12px; }
+  .fee-line .v { color: var(--ink); font-family: var(--mono); }
+  .fee-box .footer-note { margin-top: 16px; font-size: 11.5px; color: var(--ink-mute); line-height: 1.5; font-family: var(--mono); }
+
+  /* ===== Practitioner story ===== */
+  .story { padding: 104px 0; border-bottom: 1px solid var(--rule); }
+  .story-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
+  @media (max-width: 860px) { .story-grid { grid-template-columns: 1fr; gap: 40px; } }
+  .story-text h2 { margin: 0 0 24px; max-width: 18ch; }
+  .story-text p { font-size: 16px; color: var(--ink-soft); line-height: 1.65; margin: 0 0 18px; max-width: 52ch; }
+  .story-sig { margin-top: 30px; display: flex; align-items: center; gap: 14px; }
+  .sig-mark {
+    font-family: "Inter Tight"; font-weight: 500; font-size: 20px;
+    color: var(--ink); letter-spacing: -0.02em; padding-bottom: 2px;
+    border-bottom: 1.5px solid var(--ink);
+  }
+  .sig-meta { font-size: 12.5px; color: var(--ink-mute); line-height: 1.4; }
+
+  /* Credentials ledger */
+  .creds { border: 1px solid var(--rule); border-radius: var(--r-md); background: var(--paper-raised); overflow: hidden; }
+  .creds-head { padding: 14px 20px; border-bottom: 1px solid var(--rule); display: flex; justify-content: space-between; align-items: center; background: var(--paper-sunk); }
+  .creds-head .t { font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-mute); font-weight: 600; }
+  .creds-head .n { font-family: var(--mono); font-size: 11.5px; color: var(--ink-faint); }
+  .cred { display: grid; grid-template-columns: 72px 1fr 80px; gap: 16px; padding: 16px 20px; border-bottom: 1px solid var(--rule); align-items: center; font-size: 13.5px; }
+  .cred:last-child { border-bottom: 0; }
+  .cred .yr { font-family: var(--mono); font-size: 11.5px; color: var(--ink-mute); }
+  .cred .txt { color: var(--ink); }
+  .cred .txt .sub { display: block; color: var(--ink-mute); font-size: 12px; margin-top: 2px; }
+  .cred .rgt { text-align: right; font-family: var(--mono); font-size: 11px; color: var(--ink-faint); letter-spacing: 0.06em; text-transform: uppercase; }
+
+  /* ===== Pricing teaser ===== */
+  .pricing { padding: 104px 0; background: var(--paper); border-bottom: 1px solid var(--rule); }
+  .pricing-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border: 1px solid var(--rule); border-radius: var(--r-md); overflow: hidden; background: var(--paper-raised); }
+  @media (max-width: 860px) { .pricing-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 500px) { .pricing-grid { grid-template-columns: 1fr; } }
+  .tier { padding: 28px 24px; border-right: 1px solid var(--rule); position: relative; }
+  .tier:last-child { border-right: 0; }
+  @media (max-width: 860px) { .tier:nth-child(2) { border-right: 0; } .tier:nth-child(1),.tier:nth-child(2) { border-bottom: 1px solid var(--rule); } }
+  .tier.featured { background: var(--paper-sunk); }
+  .tier .tn { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-mute); font-weight: 600; margin-bottom: 4px; }
+  .tier.featured .tn { color: var(--amber-ink); }
+  .tier .price { display: flex; align-items: baseline; gap: 4px; margin: 12px 0 4px; }
+  .tier .price .cur { font-size: 15px; color: var(--ink-mute); font-family: var(--mono); }
+  .tier .price .n { font-size: 40px; font-weight: 500; letter-spacing: -0.025em; font-variant-numeric: tabular-nums; }
+  .tier .price .per { font-size: 13px; color: var(--ink-mute); }
+  .tier .units { font-size: 12.5px; color: var(--ink-mute); margin-bottom: 18px; font-family: var(--mono); }
+  .tier ul { list-style: none; margin: 0 0 0; padding: 0; border-top: 1px solid var(--rule); }
+  .tier ul li { padding: 9px 0; border-bottom: 1px solid var(--rule); font-size: 13px; color: var(--ink-soft); display: grid; grid-template-columns: 14px 1fr; gap: 8px; align-items: start; }
+  .tier ul li:last-child { border-bottom: 0; }
+  .tier ul li .c { font-family: var(--mono); color: var(--ink-faint); font-size: 11px; padding-top: 3px; }
+  .tier .flag { position: absolute; top: 20px; right: 20px; font-size: 10.5px; color: var(--amber-ink); letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; font-family: var(--mono); }
+
+  /* ===== Founding agent strip ===== */
+  .founding {
+    background: var(--ink); color: var(--paper);
+    padding: 80px 0;
+  }
+  .founding-inner { display: grid; grid-template-columns: 1fr auto; gap: 48px; align-items: center; }
+  @media (max-width: 720px) { .founding-inner { grid-template-columns: 1fr; } }
+  .founding h2 { margin: 0 0 12px; color: var(--paper); max-width: 20ch; font-size: clamp(26px, 3vw, 36px); line-height: 1.1; letter-spacing: -0.02em; font-weight: 500; }
+  .founding p { margin: 0; color: oklch(0.85 0.01 260); max-width: 48ch; font-size: 15px; }
+  .founding .btn-primary { background: var(--amber); color: var(--ink); }
+  .founding .btn-primary:hover { background: oklch(0.76 0.14 70); }
+  .founding .btn-ghost { color: var(--paper); border-color: oklch(1 0 0 / 0.2); }
+  .founding .btn-ghost:hover { background: oklch(1 0 0 / 0.06); }
+  .founding .counter {
+    font-family: var(--mono); font-size: 12px; color: oklch(0.75 0.01 260);
+    display: flex; gap: 10px; align-items: center; margin-top: 18px;
+  }
+  .founding .counter .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--amber); }
+  .founding-ctas { display: flex; flex-direction: column; gap: 10px; }
+
+  /* ===== Footer ===== */
+  footer { padding: 64px 0 32px; }
+  .foot-grid { display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr; gap: 48px; padding-bottom: 48px; border-bottom: 1px solid var(--rule); }
+  @media (max-width: 720px) { .foot-grid { grid-template-columns: 1fr 1fr; gap: 28px; } }
+  .foot-col h4 { font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-mute); font-weight: 600; margin: 0 0 14px; }
+  .foot-col ul { list-style: none; margin: 0; padding: 0; }
+  .foot-col li { margin-bottom: 8px; }
+  .foot-col a { font-size: 13.5px; color: var(--ink-soft); }
+  .foot-col a:hover { color: var(--ink); }
+  .foot-brand { max-width: 30ch; }
+  .foot-brand p { font-size: 13px; color: var(--ink-mute); margin: 12px 0 0; line-height: 1.55; }
+  .legal { padding-top: 24px; display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; font-size: 12px; color: var(--ink-mute); font-family: var(--mono); }
+  .legal .bd { display: flex; gap: 18px; align-items: center; }
+
+  /* tiny inline icons */
+  .i { width: 14px; height: 14px; display: inline-block; vertical-align: -2px; }
+</style>
+</head>
+<body>
+
+<!-- ===== Notice strip ===== -->
+<div class="notice">
+  <div class="notice-inner wrap" style="padding-left:32px;padding-right:32px">
+    <div><span class="notice-dot"></span> 7 founding-agent seats remaining — R299/month locked for life</div>
+    <div style="display:flex;gap:18px;align-items:center">
+      <span style="color:oklch(0.75 0.01 260)">Pleks v1.0 · Johannesburg, ZA</span>
+      <a href="#founding">Claim a seat →</a>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Top bar ===== -->
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <a href="#" class="brand" aria-label="Pleks home">
+      <!-- Mark: erf-grid monogram -->
+      <svg class="brand-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <rect x="1" y="1" width="30" height="30" rx="6" fill="#1a1920"/>
+        <path d="M8 9 L8 23 M8 9 L16 9 Q20 9 20 13 Q20 17 16 17 L8 17" stroke="#E8A838" stroke-width="2.2" stroke-linecap="square" fill="none"/>
+        <rect x="21" y="19" width="3.6" height="4" fill="#E8A838"/>
+      </svg>
+      <span class="brand-word">pleks<span class="tld">.co.za</span></span>
+    </a>
+    <nav class="nav">
+      <a href="#why">Why Pleks</a>
+      <a href="#artefact">The work</a>
+      <a href="#story">Who built this</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#">For agents</a>
+    </nav>
+    <div class="top-actions">
+      <a href="#" class="btn btn-ghost">Sign in</a>
+      <a href="#founding" class="btn btn-primary">Start free</a>
+    </div>
+  </div>
+</header>
+
+<!-- ===== Hero ===== -->
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <div class="hero-eyebrow">
+        <span class="chip">
+          <svg class="glyph" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1 1.5 4v4.2C1.5 11.6 4.3 14.4 8 15c3.7-.6 6.5-3.4 6.5-6.8V4L8 1Zm0 2.2 4.5 2v3C12.5 10.6 10.5 12.7 8 13.3 5.5 12.7 3.5 10.6 3.5 8.2v-3L8 3.2Z"/></svg>
+          POPIA · RHA · CPA · EAAB — by default
+        </span>
+        <span class="chip-divider"></span>
+        <span class="chip" style="font-family:var(--mono);font-size:11px">v1.0 · <span style="color:var(--ink-faint)">SA-hosted</span></span>
+      </div>
+
+      <h1 class="t-display">
+        Rental management that <u>keeps the receipts</u> — <em>so the Tribunal never has to ask.</em>
+      </h1>
+
+      <p class="t-body-lg lede">
+        Every action immutably logged. PII encrypted, masked on screen, consent-recorded before every credit check. Applicants pay for their own Searchworx checks — you get a <strong style="color:var(--ink)">FitScore</strong>, not a 40-page data-dump. Built by someone who did your job for eleven years.
+      </p>
+
+      <div class="hero-ctas">
+        <a href="#founding" class="btn btn-primary">
+          Start free — 1 unit, no card
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 8h10m0 0L8.5 3.5M13 8l-4.5 4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="square"/></svg>
+        </a>
+        <a href="#" class="btn btn-ghost">Book a 20-min demo</a>
+        <a href="#artefact" class="btn btn-link">Or see what it produces</a>
+      </div>
+
+      <div class="hero-meta">
+        <div class="hero-meta-item"><div class="n tnum">R 0</div><div class="l">Client money Pleks ever holds</div></div>
+        <div class="hero-meta-item"><div class="n tnum">14 / 21</div><div class="l">Day deposit return — tracked automatically</div></div>
+        <div class="hero-meta-item"><div class="n tnum">11 yrs</div><div class="l">Practitioner-built, not consultant-designed</div></div>
+      </div>
+    </div>
+
+    <!-- Proof card: live audit log -->
+    <aside class="proof" aria-label="Live audit log preview">
+      <div class="proof-head">
+        <div class="proof-title"><span class="live"></span> Audit log — org_2G6 · live</div>
+        <div class="proof-tabs"><span class="on">Events</span><span>Consents</span><span>Access</span></div>
+      </div>
+      <div class="proof-body">
+        <dl class="proof-meta">
+          <div><dt>Stream</dt><dd class="mono">audit_log · append-only</dd></div>
+          <div><dt>Retention</dt><dd class="mono">7 yr · immutable</dd></div>
+          <div><dt>Export</dt><dd class="mono">Tribunal bundle (PDF + JSONL)</dd></div>
+          <div><dt>Integrity</dt><dd class="mono"><span style="color:var(--positive);font-weight:500">● verified</span> 04:32 UTC</dd></div>
+        </dl>
+
+        <div class="proof-row">
+          <span class="ix">#4812</span>
+          <span class="evt">Credit check authorised — N. Dlamini<span class="sub">consent_token 8f2c…ea1 · Searchworx bundle.3</span></span>
+          <span class="ts">today · 14:02:11</span>
+        </div>
+        <div class="proof-row">
+          <span class="ix">#4811</span>
+          <span class="evt">Deposit schedule issued — 12 Loop St · Unit A<span class="sub">21-day clock started · wear_items=9, damage_items=2</span></span>
+          <span class="ts">today · 11:47:03</span>
+        </div>
+        <div class="proof-row">
+          <span class="ix">#4810</span>
+          <span class="evt">Trust reconciliation passed<span class="sub">bank_bal = ledger_bal = liability_bal · ΔR0.00</span></span>
+          <span class="ts">today · 08:15:00</span>
+        </div>
+        <div class="proof-row">
+          <span class="ix">#4809</span>
+          <span class="evt">Lease signed — G. van der Merwe<span class="sub">DebiCheck mandate M-2431 created · PPRA template v4</span></span>
+          <span class="ts">yest · 16:22:47</span>
+        </div>
+        <div class="proof-row">
+          <span class="ix">#4808</span>
+          <span class="evt">PII view — S. Naidoo ID<span class="sub">masked to requester · viewer_id usr_441 · reason: arrears letter</span></span>
+          <span class="ts">yest · 09:58:12</span>
+        </div>
+      </div>
+      <div class="proof-foot">
+        <div class="seal"><span>Merkle root</span><span class="hash">0x7a2f…c4e1</span></div>
+        <div>rows 4808–4812 of 24,317</div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<!-- ===== Gap / competitor callout ===== -->
+<section class="gap" aria-label="How Pleks compares">
+  <div class="wrap gap-grid">
+    <div class="gap-head">
+      <div class="t-eyebrow">The gap</div>
+      <h2 class="t-h2">What the incumbents can't quite say.</h2>
+      <p class="t-small">A plain reading of each platform's public claims. If any of this is wrong, tell me — I'll correct it in public.</p>
+    </div>
+
+    <table class="gap-table">
+      <thead>
+        <tr>
+          <th>&nbsp;</th>
+          <th>reOS</th>
+          <th>WeconnectU</th>
+          <th>PropWorx</th>
+          <th class="pleks">Pleks</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="row-label">Who pays for credit checks</td>
+          <td class="competitor"><span class="mark-x">·</span>Agency</td>
+          <td class="competitor"><span class="mark-x">·</span>Agency (TPN credits)</td>
+          <td class="competitor"><span class="mark-x">·</span>Agency</td>
+          <td class="pleks"><span class="mark-t">✓</span>Applicant (R399, one-time)</td>
+        </tr>
+        <tr>
+          <td class="row-label">Trust account ownership</td>
+          <td class="competitor"><span class="mark-c">·</span>Per-agency, held in product</td>
+          <td class="competitor"><span class="mark-c">·</span>Per-agency, via RAMS</td>
+          <td class="competitor"><span class="mark-c">·</span>Integrated trust module</td>
+          <td class="pleks"><span class="mark-t">✓</span>Your bank. Pleks never touches it.</td>
+        </tr>
+        <tr>
+          <td class="row-label">Single system vs stack</td>
+          <td class="competitor"><span class="mark-c">·</span>Unified</td>
+          <td class="competitor"><span class="mark-x">·</span>CMS + RAMS + RedRabbit (3 logins)</td>
+          <td class="competitor"><span class="mark-c">·</span>Unified</td>
+          <td class="pleks"><span class="mark-t">✓</span>One system, one login, one audit log</td>
+        </tr>
+        <tr>
+          <td class="row-label">Tribunal evidence export</td>
+          <td class="competitor"><span class="mark-x">·</span>Manual PDF assembly</td>
+          <td class="competitor"><span class="mark-x">·</span>Manual PDF assembly</td>
+          <td class="competitor"><span class="mark-x">·</span>Manual PDF assembly</td>
+          <td class="pleks"><span class="mark-t">✓</span>One-click bundle · signed · hashed</td>
+        </tr>
+        <tr>
+          <td class="row-label">Hosted in</td>
+          <td class="competitor"><span class="mark-c">·</span>Unspecified</td>
+          <td class="competitor"><span class="mark-c">·</span>Unspecified</td>
+          <td class="competitor"><span class="mark-c">·</span>Multi-region</td>
+          <td class="pleks"><span class="mark-t">✓</span>South Africa · POPIA-resident</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ===== Why — two pillars ===== -->
+<section class="block" id="why">
+  <div class="wrap">
+    <div class="section-head">
+      <div>
+        <div class="t-eyebrow">Why Pleks</div>
+        <h2 class="t-h1 section-h">Two things the others don't do. We built the product around them.</h2>
+      </div>
+      <p class="t-body lede">Every other claim on this page — the automation, the statements, the DebiCheck run — falls out of getting these two right. Everything else is table stakes.</p>
+    </div>
+
+    <div class="pillars">
+      <!-- Pillar 1: Security -->
+      <div class="pillar">
+        <div class="pillar-kicker"><span class="num">01</span> SECURITY · POSTURE</div>
+        <h3>Every action keeps a receipt. Your clients' PII never leaves the vault unmasked.</h3>
+        <p>
+          The <code class="mono" style="font-size:13px;background:var(--paper-sunk);padding:1px 6px;border-radius:3px">audit_log</code> table is append-only — no UPDATE, no DELETE, ever. Identity numbers, bank details and addresses are encrypted at rest, decrypted only when sent to Searchworx, and masked for every UI render. Each credit check carries a signed <code class="mono" style="font-size:13px;background:var(--paper-sunk);padding:1px 6px;border-radius:3px">consent_token</code> — no consent, no check, no exceptions.
+        </p>
+        <ul class="pillar-list">
+          <li><span class="g">A</span><span><strong>Immutable audit log.</strong> 7-year retention, Merkle-hashed, exportable as a signed Tribunal bundle.</span></li>
+          <li><span class="g">B</span><span><strong>PII encrypted at rest.</strong> AES-256, KMS-rotated. Masked by default in every screen; viewer-ID and reason logged on every unmask.</span></li>
+          <li><span class="g">C</span><span><strong>Consent-gated credit checks.</strong> POPIA §11 consent_token required — check is refused if it's missing, expired, or withdrawn.</span></li>
+          <li><span class="g">D</span><span><strong>Row-level segregation.</strong> <code class="mono" style="font-size:12px">org_id</code> on every table, enforced at the database. No cross-agency leakage is possible, not just unlikely.</span></li>
+          <li><span class="g">E</span><span><strong>SA-resident, SA-owned.</strong> Supabase JHB region. No sub-processor outside the country without explicit opt-in.</span></li>
+        </ul>
+      </div>
+
+      <!-- Pillar 2: Decision-ready screening -->
+      <div class="pillar">
+        <div class="pillar-kicker"><span class="num">02</span> SCREENING · ECONOMICS</div>
+        <h3>Applicants pay. You get a FitScore, not a 40-page credit report.</h3>
+        <p>
+          Applicants submit details, consent, and pay R399 directly. Pleks runs the Searchworx bundle — credit, ID, deeds — and hands back a single decision-ready number with the rationale attached. You never pay for a check that goes nowhere. You never read a raw credit report you aren't trained to interpret.
+        </p>
+        <ul class="pillar-list">
+          <li><span class="g">A</span><span><strong>Applicant-paid, R399.</strong> PayFast redirect, receipt emailed. Joint applications billed once (R749).</span></li>
+          <li><span class="g">B</span><span><strong>FitScore 0–100.</strong> Weighted: credit (40) · income affordability (30) · tenancy history (20) · ID/deeds integrity (10). Sonnet-drafted rationale, practitioner-reviewed.</span></li>
+          <li><span class="g">C</span><span><strong>Every applicant shown.</strong> Low scores don't get filtered out — legal protection for you, transparency for them.</span></li>
+          <li><span class="g">D</span><span><strong>30% affordability rule.</strong> Flagged explicitly. No guessing what "marginal" means.</span></li>
+          <li><span class="g">E</span><span><strong>Shortlist → sign.</strong> Accept an applicant and the DebiCheck mandate, lease draft, and move-in inspection slot are queued automatically.</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Artefact evidence ===== -->
+<section class="artefact" id="artefact">
+  <div class="wrap">
+    <div class="section-head">
+      <div>
+        <div class="t-eyebrow">The work</div>
+        <h2 class="t-h1 section-h">What Pleks puts on the page.</h2>
+      </div>
+      <p class="t-body lede">Most rental software sells screenshots. The artefacts below are what your landlords, the Tribunal, and your accountant actually see. Tap through.</p>
+    </div>
+
+    <div class="artefact-frame">
+      <div class="artefact-tabs" role="tablist">
+        <button class="artefact-tab" role="tab" aria-selected="true" data-tab="stmt"><span class="dot"></span>Landlord statement</button>
+        <button class="artefact-tab" role="tab" aria-selected="false" data-tab="fit"><span class="dot"></span>Applicant FitScore</button>
+        <button class="artefact-tab" role="tab" aria-selected="false" data-tab="fee"><span class="dot"></span>Applicant fee receipt</button>
+      </div>
+
+      <!-- STATEMENT -->
+      <div class="artefact-body" id="tab-stmt">
+        <div class="stmt-head">
+          <div>
+            <div class="title">Landlord statement · March 2026</div>
+            <h3>Mrs. A. van Zyl</h3>
+            <div class="who">17 Loop Street, Bo-Kaap, Cape Town, 8001 · Unit A (2B/1B) · Tenant: N. Dlamini</div>
+            <div class="ref">ref · STMT-2026-03-A0417 · rent_roll R 13,500.00</div>
+          </div>
+          <div class="right">
+            <strong>Rox &amp; Co Property Management</strong>
+            PPRA FFC 2026 · 2025-0041<br/>
+            Trust acc · ABSA 407 889 1204<br/>
+            Statement issued · 03 Apr 2026
+          </div>
+        </div>
+
+        <div class="stmt-sum">
+          <div class="cell"><div class="lbl">Opening balance</div><div class="val">R 0.00</div></div>
+          <div class="cell"><div class="lbl">Receipts</div><div class="val">R 13,500.00</div></div>
+          <div class="cell"><div class="lbl">Fees &amp; disbursements</div><div class="val">−R 1,687.50</div></div>
+          <div class="cell"><div class="lbl">Payable to you</div><div class="val">R 11,812.50</div></div>
+        </div>
+
+        <table class="stmt-table">
+          <thead>
+            <tr>
+              <th style="width:90px">Date</th>
+              <th>Description</th>
+              <th style="width:140px">Reference</th>
+              <th class="num" style="width:120px">Debit</th>
+              <th class="num" style="width:120px">Credit</th>
+              <th class="num" style="width:130px">Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>01 Mar</td><td class="desc">Opening balance</td><td class="mono">—</td><td class="num">—</td><td class="num">—</td><td class="num">0.00</td></tr>
+            <tr><td>02 Mar</td><td class="desc">Rent received — DebiCheck <span class="tag">rent</span></td><td class="mono">DC-M2431-03</td><td class="num">—</td><td class="num">13,500.00</td><td class="num">13,500.00</td></tr>
+            <tr><td>02 Mar</td><td class="desc">Management fee (10%) <span class="tag">fee</span></td><td class="mono">FEE-0417-03</td><td class="num">1,350.00</td><td class="num">—</td><td class="num">12,150.00</td></tr>
+            <tr><td>14 Mar</td><td class="desc">Geyser element — plumber invoice <span class="tag">maint</span></td><td class="mono">MX-8821</td><td class="num">287.50</td><td class="num">—</td><td class="num">11,862.50</td></tr>
+            <tr><td>14 Mar</td><td class="desc">VAT on fee <span class="tag">vat</span></td><td class="mono">VAT-0417-03</td><td class="num">50.00</td><td class="num">—</td><td class="num">11,812.50</td></tr>
+            <tr class="closing"><td>31 Mar</td><td class="desc">Payable to landlord — pending EFT</td><td class="mono">PAY-0417-03</td><td class="num">—</td><td class="num">—</td><td class="num">11,812.50</td></tr>
+          </tbody>
+        </table>
+
+        <div class="stmt-foot">
+          <div class="seal-row"><span class="ok">●</span> <span>Trust reconciled 31 Mar 23:59 · ΔR0.00</span></div>
+          <div>doc_hash · 0x 9b7c 2e01 4a3f · signed by Pleks</div>
+          <div>audit entries #4780–#4811 · exportable</div>
+        </div>
+      </div>
+
+      <!-- FITSCORE (hidden by default) -->
+      <div class="artefact-body" id="tab-fit" hidden>
+        <div class="fit-layout">
+          <div>
+            <div class="fit-dial" aria-label="FitScore dial">
+              <svg viewBox="0 0 100 100" aria-hidden="true">
+                <circle cx="50" cy="50" r="42" stroke="#E8DFD1" stroke-width="8" fill="none"/>
+                <circle cx="50" cy="50" r="42" stroke="oklch(0.52 0.12 150)" stroke-width="8" fill="none"
+                        stroke-dasharray="264" stroke-dashoffset="52" stroke-linecap="butt"/>
+              </svg>
+              <div class="score">
+                <div class="n tnum">78</div>
+                <div class="out">out of 100</div>
+                <div class="tier">RECOMMEND</div>
+              </div>
+            </div>
+            <div class="fit-applicant">
+              <div class="nm">N. Dlamini</div>
+              <div class="id">ID 9•••••••5•••8 · decrypted once · 14:02 UTC</div>
+            </div>
+          </div>
+
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
+              <h3 style="margin:0;font-size:17px;font-weight:600">Score breakdown</h3>
+              <div class="mono" style="font-size:11.5px;color:var(--ink-mute)">consent_token 8f2c…ea1</div>
+            </div>
+            <p class="t-small" style="margin:0 0 18px">Weighted components · all sources disclosed · Sonnet-drafted rationale</p>
+
+            <div class="fit-row">
+              <div class="lbl">Credit record <span class="sub">Searchworx · bureau bundle</span></div>
+              <div class="val pos">34 / 40</div>
+              <div class="bar"><div class="f pos" style="width:85%"></div></div>
+              <div class="w">w.40</div>
+            </div>
+            <div class="fit-row">
+              <div class="lbl">Income affordability <span class="sub">Payslip extraction · 3 mo · 30% rule</span></div>
+              <div class="val pos">26 / 30</div>
+              <div class="bar"><div class="f pos" style="width:87%"></div></div>
+              <div class="w">w.30</div>
+            </div>
+            <div class="fit-row">
+              <div class="lbl">Tenancy history <span class="sub">Prior landlord refs · 2 of 2 positive</span></div>
+              <div class="val cau">12 / 20</div>
+              <div class="bar"><div class="f cau" style="width:60%"></div></div>
+              <div class="w">w.20</div>
+            </div>
+            <div class="fit-row">
+              <div class="lbl">ID &amp; deeds integrity <span class="sub">DHA verification · no adverse matches</span></div>
+              <div class="val pos">6 / 10</div>
+              <div class="bar"><div class="f pos" style="width:60%"></div></div>
+              <div class="w">w.10</div>
+            </div>
+
+            <div class="fit-rationale">
+              <div class="rk">Rationale · human-reviewable</div>
+              Solid credit profile with one settled judgment (R4,120, 2022) — since cleared. Salary R42,100 gross, rent/income ratio 32% — marginally above the 30% threshold, flag but not disqualifying. Two prior landlords reachable; one noted late payment December 2024. No deeds-level adverse. <strong style="color:var(--ink)">Recommend conditional approval</strong> with first-month deposit held in trust and rent debit set for 25th.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FEE RECEIPT (hidden by default) -->
+      <div class="artefact-body" id="tab-fee" hidden>
+        <div class="fee-rec">
+          <div class="fee-box">
+            <h4>Applicant fee · paid by N. Dlamini</h4>
+            <div class="fee-line"><span class="k">payfast_ref</span><span class="v">PF-2026-0417-9921</span></div>
+            <div class="fee-line"><span class="k">credit_bundle</span><span class="v">R 329.00</span></div>
+            <div class="fee-line"><span class="k">deeds_lookup</span><span class="v">R 48.00</span></div>
+            <div class="fee-line"><span class="k">platform_fee</span><span class="v">R 22.00</span></div>
+            <div class="fee-line"><span>Total paid by applicant</span><span class="v">R 399.00</span></div>
+            <div class="footer-note">
+              amount_charged_to_agency · R 0.00<br/>
+              settled direct to Searchworx + Pleks · no agency invoice raised
+            </div>
+          </div>
+          <div class="fee-box">
+            <h4>Consent record · POPIA §11</h4>
+            <div class="fee-line"><span class="k">consent_token</span><span class="v">8f2c…ea1</span></div>
+            <div class="fee-line"><span class="k">scope</span><span class="v">credit · deeds · id_verify</span></div>
+            <div class="fee-line"><span class="k">issued_at</span><span class="v">2026-04-02 13:58 UTC</span></div>
+            <div class="fee-line"><span class="k">expires_at</span><span class="v">2026-07-01 13:58 UTC</span></div>
+            <div class="fee-line"><span class="k">revocable</span><span class="v">yes · self-service</span></div>
+            <div class="fee-line"><span>Status</span><span class="v" style="color:var(--positive)">● active</span></div>
+            <div class="footer-note">
+              Every subsequent read of Mr. Dlamini's ID or bank detail is logged against this token with viewer, time, and reason.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Practitioner story ===== -->
+<section class="story" id="story">
+  <div class="wrap story-grid">
+    <div class="story-text">
+      <div class="t-eyebrow" style="margin-bottom:16px">Who built this</div>
+      <h2 class="t-h1">I did your job for eleven years. Then I built the software I wished existed.</h2>
+      <p>I ran rental portfolios in Johannesburg and Cape Town from 2014 to 2025. I used TPN RentBook, two flavours of WeconnectU, a Sage export, and a spreadsheet I emailed to my landlords on the 3rd of every month. I watched colleagues lose deposit disputes they should have won because the paper trail was in four systems.</p>
+      <p>Pleks is the product that would have saved me those Tribunal appearances. Every design decision in here is a specific frustration I remember the month and the flat it happened in. If you've done this work, you'll recognise it. If you haven't, no piece of software will teach you to.</p>
+      <div class="story-sig">
+        <div class="sig-mark">Stefan B.</div>
+        <div class="sig-meta">
+          Founder, Pleks<br/>
+          <span class="mono" style="font-size:11.5px">PPRA 2019-0088 · NAMA member 2020–2024</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="creds">
+      <div class="creds-head">
+        <div class="t">Practitioner ledger</div>
+        <div class="n">rows 1–7</div>
+      </div>
+      <div class="cred"><span class="yr">2014</span><span class="txt">Joined Seeff Sandton — rental portfolio trainee<span class="sub">First portfolio: 11 units, manual Excel rent roll</span></span><span class="rgt">start</span></div>
+      <div class="cred"><span class="yr">2017</span><span class="txt">Built first PPRA-compliant trust recon spreadsheet<span class="sub">Reconciled against ABSA bank feed, 200+ units</span></span><span class="rgt">origin</span></div>
+      <div class="cred"><span class="yr">2019</span><span class="txt">PPRA FFC issued · 2019-0088<span class="sub">Registered property practitioner, principal</span></span><span class="rgt">licensed</span></div>
+      <div class="cred"><span class="yr">2021</span><span class="txt">First Tribunal deposit dispute defended<span class="sub">Won on inspection photo metadata — the idea for Pleks</span></span><span class="rgt">formative</span></div>
+      <div class="cred"><span class="yr">2023</span><span class="txt">Left agency role · began building Pleks<span class="sub">Full-time, SA-hosted, practitioner-directed</span></span><span class="rgt">pivot</span></div>
+      <div class="cred"><span class="yr">2025</span><span class="txt">Closed pilot with 4 agencies · 312 units on platform<span class="sub">Cape Town &amp; Johannesburg · zero data incidents</span></span><span class="rgt">pilot</span></div>
+      <div class="cred"><span class="yr">2026</span><span class="txt">Public v1.0 · founding-agent pricing opens<span class="sub">10 seats at R299/month locked for life</span></span><span class="rgt">now</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Pricing teaser ===== -->
+<section class="pricing" id="pricing">
+  <div class="wrap">
+    <div class="section-head">
+      <div>
+        <div class="t-eyebrow">Pricing</div>
+        <h2 class="t-h1 section-h">Per active unit. No per-user tax. No per-check tax.</h2>
+      </div>
+      <p class="t-body lede">Unlimited properties at every tier — billing tracks the unit, not the address. Overage at R35/unit/month, never a hard block.</p>
+    </div>
+
+    <div class="pricing-grid">
+      <div class="tier">
+        <div class="tn">Owner</div>
+        <div class="price"><span class="cur">R</span><span class="n">0</span><span class="per">/mo</span></div>
+        <div class="units">1 unit · 1 user · no trust</div>
+        <ul>
+          <li><span class="c">·</span>Full inspection + lease lifecycle</li>
+          <li><span class="c">·</span>FitScore on applicants</li>
+          <li><span class="c">·</span>DebiCheck collection</li>
+          <li><span class="c">·</span>PDF statement export</li>
+        </ul>
+      </div>
+
+      <div class="tier">
+        <div class="tn">Steward</div>
+        <div class="price"><span class="cur">R</span><span class="n">599</span><span class="per">/mo</span></div>
+        <div class="units">up to 10 units · 2 users</div>
+        <ul>
+          <li><span class="c">·</span>Everything in Owner</li>
+          <li><span class="c">·</span>Trust account reconciliation</li>
+          <li><span class="c">·</span>Landlord portal</li>
+          <li><span class="c">·</span>Bulk import from TPN / spreadsheet</li>
+        </ul>
+      </div>
+
+      <div class="tier featured">
+        <span class="flag">Most common</span>
+        <div class="tn">Portfolio</div>
+        <div class="price"><span class="cur">R</span><span class="n">999</span><span class="per">/mo</span></div>
+        <div class="units">up to 30 units · 5 users</div>
+        <ul>
+          <li><span class="c">·</span>Everything in Steward</li>
+          <li><span class="c">·</span>Contractor portal + work orders</li>
+          <li><span class="c">·</span>Arrears automation (Sonnet letters)</li>
+          <li><span class="c">·</span>Tribunal bundle export</li>
+        </ul>
+      </div>
+
+      <div class="tier">
+        <div class="tn">Firm</div>
+        <div class="price"><span class="cur">R</span><span class="n">2,499</span><span class="per">/mo</span></div>
+        <div class="units">unlimited units · unlimited users</div>
+        <ul>
+          <li><span class="c">·</span>Everything in Portfolio</li>
+          <li><span class="c">·</span>HOA / body corporate</li>
+          <li><span class="c">·</span>Opus 4.6 — Tribunal submissions</li>
+          <li><span class="c">·</span>Dedicated SA-based support</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Founding agent ===== -->
+<section class="founding" id="founding">
+  <div class="wrap founding-inner">
+    <div>
+      <h2>Ten founding seats. Seven still open. R299/month, locked for life.</h2>
+      <p>Portfolio-tier product. Founding-tier price. In exchange I'll ask for a thirty-minute call a month while we're still in the first year — because that's how you get software written by someone who's actually listening.</p>
+      <div class="counter">
+        <span class="dot"></span>
+        <span>03 / 10 claimed · Joburg, Cape Town, Durban · updated 21 Apr</span>
+      </div>
+    </div>
+    <div class="founding-ctas">
+      <a class="btn btn-primary" href="#">Claim a founding seat</a>
+      <a class="btn btn-ghost" href="#">Or book a demo first</a>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Footer ===== -->
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-col foot-brand">
+        <div class="brand">
+          <svg class="brand-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <rect x="1" y="1" width="30" height="30" rx="6" fill="#1a1920"/>
+            <path d="M8 9 L8 23 M8 9 L16 9 Q20 9 20 13 Q20 17 16 17 L8 17" stroke="#E8A838" stroke-width="2.2" stroke-linecap="square" fill="none"/>
+            <rect x="21" y="19" width="3.6" height="4" fill="#E8A838"/>
+          </svg>
+          <span class="brand-word">pleks<span class="tld">.co.za</span></span>
+        </div>
+        <p>South African rental management software. Built by a practitioner. Hosted in Johannesburg. POPIA-resident by default.</p>
+      </div>
+      <div class="foot-col">
+        <h4>Product</h4>
+        <ul>
+          <li><a href="#">For agents</a></li>
+          <li><a href="#">For landlords</a></li>
+          <li><a href="#">Features</a></li>
+          <li><a href="#">Pricing</a></li>
+          <li><a href="#">Change log</a></li>
+        </ul>
+      </div>
+      <div class="foot-col">
+        <h4>Compliance</h4>
+        <ul>
+          <li><a href="#">POPIA notice</a></li>
+          <li><a href="#">Credit check policy</a></li>
+          <li><a href="#">Trust account structure</a></li>
+          <li><a href="#">Data residency</a></li>
+          <li><a href="#">Sub-processors</a></li>
+        </ul>
+      </div>
+      <div class="foot-col">
+        <h4>Company</h4>
+        <ul>
+          <li><a href="#">Who built this</a></li>
+          <li><a href="#">Founding agents</a></li>
+          <li><a href="#">Contact</a></li>
+          <li><a href="#">Support (ZA hours)</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="legal">
+      <div class="bd">
+        <span>© 2026 Pleks (Pty) Ltd</span>
+        <span>Reg · 2024/567123/07</span>
+        <span>PPRA registered</span>
+      </div>
+      <div class="bd">
+        <span>Data · Supabase JHB · SA resident</span>
+        <span>v1.0.4 · build 2026.04.21</span>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Tab switching for the artefact frame
+  const tabs = document.querySelectorAll('.artefact-tab');
+  const bodies = { stmt: document.getElementById('tab-stmt'), fit: document.getElementById('tab-fit'), fee: document.getElementById('tab-fee') };
+  tabs.forEach(t => t.addEventListener('click', () => {
+    tabs.forEach(x => x.setAttribute('aria-selected', 'false'));
+    t.setAttribute('aria-selected', 'true');
+    Object.values(bodies).forEach(b => b.hidden = true);
+    bodies[t.dataset.tab].hidden = false;
+  }));
+</script>
+
+</body>
+</html>

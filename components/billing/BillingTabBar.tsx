@@ -6,15 +6,15 @@ import { cn } from "@/lib/utils"
 import { useTier } from "@/hooks/useTier"
 
 const PAYMENT_TABS = [
-  { label: "Payments",        href: "/payments",                  exact: true },
-  { label: "Invoices",        href: "/payments/invoices" },
-  { label: "Reconciliation",  href: "/payments/reconciliation" },
-  { label: "Arrears",         href: "/payments/arrears" },
-  { label: "Municipal",       href: "/payments/municipal" },
-  { label: "DebiCheck",       href: "/payments/debicheck",        ownerHidden: true },
+  { label: "Payments",        href: "/billing",                  exact: true },
+  { label: "Invoices",        href: "/billing/invoices" },
+  { label: "Reconciliation",  href: "/billing/reconciliation" },
+  { label: "Arrears",         href: "/billing/arrears" },
+  { label: "Municipal",       href: "/billing/municipal" },
+  { label: "DebiCheck",       href: "/billing/debicheck",        ownerHidden: true },
 ]
 
-export function PaymentsTabBar() {
+export function BillingTabBar() {
   const pathname = usePathname()
   const { isOwner } = useTier()
 

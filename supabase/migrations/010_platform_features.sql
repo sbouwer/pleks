@@ -528,4 +528,4 @@ INSERT INTO site_content (key, label, section, sort_order, value) VALUES
 ON CONFLICT (key) DO NOTHING;
 
 -- Live content corrections (idempotent UPDATE — safe to re-run)
-UPDATE site_content SET value = 'Priced per active lease, not per address or per seat. Vacancies cost you nothing. Your bill on the 1st is the bill on the 1st — and if it ever changes, your accountant knows 30 days before it does.' WHERE key = 'pricing_sub';
+UPDATE site_content SET value = 'Priced per active lease, not per address or per seat. Vacancies cost you nothing. Your bill on the 1st is the bill on the 1st — and if it ever changes, you know 30 days before it does.' WHERE key = 'pricing_sub';

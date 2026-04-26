@@ -99,7 +99,7 @@ export async function uploadMunicipalBill(formData: FormData) {
     }).eq("id", bill.id)
   }
 
-  revalidatePath("/payments/municipal")
+  revalidatePath("/billing/municipal")
   return { success: true, billId: bill.id }
 }
 
@@ -117,7 +117,7 @@ export async function confirmMunicipalBill(billId: string) {
 
   if (error) return { error: error.message }
 
-  revalidatePath("/payments/municipal")
+  revalidatePath("/billing/municipal")
   return { success: true }
 }
 
@@ -134,6 +134,6 @@ export async function markMunicipalBillPaid(billId: string, reference?: string) 
 
   if (error) return { error: error.message }
 
-  revalidatePath("/payments/municipal")
+  revalidatePath("/billing/municipal")
   return { success: true }
 }

@@ -179,7 +179,7 @@ function SummaryStrip({
               {formatZAR(arrearsCase.total_arrears_cents)}
             </p>
             <p className="text-xs text-danger mt-1">{months} {monthLabel}</p>
-            <Link href="/payments/arrears" className="text-xs text-danger hover:underline mt-0.5 block">
+            <Link href="/billing/arrears" className="text-xs text-danger hover:underline mt-0.5 block">
               View arrears case →
             </Link>
           </>
@@ -536,7 +536,7 @@ export function FinanceTab({
         </Link>
         {arrearsCase && (
           <Link
-            href="/payments/arrears"
+            href="/billing/arrears"
             className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-sm font-medium hover:bg-muted transition-colors"
           >
             View arrears case

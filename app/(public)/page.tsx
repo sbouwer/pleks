@@ -12,7 +12,7 @@ export const revalidate = 3600
 
 export const metadata = {
   title: "Pleks — SA Property Management, Built Right",
-  description: "Built by a practitioner who did it for eleven years. Applicant-paid FitScore screening. Automated DebiCheck collections. Tribunal-ready documentation by default.",
+  description: "Built across all three sides of the property cycle: legal, development, management. Applicant-paid FitScore screening. Automated DebiCheck collections. Tribunal-ready documentation by default.",
 }
 
 const DEFAULTS: Record<string, string> = {
@@ -45,16 +45,16 @@ const TIERS = [
 ] satisfies import("./TierGrid").TierData[]
 
 const AUDIT_ROWS = [
-  { line: "Platform · per-user fee",              incumbent: "R400–R800 per user / mo",   pleks: "Tier fee only"        },
-  { line: "Credit & background checks",           incumbent: "R70–R200 per applicant",    pleks: "Applicant pays direct" },
-  { line: "SMS & WhatsApp notifications",         incumbent: "R0.35–R0.60 each, metered", pleks: "Tier fee only"        },
-  { line: "Trust-account module",                 incumbent: "R300–R600 / mo add-on",     pleks: "Tier fee only"        },
-  { line: "Inspection app",                       incumbent: "R250–R400 / mo add-on",     pleks: "Tier fee only"        },
-  { line: "E-signature",                          incumbent: "R15–R45 per lease signed",  pleks: "Tier fee only"        },
-  { line: "Bank-feed / accounting integration",   incumbent: "R200–R350 / mo",            pleks: "Tier fee only"        },
-  { line: "Onboarding & data migration",          incumbent: "R3,500–R8,000 one-off",     pleks: "Free"                 },
-  { line: "AI-drafted Tribunal bundle",           incumbent: "Not offered · manual",      pleks: "Included"             },
-]
+  { line: "Platform · per-user fee",            min: 400,   max: 800,   unit: "per user / mo",            pleks: "Included",            pleksNote: "whole team, no per-user fee"          },
+  { line: "Credit & background checks",         min: 70,    max: 200,   unit: "per applicant",            pleks: "Applicant pays",      pleksNote: "never lands on your account"          },
+  { line: "SMS & WhatsApp notifications",       min: 0.35,  max: 0.60,  unit: "per message · metered",    pleks: "Included",            pleksNote: "unlimited tenant comms"               },
+  { line: "Trust-account module",               min: 300,   max: 600,   unit: "/ mo · add-on",             pleks: "Included",            pleksNote: "reconciles nightly, no extra cost"    },
+  { line: "Inspection app",                     min: 250,   max: 400,   unit: "/ mo · add-on",             pleks: "Included",            pleksNote: "iOS + Android, offline-capable"       },
+  { line: "E-signature",                        min: 15,    max: 45,    unit: "per lease signed",         pleks: "Included",            pleksNote: "every lease, every addendum"          },
+  { line: "Bank-feed / accounting integration", min: 200,   max: 350,   unit: "/ mo",                     pleks: "Included",            pleksNote: "Xero + Sage export"                   },
+  { line: "Onboarding & data migration",        min: 3500,  max: 8000,  unit: "once-off",                 pleks: "Free",                pleksNote: "we do the import for you"             },
+  { line: "AI-drafted Tribunal bundle",         min: null,  max: null,  unit: "Not offered · manual",     pleks: "Included",            pleksNote: "every dispute, court-ready"           },
+] as const
 
 const INCLUDED = [
   "Trust account reconciliation",      "Applicant FitScore · unlimited",
@@ -129,9 +129,10 @@ export default async function HomePage() {
             </span>
           </div>
 
-          <h1 className="pub-display" style={{ margin: "0 0 28px", maxWidth: "22ch" }}>
-            Rent collected. Landlords paid.{" "}
-            <span className="amber-wash-underline">Deposits returned on the day.</span>
+          <h1 className="pub-display" style={{ margin: "0 0 28px", maxWidth: "28ch" }}>
+            Rent collected, landlords paid,{" "}
+            <span className="amber-wash-underline">inspections that hold up</span>{" "}
+            and files closed cleanly.
           </h1>
 
           <p className="pub-body-lg" style={{ maxWidth: "56ch", margin: "0 0 16px" }}>
@@ -503,26 +504,51 @@ export default async function HomePage() {
               <div style={{ fontSize: 12, color: "var(--ink-faint)", fontFamily: "var(--pub-mono)" }}>{`SA rental platforms · ${auditLabel}`}</div>
             </div>
             <div style={{ border: "1px solid var(--rule)", borderRadius: "var(--r-md)", overflow: "hidden" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, fontVariantNumeric: "tabular-nums" }}>
+                <colgroup>
+                  <col style={{ width: "27%" }} />{/* line item */}
+                  <col style={{ width: "3%"  }} />{/* min: R */}
+                  <col style={{ width: "8%"  }} />{/* min: number */}
+                  <col style={{ width: "3%"  }} />{/* max: R */}
+                  <col style={{ width: "8%"  }} />{/* max: number */}
+                  <col style={{ width: "16%" }} />{/* unit / note */}
+                  <col style={{ width: "35%" }} />{/* pleks */}
+                </colgroup>
                 <thead>
                   <tr>
-                    {(["Line item","Industry standard","Pleks"] as const).map((h, i) => (
-                      <th key={h} style={{ textAlign: "left", fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600, color: i === 2 ? "var(--ink)" : "var(--ink-mute)", padding: "14px 20px", borderBottom: i === 2 ? "2px solid var(--amber)" : "1px solid var(--rule-strong)", background: "var(--paper-sunk)" }}>{h}</th>
-                    ))}
+                    <th style={{ textAlign: "left",  fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600, color: "var(--ink-mute)", padding: "12px 18px", borderBottom: "1px solid var(--rule-strong)", background: "var(--paper-sunk)" }}>Line item</th>
+                    <th style={{ textAlign: "left",  fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600, color: "var(--ink-mute)", padding: "12px 0 12px 18px", borderBottom: "1px solid var(--rule-strong)", background: "var(--paper-sunk)" }} colSpan={5}>Industry standard</th>
+                    <th style={{ textAlign: "left",  fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", fontWeight: 600, color: "var(--ink)",      padding: "12px 18px", borderBottom: "2px solid var(--amber)",        background: "var(--paper-sunk)" }}>Pleks</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {AUDIT_ROWS.map(row => (
-                    <tr key={row.line}>
-                      <td style={{ padding: "14px 20px", borderBottom: "1px solid var(--rule)", color: "var(--ink)", fontWeight: 500 }}>{row.line}</td>
-                      <td style={{ padding: "14px 20px", borderBottom: "1px solid var(--rule)", color: "var(--ink-mute)" }}>{row.incumbent}</td>
-                      <td style={{ padding: "14px 20px", borderBottom: "1px solid var(--rule)", color: "var(--amber-ink)", fontWeight: 600, background: "var(--amber-wash)" }}>{row.pleks}</td>
-                    </tr>
-                  ))}
+                  {AUDIT_ROWS.map(row => {
+                    const fmtNum = (n: number) => n.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                    return (
+                      <tr key={row.line}>
+                        <td style={{ padding: "11px 18px", borderBottom: "1px solid var(--rule)", color: "var(--ink)", fontWeight: 500 }}>{row.line}</td>
+                        {row.min === null || row.max === null ? (
+                          <td colSpan={5} style={{ padding: "11px 18px", borderBottom: "1px solid var(--rule)", color: "var(--ink-mute)", fontStyle: "italic", fontSize: 13 }}>{row.unit}</td>
+                        ) : (
+                          <>
+                            <td style={{ padding: "11px 0 11px 18px", borderBottom: "1px solid var(--rule)", color: "var(--ink-faint)", textAlign: "right", fontFamily: "var(--pub-mono)" }}>R</td>
+                            <td style={{ padding: "11px 12px 11px 6px", borderBottom: "1px solid var(--rule)", color: "var(--ink-mute)", textAlign: "right", fontFamily: "var(--pub-mono)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{fmtNum(row.min)}</td>
+                            <td style={{ padding: "11px 0",            borderBottom: "1px solid var(--rule)", color: "var(--ink-faint)", textAlign: "right", fontFamily: "var(--pub-mono)" }}>R</td>
+                            <td style={{ padding: "11px 12px 11px 6px", borderBottom: "1px solid var(--rule)", color: "var(--ink-mute)", textAlign: "right", fontFamily: "var(--pub-mono)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{fmtNum(row.max)}</td>
+                            <td style={{ padding: "11px 14px 11px 8px", borderBottom: "1px solid var(--rule)", color: "var(--ink-faint)", fontSize: 12.5, fontFamily: "var(--pub-mono)", whiteSpace: "nowrap" }}>{row.unit}</td>
+                          </>
+                        )}
+                        <td style={{ padding: "11px 18px", borderBottom: "1px solid var(--rule)", background: "var(--amber-wash)", whiteSpace: "nowrap" }}>
+                          <span style={{ color: "var(--amber-ink)", fontWeight: 600, fontSize: 14 }}>{row.pleks}</span>
+                          <span style={{ color: "var(--ink-soft)", fontSize: 12.5, marginLeft: 10 }}>{row.pleksNote}</span>
+                        </td>
+                      </tr>
+                    )
+                  })}
                   <tr>
-                    <td style={{ padding: "18px 20px", background: "var(--ink)", color: "var(--paper)", fontWeight: 600 }}>Your software bill on the 1st</td>
-                    <td style={{ padding: "18px 20px", background: "var(--ink)", color: "var(--ink-faint)" }}>Assembled from 4–6 line items · variable</td>
-                    <td style={{ padding: "18px 20px", background: "var(--amber)", color: "var(--ink)", fontWeight: 600, fontSize: 15 }}>One number. Known 30 days ahead of any change.</td>
+                    <td style={{ padding: "16px 18px", background: "var(--ink)", color: "var(--paper)", fontWeight: 600 }}>Your software bill on the 1st</td>
+                    <td colSpan={5} style={{ padding: "16px 18px", background: "var(--ink)", color: "var(--ink-faint)" }}>Assembled from 4–6 line items · variable each month</td>
+                    <td style={{ padding: "16px 18px", background: "var(--amber)", color: "var(--ink)", fontWeight: 600, fontSize: 15 }}>One number. Known 30 days ahead of any change.</td>
                   </tr>
                 </tbody>
               </table>

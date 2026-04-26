@@ -330,7 +330,7 @@ export default async function DashboardPage() {
           label="Collection rate"
           value={collectionRate ? `${collectionRate.collectionRate}%` : "—"}
           progressBar={collectionRate?.collectionRate ?? 0}
-          href="/payments"
+          href="/billing"
         />
       </div>
 

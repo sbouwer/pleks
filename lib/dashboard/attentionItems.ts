@@ -324,7 +324,7 @@ export async function getAttentionItems(orgId: string): Promise<AttentionItem[]>
       priority: 2,
       title: "Unmatched bank transactions",
       subtitle: "Some transactions have been unmatched for over 24 hours",
-      href: "/payments/reconciliation",
+      href: "/billing/reconciliation",
       badge: { text: "Review", variant: "amber" },
       dotColor: "#EF9F27",
       sortDate: now,

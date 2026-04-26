@@ -31,7 +31,7 @@ export default async function MunicipalBillDetailPage({
 
   return (
     <div>
-      <BackLink href="/payments/municipal" label="Municipal Bills" />
+      <BackLink href="/billing/municipal" label="Municipal Bills" />
       <div className="flex items-start justify-between mb-6">
         <div>
           <h1 className="font-heading text-3xl">{account?.municipality_name || "Municipal Bill"} — {periodLabel}</h1>

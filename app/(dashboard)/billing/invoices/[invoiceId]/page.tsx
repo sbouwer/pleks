@@ -41,7 +41,7 @@ export default async function InvoiceDetailPage({
 
   return (
     <div>
-      <BackLink href="/payments" label="Payments" />
+      <BackLink href="/billing" label="Payments" />
       <div className="flex items-start justify-between mb-6">
         <div>
           <div className="flex items-center gap-3">

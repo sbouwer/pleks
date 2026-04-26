@@ -31,7 +31,7 @@ const SECTIONS = [
       { href: "/finance", label: "Overview" },
       { href: "/finance/deposits", label: "Deposits" },
       { href: "/finance/trust-ledger", label: "Trust" },
-      { href: "/payments", label: "Billing" },
+      { href: "/billing", label: "Billing" },
       { href: "/statements", label: "Statements" },
       { href: "/reports", label: "Reports" },
     ],
