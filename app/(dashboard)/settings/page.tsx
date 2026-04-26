@@ -11,7 +11,7 @@ export default function SettingsPage() {
     // On desktop (lg+, sidebar visible) redirect to the first settings page.
     // On mobile the CSS lg:hidden wrapper below handles visibility instead.
     if (!globalThis.matchMedia("(max-width: 1023px)").matches) {
-      router.replace("/settings/profile")
+      router.replace("/settings/details")
     }
   }, [router])
 

@@ -7,7 +7,7 @@ const SETTINGS_GROUPS = [
   {
     title: "Organisation",
     items: [
-      { href: "/settings/profile", label: "Details" },
+      { href: "/settings/details", label: "Details" },
       { href: "/settings/team", label: "Team" },
       { href: "/settings/hours", label: "Opening hours" },
       { href: "/settings/branding", label: "Branding" },

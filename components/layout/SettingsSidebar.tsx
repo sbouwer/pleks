@@ -29,7 +29,7 @@ function getGroups(orgType: OrgType): SettingsGroup[] {
     {
       title: "Organisation",
       items: [
-        { href: "/settings/profile",        label: "Details" },
+        { href: "/settings/details",         label: "Details" },
         ...(hasTeam ? [
           { href: "/settings/team",         label: "Team" },
           { href: "/settings/hours",        label: "Opening hours" },
@@ -68,6 +68,7 @@ function getGroups(orgType: OrgType): SettingsGroup[] {
     {
       title: "My Profile",
       items: [
+        { href: "/settings/profile",           label: "Profile" },
         { href: "/settings/profile/signature", label: "Signature", extraPrefixes: [] },
       ],
     },
