@@ -71,7 +71,7 @@ export async function GET(
   }
 
   const methodLabel: Record<string, string> = {
-    eft: "EFT", debicheck: "DebiCheck", cash: "Cash", card: "Card", bank_recon_matched: "Bank recon",
+    eft: "EFT", cash: "Cash", card: "Card", bank_recon_matched: "Bank recon",
   }
   const method = methodLabel[payment.payment_method] ?? payment.payment_method
 

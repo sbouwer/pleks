@@ -45,7 +45,7 @@ function TrialContent({ daysLeft, trialTier, isFoundingAgent, foundingPriceCents
           Your {trialTier ?? "Steward"} trial ends in {daysLeft} days.
         </p>
         <p className="text-xs text-amber-600/80 dark:text-amber-400/80">
-          Upgrade now to keep bank recon, DebiCheck, and owner statements.
+          Upgrade now to keep bank recon, owner statements, and arrears automation.
         </p>
       </>
     )

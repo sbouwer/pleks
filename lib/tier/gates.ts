@@ -24,7 +24,6 @@ const TIER_FEATURES_STEWARD = [
 
 const TIER_FEATURES_PORTFOLIO = [
   ...TIER_FEATURES_STEWARD,
-  "debicheck",
   "arrears_automation",
   "ai_full", // Sonnet — bank statements, FitScore, lease drafting, etc.
   "fitscore_included",

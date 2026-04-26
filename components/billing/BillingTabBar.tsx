@@ -3,7 +3,6 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { useTier } from "@/hooks/useTier"
 
 const PAYMENT_TABS = [
   { label: "Payments",        href: "/billing",                  exact: true },
@@ -11,19 +10,15 @@ const PAYMENT_TABS = [
   { label: "Reconciliation",  href: "/billing/reconciliation" },
   { label: "Arrears",         href: "/billing/arrears" },
   { label: "Municipal",       href: "/billing/municipal" },
-  { label: "DebiCheck",       href: "/billing/debicheck",        ownerHidden: true },
 ]
 
 export function BillingTabBar() {
   const pathname = usePathname()
-  const { isOwner } = useTier()
-
-  const tabs = PAYMENT_TABS.filter((t) => !(t.ownerHidden && isOwner))
 
   return (
     <div className="border-b border-border mb-6 overflow-x-auto overflow-y-hidden" style={{ scrollbarWidth: "none" }}>
       <nav className="flex gap-1">
-        {tabs.map((tab) => {
+        {PAYMENT_TABS.map((tab) => {
           const active = tab.exact
             ? pathname === tab.href
             : pathname === tab.href || pathname.startsWith(tab.href + "/")

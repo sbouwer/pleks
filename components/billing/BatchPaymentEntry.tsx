@@ -35,7 +35,7 @@ interface PaymentRow {
   reference: string
 }
 
-const PAYMENT_METHODS = ["EFT", "Cash", "DebiCheck", "Cheque", "Other"]
+const PAYMENT_METHODS = ["EFT", "Cash", "Cheque", "Other"]
 
 function today() {
   return new Date().toISOString().split("T")[0]

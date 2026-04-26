@@ -163,7 +163,7 @@ export default function BillingPage() {
               <p className="text-sm font-medium mb-2">Included in your trial:</p>
               <ul className="space-y-1">
                 {[
-                  "Bank reconciliation", "Owner statements", "DebiCheck collections",
+                  "Bank reconciliation", "Owner statements",
                   "Arrears automation", "Reporting suite", "Municipal bill extraction",
                   "AI maintenance triage", "Digital lease signing",
                 ].map((f) => (
