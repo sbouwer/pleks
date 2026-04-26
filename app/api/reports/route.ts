@@ -16,7 +16,6 @@ import { buildExpenseReport } from "@/lib/reports/expenseReport"
 import { buildVatSummary } from "@/lib/reports/vatSummary"
 import { buildTrustReconciliation } from "@/lib/reports/trustReconciliation"
 import { buildTenantPaymentHistory } from "@/lib/reports/tenantPaymentHistory"
-import { buildDebitOrderReport } from "@/lib/reports/debitOrderReport"
 import { buildTenantDirectory } from "@/lib/reports/tenantDirectory"
 import { buildPropertyPerformance } from "@/lib/reports/propertyPerformance"
 import { buildVacancyAnalysis } from "@/lib/reports/vacancyAnalysis"
@@ -96,7 +95,6 @@ export async function GET(req: NextRequest) {
     vat_summary:            buildVatSummary,
     trust_reconciliation:   buildTrustReconciliation,
     tenant_payment_history: buildTenantPaymentHistory,
-    debit_order_report:     buildDebitOrderReport,
     tenant_directory:       buildTenantDirectory,
     property_performance:   buildPropertyPerformance,
     vacancy_analysis:       buildVacancyAnalysis,
