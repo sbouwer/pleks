@@ -55,7 +55,7 @@ export async function createSupplierInvoice(formData: FormData) {
     new_values: { amount: vat.inclVat, contractor_id: contractorId },
   })
 
-  revalidatePath("/payments")
+  revalidatePath("/billing")
   return { success: true, id: invoice.id }
 }
 
@@ -75,7 +75,7 @@ export async function approveInvoice(invoiceId: string) {
 
   if (error) return { error: error.message }
 
-  revalidatePath("/payments")
+  revalidatePath("/billing")
   return { success: true }
 }
 
@@ -115,7 +115,7 @@ export async function markInvoicePaid(invoiceId: string, reference?: string) {
     new_values: { status: newStatus, paid_at: new Date().toISOString() },
   })
 
-  revalidatePath("/payments")
+  revalidatePath("/billing")
   return { success: true }
 }
 
@@ -136,6 +136,6 @@ export async function rejectInvoice(invoiceId: string, reason: string) {
 
   if (error) return { error: error.message }
 
-  revalidatePath("/payments")
+  revalidatePath("/billing")
   return { success: true }
 }

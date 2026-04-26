@@ -26,7 +26,6 @@ interface ActivationDialogProps {
     depositAmountCents: number | null
     startDate: string | null
     rentAmountCents: number
-    debiCheckEnabled: boolean
   }
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -55,7 +54,7 @@ export function ActivationDialog({
 }: Readonly<ActivationDialogProps>) {
   const [activating, setActivating] = useState(false)
 
-  const { tenantName, unitLabel, depositAmountCents, startDate, debiCheckEnabled } = leaseData
+  const { tenantName, unitLabel, depositAmountCents, startDate } = leaseData
 
   const cascadeItems = [
     "Set lease status to Active",
@@ -66,7 +65,6 @@ export function ActivationDialog({
     "Generate first month's invoice",
     `Schedule move-in inspection for ${formatDate(startDate)}`,
     `Create tenancy record for ${tenantName}`,
-    ...(debiCheckEnabled ? ["Initiate DebiCheck mandate setup"] : []),
   ]
 
   async function handleActivate() {

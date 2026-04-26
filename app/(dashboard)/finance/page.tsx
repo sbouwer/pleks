@@ -42,7 +42,7 @@ export default async function FinancePage() {
               <Button variant="ghost" size="sm" className="h-7 text-xs" render={<Link href="/finance/trust-ledger" />}>
                 View trust ledger →
               </Button>
-              <Button variant="ghost" size="sm" className="h-7 text-xs" render={<Link href="/payments/reconciliation" />}>
+              <Button variant="ghost" size="sm" className="h-7 text-xs" render={<Link href="/billing/reconciliation" />}>
                 Upload statement →
               </Button>
             </div>
@@ -251,7 +251,7 @@ export default async function FinancePage() {
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-semibold">Unmatched Transactions</CardTitle>
-            <Button variant="ghost" size="sm" className="h-7 text-xs" render={<Link href="/payments/reconciliation" />}>
+            <Button variant="ghost" size="sm" className="h-7 text-xs" render={<Link href="/billing/reconciliation" />}>
               Go to reconciliation →
             </Button>
           </div>
@@ -291,8 +291,8 @@ export default async function FinancePage() {
 
       {/* Quick Actions */}
       <div className="flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" render={<Link href="/payments" />}>Record payment</Button>
-        <Button variant="outline" size="sm" render={<Link href="/payments/reconciliation" />}>Upload statement</Button>
+        <Button variant="outline" size="sm" render={<Link href="/billing" />}>Record payment</Button>
+        <Button variant="outline" size="sm" render={<Link href="/billing/reconciliation" />}>Upload statement</Button>
         <Button variant="outline" size="sm" render={<Link href="/statements" />}>Generate statements</Button>
         <Button variant="outline" size="sm" render={<Link href="/finance/deposits" />}>View deposits</Button>
         <Button variant="outline" size="sm" render={<Link href="/reports" />}>View reports</Button>

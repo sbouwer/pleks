@@ -16,7 +16,7 @@ interface QuickAction {
 }
 
 const ACTIONS: QuickAction[] = [
-  { icon: Banknote, label: "Record a payment", href: "/payments" },
+  { icon: Banknote, label: "Record a payment", href: "/billing" },
   { icon: Wrench, label: "Log maintenance", href: "/maintenance/new" },
   { icon: UserPlus, label: "Add a tenant", href: "/tenants" },
   { icon: Phone, label: "Log a phone call", href: null },

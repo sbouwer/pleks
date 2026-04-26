@@ -63,7 +63,6 @@ export function LeasesPageClient({ orgId }: Props) {
       is_fixed_term: l.is_fixed_term ?? false,
       cpa_applies: l.cpa_applies ?? false,
       auto_renewal_notice_sent_at: l.auto_renewal_notice_sent_at ?? null,
-      debicheck_mandate_status: l.debicheck_mandate_status ?? null,
       escalation_review_date: l.escalation_review_date ?? null,
       tenant_id: l.tenant_id,
       tenant_view: tv,

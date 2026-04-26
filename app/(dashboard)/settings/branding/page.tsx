@@ -174,7 +174,7 @@ export default function BrandingPage() {
       <h1 className="font-heading text-3xl mb-1">Branding</h1>
       <p className="text-sm text-muted-foreground mb-6">
         Control how your documents look. Organisation details are configured in{" "}
-        <Link href="/settings/profile" className="text-brand hover:underline underline-offset-4">
+        <Link href="/settings/details" className="text-brand hover:underline underline-offset-4">
           Settings &rarr; Your details
         </Link>.
       </p>

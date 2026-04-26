@@ -25,7 +25,6 @@ export async function buildRentRoll(filters: ReportFilters): Promise<RentRollDat
     .select(`
       id, unit_id, start_date, end_date, is_fixed_term,
       rent_amount_cents, deposit_amount_cents, status,
-      debicheck_mandate_status,
       escalation_percent, escalation_review_date,
       tenant_view(first_name, last_name, email, phone)
     `)
@@ -80,7 +79,7 @@ export async function buildRentRoll(filters: ReportFilters): Promise<RentRollDat
       ? Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
       : null
 
-    const paymentMethod = lease?.debicheck_mandate_status === "active" ? "debicheck" : "eft"
+    const paymentMethod = ""
     const lastPay = lease ? lastPaymentByLease.get(lease.id) : null
 
     let leaseType = "vacant"
@@ -103,7 +102,7 @@ export async function buildRentRoll(filters: ReportFilters): Promise<RentRollDat
       lease_type: leaseType,
       monthly_rent_cents: lease?.rent_amount_cents ?? 0,
       deposit_held_cents: lease?.deposit_amount_cents ?? 0,
-      payment_method: lease ? paymentMethod : "",
+      payment_method: paymentMethod,
       status,
       days_to_expiry: daysToExpiry,
       last_payment_date: lastPay ? new Date(lastPay) : null,

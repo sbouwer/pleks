@@ -979,7 +979,7 @@ export default function TeamPage() {
           {atLimit ? (
             <p className="text-sm text-muted-foreground">
               You&apos;ve reached the user limit for your plan.{" "}
-              <a href="/settings/billing" className="text-brand hover:underline">Upgrade</a> to add more.
+              <a href="/settings/subscription" className="text-brand hover:underline">Upgrade</a> to add more.
             </p>
           ) : (
             <div className="space-y-3">

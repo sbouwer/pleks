@@ -47,7 +47,7 @@ export async function sendTrialExpired(org: OrgContact, prevTier: string) {
           Subscribe to a paid plan to continue where you left off.
           Your trial data, properties, and leases are waiting.
         </p>
-        <EmailButton href={`${APP_URL}/settings/billing`} accentColor={org.branding.accentColor}>
+        <EmailButton href={`${APP_URL}/settings/subscription`} accentColor={org.branding.accentColor}>
           View plans and upgrade →
         </EmailButton>
       </EmailLayout>
@@ -73,7 +73,7 @@ export async function sendTrialEndingSoon(org: OrgContact, trialEndsAt: string) 
           Your free trial ends on <strong style={S.strong}>{endsDate}</strong>.
           After that, your account will revert to the Owner tier and advanced features will be unavailable.
         </p>
-        <EmailButton href={`${APP_URL}/settings/billing`} accentColor={org.branding.accentColor}>
+        <EmailButton href={`${APP_URL}/settings/subscription`} accentColor={org.branding.accentColor}>
           Upgrade before your trial ends →
         </EmailButton>
         <p style={{ fontSize: 13, color: "#71717a", margin: "12px 0 0" }}>
@@ -111,7 +111,7 @@ export async function sendFoundingExpiryWarning(org: OrgContact, expiresAt: stri
         <p style={S.body}>
           You can review your current plan and pricing on the billing page.
         </p>
-        <EmailButton href={`${APP_URL}/settings/billing`} accentColor={org.branding.accentColor}>
+        <EmailButton href={`${APP_URL}/settings/subscription`} accentColor={org.branding.accentColor}>
           View your billing →
         </EmailButton>
       </EmailLayout>
@@ -194,7 +194,7 @@ export async function sendPaymentFailed(
           details. After that date, access to premium features will be suspended until payment
           is resolved.
         </p>
-        <EmailButton href={`${APP_URL}/settings/billing`} accentColor={org.branding.accentColor}>
+        <EmailButton href={`${APP_URL}/settings/subscription`} accentColor={org.branding.accentColor}>
           Update payment details →
         </EmailButton>
         <p style={{ fontSize: 13, color: "#71717a", margin: "12px 0 0" }}>
@@ -241,7 +241,7 @@ export async function sendPaymentReminder(
           before <strong style={S.strong}>{dueDate}</strong>, after which premium features
           will be suspended.
         </p>
-        <EmailButton href={`${APP_URL}/settings/billing`} accentColor={org.branding.accentColor}>
+        <EmailButton href={`${APP_URL}/settings/subscription`} accentColor={org.branding.accentColor}>
           Resolve payment now →
         </EmailButton>
       </EmailLayout>
@@ -281,7 +281,7 @@ export async function sendAccountFrozen(
         <p style={S.body}>
           Update your payment details and your account will be restored immediately.
         </p>
-        <EmailButton href={`${APP_URL}/settings/billing`} accentColor={org.branding.accentColor}>
+        <EmailButton href={`${APP_URL}/settings/subscription`} accentColor={org.branding.accentColor}>
           Restore account →
         </EmailButton>
       </EmailLayout>

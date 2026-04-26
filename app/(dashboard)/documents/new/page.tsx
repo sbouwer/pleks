@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { DocumentEditorClient } from "./DocumentEditorClient"
-import type { DocumentTemplate } from "@/app/(dashboard)/settings/communication/templates/page"
+import type { DocumentTemplate } from "@/app/(dashboard)/settings/documents/templates/page"
 
 interface LeaseContext {
   leaseId: string

@@ -121,6 +121,12 @@
   --sidebar-accent-foreground: oklch(0.96 0.01 260);
   --sidebar-border: oklch(0.28 0.02 260);
   --sidebar-ring: oklch(0.75 0.14 65);
+
+  /* Design-system aliases — resolve to app tokens; .pleks-public overrides these */
+  --ink:   var(--foreground);
+  --paper: var(--background);
+  --amber: var(--brand);
+  --mono:  var(--font-geist-mono, ui-monospace, monospace);
 }
 
 @layer base {
@@ -133,4 +139,399 @@
   html {
     @apply font-sans;
   }
+}
+
+/* ── Shadcn button hover — plain CSS so Tailwind JIT isn't required ───────
+   Darken on hover for all variants; amber ring for primary buttons.   ──── */
+[data-slot="button"]:not(:disabled):hover {
+  filter: brightness(0.88);
+  transition: filter .15s, box-shadow .15s;
+}
+[data-slot="button"].bg-primary:not(:disabled):hover {
+  filter: brightness(0.84);
+  box-shadow: 0 0 0 3px oklch(0.68 0.14 65 / 0.28);
+}
+
+/* ── Pleks design-system components ───────────────────────────────────────
+   Use --ink / --paper / --amber throughout. In the app (dark) these resolve
+   to --foreground / --background / --brand. On the public site (.pleks-public)
+   they resolve to the warm paper palette. Both contexts share one class set.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* Stoep underline — links, tabs, current-page nav */
+.stoep,
+.tabs a.current,
+nav a.current {
+  position: relative; padding-bottom: 4px; color: var(--ink);
+}
+.stoep::after,
+.tabs a.current::after,
+nav a.current::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
+  background: linear-gradient(to right, currentColor 0 55%, var(--amber) 55% 80%, currentColor 80% 100%);
+}
+
+/* Primary button — CSS-custom-property variant system
+   Defaults: ink background, paper text, amber bar.
+   Override per-button via style={{ "--btn-bg": "...", "--btn-fg": "...", "--btn-bar": "..." }} */
+.btn-pleks {
+  display: inline-flex; align-items: center; gap: 10px;
+  background: var(--btn-bg, var(--ink)); color: var(--btn-fg, var(--paper));
+  padding: 10px 18px 10px 14px; border: 0; border-radius: 4px; font-weight: 600;
+  cursor: pointer; transition: background .15s, color .15s, box-shadow .15s;
+}
+.btn-pleks:hover {
+  background: var(--amber);
+  color: var(--ink);
+  box-shadow: 0 0 0 3px oklch(0.68 0.14 65 / 0.22);
+}
+.btn-pleks::before {
+  content: ""; display: inline-block; width: 3px; height: 14px;
+  background: var(--btn-bar, var(--amber)); flex-shrink: 0; transition: background .15s;
+}
+.btn-pleks:hover::before { background: var(--ink); }
+.btn-pleks.ghost {
+  background: transparent; color: var(--ink); border: 1px solid var(--ink);
+}
+.btn-pleks.ghost:hover {
+  background: oklch(0.68 0.14 65 / 0.1);
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px oklch(0.68 0.14 65 / 0.15);
+}
+
+/* Login page buttons — ID selectors to override inline styles */
+#pleks-login-submit:not(:disabled):hover {
+  background: oklch(0.54 0.14 65) !important;
+  box-shadow: 0 0 0 3px oklch(0.68 0.14 65 / 0.28) !important;
+}
+#pleks-login-back:hover {
+  background: oklch(0.96 0.03 75) !important;
+  border-color: oklch(0.68 0.14 65) !important;
+  color: oklch(0.32 0.08 65) !important;
+}
+
+/* Form input — stoep underline, amber on focus */
+.input-stoep {
+  border: 0; border-bottom: 2px solid var(--ink); background: transparent;
+  padding: 8px 0 6px; outline: none; width: 100%;
+}
+.input-stoep:focus { border-bottom-color: var(--amber); }
+
+/* Modal — amber baseline, amber knob top-right */
+.modal {
+  position: relative; background: var(--paper);
+  border: 2px solid var(--ink); border-bottom: 0; padding: 26px 28px 20px;
+  /* elevated shadow in dark contexts where paper ≈ background */
+  box-shadow: 0 0 0 1px color-mix(in oklch, var(--amber) 18%, transparent),
+              0 8px 32px color-mix(in oklch, var(--ink) 12%, transparent);
+}
+.modal::after { content: ""; position: absolute; left: -2px; right: -2px; bottom: -6px; height: 6px; background: var(--amber); }
+.modal .knob { position: absolute; right: 22px; top: 30px; width: 7px; height: 7px; border-radius: 50%; background: var(--amber); }
+
+/* Section header — doorframe variant (use sparingly, ~20%) */
+.sect-door { position: relative; padding: 22px 24px 18px; border: 2px solid var(--ink); border-bottom: 0; }
+.sect-door::before { content: ""; position: absolute; right: 18px; top: 26px; width: 7px; height: 7px; border-radius: 50%; background: var(--amber); }
+
+/* Section header — stoep variant (default) */
+.sect-stoep { padding: 18px 0 14px; border-bottom: 2px solid var(--ink); position: relative; }
+.sect-stoep::after { content: ""; position: absolute; left: 24%; width: 8%; height: 2px; background: var(--amber); bottom: -2px; }
+
+/* Ledger row — paid state: amber left bar */
+table.ledger tr.paid td:first-child { position: relative; }
+table.ledger tr.paid td:first-child::before {
+  content: ""; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  width: 3px; height: 18px; background: var(--amber);
+}
+
+/* Amber bracket accent — wraps a single letter; bracket floats top-right with breathing room */
+.accent-bracket { position: relative; display: inline-block; }
+.accent-bracket-mark {
+  position: absolute; top: -0.08em; right: -0.1em;
+  width: 0.3em; height: 0.3em;
+  border-top: 2px solid var(--amber); border-right: 2px solid var(--amber);
+  pointer-events: none;
+}
+
+/* Tag — line + dot */
+.tag-stoep {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--ink); padding-bottom: 4px; border-bottom: 2px solid var(--ink);
+}
+.tag-stoep::after { content: ""; width: 5px; height: 5px; background: var(--amber); border-radius: 50%; margin-left: 4px; }
+
+/* Icon button — shared between public nav and portal topbar.
+   Matches .pub-icon-btn in public.css; defined here so portals don't
+   need to import the full marketing stylesheet. */
+.pub-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; flex-shrink: 0;
+  border-radius: var(--r-sm, 5px);
+  border: 1px solid var(--rule);
+  background: var(--paper-sunk);
+  color: var(--ink-mute);
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+  text-decoration: none;
+}
+.pub-icon-btn:hover,
+.pub-icon-btn:focus-visible {
+  background: var(--amber-wash);
+  border-color: var(--amber);
+  color: var(--amber-ink);
+  outline: none;
+}
+.pub-icon-btn--active {
+  color: var(--amber-ink);
+  border-color: oklch(0.68 0.14 65 / 0.35);
+}
+.pub-icon-btn--active:hover,
+.pub-icon-btn--active:focus-visible {
+  background: var(--amber-wash);
+  border-color: var(--amber);
+  color: var(--amber-ink);
+}
+
+/* Wordmark — "plek" + AccentBracket("s") + stoep underline.
+   Used in the public nav and all portal sidebars. Defined here (globals)
+   so it's available without importing public.css. */
+.pub-wordmark {
+  display: inline-flex; align-items: baseline; gap: 0;
+  font-family: var(--pub-sans, var(--font-inter-tight, "Inter Tight", -apple-system, sans-serif));
+  font-weight: 500;
+  color: var(--ink); text-decoration: none; letter-spacing: -0.01em; line-height: 1;
+  position: relative;
+}
+.pub-wm-name { display: inline-block; }
+.pub-wordmark::after {
+  content: ""; position: absolute;
+  left: 0.35em; right: 0; bottom: -3px; height: 2px;
+  background: linear-gradient(to right, currentColor 0% 26%, var(--amber) 26% 41%, currentColor 41% 100%);
+}
+
+/* ── Public marketing site ─────────────────────────────────────────────────
+   Scoped to .pleks-public wrapper. Overrides the app's dark tokens with the
+   warm paper palette for the marketing site. Children inherit via CSS cascade.
+   Dark variant toggled by [data-theme="dark"] on the same element.
+   ────────────────────────────────────────────────────────────────────────── */
+.pleks-public {
+  color-scheme: light;
+  /* Paper & ink */
+  --paper:        oklch(0.985 0.004 85);
+  --paper-sunk:   oklch(0.965 0.005 85);
+  --paper-raised: oklch(0.998 0.002 85);
+  --ink:          oklch(0.18 0.012 260);
+  --ink-soft:     oklch(0.36 0.01 260);
+  --ink-mute:     oklch(0.54 0.008 260);
+  --ink-faint:    oklch(0.72 0.006 260);
+  --rule:         oklch(0.88 0.006 85);
+  --rule-strong:  oklch(0.78 0.008 85);
+  /* Accents */
+  --amber:        oklch(0.68 0.14 65);
+  --amber-ink:    oklch(0.32 0.08 65);
+  --amber-wash:   oklch(0.96 0.03 75);
+  --slate:        oklch(0.48 0.04 230);
+  --slate-wash:   oklch(0.95 0.015 230);
+  --olive:        oklch(0.42 0.05 135);
+  --terracotta:   oklch(0.55 0.12 35);
+  /* Semantic */
+  --positive:     oklch(0.52 0.12 150);
+  --positive-wash:oklch(0.95 0.03 150);
+  --caution:      oklch(0.62 0.14 75);
+  --caution-wash: oklch(0.96 0.04 75);
+  --critical:     oklch(0.52 0.18 25);
+  --critical-wash:oklch(0.96 0.03 25);
+  /* Radii */
+  --r-xs: 3px; --r-sm: 5px; --r-md: 8px; --r-lg: 12px;
+  /* Shadows */
+  --shadow-1: 0 1px 0 oklch(0.88 0.006 85 / 0.6);
+  --shadow-2: 0 1px 2px oklch(0.2 0.01 260 / 0.04), 0 1px 0 oklch(0.88 0.006 85 / 0.8);
+  /* Fonts — override app fonts with marketing fonts */
+  --pub-sans: var(--font-inter-tight, "Inter Tight", -apple-system, sans-serif);
+  --pub-mono: var(--font-jetbrains-mono, "JetBrains Mono", ui-monospace, monospace);
+  /* Tailwind compat — remap so bg-background/text-foreground work on public pages */
+  --background:        oklch(0.985 0.004 85);
+  --foreground:        oklch(0.18 0.012 260);
+  --card:              oklch(0.998 0.002 85);
+  --card-foreground:   oklch(0.18 0.012 260);
+  --muted:             oklch(0.965 0.005 85);
+  --muted-foreground:  oklch(0.54 0.008 260);
+  --border:            oklch(0.88 0.006 85);
+  --input:             oklch(0.88 0.006 85);
+  --primary:           oklch(0.68 0.14 65);
+  --primary-foreground:oklch(0.18 0.012 260);
+  --ring:              oklch(0.68 0.14 65);
+}
+
+.pleks-public[data-theme="dark"] {
+  color-scheme: dark;
+  /* Anthracite — dark grey, not black. ~#3a3b3c range. */
+  --paper:        oklch(0.27 0.006 250);
+  --paper-sunk:   oklch(0.23 0.005 250);
+  --paper-raised: oklch(0.31 0.006 250);
+  --ink:          oklch(0.88 0.012 75);
+  --ink-soft:     oklch(0.73 0.010 75);
+  --ink-mute:     oklch(0.57 0.009 75);
+  --ink-faint:    oklch(0.42 0.007 75);
+  --rule:         oklch(0.36 0.007 250);
+  --rule-strong:  oklch(0.46 0.008 250);
+  --amber:        oklch(0.75 0.14 65);
+  --amber-ink:    oklch(0.88 0.10 65);
+  --amber-wash:   oklch(0.30 0.05 65);
+  --slate:        oklch(0.62 0.05 230);
+  --slate-wash:   oklch(0.28 0.04 230);
+  --positive:     oklch(0.70 0.18 150);
+  --positive-wash:oklch(0.28 0.06 150);
+  --shadow-1: 0 1px 0 oklch(0 0 0 / 0.25);
+  --shadow-2: 0 1px 3px oklch(0 0 0 / 0.18), 0 1px 0 oklch(0 0 0 / 0.25);
+  --background:        oklch(0.27 0.006 250);
+  --foreground:        oklch(0.88 0.012 75);
+  --card:              oklch(0.31 0.006 250);
+  --card-foreground:   oklch(0.88 0.012 75);
+  --muted:             oklch(0.33 0.007 250);
+  --muted-foreground:  oklch(0.58 0.010 250);
+  --border:            oklch(0.36 0.007 250);
+  --input:             oklch(0.36 0.007 250);
+  --primary:           oklch(0.75 0.14 65);
+  --primary-foreground:oklch(0.27 0.006 250);
+  --ring:              oklch(0.75 0.14 65);
+}
+
+/* ── Portal app — light-first theme with optional dark mode ──────────────────
+   Applied to the outermost layout wrapper of every authenticated portal via
+   PortalThemeProvider. Shares the public site's warm paper palette so the
+   product and marketing site feel like one thing.
+   Toggle dark by setting data-theme="dark" on this element.
+   ────────────────────────────────────────────────────────────────────────── */
+.pleks-portal {
+  color-scheme: light;
+  background: var(--background);
+  color: var(--foreground);
+  /* Paper & ink */
+  --paper:        oklch(0.985 0.004 85);
+  --paper-sunk:   oklch(0.965 0.005 85);
+  --paper-raised: oklch(0.998 0.002 85);
+  --ink:          oklch(0.18 0.012 260);
+  --ink-soft:     oklch(0.36 0.01 260);
+  --ink-mute:     oklch(0.54 0.008 260);
+  --ink-faint:    oklch(0.72 0.006 260);
+  --rule:         oklch(0.88 0.006 85);
+  --rule-strong:  oklch(0.78 0.008 85);
+  /* Accents */
+  --amber:        oklch(0.68 0.14 65);
+  --amber-ink:    oklch(0.32 0.08 65);
+  --amber-wash:   oklch(0.96 0.03 75);
+  /* Brand — slightly deeper amber for contrast on light bg */
+  --brand:        oklch(0.68 0.14 65);
+  --brand-hover:  oklch(0.62 0.16 65);
+  --brand-dim:    oklch(0.96 0.03 75);
+  --brand-rgb:    207, 143, 34;
+  /* Tailwind/shadcn compat — full light set */
+  --background:         oklch(0.985 0.004 85);
+  --foreground:         oklch(0.18 0.012 260);
+  --card:               oklch(0.998 0.002 85);
+  --card-foreground:    oklch(0.18 0.012 260);
+  --popover:            oklch(0.998 0.002 85);
+  --popover-foreground: oklch(0.18 0.012 260);
+  --primary:            oklch(0.68 0.14 65);
+  --primary-foreground: oklch(0.18 0.012 260);
+  --secondary:          oklch(0.965 0.005 85);
+  --secondary-foreground:oklch(0.18 0.012 260);
+  --muted:              oklch(0.965 0.005 85);
+  --muted-foreground:   oklch(0.54 0.008 260);
+  --accent:             oklch(0.965 0.005 85);
+  --accent-foreground:  oklch(0.18 0.012 260);
+  --destructive:        oklch(0.52 0.18 25);
+  --border:             oklch(0.88 0.006 85);
+  --input:              oklch(0.88 0.006 85);
+  --ring:               oklch(0.68 0.14 65);
+  --surface:            oklch(0.965 0.005 85);
+  --surface-elevated:   oklch(0.955 0.006 85);
+  /* Semantic — tuned for light bg */
+  --success:    oklch(0.52 0.12 150);
+  --success-bg: oklch(0.95 0.03 150);
+  --warning:    oklch(0.62 0.14 75);
+  --warning-bg: oklch(0.96 0.04 75);
+  --danger:     oklch(0.52 0.18 25);
+  --danger-bg:  oklch(0.96 0.03 25);
+  --info:       oklch(0.52 0.15 250);
+  --info-bg:    oklch(0.95 0.03 250);
+  /* Sidebar — light */
+  --sidebar:                    oklch(0.97 0.004 85);
+  --sidebar-foreground:         oklch(0.18 0.012 260);
+  --sidebar-primary:            oklch(0.68 0.14 65);
+  --sidebar-primary-foreground: oklch(0.18 0.012 260);
+  --sidebar-accent:             oklch(0.93 0.006 85);
+  --sidebar-accent-foreground:  oklch(0.18 0.012 260);
+  --sidebar-border:             oklch(0.88 0.006 85);
+  --sidebar-ring:               oklch(0.68 0.14 65);
+  /* Shared with public site */
+  --pub-sans: var(--font-inter-tight, "Inter Tight", -apple-system, sans-serif);
+  --r-xs: 3px; --r-sm: 5px; --r-md: 8px; --r-lg: 12px;
+  --shadow-1: 0 1px 0 oklch(0.88 0.006 85 / 0.6);
+  --shadow-2: 0 1px 2px oklch(0.2 0.01 260 / 0.04), 0 1px 0 oklch(0.88 0.006 85 / 0.8);
+}
+
+.pleks-portal[data-theme="dark"] {
+  color-scheme: dark;
+  /* Paper & ink — dark navy */
+  --paper:        oklch(0.16 0.01 260);
+  --paper-sunk:   oklch(0.14 0.01 260);
+  --paper-raised: oklch(0.20 0.01 260);
+  --ink:          oklch(0.96 0.01 260);
+  --ink-soft:     oklch(0.60 0.02 260);
+  --ink-mute:     oklch(0.44 0.02 260);
+  --ink-faint:    oklch(0.32 0.02 260);
+  --rule:         oklch(0.28 0.02 260);
+  --rule-strong:  oklch(0.36 0.02 260);
+  /* Accents */
+  --amber:        oklch(0.75 0.14 65);
+  --amber-ink:    oklch(0.88 0.10 65);
+  --amber-wash:   oklch(0.22 0.04 65);
+  /* Brand */
+  --brand:        oklch(0.75 0.14 65);
+  --brand-hover:  oklch(0.82 0.12 70);
+  --brand-dim:    oklch(0.22 0.04 65);
+  --brand-rgb:    232, 168, 56;
+  /* Tailwind/shadcn compat — full dark set */
+  --background:         oklch(0.16 0.01 260);
+  --foreground:         oklch(0.96 0.01 260);
+  --card:               oklch(0.20 0.01 260);
+  --card-foreground:    oklch(0.96 0.01 260);
+  --popover:            oklch(0.20 0.01 260);
+  --popover-foreground: oklch(0.96 0.01 260);
+  --primary:            oklch(0.75 0.14 65);
+  --primary-foreground: oklch(0.16 0.01 260);
+  --secondary:          oklch(0.24 0.02 260);
+  --secondary-foreground:oklch(0.96 0.01 260);
+  --muted:              oklch(0.24 0.02 260);
+  --muted-foreground:   oklch(0.60 0.02 260);
+  --accent:             oklch(0.24 0.02 260);
+  --accent-foreground:  oklch(0.96 0.01 260);
+  --destructive:        oklch(0.63 0.2 25);
+  --border:             oklch(0.28 0.02 260);
+  --input:              oklch(0.28 0.02 260);
+  --ring:               oklch(0.75 0.14 65);
+  --surface:            oklch(0.20 0.01 260);
+  --surface-elevated:   oklch(0.24 0.02 260);
+  /* Semantic */
+  --success:    oklch(0.70 0.18 150);
+  --success-bg: oklch(0.22 0.05 150);
+  --warning:    oklch(0.75 0.16 70);
+  --warning-bg: oklch(0.22 0.05 70);
+  --danger:     oklch(0.63 0.2 25);
+  --danger-bg:  oklch(0.22 0.05 25);
+  --info:       oklch(0.72 0.14 250);
+  --info-bg:    oklch(0.22 0.05 250);
+  /* Sidebar — dark */
+  --sidebar:                    oklch(0.18 0.01 260);
+  --sidebar-foreground:         oklch(0.96 0.01 260);
+  --sidebar-primary:            oklch(0.75 0.14 65);
+  --sidebar-primary-foreground: oklch(0.16 0.01 260);
+  --sidebar-accent:             oklch(0.24 0.02 260);
+  --sidebar-accent-foreground:  oklch(0.96 0.01 260);
+  --sidebar-border:             oklch(0.28 0.02 260);
+  --sidebar-ring:               oklch(0.75 0.14 65);
+  --shadow-1: 0 1px 0 oklch(0 0 0 / 0.25);
+  --shadow-2: 0 1px 3px oklch(0 0 0 / 0.18), 0 1px 0 oklch(0 0 0 / 0.25);
 }

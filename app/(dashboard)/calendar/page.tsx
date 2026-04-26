@@ -31,7 +31,7 @@ export default async function CalendarPage() {
             view of inspections, maintenance visits, lease deadlines, legal deadlines, and move-in/out dates
             across your entire portfolio.
           </p>
-          <a href="/settings/billing" className="inline-block mt-2 text-brand hover:underline text-sm">
+          <a href="/settings/subscription" className="inline-block mt-2 text-brand hover:underline text-sm">
             Upgrade your plan →
           </a>
         </div>

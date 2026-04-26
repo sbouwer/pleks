@@ -5,7 +5,7 @@
  */
 
 export type TemplateChannel  = "email" | "sms" | "both"
-export type TemplateCategory = "applications" | "arrears" | "maintenance" | "inspections" | "leases" | "deposits" | "statements" | "subscriptions" | "portal" | "reports" | "onboarding"
+export type TemplateCategory = "applications" | "arrears" | "maintenance" | "inspections" | "leases" | "deposits" | "statements" | "subscriptions" | "portal" | "reports" | "onboarding" | "insurance"
 
 export interface TemplateEntry {
   key: string
@@ -287,6 +287,10 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
   "info_request.other_reminder":       { key: "info_request.other_reminder",       channel: "email", category: "onboarding", is_mandatory: false, description: "Reminder: generic property info request still outstanding" },
   "info_request.completion_notify":    { key: "info_request.completion_notify",    channel: "email", category: "onboarding", is_mandatory: false, description: "Notify requesting agent that the owner has submitted the info request" },
   "info_request.self_track_nudge":     { key: "info_request.self_track_nudge",     channel: "email", category: "onboarding", is_mandatory: false, description: "Internal nudge at T+30 days for self-track info requests the agent committed to follow up themselves" },
+
+  // ── Insurance checklist (ADDENDUM_60A) ──────────────────────────────────────
+  "insurance.checklist_brief":         { key: "insurance.checklist_brief",         channel: "email", category: "insurance",   is_mandatory: true,  description: "Broker receives insurance coverage verification request with HTML brief attached" },
+  "insurance.renewal_reminder":        { key: "insurance.renewal_reminder",        channel: "email", category: "insurance",   is_mandatory: true,  description: "Agent reminded at T+7 post-renewal that checklist items are still unverified" },
 }
 
 /** Returns the template entry or throws if the key is unknown */

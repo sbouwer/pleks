@@ -12,7 +12,6 @@ import type {
   VatSummaryData,
   TrustReconciliationData,
   TenantPaymentHistoryData,
-  DebitOrderReportData,
   TenantDirectoryData,
   PropertyPerformanceData,
   VacancyAnalysisData,
@@ -221,21 +220,6 @@ export function exportTenantPaymentHistoryCSV(data: TenantPaymentHistoryData): s
       formatCentsForCSV(r.balance_cents),
       r.last_payment_date ?? "",
       String(r.payment_count),
-    ])
-  )
-}
-
-export function exportDebitOrderReportCSV(data: DebitOrderReportData): string {
-  return toCSV(
-    ["Tenant", "Unit", "Property", "Amount", "Status", "Last Collection", "Next Collection"],
-    data.rows.map((r) => [
-      r.tenant_name,
-      r.unit_number,
-      r.property_name,
-      formatCentsForCSV(r.amount_cents),
-      r.status,
-      r.last_collection_date ?? "",
-      r.next_collection_date ?? "",
     ])
   )
 }

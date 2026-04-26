@@ -1,10 +1,14 @@
 # BUILD_61 — Route Alignment, Subdomain & Role Namespace
 
-> Status: Spec'd, not yet built
+> Status: ✅ **Fully shipped** on branch `refactor/build-61-route-alignment` (2026-04-26)
 > Type: Refactor (no new user-facing features) + structural namespace move
-> Estimated scope: ~200–300 file changes
+> Final scope: ~250 file changes
 > Dependencies: none — pure refactor against current state
-> Ships before: BUILD_63 (so BUILD_63 is authored against the final URL shape from day one)
+> Shipped before: BUILD_63 (so BUILD_63 is authored against the final URL shape from day one)
+>
+> **Shipped sub-phases:** (A) route-naming renames → `/payments→/billing`, `/contractors→/suppliers`, settings restructure, `/api/*` mirror renames, 16 permanent 308 redirects in `next.config.ts`. (B) role namespace renames → `(portal)→(tenant)` with `/portal/*→/tenant/*`, `(contractor)→(supplier)` with `/contractor/*→/supplier/*`. (C) `lib/routing/manifest.ts` + `lib/routing/hostname.ts` + `lib/auth/cookie-config.ts`. (D) `proxy.ts` rewritten as manifest-driven with longest-prefix match + agent role enforcement from `pleks_org` cookie + skipOrgCheck from manifest. (E) subdomain split wired in proxy: apex serves marketing, all product paths 308→`app.pleks.co.za`; cookies host-scoped via AUTH_COOKIE_OPTS.
+>
+> **Open follow-ups:** ADDENDUM_61A (conditional rendering audit — spec'd, not built), ADDENDUM_61B (multi-role navigation — spec'd, not built).
 
 ---
 

@@ -10,8 +10,8 @@ const GO_ROUTES: Record<string, string> = {
   m: "/maintenance",
   i: "/inspections",
   d: "/dashboard",
-  a: "/payments/arrears",
-  c: "/contractors",
+  a: "/billing/arrears",
+  c: "/suppliers",
 }
 
 const HELP_ITEMS = [

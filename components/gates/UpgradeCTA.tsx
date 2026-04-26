@@ -8,7 +8,6 @@ import Link from "next/link"
 const featureLabels: Record<string, string> = {
   bank_recon: "Bank Reconciliation",
   owner_statements: "Owner Statements",
-  debicheck: "DebiCheck Collections",
   arrears_automation: "Arrears Automation",
   reports_full: "Full Reporting Suite",
   hoa_module: "HOA Management",

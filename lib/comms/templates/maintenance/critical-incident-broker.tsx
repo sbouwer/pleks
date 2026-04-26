@@ -14,6 +14,12 @@ export interface CriticalIncidentBrokerProps {
   agencyName: string
   appUrl: string
   maintenanceRequestId: string
+  /** Date the checklist was last verified (most recent confirmed_at), formatted */
+  coverageLastVerified?: string | null
+  /** Number of confirmed applicable checklist items */
+  coverageConfirmedCount?: number
+  /** Total applicable checklist items */
+  coverageTotalCount?: number
 }
 
 export function CriticalIncidentBrokerEmail({
@@ -28,6 +34,9 @@ export function CriticalIncidentBrokerEmail({
   agencyName,
   appUrl,
   maintenanceRequestId,
+  coverageLastVerified,
+  coverageConfirmedCount,
+  coverageTotalCount,
 }: Readonly<CriticalIncidentBrokerProps>) {
   return (
     <EmailLayout
@@ -64,6 +73,21 @@ export function CriticalIncidentBrokerEmail({
       <Text style={bodyText}>{incidentDescription}</Text>
 
       <Hr style={divider} />
+
+      {coverageLastVerified && (
+        <>
+          <EmailSectionHeading>Coverage on file</EmailSectionHeading>
+          <Text style={label}>Last verified</Text>
+          <Text style={value}>{coverageLastVerified}</Text>
+          {coverageTotalCount !== undefined && coverageTotalCount > 0 && (
+            <>
+              <Text style={label}>Items confirmed</Text>
+              <Text style={value}>{coverageConfirmedCount ?? 0} of {coverageTotalCount}</Text>
+            </>
+          )}
+          <Hr style={divider} />
+        </>
+      )}
 
       <Text style={bodyText}>
         This notification was sent on behalf of {agencyName} by {reportedByName}.

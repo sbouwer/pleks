@@ -489,3 +489,163 @@ ALTER TABLE properties
     'commercial_property','sectional_title',
     'farm_specialist','other'
   ));
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §12.2  ADDENDUM_60A: Insurance checklist system
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Three tables: catalogue (insurance_checklist_items), per-property instances
+-- (property_insurance_checklists), audit (property_insurance_checklist_events).
+-- Plus property_insurance_renewal_reminders for the single-reminder lock.
+-- Amend-forward into 012_property_extensions.sql — no new migration file.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- ── (a) Catalogue (platform-authored reference data) ─────────────────────────
+
+CREATE TABLE IF NOT EXISTS insurance_checklist_items (
+  code                 text PRIMARY KEY,
+  label                text NOT NULL,
+  description          text NOT NULL,
+  help_text            text,
+  regulatory_note      text,
+  applies_to_scenarios text[] NOT NULL DEFAULT ARRAY[]::text[],
+                       -- ARRAY['*'] = universal; specific codes = scenario-gated
+  applies_when         jsonb DEFAULT '{}'::jsonb,
+                       -- e.g. {"furnishing_status": ["partly_furnished","fully_furnished"]}
+  severity             text NOT NULL CHECK (severity IN ('critical', 'important', 'optional')),
+  sort_order           integer NOT NULL DEFAULT 0,
+  is_auto_derived      boolean NOT NULL DEFAULT false,
+                       -- true for POLICY_HEADER — state computed from properties.* fields
+  auto_derive_spec     jsonb DEFAULT '{}'::jsonb,
+                       -- e.g. {"requires_all_of": ["insurance_provider", ...]}
+  evidence_type        text NOT NULL DEFAULT 'agent_confirmation'
+                         CHECK (evidence_type IN (
+                           'agent_confirmation',
+                           'document_upload',
+                           'broker_email',
+                           'auto_derived'
+                         )),
+  is_active            boolean NOT NULL DEFAULT true,
+  created_at           timestamptz NOT NULL DEFAULT now(),
+  updated_at           timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE insurance_checklist_items ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "auth_read_checklist_items" ON insurance_checklist_items;
+CREATE POLICY "auth_read_checklist_items" ON insurance_checklist_items
+  FOR SELECT USING (auth.uid() IS NOT NULL);
+
+CREATE INDEX IF NOT EXISTS idx_checklist_items_active_sort
+  ON insurance_checklist_items(is_active, sort_order);
+
+DROP TRIGGER IF EXISTS update_checklist_items_updated_at ON insurance_checklist_items;
+CREATE TRIGGER update_checklist_items_updated_at
+  BEFORE UPDATE ON insurance_checklist_items
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ── (b) Per-property checklist instances ─────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS property_insurance_checklists (
+  id                     uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id                 uuid NOT NULL REFERENCES organisations(id),
+  property_id            uuid NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+  item_code              text NOT NULL REFERENCES insurance_checklist_items(code),
+  state                  text NOT NULL DEFAULT 'unknown'
+                           CHECK (state IN ('confirmed', 'unknown', 'not_applicable')),
+  confirmed_by           uuid REFERENCES auth.users(id),
+  confirmed_at           timestamptz,
+  confirmed_via          text CHECK (confirmed_via IN (
+                           'agent_inline',
+                           'owner_response',
+                           'broker_pdf_reply',
+                           'auto_derived',
+                           'document_upload'
+                         )),
+  evidence_document_id   uuid REFERENCES property_documents(id),
+  notes                  text,
+  last_renewal_review_at timestamptz,
+  renewal_reset_at       timestamptz,
+  created_at             timestamptz NOT NULL DEFAULT now(),
+  updated_at             timestamptz NOT NULL DEFAULT now(),
+
+  UNIQUE (property_id, item_code)
+);
+
+ALTER TABLE property_insurance_checklists ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "org_property_insurance_checklists" ON property_insurance_checklists;
+CREATE POLICY "org_property_insurance_checklists" ON property_insurance_checklists
+  FOR ALL USING (
+    org_id IN (SELECT org_id FROM user_orgs
+               WHERE user_id = auth.uid() AND deleted_at IS NULL)
+  );
+
+CREATE INDEX IF NOT EXISTS idx_checklist_property
+  ON property_insurance_checklists(property_id, state);
+CREATE INDEX IF NOT EXISTS idx_checklist_org_state
+  ON property_insurance_checklists(org_id, state)
+  WHERE state = 'unknown';
+
+DROP TRIGGER IF EXISTS update_property_checklists_updated_at ON property_insurance_checklists;
+CREATE TRIGGER update_property_checklists_updated_at
+  BEFORE UPDATE ON property_insurance_checklists
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ── (c) Per-state-transition audit ───────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS property_insurance_checklist_events (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  checklist_id  uuid NOT NULL REFERENCES property_insurance_checklists(id) ON DELETE CASCADE,
+  event_type    text NOT NULL CHECK (event_type IN (
+                  'initialized',
+                  'confirmed',
+                  'unconfirmed',
+                  'marked_not_applicable',
+                  'unmarked_not_applicable',
+                  'renewal_reset',
+                  'evidence_attached',
+                  'note_added'
+                )),
+  prior_state   text,
+  new_state     text,
+  actor_user_id uuid REFERENCES auth.users(id),
+                -- NULL for system actors (auto-derive, cron)
+  source        text NOT NULL DEFAULT 'agent'
+                  CHECK (source IN ('agent', 'owner', 'broker', 'auto', 'cron')),
+  payload       jsonb DEFAULT '{}'::jsonb,
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE property_insurance_checklist_events ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "org_checklist_events" ON property_insurance_checklist_events;
+CREATE POLICY "org_checklist_events" ON property_insurance_checklist_events
+  FOR ALL USING (
+    checklist_id IN (
+      SELECT id FROM property_insurance_checklists
+      WHERE org_id IN (SELECT org_id FROM user_orgs
+                       WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    )
+  );
+
+CREATE INDEX IF NOT EXISTS idx_checklist_events_checklist
+  ON property_insurance_checklist_events(checklist_id, created_at DESC);
+
+-- ── (d) Renewal reminder lock (one row per property, upserted each cycle) ────
+
+CREATE TABLE IF NOT EXISTS property_insurance_renewal_reminders (
+  property_id  uuid PRIMARY KEY REFERENCES properties(id) ON DELETE CASCADE,
+  org_id       uuid NOT NULL REFERENCES organisations(id),
+  renewal_date date NOT NULL,
+  reminded_at  timestamptz NOT NULL DEFAULT now(),
+  comm_log_id  uuid REFERENCES communication_log(id)
+);
+
+ALTER TABLE property_insurance_renewal_reminders ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "org_renewal_reminders" ON property_insurance_renewal_reminders;
+CREATE POLICY "org_renewal_reminders" ON property_insurance_renewal_reminders
+  FOR ALL USING (
+    org_id IN (SELECT org_id FROM user_orgs
+               WHERE user_id = auth.uid() AND deleted_at IS NULL)
+  );

@@ -224,7 +224,7 @@ export function MobileHomeScreen() {
   ]
 
   const financeRow: Tile[] = [
-    { href: "/payments", icon: CreditCard, label: "Collected", badge: fmtCents(badges.collected_cents) },
+    { href: "/billing", icon: CreditCard, label: "Collected", badge: fmtCents(badges.collected_cents) },
     { href: "/payments?tab=arrears", icon: AlertTriangle, label: "Arrears", badge: fmtCents(badges.arrears_cents) },
     { href: "/finance/deposits", icon: Shield, label: "Deposits", badge: fmtCents(badges.deposits_cents) },
   ]

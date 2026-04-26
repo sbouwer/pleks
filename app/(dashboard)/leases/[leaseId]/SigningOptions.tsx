@@ -198,7 +198,7 @@ export function SigningOptions({
 
         <ActivationDialog
           leaseId={leaseId}
-          leaseData={{ tenantName, unitLabel, depositAmountCents, startDate, rentAmountCents, debiCheckEnabled: false }}
+          leaseData={{ tenantName, unitLabel, depositAmountCents, startDate, rentAmountCents }}
           open={activationOpen}
           onOpenChange={setActivationOpen}
           onActivated={handleActivated}
@@ -382,7 +382,6 @@ export function SigningOptions({
           depositAmountCents,
           startDate,
           rentAmountCents,
-          debiCheckEnabled: false,
         }}
         open={activationOpen}
         onOpenChange={setActivationOpen}

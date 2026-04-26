@@ -32,7 +32,7 @@ export async function sendPortalInvite(
         org_id: contractor.org_id,
         full_name: displayName,
       },
-      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/contractor/setup`,
+      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/supplier/setup`,
     }
   )
 

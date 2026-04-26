@@ -133,14 +133,14 @@ export const DEMO_DATA = {
   // ── Tenants ──────────────────────────────────────────────────────────────────
 
   tenants: [
-    { id: "t1", full_name: "Amahle Dlamini",     email: "amahle@demo.co.za",   phone: "082 111 2233", unit_id: "u1",  employer: "Discovery Health",        payment_method: "debicheck", status: "good_standing" as const },
+    { id: "t1", full_name: "Amahle Dlamini",     email: "amahle@demo.co.za",   phone: "082 111 2233", unit_id: "u1",  employer: "Discovery Health",        payment_method: "eft",       status: "good_standing" as const },
     { id: "t2", full_name: "Marco van der Berg",  email: "marco@demo.co.za",    phone: "083 222 3344", unit_id: "u2",  employer: "Standard Bank",           payment_method: "eft",       status: "good_standing" as const },
-    { id: "t3", full_name: "Priya Naidoo",        email: "priya@demo.co.za",    phone: "084 333 4455", unit_id: "u3",  employer: "UCT",                     payment_method: "debicheck", status: "good_standing" as const },
+    { id: "t3", full_name: "Priya Naidoo",        email: "priya@demo.co.za",    phone: "084 333 4455", unit_id: "u3",  employer: "UCT",                     payment_method: "eft",       status: "good_standing" as const },
     { id: "t4", full_name: "James Fortuin",       email: "james@demo.co.za",    phone: "071 444 5566", unit_id: "u5",  employer: "City of Cape Town",       payment_method: "eft",       status: "good_standing" as const },
-    { id: "t5", full_name: "Leilah Hendricks",    email: "leilah@demo.co.za",   phone: "072 555 6677", unit_id: "u6",  employer: "Woolworths SA",           payment_method: "debicheck", status: "good_standing" as const },
+    { id: "t5", full_name: "Leilah Hendricks",    email: "leilah@demo.co.za",   phone: "072 555 6677", unit_id: "u6",  employer: "Woolworths SA",           payment_method: "eft",       status: "good_standing" as const },
     { id: "t6", full_name: "Sipho Motaung",       email: "sipho@demo.co.za",    phone: "073 666 7788", unit_id: "u7",  employer: "Self-employed",           payment_method: "eft",       status: "in_arrears"    as const },
-    { id: "t7", full_name: "Caitlin Rousseau",    email: "caitlin@demo.co.za",  phone: "074 777 8899", unit_id: "u10", employer: "Cape Town Tourism Board", payment_method: "debicheck", status: "good_standing" as const },
-    { id: "t8", full_name: "Thabo Mahlangu",      email: "thabo@demo.co.za",    phone: "076 888 9900", unit_id: "u4",  employer: "Naspers",                 payment_method: "debicheck", status: "on_notice"     as const },
+    { id: "t7", full_name: "Caitlin Rousseau",    email: "caitlin@demo.co.za",  phone: "074 777 8899", unit_id: "u10", employer: "Cape Town Tourism Board", payment_method: "eft",       status: "good_standing" as const },
+    { id: "t8", full_name: "Thabo Mahlangu",      email: "thabo@demo.co.za",    phone: "076 888 9900", unit_id: "u4",  employer: "Naspers",                 payment_method: "eft",       status: "on_notice"     as const },
   ],
 
   // ── Suppliers (contractors) ───────────────────────────────────────────────────
@@ -205,20 +205,20 @@ export const DEMO_DATA = {
   // ── Payments ─────────────────────────────────────────────────────────────────
 
   payments: [
-    { id: "p1",  invoice_id: "inv1",  tenant_name: "Amahle Dlamini",    amount_cents: 950000,  method: "DebiCheck", date: daysAgo(8),  reference: "DLAMINI-KIRS-101" },
+    { id: "p1",  invoice_id: "inv1",  tenant_name: "Amahle Dlamini",    amount_cents: 950000,  method: "EFT", date: daysAgo(8),  reference: "DLAMINI-KIRS-101" },
     { id: "p2",  invoice_id: "inv2",  tenant_name: "Marco van der Berg", amount_cents: 950000,  method: "EFT",       date: daysAgo(9),  reference: "VANDENBERG-KIRS-102" },
-    { id: "p3",  invoice_id: "inv3",  tenant_name: "Priya Naidoo",       amount_cents: 1250000, method: "DebiCheck", date: daysAgo(7),  reference: "NAIDOO-KIRS-201" },
+    { id: "p3",  invoice_id: "inv3",  tenant_name: "Priya Naidoo",       amount_cents: 1250000, method: "EFT", date: daysAgo(7),  reference: "NAIDOO-KIRS-201" },
     { id: "p4",  invoice_id: "inv4",  tenant_name: "James Fortuin",      amount_cents: 780000,  method: "EFT",       date: daysAgo(10), reference: "FORTUIN-BUIT-1" },
-    { id: "p5",  invoice_id: "inv5",  tenant_name: "Leilah Hendricks",   amount_cents: 880000,  method: "DebiCheck", date: daysAgo(8),  reference: "HENDRICKS-WELG-A1" },
-    { id: "p6",  invoice_id: "inv7",  tenant_name: "Caitlin Rousseau",   amount_cents: 1150000, method: "DebiCheck", date: daysAgo(9),  reference: "ROUSSEAU-WELG-C1" },
-    { id: "p7",  invoice_id: "inv8",  tenant_name: "Thabo Mahlangu",     amount_cents: 1250000, method: "DebiCheck", date: daysAgo(6),  reference: "MAHLANGU-KIRS-202" },
-    { id: "p8",  invoice_id: "inv9",  tenant_name: "Amahle Dlamini",    amount_cents: 950000,  method: "DebiCheck", date: daysAgo(39), reference: "DLAMINI-KIRS-101" },
+    { id: "p5",  invoice_id: "inv5",  tenant_name: "Leilah Hendricks",   amount_cents: 880000,  method: "EFT", date: daysAgo(8),  reference: "HENDRICKS-WELG-A1" },
+    { id: "p6",  invoice_id: "inv7",  tenant_name: "Caitlin Rousseau",   amount_cents: 1150000, method: "EFT", date: daysAgo(9),  reference: "ROUSSEAU-WELG-C1" },
+    { id: "p7",  invoice_id: "inv8",  tenant_name: "Thabo Mahlangu",     amount_cents: 1250000, method: "EFT", date: daysAgo(6),  reference: "MAHLANGU-KIRS-202" },
+    { id: "p8",  invoice_id: "inv9",  tenant_name: "Amahle Dlamini",    amount_cents: 950000,  method: "EFT", date: daysAgo(39), reference: "DLAMINI-KIRS-101" },
     { id: "p9",  invoice_id: "inv10", tenant_name: "Marco van der Berg", amount_cents: 950000,  method: "EFT",       date: daysAgo(38), reference: "VANDENBERG-KIRS-102" },
-    { id: "p10", invoice_id: "inv11", tenant_name: "Priya Naidoo",       amount_cents: 1250000, method: "DebiCheck", date: daysAgo(37), reference: "NAIDOO-KIRS-201" },
-    { id: "p11", invoice_id: "inv12", tenant_name: "Leilah Hendricks",   amount_cents: 880000,  method: "DebiCheck", date: daysAgo(39), reference: "HENDRICKS-WELG-A1" },
+    { id: "p10", invoice_id: "inv11", tenant_name: "Priya Naidoo",       amount_cents: 1250000, method: "EFT", date: daysAgo(37), reference: "NAIDOO-KIRS-201" },
+    { id: "p11", invoice_id: "inv12", tenant_name: "Leilah Hendricks",   amount_cents: 880000,  method: "EFT", date: daysAgo(39), reference: "HENDRICKS-WELG-A1" },
     { id: "p12", invoice_id: "inv13", tenant_name: "Sipho Motaung",      amount_cents: 880000,  method: "EFT",       date: daysAgo(36), reference: "MOTAUNG-WELG-A2" },
-    { id: "p13", invoice_id: "inv14", tenant_name: "Caitlin Rousseau",   amount_cents: 1150000, method: "DebiCheck", date: daysAgo(40), reference: "ROUSSEAU-WELG-C1" },
-    { id: "p14", invoice_id: "inv15", tenant_name: "Thabo Mahlangu",     amount_cents: 1250000, method: "DebiCheck", date: daysAgo(38), reference: "MAHLANGU-KIRS-202" },
+    { id: "p13", invoice_id: "inv14", tenant_name: "Caitlin Rousseau",   amount_cents: 1150000, method: "EFT", date: daysAgo(40), reference: "ROUSSEAU-WELG-C1" },
+    { id: "p14", invoice_id: "inv15", tenant_name: "Thabo Mahlangu",     amount_cents: 1250000, method: "EFT", date: daysAgo(38), reference: "MAHLANGU-KIRS-202" },
   ],
 
   // ── Arrears cases ────────────────────────────────────────────────────────────

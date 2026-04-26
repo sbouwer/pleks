@@ -133,9 +133,9 @@ export default function InvitePage() {
 
     // Redirect based on role
     if (inv.role === "tenant") {
-      router.push("/portal")
+      router.push("/tenant")
     } else if (inv.role === "contractor") {
-      router.push("/contractor")
+      router.push("/supplier")
     } else {
       router.push("/dashboard")
     }

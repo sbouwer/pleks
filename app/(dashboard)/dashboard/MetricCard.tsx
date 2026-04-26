@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { cn } from "@/lib/utils"
 
 interface MetricCardProps {
   label: string
@@ -7,6 +8,8 @@ interface MetricCardProps {
   subtextVariant?: "default" | "success" | "warning" | "danger"
   progressBar?: number // 0-100
   href?: string
+  className?: string
+  dotColor?: string
 }
 
 const subtextColors = {
@@ -23,14 +26,22 @@ export function MetricCard({
   subtextVariant = "default",
   progressBar,
   href,
-}: MetricCardProps) {
+  className,
+  dotColor,
+}: Readonly<MetricCardProps>) {
   const inner = (
-    <div className="flex h-[88px] flex-col justify-between rounded-xl border bg-card p-4 transition-colors hover:bg-muted/30">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-        {label}
-      </p>
-      <p className="font-heading text-[22px] leading-none">{value}</p>
-      <div className="h-4">
+    <div className="flex h-full flex-col gap-2.5 p-5 transition-colors hover:bg-muted/20">
+      <div className="flex items-center gap-2">
+        <span
+          className="h-1.5 w-1.5 shrink-0 rounded-full"
+          style={{ backgroundColor: dotColor ?? "var(--color-amber-400, #FBBF24)" }}
+        />
+        <p className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+          {label}
+        </p>
+      </div>
+      <p className="font-heading text-[26px] leading-none tracking-tight tabular-nums">{value}</p>
+      <div className="min-h-4">
         {progressBar !== undefined && (
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
             <div
@@ -40,14 +51,18 @@ export function MetricCard({
           </div>
         )}
         {subtext && (
-          <p className={`text-[11px] ${subtextColors[subtextVariant]}`}>{subtext}</p>
+          <p className={`text-[11px] font-medium ${subtextColors[subtextVariant]}`}>{subtext}</p>
         )}
       </div>
     </div>
   )
 
   if (href) {
-    return <Link href={href}>{inner}</Link>
+    return (
+      <Link href={href} className={cn("block", className)}>
+        {inner}
+      </Link>
+    )
   }
-  return inner
+  return <div className={className}>{inner}</div>
 }

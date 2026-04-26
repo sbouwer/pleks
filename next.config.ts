@@ -23,7 +23,8 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https:",
       "font-src 'self' data:",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.resend.com",
+      "connect-src 'self' https://app.pleks.co.za https://pleks.vercel.app https://*.supabase.co wss://*.supabase.co https://api.resend.com",
+      "manifest-src 'self' https://app.pleks.co.za https://pleks.vercel.app",
       "frame-src https://maps.google.com https://www.google.com",
       "worker-src 'self'",
       "object-src 'none'",
@@ -40,6 +41,37 @@ const nextConfig: NextConfig = {
   // Silence the Turbopack/webpack mismatch warning from @serwist/next.
   // Serwist is disabled in development so webpack only runs in production builds.
   turbopack: {},
+
+  async redirects() {
+    return [
+      // ── Route-naming renames ──
+      { source: "/payments",           destination: "/billing",            permanent: true },
+      { source: "/payments/:path*",    destination: "/billing/:path*",     permanent: true },
+
+      { source: "/contractors",        destination: "/suppliers",          permanent: true },
+      { source: "/contractors/:path*", destination: "/suppliers/:path*",   permanent: true },
+
+      { source: "/settings/finance",   destination: "/settings/deposits",  permanent: true },
+      { source: "/settings/billing",   destination: "/settings/subscription", permanent: true },
+      { source: "/settings/communication/templates", destination: "/settings/documents/templates", permanent: true },
+      { source: "/settings/communication/:path*",    destination: "/settings/documents/:path*",    permanent: true },
+
+      { source: "/api/payments/screening",                destination: "/api/billing/screening",                permanent: true },
+      { source: "/api/payments/:paymentId/receipt",       destination: "/api/billing/:paymentId/receipt",       permanent: true },
+      { source: "/api/contractors",                       destination: "/api/suppliers",                        permanent: true },
+      { source: "/api/contractors/:path*",                destination: "/api/suppliers/:path*",                 permanent: true },
+
+      // ── Role namespace renames ──
+      { source: "/portal",             destination: "/tenant",             permanent: true },
+      { source: "/portal/:path*",      destination: "/tenant/:path*",      permanent: true },
+
+      { source: "/contractor",         destination: "/supplier",           permanent: true },
+      { source: "/contractor/:path*",  destination: "/supplier/:path*",    permanent: true },
+
+      // /landlord/* unchanged — route group renamed but URL prefix stays the same.
+      // /settings/profile NOT redirected — URL is repurposed (new user-profile stub), not retired.
+    ]
+  },
 
   async headers() {
     return [

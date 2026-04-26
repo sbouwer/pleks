@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next"
-import { Plus_Jakarta_Sans, DM_Sans } from "next/font/google"
+import { Plus_Jakarta_Sans, DM_Sans, Inter_Tight, JetBrains_Mono } from "next/font/google"
 import { Toaster } from "sonner"
 import { QueryProvider } from "@/components/providers/QueryProvider"
 import { OfflineIndicator } from "@/components/layout/OfflineIndicator"
@@ -17,6 +17,20 @@ const dmSans = DM_Sans({
   weight: ["300", "400", "500", "600"],
   subsets: ["latin"],
   variable: "--font-dm-sans",
+})
+
+const interTight = Inter_Tight({
+  weight: ["400", "500", "600", "700"],
+  subsets: ["latin"],
+  variable: "--font-inter-tight",
+  display: "swap",
+})
+
+const jetbrainsMono = JetBrains_Mono({
+  weight: ["400", "500"],
+  subsets: ["latin"],
+  variable: "--font-jetbrains-mono",
+  display: "swap",
 })
 
 export const metadata: Metadata = {
@@ -54,7 +68,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`dark ${plusJakartaSans.variable} ${dmSans.variable} h-full antialiased`}
+      className={`dark ${plusJakartaSans.variable} ${dmSans.variable} ${interTight.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <OfflineIndicator />

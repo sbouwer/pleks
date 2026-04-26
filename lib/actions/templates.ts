@@ -36,7 +36,7 @@ export async function createDocumentTemplate(
 
   if (error) return { error: error.message }
 
-  revalidatePath("/settings/communication/templates")
+  revalidatePath("/settings/documents/templates")
   return { id: data.id }
 }
 
@@ -63,7 +63,7 @@ export async function updateDocumentTemplate(
 
   if (error) return { error: error.message }
 
-  revalidatePath("/settings/communication/templates")
+  revalidatePath("/settings/documents/templates")
   return {}
 }
 
@@ -85,7 +85,7 @@ export async function deleteDocumentTemplate(
 
   if (error) return { error: error.message }
 
-  revalidatePath("/settings/communication/templates")
+  revalidatePath("/settings/documents/templates")
   return {}
 }
 
@@ -126,7 +126,7 @@ export async function duplicateTemplateToOrg(
 
   if (error) return { error: error.message }
 
-  revalidatePath("/settings/communication/templates")
+  revalidatePath("/settings/documents/templates")
   return { id: data.id }
 }
 
@@ -246,6 +246,6 @@ export async function uploadCustomLease(
 
   if (updateError) return { error: updateError.message }
 
-  revalidatePath("/settings/communication/templates")
+  revalidatePath("/settings/documents/templates")
   return {}
 }

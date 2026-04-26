@@ -52,11 +52,6 @@ interface ContactsTabProps {
   readonly primaryTenantId: string | null
   readonly portfolioOverviewSentAt: string | null
   readonly portfolioOverviewOutdated: boolean
-  readonly premiumEnabled: boolean
-  readonly orgTier: string | null
-  readonly subscriptionStatus: string | null
-  readonly premiumSlotsUsed: number
-  readonly tenantDisplayText: string
 }
 
 const AVATAR_VARIANT: Record<string, "brand" | "blue"> = {
@@ -205,11 +200,6 @@ export function ContactsTab({
   primaryTenantId,
   portfolioOverviewSentAt,
   portfolioOverviewOutdated,
-  premiumEnabled,
-  orgTier,
-  subscriptionStatus,
-  premiumSlotsUsed,
-  tenantDisplayText,
 }: ContactsTabProps) {
   const [activeIdx, setActiveIdx] = useState(0)
   const activeTenant = tenants[activeIdx] ?? null
@@ -235,11 +225,6 @@ export function ContactsTab({
             leaseId={leaseId}
             portalInviteSentAt={portalInviteSentAt}
             hasAuthUser={hasAuthUser}
-            premiumEnabled={premiumEnabled}
-            orgTier={orgTier}
-            subscriptionStatus={subscriptionStatus}
-            premiumSlotsUsed={premiumSlotsUsed}
-            leaseLabel={tenantDisplayText}
           />
         )}
       </div>

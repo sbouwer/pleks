@@ -3,13 +3,12 @@
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import Link from "next/link"
-import Image from "next/image"
 import { Eye, EyeOff, Loader2 } from "lucide-react"
+import { AccentBracket } from "@/components/ui/AccentBracket"
 
 function getButtonLabel(isMagicLink: boolean, isLoading: boolean) {
   if (isMagicLink) return isLoading ? "Sending link..." : "Send login link"
@@ -22,6 +21,21 @@ export default function LoginPage() {
       <LoginContent />
     </Suspense>
   )
+}
+
+const BTN_PRIMARY: React.CSSProperties = {
+  width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
+  gap: 8, padding: "9px 18px", borderRadius: 5, fontSize: 14, fontWeight: 600,
+  lineHeight: 1.5, cursor: "pointer", border: "none",
+  background: "oklch(0.68 0.14 65)", color: "oklch(0.18 0.012 260)",
+  transition: "background .15s, box-shadow .15s",
+}
+const BTN_GHOST: React.CSSProperties = {
+  width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
+  gap: 8, padding: "9px 18px", borderRadius: 5, fontSize: 14, fontWeight: 600,
+  lineHeight: 1.5, cursor: "pointer", border: "1px solid oklch(0.78 0.008 85)",
+  background: "transparent", color: "oklch(0.18 0.012 260)",
+  transition: "background .15s, border-color .15s, color .15s",
 }
 
 function LoginContent() {
@@ -55,7 +69,7 @@ function LoginContent() {
       })
   }, [router, redirectParam])
 
-  async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
+  async function handleLogin(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
     setError(null)
     setLoading(true)
@@ -109,9 +123,9 @@ function LoginContent() {
     } else if (redirectParam) {
       router.push(redirectParam)
     } else if (membership.role === "tenant") {
-      router.push("/portal")
+      router.push("/tenant")
     } else if (membership.role === "contractor") {
-      router.push("/contractor")
+      router.push("/supplier")
     } else {
       router.push("/dashboard")
     }
@@ -130,19 +144,25 @@ function LoginContent() {
       <div className="flex items-center justify-center min-h-screen px-4">
         <Card className="w-full max-w-sm">
           <CardHeader className="text-center">
-            <CardTitle><Image src="/logo.svg" alt="Pleks" width={114} height={32} className="h-8 w-auto mx-auto" /></CardTitle>
+            <CardTitle>
+              <Link href="/" className="pub-wordmark" aria-label="Pleks" style={{ justifyContent: "center" }}>
+                <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
+              </Link>
+            </CardTitle>
             <CardDescription>Check your email for a login link.</CardDescription>
           </CardHeader>
           <CardContent className="text-center">
             <p className="text-sm text-muted-foreground mb-4">
               We sent a link to <strong>{email}</strong>
             </p>
-            <Button
-              variant="outline"
+            <button
+              id="pleks-login-back"
+              type="button"
+              style={BTN_GHOST}
               onClick={() => { setMagicLinkSent(false); setMagicLinkMode(false) }}
             >
               Back to login
-            </Button>
+            </button>
           </CardContent>
         </Card>
       </div>
@@ -153,7 +173,11 @@ function LoginContent() {
     <div className="flex items-center justify-center min-h-screen px-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
-          <CardTitle><Image src="/logo.svg" alt="Pleks" width={114} height={32} className="h-8 w-auto mx-auto" /></CardTitle>
+          <CardTitle>
+              <Link href="/" className="pub-wordmark" aria-label="Pleks" style={{ justifyContent: "center" }}>
+                <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
+              </Link>
+            </CardTitle>
           <CardDescription>Sign in to your account</CardDescription>
         </CardHeader>
         <CardContent>
@@ -216,10 +240,15 @@ function LoginContent() {
                 </div>
               </div>
             )}
-            <Button type="submit" className="w-full" disabled={loading}>
+            <button
+              id="pleks-login-submit"
+              type="submit"
+              style={BTN_PRIMARY}
+              disabled={loading}
+            >
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {getButtonLabel(magicLinkMode, loading)}
-            </Button>
+            </button>
           </form>
 
           <div className="mt-4 text-center">

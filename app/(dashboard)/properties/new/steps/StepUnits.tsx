@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect } from "react"
-import { Plus, Trash2 } from "lucide-react"
+import { useEffect, useState } from "react"
+import { Plus, Trash2, Copy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { buildSkeletonUnits, type SkeletonUnit } from "@/lib/properties/skeletonUnits"
 import { getScenario } from "@/lib/properties/scenarios"
@@ -106,7 +106,7 @@ function UnitRow({ unit, index, segment, canRemove, onPatch, onRemove }: Readonl
             </label>
             <Select
               value={unit.furnishing_status ?? "unfurnished"}
-              onValueChange={(v) => onPatch({ furnishing_status: v as SkeletonUnit["furnishing_status"] })}
+              onValueChange={(v) => onPatch({ furnishing_status: v })}
             >
               <SelectTrigger className="h-7 w-32 text-xs">
                 <SelectValue />
@@ -147,8 +147,7 @@ function UnitRow({ unit, index, segment, canRemove, onPatch, onRemove }: Readonl
                 checked={unit.three_phase_power ?? false}
                 onChange={(e) => onPatch({ three_phase_power: e.target.checked })}
                 className="h-3.5 w-3.5 rounded"
-              />
-              3-phase
+              /><span>3-phase</span>
             </label>
           </>
         )}
@@ -171,12 +170,18 @@ function UnitRow({ unit, index, segment, canRemove, onPatch, onRemove }: Readonl
 
 // ── StepUnits ─────────────────────────────────────────────────────────────────
 
+const IDENTICAL_LAYOUT_SCENARIOS = ["r4", "c2", "c3"]
+
 export function StepUnits() {
   const { state, patch } = useWizard()
+  const [fillDone, setFillDone] = useState(false)
 
   const scenario   = state.scenarioType ? getScenario(state.scenarioType) : null
   const isCounted  = scenario?.unitCountMode === "counted"
   const segment    = state.scenarioType ? getSegment(state.scenarioType) : "residential"
+  const showFillAll = isCounted &&
+    state.units.length > 1 &&
+    IDENTICAL_LAYOUT_SCENARIOS.includes(state.scenarioType ?? "")
 
   // Seed unit drafts from skeleton on mount or when scenario / count changes
   useEffect(() => {
@@ -185,7 +190,7 @@ export function StepUnits() {
     if (state.units.length === state.unitCount && state.units.length > 0) return
 
     const skeleton = buildSkeletonUnits({
-      scenarioType:    state.scenarioType as Parameters<typeof buildSkeletonUnits>[0]["scenarioType"],
+      scenarioType:    state.scenarioType,
       propertyName:    state.address?.property_name ?? "Property",
       scenarioAnswers: state.scenarioAnswers,
       unitCount:       state.unitCount,
@@ -201,6 +206,7 @@ export function StepUnits() {
       ...(h.sizeM2           !== null && { size_m2:           h.sizeM2 }),
     }))
     patch({ units: withHints, unitCount: withHints.length })
+    setFillDone(false)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.scenarioType, state.unitCount])
 
@@ -210,9 +216,10 @@ export function StepUnits() {
   }
 
   function addUnit() {
+    if (!state.scenarioType) return
     const n    = state.units.length + 1
     const stub = buildSkeletonUnits({
-      scenarioType:    state.scenarioType as Parameters<typeof buildSkeletonUnits>[0]["scenarioType"],
+      scenarioType:    state.scenarioType,
       propertyName:    state.address?.property_name ?? "Property",
       scenarioAnswers: state.scenarioAnswers,
       unitCount:       1,
@@ -227,12 +234,39 @@ export function StepUnits() {
     patch({ units: next, unitCount: next.length })
   }
 
+  function fillAllFromFirst() {
+    if (state.units.length < 2) return
+    const { unit_number: _, ...shared } = state.units[0] // eslint-disable-line sonarjs/no-unused-vars
+    const next = state.units.map((u, i) => i === 0 ? u : { ...u, ...shared })
+    patch({ units: next })
+    setFillDone(true)
+  }
+
   if (!scenario) {
     return <p className="text-sm text-muted-foreground">Please select a property type first.</p>
   }
 
   return (
     <div className="space-y-4">
+      {/* Fill all helper — C2/C3/R4 identical-layout scenarios */}
+      {showFillAll && (
+        <div className="flex items-center gap-3 rounded-lg border border-dashed border-border px-3 py-2">
+          <p className="flex-1 text-xs text-muted-foreground">
+            All units have the same layout? Fill remaining units from the first row.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fillAllFromFirst}
+            className="gap-1.5 shrink-0 text-xs"
+            disabled={fillDone}
+          >
+            <Copy className="w-3 h-3" />
+            {fillDone ? "Applied" : "Fill all from first"}
+          </Button>
+        </div>
+      )}
+
       {/* Column headers */}
       <div className="flex flex-wrap items-center gap-2 px-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
         <span className="w-5" />
@@ -246,7 +280,7 @@ export function StepUnits() {
       <div className="space-y-1.5">
         {state.units.map((unit, i) => (
           <UnitRow
-            key={i}
+            key={`${i}-${unit.unit_number}`}
             unit={unit}
             index={i}
             segment={segment}

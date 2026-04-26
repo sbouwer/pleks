@@ -155,14 +155,19 @@ export async function CompletenessWidgetWrapper({ propertyId, orgId, isOwnerProB
   if (propErr || !property) return null
   if (!property.scenario_type) return null    // legacy properties without wizard data
 
-  const [pendingRequests, landlordInfo, hasSchemeContact, unitsBreakdown, brokerCountResult, docCountResult] = await Promise.all([
+  const [pendingRequests, landlordInfo, hasSchemeContact, unitsBreakdown, brokerCountResult, docCountResult, checklistRows] = await Promise.all([
     fetchPendingRequests(service, propertyId),
     fetchLandlordInfo(service, property.landlord_id, property.owner_email),
     fetchSchemeContact(service, property.managing_scheme_id),
     fetchUnitsBreakdown(service, propertyId),
     service.from("property_brokers").select("id", { count: "exact", head: true }).eq("property_id", propertyId),
     service.from("property_documents").select("id", { count: "exact", head: true }).eq("property_id", propertyId),
+    service.from("property_insurance_checklists").select("state").eq("property_id", propertyId).neq("state", "not_applicable"),
   ])
+
+  const checklist = checklistRows.data ?? []
+  const checklistTotal     = checklist.length
+  const checklistConfirmed = checklist.filter((r) => r.state === "confirmed").length
 
   const snapshot: CompletenessSnapshot = {
     managedMode:           (property.managed_mode as "self_owned" | "managed_for_owner") ?? "self_owned",
@@ -176,6 +181,8 @@ export async function CompletenessWidgetWrapper({ propertyId, orgId, isOwnerProB
     unitsTotalCount:       unitsBreakdown.total,
     unitsWithDetailCount:  unitsBreakdown.detailed,
     hasOwnerBanking:       landlordInfo.hasOwnerBanking,
+    checklistConfirmed:    checklistTotal > 0 ? checklistConfirmed : undefined,
+    checklistTotal:        checklistTotal > 0 ? checklistTotal : undefined,
     pendingRequests,
   }
 

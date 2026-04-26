@@ -24,6 +24,8 @@ export interface CompletenessItem {
   detail?:  string
   done:     boolean
   weight:   number
+  /** Overrides binary weight calculation for partial credit (0–weight) */
+  earnedWeight?: number
   /** Pending info_request id, if one is already open for this topic */
   pendingRequestId?: string
 }
@@ -40,6 +42,10 @@ export interface CompletenessSnapshot {
   unitsTotalCount:     number
   unitsWithDetailCount: number          // residential: bedrooms+bathrooms; commercial: size_m2
   hasOwnerBanking:     boolean
+  /** Confirmed applicable checklist items (when checklist exists) */
+  checklistConfirmed?: number
+  /** Total applicable checklist items (non-NA; 0 = checklist not yet initialised) */
+  checklistTotal?:     number
   /** Map of pending info_request topic → request id */
   pendingRequests:     Partial<Record<CompletenessTopic, string>>
 }
@@ -61,16 +67,37 @@ const WEIGHTS: Record<CompletenessTopic, number> = {
   banking:   10,
 }
 
+function buildInsuranceItem(snap: CompletenessSnapshot): CompletenessItem {
+  const total = snap.checklistTotal ?? 0
+  const confirmed = snap.checklistConfirmed ?? 0
+  if (total > 0) {
+    const done = confirmed === total
+    return {
+      topic:        "insurance",
+      label:        "Insurance policy details",
+      done,
+      weight:       WEIGHTS.insurance,
+      earnedWeight: Math.round((confirmed / total) * WEIGHTS.insurance),
+      detail:       done ? undefined : `${confirmed} of ${total} items verified`,
+      pendingRequestId: snap.pendingRequests.insurance,
+    }
+  }
+  const done = snap.insuranceFieldsCount >= 4
+  return {
+    topic:  "insurance",
+    label:  "Insurance policy details",
+    done,
+    weight: WEIGHTS.insurance,
+    detail: done ? undefined : `${snap.insuranceFieldsCount} of 4 fields complete`,
+    pendingRequestId: snap.pendingRequests.insurance,
+  }
+}
+
 export function computePropertyCompleteness(snap: CompletenessSnapshot): CompletenessResult {
   const items: CompletenessItem[] = []
 
   // Address + scenario — assumed present (you can't have a property without these)
-  items.push({
-    topic:  "address",
-    label:  "Address & property type",
-    done:   true,
-    weight: WEIGHTS.address,
-  })
+  items.push({ topic: "address", label: "Address & property type", done: true, weight: WEIGHTS.address })
 
   // Owner / landlord
   const ownerDone = snap.managedMode === "self_owned" || snap.hasLandlord
@@ -79,7 +106,7 @@ export function computePropertyCompleteness(snap: CompletenessSnapshot): Complet
     label:  snap.managedMode === "self_owned" ? "Owner — you" : "Owner / landlord linked",
     done:   ownerDone,
     weight: WEIGHTS.owner,
-    detail: !ownerDone ? "Link an existing owner or add a new one" : undefined,
+    detail: ownerDone ? undefined : "Link an existing owner or add a new one",
     pendingRequestId: snap.pendingRequests.owner,
   })
 
@@ -90,23 +117,13 @@ export function computePropertyCompleteness(snap: CompletenessSnapshot): Complet
       label:  "Managing scheme contact",
       done:   snap.hasSchemeContact,
       weight: WEIGHTS.scheme,
-      detail: !snap.hasSchemeContact ? "Add the BC / HOA managing agent contact" : undefined,
+      detail: snap.hasSchemeContact ? undefined : "Add the BC / HOA managing agent contact",
       pendingRequestId: snap.pendingRequests.scheme,
     })
   }
 
-  // Insurance — partial credit per field populated
-  const insuranceDone = snap.insuranceFieldsCount >= 4
-  items.push({
-    topic:  "insurance",
-    label:  "Insurance policy details",
-    done:   insuranceDone,
-    weight: WEIGHTS.insurance,
-    detail: insuranceDone
-      ? undefined
-      : `${snap.insuranceFieldsCount} of 4 fields complete`,
-    pendingRequestId: snap.pendingRequests.insurance,
-  })
+  // Insurance — checklist-based partial credit when items exist; field-count fallback
+  items.push(buildInsuranceItem(snap))
 
   // Broker — only shown for Owner Pro tiers
   if (snap.isOwnerProBrokerVisible) {
@@ -115,7 +132,7 @@ export function computePropertyCompleteness(snap: CompletenessSnapshot): Complet
       label:  "Broker contact",
       done:   snap.brokerLinked,
       weight: WEIGHTS.broker,
-      detail: !snap.brokerLinked ? "Link your insurance broker for incident notifications" : undefined,
+      detail: snap.brokerLinked ? undefined : "Link your insurance broker for incident notifications",
       pendingRequestId: snap.pendingRequests.broker,
     })
   }
@@ -126,9 +143,7 @@ export function computePropertyCompleteness(snap: CompletenessSnapshot): Complet
     label:  "Compliance documents",
     done:   snap.documentsCount > 0,
     weight: WEIGHTS.documents,
-    detail: snap.documentsCount > 0
-      ? `${snap.documentsCount} on file`
-      : "No CoCs or title deed uploaded",
+    detail: snap.documentsCount > 0 ? `${snap.documentsCount} on file` : "No CoCs or title deed uploaded",
     pendingRequestId: snap.pendingRequests.documents,
   })
 
@@ -139,9 +154,7 @@ export function computePropertyCompleteness(snap: CompletenessSnapshot): Complet
     label:  "Unit details (size, bedrooms)",
     done:   unitsDone,
     weight: WEIGHTS.units,
-    detail: unitsDone
-      ? undefined
-      : `${snap.unitsWithDetailCount} of ${snap.unitsTotalCount} units have full details`,
+    detail: unitsDone ? undefined : `${snap.unitsWithDetailCount} of ${snap.unitsTotalCount} units have full details`,
   })
 
   // Banking — only for managed properties
@@ -151,20 +164,16 @@ export function computePropertyCompleteness(snap: CompletenessSnapshot): Complet
       label:  "Owner banking details",
       done:   snap.hasOwnerBanking,
       weight: WEIGHTS.banking,
-      detail: !snap.hasOwnerBanking ? "Required for owner statement payouts" : undefined,
+      detail: snap.hasOwnerBanking ? undefined : "Required for owner statement payouts",
       pendingRequestId: snap.pendingRequests.banking,
     })
   }
 
-  const totalWeight = items.reduce((sum, i) => sum + i.weight, 0)
-  const earnedWeight = items.reduce((sum, i) => sum + (i.done ? i.weight : 0), 0)
+  const totalWeight  = items.reduce((sum, i) => sum + i.weight, 0)
+  const earnedWeight = items.reduce((sum, i) => sum + (i.earnedWeight ?? (i.done ? i.weight : 0)), 0)
   const pct = totalWeight === 0 ? 0 : Math.round((earnedWeight / totalWeight) * 100)
 
-  return {
-    pct,
-    items,
-    outstanding: items.filter((i) => !i.done),
-  }
+  return { pct, items, outstanding: items.filter((i) => !i.done) }
 }
 
 // ── Decision: should the widget render at all? ───────────────────────────────

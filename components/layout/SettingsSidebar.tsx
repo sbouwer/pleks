@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import Image from "next/image"
+import { AccentBracket } from "@/components/ui/AccentBracket"
 import { usePathname } from "next/navigation"
 import { ChevronLeft } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -29,7 +29,7 @@ function getGroups(orgType: OrgType): SettingsGroup[] {
     {
       title: "Organisation",
       items: [
-        { href: "/settings/profile",        label: "Details" },
+        { href: "/settings/details",         label: "Details" },
         ...(hasTeam ? [
           { href: "/settings/team",         label: "Team" },
           { href: "/settings/hours",        label: "Opening hours" },
@@ -41,7 +41,7 @@ function getGroups(orgType: OrgType): SettingsGroup[] {
     {
       title: "Documents",
       items: [
-        { href: "/settings/communication/templates", label: "Templates", extraPrefixes: ["/settings/communication"] },
+        { href: "/settings/documents/templates", label: "Templates", extraPrefixes: ["/settings/documents"] },
         { href: "/settings/lease-templates", label: "Lease templates" },
       ],
     },
@@ -54,8 +54,8 @@ function getGroups(orgType: OrgType): SettingsGroup[] {
     {
       title: "Account",
       items: [
-        { href: "/settings/finance",      label: "Deposits" },
-        { href: "/settings/billing",      label: "Subscription" },
+        { href: "/settings/deposits",      label: "Deposits" },
+        { href: "/settings/subscription",      label: "Subscription" },
         { href: "/settings/notifications", label: "Notifications" },
       ],
     },
@@ -68,6 +68,7 @@ function getGroups(orgType: OrgType): SettingsGroup[] {
     {
       title: "My Profile",
       items: [
+        { href: "/settings/profile",           label: "Profile" },
         { href: "/settings/profile/signature", label: "Signature", extraPrefixes: [] },
       ],
     },
@@ -107,8 +108,8 @@ export function SettingsSidebar() {
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
       {/* Logo bar — matches main sidebar height */}
       <div className="flex h-16 shrink-0 items-center border-b border-border/50 px-4">
-        <Link href="/dashboard">
-          <Image src="/logo.svg" alt="Pleks" width={90} height={26} className="h-7 w-auto" priority />
+        <Link href="/dashboard" className="pub-wordmark" style={{ fontSize: 20 }} aria-label="Pleks">
+          <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
         </Link>
       </div>
 

@@ -4,6 +4,24 @@
 
 ---
 
+## CONNECTED MCP SERVERS
+
+All of the following are connected and available in every session. Use them directly — no setup needed.
+
+| Server | Capability |
+|--------|-----------|
+| **GitHub** (`sbouwer/pleks`) | PRs, issues, CI runs, code search, branch management |
+| **Supabase** | Execute SQL, apply migrations, get logs, list tables, check advisors |
+| **Vercel** | List/check deployments, build logs, runtime logs, project info |
+| **Figma** | Read designs, get screenshots, convert designs to code |
+| **Gmail** | Search threads, create drafts (bouwer.stean@gmail.com) |
+| **Google Calendar** | Read/create/update events |
+| **Google Drive** | Read, search, and create files |
+
+Default to using these instead of asking the user to copy-paste data. For example: check GitHub for open PRs rather than asking; check Vercel for deployment status rather than asking; query Supabase directly rather than asking for schema details.
+
+---
+
 ## ⚠ MANDATORY: RUN CHECKS BEFORE EVERY COMMIT
 
 Before committing ANY changes, run:
@@ -110,6 +128,31 @@ Examples:
 
 The `pr-title` CI job rejects PRs whose titles don't match. PR titles can be
 edited after opening — edit, don't force-push.
+
+---
+
+## ⚠ MANDATORY: VERSION-AWARE COMMITTING
+
+This project uses **semantic-release** driven by GitHub. Every squash-merge to
+`main` can create a GitHub Release and bump the version — so commit type is
+a versioning decision, not just a label.
+
+**Before every commit, ask:**
+- Is this a user-visible new feature? → `feat` (minor bump)
+- Is this fixing broken behaviour? → `fix` (patch bump)
+- Is this internal cleanup with no behaviour change? → `refactor` / `chore` (no release)
+- Does it break existing behaviour or URLs? → add `!` and a `BREAKING CHANGE:` footer
+
+**Commit discipline:**
+- One logical change per commit — don't bundle unrelated fixes
+- Subject line must be meaningful in a changelog: "fix contact form submit" not "fix stuff"
+- Include scope when it narrows the blast radius: `fix(auth):`, `feat(billing):`
+- Branch commits are squash-merged, so each branch PR = one changelog entry; write the
+  PR title as the changelog line you want users to see
+
+**GitHub Releases are the changelog.** Consumers of this repo (and Stéan reviewing
+releases) read GitHub Releases to understand what shipped. Make every commit title
+worth reading there.
 
 ---
 

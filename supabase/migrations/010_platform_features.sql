@@ -13,7 +13,6 @@
 --   • Org custom role library
 --   • Admin permission flag (BUILD_56)
 --   • Ownership transfers (BUILD_56)
---   • Owner Pro per-lease premium billing (BUILD_57F)
 --   • Lease notes & commercial CPA fix (cross-cutting lease enhancement)
 --
 -- AMEND-FORWARD RULE: new platform-level features (billing, auth, portal,
@@ -341,84 +340,7 @@ CREATE POLICY "org_ownership_transfers" ON ownership_transfers
 
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- §10  OWNER PRO PER-LEASE PREMIUM BILLING  (BUILD_57F)
--- ═══════════════════════════════════════════════════════════════════════════════
-
--- 10a. Widen subscriptions status constraint to include 'frozen'
-ALTER TABLE subscriptions DROP CONSTRAINT IF EXISTS subscriptions_status_check;
-ALTER TABLE subscriptions ADD CONSTRAINT subscriptions_status_check
-  CHECK (status IN (
-    'active', 'trialing', 'past_due', 'grace_period',
-    'frozen', 'cancelled'
-  ));
-
--- 10b. Owner Pro columns on subscriptions
-ALTER TABLE subscriptions
-  ADD COLUMN IF NOT EXISTS owner_pro_lease_count  int          NOT NULL DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS mandate_id             text,
-  ADD COLUMN IF NOT EXISTS mandate_status         text
-    CHECK (mandate_status IN ('pending_auth', 'active', 'cancelled', 'failed')),
-  ADD COLUMN IF NOT EXISTS mandate_authenticated_at  timestamptz,
-  ADD COLUMN IF NOT EXISTS last_billing_attempt_at   timestamptz,
-  ADD COLUMN IF NOT EXISTS last_billing_success_at   timestamptz,
-  ADD COLUMN IF NOT EXISTS failed_attempts           int NOT NULL DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS frozen_since              timestamptz;
-
-COMMENT ON COLUMN subscriptions.owner_pro_lease_count IS
-  'Number of leases with premium_enabled = true for Owner tier orgs. '
-  'Billed amount = owner_pro_lease_count * 9900 cents.';
-
--- 10c. Premium columns on leases
-ALTER TABLE leases
-  ADD COLUMN IF NOT EXISTS premium_enabled      boolean      NOT NULL DEFAULT false,
-  ADD COLUMN IF NOT EXISTS premium_enabled_at   timestamptz,
-  ADD COLUMN IF NOT EXISTS premium_enabled_by   uuid         REFERENCES auth.users(id),
-  ADD COLUMN IF NOT EXISTS premium_disabled_at  timestamptz,
-  ADD COLUMN IF NOT EXISTS premium_price_cents  int          NOT NULL DEFAULT 9900;
-
-CREATE INDEX IF NOT EXISTS idx_leases_premium
-  ON leases(org_id, premium_enabled)
-  WHERE premium_enabled = true;
-
--- 10d. subscription_charges — billing history
-CREATE TABLE IF NOT EXISTS subscription_charges (
-  id                    uuid  PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id                uuid  NOT NULL REFERENCES organisations(id),
-  subscription_id       uuid  NOT NULL REFERENCES subscriptions(id),
-  billing_period_start  date  NOT NULL,
-  billing_period_end    date  NOT NULL,
-  tier                  text  NOT NULL,
-  amount_cents          int   NOT NULL,
-  -- Owner Pro: which leases were on premium this period
-  premium_lease_ids     uuid[],
-  status                text  NOT NULL
-    CHECK (status IN ('pending', 'charged', 'failed', 'refunded', 'partial_refund')),
-  transaction_id        text,
-  invoice_number        text  NOT NULL,
-  charged_at            timestamptz,
-  failed_reason         text,
-  refunded_cents        int   NOT NULL DEFAULT 0,
-  created_at            timestamptz NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_sub_charges_org          ON subscription_charges(org_id);
-CREATE INDEX IF NOT EXISTS idx_sub_charges_subscription ON subscription_charges(subscription_id);
-CREATE INDEX IF NOT EXISTS idx_sub_charges_status       ON subscription_charges(status);
-
-ALTER TABLE subscription_charges ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Org admins view own billing" ON subscription_charges;
-CREATE POLICY "Org admins view own billing" ON subscription_charges
-  FOR SELECT USING (
-    org_id IN (
-      SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND is_admin = true
-    )
-  );
-
-
--- ═══════════════════════════════════════════════════════════════════════════════
--- §11  LEASE NOTES & COMMERCIAL CPA FIX  (was 014_lease_notes.sql)
+-- §10  LEASE NOTES & COMMERCIAL CPA FIX  (was 014_lease_notes.sql)
 -- ═══════════════════════════════════════════════════════════════════════════════
 
 CREATE TABLE IF NOT EXISTS lease_notes (
@@ -454,7 +376,7 @@ UPDATE leases
 
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- §12  CRON JOB HEALTH TRACKING  (BUILD_60)
+-- §11  CRON JOB HEALTH TRACKING  (BUILD_60)
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- Health tracking table for all scheduled edge functions. Every job writes a
 -- row on start and updates on finish. Admin dashboard health widget reads from
@@ -472,3 +394,60 @@ CREATE TABLE IF NOT EXISTS cron_runs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_cron_runs_job_started ON cron_runs(job_name, started_at DESC);
+
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §12  MARKETING SITE CONTENT  (BUILD_HOMEPAGE)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Simple key/value store for editable marketing copy. Admins edit via
+-- /admin/site-content. Homepage reads via anon key (public SELECT policy).
+-- No org_id — this is global site content, not tenant data.
+
+CREATE TABLE IF NOT EXISTS site_content (
+  key        text PRIMARY KEY,
+  value      text NOT NULL DEFAULT '',
+  label      text NOT NULL DEFAULT '',
+  section    text NOT NULL DEFAULT '',
+  sort_order integer NOT NULL DEFAULT 0,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE site_content ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "site_content_public_read" ON site_content;
+CREATE POLICY "site_content_public_read" ON site_content
+  FOR SELECT USING (true);
+
+-- Seed default content
+INSERT INTO site_content (key, label, section, sort_order, value) VALUES
+  ('notice_text',         'Notice strip text',          'global',  1,  'Founding-agent cohort now open — 10 spots at R299/mo, locked for life.'),
+  ('notice_link_label',   'Notice strip link label',    'global',  2,  'Reserve your spot →'),
+  ('notice_link_href',    'Notice strip link URL',      'global',  3,  '/early-access'),
+  ('hero_headline',       'Hero headline',              'hero',    1,  'SA Property Management, Built Right'),
+  ('hero_sub',            'Hero subheadline',           'hero',    2,  'Built across all three sides of the property cycle: legal, development, management. Applicant-paid FitScore screening. Bank reconciliation that catches every payment. Tribunal-ready documentation by default.'),
+  ('hero_cta_primary',    'Hero primary CTA label',     'hero',    3,  'Start free — 1 unit'),
+  ('hero_cta_secondary',  'Hero secondary CTA label',   'hero',    4,  'Book a demo'),
+  ('hero_meta_1_n',       'Hero stat 1 number',         'hero',    5,  'R 0'),
+  ('hero_meta_1_l',       'Hero stat 1 label',          'hero',    6,  'Client money Pleks ever holds'),
+  ('hero_meta_2_n',       'Hero stat 2 number',         'hero',    7,  '14 / 21'),
+  ('hero_meta_2_l',       'Hero stat 2 label',          'hero',    8,  'Day deposit clock, tracked automatically'),
+  ('hero_meta_3_n',       'Hero stat 3 number',         'hero',    9,  'Full cycle'),
+  ('hero_meta_3_l',       'Hero stat 3 label',          'hero',    10, 'Legal, development, management. Hands on each.'),
+  ('why_headline',        'Why Pleks headline',         'why',     1,  'We build around them.'),
+  ('why_sub',             'Why Pleks subtext',          'why',     2,  'Three parts of your business where most platforms make you fit their workflow. Pleks fits yours.'),
+  ('pillar_1_title',      'Pillar 1 title',             'why',     3,  'The applicant'),
+  ('pillar_1_body',       'Pillar 1 body',              'why',     4,  'Applicants apply free. They pay for the credit check — R399 — only when you shortlist them. You see a FitScore, not a raw report.'),
+  ('pillar_2_title',      'Pillar 2 title',             'why',     5,  'The tenant'),
+  ('pillar_2_body',       'Pillar 2 body',              'why',     6,  'Bank reconciliation watches your trust account. Every payment logged against the unit, no matter how it arrives. When a payment misses, the arrears workflow starts on its own — letters drafted, not typed.'),
+  ('pillar_3_title',      'Pillar 3 title',             'why',     7,  'The building'),
+  ('pillar_3_body',       'Pillar 3 body',              'why',     8,  'Heritage buildings, sectional title, and freehold on the same erf. Inspections logged with GPS-stamped photos. Tribunal bundles in one click.'),
+  ('story_headline',      'Story headline',             'story',   1,  'I did your job. Then I built the software I wished existed.'),
+  ('story_body_1',        'Story paragraph 1',          'story',   2,  'I ran rental portfolios in Johannesburg and Cape Town from 2014 to 2025. I used the incumbent platforms, a Sage export, and a spreadsheet I emailed to my landlords on the 3rd of every month. I watched colleagues lose deposit disputes they should have won because the paper trail was in four systems.'),
+  ('story_body_2',        'Story paragraph 2',          'story',   3,  'Pleks is the product that would have saved me those Tribunal appearances. Every design decision in here is a specific frustration I remember the month and the flat it happened in. If you''ve done this work, you''ll recognise it.'),
+  ('pricing_headline',    'Pricing headline',           'pricing', 1,  'Transparent pricing. No credit-check fees.'),
+  ('pricing_sub',         'Pricing subtext',            'pricing', 2,  'Priced per active lease, not per address or per seat. Vacancies cost you nothing. Your bill on the 1st is the bill on the 1st — and if it ever changes, your accountant knows 30 days before it does.')
+ON CONFLICT (key) DO NOTHING;
+
+-- Live content corrections (idempotent UPDATE — safe to re-run)
+UPDATE site_content SET value = 'Priced per active lease, not per address or per seat. Vacancies cost you nothing. Your bill on the 1st is the bill on the 1st — and if it ever changes, you know 30 days before it does.' WHERE key = 'pricing_sub';

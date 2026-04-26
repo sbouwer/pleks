@@ -2,192 +2,249 @@
 
 import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
-import Image from "next/image"
-import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent } from "@/components/ui/sheet"
-import { Menu, User, LogOut, LayoutDashboard } from "lucide-react"
+import { usePathname } from "next/navigation"
+import { Menu, User, LogIn, LogOut, LayoutDashboard, Sun, Moon } from "lucide-react"
+import { AccentBracket } from "@/components/ui/AccentBracket"
 import { createClient } from "@/lib/supabase/client"
-import { cn } from "@/lib/utils"
+import { usePublicTheme } from "./PublicThemeProvider"
+import { Sheet, SheetContent } from "@/components/ui/sheet"
 
 const NAV_LINKS = [
-  { href: "/pricing", label: "Pricing" },
-  { href: "/for-agents", label: "For Agents" },
-  { href: "/for-landlords", label: "For Landlords" },
-  { href: "/migrate", label: "Migrate" },
+  { href: "/#why",       label: "Why Pleks" },
+  { href: "/#artefact",  label: "The work" },
+  { href: "/#charter",   label: "Charter" },
+  { href: "/#story",     label: "Who built this" },
+  { href: "/#pricing",   label: "Pricing" },
+  { href: "/#founding",  label: "Founding agents" },
+  { href: "/contact",    label: "Contact" },
 ]
 
+// Shared style for all icon-only buttons in the nav lives in public.css as `.pub-icon-btn`
+// (theme toggle, sign-in, profile). Use `.pub-icon-btn--active` for the logged-in state.
+
+async function handleLogout() {
+  const supabase = createClient()
+  await supabase.auth.signOut()
+  globalThis.location.href = "/"
+}
+
 export function PublicNav() {
-  const [mobileOpen, setMobileOpen] = useState(false)
-  const [profileOpen, setProfileOpen] = useState(false)
-  const [user, setUser] = useState<{ email?: string } | null>(null)
-  const [visible, setVisible] = useState(true)
-  const lastScrollRef = useRef(0)
+  const [mobileOpen, setMobileOpen]     = useState(false)
+  const [profileOpen, setProfileOpen]   = useState(false)
+  // undefined = checking; null = logged out; object = logged in
+  const [user, setUser]                 = useState<{ email?: string } | null | undefined>(undefined)
+  const [scrollHidden, setScrollHidden] = useState(false)
+  const [activeSection, setActiveSection] = useState("")
+  const lastScrollRef                   = useRef(0)
+  const { theme, toggle }               = usePublicTheme()
+  const pathname                        = usePathname()
 
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser()
-      .then(({ data }) => {
-        setUser(data.user ? { email: data.user.email ?? undefined } : null)
-      })
-      .catch(() => { setUser(null) })
+      .then(({ data }) => setUser(data.user ? { email: data.user.email ?? undefined } : null))
+      .catch(() => setUser(null))
   }, [])
 
-  // Scroll-away on mobile: hide when scrolling down, show on scroll up
+  // Scrollspy — activate nav link matching the section in the upper viewport
+  useEffect(() => {
+    const ids = NAV_LINKS.filter(l => l.href.startsWith("/#")).map(l => l.href.replace("/#", ""))
+    const els = ids.map(id => document.getElementById(id)).filter((el): el is HTMLElement => el !== null)
+    const io = new IntersectionObserver(
+      entries => {
+        entries.forEach(e => {
+          // Only mark active once the user has scrolled past the hero
+          if (e.isIntersecting && globalThis.scrollY > 80) setActiveSection(e.target.id)
+        })
+      },
+      { rootMargin: "-20% 0px -60% 0px", threshold: 0 },
+    )
+    els.forEach(el => io.observe(el))
+    // Clear active state when scrolled back to the top
+    const onScroll = () => { if (globalThis.scrollY < 80) setActiveSection("") }
+    globalThis.addEventListener("scroll", onScroll, { passive: true })
+    return () => { io.disconnect(); globalThis.removeEventListener("scroll", onScroll) }
+  }, [])
+
+  // Hide nav on scroll-down on mobile only
   useEffect(() => {
     const handleScroll = () => {
+      if (globalThis.innerWidth >= 768) return
       const current = globalThis.scrollY
-      setVisible(current < lastScrollRef.current || current < 64)
+      setScrollHidden(current > lastScrollRef.current && current > 64)
       lastScrollRef.current = current
     }
     globalThis.addEventListener("scroll", handleScroll, { passive: true })
     return () => globalThis.removeEventListener("scroll", handleScroll)
   }, [])
 
-  async function handleLogout() {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    globalThis.location.href = "/"
-  }
-
   return (
     <header
-      className={cn(
-        "sticky top-0 z-50 border-b border-border/30 bg-background/80 backdrop-blur-xl",
-        "transition-transform duration-300",
-        // On mobile: slide away when scrolling down; desktop always visible
-        !visible && "-translate-y-full md:translate-y-0"
-      )}
+      style={{
+        position: "sticky", top: 0, zIndex: 40,
+        background: "color-mix(in oklch, var(--paper) 92%, transparent)",
+        backdropFilter: "saturate(140%) blur(8px)",
+        borderBottom: "1px solid var(--rule)",
+        transition: "transform 300ms",
+        transform: scrollHidden ? "translateY(-100%)" : "translateY(0)",
+      }}
     >
-      <nav className="max-w-6xl mx-auto px-4 h-16 grid grid-cols-[auto_1fr_auto] items-center">
-        {/* Left: logo */}
-        <Link href="/" className="shrink-0">
-          <Image src="/logo.svg" alt="Pleks" width={90} height={28} className="h-7 w-auto" priority />
+      <div className="pub-wrap" style={{ height: 64, display: "flex", alignItems: "center", gap: 24 }}>
+
+        {/* Wordmark */}
+        <Link href="/" className="pub-wordmark" aria-label="Pleks" style={{ flexShrink: 0 }}>
+          <span className="pub-wm-name">
+            {"plek"}<AccentBracket>{"s"}</AccentBracket>
+          </span>
         </Link>
 
-        {/* Centre: nav links + Start free (desktop only) */}
-        <div className="hidden md:flex items-center justify-center gap-6">
-          {NAV_LINKS.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {link.label}
-            </Link>
-          ))}
+        {/* Centre nav — desktop only */}
+        <nav aria-label="Site sections" className="hidden md:flex" style={{ flex: 1, justifyContent: "center", gap: 2, alignItems: "center" }}>
+          {NAV_LINKS.map(link => {
+            const id = link.href.replace("/#", "")
+            const isActive = link.href.startsWith("/#") ? activeSection === id : pathname === link.href
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={isActive ? "stoep" : undefined}
+                style={{
+                  fontSize: 13.5, fontWeight: 500,
+                  color: isActive ? "var(--ink)" : "var(--ink-soft)",
+                  padding: isActive ? "6px 11px 4px" : "6px 11px",
+                  borderRadius: "var(--r-sm)",
+                  transition: "color .15s, background .15s",
+                  whiteSpace: "nowrap",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.color = "var(--amber-ink)"; e.currentTarget.style.background = "var(--amber-wash)" }}
+                onMouseLeave={e => { e.currentTarget.style.color = isActive ? "var(--ink)" : "var(--ink-soft)"; e.currentTarget.style.background = "transparent" }}
+              >
+                {link.label}
+              </Link>
+            )
+          })}
+          {/* Start free CTA — sits right after the last nav link, hidden when logged in */}
           {!user && (
-            <Button size="sm" variant="outline" render={<Link href="/onboarding" />}>
+            <Link
+              href="/onboarding"
+              className="btn-pleks"
+              style={{ fontSize: 13, marginLeft: 8 }}
+            >
               Start free
-            </Button>
+            </Link>
           )}
-        </div>
+        </nav>
 
-        {/* Right: auth state + mobile hamburger */}
-        <div className="flex items-center justify-end gap-3">
-          {/* Desktop: profile dropdown */}
+        {/* Right actions */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto", flexShrink: 0 }}>
+
+          {/* Theme toggle */}
+          <button
+            type="button"
+            onClick={toggle}
+            className="pub-icon-btn"
+            aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
+          >
+            {theme === "light" ? <Moon size={15} /> : <Sun size={15} />}
+          </button>
+
+          {/* Auth icon — same size/style as theme toggle, only icon changes */}
           {user ? (
+            /* Logged in: User icon opens profile dropdown */
             <div className="relative hidden md:block">
               <button
                 type="button"
-                onClick={() => setProfileOpen(!profileOpen)}
-                className="flex items-center justify-center size-8 rounded-full bg-brand/10 text-brand hover:bg-brand/20 transition-colors"
+                onClick={() => setProfileOpen(p => !p)}
+                className="pub-icon-btn pub-icon-btn--active"
                 aria-label="Account menu"
               >
-                <User className="size-4" />
+                <User size={15} />
               </button>
               {profileOpen && (
                 <>
-                  <button
-                    type="button"
-                    className="fixed inset-0 z-40 cursor-default"
+                  <button type="button" aria-label="Close"
+                    style={{ position: "fixed", inset: 0, zIndex: 40, cursor: "default", background: "transparent", border: "none" }}
                     onClick={() => setProfileOpen(false)}
-                    aria-label="Close menu"
                   />
-                  <div className="absolute right-0 top-10 z-50 w-52 rounded-lg border border-border bg-popover shadow-lg py-1">
-                    <p className="px-3 py-2 text-xs text-muted-foreground truncate border-b border-border/50">
+                  <div style={{
+                    position: "absolute", right: 0, top: 42, zIndex: 50, width: 200,
+                    borderRadius: "var(--r-md)", border: "1px solid var(--rule)",
+                    background: "var(--paper-raised)", boxShadow: "var(--shadow-2)", padding: "4px 0",
+                  }}>
+                    <p className="pub-xs" style={{ padding: "8px 12px", borderBottom: "1px solid var(--rule)", margin: 0 }}>
                       {user.email}
                     </p>
-                    <Link
-                      href="/dashboard"
-                      className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-surface-elevated transition-colors"
-                      onClick={() => setProfileOpen(false)}
-                    >
-                      <LayoutDashboard className="size-4 text-muted-foreground" />
-                      Dashboard
+                    <Link href="/dashboard"
+                      style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", fontSize: 13, color: "var(--ink)" }}
+                      onClick={() => setProfileOpen(false)}>
+                      <LayoutDashboard size={14} style={{ color: "var(--ink-mute)" }} /> Dashboard
                     </Link>
-                    <button
-                      type="button"
-                      onClick={handleLogout}
-                      className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-surface-elevated transition-colors w-full text-left text-danger"
-                    >
-                      <LogOut className="size-4" />
-                      Log out
+                    <button type="button" onClick={handleLogout}
+                      style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", fontSize: 13, color: "var(--critical)", width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer" }}>
+                      <LogOut size={14} /> Log out
                     </button>
                   </div>
                 </>
               )}
             </div>
           ) : (
-            <Button size="sm" className="hidden md:inline-flex" render={<Link href="/login" />}>
-              Sign in
-            </Button>
+            /* Logged out (or checking): LogIn icon — same bordered style, no text */
+            <Link
+              href="/login"
+              className="pub-icon-btn hidden md:flex"
+              aria-label="Sign in"
+            >
+              <LogIn size={15} />
+            </Link>
           )}
 
-          {/* Mobile: hamburger opens bottom sheet */}
-          <button
-            className="md:hidden p-2 -mr-2"
-            onClick={() => setMobileOpen(true)}
-            aria-label="Open menu"
-          >
-            <Menu className="size-5" />
+          {/* Hamburger — mobile only */}
+          <button className="md:hidden" onClick={() => setMobileOpen(true)} aria-label="Open menu"
+            style={{ padding: 8, background: "none", border: "none", cursor: "pointer", color: "var(--ink)" }}>
+            <Menu size={20} />
           </button>
         </div>
-      </nav>
+      </div>
 
-      {/* Mobile menu — bottom sheet */}
+      {/* Mobile sheet */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetContent side="bottom" className="rounded-t-xl pb-8">
-          <div className="flex flex-col gap-1 py-4">
-            {NAV_LINKS.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="py-3 px-2 text-sm text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-surface-elevated"
-                onClick={() => setMobileOpen(false)}
-              >
+          <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "16px 0" }}>
+            {NAV_LINKS.map(link => (
+              <Link key={link.href} href={link.href}
+                style={{ padding: "11px 8px", fontSize: 14, fontWeight: 500, color: "var(--ink-soft)", borderRadius: "var(--r-sm)" }}
+                onClick={() => setMobileOpen(false)}>
                 {link.label}
               </Link>
             ))}
           </div>
-          <div className="flex flex-col gap-2 pt-3 border-t border-border/30">
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingTop: 12, borderTop: "1px solid var(--rule)" }}>
+            <button type="button" onClick={toggle}
+              style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 8px", fontSize: 14, color: "var(--ink-soft)", background: "none", border: "none", cursor: "pointer", textAlign: "left" }}>
+              {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
+              {theme === "light" ? "Dark mode" : "Light mode"}
+            </button>
             {user ? (
               <>
-                <p className="text-xs text-muted-foreground px-2 mb-1">{user.email}</p>
-                <Link
-                  href="/dashboard"
-                  className="flex items-center gap-2 py-2 px-2 text-sm hover:text-foreground transition-colors rounded-lg hover:bg-surface-elevated"
-                  onClick={() => setMobileOpen(false)}
-                >
-                  <LayoutDashboard className="size-4" />
-                  Dashboard
+                <p className="pub-xs" style={{ padding: "0 8px", margin: 0 }}>{user.email}</p>
+                <Link href="/dashboard"
+                  style={{ padding: "10px 8px", fontSize: 14, color: "var(--ink)", display: "flex", alignItems: "center", gap: 8 }}
+                  onClick={() => setMobileOpen(false)}>
+                  <LayoutDashboard size={16} /> Dashboard
                 </Link>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="flex items-center gap-2 py-2 px-2 text-sm text-danger text-left rounded-lg"
-                >
-                  <LogOut className="size-4" />
-                  Log out
+                <button type="button" onClick={handleLogout}
+                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 8px", fontSize: 14, color: "var(--critical)", textAlign: "left", background: "none", border: "none", cursor: "pointer" }}>
+                  <LogOut size={16} /> Log out
                 </button>
               </>
             ) : (
               <>
-                <Button variant="outline" className="w-full" render={<Link href="/onboarding" />}>
+                <Link href="/login" className="btn-pleks ghost" style={{ justifyContent: "center" }}>
+                  <LogIn size={15} /> Sign in
+                </Link>
+                <Link href="/onboarding" className="btn-pleks" style={{ justifyContent: "center" }}>
                   Start free
-                </Button>
-                <Button className="w-full" render={<Link href="/login" />}>
-                  Sign in
-                </Button>
+                </Link>
               </>
             )}
           </div>

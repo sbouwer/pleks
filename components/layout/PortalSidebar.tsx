@@ -15,16 +15,16 @@ const PORTAL_NAV_GROUPS: NavGroup[] = [
   {
     title: "Main",
     items: [
-      { href: "/portal", label: "Dashboard", icon: LayoutDashboard },
-      { href: "/portal/payments", label: "Payments", icon: CreditCard },
-      { href: "/portal/lease", label: "My Lease", icon: FileText },
+      { href: "/tenant", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/tenant/payments", label: "Payments", icon: CreditCard },
+      { href: "/tenant/lease", label: "My Lease", icon: FileText },
     ],
   },
   {
     title: "Services",
     items: [
-      { href: "/portal/maintenance", label: "Maintenance", icon: Wrench },
-      { href: "/portal/account", label: "Account", icon: UserCircle },
+      { href: "/tenant/maintenance", label: "Maintenance", icon: Wrench },
+      { href: "/tenant/account", label: "Account", icon: UserCircle },
     ],
   },
 ]
@@ -41,7 +41,7 @@ export function PortalSidebar() {
     >
       <SidebarContent
         groups={PORTAL_NAV_GROUPS}
-        homeHref="/portal"
+        homeHref="/tenant"
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed((c) => !c)}
         badge="Tenant"

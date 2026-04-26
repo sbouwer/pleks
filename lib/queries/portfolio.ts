@@ -79,7 +79,7 @@ export async function fetchLeases(supabase: SupabaseClient, orgId: string) {
     .select(`
       id, status, lease_type, start_date, end_date, rent_amount_cents,
       notice_period_days, is_fixed_term, cpa_applies,
-      auto_renewal_notice_sent_at, debicheck_mandate_status,
+      auto_renewal_notice_sent_at,
       escalation_review_date, tenant_id,
       tenant_view(id, first_name, last_name, company_name, entity_type),
       units(unit_number, properties(name, suburb, city)),

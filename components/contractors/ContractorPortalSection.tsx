@@ -29,7 +29,7 @@ export function ContractorPortalSection({
 
   async function sendInvite() {
     setSending(true)
-    const res = await fetch(`/api/contractors/${contractorId}/portal-invite`, { method: "POST" })
+    const res = await fetch(`/api/suppliers/${contractorId}/portal-invite`, { method: "POST" })
     setSending(false)
 
     if (!res.ok) {
@@ -57,7 +57,7 @@ export function ContractorPortalSection({
             <span className="font-medium text-foreground">Firm</span> plans.
           </p>
           <Link
-            href="/settings/billing"
+            href="/settings/subscription"
             className="inline-flex items-center gap-1 text-xs text-brand hover:underline mt-1"
           >
             Compare plans <ExternalLink className="h-3 w-3" />
