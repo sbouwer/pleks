@@ -29,7 +29,7 @@ export function ContractorPortalSection({
 
   async function sendInvite() {
     setSending(true)
-    const res = await fetch(`/api/contractors/${contractorId}/portal-invite`, { method: "POST" })
+    const res = await fetch(`/api/suppliers/${contractorId}/portal-invite`, { method: "POST" })
     setSending(false)
 
     if (!res.ok) {

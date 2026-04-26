@@ -34,7 +34,7 @@ export function ContractorBankingForm({
   function handleSave() {
     startTransition(async () => {
       try {
-        const res = await fetch("/api/contractors", {
+        const res = await fetch("/api/suppliers", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: contractorId, ...form }),

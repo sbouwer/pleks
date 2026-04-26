@@ -162,7 +162,7 @@ export function SuppliersClient({ contractors: initial, orgId }: Readonly<Props>
 
   async function handleDelete(c: Contractor) {
     setDeletingId(c.id)
-    const res = await fetch("/api/contractors", {
+    const res = await fetch("/api/suppliers", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ contractorId: c.id, contactId: c.contact_id }),
@@ -365,7 +365,7 @@ export function AddContractorButton({ orgId, supplierType = "contractor" }: Read
       return
     }
     setSaving(true)
-    const res = await fetch("/api/contractors", {
+    const res = await fetch("/api/suppliers", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

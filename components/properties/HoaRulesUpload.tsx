@@ -45,7 +45,7 @@ export function HoaRulesUpload({
     formData.append("file", file)
     formData.append("schemeId", managingSchemeId!)
 
-    const res = await fetch("/api/contractors/scheme-rules/upload", {
+    const res = await fetch("/api/suppliers/scheme-rules/upload", {
       method: "POST",
       body: formData,
     })
@@ -64,7 +64,7 @@ export function HoaRulesUpload({
 
   async function handleRemove() {
     setRemoving(true)
-    const res = await fetch(`/api/contractors/scheme-rules/upload?schemeId=${managingSchemeId}`, {
+    const res = await fetch(`/api/suppliers/scheme-rules/upload?schemeId=${managingSchemeId}`, {
       method: "DELETE",
     })
     setRemoving(false)
@@ -98,7 +98,7 @@ export function HoaRulesUpload({
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <a
-            href={`/api/contractors/scheme-rules/download?schemeId=${managingSchemeId}`}
+            href={`/api/suppliers/scheme-rules/download?schemeId=${managingSchemeId}`}
             target="_blank"
             rel="noopener noreferrer"
             className="text-xs text-brand hover:underline flex items-center gap-0.5"

@@ -4,7 +4,7 @@ import { sendPortalInvite } from "@/lib/contractors/sendPortalInvite"
 
 const PORTAL_TIERS = new Set(["portfolio", "firm"])
 
-// POST /api/contractors/[id]/portal-invite
+// POST /api/suppliers/[id]/portal-invite
 // Sends (or resends) a portal invite to the contractor.
 // Requires Portfolio or Firm tier.
 export async function POST(
