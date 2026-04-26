@@ -12,7 +12,7 @@ const SECTIONS = [
       { href: "/properties", label: "Properties" },
       { href: "/landlords", label: "Landlords" },
       { href: "/tenants", label: "Tenants" },
-      { href: "/contractors", label: "Suppliers" },
+      { href: "/suppliers", label: "Suppliers" },
       { href: "/leases", label: "Leases" },
     ],
   },

@@ -8,7 +8,7 @@ import { SectionCard } from "@/components/contacts/SectionCard"
 import { RelationshipCard } from "@/components/contacts/RelationshipCard"
 import { StatGrid } from "@/components/contacts/StatGrid"
 import { ActivityTimeline } from "@/components/contacts/ActivityTimeline"
-import { ContractorContactSection, ContractorRatesSection, ContractorBankingSection, ContractorAddressSection } from "./ContractorSections"
+import { ContractorContactSection, ContractorRatesSection, ContractorBankingSection, ContractorAddressSection } from "./SupplierSections"
 import { ContractorPortalSection } from "@/components/contractors/ContractorPortalSection"
 import { formatZAR } from "@/lib/constants"
 
@@ -108,7 +108,7 @@ export default async function ContractorDetailPage({ params }: Props) {
     .eq("org_id", membership.org_id)
     .single()
 
-  if (!contractor) redirect("/contractors")
+  if (!contractor) redirect("/suppliers")
 
   // Fetch banking + portal info from contractors table
   const { data: contractorBanking } = await service
@@ -212,7 +212,7 @@ export default async function ContractorDetailPage({ params }: Props) {
   void contractorContacts
 
   return (
-    <ContactDetailLayout breadcrumb={{ label: "Contractors", href: "/contractors" }} sidebar={
+    <ContactDetailLayout breadcrumb={{ label: "Contractors", href: "/suppliers" }} sidebar={
       <ContactSidebar
         avatar={{ initials: initials(displayName), bgColor: "#FFF7ED", textColor: "#C2410C" }}
         name={displayName}

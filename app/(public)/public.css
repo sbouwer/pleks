@@ -127,6 +127,7 @@
 .pub-hero {
   padding: 88px 0 96px;
   position: relative;
+  overflow: hidden;  /* clip RentRollSVG bleed (right: -3%) so it doesn't push body width */
 }
 .pub-hero::before {
   content: ""; position: absolute; inset: 0; pointer-events: none;

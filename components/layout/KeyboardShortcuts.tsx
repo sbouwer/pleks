@@ -11,7 +11,7 @@ const GO_ROUTES: Record<string, string> = {
   i: "/inspections",
   d: "/dashboard",
   a: "/billing/arrears",
-  c: "/contractors",
+  c: "/suppliers",
 }
 
 const HELP_ITEMS = [

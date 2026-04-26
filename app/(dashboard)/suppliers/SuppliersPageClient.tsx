@@ -6,7 +6,7 @@ import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { HardHat } from "lucide-react"
-import { ContractorsClient, AddContractorButton, type Contractor } from "./ContractorsClient"
+import { SuppliersClient, AddContractorButton, type Contractor } from "./SuppliersClient"
 import { PORTFOLIO_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchContractorsAction } from "@/lib/queries/portfolioActions"
 
@@ -19,7 +19,7 @@ const TABS: { key: SupplierTab; label: string; singular: string; plural: string 
 
 interface Props { orgId: string }
 
-export function ContractorsPageClient({ orgId }: Props) {
+export function SuppliersPageClient({ orgId }: Props) {
   const searchParams = useSearchParams()
   const type = searchParams.get("type")
   const activeTab: SupplierTab = type === "managing_scheme" || type === "utility" ? type : "contractor"
@@ -46,7 +46,7 @@ export function ContractorsPageClient({ orgId }: Props) {
       <div className="flex gap-1 border-b border-border mb-6">
         {TABS.map((tab) => (
           <Link key={tab.key}
-            href={tab.key === "contractor" ? "/contractors" : `/contractors?type=${tab.key}`}
+            href={tab.key === "contractor" ? "/suppliers" : `/contractors?type=${tab.key}`}
             className={cn("px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
               activeTab === tab.key ? "border-brand text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
             )}>
@@ -61,7 +61,7 @@ export function ContractorsPageClient({ orgId }: Props) {
           description={`Add your first ${tabInfo.label.toLowerCase().slice(0, -1)} using the button above.`}
         />
       ) : (
-        <ContractorsClient contractors={contractors} orgId={orgId} />
+        <SuppliersClient contractors={contractors} orgId={orgId} />
       )}
     </div>
   )

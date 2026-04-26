@@ -104,7 +104,7 @@ function ColHeader({ col, label, sortKey, sortDir, onSort }: Readonly<{ col: Sor
   )
 }
 
-export function ContractorsClient({ contractors: initial, orgId }: Readonly<Props>) {
+export function SuppliersClient({ contractors: initial, orgId }: Readonly<Props>) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const [search, setSearch] = useState("")

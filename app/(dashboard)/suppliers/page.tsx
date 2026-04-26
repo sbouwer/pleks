@@ -3,7 +3,7 @@ import { redirect } from "next/navigation"
 import { getServerOrgMembership } from "@/lib/auth/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { PORTFOLIO_QUERY_KEYS, STALE_TIME, fetchContractors } from "@/lib/queries/portfolio"
-import { ContractorsPageClient } from "./ContractorsPageClient"
+import { SuppliersPageClient } from "./SuppliersPageClient"
 
 export default async function ContractorsPage() {
   const membership = await getServerOrgMembership()
@@ -22,7 +22,7 @@ export default async function ContractorsPage() {
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <ContractorsPageClient orgId={orgId} />
+      <SuppliersPageClient orgId={orgId} />
     </HydrationBoundary>
   )
 }

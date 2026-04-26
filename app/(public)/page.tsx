@@ -560,7 +560,9 @@ export default async function HomePage() {
               <strong style={{ color: "var(--ink)" }}>If Pleks costs you more per month than what you&apos;re paying today, I want to know.</strong>{" "}
               I&apos;ll get on a call, walk the numbers with you, and if the maths doesn&apos;t land I&apos;ll tell you so myself — no form, no SDR.
             </p>
-            <a href="mailto:stean@pleks.co.za" style={{ fontFamily: "var(--pub-mono)", fontSize: 13, color: "var(--ink)", borderBottom: "1px solid var(--rule-strong)", paddingBottom: 1, whiteSpace: "nowrap" }}>stean@pleks.co.za</a>
+            <Link href="/contact" className="btn-pleks ghost" style={{ whiteSpace: "nowrap" }}>
+              Get in touch →
+            </Link>
           </div>
         </div>
       </section>
