@@ -3,6 +3,7 @@ import { formatZAR } from "@/lib/constants"
 import { ShieldCheck, User, Building2, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { InsuranceChecklist, type ChecklistItemRow } from "./InsuranceChecklist"
+import { RenewalBanner } from "./RenewalBanner"
 
 export interface InsurancePolicy {
   insurance_policy_number:          string | null
@@ -136,6 +137,8 @@ export function InsuranceTab({
   const daysUntilRenewal = computeDaysUntilRenewal(policy.insurance_renewal_date)
 
   return (
+    <div>
+    <RenewalBanner propertyId={propertyId} rows={checklist} />
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
     <div className="space-y-6">
       {/* Policy card */}
@@ -314,6 +317,7 @@ export function InsuranceTab({
     {/* Right column — verification checklist */}
     <InsuranceChecklist propertyId={propertyId} rows={checklist} canTick={canTick} />
 
+    </div>
     </div>
   )
 }

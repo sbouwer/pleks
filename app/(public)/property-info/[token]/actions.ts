@@ -190,6 +190,143 @@ async function notifyRequester(
   })
 }
 
+// ── Insurance checklist owner-response action ─────────────────────────────────
+
+export interface ChecklistSubmitPayload {
+  token:        string
+  consentGiven: boolean
+  /** item_code → owner answer */
+  answers: Record<string, "yes" | "no" | "not_sure">
+}
+
+type ServiceClient = Awaited<ReturnType<typeof createServiceClient>>
+
+interface ChecklistItemResult {
+  confirmed: number
+  uncertain: number
+}
+
+async function applyChecklistAnswer(
+  service:    ServiceClient,
+  propertyId: string,
+  itemCode:   string,
+  answer:     "yes" | "no" | "not_sure",
+): Promise<ChecklistItemResult> {
+  const { data: existing } = await service
+    .from("property_insurance_checklists")
+    .select("id, state")
+    .eq("property_id", propertyId)
+    .eq("item_code", itemCode)
+    .single()
+
+  if (!existing) return { confirmed: 0, uncertain: 0 }
+
+  const priorState = existing.state as string
+  const newState: "confirmed" | "unknown" = answer === "yes" ? "confirmed" : "unknown"
+  const noteAppend = answer === "not_sure" ? "owner uncertain" : null
+
+  if (priorState !== newState) {
+    const now = new Date().toISOString()
+    await service
+      .from("property_insurance_checklists")
+      .update({
+        state:         newState,
+        confirmed_at:  newState === "confirmed" ? now : null,
+        confirmed_by:  null,
+        confirmed_via: newState === "confirmed" ? "owner_response" : null,
+        ...(noteAppend && { notes: noteAppend }),
+      })
+      .eq("id", existing.id)
+
+    await service.from("property_insurance_checklist_events").insert({
+      checklist_id: existing.id,
+      event_type:   newState === "confirmed" ? "confirmed" : "unconfirmed",
+      prior_state:  priorState,
+      new_state:    newState,
+      source:       "owner",
+      payload: {
+        answer,
+        via: "magic_link",
+        ...(noteAppend && { note: noteAppend }),
+      },
+    })
+  }
+
+  return {
+    confirmed: newState === "confirmed" ? 1 : 0,
+    uncertain: newState === "unknown"   ? 1 : 0,
+  }
+}
+
+export async function submitOwnerChecklistResponse(
+  input: ChecklistSubmitPayload,
+): Promise<SubmitResult> {
+  if (!input.consentGiven) return { ok: false, error: "POPIA consent is required" }
+  if (!input.token)        return { ok: false, error: "Missing token" }
+
+  const service = await createServiceClient()
+
+  const { data: req, error } = await service
+    .from("property_info_requests")
+    .select("id, org_id, property_id, topic, status, expires_at, requested_by, recipient_type")
+    .eq("token", input.token)
+    .single()
+
+  if (error || !req) return { ok: false, error: "Link not found" }
+  if (req.status === "completed" || req.status === "dismissed") {
+    return { ok: false, error: "This request has already been closed" }
+  }
+  if (new Date(req.expires_at as string) < new Date()) {
+    await service.from("property_info_requests").update({ status: "expired" }).eq("id", req.id)
+    return { ok: false, error: "Link expired" }
+  }
+
+  // POPIA consent log (best-effort)
+  await service.from("consent_log").insert({
+    org_id:          req.org_id,
+    consent_type:    "property_info_submission",
+    consent_version: "1.0",
+    given_at:        new Date().toISOString(),
+    entity_type:     "property_info_request",
+    entity_id:       req.id,
+    metadata:        { topic: "insurance_checklist" },
+  }).then(() => null, () => null)
+
+  let confirmedCount = 0
+  let uncertainCount = 0
+  const propertyId = req.property_id as string
+
+  for (const [itemCode, answer] of Object.entries(input.answers)) {
+    const result = await applyChecklistAnswer(service, propertyId, itemCode, answer)
+    confirmedCount += result.confirmed
+    uncertainCount += result.uncertain
+  }
+
+  // Mark the info-request as completed
+  await service
+    .from("property_info_requests")
+    .update({ status: "completed", completed_at: new Date().toISOString() })
+    .eq("id", req.id)
+
+  await service.from("property_info_request_events").insert({
+    request_id: req.id,
+    event_type: "completed",
+    payload: {
+      mode:            "insurance_checklist",
+      confirmed_count: confirmedCount,
+      uncertain_count: uncertainCount,
+      total_items:     Object.keys(input.answers).length,
+    },
+  })
+
+  // Notify the requesting agent (best-effort)
+  await notifyRequester(service, req as RequestRowForNotify).catch((e) => {
+    console.error("submitOwnerChecklistResponse: requester notification failed:", e)
+  })
+
+  return { ok: true }
+}
+
 // ── Main action ───────────────────────────────────────────────────────────────
 
 export async function submitPropertyInfo(input: SubmitPayload): Promise<SubmitResult> {

@@ -3,7 +3,6 @@ import { GET as invoiceGenerate } from "../invoice-generate/route"
 import { GET as leaseExpiryCheck } from "../lease-expiry-check/route"
 import { GET as arrearsSequence } from "../arrears-sequence/route"
 import { GET as scheduledReports } from "../scheduled-reports/route"
-import { GET as debicheckCollection } from "../debicheck-collection/route"
 import { GET as ownerStatementGen } from "../owner-statement-gen/route"
 import { GET as depositInterest } from "../deposit-interest/route"
 import { GET as levyGenerate } from "../levy-generate/route"
@@ -15,6 +14,7 @@ import { GET as primeRateSync } from "../prime-rate-sync/route"
 import { GET as maintenanceDelayCheck } from "../maintenance-delay-check/route"
 import { GET as bankFeedSync } from "../bank-feed-sync/route"
 import { GET as infoRequests } from "../info-requests/route"
+import { GET as insuranceRenewals } from "../insurance-renewals/route"
 
 type CronHandler = (req: NextRequest) => Promise<Response>
 
@@ -52,7 +52,6 @@ export async function GET(req: NextRequest) {
   await runJob("invoice_generate", invoiceGenerate, cronReq, results)
   await runJob("lease_expiry_check", leaseExpiryCheck, cronReq, results)
   await runJob("arrears_sequence", arrearsSequence, cronReq, results)
-  await runJob("debicheck_collection", debicheckCollection, cronReq, results)
   await runJob("scheduled_reports", scheduledReports, cronReq, results)
   await runJob("deposit_interest", depositInterest, cronReq, results)
   await runJob("arrears_interest", arrearsInterest, cronReq, results)
@@ -63,6 +62,7 @@ export async function GET(req: NextRequest) {
   await runJob("maintenance_delay_check", maintenanceDelayCheck, cronReq, results)
   await runJob("bank_feed_sync", bankFeedSync, cronReq, results)
   await runJob("info_requests", infoRequests, cronReq, results)
+  await runJob("insurance_renewals", insuranceRenewals, cronReq, results)
 
   // Monthly jobs
   if (dayOfMonth === 1) {

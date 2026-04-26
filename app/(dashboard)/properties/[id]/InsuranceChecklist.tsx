@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { CheckCircle2, Circle, Minus, ChevronDown, ChevronUp, Loader2 } from "lucide-react"
+import { CheckCircle2, Circle, Minus, ChevronDown, ChevronUp, Loader2, Send } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 import {
   confirmChecklistItem,
   unconfirmChecklistItem,
@@ -10,6 +11,7 @@ import {
   unmarkItemNotApplicable,
   addChecklistItemNote,
 } from "./insuranceChecklistActions"
+import { sendBrokerBrief } from "@/lib/insurance-checklist/sendBrokerBrief"
 
 export interface ChecklistItemRow {
   id: string
@@ -306,6 +308,15 @@ export function InsuranceChecklist({ propertyId, rows, canTick }: Props) {
   const confirmed = applicable.filter((r) => r.state === "confirmed").length
   const total = applicable.length
   const pct = total === 0 ? 100 : Math.round((confirmed / total) * 100)
+  const [briefPending, startBrief] = useTransition()
+
+  function handleSendBrief() {
+    startBrief(async () => {
+      const result = await sendBrokerBrief(propertyId)
+      if (result.ok) toast.success("Broker brief sent")
+      else toast.error(result.error ?? "Failed to send brief")
+    })
+  }
 
   if (rows.length === 0) {
     return (
@@ -356,6 +367,25 @@ export function InsuranceChecklist({ propertyId, rows, canTick }: Props) {
           />
         ))}
       </div>
+
+      {/* Footer — Steward+ only */}
+      {canTick && (
+        <div className="px-4 py-3 border-t">
+          <button
+            type="button"
+            onClick={handleSendBrief}
+            disabled={briefPending}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+          >
+            {briefPending ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Send className="w-3.5 h-3.5" />
+            )}
+            Send broker brief
+          </button>
+        </div>
+      )}
     </div>
   )
 }

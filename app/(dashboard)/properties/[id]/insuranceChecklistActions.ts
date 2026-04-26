@@ -202,6 +202,50 @@ export async function unmarkItemNotApplicable(
   return { ok: true }
 }
 
+export async function bulkConfirmRenewalItems(
+  propertyId: string,
+  itemIds: string[],
+): Promise<ActionResult> {
+  if (itemIds.length === 0) return { ok: true }
+  const gw = await gateway()
+  if (!gw) return { ok: false, error: "Not authenticated" }
+  const { db, userId, orgId } = gw
+
+  const now = new Date().toISOString()
+
+  const { error: updErr } = await db
+    .from("property_insurance_checklists")
+    .update({
+      state: "confirmed",
+      confirmed_at: now,
+      confirmed_by: userId,
+      confirmed_via: "agent_inline",
+      updated_at: now,
+    })
+    .in("id", itemIds)
+    .eq("org_id", orgId)
+    .eq("property_id", propertyId)
+
+  if (updErr) {
+    console.error("bulkConfirmRenewalItems:", updErr.message)
+    return { ok: false, error: "Failed to confirm items" }
+  }
+
+  const events = itemIds.map((id) => ({
+    checklist_id: id,
+    event_type: "confirmed",
+    prior_state: "unknown",
+    new_state: "confirmed",
+    actor_user_id: userId,
+    source: "agent",
+    payload: { bulk: true, via: "renewal_banner" },
+  }))
+  await db.from("property_insurance_checklist_events").insert(events)
+
+  revalidatePath(`/properties/${propertyId}`)
+  return { ok: true }
+}
+
 export async function addChecklistItemNote(
   checklistRowId: string,
   propertyId: string,

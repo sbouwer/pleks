@@ -47,9 +47,30 @@ export async function notifyBroker(params: NotifyBrokerParams): Promise<{ logId?
 
   const brokerName = [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Broker"
 
-  const orgSettings = await fetchOrgSettings(params.orgId)
-  const branding    = buildBranding(orgSettings)
-  const appUrl      = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.pleks.co.za"
+  const [orgSettings, checklistResult] = await Promise.all([
+    fetchOrgSettings(params.orgId),
+    db.from("property_insurance_checklists")
+      .select("state, confirmed_at")
+      .eq("property_id", params.propertyId)
+      .neq("state", "not_applicable"),
+  ])
+
+  const checklist = checklistResult.data ?? []
+  const coverageTotalCount     = checklist.length > 0 ? checklist.length : undefined
+  const coverageConfirmedCount = coverageTotalCount === undefined
+    ? undefined
+    : checklist.filter((r) => r.state === "confirmed").length
+
+  const confirmedDates = checklist
+    .map((r) => r.confirmed_at as string | null)
+    .filter((d): d is string => !!d)
+  const latestConfirmedAt = confirmedDates.toSorted((a, b) => a.localeCompare(b)).at(-1) ?? null
+  const coverageLastVerified = latestConfirmedAt
+    ? new Date(latestConfirmedAt).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+    : null
+
+  const branding = buildBranding(orgSettings)
+  const appUrl   = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.pleks.co.za"
 
   const emailProps: CriticalIncidentBrokerProps = {
     branding,
@@ -63,6 +84,9 @@ export async function notifyBroker(params: NotifyBrokerParams): Promise<{ logId?
     agencyName:          params.agencyName,
     appUrl,
     maintenanceRequestId: params.maintenanceRequestId,
+    coverageLastVerified,
+    coverageConfirmedCount,
+    coverageTotalCount,
   }
 
   const result = await sendEmail({
