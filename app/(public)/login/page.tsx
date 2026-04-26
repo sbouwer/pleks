@@ -23,19 +23,6 @@ export default function LoginPage() {
   )
 }
 
-// Injected as a literal <style> tag — browser CSS :hover, zero dependency on
-// React events, Tailwind JIT, or CSS file loading order.
-const LOGIN_HOVER_CSS = `
-  #pleks-login-submit:not(:disabled):hover {
-    background: oklch(0.54 0.14 65) !important;
-    box-shadow: 0 0 0 3px oklch(0.68 0.14 65 / 0.28) !important;
-  }
-  #pleks-login-back:hover {
-    background: oklch(0.96 0.03 75) !important;
-    border-color: oklch(0.68 0.14 65) !important;
-    color: oklch(0.32 0.08 65) !important;
-  }
-`
 const BTN_PRIMARY: React.CSSProperties = {
   width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
   gap: 8, padding: "9px 18px", borderRadius: 5, fontSize: 14, fontWeight: 600,
@@ -200,7 +187,6 @@ function LoginContent() {
             </div>
           )}
 
-          <style dangerouslySetInnerHTML={{ __html: LOGIN_HOVER_CSS }} />
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
