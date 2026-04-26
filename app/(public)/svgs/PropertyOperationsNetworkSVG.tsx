@@ -240,7 +240,7 @@ export function PropertyOperationsNetworkSVG() {
           ))}
         </g>
         {/* Door */}
-        <rect x="100" y="600" width="22" height="25" strokeWidth="1" />
+        <rect x="104" y="605" width="16" height="20" strokeWidth="1" />
         {/* Building label */}
         <text x="50" y="645" fontFamily="JetBrains Mono, monospace" fontSize="8" fill="currentColor" stroke="none" opacity="0.7">
           PROP-A · 12 UNITS
