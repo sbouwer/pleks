@@ -1,3 +1,4 @@
+import { Suspense } from "react"
 import Link from "next/link"
 import { ContactForm } from "./ContactForm"
 import { PropertyOperationsNetworkSVG } from "@/app/(public)/svgs/PropertyOperationsNetworkSVG"
@@ -91,7 +92,9 @@ export default function ContactPage() {
 
           {/* Right column — form */}
           <div className="pub-contact-form-wrap">
-            <ContactForm />
+            <Suspense>
+              <ContactForm />
+            </Suspense>
           </div>
 
         </div>
