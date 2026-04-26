@@ -15,7 +15,7 @@ export default function DashboardLayout({
   children: React.ReactNode
 }>) {
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="pleks-portal flex h-screen overflow-hidden">
       <NavigationProgress />
       <PortfolioPrefetcher />
       <Sidebar />

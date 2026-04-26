@@ -347,3 +347,70 @@ table.ledger tr.paid td:first-child::before {
   --primary-foreground:oklch(0.27 0.006 250);
   --ring:              oklch(0.75 0.14 65);
 }
+
+/* ── Portal app — light-first theme ───────────────────────────────────────────
+   Applied to the outermost layout wrapper of every authenticated portal
+   (agent dashboard, landlord, tenant, supplier). Shares the public site's
+   warm paper palette so the product and marketing site feel like one thing.
+   ────────────────────────────────────────────────────────────────────────── */
+.pleks-portal {
+  color-scheme: light;
+  /* Paper & ink */
+  --paper:        oklch(0.985 0.004 85);
+  --paper-sunk:   oklch(0.965 0.005 85);
+  --paper-raised: oklch(0.998 0.002 85);
+  --ink:          oklch(0.18 0.012 260);
+  --ink-soft:     oklch(0.36 0.01 260);
+  --ink-mute:     oklch(0.54 0.008 260);
+  --ink-faint:    oklch(0.72 0.006 260);
+  --rule:         oklch(0.88 0.006 85);
+  --rule-strong:  oklch(0.78 0.008 85);
+  /* Accents */
+  --amber:        oklch(0.68 0.14 65);
+  --amber-ink:    oklch(0.32 0.08 65);
+  --amber-wash:   oklch(0.96 0.03 75);
+  /* Brand — slightly deeper amber for contrast on light bg */
+  --brand:        oklch(0.68 0.14 65);
+  --brand-hover:  oklch(0.62 0.16 65);
+  --brand-dim:    oklch(0.96 0.03 75);
+  --brand-rgb:    207, 143, 34;
+  /* Tailwind/shadcn compat — full light set */
+  --background:         oklch(0.985 0.004 85);
+  --foreground:         oklch(0.18 0.012 260);
+  --card:               oklch(0.998 0.002 85);
+  --card-foreground:    oklch(0.18 0.012 260);
+  --popover:            oklch(0.998 0.002 85);
+  --popover-foreground: oklch(0.18 0.012 260);
+  --primary:            oklch(0.68 0.14 65);
+  --primary-foreground: oklch(0.18 0.012 260);
+  --secondary:          oklch(0.965 0.005 85);
+  --secondary-foreground:oklch(0.18 0.012 260);
+  --muted:              oklch(0.965 0.005 85);
+  --muted-foreground:   oklch(0.54 0.008 260);
+  --accent:             oklch(0.965 0.005 85);
+  --accent-foreground:  oklch(0.18 0.012 260);
+  --destructive:        oklch(0.52 0.18 25);
+  --border:             oklch(0.88 0.006 85);
+  --input:              oklch(0.88 0.006 85);
+  --ring:               oklch(0.68 0.14 65);
+  --surface:            oklch(0.965 0.005 85);
+  --surface-elevated:   oklch(0.955 0.006 85);
+  /* Semantic — tuned for light bg */
+  --success:    oklch(0.52 0.12 150);
+  --success-bg: oklch(0.95 0.03 150);
+  --warning:    oklch(0.62 0.14 75);
+  --warning-bg: oklch(0.96 0.04 75);
+  --danger:     oklch(0.52 0.18 25);
+  --danger-bg:  oklch(0.96 0.03 25);
+  --info:       oklch(0.52 0.15 250);
+  --info-bg:    oklch(0.95 0.03 250);
+  /* Sidebar — light */
+  --sidebar:                    oklch(0.97 0.004 85);
+  --sidebar-foreground:         oklch(0.18 0.012 260);
+  --sidebar-primary:            oklch(0.68 0.14 65);
+  --sidebar-primary-foreground: oklch(0.18 0.012 260);
+  --sidebar-accent:             oklch(0.93 0.006 85);
+  --sidebar-accent-foreground:  oklch(0.18 0.012 260);
+  --sidebar-border:             oklch(0.88 0.006 85);
+  --sidebar-ring:               oklch(0.68 0.14 65);
+}

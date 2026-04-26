@@ -7,14 +7,14 @@ import { MobileNav } from "@/components/layout/MobileNav"
 
 export default function PortalLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode
-}) {
+}>) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const handleOpenChange = useCallback((open: boolean) => setMobileNavOpen(open), [])
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="pleks-portal flex h-screen overflow-hidden">
       <PortalSidebar />
       <MobileNav
         open={mobileNavOpen}

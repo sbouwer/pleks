@@ -14,7 +14,7 @@ export default function LandlordPortalLayout({
   const handleOpenChange = useCallback((open: boolean) => setMobileNavOpen(open), [])
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="pleks-portal flex h-screen overflow-hidden">
       <LandlordSidebar />
       <MobileNav
         open={mobileNavOpen}

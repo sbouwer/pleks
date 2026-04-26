@@ -24,13 +24,13 @@ const SUPPLIER_NAV_GROUPS: NavGroup[] = [
   },
 ]
 
-export function SupplierShell({ children }: { children: React.ReactNode }) {
+export function SupplierShell({ children }: Readonly<{ children: React.ReactNode }>) {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const handleOpenChange = useCallback((open: boolean) => setMobileNavOpen(open), [])
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="pleks-portal flex h-screen overflow-hidden">
       <aside
         className={cn(
           "sticky top-0 hidden h-screen shrink-0 flex-col border-r border-border lg:flex transition-all duration-200",
