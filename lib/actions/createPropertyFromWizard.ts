@@ -6,6 +6,8 @@ import { buildProfile, type UniversalAnswers } from "@/lib/properties/buildProfi
 import { buildSkeletonUnits, type SkeletonUnit } from "@/lib/properties/skeletonUnits"
 import type { ScenarioType } from "@/lib/properties/scenarios"
 import { createPropertyInfoRequest } from "./propertyInfoRequests"
+import { initializeInsuranceChecklist } from "@/lib/insurance-checklist/initializeChecklist"
+import { reEvaluatePolicyHeader } from "@/lib/insurance-checklist/reEvaluatePolicyHeader"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -535,6 +537,14 @@ export async function createPropertyFromWizard(formData: FormData): Promise<Wiza
   // failures (uploads, info_requests, pct update, audit) are non-fatal —
   // they leave a usable property the user can repair from the Documents /
   // Insurance / Overview tabs.
+
+  // Initialize insurance checklist (non-fatal — property is usable without it)
+  await initializeInsuranceChecklist(propertyId!, orgId).catch((e) =>
+    console.error("createPropertyFromWizard: checklist init failed:", e)
+  )
+  await reEvaluatePolicyHeader(propertyId).catch((e) =>
+    console.error("createPropertyFromWizard: policy header eval failed:", e)
+  )
 
   const uploadedDocCount = await uploadWizardDocuments(
     { db, orgId, userId, propertyId: propertyId!, buildingId: buildingId! },

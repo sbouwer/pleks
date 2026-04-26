@@ -2,6 +2,7 @@ import Link from "next/link"
 import { formatZAR } from "@/lib/constants"
 import { ShieldCheck, User, Building2, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { InsuranceChecklist, type ChecklistItemRow } from "./InsuranceChecklist"
 
 export interface InsurancePolicy {
   insurance_policy_number:          string | null
@@ -47,6 +48,8 @@ interface InsuranceTabProps {
   buildings:     InsuranceBuildingRow[]
   activeClaims:  InsuranceClaim[]
   canSeeBroker:  boolean
+  checklist:     ChecklistItemRow[]
+  canTick:       boolean
 }
 
 const POLICY_TYPE_LABELS: Record<string, string> = {
@@ -112,6 +115,8 @@ export function InsuranceTab({
   buildings,
   activeClaims,
   canSeeBroker,
+  checklist,
+  canTick,
 }: Readonly<InsuranceTabProps>) {
   const editHref = `/properties/${propertyId}/insurance/edit`
 
@@ -131,6 +136,7 @@ export function InsuranceTab({
   const daysUntilRenewal = computeDaysUntilRenewal(policy.insurance_renewal_date)
 
   return (
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
     <div className="space-y-6">
       {/* Policy card */}
       <SectionCard title="Insurance policy" icon={ShieldCheck} editHref={editHref}>
@@ -140,7 +146,7 @@ export function InsuranceTab({
               <div className="flex items-center gap-2 mb-3 rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2">
                 <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
                 <p className="text-xs text-amber-700 dark:text-amber-400">
-                  Renewal due in {daysUntilRenewal} day{daysUntilRenewal !== 1 ? "s" : ""}
+                  Renewal due in {daysUntilRenewal} day{daysUntilRenewal === 1 ? "" : "s"}
                 </p>
               </div>
             )}
@@ -303,6 +309,11 @@ export function InsuranceTab({
           </div>
         </SectionCard>
       )}
+    </div>
+
+    {/* Right column — verification checklist */}
+    <InsuranceChecklist propertyId={propertyId} rows={checklist} canTick={canTick} />
+
     </div>
   )
 }

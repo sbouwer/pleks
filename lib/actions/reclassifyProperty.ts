@@ -4,6 +4,7 @@ import { gateway } from "@/lib/supabase/gateway"
 import { revalidatePath } from "next/cache"
 import { buildProfile, type UniversalAnswers } from "@/lib/properties/buildProfile"
 import type { ScenarioType } from "@/lib/properties/scenarios"
+import { reEvaluateChecklistApplicability } from "@/lib/insurance-checklist/reEvaluateApplicability"
 
 export interface ReclassifyResult {
   ok:    boolean
@@ -11,9 +12,9 @@ export interface ReclassifyResult {
 }
 
 const VALID_SCENARIOS: ScenarioType[] = [
-  "r1", "r2", "r3", "r4", "r5",
-  "c1", "c2", "c3", "c4",
-  "m1", "m2",
+  "r1", "r2", "r3", "r4", "r5", "r6", "r7",
+  "c1", "c2", "c3", "c4", "c5", "c6",
+  "m1", "m2", "m3", "m4",
   "other",
 ]
 
@@ -92,6 +93,11 @@ export async function reclassifyProperty(
       scenario_type_to:   newScenarioType,
     },
   })
+
+  // Re-evaluate checklist applicability after scenario change (non-fatal)
+  await reEvaluateChecklistApplicability(propertyId).catch((e) =>
+    console.error("reclassifyProperty: checklist re-evaluation failed:", e)
+  )
 
   revalidatePath(`/properties/${propertyId}`)
   return { ok: true }
