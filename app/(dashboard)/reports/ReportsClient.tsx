@@ -19,7 +19,6 @@ import { ExpenseReportTab } from "./tabs/ExpenseReportTab"
 import { VatSummaryTab } from "./tabs/VatSummaryTab"
 import { TrustReconTab } from "./tabs/TrustReconTab"
 import { TenantPaymentHistoryTab } from "./tabs/TenantPaymentHistoryTab"
-import { DebitOrderTab } from "./tabs/DebitOrderTab"
 import { TenantDirectoryTab } from "./tabs/TenantDirectoryTab"
 import { PropertyPerformanceTab } from "./tabs/PropertyPerformanceTab"
 import { VacancyAnalysisTab } from "./tabs/VacancyAnalysisTab"
@@ -85,7 +84,6 @@ const TAB_COMPONENTS: Record<ReportType, React.ComponentType<TabProps>> = {
   vat_summary:            VatSummaryTab,
   trust_reconciliation:   TrustReconTab,
   tenant_payment_history: TenantPaymentHistoryTab,
-  debit_order_report:     DebitOrderTab,
   tenant_directory:       TenantDirectoryTab,
   property_performance:   PropertyPerformanceTab,
   vacancy_analysis:       VacancyAnalysisTab,
@@ -118,7 +116,7 @@ const REPORT_CATEGORIES = [
   {
     name: "Tenant",
     reports: [
-      "tenant_directory", "arrears_aging", "tenant_payment_history", "debit_order_report",
+      "tenant_directory", "arrears_aging", "tenant_payment_history",
     ] as ReportType[],
   },
   {
