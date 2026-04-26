@@ -174,7 +174,7 @@ export function BankFeedSection({ tier }: Readonly<BankFeedSectionProps>) {
     return (
       <div className="rounded-md border border-border p-4 text-sm text-muted-foreground">
         Live bank feeds are available on Steward tier and above (R250/account/month).
-        <Button variant="link" size="sm" className="ml-2 p-0 h-auto" render={<a href="/settings/billing" />}>
+        <Button variant="link" size="sm" className="ml-2 p-0 h-auto" render={<a href="/settings/subscription" />}>
           Upgrade
         </Button>
       </div>

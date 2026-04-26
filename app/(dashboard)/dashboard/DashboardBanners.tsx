@@ -90,7 +90,7 @@ export function DashboardBanners({ showTrustBanner, isTrialing, trialDaysLeft, t
             <Button
               size="sm"
               variant={trialDaysLeft <= 2 ? "destructive" : "default"}
-              render={<Link href="/settings/billing" />}
+              render={<Link href="/settings/subscription" />}
             >
               {trialDaysLeft <= 7 ? "Upgrade now" : "Upgrade"}
             </Button>

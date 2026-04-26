@@ -12,7 +12,7 @@ interface Property {
   name: string
 }
 
-export default function FinanceSettingsPage() {
+export default function DepositsSettingsPage() {
   const { orgId, org } = useOrg()
   const [currentPrime, setCurrentPrime] = useState<number | null>(null)
   const [properties, setProperties] = useState<Property[]>([])

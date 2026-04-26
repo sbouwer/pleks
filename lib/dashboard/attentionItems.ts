@@ -309,7 +309,7 @@ export async function getAttentionItems(orgId: string): Promise<AttentionItem[]>
       priority: 2,
       title: `Bank feed error — ${c.bank_name}`,
       subtitle: c.last_sync_error ?? "Re-authentication required",
-      href: "/settings/finance",
+      href: "/settings/deposits",
       badge: { text: "Re-authenticate", variant: "amber" },
       dotColor: "#EF9F27",
       sortDate: now,

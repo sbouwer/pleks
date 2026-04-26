@@ -74,7 +74,7 @@ export function OwnerProLimitModal({
         <div className="flex gap-3 pt-2">
           <Button
             className="flex-1"
-            onClick={() => { router.push("/settings/billing"); onClose() }}
+            onClick={() => { router.push("/settings/subscription"); onClose() }}
           >
             Upgrade to Steward
           </Button>

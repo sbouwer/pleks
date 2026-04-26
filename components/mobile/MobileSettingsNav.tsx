@@ -17,7 +17,7 @@ const SETTINGS_GROUPS = [
   {
     title: "Communication",
     items: [
-      { href: "/settings/communication/templates", label: "Templates" },
+      { href: "/settings/documents/templates", label: "Templates" },
     ],
   },
   {
@@ -30,8 +30,8 @@ const SETTINGS_GROUPS = [
   {
     title: "Account",
     items: [
-      { href: "/settings/finance", label: "Deposits" },
-      { href: "/settings/billing", label: "Subscription" },
+      { href: "/settings/deposits", label: "Deposits" },
+      { href: "/settings/subscription", label: "Subscription" },
       { href: "/settings/notifications", label: "Notifications" },
     ],
   },

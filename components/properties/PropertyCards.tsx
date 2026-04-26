@@ -70,7 +70,7 @@ export function PropertyCards({ properties, tier, totalUnitCount }: Props) {
         <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-2.5 text-sm text-amber-600">
           <span>
             {totalUnitCount}/{unitLimit} units used on your plan.{" "}
-            <Link href="/settings/billing" className="underline underline-offset-2 hover:text-amber-700">
+            <Link href="/settings/subscription" className="underline underline-offset-2 hover:text-amber-700">
               Upgrade to Portfolio →
             </Link>
           </span>

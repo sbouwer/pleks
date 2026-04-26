@@ -161,7 +161,7 @@ export default function ReconciliationPage() {
                   <Button size="sm" variant="outline" onClick={() => handleFeedSync(conn.id)}>
                     <RefreshCw className="size-3.5 mr-1" /> Sync now
                   </Button>
-                  <Button size="sm" variant="outline" render={<Link href="/settings/finance" />}>
+                  <Button size="sm" variant="outline" render={<Link href="/settings/deposits" />}>
                     Manage
                   </Button>
                 </div>
@@ -191,7 +191,7 @@ export default function ReconciliationPage() {
           {(tier === "steward" || tier === "firm" || tier === "portfolio") && feedConnections.length === 0 && (
             <p className="text-xs text-muted-foreground mt-3">
               Want automatic daily sync?{" "}
-              <Link href="/settings/finance" className="text-brand hover:underline">
+              <Link href="/settings/deposits" className="text-brand hover:underline">
                 Connect a live bank feed →
               </Link>
             </p>
@@ -250,7 +250,7 @@ export default function ReconciliationPage() {
             <p className="text-sm text-muted-foreground">
               Upgrade to Steward for automatic daily bank feed sync (R250/account/month).
             </p>
-            <Button size="sm" className="mt-3" variant="outline" render={<Link href="/settings/billing" />}>
+            <Button size="sm" className="mt-3" variant="outline" render={<Link href="/settings/subscription" />}>
               View plans
             </Button>
           </CardContent>

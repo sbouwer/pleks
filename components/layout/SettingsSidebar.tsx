@@ -41,7 +41,7 @@ function getGroups(orgType: OrgType): SettingsGroup[] {
     {
       title: "Documents",
       items: [
-        { href: "/settings/communication/templates", label: "Templates", extraPrefixes: ["/settings/communication"] },
+        { href: "/settings/documents/templates", label: "Templates", extraPrefixes: ["/settings/documents"] },
         { href: "/settings/lease-templates", label: "Lease templates" },
       ],
     },
@@ -54,8 +54,8 @@ function getGroups(orgType: OrgType): SettingsGroup[] {
     {
       title: "Account",
       items: [
-        { href: "/settings/finance",      label: "Deposits" },
-        { href: "/settings/billing",      label: "Subscription" },
+        { href: "/settings/deposits",      label: "Deposits" },
+        { href: "/settings/subscription",      label: "Subscription" },
         { href: "/settings/notifications", label: "Notifications" },
       ],
     },

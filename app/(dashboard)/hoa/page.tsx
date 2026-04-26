@@ -38,7 +38,7 @@ export default async function HOAListPage() {
               HOA management is available on the Firm tier. Upgrade to access body
               corporate, levy management, AGM tools, and reserve fund tracking.
             </p>
-            <Button className="mt-4" render={<Link href="/settings/billing" />}>
+            <Button className="mt-4" render={<Link href="/settings/subscription" />}>
               Upgrade to Firm
             </Button>
           </CardContent>
