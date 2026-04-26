@@ -16,7 +16,6 @@ export interface SerializedLease {
   is_fixed_term: boolean
   cpa_applies: boolean
   auto_renewal_notice_sent_at: string | null
-  debicheck_mandate_status: string | null
   escalation_review_date: string | null
   tenant_id: string
   tenant_view: {

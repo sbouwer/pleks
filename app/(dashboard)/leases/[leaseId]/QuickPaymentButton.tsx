@@ -10,7 +10,6 @@ import { recordPayment } from "@/lib/actions/payments"
 
 const PAYMENT_METHODS = [
   { value: "eft", label: "EFT" },
-  { value: "debicheck", label: "DebiCheck" },
   { value: "cash", label: "Cash" },
   { value: "card", label: "Card" },
 ]

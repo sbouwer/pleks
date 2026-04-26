@@ -240,7 +240,6 @@ export async function activateLeaseCascade(
     await stepRecordDeposit(supabase, lease, leaseId, orgId, userId),
     await stepGenerateFirstInvoice(supabase, lease, leaseId, orgId),
     await stepScheduleMoveIn(supabase, lease, leaseId, orgId),
-    { step: "DebiCheck mandate", status: "skipped", detail: "Organisation does not use DebiCheck" },
     await stepLogLifecycleEvents(supabase, leaseId, orgId, triggeredBy, userId),
     await stepAuditLog(supabase, leaseId, orgId, triggeredBy, userId),
   ]

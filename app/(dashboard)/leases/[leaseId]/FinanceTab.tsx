@@ -49,7 +49,6 @@ interface FinanceTabProps {
   escalationPercent: number | null
   escalationReviewDate: string | null
   paymentDueDay: number | null
-  debicheckStatus: string | null
   paymentMethod: string | null
   paymentReference: string | null
   ytdCollectedCents: number
@@ -294,7 +293,6 @@ function RentScheduleCard({
   escalationReviewDate,
   rentAfterEscalation,
   paymentDueDay,
-  debicheckStatus,
   paymentMethod,
   paymentReference,
   ytdCollectedCents,
@@ -306,7 +304,6 @@ function RentScheduleCard({
   escalationReviewDate: string | null
   rentAfterEscalation: number | null
   paymentDueDay: number | null
-  debicheckStatus: string | null
   paymentMethod: string | null
   paymentReference: string | null
   ytdCollectedCents: number
@@ -329,7 +326,6 @@ function RentScheduleCard({
           label="Payment due"
           value={paymentDueDay ? `${paymentDueDay}${ordinalSuffix(paymentDueDay)} of the month` : "—"}
         />
-        <KvRow label="DebiCheck" value={debicheckStatus ? debicheckStatus.replaceAll("_", " ") : "—"} className="capitalize" />
         <KvRow label="Payment method" value={paymentMethod ? paymentMethod.replaceAll("_", " ") : "—"} className="capitalize" />
         {paymentReference && (
           <KvRow label="Payment reference" value={<span className="font-mono text-[11px]">{paymentReference}</span>} />
@@ -491,7 +487,6 @@ export function FinanceTab({
   escalationPercent,
   escalationReviewDate,
   paymentDueDay,
-  debicheckStatus,
   paymentMethod,
   paymentReference,
   ytdCollectedCents,
@@ -577,7 +572,6 @@ export function FinanceTab({
           escalationReviewDate={escalationReviewDate}
           rentAfterEscalation={rentAfterEscalation}
           paymentDueDay={paymentDueDay}
-          debicheckStatus={debicheckStatus}
           paymentMethod={paymentMethod}
           paymentReference={paymentReference}
           ytdCollectedCents={ytdCollectedCents}

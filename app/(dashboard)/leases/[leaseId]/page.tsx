@@ -722,7 +722,6 @@ export default async function LeaseDetailPage({
               escalation_type: lease.escalation_type ?? null,
               escalation_review_date: lease.escalation_review_date ?? null,
               payment_due_day: lease.payment_due_day ?? null,
-              debicheck_mandate_status: lease.debicheck_mandate_status ?? null,
               start_date: lease.start_date ?? null,
               end_date: lease.end_date ?? null,
               is_fixed_term: lease.is_fixed_term ?? null,
@@ -787,7 +786,6 @@ export default async function LeaseDetailPage({
                 ? Number.parseInt(lease.payment_due_day, 10) || null
                 : (lease.payment_due_day ?? null)
             }
-            debicheckStatus={lease.debicheck_mandate_status ?? null}
             paymentMethod={financeExtras?.paymentMethod ?? null}
             paymentReference={financeExtras?.paymentReference ?? null}
             ytdCollectedCents={ytdPayments.reduce((s, p) => s + p.amount_cents, 0)}

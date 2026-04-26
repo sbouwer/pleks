@@ -23,7 +23,6 @@ interface LeaseDetailsTabProps {
     escalation_type: string | null
     escalation_review_date: string | null
     payment_due_day: string | null
-    debicheck_mandate_status: string | null
     start_date: string | null
     end_date: string | null
     is_fixed_term: boolean | null
@@ -196,7 +195,6 @@ export function LeaseDetailsTab({
           <KVRow label="Escalation" value={escalationLabel} />
           <KVRow label="Next escalation" value={lease.escalation_review_date ? fmt(lease.escalation_review_date) : null} />
           <KVRow label="Payment due" value={formatDueDay(lease.payment_due_day)} />
-          <KVRow label="DebiCheck" value={lease.debicheck_mandate_status?.replaceAll("_", " ") ?? "Not created"} />
         </div>
 
         {/* Right: Lease period */}
