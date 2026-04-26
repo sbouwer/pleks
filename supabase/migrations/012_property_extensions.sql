@@ -561,7 +561,7 @@ CREATE TABLE IF NOT EXISTS property_insurance_checklists (
                            'auto_derived',
                            'document_upload'
                          )),
-  evidence_document_id   uuid REFERENCES documents(id),
+  evidence_document_id   uuid REFERENCES property_documents(id),
   notes                  text,
   last_renewal_review_at timestamptz,
   renewal_reset_at       timestamptz,
