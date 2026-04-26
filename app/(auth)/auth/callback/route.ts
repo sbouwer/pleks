@@ -40,7 +40,7 @@ export async function GET(request: Request) {
       }
 
       if (membership.role === "contractor") {
-        return NextResponse.redirect(`${origin}/contractor`)
+        return NextResponse.redirect(`${origin}/supplier`)
       }
 
       return NextResponse.redirect(`${origin}/dashboard`)

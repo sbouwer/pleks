@@ -18,7 +18,7 @@ export const metadata = {
 const DEFAULTS: Record<string, string> = {
   notice:             "Founding-agent cohort now open — seven seats remaining",
   hero_cta_primary:   "Start free — 1 unit, no card",
-  hero_cta_secondary: "Book a 20-min demo",
+  hero_cta_secondary: "See the demo",
   hero_meta_1_n:      "R 0",
   hero_meta_1_l:      "Client money Pleks ever holds",
   hero_meta_2_n:      "14 / 21",
@@ -149,7 +149,7 @@ export default async function HomePage() {
                 <path d="M3 8h10m0 0L8.5 3.5M13 8l-4.5 4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="square"/>
               </svg>
             </Link>
-            <Link href="/contact" className="btn-pleks ghost">
+            <Link href="/demo" className="btn-pleks ghost">
               {c(content, "hero_cta_secondary")}
             </Link>
             <Link href="/#artefact" style={{ fontSize: 13.5, color: "var(--ink-mute)", textDecoration: "underline", textUnderlineOffset: "3px", textDecorationColor: "var(--rule-strong)" }}>

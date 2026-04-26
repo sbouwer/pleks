@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+﻿import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
@@ -37,7 +37,7 @@ export default async function ContractorJobsPage() {
     quote_submitted: "Quote submitted",
     quote_approved: "Quote approved",
     quote_rejected: "Quote rejected",
-    work_order_sent: "New — acknowledge",
+    work_order_sent: "New â€” acknowledge",
     acknowledged: "Acknowledged",
     in_progress: "In progress",
     pending_completion: "Completion pending",
@@ -96,7 +96,7 @@ export default async function ContractorJobsPage() {
                         </p>
                       )}
                     </div>
-                    <Button size="sm" variant="outline" render={<Link href={`/contractor/jobs/${job.id}`} />}>
+                    <Button size="sm" variant="outline" render={<Link href={`/supplier/jobs/${job.id}`} />}>
                       View
                     </Button>
                   </div>
@@ -109,3 +109,4 @@ export default async function ContractorJobsPage() {
     </div>
   )
 }
+

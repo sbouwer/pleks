@@ -20,7 +20,7 @@ import { headers } from "next/headers"
  * appropriate.
  */
 
-export type ContactIntent = "demo" | "founding" | "support" | "general"
+export type ContactIntent = "founding" | "support" | "general"
 
 export interface ContactFormInput {
   name: string
@@ -34,8 +34,6 @@ export interface ContactFormInput {
 
 export interface ContactFormResult {
   ok: boolean
-  /** Returned on success when intent === 'demo' so the client can redirect */
-  demoUrl?: string
   error?: string
 }
 
@@ -72,7 +70,7 @@ export async function submitContactForm(input: ContactFormInput): Promise<Contac
   const phone = input.phone?.trim() || null
   const message = input.message?.trim() || null
   const intent: ContactIntent =
-    ["demo", "founding", "support", "general"].includes(input.intent) ? input.intent : "general"
+    ["founding", "support", "general"].includes(input.intent) ? input.intent : "general"
 
   if (!name || name.length < 2) {
     return { ok: false, error: "Please tell me your name." }
@@ -156,10 +154,6 @@ export async function submitContactForm(input: ContactFormInput): Promise<Contac
     // Don't return failure — the lead is saved
   }
 
-  // ── Demo redirect ──
-  if (intent === "demo") {
-    return { ok: true, demoUrl: "/demo" }
-  }
-
+  // Lead saved, email sent (or attempted). Done.
   return { ok: true }
 }

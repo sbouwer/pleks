@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+﻿import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -113,7 +113,7 @@ export default async function ContractorDashboard() {
                     <Badge className={urgencyColors[job.urgency ?? "routine"] ?? ""} variant="secondary">
                       {job.urgency ?? "routine"}
                     </Badge>
-                    <Button size="sm" variant="outline" render={<Link href={`/contractor/jobs/${job.id}`} />}>
+                    <Button size="sm" variant="outline" render={<Link href={`/supplier/jobs/${job.id}`} />}>
                       View
                     </Button>
                   </div>
@@ -126,13 +126,14 @@ export default async function ContractorDashboard() {
 
       {/* Quick links */}
       <div className="grid grid-cols-2 gap-3">
-        <Button variant="outline" className="h-12" render={<Link href="/contractor/jobs" />}>
+        <Button variant="outline" className="h-12" render={<Link href="/supplier/jobs" />}>
           All Jobs
         </Button>
-        <Button variant="outline" className="h-12" render={<Link href="/contractor/invoices" />}>
+        <Button variant="outline" className="h-12" render={<Link href="/supplier/invoices" />}>
           Invoices
         </Button>
       </div>
     </div>
   )
 }
+

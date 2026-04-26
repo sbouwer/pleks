@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+﻿import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -30,7 +30,7 @@ export default async function ContractorJobDetailPage({
     .eq("id", requestId)
     .single()
 
-  if (!job) redirect("/contractor/jobs")
+  if (!job) redirect("/supplier/jobs")
 
   const prop = job.properties as unknown as { name: string; address_line1: string; city: string } | null
   const unit = job.units as unknown as { unit_number: string } | null
@@ -62,7 +62,7 @@ export default async function ContractorJobDetailPage({
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/contractor/jobs" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+        <Link href="/supplier/jobs" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
           &larr; Back to jobs
         </Link>
         <div className="flex items-center gap-3 mt-2">

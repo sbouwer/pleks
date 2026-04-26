@@ -28,7 +28,8 @@ function isPublicRoute(pathname: string) {
 
 function isOrgCheckSkipped(pathname: string) {
   return pathname.startsWith("/onboarding") || pathname.startsWith("/demo") ||
-    pathname.startsWith("/contractor") || pathname.startsWith("/portal") || pathname.startsWith("/tenant")
+    pathname.startsWith("/contractor") || pathname.startsWith("/supplier") ||
+    pathname.startsWith("/portal") || pathname.startsWith("/tenant")
 }
 
 function deriveTierFromSub(sub: {

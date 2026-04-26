@@ -1,27 +1,25 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 import { submitContactForm, type ContactIntent } from "@/lib/actions/submitContactForm"
 
 const INTENT_OPTIONS: { value: ContactIntent; label: string; hint: string }[] = [
-  { value: "demo",     label: "I want to see the demo",  hint: "Drop your details and I'll send the demo link." },
   { value: "founding", label: "Founding-agent cohort",   hint: "Ten seats, three claimed. I'll be in touch." },
   { value: "support",  label: "I'm a customer",          hint: "Already on Pleks? Tell me what's going on." },
   { value: "general",  label: "Something else",          hint: "Press, partnerships, or just a question." },
 ]
 
 export function ContactForm({ defaultIntent = "general" as ContactIntent }) {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Allow ?intent=demo / ?intent=founding to pre-select the dropdown
+  // Allow ?intent=founding / ?intent=support to pre-select the dropdown
   const intentFromUrl = searchParams.get("intent") as ContactIntent | null
   const initialIntent: ContactIntent =
-    intentFromUrl && ["demo", "founding", "support", "general"].includes(intentFromUrl)
+    intentFromUrl && ["founding", "support", "general"].includes(intentFromUrl)
       ? intentFromUrl
       : defaultIntent
 
@@ -48,10 +46,6 @@ export function ContactForm({ defaultIntent = "general" as ContactIntent }) {
         setError(result.error ?? "Something went wrong.")
         return
       }
-      if (result.demoUrl) {
-        router.push(result.demoUrl)
-        return
-      }
       setSubmitted(true)
     })
   }
@@ -73,7 +67,7 @@ export function ContactForm({ defaultIntent = "general" as ContactIntent }) {
     )
   }
 
-  const submitLabel = intent === "demo" ? "Send & open demo →" : "Send message →"
+  const submitLabel = "Send message →"
 
   return (
     <form onSubmit={handleSubmit} className="contact-form" noValidate>

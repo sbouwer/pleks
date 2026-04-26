@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS contact_leads (
   email           text NOT NULL,
   phone           text,
   intent          text NOT NULL DEFAULT 'general'
-    CHECK (intent IN ('demo', 'founding', 'support', 'general')),
+    CHECK (intent IN ('founding', 'support', 'general')),
   message         text,
   -- Lightweight context for triage (not PII)
   user_agent      text,

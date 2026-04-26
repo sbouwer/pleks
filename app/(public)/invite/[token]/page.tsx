@@ -135,7 +135,7 @@ export default function InvitePage() {
     if (inv.role === "tenant") {
       router.push("/tenant")
     } else if (inv.role === "contractor") {
-      router.push("/contractor")
+      router.push("/supplier")
     } else {
       router.push("/dashboard")
     }

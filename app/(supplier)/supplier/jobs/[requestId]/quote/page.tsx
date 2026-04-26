@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState } from "react"
 import { useRouter, useParams } from "next/navigation"
@@ -116,7 +116,7 @@ export default function QuoteSubmissionPage() {
     }).eq("id", requestId)
 
     toast.success("Quote submitted")
-    router.push(`/contractor/jobs/${requestId}`)
+    router.push(`/supplier/jobs/${requestId}`)
   }
 
   return (

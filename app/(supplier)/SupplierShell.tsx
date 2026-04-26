@@ -12,19 +12,19 @@ import {
   UserCircle,
 } from "lucide-react"
 
-const CONTRACTOR_NAV_GROUPS: NavGroup[] = [
+const SUPPLIER_NAV_GROUPS: NavGroup[] = [
   {
     title: "Main",
     items: [
-      { href: "/contractor", label: "Dashboard", icon: LayoutDashboard },
-      { href: "/contractor/jobs", label: "Jobs", icon: Briefcase },
-      { href: "/contractor/invoices", label: "Invoices", icon: FileText },
-      { href: "/contractor/profile", label: "Profile", icon: UserCircle },
+      { href: "/supplier", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/supplier/jobs", label: "Jobs", icon: Briefcase },
+      { href: "/supplier/invoices", label: "Invoices", icon: FileText },
+      { href: "/supplier/profile", label: "Profile", icon: UserCircle },
     ],
   },
 ]
 
-export function ContractorShell({ children }: { children: React.ReactNode }) {
+export function SupplierShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const handleOpenChange = useCallback((open: boolean) => setMobileNavOpen(open), [])
@@ -38,23 +38,23 @@ export function ContractorShell({ children }: { children: React.ReactNode }) {
         )}
       >
         <SidebarContent
-          groups={CONTRACTOR_NAV_GROUPS}
-          homeHref="/contractor"
+          groups={SUPPLIER_NAV_GROUPS}
+          homeHref="/supplier"
           collapsed={collapsed}
           onToggleCollapse={() => setCollapsed((c) => !c)}
-          badge="Contractor"
+          badge="Supplier"
         />
       </aside>
       <MobileNav
         open={mobileNavOpen}
         onOpenChange={handleOpenChange}
-        groups={CONTRACTOR_NAV_GROUPS}
-        homeHref="/contractor"
-        badge="Contractor"
+        groups={SUPPLIER_NAV_GROUPS}
+        homeHref="/supplier"
+        badge="Supplier"
       />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar
-          settingsHref="/contractor/profile"
+          settingsHref="/supplier/profile"
         />
         <main className="flex-1 overflow-y-auto bg-muted/30 p-6">{children}</main>
       </div>

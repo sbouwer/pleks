@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
@@ -48,14 +48,14 @@ export function JobStatusActions({ requestId, status }: JobStatusActionsProps) {
     <div className="space-y-3">
       {/* Quote requested */}
       {status === "pending_quote" && (
-        <Button className="w-full h-12 text-base font-semibold" render={<Link href={`/contractor/jobs/${requestId}/quote`} />}>
+        <Button className="w-full h-12 text-base font-semibold" render={<Link href={`/supplier/jobs/${requestId}/quote`} />}>
           Submit Quote
         </Button>
       )}
 
       {/* Quote rejected — can resubmit */}
       {status === "quote_rejected" && (
-        <Button className="w-full h-12" render={<Link href={`/contractor/jobs/${requestId}/quote`} />}>
+        <Button className="w-full h-12" render={<Link href={`/supplier/jobs/${requestId}/quote`} />}>
           Submit Revised Quote
         </Button>
       )}
@@ -107,7 +107,7 @@ export function JobStatusActions({ requestId, status }: JobStatusActionsProps) {
 
       {/* Completed — submit invoice */}
       {(status === "pending_completion" || status === "completed") && (
-        <Button variant="outline" className="w-full h-12" render={<Link href={`/contractor/invoices`} />}>
+        <Button variant="outline" className="w-full h-12" render={<Link href={`/supplier/invoices`} />}>
           Submit Invoice
         </Button>
       )}

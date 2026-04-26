@@ -1,8 +1,8 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import { ContractorShell } from "./ContractorShell"
+import { SupplierShell } from "./SupplierShell"
 
-export default async function ContractorLayout({
+export default async function SupplierLayout({
   children,
 }: {
   children: React.ReactNode
@@ -10,7 +10,7 @@ export default async function ContractorLayout({
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) redirect("/login?role=contractor")
+  if (!user) redirect("/login?role=supplier")
 
   const { data: contractor } = await supabase
     .from("contractor_view")
@@ -22,5 +22,5 @@ export default async function ContractorLayout({
 
   if (!contractor) redirect("/login")
 
-  return <ContractorShell>{children}</ContractorShell>
+  return <SupplierShell>{children}</SupplierShell>
 }

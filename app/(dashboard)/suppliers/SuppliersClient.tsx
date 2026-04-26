@@ -269,7 +269,7 @@ export function SuppliersClient({ contractors: initial, orgId }: Readonly<Props>
                   <tr
                     key={c.id}
                     className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors cursor-pointer group"
-                    onClick={() => router.push(`/contractors/${c.id}`)}
+                    onClick={() => router.push(`/suppliers/${c.id}`)}
                   >
                     <td className="px-4 py-3">
                       <p className="font-medium text-sm">{displayName}</p>
@@ -319,7 +319,7 @@ export function SuppliersClient({ contractors: initial, orgId }: Readonly<Props>
                           variant="ghost"
                           size="icon-sm"
                           className="text-muted-foreground hover:text-foreground"
-                          render={<Link href={`/contractors/${c.id}`} />}
+                          render={<Link href={`/suppliers/${c.id}`} />}
                         >
                           <Pencil className="size-3.5" />
                         </Button>

@@ -125,7 +125,7 @@ function LoginContent() {
     } else if (membership.role === "tenant") {
       router.push("/tenant")
     } else if (membership.role === "contractor") {
-      router.push("/contractor")
+      router.push("/supplier")
     } else {
       router.push("/dashboard")
     }
