@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { updateSession } from "@/lib/supabase/middleware"
 import { createServiceClient } from "@/lib/supabase/server"
+import { AUTH_COOKIE_OPTS } from "@/lib/auth/cookie-config"
 import type { User } from "@supabase/supabase-js"
 
 const PUBLIC_ROUTES = ["/", "/pricing", "/login", "/forgot-password", "/reset-password",
@@ -10,7 +11,6 @@ const PUBLIC_ROUTES = ["/", "/pricing", "/login", "/forgot-password", "/reset-pa
 const AUTH_ROUTES = ["/auth"]
 const WEBHOOK_ROUTES = ["/api/webhooks", "/api/cron", "/api/waitlist", "/api/admin"]
 
-const COOKIE_OPTS = { httpOnly: true, sameSite: "lax" as const, path: "/" }
 
 function isPublicRoute(pathname: string) {
   return (
@@ -72,7 +72,7 @@ async function refreshOrgCookieParallel(
   if (orgsRes.data) {
     supabaseResponse.cookies.set("pleks_org", JSON.stringify({
       org_id: orgId, role: orgsRes.data.role, tier: deriveTierFromSub(subRes.data), user_id: userId,
-    }), { ...COOKIE_OPTS, maxAge: 300 })
+    }), { ...AUTH_COOKIE_OPTS, maxAge: 300 })
   }
 }
 
@@ -90,10 +90,10 @@ async function setOrgCookiesFromDb(
     .from("subscriptions").select("tier, status, trial_tier, trial_ends_at, trial_converted")
     .eq("org_id", orgId).in("status", ["active", "trialing"]).order("created_at", { ascending: false }).limit(1).maybeSingle()
 
-  supabaseResponse.cookies.set("pleks_has_org", JSON.stringify({ org_id: orgId, user_id: user.id }), { ...COOKIE_OPTS, maxAge: 60 * 60 * 24 * 7 })
+  supabaseResponse.cookies.set("pleks_has_org", JSON.stringify({ org_id: orgId, user_id: user.id }), { ...AUTH_COOKIE_OPTS, maxAge: 60 * 60 * 24 * 7 })
   supabaseResponse.cookies.set("pleks_org", JSON.stringify({
     org_id: orgId, role: orgs[0].role, tier: deriveTierFromSub(sub), user_id: user.id,
-  }), { ...COOKIE_OPTS, maxAge: 300 })
+  }), { ...AUTH_COOKIE_OPTS, maxAge: 300 })
   return false
 }
 
