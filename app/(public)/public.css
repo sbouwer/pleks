@@ -75,6 +75,37 @@
   box-shadow: 0 0 0 3px oklch(0.68 0.14 65 / 0.15);
 }
 
+/* ── Icon buttons (theme toggle, sign-in, account menu) ──────────────────── */
+.pub-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; flex-shrink: 0;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--rule);
+  background: var(--paper-sunk);
+  color: var(--ink-mute);
+  cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+  text-decoration: none;
+}
+.pub-icon-btn:hover,
+.pub-icon-btn:focus-visible {
+  background: var(--amber-wash);
+  border-color: var(--amber);
+  color: var(--amber-ink);
+  outline: none;
+}
+/* Active variant — used when the user is logged in (account menu button) */
+.pub-icon-btn--active {
+  color: var(--amber-ink);
+  border-color: oklch(0.68 0.14 65 / 0.35);
+}
+.pub-icon-btn--active:hover,
+.pub-icon-btn--active:focus-visible {
+  background: var(--amber-wash);
+  border-color: var(--amber);
+  color: var(--amber-ink);
+}
+
 /* ── Notice strip ────────────────────────────────────────────────────────── */
 .pub-notice {
   background: var(--ink); color: var(--paper);

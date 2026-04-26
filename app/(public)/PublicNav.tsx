@@ -17,14 +17,8 @@ const NAV_LINKS = [
   { href: "/#founding",  label: "Founding agents" },
 ]
 
-// Shared style for all icon-only buttons in the nav (theme toggle, sign-in, profile)
-const ICON_BTN: React.CSSProperties = {
-  display: "flex", alignItems: "center", justifyContent: "center",
-  width: 34, height: 34, flexShrink: 0,
-  borderRadius: "var(--r-sm)", border: "1px solid var(--rule)",
-  background: "var(--paper-sunk)", color: "var(--ink-mute)",
-  cursor: "pointer", transition: "all .15s",
-}
+// Shared style for all icon-only buttons in the nav lives in public.css as `.pub-icon-btn`
+// (theme toggle, sign-in, profile). Use `.pub-icon-btn--active` for the logged-in state.
 
 async function handleLogout() {
   const supabase = createClient()
@@ -142,10 +136,12 @@ export function PublicNav() {
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto", flexShrink: 0 }}>
 
           {/* Theme toggle */}
-          <button type="button" onClick={toggle} style={ICON_BTN}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "var(--amber-wash)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--amber)"; (e.currentTarget as HTMLButtonElement).style.color = "var(--amber-ink)" }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "var(--paper-sunk)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "var(--rule)"; (e.currentTarget as HTMLButtonElement).style.color = "var(--ink-mute)" }}
-            aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}>
+          <button
+            type="button"
+            onClick={toggle}
+            className="pub-icon-btn"
+            aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
+          >
             {theme === "light" ? <Moon size={15} /> : <Sun size={15} />}
           </button>
 
@@ -153,9 +149,12 @@ export function PublicNav() {
           {user ? (
             /* Logged in: User icon opens profile dropdown */
             <div className="relative hidden md:block">
-              <button type="button" onClick={() => setProfileOpen(p => !p)}
-                style={{ ...ICON_BTN, color: "var(--amber-ink)", borderColor: "oklch(0.68 0.14 65 / 0.35)" }}
-                aria-label="Account menu">
+              <button
+                type="button"
+                onClick={() => setProfileOpen(p => !p)}
+                className="pub-icon-btn pub-icon-btn--active"
+                aria-label="Account menu"
+              >
                 <User size={15} />
               </button>
               {profileOpen && (
@@ -189,11 +188,8 @@ export function PublicNav() {
             /* Logged out (or checking): LogIn icon — same bordered style, no text */
             <Link
               href="/login"
-              className="hidden md:flex"
-              style={ICON_BTN}
+              className="pub-icon-btn hidden md:flex"
               aria-label="Sign in"
-              onMouseEnter={e => { e.currentTarget.style.background = "var(--amber-wash)"; e.currentTarget.style.borderColor = "var(--amber)"; e.currentTarget.style.color = "var(--amber-ink)" }}
-              onMouseLeave={e => { e.currentTarget.style.background = "var(--paper-sunk)"; e.currentTarget.style.borderColor = "var(--rule)"; e.currentTarget.style.color = "var(--ink-mute)" }}
             >
               <LogIn size={15} />
             </Link>
