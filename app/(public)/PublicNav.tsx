@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { Menu, User, LogIn, LogOut, LayoutDashboard, Sun, Moon } from "lucide-react"
 import { AccentBracket } from "@/components/ui/AccentBracket"
 import { createClient } from "@/lib/supabase/client"
@@ -15,6 +16,7 @@ const NAV_LINKS = [
   { href: "/#story",     label: "Who built this" },
   { href: "/#pricing",   label: "Pricing" },
   { href: "/#founding",  label: "Founding agents" },
+  { href: "/contact",    label: "Contact" },
 ]
 
 // Shared style for all icon-only buttons in the nav lives in public.css as `.pub-icon-btn`
@@ -35,6 +37,7 @@ export function PublicNav() {
   const [activeSection, setActiveSection] = useState("")
   const lastScrollRef                   = useRef(0)
   const { theme, toggle }               = usePublicTheme()
+  const pathname                        = usePathname()
 
   useEffect(() => {
     const supabase = createClient()
@@ -45,7 +48,7 @@ export function PublicNav() {
 
   // Scrollspy — activate nav link matching the section in the upper viewport
   useEffect(() => {
-    const ids = NAV_LINKS.map(l => l.href.replace("/#", ""))
+    const ids = NAV_LINKS.filter(l => l.href.startsWith("/#")).map(l => l.href.replace("/#", ""))
     const els = ids.map(id => document.getElementById(id)).filter((el): el is HTMLElement => el !== null)
     const io = new IntersectionObserver(
       entries => {
@@ -99,7 +102,7 @@ export function PublicNav() {
         <nav aria-label="Site sections" className="hidden md:flex" style={{ flex: 1, justifyContent: "center", gap: 2, alignItems: "center" }}>
           {NAV_LINKS.map(link => {
             const id = link.href.replace("/#", "")
-            const isActive = activeSection === id
+            const isActive = link.href.startsWith("/#") ? activeSection === id : pathname === link.href
             return (
               <Link
                 key={link.href}
