@@ -42,9 +42,6 @@ export interface TenantWelcomePackData {
   // Portal
   tenantPortalUrl: string | null
 
-  // DebiCheck
-  debiCheckStatus: string | null   // "not_set_up" | "active" | "pending" | null
-
   // Key dates
   cpaNoticeDueBy: string | null
   moveOutNoticeDeadline: string | null
@@ -98,19 +95,6 @@ function formatPaymentDueDay(raw: string | null | undefined): string {
   return `${n}${suffix} of the month`
 }
 
-function resolveDebiCheckStatus(
-  mandateRow: { status: string } | null,
-  leaseMandateStatus: string | null,
-): string | null {
-  if (mandateRow) {
-    return mandateRow.status === "active" || mandateRow.status === "authenticated" ? "active" : "pending"
-  }
-  if (leaseMandateStatus && leaseMandateStatus !== "not_created") {
-    return leaseMandateStatus
-  }
-  return null
-}
-
 function tenantDisplayName(
   firstName: string | null,
   lastName: string | null,
@@ -150,7 +134,6 @@ export async function buildTenantWelcomePackData(
     arrears_interest_enabled: boolean | null
     arrears_interest_margin_percent: number | null
     notice_period_days: number | null
-    debicheck_mandate_status: string | null
     units: {
       unit_number: string
       size_m2: number | null
@@ -185,10 +168,10 @@ export async function buildTenantWelcomePackData(
     } | null
   }
 
-  const [leaseRes, tenantRes, coTenantsRes, bankRes, mandateRes, inspectionRes, clausesRes] =
+  const [leaseRes, tenantRes, coTenantsRes, bankRes, inspectionRes, clausesRes] =
     await Promise.all([
       db.from("leases")
-        .select("id, unit_id, property_id, start_date, end_date, lease_type, is_fixed_term, rent_amount_cents, deposit_amount_cents, payment_due_day, escalation_percent, escalation_review_date, arrears_interest_enabled, arrears_interest_margin_percent, notice_period_days, debicheck_mandate_status, units(unit_number, properties(name, address_line1, suburb, city))")
+        .select("id, unit_id, property_id, start_date, end_date, lease_type, is_fixed_term, rent_amount_cents, deposit_amount_cents, payment_due_day, escalation_percent, escalation_review_date, arrears_interest_enabled, arrears_interest_margin_percent, notice_period_days, units(unit_number, properties(name, address_line1, suburb, city))")
         .eq("id", leaseId)
         .eq("org_id", orgId)
         .single(),
@@ -207,14 +190,6 @@ export async function buildTenantWelcomePackData(
         .select("bank_name, account_holder, account_number, branch_code")
         .eq("org_id", orgId)
         .eq("type", "trust")
-        .limit(1)
-        .maybeSingle(),
-
-      db.from("debicheck_mandates")
-        .select("status, billing_day")
-        .eq("lease_id", leaseId)
-        .in("status", ["authenticated", "active", "pending_authentication"])
-        .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle(),
 
@@ -261,9 +236,6 @@ export async function buildTenantWelcomePackData(
   const unitNumber = unit?.unit_number ?? ""
 
   const bankRow = bankRes.data as { bank_name: string | null; account_holder: string | null; account_number: string | null; branch_code: string | null } | null
-  const mandateRow = mandateRes.data as { status: string; billing_day: number | null } | null
-
-  const debiCheckStatus = resolveDebiCheckStatus(mandateRow, lease.debicheck_mandate_status ?? null)
 
   // Key dates
   const endDate = lease.end_date ?? null
@@ -340,8 +312,6 @@ export async function buildTenantWelcomePackData(
     trustBranchCode: bankRow?.branch_code ?? null,
 
     tenantPortalUrl: null,
-
-    debiCheckStatus,
 
     cpaNoticeDueBy,
     moveOutNoticeDeadline,

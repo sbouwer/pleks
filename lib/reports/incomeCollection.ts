@@ -78,10 +78,6 @@ export async function buildIncomeCollectionReport(filters: ReportFilters): Promi
   const expectedIncome = rows.reduce((s, r) => s + r.total_amount_cents, 0)
   const collectedIncome = rows.reduce((s, r) => s + r.amount_paid_cents, 0)
 
-  // DebiCheck vs EFT breakdown
-  const debicheckPayments = payments.filter((p) => p.payment_method === "debicheck")
-  const eftPayments = payments.filter((p) => p.payment_method === "eft" || p.payment_method === "manual")
-
   return {
     period: { from, to },
     invoices: rows,
@@ -89,9 +85,5 @@ export async function buildIncomeCollectionReport(filters: ReportFilters): Promi
     collected_income_cents: collectedIncome,
     outstanding_cents: Math.max(0, expectedIncome - collectedIncome),
     collection_rate: expectedIncome > 0 ? Math.round((collectedIncome / expectedIncome) * 100) : 0,
-    debicheck_collected_cents: debicheckPayments.reduce((s, p) => s + (p.amount_cents ?? 0), 0),
-    debicheck_count: debicheckPayments.length,
-    eft_collected_cents: eftPayments.reduce((s, p) => s + (p.amount_cents ?? 0), 0),
-    eft_count: eftPayments.length,
   }
 }

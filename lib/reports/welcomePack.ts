@@ -99,7 +99,7 @@ export async function buildWelcomePackData(
     .select(`
       id, unit_id, start_date, end_date, is_fixed_term,
       rent_amount_cents, deposit_amount_cents, status,
-      debicheck_mandate_status, escalation_percent, escalation_review_date,
+      escalation_percent, escalation_review_date,
       cpa_applies, notice_period_days,
       tenant_view(first_name, last_name, company_name, entity_type),
       lease_co_tenants(tenant_id, tenants(id, contacts(first_name, last_name, company_name)))
@@ -153,7 +153,7 @@ export async function buildWelcomePackData(
         ? tenantDisplayName(tv.first_name, tv.last_name, tv.company_name) || null
         : null
 
-      const paymentMethod = lease?.debicheck_mandate_status === "active" ? "DebiCheck" : "EFT"
+      const paymentMethod = lease ? "EFT" : ""
       const flags = computeFlags(lease?.status ?? "", daysRemaining, !!lease)
 
       return {
