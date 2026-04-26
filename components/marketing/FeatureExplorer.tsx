@@ -48,11 +48,11 @@ const CATEGORIES: Category[] = [
     key: "collections",
     label: "Collections & Arrears",
     icon: Banknote,
-    desc: "DebiCheck mandate created with the lease. Rent collects automatically. Arrears handled without you.",
+    desc: "Rent invoiced on the 1st. Bank statement reconciliation matches payments. Arrears workflows handle the chasing.",
     features: [
-      "DebiCheck mandate management (no separate integration)",
       "Automated rent invoicing on the 1st",
       "Bank statement reconciliation",
+      "Works alongside whatever your tenant pays through — EFT, debit order via their bank, or cash",
       "Arrears sequence: Day 3 SMS → Day 7 email → Day 14 letter → Day 20 LOD",
       "AI-drafted arrears communications (you approve)",
       "Payment arrangement tracking",
