@@ -95,7 +95,7 @@ CREATE POLICY "deposit_audit_org_read" ON deposit_interest_config_audit
 -- Safe to run: ALTER POLICY is non-destructive and transactional.
 -- Reads are unaffected (USING clause unchanged).
 
--- ─── Standard org-scoped tables (73) ─────────────────────────
+-- ─── Standard org-scoped tables (71) ─────────────────────────
 -- Pattern: org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
 
 ALTER POLICY "org_agm"                    ON agm_records                  WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL));
@@ -122,8 +122,6 @@ ALTER POLICY "org_contractor_contacts"    ON contractor_contacts          WITH C
 ALTER POLICY "org_contractor_prefs"       ON contractor_preferences       WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL));
 ALTER POLICY "org_contractors"            ON contractors                  WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL));
 ALTER POLICY "org_custom_lease_requests"  ON custom_lease_requests        WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL));
-ALTER POLICY "org_collections"            ON debicheck_collections        WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL));
-ALTER POLICY "org_mandates"               ON debicheck_mandates           WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL));
 ALTER POLICY "org_deduction_items"        ON deposit_deduction_items      WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL));
 ALTER POLICY "org_deposit_recons"         ON deposit_reconciliations      WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL));
 ALTER POLICY "org_deposit_timers"         ON deposit_timers               WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL));
