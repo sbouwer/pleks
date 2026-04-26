@@ -1222,3 +1222,21 @@ COMMENT ON COLUMN leases.cpa_determination_category IS
   'Used for reporting and Tribunal audit.';
 COMMENT ON COLUMN leases.cpa_determination_notes IS
   'Audit notes capturing the actual values considered at signing.';
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §N  BUILD_61: PAYMENT METHOD ON TRUST LEDGER ENTRIES (2026-04-27)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Adds payment_method to trust_transactions so the ledger can record HOW a
+-- payment arrived (EFT, cash, card, or bank-recon match). Nullable because
+-- adjustments, management fees, and owner payments have no payment instrument.
+
+ALTER TABLE trust_transactions
+  ADD COLUMN IF NOT EXISTS payment_method text
+    CHECK (payment_method IS NULL OR payment_method IN (
+      'eft', 'cash', 'card', 'bank_recon_matched'
+    ));
+
+COMMENT ON COLUMN trust_transactions.payment_method IS
+  'Payment instrument used for this ledger entry. Set on rent_received and '
+  'expense_paid transactions; null for adjustments and internal transfers. '
+  'CHECK constraint mirrors payments.payment_method enum.';
