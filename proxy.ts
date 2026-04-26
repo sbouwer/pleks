@@ -6,7 +6,7 @@ import type { User } from "@supabase/supabase-js"
 
 const PUBLIC_ROUTES = ["/", "/pricing", "/login", "/forgot-password", "/reset-password",
   "/for-agents", "/for-landlords", "/early-access", "/migrate",
-  "/privacy", "/terms", "/credit-check-policy",
+  "/privacy", "/terms", "/credit-check-policy", "/contact",
   "/register", "/onboarding"]
 const AUTH_ROUTES = ["/auth"]
 const WEBHOOK_ROUTES = ["/api/webhooks", "/api/cron", "/api/waitlist", "/api/admin"]
@@ -28,7 +28,7 @@ function isPublicRoute(pathname: string) {
 
 function isOrgCheckSkipped(pathname: string) {
   return pathname.startsWith("/onboarding") || pathname.startsWith("/demo") ||
-    pathname.startsWith("/contractor") || pathname.startsWith("/portal")
+    pathname.startsWith("/contractor") || pathname.startsWith("/portal") || pathname.startsWith("/tenant")
 }
 
 function deriveTierFromSub(sub: {

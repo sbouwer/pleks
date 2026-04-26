@@ -56,7 +56,7 @@ function rateLimitOk(ip: string): boolean {
 }
 
 // ── Email validation (RFC-light, good enough for a contact form) ─────────────
-const EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const EMAIL_RX = /^[^\s@]{1,64}@[^\s@]{1,253}\.[^\s@]{2,63}$/
 
 export async function submitContactForm(input: ContactFormInput): Promise<ContactFormResult> {
   // ── Honeypot ──

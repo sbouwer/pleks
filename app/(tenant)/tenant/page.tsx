@@ -150,7 +150,7 @@ export default async function PortalDashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
         {/* Lease summary */}
-        <Link href="/portal/lease" className="block">
+        <Link href="/tenant/lease" className="block">
           <div className="rounded-xl border border-border/60 bg-card px-5 py-4 space-y-2 hover:border-brand/40 transition-colors h-full">
             <div className="flex items-center gap-2 text-muted-foreground text-xs font-semibold uppercase tracking-wider">
               <FileText className="h-3.5 w-3.5" />
@@ -168,7 +168,7 @@ export default async function PortalDashboard() {
         </Link>
 
         {/* Next payment / outstanding */}
-        <Link href="/portal/payments" className="block">
+        <Link href="/tenant/payments" className="block">
           <div className="rounded-xl border border-border/60 bg-card px-5 py-4 space-y-2 hover:border-brand/40 transition-colors h-full">
             <div className="flex items-center gap-2 text-muted-foreground text-xs font-semibold uppercase tracking-wider">
               <CreditCard className="h-3.5 w-3.5" />
@@ -225,7 +225,7 @@ export default async function PortalDashboard() {
         </div>
 
         {/* Recent maintenance */}
-        <Link href="/portal/maintenance" className="block">
+        <Link href="/tenant/maintenance" className="block">
           <div className="rounded-xl border border-border/60 bg-card px-5 py-4 space-y-2 hover:border-brand/40 transition-colors h-full">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-muted-foreground text-xs font-semibold uppercase tracking-wider">
@@ -233,7 +233,7 @@ export default async function PortalDashboard() {
                 Maintenance
               </div>
               <Link
-                href="/portal/maintenance/new"
+                href="/tenant/maintenance/new"
                 onClick={(e) => e.stopPropagation()}
                 className="text-xs text-brand hover:underline"
               >

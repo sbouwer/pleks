@@ -58,7 +58,7 @@ export default async function PortalMaintenancePage() {
           <h1 className="font-heading text-3xl">Maintenance</h1>
           <p className="text-sm text-muted-foreground">{list.length} request{list.length === 1 ? "" : "s"}</p>
         </div>
-        <Button render={<Link href="/portal/maintenance/new" />}>
+        <Button render={<Link href="/tenant/maintenance/new" />}>
           <Plus className="h-4 w-4 mr-1.5" />
           Report issue
         </Button>
@@ -73,7 +73,7 @@ export default async function PortalMaintenancePage() {
       ) : (
         <div className="space-y-2">
           {list.map((req) => (
-            <Link key={req.id} href={`/portal/maintenance/${req.id}`}>
+            <Link key={req.id} href={`/tenant/maintenance/${req.id}`}>
               <div className="rounded-xl border border-border/60 bg-card px-5 py-4 hover:border-brand/40 transition-colors cursor-pointer">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">

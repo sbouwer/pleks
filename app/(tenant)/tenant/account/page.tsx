@@ -25,7 +25,7 @@ export default async function PortalAccountPage() {
     .eq("org_id", orgId)
     .single()
 
-  if (error || !tenant) redirect("/portal")
+  if (error || !tenant) redirect("/tenant")
 
   const contact = tenant.contacts as unknown as {
     id: string
@@ -38,7 +38,7 @@ export default async function PortalAccountPage() {
     contact_emails: { id: string; email: string; email_type: string; is_primary: boolean }[]
   } | null
 
-  if (!contact) redirect("/portal")
+  if (!contact) redirect("/tenant")
 
   return (
     <div>

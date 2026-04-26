@@ -40,6 +40,7 @@ export const ROUTE_MANIFEST: Record<string, RouteRule> = {
   "/privacy":               { auth: false },
   "/terms":                 { auth: false },
   "/credit-check-policy":   { auth: false },
+  "/contact":               { auth: false },
   "/for-agents":            { auth: false },
   "/for-landlords":         { auth: false },
   "/early-access":          { auth: false },

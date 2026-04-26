@@ -86,7 +86,7 @@ export default async function PortalMaintenanceDetailPage({
     <div>
       <div className="mb-6">
         <p className="text-sm text-muted-foreground mb-1">
-          <Link href="/portal/maintenance" className="hover:text-foreground">Maintenance</Link> &rsaquo; Request
+          <Link href="/tenant/maintenance" className="hover:text-foreground">Maintenance</Link> &rsaquo; Request
         </p>
         <div className="flex items-start justify-between gap-3">
           <h1 className="font-heading text-2xl">{req.title}</h1>

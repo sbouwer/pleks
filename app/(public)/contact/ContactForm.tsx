@@ -73,6 +73,8 @@ export function ContactForm({ defaultIntent = "general" as ContactIntent }) {
     )
   }
 
+  const submitLabel = intent === "demo" ? "Send & open demo →" : "Send message →"
+
   return (
     <form onSubmit={handleSubmit} className="contact-form" noValidate>
       {/* Honeypot — hidden from humans, irresistible to bots */}
@@ -178,7 +180,7 @@ export function ContactForm({ defaultIntent = "general" as ContactIntent }) {
         disabled={isPending}
         style={{ marginTop: 8, width: "fit-content" }}
       >
-        {isPending ? "Sending…" : intent === "demo" ? "Send & open demo →" : "Send message →"}
+        {isPending ? "Sending…" : submitLabel}
       </button>
 
       <p className="contact-form-footnote">

@@ -39,7 +39,7 @@ export async function inviteTenantPortal(tenantId: string, _leaseId: string) {
         org_id: orgId,
         full_name: displayName,
       },
-      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/portal`,
+      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/tenant`,
     }
   )
 
@@ -105,7 +105,7 @@ export async function generateTenantPortalLink(tenantId: string, _leaseId: strin
     new_values: { action: "portal_token_generated", tenant_id: tenantId },
   })
 
-  const url = `${process.env.NEXT_PUBLIC_APP_URL}/portal/access?token=${tokenRecord.token}`
+  const url = `${process.env.NEXT_PUBLIC_APP_URL}/tenant/access?token=${tokenRecord.token}`
   return { success: true, url }
 }
 

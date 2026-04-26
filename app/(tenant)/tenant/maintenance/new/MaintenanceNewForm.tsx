@@ -116,7 +116,7 @@ export function MaintenanceNewForm({
     }
 
     toast.success("Maintenance request submitted")
-    router.push("/portal/maintenance")
+    router.push("/tenant/maintenance")
   }
 
   return (

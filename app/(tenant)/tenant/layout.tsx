@@ -20,12 +20,12 @@ export default function PortalLayout({
         open={mobileNavOpen}
         onOpenChange={handleOpenChange}
         groups={PORTAL_NAV_GROUPS}
-        homeHref="/portal"
+        homeHref="/tenant"
         badge="Tenant"
       />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar
-          settingsHref="/portal/account"
+          settingsHref="/tenant/account"
         />
         <main className="flex-1 overflow-y-auto bg-muted/30 p-6">{children}</main>
       </div>
