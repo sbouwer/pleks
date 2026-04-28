@@ -42,7 +42,7 @@ export const metadata: Metadata = {
     "South African property management platform. Smarter inspections, automated collections, legal-grade compliance.",
   manifest: "/manifest.json",
   icons: {
-    icon: "/favicon.svg?v=2",
+    icon: "/favicon.svg?v=4",
     apple: "/icons/icon-192.png",
   },
   appleWebApp: {
