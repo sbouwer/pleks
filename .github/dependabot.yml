@@ -59,9 +59,12 @@ updates:
     # so the reviewer can read release notes individually.
     # No group rule = default one-PR-per-dependency for majors.
     ignore:
-      # Pin Node types to match engine version — don't auto-bump
-      # to a major Node types version ahead of the runtime.
-      - dependency-name: "@types/node"
+      # Major-version bumps are intentionally opted out of automation.
+      # Majors routinely require code changes (ESLint plugins, React APIs,
+      # Next.js config changes, etc.) — a Dependabot PR that breaks the
+      # build creates noise and merge-conflict churn. Bump majors manually
+      # when there's a planned window to test and adapt.
+      - dependency-name: "*"
         update-types: ["version-update:semver-major"]
 
   # ─────────────────────────────────────────
@@ -80,3 +83,6 @@ updates:
     groups:
       actions-minor-patch:
         update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
