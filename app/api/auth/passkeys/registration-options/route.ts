@@ -1,11 +1,8 @@
 /**
- * app/api/auth/passkeys/registration-options/route.ts — FILL: one-line purpose
+ * app/api/auth/passkeys/registration-options/route.ts — Generate WebAuthn registration challenge
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/auth/passkeys/registration-options
+ * Auth:   aal1 session required (must be logged in to enrol a passkey)
  */
 import { generateRegistrationOptions } from "@simplewebauthn/server"
 import type { AuthenticatorTransportFuture } from "@simplewebauthn/server"

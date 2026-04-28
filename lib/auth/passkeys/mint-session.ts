@@ -1,11 +1,9 @@
 /**
- * lib/auth/passkeys/mint-session.ts — FILL: one-line purpose
+ * lib/auth/passkeys/mint-session.ts — Mint a Supabase session for a user after passkey auth
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes: uses admin.generateLink() + verifyOtp() as a two-step exchange to produce real
+ *        session tokens server-side without requiring the user's password. The magic link
+ *        is never sent — it's consumed immediately on the server.
  */
 import { createServiceClient } from "@/lib/supabase/server"
 

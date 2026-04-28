@@ -1,11 +1,8 @@
 /**
- * app/api/auth/revoke-session/route.ts — FILL: one-line purpose
+ * app/api/auth/revoke-session/route.ts — Revoke a device session by fingerprint or JWT ID
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/auth/revoke-session
+ * Auth:   aal1 session required; enforces user_id match — own sessions only
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"

@@ -1,11 +1,8 @@
 /**
- * lib/supabase/client.ts — FILL: one-line purpose
+ * lib/supabase/client.ts — Browser-side Supabase client (auth operations only)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes: valid only for auth calls (signIn, mfa.*, getUser). Never use for
+ *        DB queries — those go through gateway() which enforces org_id scoping.
  */
 import { createBrowserClient } from "@supabase/ssr"
 

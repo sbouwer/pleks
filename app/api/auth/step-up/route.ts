@@ -1,11 +1,9 @@
 /**
- * app/api/auth/step-up/route.ts — FILL: one-line purpose
+ * app/api/auth/step-up/route.ts — Verify a TOTP code against a pending step-up challenge
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/auth/step-up
+ * Auth:   aal1 session required
+ * Notes:  Challenge tokens are single-use and expire 5 min after verification.
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"

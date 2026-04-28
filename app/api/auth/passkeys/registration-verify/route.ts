@@ -1,11 +1,9 @@
 /**
- * app/api/auth/passkeys/registration-verify/route.ts — FILL: one-line purpose
+ * app/api/auth/passkeys/registration-verify/route.ts — Verify registration and store passkey
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/auth/passkeys/registration-verify
+ * Auth:   aal1 session required
+ * Data:   writes to user_passkeys table via service-role client
  */
 import { verifyRegistrationResponse } from "@simplewebauthn/server"
 import type { RegistrationResponseJSON } from "@simplewebauthn/server"

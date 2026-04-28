@@ -1,11 +1,8 @@
 /**
- * lib/auth/server.ts — FILL: one-line purpose
+ * lib/auth/server.ts — Cached per-request server auth helpers
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * getServerUser()          — GoTrue-verified user (not cookie-spoofable; one round-trip per render tree)
+ * getServerOrgMembership() — org_id + role from pleks_org cookie (zero DB) or user_orgs DB fallback
  */
 import { cache } from "react"
 import { cookies } from "next/headers"

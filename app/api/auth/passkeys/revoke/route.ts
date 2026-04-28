@@ -1,11 +1,8 @@
 /**
- * app/api/auth/passkeys/revoke/route.ts — FILL: one-line purpose
+ * app/api/auth/passkeys/revoke/route.ts — Delete a passkey from user_passkeys
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/auth/passkeys/revoke
+ * Auth:   aal1 session required; enforces user_id match — own passkeys only
  */
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { logAuthEvent } from "@/lib/auth/events"

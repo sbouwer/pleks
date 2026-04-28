@@ -1,11 +1,9 @@
 /**
- * app/(auth)/auth/callback/route.ts — FILL: one-line purpose
+ * app/(auth)/auth/callback/route.ts — OAuth and magic-link code exchange
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /auth/callback
+ * Auth:   public — exchanges a one-time code for a session cookie
+ * Notes:  ?next= redirect is sanitised via safeRedirect() to block open-redirect attacks.
  */
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"

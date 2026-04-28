@@ -1,11 +1,9 @@
 /**
- * app/(dashboard)/settings/security/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/settings/security/page.tsx — Security settings: TOTP factors and passkeys
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /settings/security
+ * Auth:   gatewaySSR() — logged-in org member
+ * Data:   auth.listFactors() for TOTP status; user_passkeys table for enrolled passkeys
  */
 import { redirect } from "next/navigation"
 import Link from "next/link"
