@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import Link from "next/link"
 import { Loader2, ShieldCheck } from "lucide-react"
 import { AccentBracket } from "@/components/ui/AccentBracket"
+import { safeRedirect } from "@/lib/auth/safe-redirect"
 
 const BTN_PRIMARY: React.CSSProperties = {
   width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
@@ -37,21 +38,35 @@ function MfaContent() {
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data }) => {
-      if (!data.user) {
+    ;(async () => {
+      const { data: userData } = await supabase.auth.getUser()
+      if (!userData.user) {
         router.replace("/login")
-      } else {
-        // If already aal2, skip ahead
-        supabase.auth.mfa.getAuthenticatorAssuranceLevel().then(({ data: aal }) => {
-          if (aal?.currentLevel === "aal2") {
-            router.replace(redirectParam ?? "/dashboard")
-          } else {
-            setChecking(false)
-            setTimeout(() => inputRef.current?.focus(), 100)
-          }
-        })
+        return
       }
-    })
+
+      // Already AAL2 — skip ahead to the destination
+      const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+      if (aal?.currentLevel === "aal2") {
+        router.replace(safeRedirect(redirectParam))
+        return
+      }
+
+      // AAL1 — check whether the user has any verified TOTP factor to challenge against.
+      // If not, this is either a first-time enrolment or an existing user whose MFA was
+      // never set up. Either way, send them to enrol-totp instead of showing a verify
+      // form they cannot satisfy.
+      const { data: factors } = await supabase.auth.mfa.listFactors()
+      const hasVerifiedTotp = (factors?.totp ?? []).some((f) => f.status === "verified")
+      if (!hasVerifiedTotp) {
+        router.replace("/settings/security/enrol-totp?mandatory=true")
+        return
+      }
+
+      // AAL1 with a verified factor → show the verify form
+      setChecking(false)
+      setTimeout(() => inputRef.current?.focus(), 100)
+    })()
   }, [router, redirectParam])
 
   async function handleVerify(e: React.FormEvent) {
@@ -62,13 +77,14 @@ function MfaContent() {
 
     const supabase = createClient()
     const { data: factors, error: factorsErr } = await supabase.auth.mfa.listFactors()
-    if (factorsErr || !factors?.totp?.length) {
-      // No TOTP enrolled — redirect to enrol
+    const verifiedFactor = (factors?.totp ?? []).find((f) => f.status === "verified")
+    if (factorsErr || !verifiedFactor) {
+      // No verified TOTP factor — useEffect should have caught this, but defend anyway
       router.push("/settings/security/enrol-totp?mandatory=true")
       return
     }
 
-    const factor = factors.totp[0]
+    const factor = verifiedFactor
     const { data: challenge, error: challengeErr } = await supabase.auth.mfa.challenge({ factorId: factor.id })
     if (challengeErr || !challenge) {
       setError("Could not start verification. Please try again.")
@@ -93,7 +109,7 @@ function MfaContent() {
     // Log via server (fire and forget)
     fetch("/api/auth/log-totp-verified", { method: "POST" }).catch(() => null)
 
-    router.push(redirectParam ?? "/dashboard")
+    router.push(safeRedirect(redirectParam))
   }
 
   function handleCodeChange(value: string) {

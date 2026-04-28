@@ -60,11 +60,11 @@ async function routeAfterLogin(
   if (roleCount === 0) { router.push("/onboarding"); return }
 
   if (roleCount > 1) {
-    router.push(redirectParam ? `/select-role?redirect=${encodeURIComponent(redirectParam)}` : "/select-role")
+    router.push(redirectParam ? `/select-role?redirect=${encodeURIComponent(safeRedirect(redirectParam))}` : "/select-role")
     return
   }
 
-  if (redirectParam) { router.push(redirectParam); return }
+  if (redirectParam) { router.push(safeRedirect(redirectParam)); return }
   if (agentRes.data?.[0]) {
     const role = agentRes.data[0].role
     if (role === "tenant") router.push("/tenant/dashboard")
@@ -128,7 +128,7 @@ function LoginContent() {
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${globalThis.location.origin}/auth/callback?next=${redirectParam || "/dashboard"}`,
+          emailRedirectTo: `${globalThis.location.origin}/auth/callback?next=${safeRedirect(redirectParam)}`,
         },
       })
       if (otpError) {
@@ -159,7 +159,7 @@ function LoginContent() {
     // Check MFA requirement before role routing
     const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
     if (aalData?.nextLevel === "aal2" && aalData?.currentLevel === "aal1") {
-      const dest = redirectParam ? `/login/mfa?redirect=${encodeURIComponent(redirectParam)}` : "/login/mfa"
+      const dest = redirectParam ? `/login/mfa?redirect=${encodeURIComponent(safeRedirect(redirectParam))}` : "/login/mfa"
       router.push(dest)
       return
     }

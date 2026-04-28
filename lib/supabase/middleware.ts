@@ -41,9 +41,12 @@ export async function updateSession(request: NextRequest) {
 function extractAalFromJwt(accessToken: string | undefined): string | null {
   if (!accessToken) return null
   try {
-    const payload = accessToken.split(".")[1]
-    if (!payload) return null
-    const decoded = JSON.parse(atob(payload)) as { aal?: string }
+    const raw = accessToken.split(".")[1]
+    if (!raw) return null
+    // JWT payloads are base64url (- → +, _ → /). atob needs standard base64 with padding.
+    const padded = raw.replaceAll("-", "+").replaceAll("_", "/")
+    const withPad = padded + "=".repeat((4 - padded.length % 4) % 4)
+    const decoded = JSON.parse(atob(withPad)) as { aal?: string }
     return decoded.aal ?? null
   } catch {
     return null
