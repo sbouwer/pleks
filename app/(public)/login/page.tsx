@@ -110,22 +110,39 @@ function LoginContent() {
       return
     }
 
-    const { data: membership } = await supabase
-      .from("user_orgs")
-      .select("role")
-      .eq("user_id", user.id)
-      .is("deleted_at", null)
-      .limit(1)
-      .single()
+    // Resolve all role memberships in parallel
+    const [agentRes, tenantRes, landlordRes] = await Promise.all([
+      supabase.from("user_orgs").select("role, org_id").eq("user_id", user.id).is("deleted_at", null),
+      supabase.from("user_orgs_tenants").select("tenant_id, org_id").eq("user_id", user.id),
+      supabase.from("landlords").select("id, org_id").eq("auth_user_id", user.id).is("deleted_at", null).eq("portal_access_enabled", true),
+    ])
 
-    if (!membership) {
+    const roleCount = (agentRes.data?.length ?? 0)
+      + (tenantRes.data?.length ?? 0)
+      + (landlordRes.data?.length ?? 0)
+
+    if (roleCount === 0) {
       router.push("/onboarding")
-    } else if (redirectParam) {
+      return
+    }
+
+    if (roleCount > 1) {
+      router.push(redirectParam ? `/select-role?redirect=${encodeURIComponent(redirectParam)}` : "/select-role")
+      return
+    }
+
+    // Single role — auto-route
+    if (redirectParam) {
       router.push(redirectParam)
-    } else if (membership.role === "tenant") {
-      router.push("/tenant")
-    } else if (membership.role === "contractor") {
-      router.push("/supplier")
+    } else if (agentRes.data?.[0]) {
+      const role = agentRes.data[0].role
+      if (role === "tenant") router.push("/tenant/dashboard")
+      else if (role === "contractor" || role === "supplier") router.push("/supplier/dashboard")
+      else router.push("/dashboard")
+    } else if (tenantRes.data?.[0]) {
+      router.push("/tenant/dashboard")
+    } else if (landlordRes.data?.[0]) {
+      router.push("/landlord/dashboard")
     } else {
       router.push("/dashboard")
     }

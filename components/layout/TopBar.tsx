@@ -8,6 +8,7 @@ import { usePortalTheme } from "@/components/layout/PortalThemeProvider"
 import { useUser } from "@/hooks/useUser"
 import { useOrg } from "@/hooks/useOrg"
 import { useRouter } from "next/navigation"
+import { RoleSwitcher } from "@/components/role-switcher/RoleSwitcher"
 
 interface TopbarProps {
   readonly settingsHref?: string
@@ -53,6 +54,7 @@ export function Topbar({
 
       {/* Right: actions */}
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}>
+        <RoleSwitcher />
         <SyncIndicator />
 
         {/* Theme toggle */}
