@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { AUTH_COOKIE_OPTS } from "@/lib/auth/cookie-config"
 import { ROUTE_MANIFEST, AGENT_ROLES, type SessionRole } from "@/lib/routing/manifest"
 import { resolveHostContext } from "@/lib/routing/hostname"
+import { resolveUserRoles, defaultRoleForMemberships } from "@/lib/auth/roles"
 import type { User } from "@supabase/supabase-js"
 
 // ── Bypass lists (checked before manifest) ───────────────────────────────────
@@ -123,9 +124,57 @@ async function ensureOrgCookies(
   return shouldRedirect ? NextResponse.redirect(new URL("/onboarding", request.url)) : null
 }
 
+// ── Portal role gate (ADDENDUM_61B) ──────────────────────────────────────────
+// Enforced when the route has any non-agent role in its allowed list.
+// Reads pleks_active_role; if missing, resolves from DB and sets cookie.
+async function checkPortalRoleGate(
+  rule: NonNullable<ReturnType<typeof matchManifest>>,
+  user: User,
+  request: NextRequest,
+  supabaseResponse: NextResponse
+): Promise<NextResponse | null> {
+  if (!rule.roles) return null
+  const hasPortalRole = rule.roles.some(r => !(AGENT_ROLES as readonly string[]).includes(r))
+  if (!hasPortalRole) return null
+
+  const raw = request.cookies.get("pleks_active_role")?.value
+  if (raw) {
+    try {
+      const { role } = JSON.parse(raw) as { role?: string }
+      if (role && rule.roles.includes(role as SessionRole)) return null // active role matches
+      if (role) return NextResponse.redirect(new URL("/403", request.url))
+    } catch { /* fall through to DB resolution */ }
+  }
+
+  // Cookie missing or unparseable — resolve from DB
+  const memberships = await resolveUserRoles(user.id)
+  if (memberships.length === 0) {
+    return NextResponse.redirect(new URL("/onboarding", request.url))
+  }
+
+  const chosen = defaultRoleForMemberships(memberships)
+
+  if (chosen) {
+    // Auto-resolve: set cookie and check if it matches this route
+    supabaseResponse.cookies.set("pleks_active_role", JSON.stringify({
+      role: chosen.role, scope_id: chosen.scope_id, org_id: chosen.org_id,
+    }), { ...AUTH_COOKIE_OPTS, maxAge: 60 * 60 * 24 * 7 })
+    supabaseResponse.cookies.set("pleks_available_roles", JSON.stringify(memberships), {
+      ...AUTH_COOKIE_OPTS, maxAge: 60 * 5,
+    })
+    if (rule.roles.includes(chosen.role)) return null // matches — allow through
+    return NextResponse.redirect(new URL("/403", request.url))
+  }
+
+  // Multiple roles, none auto-selected — send to role selector
+  supabaseResponse.cookies.set("pleks_available_roles", JSON.stringify(memberships), {
+    ...AUTH_COOKIE_OPTS, maxAge: 60 * 5,
+  })
+  return NextResponse.redirect(new URL("/select-role", request.url))
+}
+
 // ── Agent role gate ───────────────────────────────────────────────────────────
-// Only enforced when all allowed roles are agent roles; portal layouts handle
-// portal-role enforcement themselves.
+// Only enforced when all allowed roles are agent roles.
 function checkAgentRoleGate(
   rule: NonNullable<ReturnType<typeof matchManifest>>,
   request: NextRequest
@@ -158,6 +207,9 @@ async function handleProtectedRoute(
     url.searchParams.set("redirect", request.nextUrl.pathname)
     return NextResponse.redirect(url)
   }
+
+  const portalRedirect = await checkPortalRoleGate(rule, user, request, supabaseResponse)
+  if (portalRedirect) return portalRedirect
 
   const roleRedirect = checkAgentRoleGate(rule, request)
   if (roleRedirect) return roleRedirect

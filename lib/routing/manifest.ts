@@ -68,6 +68,11 @@ export const ROUTE_MANIFEST: Record<string, RouteRule> = {
   "/landlord":              { auth: true, roles: ["landlord"],                        skipOrgCheck: true },
   "/supplier":              { auth: true, roles: ["supplier", "contractor"],           skipOrgCheck: true },
 
+  // ── Multi-role navigation (ADDENDUM_61B) ──
+  "/select-role":           { auth: true,  skipOrgCheck: true },
+  "/switch-role":           { auth: true,  skipOrgCheck: true },
+  "/403":                   { auth: false },
+
   // ── Agent workspace (unprefixed) ──
   "/dashboard":             { auth: true, roles: AGENT_ROLES },
   "/properties":            { auth: true, roles: AGENT_ROLES },
