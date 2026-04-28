@@ -157,6 +157,9 @@ const SENSITIVE_TABLES = [
   "communication_log", "municipal_bills", "maintenance_requests",
   "inspections", "arrears_cases", "deposits", "deposit_transactions",
   "lease_clause_selections", "supplier_invoices",
+  // BUILD_62: auth security tables
+  "auth_events", "device_fingerprints", "login_notifications_sent",
+  "step_up_challenges", "user_passkeys", "passkey_challenges",
 ]
 
 const PUBLIC_API_ROUTES = [
@@ -178,6 +181,7 @@ const AUTHENTICATED_API_ROUTES = [
   "/api/reports",
   "/api/deposit-interest-config",
   "/api/org/notifications",
+  "/api/auth/available-roles",
 ]
 
 const CRON_ROUTES = [
@@ -705,6 +709,14 @@ async function cat8_serverActionAbuse() {
     { path: "/api/leases/generate-docx", body: { leaseId: "x" } },
     { path: "/api/rules/reformat", body: { text: "test" } },
     { path: "/api/leases/confirm-clause-edit", body: { orgId: "x" } },
+    // BUILD_62 auth security routes
+    { path: "/api/auth/step-up", body: { challengeToken: "x", code: "000000" } },
+    { path: "/api/auth/revoke-session", body: { deviceFingerprintId: "x" } },
+    { path: "/api/auth/log-totp-verified", body: {} },
+    { path: "/api/auth/log-totp-enrolled", body: {} },
+    { path: "/api/auth/set-mfa-recovery", body: {} },
+    { path: "/api/auth/clear-mfa-recovery", body: {} },
+    { path: "/api/switch-role", body: { role: "agent", orgId: "x" } },
   ]
 
   for (const { path, body } of MUTATION_ROUTES) {
