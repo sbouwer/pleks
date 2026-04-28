@@ -2,7 +2,8 @@ import { redirect } from "next/navigation"
 import Link from "next/link"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { createClient } from "@/lib/supabase/server"
-import { Shield, Key, Smartphone } from "lucide-react"
+import { Shield, Smartphone } from "lucide-react"
+import { PasskeyManager } from "@/components/auth/PasskeyManager"
 
 export const metadata = { title: "Security settings" }
 
@@ -46,18 +47,10 @@ export default async function SecurityPage() {
               {totpCount === 0 ? "Set up" : "Add another"}
             </Link>
           </div>
-          <div className="flex items-start gap-4 p-4">
-            <Key className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <div className="font-medium text-sm">Passkeys</div>
-              <div className="text-xs text-muted-foreground mt-0.5">
-                Sign in with your fingerprint or face recognition
-              </div>
-            </div>
-            <span className="text-xs text-muted-foreground shrink-0">Coming soon</span>
-          </div>
         </div>
       </section>
+
+      <PasskeyManager />
 
       {/* Sessions Section */}
       <section className="space-y-3">

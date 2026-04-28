@@ -7,7 +7,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import Link from "next/link"
-import { Eye, EyeOff, Loader2 } from "lucide-react"
+import { Eye, EyeOff, KeyRound, Loader2 } from "lucide-react"
+import { usePasskeyLogin } from "@/lib/auth/passkeys/usePasskeyLogin"
+import { canUsePasskeys } from "@/lib/auth/passkeys/capability"
 import { AccentBracket } from "@/components/ui/AccentBracket"
 
 function getButtonLabel(isMagicLink: boolean, isLoading: boolean) {
@@ -90,6 +92,13 @@ function LoginContent() {
   const [magicLinkMode, setMagicLinkMode] = useState(false)
   const [magicLinkSent, setMagicLinkSent] = useState(false)
   const [checking, setChecking] = useState(true)
+  const [passkeyAvailable, setPasskeyAvailable] = useState(false)
+  const { login: passkeyLogin, state: passkeyState, errorMsg: passkeyError, reset: passkeyReset } = usePasskeyLogin()
+
+  // Capability detection
+  useEffect(() => {
+    canUsePasskeys().then(c => setPasskeyAvailable(c.available))
+  }, [])
 
   // If already authenticated, redirect
   useEffect(() => {
@@ -223,7 +232,7 @@ function LoginContent() {
                 id="email"
                 type="email"
                 placeholder="you@example.com"
-                autoComplete="email"
+                autoComplete="username webauthn"
                 disabled={loading}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -279,6 +288,34 @@ function LoginContent() {
               {getButtonLabel(magicLinkMode, loading)}
             </button>
           </form>
+
+          {passkeyAvailable && (
+            <>
+              <div className="mt-4 flex items-center gap-2">
+                <div className="flex-1 border-t border-rule" />
+                <span className="text-xs text-muted-foreground px-2">or</span>
+                <div className="flex-1 border-t border-rule" />
+              </div>
+              {passkeyError && (
+                <div className="mt-2 text-xs text-danger text-center">{passkeyError}</div>
+              )}
+              <button
+                type="button"
+                style={{ ...BTN_GHOST, marginTop: 8 }}
+                disabled={passkeyState === "in_progress"}
+                onClick={() => {
+                  passkeyReset()
+                  void passkeyLogin(email || undefined)
+                }}
+              >
+                {passkeyState === "in_progress"
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <KeyRound className="h-4 w-4" />
+                }
+                Sign in with passkey
+              </button>
+            </>
+          )}
 
           <div className="mt-4 text-center">
             <button

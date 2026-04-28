@@ -28,6 +28,8 @@
     "@hookform/resolvers": "^5.2.2",
     "@react-email/components": "^1.0.12",
     "@serwist/next": "^9.5.7",
+    "@simplewebauthn/browser": "^13.3.0",
+    "@simplewebauthn/server": "^13.3.0",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.104.1",
     "@tanstack/react-query": "^5.100.5",

@@ -1,8 +1,9 @@
 "use client"
 
 import Link from "next/link"
-import { Smartphone, Key } from "lucide-react"
+import { Smartphone } from "lucide-react"
 import { SessionsView } from "./SessionsView"
+import { PasskeyManager } from "./PasskeyManager"
 
 interface Props {
   readonly userId: string
@@ -50,18 +51,10 @@ export function PortalSecurityView({ userId, totpCount, role }: Props) {
               {totpCount === 0 ? "Set up" : "Add another"}
             </Link>
           </div>
-          <div className="flex items-start gap-4 p-4">
-            <Key className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <div className="font-medium text-sm">Passkey</div>
-              <div className="text-xs text-muted-foreground mt-0.5">
-                Sign in with your fingerprint or face recognition
-              </div>
-            </div>
-            <span className="text-xs text-muted-foreground shrink-0">Coming soon</span>
-          </div>
         </div>
       </section>
+
+      <PasskeyManager />
 
       <SessionsView userId={userId} selfOnly />
     </div>
