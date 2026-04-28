@@ -16,10 +16,10 @@ export interface CriticalIncidentBrokerProps {
   maintenanceRequestId: string
   /** Date the checklist was last verified (most recent confirmed_at), formatted */
   coverageLastVerified?: string | null
-  /** Number of confirmed applicable checklist items */
-  coverageConfirmedCount?: number
-  /** Total applicable checklist items */
-  coverageTotalCount?: number
+  /** Labels of confirmed checklist items */
+  confirmedItems?: string[]
+  /** Labels of checklist items with unknown/unverified status */
+  unknownItems?: string[]
 }
 
 export function CriticalIncidentBrokerEmail({
@@ -35,8 +35,8 @@ export function CriticalIncidentBrokerEmail({
   appUrl,
   maintenanceRequestId,
   coverageLastVerified,
-  coverageConfirmedCount,
-  coverageTotalCount,
+  confirmedItems,
+  unknownItems,
 }: Readonly<CriticalIncidentBrokerProps>) {
   return (
     <EmailLayout
@@ -74,15 +74,29 @@ export function CriticalIncidentBrokerEmail({
 
       <Hr style={divider} />
 
-      {coverageLastVerified && (
+      {(coverageLastVerified || confirmedItems?.length || unknownItems?.length) && (
         <>
           <EmailSectionHeading>Coverage on file</EmailSectionHeading>
-          <Text style={label}>Last verified</Text>
-          <Text style={value}>{coverageLastVerified}</Text>
-          {coverageTotalCount !== undefined && coverageTotalCount > 0 && (
+          {coverageLastVerified && (
             <>
-              <Text style={label}>Items confirmed</Text>
-              <Text style={value}>{coverageConfirmedCount ?? 0} of {coverageTotalCount}</Text>
+              <Text style={label}>Last verified</Text>
+              <Text style={value}>{coverageLastVerified}</Text>
+            </>
+          )}
+          {confirmedItems && confirmedItems.length > 0 && (
+            <>
+              <Text style={label}>Confirmed cover</Text>
+              {confirmedItems.map((item) => (
+                <Text key={item} style={checklistItem}>✓ {item}</Text>
+              ))}
+            </>
+          )}
+          {unknownItems && unknownItems.length > 0 && (
+            <>
+              <Text style={label}>Coverage not verified</Text>
+              {unknownItems.map((item) => (
+                <Text key={item} style={checklistItem}>? {item}</Text>
+              ))}
             </>
           )}
           <Hr style={divider} />
@@ -107,4 +121,5 @@ const label     = { fontSize: "11px", fontWeight: "600" as const, textTransform:
 const value     = { fontSize: "14px", fontWeight: "600" as const, color: "#111827", margin: "0 0 4px" }
 const sub       = { fontSize: "13px", color: "#6b7280", margin: "0 0 8px" }
 const divider   = { borderColor: "#e5e7eb", margin: "16px 0" }
+const checklistItem = { fontSize: "13px", color: "#374151", margin: "2px 0", paddingLeft: "4px" }
 const footnote  = { fontSize: "11px", color: "#9ca3af", margin: "16px 0 0" }

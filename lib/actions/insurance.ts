@@ -1,7 +1,9 @@
 "use server"
 
 import { gateway } from "@/lib/supabase/gateway"
+import { createServiceClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
+import { createPropertyInfoRequest } from "@/lib/actions/propertyInfoRequests"
 
 export async function saveInsurancePolicy(propertyId: string, formData: FormData) {
   const gw = await gateway()
@@ -44,6 +46,100 @@ export async function saveInsurancePolicy(propertyId: string, formData: FormData
 
   revalidatePath(`/properties/${propertyId}`)
   return { success: true }
+}
+
+// ── Ask owner to verify checklist items ──────────────────────────────────────
+
+export interface CreateChecklistOwnerRequestParams {
+  propertyId: string
+  itemCodes:  string[]
+}
+
+export async function createInsuranceChecklistOwnerRequest(
+  params: CreateChecklistOwnerRequestParams,
+): Promise<{ ok: boolean; requestId?: string; error?: string }> {
+  const gw = await gateway()
+  if (!gw) return { ok: false, error: "Not authenticated" }
+  const { db, orgId, userId } = gw
+
+  if (params.itemCodes.length === 0) return { ok: false, error: "No items selected" }
+
+  // Resolve property → landlord → contact email
+  const { data: prop, error: propErr } = await db
+    .from("properties")
+    .select("landlord_id, owner_email")
+    .eq("id", params.propertyId)
+    .eq("org_id", orgId)
+    .single()
+
+  if (propErr || !prop) return { ok: false, error: "Property not found" }
+
+  let recipientEmail: string | null = null
+  let ownerName: string | undefined
+
+  if (prop.landlord_id) {
+    const service = await createServiceClient()
+    const { data: landlordRow } = await service
+      .from("landlords")
+      .select("contact_id")
+      .eq("id", prop.landlord_id)
+      .maybeSingle()
+
+    if (landlordRow?.contact_id) {
+      const { data: contact } = await service
+        .from("contacts")
+        .select("first_name, last_name, email")
+        .eq("id", landlordRow.contact_id as string)
+        .maybeSingle()
+
+      if (contact) {
+        recipientEmail = (contact.email as string | null) ?? null
+        const fullName = [contact.first_name, contact.last_name].filter(Boolean).join(" ")
+        if (fullName) ownerName = fullName
+      }
+    }
+  }
+
+  if (!recipientEmail) {
+    recipientEmail = (prop.owner_email as string | null) ?? null
+  }
+
+  if (!recipientEmail) return { ok: false, error: "No owner email on record" }
+
+  // Fetch item defs from catalogue
+  const service = await createServiceClient()
+  const { data: items, error: itemErr } = await service
+    .from("insurance_checklist_items")
+    .select("code, label, description, help_text")
+    .in("code", params.itemCodes)
+
+  if (itemErr || !items?.length) return { ok: false, error: "Could not load checklist items" }
+
+  const checklistItems = items.map((r) => ({
+    code:        r.code as string,
+    label:       r.label as string,
+    description: r.description as string,
+    help_text:   (r.help_text as string | null) ?? null,
+  }))
+
+  const expiresAt = new Date()
+  expiresAt.setDate(expiresAt.getDate() + 14)
+
+  const result = await createPropertyInfoRequest({
+    propertyId:     params.propertyId,
+    topic:          "insurance",
+    missingFields:  params.itemCodes,
+    recipientType:  "owner",
+    recipientEmail,
+    scenarioContext: { checklist_items: checklistItems },
+    checklistMode:  true,
+    requestedBy:    userId,
+    orgId,
+    expiresAt:      expiresAt.toISOString(),
+    ...(ownerName ? { ownerName } : {}),
+  })
+
+  return result
 }
 
 export async function saveBroker(propertyId: string, formData: FormData) {
