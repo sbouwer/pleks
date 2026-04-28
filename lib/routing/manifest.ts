@@ -15,6 +15,8 @@ export interface RouteRule {
   roles?: readonly SessionRole[]
   skipOrgCheck?: boolean
   tokenGated?: boolean
+  /** If true, proxy enforces AAL2 (completed MFA) before allowing access. */
+  requiresAal2?: boolean
 }
 
 /**
@@ -73,26 +75,28 @@ export const ROUTE_MANIFEST: Record<string, RouteRule> = {
   "/switch-role":           { auth: true,  skipOrgCheck: true },
   "/403":                   { auth: false },
 
-  // ── Agent workspace (unprefixed) ──
-  "/dashboard":             { auth: true, roles: AGENT_ROLES },
-  "/properties":            { auth: true, roles: AGENT_ROLES },
-  "/tenants":               { auth: true, roles: AGENT_ROLES },
-  "/landlords":             { auth: true, roles: AGENT_ROLES },
-  "/leases":                { auth: true, roles: AGENT_ROLES },
-  "/applications":          { auth: true, roles: AGENT_ROLES },
-  "/billing":               { auth: true, roles: AGENT_ROLES },
-  "/finance":               { auth: true, roles: AGENT_ROLES },
-  "/suppliers":             { auth: true, roles: AGENT_ROLES },
-  "/maintenance":           { auth: true, roles: AGENT_ROLES },
-  "/inspections":           { auth: true, roles: AGENT_ROLES },
-  "/calendar":              { auth: true, roles: AGENT_ROLES },
-  "/reports":               { auth: true, roles: AGENT_ROLES },
-  "/documents":             { auth: true, roles: AGENT_ROLES },
+  // ── Agent workspace (unprefixed) — requiresAal2 blocks AAL1 sessions ──
+  // /settings is intentionally AAL1-accessible so agents can enrol their first
+  // TOTP factor before they have an AAL2 session.
   "/settings":              { auth: true, roles: AGENT_ROLES },
-  "/hoa":                   { auth: true, roles: AGENT_ROLES },
-  "/managing-schemes":      { auth: true, roles: AGENT_ROLES },
-  "/utilities":             { auth: true, roles: AGENT_ROLES },
-  "/statements":            { auth: true, roles: AGENT_ROLES },
+  "/dashboard":             { auth: true, roles: AGENT_ROLES, requiresAal2: true },
+  "/properties":            { auth: true, roles: AGENT_ROLES, requiresAal2: true },
+  "/tenants":               { auth: true, roles: AGENT_ROLES, requiresAal2: true },
+  "/landlords":             { auth: true, roles: AGENT_ROLES, requiresAal2: true },
+  "/leases":                { auth: true, roles: AGENT_ROLES, requiresAal2: true },
+  "/applications":          { auth: true, roles: AGENT_ROLES, requiresAal2: true },
+  "/billing":               { auth: true, roles: AGENT_ROLES, requiresAal2: true },
+  "/finance":               { auth: true, roles: AGENT_ROLES, requiresAal2: true },
+  "/suppliers":             { auth: true, roles: AGENT_ROLES, requiresAal2: true },
+  "/maintenance":           { auth: true, roles: AGENT_ROLES, requiresAal2: true },
+  "/inspections":           { auth: true, roles: AGENT_ROLES, requiresAal2: true },
+  "/calendar":              { auth: true, roles: AGENT_ROLES, requiresAal2: true },
+  "/reports":               { auth: true, roles: AGENT_ROLES, requiresAal2: true },
+  "/documents":             { auth: true, roles: AGENT_ROLES, requiresAal2: true },
+  "/hoa":                   { auth: true, roles: AGENT_ROLES, requiresAal2: true },
+  "/managing-schemes":      { auth: true, roles: AGENT_ROLES, requiresAal2: true },
+  "/utilities":             { auth: true, roles: AGENT_ROLES, requiresAal2: true },
+  "/statements":            { auth: true, roles: AGENT_ROLES, requiresAal2: true },
 
   // ── Marketing (apex-only in production; /marketing/* prefix in dev/preview) ──
   "/marketing":             { auth: false },

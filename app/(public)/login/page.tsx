@@ -11,6 +11,7 @@ import { Eye, EyeOff, KeyRound, Loader2 } from "lucide-react"
 import { usePasskeyLogin } from "@/lib/auth/passkeys/usePasskeyLogin"
 import { canUsePasskeys } from "@/lib/auth/passkeys/capability"
 import { AccentBracket } from "@/components/ui/AccentBracket"
+import { safeRedirect } from "@/lib/auth/safe-redirect"
 
 function getButtonLabel(isMagicLink: boolean, isLoading: boolean) {
   if (isMagicLink) return isLoading ? "Sending link..." : "Send login link"
@@ -106,7 +107,7 @@ function LoginContent() {
     supabase.auth.getUser()
       .then(({ data }) => {
         if (data.user) {
-          router.replace(redirectParam || "/dashboard")
+          router.replace(safeRedirect(redirectParam))
         } else {
           setChecking(false)
         }
@@ -142,11 +143,9 @@ function LoginContent() {
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
 
     if (signInError) {
-      if (signInError.message.includes("Email not confirmed")) {
-        setError("Please verify your email first. Check your inbox.")
-      } else {
-        setError("Incorrect email or password")
-      }
+      // Use a generic message for all sign-in failures — differentiated errors
+      // (e.g. "Email not confirmed") leak account existence and enable enumeration.
+      setError("Incorrect email or password")
       setLoading(false)
       return
     }

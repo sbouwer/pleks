@@ -107,35 +107,48 @@ export const gatewaySSR = cache(async (): Promise<GatewayContext | null> => {
 async function resolveOrgMembership(
   userId: string
 ): Promise<{ org_id: string; role: string; tier: string | null; is_admin: boolean } | null> {
-  // 1. Try pleks_org cookie (zero DB call)
-  // Note: is_admin is NOT cached in the cookie — always false from cookie path.
-  // Owners are always isAdmin regardless (role === 'owner' check covers them).
-  // Non-owners get is_admin from the DB fallback path.
+  // 1. Cookie provides org_id hint — always validate membership against DB.
+  // The cookie is not a trust source for role or org_id: an attacker who edits
+  // their own cookie jar can forge any org_id or role value. The DB is authoritative.
   const cookieStore = await cookies()
   const cached = cookieStore.get("pleks_org")
+  const service = await createServiceClient()
+
   if (cached?.value) {
     try {
       const parsed = JSON.parse(cached.value) as {
-        org_id: string
-        role: string
+        org_id?: string
         tier?: string
-        user_id: string
+        user_id?: string
       }
-      if (parsed.org_id && parsed.role && parsed.user_id === userId) {
-        return {
-          org_id: parsed.org_id,
-          role: parsed.role,
-          tier: parsed.tier ?? null,
-          is_admin: parsed.role === "owner", // owner always admin; others resolved at DB level
+      if (parsed.org_id && parsed.user_id === userId) {
+        // Re-validate membership and role from DB — cookie org_id is a cache hint only
+        const { data: membership } = await service
+          .from("user_orgs")
+          .select("role, is_admin")
+          .eq("user_id", userId)
+          .eq("org_id", parsed.org_id)
+          .is("deleted_at", null)
+          .maybeSingle()
+
+        if (membership) {
+          return {
+            org_id: parsed.org_id,
+            role: (membership as unknown as { role: string }).role,
+            tier: parsed.tier ?? null,
+            is_admin:
+              (membership as unknown as { role: string }).role === "owner" ||
+              (membership as unknown as { is_admin: boolean }).is_admin === true,
+          }
         }
+        // Membership not found for the claimed org — fall through to DB lookup
       }
     } catch {
       // corrupted cookie — fall through
     }
   }
 
-  // 2. DB fallback (service client to avoid RLS issues)
-  const service = await createServiceClient()
+  // 2. DB fallback — no valid cookie hint, query directly
   const { data } = await service
     .from("user_orgs")
     .select("org_id, role, is_admin")

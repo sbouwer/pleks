@@ -5,10 +5,12 @@ import { AUTH_COOKIE_OPTS } from "@/lib/auth/cookie-config"
 import { ROUTE_MANIFEST, AGENT_ROLES, type SessionRole } from "@/lib/routing/manifest"
 import { resolveHostContext } from "@/lib/routing/hostname"
 import { resolveUserRoles, defaultRoleForMemberships } from "@/lib/auth/roles"
+import { verifyAdminToken } from "@/lib/auth/admin-token"
 import type { User } from "@supabase/supabase-js"
 
 // ── Bypass lists (checked before manifest) ───────────────────────────────────
-const WEBHOOK_PREFIXES = ["/api/webhooks", "/api/cron", "/api/waitlist", "/api/admin"]
+// /api/admin is NOT in this list — it gets its own middleware gate below.
+const WEBHOOK_PREFIXES = ["/api/webhooks", "/api/cron", "/api/waitlist"]
 
 // ── Subdomain split ───────────────────────────────────────────────────────────
 // In production: pleks.co.za = marketing apex, app.pleks.co.za = product.
@@ -37,14 +39,26 @@ function matchManifest(pathname: string) {
   return best ? ROUTE_MANIFEST[best] : null
 }
 
-// ── Admin gate ───────────────────────────────────────────────────────────────
-function checkAdminAuth(pathname: string, request: NextRequest): NextResponse | null {
+// ── Admin page gate (/admin/* UI routes) ─────────────────────────────────────
+async function checkAdminAuth(pathname: string, request: NextRequest): Promise<NextResponse | null> {
   if (!pathname.startsWith("/admin")) return null
   if (pathname === "/admin/login") return NextResponse.next()
   const adminToken = request.cookies.get("pleks_admin_token")?.value
   const adminSecret = process.env.ADMIN_SECRET
-  if (!adminSecret || adminToken !== adminSecret)
+  if (!await verifyAdminToken(adminToken, adminSecret))
     return NextResponse.redirect(new URL("/admin/login", request.url))
+  return NextResponse.next()
+}
+
+// ── Admin API gate (/api/admin/* routes) ─────────────────────────────────────
+// Defense-in-depth: individual handlers also call verifyAdmin(), but this gate
+// ensures a handler that forgets the check is still blocked at the proxy level.
+async function checkAdminApiAuth(pathname: string, request: NextRequest): Promise<NextResponse | null> {
+  if (!pathname.startsWith("/api/admin")) return null
+  const adminToken = request.cookies.get("pleks_admin_token")?.value
+  const adminSecret = process.env.ADMIN_SECRET
+  if (!await verifyAdminToken(adminToken, adminSecret))
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   return NextResponse.next()
 }
 
@@ -199,11 +213,20 @@ async function handleProtectedRoute(
   rule: NonNullable<ReturnType<typeof matchManifest>>,
   request: NextRequest
 ): Promise<NextResponse> {
-  const { user, supabaseResponse } = await updateSession(request)
+  const { user, supabaseResponse, aal } = await updateSession(request)
 
   if (!user) {
     const url = request.nextUrl.clone()
     url.pathname = "/login"
+    url.searchParams.set("redirect", request.nextUrl.pathname)
+    return NextResponse.redirect(url)
+  }
+
+  // AAL2 enforcement — agent workspace routes require a completed MFA session.
+  // /settings is intentionally excluded so agents can enrol their first TOTP factor.
+  if (rule.requiresAal2 && aal !== "aal2") {
+    const url = request.nextUrl.clone()
+    url.pathname = "/login/mfa"
     url.searchParams.set("redirect", request.nextUrl.pathname)
     return NextResponse.redirect(url)
   }
@@ -226,8 +249,12 @@ async function handleProtectedRoute(
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Webhooks / cron / waitlist / admin-API — bypass everything
+  // Webhooks / cron / waitlist — bypass everything
   if (WEBHOOK_PREFIXES.some((p) => pathname.startsWith(p))) return NextResponse.next()
+
+  // Admin API gate — defense-in-depth before individual handler auth checks
+  const adminApiResponse = await checkAdminApiAuth(pathname, request)
+  if (adminApiResponse) return adminApiResponse
 
   // Production subdomain split: non-marketing paths on the apex redirect to app.pleks.co.za
   const host = request.headers.get("host") ?? ""
@@ -237,8 +264,8 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(dest, 308)
   }
 
-  // Admin gate (only reached on app subdomain in production)
-  const adminResponse = checkAdminAuth(pathname, request)
+  // Admin UI gate (only reached on app subdomain in production)
+  const adminResponse = await checkAdminAuth(pathname, request)
   if (adminResponse) return adminResponse
 
   // Manifest lookup

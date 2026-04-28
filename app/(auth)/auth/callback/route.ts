@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { safeRedirect } from "@/lib/auth/safe-redirect"
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
@@ -11,9 +12,11 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (!error) {
-      // Explicit redirect requested (invite links, etc.) — honour it
+      // Explicit redirect requested (invite links, etc.) — validate before honouring.
+      // Bare string concat `${origin}${next}` is an open-redirect vector if next
+      // starts with // or is an absolute URL (e.g. //evil.com, https://evil.com).
       if (next) {
-        return NextResponse.redirect(`${origin}${next}`)
+        return NextResponse.redirect(`${origin}${safeRedirect(next)}`)
       }
 
       // Role-based routing — same logic as login page

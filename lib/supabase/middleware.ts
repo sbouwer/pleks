@@ -32,5 +32,20 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getSession()
   const user = session?.user ?? null
 
-  return { supabase, user, supabaseResponse }
+  // Extract AAL from the JWT payload — not exposed directly on the Session type.
+  const aal = extractAalFromJwt(session?.access_token)
+
+  return { supabase, user, supabaseResponse, aal }
+}
+
+function extractAalFromJwt(accessToken: string | undefined): string | null {
+  if (!accessToken) return null
+  try {
+    const payload = accessToken.split(".")[1]
+    if (!payload) return null
+    const decoded = JSON.parse(atob(payload)) as { aal?: string }
+    return decoded.aal ?? null
+  } catch {
+    return null
+  }
 }
