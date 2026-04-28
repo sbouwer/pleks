@@ -50,18 +50,36 @@ export async function notifyBroker(params: NotifyBrokerParams): Promise<{ logId?
   const [orgSettings, checklistResult] = await Promise.all([
     fetchOrgSettings(params.orgId),
     db.from("property_insurance_checklists")
-      .select("state, confirmed_at")
+      .select("state, confirmed_at, item_code")
       .eq("property_id", params.propertyId)
       .neq("state", "not_applicable"),
   ])
 
   const checklist = checklistResult.data ?? []
-  const coverageTotalCount     = checklist.length > 0 ? checklist.length : undefined
-  const coverageConfirmedCount = coverageTotalCount === undefined
-    ? undefined
-    : checklist.filter((r) => r.state === "confirmed").length
+
+  // Resolve item labels from the catalogue so we can list them in the email
+  const itemCodes = checklist.map((r) => r.item_code as string).filter(Boolean)
+  const labelByCode: Record<string, string> = {}
+  if (itemCodes.length > 0) {
+    const { data: catalogue } = await db
+      .from("insurance_checklist_items")
+      .select("code, label")
+      .in("code", itemCodes)
+    for (const item of catalogue ?? []) {
+      labelByCode[item.code as string] = item.label as string
+    }
+  }
+
+  const confirmedItems = checklist
+    .filter((r) => r.state === "confirmed")
+    .map((r) => labelByCode[r.item_code as string] ?? (r.item_code as string))
+
+  const unknownItems = checklist
+    .filter((r) => r.state === "unknown")
+    .map((r) => labelByCode[r.item_code as string] ?? (r.item_code as string))
 
   const confirmedDates = checklist
+    .filter((r) => r.state === "confirmed")
     .map((r) => r.confirmed_at as string | null)
     .filter((d): d is string => !!d)
   const latestConfirmedAt = confirmedDates.toSorted((a, b) => a.localeCompare(b)).at(-1) ?? null
@@ -85,8 +103,8 @@ export async function notifyBroker(params: NotifyBrokerParams): Promise<{ logId?
     appUrl,
     maintenanceRequestId: params.maintenanceRequestId,
     coverageLastVerified,
-    coverageConfirmedCount,
-    coverageTotalCount,
+    confirmedItems:      confirmedItems.length > 0 ? confirmedItems : undefined,
+    unknownItems:        unknownItems.length > 0   ? unknownItems   : undefined,
   }
 
   const result = await sendEmail({

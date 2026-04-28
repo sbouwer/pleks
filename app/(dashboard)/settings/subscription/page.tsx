@@ -124,7 +124,7 @@ export default function BillingPage() {
   const limits       = TIER_LIMITS[tier]
   const features     = TIER_FEATURES[tier]
   const isFounding   = foundingCtx ? isFoundingAgentActive(foundingCtx) : false
-  const monthlyPrice = foundingCtx ? getMonthlyPriceCents(foundingCtx) : TIER_PRICING[tier].monthly
+  const monthlyPrice = foundingCtx ? getMonthlyPriceCents(foundingCtx) : (TIER_PRICING[tier].monthly ?? 0)
   const foundingMonthsLeft = foundingCtx?.founding_agent_expires_at
     ? foundingAgentMonthsRemaining(foundingCtx.founding_agent_expires_at)
     : null
@@ -233,8 +233,7 @@ export default function BillingPage() {
             )}
 
             <div className="text-sm text-muted-foreground space-y-1">
-              <p>Units: {limits.units ?? "Unlimited"}</p>
-              <p>Users: {limits.users ?? "Unlimited"}</p>
+              <p>Active leases: {limits.leases ?? "Custom"}</p>
               {periodEnd && (
                 <p>Next billing: {new Date(periodEnd).toLocaleDateString("en-ZA")}</p>
               )}

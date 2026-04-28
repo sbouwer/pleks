@@ -24,7 +24,7 @@ interface Props {
 }
 
 export function PropertyCards({ properties, tier, totalUnitCount }: Props) {
-  const unitLimit = TIER_LIMITS[tier].units
+  const unitLimit = TIER_LIMITS[tier].leases
 
   const totalUnits = properties.reduce((sum, p) =>
     sum + p.units.filter(u => !u.is_archived).length, 0)

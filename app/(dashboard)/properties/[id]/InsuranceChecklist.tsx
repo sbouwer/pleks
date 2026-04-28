@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { CheckCircle2, Circle, Minus, ChevronDown, ChevronUp, Loader2, Send } from "lucide-react"
+import { CheckCircle2, Circle, Minus, ChevronDown, ChevronUp, Loader2, Send, Mail } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import {
@@ -12,6 +12,7 @@ import {
   addChecklistItemNote,
 } from "./insuranceChecklistActions"
 import { sendBrokerBrief } from "@/lib/insurance-checklist/sendBrokerBrief"
+import { createInsuranceChecklistOwnerRequest } from "@/lib/actions/insurance"
 
 export interface ChecklistItemRow {
   id: string
@@ -309,12 +310,40 @@ export function InsuranceChecklist({ propertyId, rows, canTick }: Props) {
   const total = applicable.length
   const pct = total === 0 ? 100 : Math.round((confirmed / total) * 100)
   const [briefPending, startBrief] = useTransition()
+  const [ownerPending, startOwner] = useTransition()
+  const [showAskOwner, setShowAskOwner] = useState(false)
+
+  const unknownItems = rows.filter((r) => r.state === "unknown" && !r.is_auto_derived)
+  const [selectedCodes, setSelectedCodes] = useState<string[]>(() =>
+    unknownItems.map((r) => r.item_code),
+  )
+
+  function toggleCode(code: string) {
+    setSelectedCodes((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code],
+    )
+  }
 
   function handleSendBrief() {
     startBrief(async () => {
       const result = await sendBrokerBrief(propertyId)
       if (result.ok) toast.success("Broker brief sent")
       else toast.error(result.error ?? "Failed to send brief")
+    })
+  }
+
+  function handleAskOwner() {
+    startOwner(async () => {
+      const result = await createInsuranceChecklistOwnerRequest({
+        propertyId,
+        itemCodes: selectedCodes,
+      })
+      if (result.ok) {
+        toast.success("Owner request sent")
+        setShowAskOwner(false)
+      } else {
+        toast.error(result.error ?? "Failed to send request")
+      }
     })
   }
 
@@ -370,20 +399,72 @@ export function InsuranceChecklist({ propertyId, rows, canTick }: Props) {
 
       {/* Footer — Steward+ only */}
       {canTick && (
-        <div className="px-4 py-3 border-t">
-          <button
-            type="button"
-            onClick={handleSendBrief}
-            disabled={briefPending}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-          >
-            {briefPending ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Send className="w-3.5 h-3.5" />
+        <div className="px-4 py-3 border-t space-y-3">
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={handleSendBrief}
+              disabled={briefPending}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+            >
+              {briefPending ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Send className="w-3.5 h-3.5" />
+              )}
+              Send broker brief
+            </button>
+
+            {unknownItems.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowAskOwner((s) => !s)}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Mail className="w-3.5 h-3.5" />
+                Ask owner
+              </button>
             )}
-            Send broker brief
-          </button>
+          </div>
+
+          {showAskOwner && (
+            <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+              <p className="text-xs text-muted-foreground">
+                Select items to include in the owner request:
+              </p>
+              <div className="space-y-1.5">
+                {unknownItems.map((item) => (
+                  <label key={item.item_code} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedCodes.includes(item.item_code)}
+                      onChange={() => toggleCode(item.item_code)}
+                      className="rounded border-border"
+                    />
+                    <span className="text-xs">{item.label}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleAskOwner}
+                  disabled={ownerPending || selectedCodes.length === 0}
+                  className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 font-medium"
+                >
+                  {ownerPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Mail className="w-3 h-3" />}
+                  Send request
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAskOwner(false)}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

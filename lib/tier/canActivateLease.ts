@@ -2,16 +2,17 @@ import { getOrgTier } from "./getOrgTier"
 import { getActiveLeaseCount } from "./getActiveLeaseCount"
 
 const LEASE_LIMITS: Record<string, number> = {
-  owner:   1,
-  steward: 20,
-  firm:    Infinity,
+  owner:     1,
+  steward:   15,
+  growth:    30,
+  portfolio: 75,
+  firm:      150,
+  bespoke:   Infinity,
 }
 
 /**
- * Checks whether an org can activate another lease.
- * Owner tier = 1 active lease max.
- * Steward tier = 20 active leases max.
- * Firm tier = unlimited.
+ * Checks whether an org can activate another lease against their tier cap.
+ * Bespoke tier has no hard cap (custom contract governs).
  */
 export async function canActivateLease(
   orgId: string,

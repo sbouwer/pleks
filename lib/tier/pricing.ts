@@ -19,7 +19,7 @@ export function getMonthlyPriceCents(ctx: PricingContext): number {
   if (isFoundingAgentActive(ctx)) {
     return ctx.founding_agent_price_cents ?? TIER_PRICING.steward.monthly
   }
-  return TIER_PRICING[ctx.tier].monthly
+  return TIER_PRICING[ctx.tier].monthly ?? 0
 }
 
 /**

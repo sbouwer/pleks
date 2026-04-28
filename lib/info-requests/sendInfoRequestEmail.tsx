@@ -63,6 +63,8 @@ export interface SendInfoRequestParams {
   reminderCount?: number
   /** Only consulted when topic='insurance'. Defaults to 'owner'. */
   insuranceRecipient?: InsuranceRecipient
+  /** When true, owner is asked to verify specific checklist items rather than enter policy data. */
+  checklistMode?: boolean
   /** Free-form prompt for topic='other'; carried through to the template. */
   prompt?: string
   /** If known at send time, used in broker/scheme openings. */
@@ -155,6 +157,7 @@ interface RenderContext {
   secureUrl:       string
   firmness:        "polite" | "firm"
   insuranceRecipient: InsuranceRecipient
+  checklistMode?:  boolean
   prompt?:         string
   ownerName?:      string
   schemeName?:     string
@@ -163,10 +166,10 @@ interface RenderContext {
 type TemplateResult = { element: ReactElement; templateKey: string; subject: string }
 
 function selectInitialTemplate(topic: InfoRequestTopic, ctx: RenderContext): TemplateResult {
-  const { branding, propertyLabel: p, secureUrl, insuranceRecipient, prompt, ownerName, schemeName } = ctx
+  const { branding, propertyLabel: p, secureUrl, insuranceRecipient, checklistMode, prompt, ownerName, schemeName } = ctx
   switch (topic) {
     case "landlord":   return { templateKey: "info_request.landlord",   subject: `Confirm the owner details for ${p}`,                      element: <LandlordInfoRequestEmail   branding={branding} propertyLabel={p} secureUrl={secureUrl} /> }
-    case "insurance":  return { templateKey: "info_request.insurance",  subject: `Confirm insurance details for ${p}`,                      element: <InsuranceInfoRequestEmail  branding={branding} propertyLabel={p} secureUrl={secureUrl} recipientType={insuranceRecipient} ownerName={ownerName} /> }
+    case "insurance":  return { templateKey: "info_request.insurance",  subject: checklistMode ? `Verify insurance checklist items for ${p}` : `Confirm insurance details for ${p}`, element: <InsuranceInfoRequestEmail  branding={branding} propertyLabel={p} secureUrl={secureUrl} recipientType={insuranceRecipient} ownerName={ownerName} checklistMode={checklistMode} /> }
     case "broker":     return { templateKey: "info_request.broker",     subject: `Coverage confirmation requested for ${p}`,                element: <BrokerInfoRequestEmail     branding={branding} propertyLabel={p} secureUrl={secureUrl} ownerName={ownerName} /> }
     case "scheme":     return { templateKey: "info_request.scheme",     subject: `Scheme contact details requested for ${p}`,               element: <SchemeInfoRequestEmail     branding={branding} propertyLabel={p} secureUrl={secureUrl} schemeName={schemeName} /> }
     case "banking":    return { templateKey: "info_request.banking",    subject: `Confirm banking details for owner statements on ${p}`,    element: <BankingInfoRequestEmail    branding={branding} propertyLabel={p} secureUrl={secureUrl} /> }
@@ -222,6 +225,7 @@ export async function sendInfoRequestEmail(params: SendInfoRequestParams): Promi
     secureUrl,
     firmness,
     insuranceRecipient: params.insuranceRecipient ?? "owner",
+    checklistMode: params.checklistMode,
     prompt:     params.prompt,
     ownerName:  params.ownerName,
     schemeName: params.schemeName,

@@ -37,6 +37,9 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(data ?? [])
 }
 
+const VALID_PAYMENT_METHODS = ["eft", "cash", "card", "bank_recon_matched"] as const
+type PaymentMethod = typeof VALID_PAYMENT_METHODS[number]
+
 interface PaymentRecord {
   invoiceId: string
   amountCents: number
@@ -99,6 +102,11 @@ export async function POST(req: NextRequest) {
     const monthStart = new Date(statementMonth.getFullYear(), statementMonth.getMonth(), 1)
       .toISOString().split("T")[0]
 
+    const safeMethod = (VALID_PAYMENT_METHODS as readonly string[]).includes(p.method)
+      ? (p.method as PaymentMethod)
+      : null
+
+    const refSuffix = p.reference ? ` — ref: ${p.reference}` : ""
     await service.from("trust_transactions").insert({
       org_id: orgId,
       lease_id: inv.lease_id,
@@ -106,9 +114,10 @@ export async function POST(req: NextRequest) {
       transaction_type: "rent_received",
       direction: "credit",
       amount_cents: applied,
-      description: `Rent payment${p.reference ? ` — ref: ${p.reference}` : ""}`,
+      description: `Rent payment${refSuffix}`,
       reference: p.reference || null,
       invoice_id: p.invoiceId,
+      payment_method: safeMethod,
       statement_month: monthStart,
       created_by: user.id,
     })

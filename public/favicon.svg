@@ -1,15 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 56" role="img" aria-label="Pleks">
   <title>Pleks</title>
-  <!-- Warm paper background -->
-  <rect x="0" y="0" width="56" height="56" rx="12" fill="#FAF9F6"/>
-  <!-- Dark navy P mark, centred in 56×56 square -->
-  <!-- Mark is 34w×56h, scaled to 28w×46h (scale ≈ 0.82), centred: x=(56-28)/2=14, y=(56-46)/2=5 -->
-  <g transform="translate(14,5) scale(0.824)">
-    <rect x="0"  y="0"  width="12" height="56" fill="#1C2840"/>
-    <rect x="12" y="0"  width="22" height="11" fill="#1C2840"/>
-    <rect x="24" y="0"  width="10" height="37" fill="#1C2840"/>
-    <rect x="12" y="26" width="22" height="11" fill="#1C2840"/>
-  </g>
-  <!-- Amber accent dot — bottom-right, matches design-system dot motif -->
-  <circle cx="46" cy="46" r="4" fill="#CF8F22"/>
+
+  <!-- Dark navy badge — matches Pleks dark-first app aesthetic -->
+  <rect width="56" height="56" rx="12" fill="#1C2840"/>
+
+  <!-- Lowercase 'p' in warm paper — mirrors wordmark "plek[s]" letterforms (Inter Tight Medium feel) -->
+  <!-- Outer:  6-unit stem with 9-unit descender + semicircular bowl (radius 13) -->
+  <!-- Inner:  semicircular counter (radius 7), wall = 6 units matches stem -->
+  <!-- p sits on the left of the canvas; bracket sits on the right — echoes wordmark "plek[s]" reading direction -->
+  <path
+    fill="#FAF9F6"
+    fill-rule="evenodd"
+    d="M9 10 L15 10 A13 13 0 0 1 15 36 L15 45 L9 45 Z
+       M15 16 A7 7 0 0 1 15 30 Z"/>
+
+  <!-- Amber corner bracket — sized larger than wordmark accent for favicon visibility at 16×16 / 32×32 -->
+  <!-- 12×12 bracket with 5-unit stroke renders as ~3.4×3.4px with 1.4px stroke at 16×16 — readable -->
+  <path
+    fill="none"
+    stroke="#E8A838"
+    stroke-width="5"
+    stroke-linecap="square"
+    d="M37 7 L49 7 L49 19"/>
 </svg>

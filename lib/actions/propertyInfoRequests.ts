@@ -23,6 +23,8 @@ export interface CreateInfoRequestParams {
   recipientPhone?: string | null
   recipientContactId?: string | null
   scenarioContext?: Record<string, unknown>
+  /** When true, sends the insurance template in checklist-verify mode */
+  checklistMode?:  boolean
   requestedBy:     string
   orgId:           string
   expiresAt:       string  // ISO timestamp
@@ -112,6 +114,7 @@ export async function createPropertyInfoRequest(
       recipientEmail:  params.recipientEmail,
       token,
       propertyId:      params.propertyId,
+      checklistMode:   params.checklistMode,
     })
 
     if (sendResult.ok) {

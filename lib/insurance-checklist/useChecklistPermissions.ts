@@ -5,7 +5,7 @@
  * Steward+:    full inline ticking, N/A marking, broker brief, owner link
  */
 
-export type OrgTier = "owner_free" | "owner_pro" | "steward" | "firm"
+export type OrgTier = "owner" | "steward" | "growth" | "portfolio" | "firm" | "bespoke"
 
 export interface ChecklistPermissions {
   canTick:           boolean
@@ -15,13 +15,11 @@ export interface ChecklistPermissions {
 }
 
 export function useChecklistPermissions(tier: OrgTier): ChecklistPermissions {
-  const isStewardPlus = tier === "steward" || tier === "firm"
-  const isOwnerPro    = tier === "owner_pro"
-
+  const isPaid = tier !== "owner"
   return {
-    canTick:            isStewardPlus || isOwnerPro,
-    canMarkNA:          isStewardPlus || isOwnerPro,
-    canSendBrokerBrief: isStewardPlus,
-    canSendOwnerLink:   isStewardPlus,
+    canTick:            isPaid,
+    canMarkNA:          isPaid,
+    canSendBrokerBrief: isPaid,
+    canSendOwnerLink:   isPaid,
   }
 }
