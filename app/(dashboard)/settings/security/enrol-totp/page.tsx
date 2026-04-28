@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, Suspense } from "react"
+import { useState, useEffect, useRef, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -48,6 +48,39 @@ function EnrolTotpContent() {
   const [done, setDone] = useState(false)
   const [singleDeviceMode, setSingleDeviceMode] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.mfa.listFactors().then(async ({ data: factors }) => {
+      const hasVerifiedTotp = (factors?.totp ?? []).some(f => f.status === "verified")
+      if (hasVerifiedTotp) {
+        const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+        if (aal?.currentLevel !== "aal2") {
+          router.replace(`/login/mfa?redirect=${encodeURIComponent("/settings/security/enrol-totp")}`)
+          return
+        }
+      }
+      // Bootstrap (no verified factor) or already AAL2 — auto-start enrolment
+      setLoading(true)
+      setError(null)
+      const { data, error: enrolErr } = await supabase.auth.mfa.enroll({
+        factorType: "totp",
+        friendlyName: "Primary device",
+      })
+      setLoading(false)
+      if (enrolErr || !data) {
+        setError(enrolErr?.message ?? "Enrolment failed")
+        return
+      }
+      setQrCode1(data.totp.qr_code)
+      setSecret1(data.totp.secret)
+      setFactorId1(data.id)
+      setTimeout(() => inputRef.current?.focus(), 100)
+    }).catch(() => {
+      setLoading(false)
+      setError("Something went wrong. Please try again.")
+    })
+  }, [router])
 
   async function enrolFactor(factorNum: 1 | 2) {
     setLoading(true)
