@@ -716,6 +716,10 @@ async function cat8_serverActionAbuse() {
     { path: "/api/auth/log-totp-enrolled", body: {} },
     { path: "/api/auth/set-mfa-recovery", body: {} },
     { path: "/api/auth/clear-mfa-recovery", body: {} },
+    // BUILD_62 Part B: passkey routes (registration/revoke require auth; auth-options/auth-verify are public but return 400 on bad input)
+    { path: "/api/auth/passkeys/registration-options", body: {} },
+    { path: "/api/auth/passkeys/registration-verify", body: { response: {}, label: "test" } },
+    { path: "/api/auth/passkeys/revoke", body: { passkeyId: "x" } },
     { path: "/api/switch-role", body: { role: "agent", orgId: "x" } },
   ]
 
