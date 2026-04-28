@@ -30,12 +30,14 @@ export default function EnrolTotpPage() {
   )
 }
 
+type Phase = "enrol1" | "backup" | "enrol2" | "done"
+
 function EnrolTotpContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const mandatory = searchParams.get("mandatory") === "true"
 
-  const [step, setStep] = useState<1 | 2>(1)
+  const [phase, setPhase] = useState<Phase>("enrol1")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [qrCode1, setQrCode1] = useState<string | null>(null)
@@ -45,40 +47,62 @@ function EnrolTotpContent() {
   const [secret2, setSecret2] = useState<string | null>(null)
   const [factorId2, setFactorId2] = useState<string | null>(null)
   const [code, setCode] = useState("")
-  const [done, setDone] = useState(false)
-  const [singleDeviceMode, setSingleDeviceMode] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.mfa.listFactors().then(async ({ data: factors }) => {
-      const hasVerifiedTotp = (factors?.totp ?? []).some(f => f.status === "verified")
-      if (hasVerifiedTotp) {
+      const verifiedTotps = (factors?.totp ?? []).filter(f => f.status === "verified")
+      const verifiedCount = verifiedTotps.length
+
+      if (verifiedCount > 0) {
         const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
         if (aal?.currentLevel !== "aal2") {
           router.replace(`/login/mfa?redirect=${encodeURIComponent("/settings/security/enrol-totp")}`)
           return
         }
+        // AAL2 + already enrolled — user is adding a backup factor
+        setPhase("enrol2")
       }
-      // Bootstrap (no verified factor) or already AAL2 — auto-start enrolment
+
+      // Clear any leftover unverified TOTP factors from previous incomplete attempts.
+      const unverified = (factors?.totp ?? []).filter(f => f.status !== "verified")
+      for (const stale of unverified) {
+        const { error: unenrolErr } = await supabase.auth.mfa.unenroll({ factorId: stale.id })
+        if (unenrolErr) {
+          console.error("[enrol-totp] failed to clear unverified factor", stale.id, unenrolErr)
+        }
+      }
+
+      // Compute a unique friendly name — avoid collision with existing factor names.
+      const friendlyName = verifiedCount === 0 ? "Primary device" : `Backup device ${verifiedCount}`
+
       setLoading(true)
       setError(null)
       const { data, error: enrolErr } = await supabase.auth.mfa.enroll({
         factorType: "totp",
-        friendlyName: "Primary device",
+        friendlyName,
       })
       setLoading(false)
       if (enrolErr || !data) {
-        setError(enrolErr?.message ?? "Enrolment failed")
+        console.error("[enrol-totp] mfa.enroll failed", enrolErr)
+        setError(enrolErr?.message ?? "Enrolment failed. Open DevTools console for details.")
         return
       }
-      setQrCode1(data.totp.qr_code)
-      setSecret1(data.totp.secret)
-      setFactorId1(data.id)
+      if (verifiedCount === 0) {
+        setQrCode1(data.totp.qr_code)
+        setSecret1(data.totp.secret)
+        setFactorId1(data.id)
+      } else {
+        setQrCode2(data.totp.qr_code)
+        setSecret2(data.totp.secret)
+        setFactorId2(data.id)
+      }
       setTimeout(() => inputRef.current?.focus(), 100)
-    }).catch(() => {
+    }).catch((err) => {
+      console.error("[enrol-totp] listFactors / setup chain threw", err)
       setLoading(false)
-      setError("Something went wrong. Please try again.")
+      setError("Something went wrong starting MFA setup. Open DevTools console for details.")
     })
   }, [router])
 
@@ -135,38 +159,22 @@ function EnrolTotpContent() {
       return
     }
 
-    // Log enrolment
     fetch("/api/auth/log-totp-enrolled", { method: "POST" }).catch(() => null)
-
     setCode("")
-    if (factorNum === 1 && !singleDeviceMode) {
-      setStep(2)
-      enrolFactor(2)
+    if (factorNum === 1) {
+      setPhase("backup")
     } else {
-      // Done — clear mfa_recovery_pending flag if both factors enrolled
-      if (!singleDeviceMode) {
-        fetch("/api/auth/clear-mfa-recovery", { method: "POST" }).catch(() => null)
-      }
-      setDone(true)
+      setPhase("done")
     }
   }
 
-  async function handleSingleDevice() {
-    setSingleDeviceMode(true)
-    // Flag account as mfa_recovery_pending
-    fetch("/api/auth/set-mfa-recovery", { method: "POST" }).catch(() => null)
-    await verifyFactor(1)
-  }
-
-  if (done) {
+  if (phase === "done") {
     return (
       <div className="flex flex-col items-center justify-center flex-1 px-4 py-16">
         <CheckCircle2 className="h-12 w-12 text-green-600 mb-4" />
         <h1 className="font-heading text-2xl mb-2">You&apos;re protected</h1>
         <p className="text-muted-foreground text-sm mb-8">
-          {singleDeviceMode
-            ? "One authenticator enrolled. Add a second device from Security settings when you can."
-            : "Two authenticator devices enrolled successfully."}
+          Two-factor authentication is active on your account.
         </p>
         <button style={BTN_PRIMARY} onClick={() => router.push("/dashboard")}>
           Go to dashboard
@@ -175,8 +183,56 @@ function EnrolTotpContent() {
     )
   }
 
-  const qrCode = step === 1 ? qrCode1 : qrCode2
-  const secret = step === 1 ? secret1 : secret2
+  if (phase === "backup") {
+    return (
+      <div className="flex flex-col items-center justify-center flex-1 px-4 py-12">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="flex justify-center mb-2">
+              <CheckCircle2 className="h-8 w-8 text-green-600" />
+            </div>
+            <CardTitle>Authenticator verified</CardTitle>
+            <CardDescription>
+              Save your backup secret so you can recover access if you ever lose your phone.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="rounded-md border border-rule bg-surface-raised p-4 space-y-2">
+              <p className="text-xs text-muted-foreground text-center">
+                Backup secret — save this in your password manager
+              </p>
+              <p className="font-mono text-sm break-all select-all text-center">{secret1}</p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              This is the same secret encoded in the QR code. Anyone with it can recreate your MFA factor,
+              so treat it like a password. If you use 1Password, Bitwarden, or iCloud Keychain, your
+              authenticator entries are already synced across your devices — you may not need this at all.
+            </p>
+            <div className="flex flex-col gap-2">
+              <button style={BTN_PRIMARY} onClick={() => router.push("/dashboard")}>
+                I&apos;ve saved it — go to dashboard
+              </button>
+              <button
+                style={BTN_GHOST}
+                onClick={() => { setPhase("enrol2"); void enrolFactor(2) }}
+              >
+                Add a second authenticator entry instead
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  const qrCode = phase === "enrol1" ? qrCode1 : qrCode2
+  const secret = phase === "enrol1" ? secret1 : secret2
+  const factorNum: 1 | 2 = phase === "enrol1" ? 1 : 2
+
+  let cardDescription = mandatory
+    ? "Your account requires two-factor authentication before accessing the dashboard."
+    : "Protect your account with an authenticator app."
+  if (phase === "enrol2") cardDescription = "Add a second authenticator entry as an extra backup."
 
   return (
     <div className="flex flex-col items-center justify-center flex-1 px-4 py-12">
@@ -186,16 +242,14 @@ function EnrolTotpContent() {
             <ShieldCheck className="h-8 w-8 text-muted-foreground" />
           </div>
           <CardTitle>Set up two-factor authentication</CardTitle>
-          <CardDescription>
-            {mandatory
-              ? "Your account requires two authenticator devices before accessing the dashboard."
-              : "Protect your account with an authenticator app."}
-          </CardDescription>
+          <CardDescription>{cardDescription}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
-          <div className="text-sm font-medium text-muted-foreground">
-            Step {step} of 2 — {step === 1 ? "Primary device" : "Backup device"}
-          </div>
+          {phase === "enrol2" && (
+            <div className="text-sm font-medium text-muted-foreground">
+              Optional — Backup authenticator entry
+            </div>
+          )}
 
           {loading && !qrCode && (
             <div className="flex justify-center py-8">
@@ -207,7 +261,7 @@ function EnrolTotpContent() {
             <>
               <p className="text-sm">
                 Scan this QR code with{" "}
-                <strong>Google Authenticator, Authy, or 1Password</strong>:
+                <strong>Google Authenticator, Authy, 1Password, or Bitwarden</strong>:
               </p>
               <div className="flex justify-center">
                 {/* QR code is a data: URI from Supabase */}
@@ -246,19 +300,23 @@ function EnrolTotpContent() {
                 <button
                   style={{ ...BTN_PRIMARY, opacity: code.length < 6 || loading ? 0.6 : 1 }}
                   disabled={code.length < 6 || loading}
-                  onClick={() => verifyFactor(step)}
+                  onClick={() => void verifyFactor(factorNum)}
                 >
                   {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                  {step === 1 ? "Verify and continue to step 2" : "Finish setup"}
+                  {phase === "enrol2" ? "Verify and finish" : "Verify"}
                 </button>
 
-                {step === 1 && (
+                {phase === "enrol2" && (
                   <button
                     style={BTN_GHOST}
-                    disabled={loading || code.length < 6}
-                    onClick={handleSingleDevice}
+                    onClick={() => {
+                      if (factorId2) {
+                        createClient().auth.mfa.unenroll({ factorId: factorId2 }).catch(() => null)
+                      }
+                      setPhase("done")
+                    }}
                   >
-                    I only have one device right now
+                    Skip — the backup secret is enough
                   </button>
                 )}
               </div>
