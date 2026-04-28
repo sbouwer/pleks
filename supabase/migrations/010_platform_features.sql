@@ -479,3 +479,298 @@ COMMENT ON COLUMN subscriptions.bespoke_min_monthly_cents IS
   'Minimum monthly guaranteed spend for bespoke tier. NULL on all other tiers.';
 COMMENT ON COLUMN subscriptions.bespoke_per_lease_cents IS
   'Per-lease cost for bespoke tier. Charged above the guaranteed minimum floor. NULL on all other tiers.';
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §14  BUILD_62 PART A — AUTHENTICATION SECURITY
+--      auth_events (append-only audit), device_fingerprints, step_up_challenges,
+--      login_notifications_sent, is_mfa_fresh(), purge_old_auth_events()
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- mfa_recovery_pending: agent has only 1 TOTP factor (missing second backup device)
+ALTER TABLE user_profiles
+  ADD COLUMN IF NOT EXISTS mfa_recovery_pending boolean NOT NULL DEFAULT false;
+
+COMMENT ON COLUMN user_profiles.mfa_recovery_pending IS
+  'True when an agent account has fewer than 2 TOTP factors enrolled. Triggers amber banner / escalating modal.';
+
+-- ── 5.2.3 device_fingerprints — created FIRST because auth_events FKs into it ──
+CREATE TABLE IF NOT EXISTS device_fingerprints (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id           uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  fingerprint_hash  text NOT NULL,
+  user_agent        text NOT NULL,
+  label             text NOT NULL,
+  first_seen_at     timestamptz NOT NULL DEFAULT now(),
+  last_seen_at      timestamptz NOT NULL DEFAULT now(),
+  last_ip_country   text,
+  last_ip_city      text,
+  revoked_at        timestamptz,
+  UNIQUE(user_id, fingerprint_hash)
+);
+
+ALTER TABLE device_fingerprints ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "device_fingerprints_self_select" ON device_fingerprints;
+CREATE POLICY "device_fingerprints_self_select" ON device_fingerprints
+  FOR SELECT USING (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "device_fingerprints_self_update" ON device_fingerprints;
+CREATE POLICY "device_fingerprints_self_update" ON device_fingerprints
+  FOR UPDATE USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "device_fingerprints_insert_service" ON device_fingerprints;
+CREATE POLICY "device_fingerprints_insert_service" ON device_fingerprints
+  FOR INSERT WITH CHECK (false);
+
+DROP POLICY IF EXISTS "device_fingerprints_no_delete" ON device_fingerprints;
+CREATE POLICY "device_fingerprints_no_delete" ON device_fingerprints
+  FOR DELETE USING (false);
+
+CREATE INDEX IF NOT EXISTS idx_device_fingerprints_user ON device_fingerprints(user_id);
+
+-- ── 5.2.1 auth_events — dedicated authentication audit table ──
+CREATE TABLE IF NOT EXISTS auth_events (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id            uuid REFERENCES organisations(id),
+  user_id           uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  event_type        text NOT NULL CHECK (event_type IN (
+                      'login_success',
+                      'login_failure',
+                      'logout',
+                      'password_changed',
+                      'email_changed',
+                      'totp_enrolled',
+                      'totp_unenrolled',
+                      'totp_verified',
+                      'totp_failed',
+                      'passkey_enrolled',
+                      'passkey_unenrolled',
+                      'passkey_verified',
+                      'passkey_failed',
+                      'step_up_challenged',
+                      'step_up_verified',
+                      'step_up_failed',
+                      'session_revoked',
+                      'new_device_detected',
+                      'recovery_used',
+                      'role_switched',
+                      'tenant_portal_login',
+                      'landlord_portal_login',
+                      'supplier_portal_login',
+                      'agent_portal_login'
+                    )),
+  auth_method       text CHECK (auth_method IN (
+                      'password', 'magic_link', 'totp', 'passkey', 'recovery_code', 'oauth', 'admin'
+                    )),
+  active_role       text,
+  aal               text CHECK (aal IN ('aal1', 'aal2')),
+  ip_hash           text,
+  ip_country        text,
+  ip_city           text,
+  ip_asn            integer,
+  user_agent_hash   text,
+  device_label      text,
+  device_fingerprint uuid REFERENCES device_fingerprints(id),
+  session_id        text,
+  success           boolean NOT NULL,
+  failure_reason    text,
+  metadata          jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at        timestamptz NOT NULL DEFAULT now()
+);
+
+-- Append-only: block UPDATE and DELETE at RLS level
+ALTER TABLE auth_events ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "auth_events_select_self" ON auth_events;
+CREATE POLICY "auth_events_select_self" ON auth_events
+  FOR SELECT USING (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "auth_events_select_org_admin" ON auth_events;
+CREATE POLICY "auth_events_select_org_admin" ON auth_events
+  FOR SELECT USING (
+    org_id IN (
+      SELECT org_id FROM user_orgs
+      WHERE user_id = auth.uid()
+        AND role IN ('owner', 'property_manager')
+        AND deleted_at IS NULL
+    )
+  );
+
+DROP POLICY IF EXISTS "auth_events_insert_service" ON auth_events;
+CREATE POLICY "auth_events_insert_service" ON auth_events
+  FOR INSERT WITH CHECK (false);
+-- NO UPDATE policy — updates rejected (append-only)
+-- NO DELETE policy — deletes rejected (7-year POPIA retention)
+
+CREATE INDEX IF NOT EXISTS idx_auth_events_user_created ON auth_events(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_auth_events_org_created  ON auth_events(org_id, created_at DESC) WHERE org_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_auth_events_type_created ON auth_events(event_type, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_auth_events_device       ON auth_events(device_fingerprint) WHERE device_fingerprint IS NOT NULL;
+
+-- ── 5.2.2 login_notifications_sent — dedup for new-device email alerts ──
+CREATE TABLE IF NOT EXISTS login_notifications_sent (
+  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id             uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  device_fingerprint  uuid NOT NULL REFERENCES device_fingerprints(id),
+  last_notified_at    timestamptz NOT NULL DEFAULT now(),
+  notification_count  integer NOT NULL DEFAULT 1,
+  UNIQUE(user_id, device_fingerprint)
+);
+
+ALTER TABLE login_notifications_sent ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "login_notifications_self" ON login_notifications_sent;
+CREATE POLICY "login_notifications_self" ON login_notifications_sent
+  FOR SELECT USING (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "login_notifications_insert_service" ON login_notifications_sent;
+CREATE POLICY "login_notifications_insert_service" ON login_notifications_sent
+  FOR INSERT WITH CHECK (false);
+
+DROP POLICY IF EXISTS "login_notifications_update_service" ON login_notifications_sent;
+CREATE POLICY "login_notifications_update_service" ON login_notifications_sent
+  FOR UPDATE USING (false) WITH CHECK (false);
+
+CREATE INDEX IF NOT EXISTS idx_login_notifications_user ON login_notifications_sent(user_id);
+
+-- ── 5.2.4 step_up_challenges — ephemeral step-up tokens ──
+CREATE TABLE IF NOT EXISTS step_up_challenges (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  action          text NOT NULL CHECK (action IN (
+                    'trust_account_write',
+                    'deposit_refund_approval',
+                    'bank_detail_change',
+                    'team_role_change',
+                    'subscription_change',
+                    'tenant_data_deletion',
+                    'ownership_transfer',
+                    'security_settings_change',
+                    'passkey_unenroll',
+                    'totp_unenroll',
+                    'bulk_export'
+                  )),
+  resource_id     uuid,
+  required_aal    text NOT NULL DEFAULT 'aal2' CHECK (required_aal IN ('aal2')),
+  challenge_token text NOT NULL UNIQUE,
+  verified_at     timestamptz,
+  consumed_at     timestamptz,
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  expires_at      timestamptz NOT NULL DEFAULT (now() + interval '5 minutes')
+);
+
+ALTER TABLE step_up_challenges ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "step_up_challenges_self" ON step_up_challenges;
+CREATE POLICY "step_up_challenges_self" ON step_up_challenges
+  FOR SELECT USING (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "step_up_challenges_insert_service" ON step_up_challenges;
+CREATE POLICY "step_up_challenges_insert_service" ON step_up_challenges
+  FOR INSERT WITH CHECK (false);
+
+DROP POLICY IF EXISTS "step_up_challenges_update_service" ON step_up_challenges;
+CREATE POLICY "step_up_challenges_update_service" ON step_up_challenges
+  FOR UPDATE USING (false) WITH CHECK (false);
+
+CREATE INDEX IF NOT EXISTS idx_step_up_challenges_user_expires ON step_up_challenges(user_id, expires_at);
+
+-- ── 5.2.5 is_mfa_fresh(window_minutes) — server-side freshness check ──
+CREATE OR REPLACE FUNCTION is_mfa_fresh(window_minutes int DEFAULT 5)
+RETURNS boolean AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM auth_events
+    WHERE user_id = auth.uid()
+      AND event_type IN ('totp_verified', 'passkey_verified', 'step_up_verified')
+      AND success = true
+      AND created_at > (now() - make_interval(mins => window_minutes))
+  );
+$$ LANGUAGE sql STABLE SECURITY DEFINER;
+
+-- ── 5.2.6 purge_old_auth_events() — monthly cron ──
+CREATE OR REPLACE FUNCTION purge_old_auth_events()
+RETURNS void AS $$
+  DELETE FROM auth_events
+  WHERE created_at < (now() - interval '7 years');
+$$ LANGUAGE sql SECURITY DEFINER;
+
+-- Schedule via pg_cron monthly (run once after migration):
+-- SELECT cron.schedule('purge-auth-events', '0 3 1 * *', 'SELECT purge_old_auth_events();');
+-- SELECT cron.schedule('purge-expired-step-ups', '*/15 * * * *',
+--   $$DELETE FROM step_up_challenges WHERE expires_at < now() - interval '1 hour'$$);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §15  BUILD_62 PART B — PASSKEY (WebAuthn) LAYER
+--      user_passkeys, passkey_challenges
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS user_passkeys (
+  id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id             uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  credential_id       bytea NOT NULL UNIQUE,
+  public_key          bytea NOT NULL,
+  counter             bigint NOT NULL DEFAULT 0,
+  transports          text[] NOT NULL DEFAULT '{}',
+  device_type         text NOT NULL CHECK (device_type IN ('singleDevice', 'multiDevice')),
+  backup_eligible     boolean NOT NULL DEFAULT false,
+  backup_state        boolean NOT NULL DEFAULT false,
+  label               text NOT NULL,
+  aaguid              uuid,
+  rp_id               text NOT NULL,
+  origin              text NOT NULL,
+  last_used_at        timestamptz,
+  last_used_ip_hash   text,
+  created_at          timestamptz NOT NULL DEFAULT now(),
+  revoked_at          timestamptz
+);
+
+ALTER TABLE user_passkeys ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "user_passkeys_self_select" ON user_passkeys;
+CREATE POLICY "user_passkeys_self_select" ON user_passkeys
+  FOR SELECT USING (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "user_passkeys_self_update" ON user_passkeys;
+CREATE POLICY "user_passkeys_self_update" ON user_passkeys
+  FOR UPDATE USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
+
+DROP POLICY IF EXISTS "user_passkeys_insert_service" ON user_passkeys;
+CREATE POLICY "user_passkeys_insert_service" ON user_passkeys
+  FOR INSERT WITH CHECK (false);
+
+DROP POLICY IF EXISTS "user_passkeys_no_delete" ON user_passkeys;
+CREATE POLICY "user_passkeys_no_delete" ON user_passkeys
+  FOR DELETE USING (false);
+
+CREATE INDEX IF NOT EXISTS idx_user_passkeys_user ON user_passkeys(user_id) WHERE revoked_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_user_passkeys_credential ON user_passkeys(credential_id);
+CREATE INDEX IF NOT EXISTS idx_user_passkeys_rp ON user_passkeys(rp_id);
+
+CREATE TABLE IF NOT EXISTS passkey_challenges (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  challenge       bytea NOT NULL,
+  ceremony_type   text NOT NULL CHECK (ceremony_type IN ('registration', 'authentication', 'step_up')),
+  action          text,
+  rp_id           text NOT NULL,
+  origin          text NOT NULL,
+  client_ip_hash  text,
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  expires_at      timestamptz NOT NULL DEFAULT (now() + interval '5 minutes'),
+  consumed_at     timestamptz
+);
+
+ALTER TABLE passkey_challenges ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "passkey_challenges_no_client_access" ON passkey_challenges;
+CREATE POLICY "passkey_challenges_no_client_access" ON passkey_challenges
+  FOR SELECT USING (false);
+-- All access via service-role gateway
+
+CREATE INDEX IF NOT EXISTS idx_passkey_challenges_expires ON passkey_challenges(expires_at);
+
+-- Schedule cleanup (run once after migration):
+-- SELECT cron.schedule('purge-passkey-challenges', '*/15 * * * *',
+--   $$DELETE FROM passkey_challenges WHERE expires_at < now() - interval '1 hour'$$);
