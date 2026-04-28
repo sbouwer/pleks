@@ -2,6 +2,7 @@
 
 import { gateway } from "@/lib/supabase/gateway"
 import { revalidatePath } from "next/cache"
+import { reEvaluatePolicyHeader } from "@/lib/insurance-checklist/reEvaluatePolicyHeader"
 
 export async function saveInsurancePolicy(propertyId: string, formData: FormData) {
   const gw = await gateway()
@@ -41,6 +42,9 @@ export async function saveInsurancePolicy(propertyId: string, formData: FormData
     changed_by: userId,
     new_values: { ...updates, _section: "insurance_policy" },
   })
+
+  // Keep POLICY_HEADER checklist item in sync with the 6 auto-derived fields
+  await reEvaluatePolicyHeader(propertyId)
 
   revalidatePath(`/properties/${propertyId}`)
   return { success: true }
