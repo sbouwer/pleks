@@ -42,7 +42,7 @@ Pleks handles trust-account-adjacent data, deposit reconciliation, lease documen
 
 | ID | Decision | Rationale |
 |----|----------|-----------|
-| D-AUTH-01 | Agents must enrol TOTP on a second device at onboarding. Passkey (when available) is primary; TOTP is recovery factor **and** the step-up challenge for trust-account actions. | Passkeys can be lost with a device. Supabase Auth has no native recovery codes; enrolling a second TOTP factor is the recommended workaround (up to 10 factors per user). Defensible as a Firm-tier marketing claim. |
+| D-AUTH-01 | Agents must enrol **one** TOTP factor at onboarding. The TOTP secret displayed during enrolment is the recovery path — users save it in their password manager (1Password, Bitwarden, iCloud Keychain). Adding a second authenticator entry is opt-in on the success screen. Passkey (when available) is primary; TOTP is the step-up challenge for trust-account actions. | Supabase Auth has no native recovery codes. Two physical devices sounded safe but most users run synced password managers that replicate TOTP secrets across all their devices automatically — the second-factor requirement was friction without proportionate recovery benefit. The TOTP secret IS the recovery artefact; save-it-prominently beats force-enrol-second-device. Forcing two factors was also a denial-of-service risk: if you lose your phone and your password manager, you need admin recovery either way. |
 | D-AUTH-02 | Production WebAuthn RP ID and origin: `app.pleks.co.za` only. Not changeable after Part B ships. | Passkeys are origin-bound. Any change invalidates every enrolled credential. Locked in permanently. |
 | D-AUTH-03 | Dev WebAuthn RP ID: `localhost`. No intermediate staging environment for passkeys. Re-enrolment on deploy is part of the testing discipline. | `localhost` is a browser-blessed secure context. `*.vercel.app` is on the Public Suffix List and cannot safely host passkeys. Running a third custom-domain environment is not worth the DNS overhead for one QA loop. |
 | D-AUTH-04 | Claims BUILD_62 slot (previously reserved for user-profile-surface-with-security). Does not renumber BUILD_63. | BUILD_63 has forward references in INDEX.md, BUILD_61, and a planned ADDENDUM_63A (DebiCheck comms). Renumbering creates cross-reference drift with no upside. |
@@ -313,40 +313,21 @@ Triggered in three contexts:
 2. **Existing agent without TOTP, first login after BUILD_62 release.** Middleware at `/dashboard` detects absent TOTP factor, redirects to `/settings/security/enrol-totp` with a `required=true` flag. User cannot reach `/dashboard` until both TOTP factors are enrolled.
 3. **Voluntary re-enrolment** from `/settings/security`. User may remove and re-enrol if they change authenticator apps. Unenrolment is a step-up-gated action (D-AUTH-11).
 
-#### 5.3.2 Two-factor-at-onboarding requirement
+#### 5.3.2 Enrolment requirement (revised per D-AUTH-01)
 
-D-AUTH-01 requires that agents enrol **two** TOTP factors at onboarding — on two different devices. Rationale: Supabase Auth has no native recovery codes; losing a phone without a backup factor means admin-side account recovery which is slow, error-prone, and a denial-of-service vector. Two factors on two devices is the native workaround.
+One TOTP factor is mandatory. After verifying the factor, the user is shown the raw TOTP secret prominently with the instruction: "Save this in your password manager — this is your recovery key." Adding a second authenticator entry is an opt-in button on the success screen; it is not required.
 
-Enrolment UI at `/settings/security/enrol-totp`:
+Rationale for one-factor: most agents use a synced password manager (1Password, Bitwarden, iCloud Keychain). Their TOTP secrets already replicate across all devices. Forcing two separate enrolments added friction without proportionate recovery benefit. The TOTP secret displayed during enrolment is the recovery artefact — save-it-prominently is the right policy.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Set up two-factor authentication                            │
-│                                                               │
-│  You need to set up TWO authenticator devices. This is your  │
-│  recovery path if one device is lost.                        │
-│                                                               │
-│  Step 1 of 2 — Primary device                                │
-│  ────────────────────────────────                            │
-│  [QR CODE]                                                    │
-│                                                               │
-│  Scan this QR code with an authenticator app like            │
-│  Google Authenticator, Authy, or 1Password.                  │
-│                                                               │
-│  Or enter this code manually:                                │
-│  JBSWY3DPEHPK3PXP                                            │
-│                                                               │
-│  Enter the 6-digit code from your app:                       │
-│  [ _ _ _ _ _ _ ]  [Verify]                                   │
-│                                                               │
-│  Friendly name for this device (optional):                   │
-│  [ My iPhone ]                                                │
-└─────────────────────────────────────────────────────────────┘
-```
+Enrolment flow at `/settings/security/enrol-totp`:
 
-After verifying factor 1, the same UI appears for Step 2 of 2 (secondary device). Completion requires both verifications to succeed. No `/dashboard` access granted until both are done.
+1. Page auto-starts TOTP factor enrolment. QR code is shown immediately.
+2. User scans with their authenticator app and enters the 6-digit code.
+3. On success: "Backup secret" screen shown with the raw TOTP secret in a copyable monospace block. Copy text: "Save this in your password manager. Anyone with this secret can recreate your MFA factor."
+4. Primary CTA: "I've saved it — go to dashboard."
+5. Secondary CTA: "Add a second authenticator entry instead" → starts a second TOTP enrolment (same flow) as an optional backup for users who genuinely want separate physical keys or a hardware token.
 
-If the user only has one device available, they can click "I only have one device right now" which accepts the single factor but flags the account as `mfa_recovery_pending = true` on `user_profiles`. The user sees a persistent amber banner on every page — "Add a second authenticator device to protect your account against lost phones" → link to `/settings/security/enrol-totp`. After 14 days of `mfa_recovery_pending = true`, the banner upgrades to a modal-on-dashboard-load that must be dismissed, which does not block but friction-reminds.
+If the user already has a verified TOTP factor and arrives at this page at AAL2, the page detects this and goes directly to the backup-enrolment phase (adding a second entry).
 
 #### 5.3.3 Login challenge flow
 
@@ -367,7 +348,7 @@ Error paths:
 
 #### 5.3.4 Remove-factor flow (step-up gated)
 
-Removing a TOTP factor is a step-up action (D-AUTH-11). User must prove `aal2` within the last 5 minutes before the unenrol button is enabled. If fewer than two factors would remain after removal and the account is an agent account, unenrol is blocked entirely — show message "Agent accounts require two authenticator devices. Add a replacement before removing this one."
+Removing a TOTP factor is a step-up action (D-AUTH-11). User must prove `aal2` within the last 5 minutes before the unenrol button is enabled. If removing the factor would leave the agent account with zero verified TOTP factors, unenrol is blocked — show message "Agent accounts require at least one authenticator. Enrol a replacement before removing this one."
 
 ### 5.4 Step-up authentication for sensitive actions
 

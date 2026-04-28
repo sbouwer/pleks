@@ -9,6 +9,7 @@ import { PortfolioPrefetcher } from "@/components/providers/PortfolioPrefetcher"
 import { KeyboardShortcuts } from "@/components/layout/KeyboardShortcuts"
 import { SyncEngineClient } from "@/components/layout/SyncEngineClient"
 import { PortalThemeProvider } from "@/components/layout/PortalThemeProvider"
+import { MfaGuard } from "@/components/auth/MfaGuard"
 
 export default function DashboardLayout({
   children,
@@ -17,6 +18,7 @@ export default function DashboardLayout({
 }>) {
   return (
     <PortalThemeProvider>
+      <MfaGuard />
       <NavigationProgress />
       <PortfolioPrefetcher />
       <Sidebar />

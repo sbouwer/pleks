@@ -380,6 +380,12 @@ All build specifications live in `brief/build/`. The master index is `brief/buil
 
 **Before implementing any spec, read the INDEX first** to understand the numbering and relationships. Addendums are named `ADDENDUM_{NN}{letter}_*` where `{NN}` references the parent build.
 
+**After completing or making meaningful progress on any build or addendum, update `brief/build/INDEX.md`:**
+- Change the status emoji (📝 → ✅, or note partial progress)
+- Update the "Last updated" line at the top with today's date and a one-line summary
+- Update the relevant row in the addendum/build table with what shipped, what's deferred, and any open work
+- Update the "Known open work" paragraph if the build changes what's pending
+
 **Read the actual source files before writing code.** Do not guess at the current state of a file — read it. This is non-negotiable.
 
 ---

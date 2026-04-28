@@ -4,22 +4,18 @@
   <!-- Dark navy badge — matches Pleks dark-first app aesthetic -->
   <rect width="56" height="56" rx="12" fill="#1C2840"/>
 
-  <!-- Lowercase 'p' in warm paper — mirrors wordmark "plek[s]" letterforms (Inter Tight Medium feel) -->
-  <!-- Outer:  6-unit stem with 9-unit descender + semicircular bowl (radius 13) -->
-  <!-- Inner:  semicircular counter (radius 7), wall = 6 units matches stem -->
-  <!-- p sits on the left of the canvas; bracket sits on the right — echoes wordmark "plek[s]" reading direction -->
-  <path
-    fill="#FAF9F6"
-    fill-rule="evenodd"
-    d="M9 10 L15 10 A13 13 0 0 1 15 36 L15 45 L9 45 Z
-       M15 16 A7 7 0 0 1 15 30 Z"/>
+  <!-- Inter Tight 'p' glyph (path data extracted from the actual font) -->
+  <!-- Glyph native bbox: 241 × 379. Scaled by 0.074 → renders at ~17.8 × 28 units. -->
+  <!-- Translate centres the glyph: x=(56-17.8)/2=19.1, y=(56-28)/2=14 -->
+  <g transform="translate(19.1, 14) scale(0.074)" fill="#FAF9F6">
+    <path d="M0 378.551V3.55113H40.483V46.875H45.4546C48.5322 42.1401 52.7936 36.1032 58.2386 28.7642C63.8021 21.3068 71.733 14.678 82.0312 8.87785C92.4479 2.95929 106.534 0 124.29 0C147.254 0 167.495 5.74101 185.014 17.223C202.533 28.705 216.205 44.981 226.03 66.0511C235.855 87.1212 240.767 111.979 240.767 140.625C240.767 169.508 235.855 194.543 226.03 215.732C216.205 236.802 202.592 253.137 185.192 264.737C167.791 276.219 147.727 281.96 125 281.96C107.481 281.96 93.4541 279.06 82.919 273.26C72.384 267.341 64.2756 260.653 58.5938 253.196C52.9119 245.62 48.5322 239.347 45.4546 234.375H41.9034V378.551H0ZM41.1932 139.915C41.1932 160.511 44.2116 178.681 50.2486 194.425C56.2855 210.05 65.1042 222.301 76.7046 231.179C88.3049 239.938 102.509 244.318 119.318 244.318C136.837 244.318 151.456 239.702 163.175 230.469C175.012 221.117 183.89 208.57 189.808 192.827C195.845 176.965 198.864 159.328 198.864 139.915C198.864 120.739 195.904 103.456 189.986 88.0682C184.186 72.5616 175.367 60.3101 163.53 51.3139C151.811 42.1993 137.074 37.642 119.318 37.642C102.273 37.642 87.9498 41.9626 76.3494 50.6037C64.7491 59.1264 55.9896 71.0819 50.071 86.4702C44.1525 101.74 41.1932 119.555 41.1932 139.915Z"/>
+  </g>
 
-  <!-- Amber corner bracket — sized larger than wordmark accent for favicon visibility at 16×16 / 32×32 -->
-  <!-- 12×12 bracket with 5-unit stroke renders as ~3.4×3.4px with 1.4px stroke at 16×16 — readable -->
+  <!-- Amber corner bracket — top-right, mirrors AccentBracket above 's' in wordmark -->
   <path
     fill="none"
     stroke="#E8A838"
     stroke-width="5"
     stroke-linecap="square"
-    d="M37 7 L49 7 L49 19"/>
+    d="M39 7 L49 7 L49 17"/>
 </svg>

@@ -32,5 +32,23 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getSession()
   const user = session?.user ?? null
 
-  return { supabase, user, supabaseResponse }
+  // Extract AAL from the JWT payload — not exposed directly on the Session type.
+  const aal = extractAalFromJwt(session?.access_token)
+
+  return { supabase, user, supabaseResponse, aal }
+}
+
+function extractAalFromJwt(accessToken: string | undefined): string | null {
+  if (!accessToken) return null
+  try {
+    const raw = accessToken.split(".")[1]
+    if (!raw) return null
+    // JWT payloads are base64url (- → +, _ → /). atob needs standard base64 with padding.
+    const padded = raw.replaceAll("-", "+").replaceAll("_", "/")
+    const withPad = padded + "=".repeat((4 - padded.length % 4) % 4)
+    const decoded = JSON.parse(atob(withPad)) as { aal?: string }
+    return decoded.aal ?? null
+  } catch {
+    return null
+  }
 }

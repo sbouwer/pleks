@@ -7,8 +7,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import Link from "next/link"
-import { Eye, EyeOff, Loader2 } from "lucide-react"
+import { Eye, EyeOff, KeyRound, Loader2 } from "lucide-react"
+import { usePasskeyLogin } from "@/lib/auth/passkeys/usePasskeyLogin"
+import { canUsePasskeys } from "@/lib/auth/passkeys/capability"
 import { AccentBracket } from "@/components/ui/AccentBracket"
+import { safeRedirect } from "@/lib/auth/safe-redirect"
 
 function getButtonLabel(isMagicLink: boolean, isLoading: boolean) {
   if (isMagicLink) return isLoading ? "Sending link..." : "Send login link"
@@ -38,6 +41,44 @@ const BTN_GHOST: React.CSSProperties = {
   transition: "background .15s, border-color .15s, color .15s",
 }
 
+async function routeAfterLogin(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  redirectParam: string | null,
+  router: ReturnType<typeof useRouter>
+) {
+  const [agentRes, tenantRes, landlordRes] = await Promise.all([
+    supabase.from("user_orgs").select("role, org_id").eq("user_id", userId).is("deleted_at", null),
+    supabase.from("user_orgs_tenants").select("tenant_id, org_id").eq("user_id", userId),
+    supabase.from("landlords").select("id, org_id").eq("auth_user_id", userId).is("deleted_at", null).eq("portal_access_enabled", true),
+  ])
+
+  const roleCount = (agentRes.data?.length ?? 0)
+    + (tenantRes.data?.length ?? 0)
+    + (landlordRes.data?.length ?? 0)
+
+  if (roleCount === 0) { router.push("/onboarding"); return }
+
+  if (roleCount > 1) {
+    router.push(redirectParam ? `/select-role?redirect=${encodeURIComponent(safeRedirect(redirectParam))}` : "/select-role")
+    return
+  }
+
+  if (redirectParam) { router.push(safeRedirect(redirectParam)); return }
+  if (agentRes.data?.[0]) {
+    const role = agentRes.data[0].role
+    if (role === "tenant") router.push("/tenant/dashboard")
+    else if (role === "contractor" || role === "supplier") router.push("/supplier/dashboard")
+    else router.push("/dashboard")
+  } else if (tenantRes.data?.[0]) {
+    router.push("/tenant/dashboard")
+  } else if (landlordRes.data?.[0]) {
+    router.push("/landlord/dashboard")
+  } else {
+    router.push("/dashboard")
+  }
+}
+
 function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -52,6 +93,13 @@ function LoginContent() {
   const [magicLinkMode, setMagicLinkMode] = useState(false)
   const [magicLinkSent, setMagicLinkSent] = useState(false)
   const [checking, setChecking] = useState(true)
+  const [passkeyAvailable, setPasskeyAvailable] = useState(false)
+  const { login: passkeyLogin, state: passkeyState, errorMsg: passkeyError, reset: passkeyReset } = usePasskeyLogin()
+
+  // Capability detection
+  useEffect(() => {
+    canUsePasskeys().then(c => setPasskeyAvailable(c.available))
+  }, [])
 
   // If already authenticated, redirect
   useEffect(() => {
@@ -59,7 +107,7 @@ function LoginContent() {
     supabase.auth.getUser()
       .then(({ data }) => {
         if (data.user) {
-          router.replace(redirectParam || "/dashboard")
+          router.replace(safeRedirect(redirectParam))
         } else {
           setChecking(false)
         }
@@ -80,7 +128,7 @@ function LoginContent() {
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${globalThis.location.origin}/auth/callback?next=${redirectParam || "/dashboard"}`,
+          emailRedirectTo: `${globalThis.location.origin}/auth/callback?next=${safeRedirect(redirectParam)}`,
         },
       })
       if (otpError) {
@@ -95,11 +143,9 @@ function LoginContent() {
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
 
     if (signInError) {
-      if (signInError.message.includes("Email not confirmed")) {
-        setError("Please verify your email first. Check your inbox.")
-      } else {
-        setError("Incorrect email or password")
-      }
+      // Use a generic message for all sign-in failures — differentiated errors
+      // (e.g. "Email not confirmed") leak account existence and enable enumeration.
+      setError("Incorrect email or password")
       setLoading(false)
       return
     }
@@ -110,25 +156,16 @@ function LoginContent() {
       return
     }
 
-    const { data: membership } = await supabase
-      .from("user_orgs")
-      .select("role")
-      .eq("user_id", user.id)
-      .is("deleted_at", null)
-      .limit(1)
-      .single()
-
-    if (!membership) {
-      router.push("/onboarding")
-    } else if (redirectParam) {
-      router.push(redirectParam)
-    } else if (membership.role === "tenant") {
-      router.push("/tenant")
-    } else if (membership.role === "contractor") {
-      router.push("/supplier")
-    } else {
-      router.push("/dashboard")
+    // Check MFA requirement before role routing
+    const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+    if (aalData?.nextLevel === "aal2" && aalData?.currentLevel === "aal1") {
+      const dest = redirectParam ? `/login/mfa?redirect=${encodeURIComponent(safeRedirect(redirectParam))}` : "/login/mfa"
+      router.push(dest)
+      return
     }
+
+    await routeAfterLogin(supabase, user.id, redirectParam, router)
+    setLoading(false)
   }
 
   if (checking) {
@@ -194,7 +231,7 @@ function LoginContent() {
                 id="email"
                 type="email"
                 placeholder="you@example.com"
-                autoComplete="email"
+                autoComplete="username webauthn"
                 disabled={loading}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -250,6 +287,34 @@ function LoginContent() {
               {getButtonLabel(magicLinkMode, loading)}
             </button>
           </form>
+
+          {passkeyAvailable && (
+            <>
+              <div className="mt-4 flex items-center gap-2">
+                <div className="flex-1 border-t border-rule" />
+                <span className="text-xs text-muted-foreground px-2">or</span>
+                <div className="flex-1 border-t border-rule" />
+              </div>
+              {passkeyError && (
+                <div className="mt-2 text-xs text-danger text-center">{passkeyError}</div>
+              )}
+              <button
+                type="button"
+                style={{ ...BTN_GHOST, marginTop: 8 }}
+                disabled={passkeyState === "in_progress"}
+                onClick={() => {
+                  passkeyReset()
+                  void passkeyLogin(email || undefined)
+                }}
+              >
+                {passkeyState === "in_progress"
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <KeyRound className="h-4 w-4" />
+                }
+                Sign in with passkey
+              </button>
+            </>
+          )}
 
           <div className="mt-4 text-center">
             <button
