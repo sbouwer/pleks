@@ -35,7 +35,11 @@ interface PaymentRow {
   reference: string
 }
 
-const PAYMENT_METHODS = ["EFT", "Cash", "Cheque", "Other"]
+const PAYMENT_METHODS = [
+  { value: "eft",  label: "EFT" },
+  { value: "cash", label: "Cash" },
+  { value: "card", label: "Card" },
+]
 
 function today() {
   return new Date().toISOString().split("T")[0]
@@ -78,7 +82,7 @@ export function BatchPaymentEntry() {
             balanceCents: inv.balance_cents,
             amount: String(inv.balance_cents / 100),
             date: today(),
-            method: "EFT",
+            method: "eft",
             reference: inv.payment_reference ?? "",
           }))
         )
@@ -105,7 +109,7 @@ export function BatchPaymentEntry() {
       balanceCents: 0,
       amount: "",
       date: today(),
-      method: "EFT",
+      method: "eft",
       reference: "",
     }])
   }
@@ -181,7 +185,7 @@ export function BatchPaymentEntry() {
               balanceCents: inv.balance_cents,
               amount: String(inv.balance_cents / 100),
               date: today(),
-              method: "EFT",
+              method: "eft",
               reference: inv.payment_reference ?? "",
             })))
             setLoading(false)
@@ -273,7 +277,7 @@ export function BatchPaymentEntry() {
                     <FormSelect
                       value={row.method}
                       onValueChange={(v) => updateRow(row.key, { method: v })}
-                      options={PAYMENT_METHODS.map((m) => ({ value: m, label: m }))}
+                      options={PAYMENT_METHODS}
                     />
                   </td>
                   <td className="py-2 pr-3">

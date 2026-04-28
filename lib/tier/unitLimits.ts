@@ -8,7 +8,7 @@ export async function checkUnitLimit(
   orgId: string,
   tier: Tier
 ): Promise<{ allowed: boolean; current: number; limit: number | null; overage: boolean }> {
-  const limit = TIER_LIMITS[tier].units
+  const limit = TIER_LIMITS[tier].leases
 
   const { data } = await supabase.rpc("get_active_unit_count", { p_org_id: orgId })
   const current = (data as number) ?? 0

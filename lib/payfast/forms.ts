@@ -4,17 +4,16 @@ import { TIER_PRICING, type Tier } from "@/lib/constants"
 
 interface SubscriptionFormData {
   orgId: string
-  tier: Exclude<Tier, "owner">
-  billingCycle: "monthly" | "annual"
+  tier: Exclude<Tier, "owner" | "bespoke">
 }
 
-export function buildSubscriptionForm({ orgId, tier, billingCycle }: SubscriptionFormData) {
+export function buildSubscriptionForm({ orgId, tier }: SubscriptionFormData) {
   const pricing = TIER_PRICING[tier]
-  const amountCents = billingCycle === "annual" ? pricing.annual : pricing.monthly
+  const amountCents = pricing.monthly
   const amount = (amountCents / 100).toFixed(2)
-  const frequency = billingCycle === "annual" ? "6" : "3"
+  const frequency = "3"
   const tierLabel = tier.charAt(0).toUpperCase() + tier.slice(1)
-  const cycleLabel = billingCycle === "annual" ? "Annual" : "Monthly"
+  const cycleLabel = "Monthly"
 
   const data: Record<string, string> = {
     merchant_id: PAYFAST_CONFIG.merchantId,
@@ -31,7 +30,7 @@ export function buildSubscriptionForm({ orgId, tier, billingCycle }: Subscriptio
     cycles: "0",
     custom_str1: orgId,
     custom_str2: tier,
-    custom_str3: billingCycle,
+    custom_str3: "monthly",
   }
 
   const signature = generatePayFastSignature(data, PAYFAST_CONFIG.passphrase)

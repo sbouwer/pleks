@@ -47,10 +47,12 @@ const TIER_FEATURES_FIRM = [
 ] as const
 
 export const TIER_FEATURES: Record<Tier, readonly string[]> = {
-  owner: TIER_FEATURES_OWNER,
-  steward: TIER_FEATURES_STEWARD,
+  owner:     TIER_FEATURES_OWNER,
+  steward:   TIER_FEATURES_STEWARD,
+  growth:    TIER_FEATURES_STEWARD,
   portfolio: TIER_FEATURES_PORTFOLIO,
-  firm: TIER_FEATURES_FIRM,
+  firm:      TIER_FEATURES_FIRM,
+  bespoke:   TIER_FEATURES_FIRM,
 }
 
 export function hasFeature(tier: Tier, feature: string): boolean {

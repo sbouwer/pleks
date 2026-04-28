@@ -1,21 +1,28 @@
 export const APP_NAME = "Pleks"
 export const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
 
-export const TIER_ORDER = { owner: 0, steward: 1, portfolio: 2, firm: 3 } as const
+export const TIER_ORDER = { owner: 0, steward: 1, growth: 2, portfolio: 3, firm: 4, bespoke: 5 } as const
 export type Tier = keyof typeof TIER_ORDER
 
+// Maximum active leases per tier. null = unlimited (custom/bespoke contract).
 export const TIER_LIMITS = {
-  owner: { units: 1, users: 1 },
-  steward: { units: 20, users: 2 },
-  portfolio: { units: 50, users: 5 },
-  firm: { units: null, users: null },
+  owner:     { leases: 1 },
+  steward:   { leases: 15 },
+  growth:    { leases: 30 },
+  portfolio: { leases: 75 },
+  firm:      { leases: 150 },
+  bespoke:   { leases: null },
 } as const
 
+// Monthly pricing in cents. Annual pricing deferred post-traction.
+// Bespoke pricing is per-agreement (bespoke_min_monthly_cents + bespoke_per_lease_cents on subscriptions).
 export const TIER_PRICING = {
-  owner: { monthly: 0, annual: 0 },
-  steward: { monthly: 59900, annual: 575000 },
-  portfolio: { monthly: 99900, annual: 959000 },
-  firm: { monthly: 249900, annual: 2399000 },
+  owner:     { monthly: 0 },
+  steward:   { monthly: 69900 },
+  growth:    { monthly: 119900 },
+  portfolio: { monthly: 259900 },
+  firm:      { monthly: 449900 },
+  bespoke:   { monthly: null },
 } as const
 
 export const OVERAGE_RATE_CENTS = 3500

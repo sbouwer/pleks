@@ -6,7 +6,6 @@ import { createClient } from "@/lib/supabase/client"
 import { useOrg } from "@/hooks/useOrg"
 import { useTier } from "@/hooks/useTier"
 import { usePermissions } from "@/hooks/usePermissions"
-import { TIER_LIMITS } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -689,8 +688,8 @@ export default function TeamPage() {
   const [sortDir, setSortDir]           = useState<SortDir>("asc")
 
   const isFirm      = tier === "firm"
-  const usersLimit  = TIER_LIMITS[tier].users
-  const atLimit     = usersLimit !== null && members.length >= usersLimit
+  const usersLimit: null = null
+  const atLimit     = false
   const showEmergency = PORTFOLIO_TIERS.has(tier)
 
   // ── Derived lists ────────────────────────────────────────────────────────────

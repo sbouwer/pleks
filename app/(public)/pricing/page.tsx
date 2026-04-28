@@ -1,105 +1,64 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Check, ArrowRight } from "lucide-react"
+import { ArrowRight } from "lucide-react"
 import Link from "next/link"
 
 export const metadata = {
-  title: "Pleks Pricing — From R599/month | No Setup Fees",
-  description: "Property management software built by someone who knows what property management actually involves. From R599/month. No setup fees.",
+  title: "Pleks Pricing — From R699/month | No Setup Fees",
+  description: "Property management software built by someone who knows what property management actually involves. From R699/month. No setup fees.",
 }
 
 const tiers = [
   {
-    name: "Owner",
-    price: "Free",
-    period: "",
-    units: "1 unit",
-    users: "1 user",
-    base: null,
-    extras: ["Lease management", "Basic inspections", "Tenant portal", "Maintenance log", "Email notifications"],
-    cta: "Start free",
-    variant: "outline" as const,
-    href: "/register",
+    name: "Steward",
+    tagline: "Solo practitioners just holding their own book.",
+    leases: 15,
+    price: 699,
+    href: "/register?tier=steward",
+    cta: "Start as Steward",
   },
   {
-    name: "Steward",
-    price: "R 599",
-    period: "/month",
-    units: "20 units",
-    users: "2 users",
-    base: "Everything in Owner",
-    extras: [
-      "Bank reconciliation",
-      "Owner statements",
-      "Unlimited inspections",
-      "AI maintenance triage",
-      "Digital lease signing",
-      "SMS notifications",
-      "Basic reports",
-      "FitScore screening",
-    ],
-    cta: "Start 14-day trial",
-    variant: "outline" as const,
-    href: "/register",
+    name: "Growth",
+    tagline: "Building a book, two pairs of hands, one landlord at a time.",
+    leases: 30,
+    price: 1199,
+    href: "/register?tier=growth",
+    cta: "Start as Growth",
   },
   {
     name: "Portfolio",
-    price: "R 999",
-    period: "/month",
-    units: "50 units",
-    users: "5 users",
+    tagline: "A small agency running a real portfolio, with a trust account that reconciles nightly.",
+    leases: 75,
+    price: 2599,
+    href: "/register?tier=portfolio",
+    cta: "Start as Portfolio",
     popular: true,
-    base: "Everything in Steward",
-    extras: [
-      "Arrears interest at prime rate",
-      "Arrears automation",
-      "Application pipeline",
-      "Municipal bills",
-      "Full reporting",
-      "Lease automation",
-      "AI bank statement extraction",
-    ],
-    cta: "Get started",
-    variant: "default" as const,
-    href: "/register",
   },
   {
     name: "Firm",
-    price: "R 2,499",
-    period: "/month",
-    units: "Unlimited",
-    users: "Unlimited",
-    base: "Everything in Portfolio",
-    extras: [
-      "HOA / body corporate",
-      "Contractor portal",
-      "AI legal documents (Opus)",
-      "Custom templates",
-      "Scheduled reports",
-      "EAAB tools",
-    ],
-    cta: "Contact us",
-    variant: "outline" as const,
-    href: "/early-access",
+    tagline: "Established firms with a principal, multiple agents, and HOAs on the side.",
+    leases: 150,
+    price: 4499,
+    href: "/register?tier=firm",
+    cta: "Start as Firm",
   },
 ]
 
 const FAQ = [
   {
-    q: "What counts as a unit?",
-    a: "Any active property unit — apartment, house, commercial space. Archived units don't count towards your limit.",
+    q: "What counts as an active lease?",
+    a: "Any lease with status 'active' — signed and running. Draft leases, expired leases, and archived units don't count. Vacancies cost you nothing.",
   },
   {
     q: "Is the credit check fee charged to me?",
-    a: "No. Stage 2 screening is paid by the applicant, not the agent. You get the FitScore data as part of your subscription.",
+    a: "No. Stage 2 screening is paid by the applicant (R399). You get the FitScore data as part of your subscription.",
   },
   {
     q: "Can I cancel anytime?",
-    a: "Yes. No contract. Cancel from your billing settings. Your data remains accessible for 90 days after cancellation.",
+    a: "Yes. No contract. Cancel from billing settings. Your data stays accessible for 90 days after cancellation.",
   },
   {
-    q: "What's the difference between Steward and Portfolio?",
-    a: "Steward covers up to 20 units with bank recon, owner statements, and inspections. Portfolio adds arrears automation, the full application pipeline, and AI bank statement extraction.",
+    q: "What happens if I go over my lease cap?",
+    a: "You'll be prompted to upgrade before activating the next lease. No overages, no surprises — the system gates activation until you move up.",
   },
   {
     q: "Do you support trust accounts?",
@@ -110,14 +69,15 @@ const FAQ = [
 export default function PricingPage() {
   return (
     <div className="px-4 py-16 md:py-24">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-7xl mx-auto">
+
         {/* Header */}
-        <div className="text-center mb-6">
+        <div className="text-center mb-4">
           <h1 className="font-heading text-4xl md:text-5xl mb-4">
             Simple, transparent pricing
           </h1>
           <p className="text-muted-foreground text-lg max-w-xl mx-auto mb-2">
-            Property management software that knows what property management actually involves.
+            Priced per active lease. Vacancies cost you nothing.
           </p>
           <p className="text-sm text-muted-foreground">
             No onboarding fees. No hidden costs. Cancel anytime.
@@ -135,72 +95,99 @@ export default function PricingPage() {
           </Button>
         </div>
 
-        {/* Tier cards — horizontal scroll snap on mobile, grid on md+ */}
-        <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-4 -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-2 md:overflow-visible md:snap-none lg:grid-cols-4 md:gap-6 mb-20">
-          {tiers.map((tier) => (
-            <div key={tier.name} className="group relative pt-4 shrink-0 w-[80vw] max-w-[280px] snap-center md:w-auto md:max-w-none md:snap-align-none">
-              {tier.popular && (
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 z-10">
-                  <span className="inline-block bg-brand text-primary-foreground text-xs font-semibold px-3 py-1 rounded-full shadow-[0_2px_12px_rgba(var(--brand-rgb),0.5)]">
-                    Most popular
-                  </span>
-                </div>
-              )}
-              <Card
+        {/* Tier cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+          {tiers.map((tier) => {
+            const perLease = Math.round(tier.price / tier.leases)
+            return (
+              <div
+                key={tier.name}
                 className={[
-                  "h-full flex flex-col transition-all duration-200",
+                  "relative flex flex-col rounded-xl border bg-card p-5 transition-all hover:-translate-y-0.5",
                   tier.popular
-                    ? "border-brand border-2 ring-2 ring-brand/30 -translate-y-2 shadow-[0_0_0_1px_rgba(var(--brand-rgb),0.15),0_8px_32px_rgba(var(--brand-rgb),0.25)] hover:-translate-y-3 hover:shadow-[0_0_0_1px_rgba(var(--brand-rgb),0.25),0_12px_40px_rgba(var(--brand-rgb),0.35)]"
-                    : "hover:border-brand/60 hover:-translate-y-1 hover:shadow-[0_0_0_1px_rgba(var(--brand-rgb),0.2)]",
+                    ? "border-brand border-2 ring-2 ring-brand/20 shadow-[0_0_0_1px_rgba(var(--brand-rgb),0.1),0_8px_32px_rgba(var(--brand-rgb),0.15)]"
+                    : "hover:border-brand/40",
                 ].join(" ")}
               >
-                <CardHeader>
-                  <CardTitle className="font-heading text-xl group-hover:text-brand transition-colors duration-200">
-                    {tier.name}
-                  </CardTitle>
-                  <div className="mt-2">
-                    <span className="font-heading text-3xl">{tier.price}</span>
-                    {tier.period && (
-                      <span className="text-muted-foreground text-sm">{tier.period}</span>
-                    )}
+                {tier.popular && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                    <span className="inline-block bg-brand text-primary-foreground text-xs font-semibold px-3 py-1 rounded-full">
+                      Most popular
+                    </span>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    {tier.units} &middot; {tier.users}
-                  </p>
-                </CardHeader>
-                <CardContent className="flex flex-col flex-1">
-                  {/* Base tier reference */}
-                  <div className="mb-4 pb-4 border-b border-border/40">
-                    <p className="text-[11px] uppercase tracking-widest text-muted-foreground font-medium mb-1">
-                      Includes
-                    </p>
-                    <p className="text-sm font-semibold">
-                      {tier.base ?? "\u00A0"}
-                    </p>
-                  </div>
+                )}
 
-                  {/* Extra features */}
-                  <ul className="space-y-2 flex-1 mb-6">
-                    {tier.extras.map((f) => (
-                      <li key={f} className="flex items-start gap-2 text-sm">
-                        <Check className="h-4 w-4 text-success mt-0.5 shrink-0" />
-                        {f}
-                      </li>
-                    ))}
-                  </ul>
+                <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-muted-foreground mb-2">
+                  {tier.name}
+                </p>
 
-                  <Button
-                    className="w-full mt-auto transition-all duration-200 hover:brightness-125 hover:shadow-lg hover:shadow-brand/20 hover:scale-[1.03]"
-                    variant={tier.variant}
-                    render={<Link href={tier.href} />}
-                  >
-                    {tier.cta}
-                  </Button>
-                </CardContent>
-              </Card>
+                <p className="text-xs text-muted-foreground leading-relaxed mb-4 min-h-[3rem]">
+                  {tier.tagline}
+                </p>
+
+                <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-muted-foreground mb-1">
+                  Up to {tier.leases} active leases
+                </p>
+
+                <div className="mb-1">
+                  <span className="font-heading text-3xl">
+                    <sup className="text-base font-normal">R</sup>{tier.price.toLocaleString("en-ZA")}
+                  </span>
+                  <span className="text-muted-foreground text-sm">/mo</span>
+                </div>
+
+                <p className="text-xs text-muted-foreground mb-6">
+                  That&apos;s roughly R{perLease} per lease at cap
+                </p>
+
+                <Link
+                  href={tier.href}
+                  className="mt-auto text-sm font-medium text-brand hover:underline underline-offset-4"
+                >
+                  {tier.cta} →
+                </Link>
+              </div>
+            )
+          })}
+
+          {/* Bespoke / Beyond 150 */}
+          <div className="flex flex-col rounded-xl border border-dashed border-border/60 bg-card/50 p-5">
+            <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-muted-foreground mb-2">
+              Beyond 150
+            </p>
+
+            <p className="text-xs text-muted-foreground leading-relaxed mb-4 min-h-[3rem]">
+              More than 150 active leases? The pricing bends for you too — that&apos;s a conversation, not a form.
+            </p>
+
+            <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-muted-foreground mb-1">
+              Custom · Bespoke
+            </p>
+
+            <div className="mb-1">
+              <span className="font-heading text-3xl font-mono tracking-tight">Let&apos;s talk</span>
             </div>
-          ))}
+
+            <p className="text-xs text-muted-foreground mb-6">
+              One call · ZA hours
+            </p>
+
+            <a
+              href="mailto:stean@pleks.co.za"
+              className="mt-auto text-sm font-medium text-brand hover:underline underline-offset-4"
+            >
+              Email the founder →
+            </a>
+          </div>
         </div>
+
+        {/* Owner free footnote */}
+        <p className="text-center text-sm text-muted-foreground mb-20">
+          Just getting started?{" "}
+          <Link href="/register" className="text-brand hover:underline underline-offset-4">
+            The Owner tier is free — 1 active lease, forever.
+          </Link>
+        </p>
 
         {/* FAQ */}
         <div className="max-w-3xl mx-auto">
@@ -216,6 +203,7 @@ export default function PricingPage() {
             ))}
           </div>
         </div>
+
       </div>
     </div>
   )

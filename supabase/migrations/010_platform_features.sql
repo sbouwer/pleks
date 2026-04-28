@@ -451,3 +451,31 @@ ON CONFLICT (key) DO NOTHING;
 
 -- Live content corrections (idempotent UPDATE — safe to re-run)
 UPDATE site_content SET value = 'Priced per active lease, not per address or per seat. Vacancies cost you nothing. Your bill on the 1st is the bill on the 1st — and if it ever changes, you know 30 days before it does.' WHERE key = 'pricing_sub';
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §13  TIER MODEL: add growth + bespoke tiers, bespoke pricing columns
+--      (2026-04 pricing overhaul: Owner free · Steward · Growth · Portfolio ·
+--       Firm · Bespoke — lease-count gated, no seat caps)
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- Widen tier CHECK to include growth and bespoke
+ALTER TABLE subscriptions DROP CONSTRAINT IF EXISTS subscriptions_tier_check;
+ALTER TABLE subscriptions
+  ADD CONSTRAINT subscriptions_tier_check
+    CHECK (tier IN ('owner', 'steward', 'growth', 'portfolio', 'firm', 'bespoke'));
+
+-- Widen trial_tier CHECK to match
+ALTER TABLE subscriptions DROP CONSTRAINT IF EXISTS subscriptions_trial_tier_check;
+ALTER TABLE subscriptions
+  ADD CONSTRAINT subscriptions_trial_tier_check
+    CHECK (trial_tier IS NULL OR trial_tier IN ('steward', 'growth', 'portfolio', 'firm', 'bespoke'));
+
+-- Bespoke custom pricing overrides (NULL on all other tiers)
+ALTER TABLE subscriptions
+  ADD COLUMN IF NOT EXISTS bespoke_min_monthly_cents integer,
+  ADD COLUMN IF NOT EXISTS bespoke_per_lease_cents   integer;
+
+COMMENT ON COLUMN subscriptions.bespoke_min_monthly_cents IS
+  'Minimum monthly guaranteed spend for bespoke tier. NULL on all other tiers.';
+COMMENT ON COLUMN subscriptions.bespoke_per_lease_cents IS
+  'Per-lease cost for bespoke tier. Charged above the guaranteed minimum floor. NULL on all other tiers.';
