@@ -1,3 +1,12 @@
+/**
+ * app/(admin)/admin/audit/page.tsx — Cross-org audit log viewer
+ *
+ * Route:  /admin/audit
+ * Auth:   requireAdminAuth() — Pleks platform-admin cookie only (not agent-level).
+ * Data:   Service-role Supabase client reads across all orgs, bypassing RLS by design.
+ *         Shows last 100 entries from `audit_log`; org names resolved in a second query.
+ */
+
 import { requireAdminAuth } from "@/lib/admin/auth"
 import { createServiceClient } from "@/lib/supabase/server"
 import { Card, CardContent } from "@/components/ui/card"

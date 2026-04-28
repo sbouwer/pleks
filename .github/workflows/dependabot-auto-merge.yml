@@ -1,3 +1,9 @@
+# .github/workflows/dependabot-auto-merge.yml — FILL: one-line purpose
+#
+# FILL: fill in relevant fields and delete unused ones:
+# Trigger: on push / pull_request / schedule / etc.
+# Auth:    secrets or permissions required
+# Notes:   gotchas or non-obvious decisions
 name: Dependabot auto-merge
 
 on: pull_request_target

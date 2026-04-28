@@ -1,3 +1,12 @@
+/**
+ * lib/screening/additionalDocExtraction.ts — FILL: one-line purpose
+ *
+ * FILL: fill in relevant fields and delete unused ones:
+ * Route:  /the/url/this/renders
+ * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
+ * Data:   where data comes from, any non-obvious access pattern
+ * Notes:  gotchas, invariants, why-not-X decisions
+ */
 export const ADDITIONAL_DOC_PROMPTS: Record<string, string> = {
   savings_account: `Extract the current balance from this South African bank savings account statement. Return JSON:
 { "balance_cents": integer or null, "account_type": "savings", "bank_name": string or null, "confidence": 0.0-1.0 }`,

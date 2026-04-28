@@ -1,5 +1,15 @@
 "use server"
 
+/**
+ * app/(dashboard)/leases/[leaseId]/actions.tsx — FILL: one-line purpose
+ *
+ * FILL: fill in relevant fields and delete unused ones:
+ * Route:  /the/url/this/renders
+ * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
+ * Data:   where data comes from, any non-obvious access pattern
+ * Notes:  gotchas, invariants, why-not-X decisions
+ */
+
 import * as React from "react"
 import { gateway } from "@/lib/supabase/gateway"
 import { sendEmail, buildBranding, fetchOrgSettings, type SendEmailResult } from "@/lib/comms/send-email"
