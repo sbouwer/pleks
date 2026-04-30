@@ -12,8 +12,8 @@ interface FunnelData {
   conversion_rate_pct: number
 }
 
-export function ConversionFunnelCard({ funnel }: { funnel: FunnelData }) {
-  const max = Math.max(funnel.waitlist, 1)
+export function ConversionFunnelCard({ funnel }: Readonly<{ funnel: FunnelData }>) {
+  const max = Math.max(funnel.waitlist, funnel.trialing, funnel.paid, 1)
   const stages = [
     { label: "Waitlist",    count: funnel.waitlist, rate: null },
     { label: "Trialing",    count: funnel.trialing, rate: funnel.waitlist > 0 ? Math.round((funnel.trialing / funnel.waitlist) * 100) : 0 },

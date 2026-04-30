@@ -13,7 +13,7 @@ import { MRRSnapshotCard }       from "@/components/admin/DashboardCards/MRRSnap
 import { ConversionFunnelCard }  from "@/components/admin/DashboardCards/ConversionFunnelCard"
 import { RecentSignupsCard }     from "@/components/admin/DashboardCards/RecentSignupsCard"
 import { FailedCronsCard }       from "@/components/admin/DashboardCards/FailedCronsCard"
-import { ErrorsTrendCard }       from "@/components/admin/DashboardCards/ErrorsTrendCard"
+import { UptimeHeartbeatCard }   from "@/components/admin/DashboardCards/UptimeHeartbeatCard"
 import { PrimeRateCard }         from "@/components/admin/DashboardCards/PrimeRateCard"
 
 export const revalidate = 60
@@ -98,8 +98,8 @@ export default async function AdminOverviewPage() {
         <RecentSignupsCard signups={snap.recentSignups} />
         <FailedCronsCard failed={snap.failedCrons} />
 
-        {/* Row 4 — 4 + 4 + 4 = 12 */}
-        <ErrorsTrendCard />
+        {/* Row 4 — 8 + 4 = 12 */}
+        <UptimeHeartbeatCard />
         <PrimeRateCard primeRate={snap.primeRate} />
       </div>
     </div>
