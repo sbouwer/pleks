@@ -1,13 +1,11 @@
 "use client"
 
 /**
- * app/(dashboard)/layout.tsx — FILL: one-line purpose
+ * app/(dashboard)/layout.tsx — Agent/admin dashboard root layout
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /dashboard/* and /settings/*
+ * Auth:   gateway (redirects to /login if not authenticated)
+ * Notes:  FeedbackButton mounts here so it renders across all dashboard pages.
  */
 
 import { Sidebar } from "@/components/layout/Sidebar"
@@ -20,6 +18,7 @@ import { KeyboardShortcuts } from "@/components/layout/KeyboardShortcuts"
 import { SyncEngineClient } from "@/components/layout/SyncEngineClient"
 import { PortalThemeProvider } from "@/components/layout/PortalThemeProvider"
 import { MfaGuard } from "@/components/auth/MfaGuard"
+import { FeedbackButton } from "@/components/feedback/FeedbackButton"
 
 export default function DashboardLayout({
   children,
@@ -40,6 +39,7 @@ export default function DashboardLayout({
         <KeyboardShortcuts />
         <SyncEngineClient />
       </div>
+      <FeedbackButton role="agent" />
     </PortalThemeProvider>
   )
 }

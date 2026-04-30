@@ -5,7 +5,7 @@
  */
 
 export type TemplateChannel  = "email" | "sms" | "both"
-export type TemplateCategory = "applications" | "arrears" | "maintenance" | "inspections" | "leases" | "deposits" | "statements" | "subscriptions" | "portal" | "reports" | "onboarding" | "insurance"
+export type TemplateCategory = "applications" | "arrears" | "maintenance" | "inspections" | "leases" | "deposits" | "statements" | "subscriptions" | "portal" | "reports" | "onboarding" | "insurance" | "feedback"
 
 export interface TemplateEntry {
   key: string
@@ -291,6 +291,10 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
   // ── Insurance checklist (ADDENDUM_60A) ──────────────────────────────────────
   "insurance.checklist_brief":         { key: "insurance.checklist_brief",         channel: "email", category: "insurance",   is_mandatory: true,  description: "Broker receives insurance coverage verification request with HTML brief attached" },
   "insurance.renewal_reminder":        { key: "insurance.renewal_reminder",        channel: "email", category: "insurance",   is_mandatory: true,  description: "Agent reminded at T+7 post-renewal that checklist items are still unverified" },
+
+  // ── Feedback (ADDENDUM_00F) ──────────────────────────────────────────────────
+  "feedback.reply":                    { key: "feedback.reply",                    channel: "email", category: "feedback",    is_mandatory: false, description: "Submitter notified when a platform admin replies to their feedback" },
+  "feedback.daily_digest":             { key: "feedback.daily_digest",             channel: "email", category: "feedback",    is_mandatory: false, description: "Daily digest of new feedback submissions sent to platform admin inbox" },
 }
 
 /** Returns the template entry or throws if the key is unknown */

@@ -774,3 +774,138 @@ CREATE INDEX IF NOT EXISTS idx_passkey_challenges_expires ON passkey_challenges(
 -- Schedule cleanup (run once after migration):
 -- SELECT cron.schedule('purge-passkey-challenges', '*/15 * * * *',
 --   $$DELETE FROM passkey_challenges WHERE expires_at < now() - interval '1 hour'$$);
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §16  BUILD_00F: user feedback capture
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS feedback_submissions (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id        uuid NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+  submitter_id  uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  role          text NOT NULL CHECK (role IN ('landlord', 'tenant', 'supplier', 'agent')),
+  category      text NOT NULL CHECK (category IN ('bug', 'feature', 'general', 'billing', 'ux')),
+  subject       text NOT NULL,
+  body          text NOT NULL,
+  rating        smallint CHECK (rating BETWEEN 1 AND 5),
+  status        text NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'in_progress', 'resolved', 'wont_fix')),
+  admin_note    text,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS feedback_replies (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  submission_id   uuid NOT NULL REFERENCES feedback_submissions(id) ON DELETE CASCADE,
+  author_id       uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  body            text NOT NULL,
+  is_admin_reply  boolean NOT NULL DEFAULT false,
+  created_at      timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_feedback_submissions_org       ON feedback_submissions(org_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_submissions_submitter ON feedback_submissions(submitter_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_submissions_status    ON feedback_submissions(status);
+CREATE INDEX IF NOT EXISTS idx_feedback_submissions_created   ON feedback_submissions(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_feedback_replies_submission    ON feedback_replies(submission_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_replies_author        ON feedback_replies(author_id);
+
+ALTER TABLE feedback_submissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE feedback_replies     ENABLE ROW LEVEL SECURITY;
+
+DROP TRIGGER IF EXISTS trg_feedback_submissions_updated_at ON feedback_submissions;
+CREATE TRIGGER trg_feedback_submissions_updated_at
+  BEFORE UPDATE ON feedback_submissions
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- feedback_submissions: submitter can see and edit their own
+DROP POLICY IF EXISTS "feedback_submissions_submitter_select" ON feedback_submissions;
+CREATE POLICY "feedback_submissions_submitter_select" ON feedback_submissions
+  FOR SELECT USING (submitter_id = auth.uid());
+
+DROP POLICY IF EXISTS "feedback_submissions_submitter_insert" ON feedback_submissions;
+CREATE POLICY "feedback_submissions_submitter_insert" ON feedback_submissions
+  FOR INSERT WITH CHECK (
+    submitter_id = auth.uid()
+    AND org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid())
+  );
+
+DROP POLICY IF EXISTS "feedback_submissions_submitter_update" ON feedback_submissions;
+CREATE POLICY "feedback_submissions_submitter_update" ON feedback_submissions
+  FOR UPDATE USING (submitter_id = auth.uid())
+  WITH CHECK (submitter_id = auth.uid());
+
+-- feedback_submissions: org admin (owner/admin role) can see and triage own org
+DROP POLICY IF EXISTS "feedback_submissions_org_admin_select" ON feedback_submissions;
+CREATE POLICY "feedback_submissions_org_admin_select" ON feedback_submissions
+  FOR SELECT USING (
+    org_id IN (
+      SELECT org_id FROM user_orgs
+      WHERE user_id = auth.uid() AND role IN ('owner', 'admin')
+    )
+  );
+
+DROP POLICY IF EXISTS "feedback_submissions_org_admin_update" ON feedback_submissions;
+CREATE POLICY "feedback_submissions_org_admin_update" ON feedback_submissions
+  FOR UPDATE USING (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND role IN ('owner', 'admin'))
+  )
+  WITH CHECK (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND role IN ('owner', 'admin'))
+  );
+
+-- feedback_submissions: platform admin sees all
+DROP POLICY IF EXISTS "feedback_submissions_platform_admin_all" ON feedback_submissions;
+CREATE POLICY "feedback_submissions_platform_admin_all" ON feedback_submissions
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM organisations o
+      JOIN user_orgs uo ON uo.org_id = o.id
+      WHERE uo.user_id = auth.uid()
+        AND o.settings->>'platform_admin' = 'true'
+    )
+  );
+
+-- feedback_replies: submitter can read replies on their submissions and post non-admin replies
+DROP POLICY IF EXISTS "feedback_replies_submitter_select" ON feedback_replies;
+CREATE POLICY "feedback_replies_submitter_select" ON feedback_replies
+  FOR SELECT USING (
+    submission_id IN (
+      SELECT id FROM feedback_submissions WHERE submitter_id = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS "feedback_replies_submitter_insert" ON feedback_replies;
+CREATE POLICY "feedback_replies_submitter_insert" ON feedback_replies
+  FOR INSERT WITH CHECK (
+    author_id = auth.uid()
+    AND is_admin_reply = false
+    AND submission_id IN (
+      SELECT id FROM feedback_submissions WHERE submitter_id = auth.uid()
+    )
+  );
+
+-- feedback_replies: platform admin can read and post admin replies on any submission
+DROP POLICY IF EXISTS "feedback_replies_platform_admin_select" ON feedback_replies;
+CREATE POLICY "feedback_replies_platform_admin_select" ON feedback_replies
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM organisations o
+      JOIN user_orgs uo ON uo.org_id = o.id
+      WHERE uo.user_id = auth.uid()
+        AND o.settings->>'platform_admin' = 'true'
+    )
+  );
+
+DROP POLICY IF EXISTS "feedback_replies_platform_admin_insert" ON feedback_replies;
+CREATE POLICY "feedback_replies_platform_admin_insert" ON feedback_replies
+  FOR INSERT WITH CHECK (
+    author_id = auth.uid()
+    AND EXISTS (
+      SELECT 1 FROM organisations o
+      JOIN user_orgs uo ON uo.org_id = o.id
+      WHERE uo.user_id = auth.uid()
+        AND o.settings->>'platform_admin' = 'true'
+    )
+  );
