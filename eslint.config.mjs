@@ -33,6 +33,10 @@ const eslintConfig = defineConfig([
   {
     rules: {
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
+      // eslint-plugin-react-hooks@7 added set-state-in-effect which flags the standard
+      // useEffect(() => { load() }, [deps]) data-fetch pattern. Disabled until the rule
+      // matures — the pattern is documented and intentional across the codebase.
+      "react-hooks/set-state-in-effect": "off",
     },
   },
 ]);

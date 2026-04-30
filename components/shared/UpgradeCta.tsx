@@ -42,7 +42,7 @@ export function UpgradeCta({ title, description, dismissKey }: UpgradeCtaProps) 
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
-    if (shouldShow(dismissKey)) setVisible(true) // eslint-disable-line react-hooks/set-state-in-effect
+    if (shouldShow(dismissKey)) setVisible(true)
   }, [dismissKey])
 
   function dismiss() {

@@ -24,7 +24,6 @@ export function WelcomePackBanner({ orgId, landlordId, landlordName }: Readonly<
 
   useEffect(() => {
     const key = `pleks_welcome_dismissed_${landlordId}`
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!localStorage.getItem(key)) setVisible(true)
   }, [landlordId])
 

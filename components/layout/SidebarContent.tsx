@@ -49,7 +49,7 @@ export function SidebarContent({
   const [optimisticPath, setOptimisticPath] = useState<string | null>(null)
 
   // Reset optimistic path when real navigation completes
-  useEffect(() => { setOptimisticPath(null) }, [pathname]) // eslint-disable-line react-hooks/set-state-in-effect
+  useEffect(() => { setOptimisticPath(null) }, [pathname])
 
   const activePath = optimisticPath ?? pathname
 
