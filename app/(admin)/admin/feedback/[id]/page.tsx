@@ -5,23 +5,16 @@
  * Auth:   pleks_admin_token cookie == ADMIN_SECRET
  * Data:   feedback_submissions + feedback_replies via getFeedbackSubmissionById
  */
-import { cookies } from "next/headers"
-import { notFound, redirect } from "next/navigation"
+import { notFound } from "next/navigation"
 import Link from "next/link"
 import { ChevronLeft } from "lucide-react"
+import { requireAdminAuth } from "@/lib/admin/auth"
 import { getFeedbackSubmissionById } from "@/lib/feedback/queries"
 import { FeedbackDetail } from "@/components/feedback/FeedbackDetail"
 
-interface Props {
-  params: Promise<{ id: string }>
-}
-
-export default async function AdminFeedbackDetailPage({ params }: Props) {
+export default async function AdminFeedbackDetailPage({ params }: Readonly<{ params: Promise<{ id: string }> }>) {
   const { id } = await params
-
-  const cookieStore = await cookies()
-  const token = cookieStore.get("pleks_admin_token")?.value
-  if (!token || token !== process.env.ADMIN_SECRET) redirect("/admin/login")
+  await requireAdminAuth()
 
   const submission = await getFeedbackSubmissionById(id)
   if (!submission) notFound()

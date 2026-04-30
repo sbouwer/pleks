@@ -1,29 +1,25 @@
 /**
- * lib/admin/auth.ts — FILL: one-line purpose
+ * lib/admin/auth.ts — Admin session gate helpers
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   pleks_admin_token cookie verified via HMAC (verifyAdminToken)
+ * Notes:  Cookie holds a signed token from signAdminToken — NOT the raw ADMIN_SECRET.
+ *         requireAdminAuth() for server components (redirects); isAdminAuthenticated() for API routes.
  */
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
+import { verifyAdminToken } from "@/lib/auth/admin-token"
 
-/**
- * Call at the top of every admin server component.
- * Redirects to /admin/login if not authenticated.
- * Double-layer with middleware — belt and braces.
- */
+/** Server-component gate — redirects to /admin/login if the session is invalid or expired. */
 export async function requireAdminAuth(): Promise<void> {
   const cookieStore = await cookies()
   const token = cookieStore.get("pleks_admin_token")?.value
-  const secret = process.env.ADMIN_SECRET
+  const valid = await verifyAdminToken(token, process.env.ADMIN_SECRET)
+  if (!valid) redirect("/admin/login")
+}
 
-  if (!secret) {
-    throw new Error("ADMIN_SECRET is not configured")
-  }
-  if (!token || token !== secret) {
-    redirect("/admin/login")
-  }
+/** API-route gate — returns true if the admin session cookie is valid. */
+export async function isAdminAuthenticated(): Promise<boolean> {
+  const cookieStore = await cookies()
+  const token = cookieStore.get("pleks_admin_token")?.value
+  return verifyAdminToken(token, process.env.ADMIN_SECRET)
 }

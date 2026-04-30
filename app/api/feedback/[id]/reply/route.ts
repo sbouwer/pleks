@@ -7,8 +7,8 @@
  * Notes:  Admin reply triggers feedback.reply email to submitter.
  */
 import { NextRequest } from "next/server"
-import { cookies } from "next/headers"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { isAdminAuthenticated } from "@/lib/admin/auth"
 import { getFeedbackSubmissionById, addFeedbackReply } from "@/lib/feedback/queries"
 
 export async function POST(
@@ -24,24 +24,20 @@ export async function POST(
   const submission = await getFeedbackSubmissionById(id)
   if (!submission) return Response.json({ error: "Not found" }, { status: 404 })
 
-  // Determine if this is an admin reply
-  const cookieStore = await cookies()
-  const adminToken = cookieStore.get("pleks_admin_token")?.value
-  const isPlatformAdmin = !!adminToken && adminToken === process.env.ADMIN_SECRET
+  // Determine if this is an admin reply (platform admin or org admin with is_admin flag)
+  let isAdminReply = await isAdminAuthenticated()
 
-  let isAdminReply = isPlatformAdmin
-
-  if (!isPlatformAdmin) {
-    // Check if org admin
+  if (!isAdminReply) {
     const service = await createServiceClient()
     const { data: membership } = await service
       .from("user_orgs")
-      .select("role")
+      .select("role, is_admin")
       .eq("user_id", user.id)
       .eq("org_id", submission.org_id)
       .is("deleted_at", null)
       .maybeSingle()
-    if (membership && ["owner", "admin"].includes((membership as { role: string }).role)) {
+    const m = membership as { role: string; is_admin: boolean } | null
+    if (m && (m.role === "owner" || m.is_admin === true)) {
       isAdminReply = true
     }
   }

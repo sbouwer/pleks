@@ -824,11 +824,19 @@ DROP POLICY IF EXISTS "feedback_submissions_submitter_select" ON feedback_submis
 CREATE POLICY "feedback_submissions_submitter_select" ON feedback_submissions
   FOR SELECT USING (submitter_id = auth.uid());
 
+-- Insert covers all four user types: agents (user_orgs), tenants, landlords, contractors.
+-- The API route uses service-role for inserts and validates org membership server-side,
+-- but this policy ensures correctness if the route ever uses an anon client.
 DROP POLICY IF EXISTS "feedback_submissions_submitter_insert" ON feedback_submissions;
 CREATE POLICY "feedback_submissions_submitter_insert" ON feedback_submissions
   FOR INSERT WITH CHECK (
     submitter_id = auth.uid()
-    AND org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid())
+    AND (
+      org_id IN (SELECT org_id FROM user_orgs  WHERE user_id      = auth.uid() AND deleted_at IS NULL)
+      OR org_id IN (SELECT org_id FROM tenants  WHERE auth_user_id = auth.uid() AND deleted_at IS NULL)
+      OR org_id IN (SELECT org_id FROM landlords WHERE auth_user_id = auth.uid() AND deleted_at IS NULL)
+      OR org_id IN (SELECT org_id FROM contractors WHERE auth_user_id = auth.uid())
+    )
   );
 
 DROP POLICY IF EXISTS "feedback_submissions_submitter_update" ON feedback_submissions;
@@ -836,23 +844,35 @@ CREATE POLICY "feedback_submissions_submitter_update" ON feedback_submissions
   FOR UPDATE USING (submitter_id = auth.uid())
   WITH CHECK (submitter_id = auth.uid());
 
--- feedback_submissions: org admin (owner/admin role) can see and triage own org
+-- feedback_submissions: org admin — role='owner' OR is_admin flag (not role='admin', which doesn't exist)
 DROP POLICY IF EXISTS "feedback_submissions_org_admin_select" ON feedback_submissions;
 CREATE POLICY "feedback_submissions_org_admin_select" ON feedback_submissions
   FOR SELECT USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND role IN ('owner', 'admin')
+      WHERE user_id = auth.uid()
+        AND (role = 'owner' OR is_admin = true)
+        AND deleted_at IS NULL
     )
   );
 
 DROP POLICY IF EXISTS "feedback_submissions_org_admin_update" ON feedback_submissions;
 CREATE POLICY "feedback_submissions_org_admin_update" ON feedback_submissions
   FOR UPDATE USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND role IN ('owner', 'admin'))
+    org_id IN (
+      SELECT org_id FROM user_orgs
+      WHERE user_id = auth.uid()
+        AND (role = 'owner' OR is_admin = true)
+        AND deleted_at IS NULL
+    )
   )
   WITH CHECK (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND role IN ('owner', 'admin'))
+    org_id IN (
+      SELECT org_id FROM user_orgs
+      WHERE user_id = auth.uid()
+        AND (role = 'owner' OR is_admin = true)
+        AND deleted_at IS NULL
+    )
   );
 
 -- feedback_submissions: platform admin sees all

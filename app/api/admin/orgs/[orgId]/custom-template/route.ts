@@ -8,20 +8,14 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 import { NextRequest, NextResponse } from "next/server"
-import { cookies } from "next/headers"
+import { isAdminAuthenticated } from "@/lib/admin/auth"
 import { createServiceClient } from "@/lib/supabase/server"
-
-async function verifyAdmin() {
-  const cookieStore = await cookies()
-  const token = cookieStore.get("pleks_admin_token")?.value
-  return token && token === process.env.ADMIN_SECRET
-}
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ orgId: string }> }
 ) {
-  if (!(await verifyAdmin())) {
+  if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
