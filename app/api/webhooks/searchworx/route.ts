@@ -1,13 +1,12 @@
 /**
- * app/api/webhooks/searchworx/route.ts — FILL: one-line purpose
+ * app/api/webhooks/searchworx/route.ts — Searchworx credit-check result callback
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/webhooks/searchworx
+ * Auth:   Searchworx signature verification (pending API credentials)
+ * Data:   applications + listings — writes FitScore, updates screening status
  */
 import { NextResponse } from "next/server"
+import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
 import { calculateFullFitScore } from "@/lib/screening/fitScore"
 import { sendCreditReportToApplicant } from "@/lib/screening/sendCreditReport"
@@ -101,6 +100,10 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true })
   } catch (err) {
+    Sentry.captureException(err, {
+      tags: { webhook_type: "searchworx" },
+      extra: { application_id: applicationId },
+    })
     console.error("[searchworx webhook] processing failed:", err)
     await supabase.from("applications").update({
       searchworx_check_status: "failed",

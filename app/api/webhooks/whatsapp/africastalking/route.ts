@@ -1,13 +1,13 @@
 /**
- * app/api/webhooks/whatsapp/africastalking/route.ts — FILL: one-line purpose
+ * app/api/webhooks/whatsapp/africastalking/route.ts — Africa's Talking WhatsApp webhook handler
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/webhooks/whatsapp/africastalking
+ * Auth:   HMAC-SHA256 signature via x-at-signature / x-hub-signature-256 header
+ * Data:   whatsapp_messages + communication_log + tenant_messaging_consent
+ * Notes:  Always returns 200 to prevent AT retries even on internal errors
  */
 import { NextRequest, NextResponse } from "next/server"
+import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
 import { verifyWebhookSignature, parseWebhookEvent } from "@/lib/messaging/whatsapp/provider"
 import { sendSmsFallback } from "@/lib/messaging/whatsapp/sms-fallback"
@@ -57,6 +57,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       )
     }
   } catch (err) {
+    Sentry.captureException(err, { tags: { webhook_type: "whatsapp_africastalking" } })
     console.error("[wa-webhook] unhandled error", err)
     // Still return 200 — we don't want AT to keep retrying
   }

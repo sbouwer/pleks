@@ -13,7 +13,7 @@ Sentry.init({
   environment: process.env.NEXT_PUBLIC_VERCEL_ENV ?? process.env.NODE_ENV,
   release: process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA,
 
-  tracesSampleRate: 0,         // performance tracing off — errors only for now
+  tracesSampleRate: 0.1,
   replaysSessionSampleRate: 0, // session replay deferred
   replaysOnErrorSampleRate: 0,
 

@@ -1,21 +1,18 @@
 /**
- * app/(supplier)/layout.tsx — FILL: one-line purpose
+ * app/(supplier)/layout.tsx — Supplier portal root layout — auth gate and shell
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /supplier/*
+ * Auth:   Supabase auth + contractor_view.portal_access_enabled check
+ * Data:   contractor_view via Supabase client
  */
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { SupplierShell } from "./SupplierShell"
+import { setSentryUser } from "@/lib/observability/user-context"
 
 export default async function SupplierLayout({
   children,
-}: {
-  children: React.ReactNode
-}) {
+}: Readonly<{ children: React.ReactNode }>) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -30,6 +27,8 @@ export default async function SupplierLayout({
     .single()
 
   if (!contractor) redirect("/login")
+
+  setSentryUser({ id: user.id, role: "supplier", scope_id: contractor.id })
 
   return <SupplierShell>{children}</SupplierShell>
 }
