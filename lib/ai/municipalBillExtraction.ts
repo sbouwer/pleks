@@ -1,12 +1,12 @@
 /**
- * lib/ai/municipalBillExtraction.ts — FILL: one-line purpose
+ * lib/ai/municipalBillExtraction.ts — Sonnet-powered SA municipal bill data extraction
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   Server-only — called from municipal bill upload API
+ * Data:   Anthropic API via lib/ai/client.ts (logged to ai_usage); accepts base64 PDF
+ * Notes:  Extracts rates, utilities, readings from any SA municipality bill format.
  */
+import { createMessage } from "@/lib/ai/client"
+
 export const MUNICIPAL_BILL_SYSTEM_PROMPT = `You are extracting data from a South African municipal bill (rates/utilities account).
 
 SA municipalities include: City of Cape Town, City of Johannesburg, Ekurhuleni,
@@ -79,27 +79,30 @@ export interface MunicipalBillExtracted {
   extraction_notes: string | null
 }
 
-export async function extractMunicipalBill(pdfBuffer: ArrayBuffer): Promise<MunicipalBillExtracted> {
-  const Anthropic = (await import("@anthropic-ai/sdk")).default
-  const client = new Anthropic()
-
+export async function extractMunicipalBill(
+  pdfBuffer: ArrayBuffer,
+  orgId: string | null = null,
+): Promise<MunicipalBillExtracted> {
   const base64Pdf = Buffer.from(pdfBuffer).toString("base64")
 
-  const message = await client.messages.create({
-    model: "claude-sonnet-4-6-20250514",
-    max_tokens: 1024,
-    system: MUNICIPAL_BILL_SYSTEM_PROMPT,
-    messages: [{
-      role: "user",
-      content: [
-        {
-          type: "document" as const,
-          source: { type: "base64" as const, media_type: "application/pdf" as const, data: base64Pdf },
-        },
-        { type: "text" as const, text: "Extract all fields from this municipal bill. Return only valid JSON." },
-      ],
-    }],
-  })
+  const { message } = await createMessage(
+    {
+      model: "claude-sonnet-4-6-20250514",
+      max_tokens: 1024,
+      system: MUNICIPAL_BILL_SYSTEM_PROMPT,
+      messages: [{
+        role: "user",
+        content: [
+          {
+            type: "document" as const,
+            source: { type: "base64" as const, media_type: "application/pdf" as const, data: base64Pdf },
+          },
+          { type: "text" as const, text: "Extract all fields from this municipal bill. Return only valid JSON." },
+        ],
+      }],
+    },
+    { orgId, purpose: "municipal_bill_extraction" },
+  )
 
   const responseText = message.content[0].type === "text" ? message.content[0].text : ""
   const start = responseText.indexOf("{")

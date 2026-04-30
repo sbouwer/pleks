@@ -1,16 +1,14 @@
 "use server"
 
 /**
- * lib/deposits/generateJustification.ts — FILL: one-line purpose
+ * lib/deposits/generateJustification.ts — Sonnet-powered deposit deduction justification writer
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   Server action — called from deposit reconciliation UI
+ * Data:   Anthropic API via lib/ai/client.ts (logged to ai_usage); deposit_deduction_items via Supabase
+ * Notes:  Steward+ tier only (ai_inspection feature gate). Output may be used in Tribunal proceedings.
  */
 import { createClient } from "@/lib/supabase/server"
-import Anthropic from "@anthropic-ai/sdk"
+import { createMessage } from "@/lib/ai/client"
 
 const WEAR_TEAR_SYSTEM_PROMPT = `You are a South African property management specialist writing itemised deduction justifications for a deposit reconciliation.
 
@@ -80,24 +78,27 @@ export async function generateDeductionJustification(deductionItemId: string) {
     ? Math.round((new Date(lease.end_date).getTime() - new Date(lease.start_date).getTime()) / (1000 * 60 * 60 * 24 * 30))
     : 12
 
-  const anthropic = new Anthropic()
-  const message = await anthropic.messages.create({
-    model: "claude-sonnet-4-6-20250514",
-    max_tokens: 300,
-    system: WEAR_TEAR_SYSTEM_PROMPT,
-    messages: [{
-      role: "user",
-      content: `Write a deduction justification for this item.
+  const orgId = leaseForTier?.org_id as string | null ?? null
+  const { message } = await createMessage(
+    {
+      model: "claude-sonnet-4-6-20250514",
+      max_tokens: 300,
+      system: WEAR_TEAR_SYSTEM_PROMPT,
+      messages: [{
+        role: "user",
+        content: `Write a deduction justification for this item.
 
 Room: ${item.room ?? "Not specified"}
 Item: ${item.item_description}
 Lease duration: ${leaseDuration} months
-${item.deduction_amount_cents > 0 ? `Deduction amount: R${(item.deduction_amount_cents / 100).toFixed(2)}` : ""}
-${item.quote_amount_cents ? `Quote obtained: R${(item.quote_amount_cents / 100).toFixed(2)}` : ""}
+${(item.deduction_amount_cents as number) > 0 ? `Deduction amount: R${((item.deduction_amount_cents as number) / 100).toFixed(2)}` : ""}
+${item.quote_amount_cents ? `Quote obtained: R${((item.quote_amount_cents as number) / 100).toFixed(2)}` : ""}
 
 Write 2-4 sentences justifying why this is tenant damage (not normal wear and tear) and why the deduction amount is reasonable. Be specific and factual.`,
-    }],
-  })
+      }],
+    },
+    { orgId, purpose: "deposit_justification" },
+  )
 
   const justification = message.content[0].type === "text"
     ? message.content[0].text.trim() : ""

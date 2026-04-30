@@ -73,3 +73,29 @@ export async function getMessagingUsage(): Promise<MessagingUsageData | { error:
     overageCents: data.overage_cents as number,
   }
 }
+
+// ── AI usage count (for usage meter on billing settings page) ─────────────
+
+export async function getAiUsageCount(): Promise<{ count: number } | { error: string }> {
+  const gw = await gateway()
+  if (!gw) return { error: "Not authenticated" }
+  const { db, orgId } = gw
+
+  const periodStart = new Date()
+  periodStart.setUTCDate(1)
+  periodStart.setUTCHours(0, 0, 0, 0)
+
+  const { count, error } = await db
+    .from("ai_usage")
+    .select("id", { count: "exact", head: true })
+    .eq("org_id", orgId)
+    .eq("success", true)
+    .gte("created_at", periodStart.toISOString())
+
+  if (error) {
+    console.error("getAiUsageCount failed:", error.message)
+    return { error: "Failed to load AI usage" }
+  }
+
+  return { count: count ?? 0 }
+}

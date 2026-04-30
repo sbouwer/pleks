@@ -39,6 +39,20 @@ const eslintConfig = defineConfig([
       "react-hooks/set-state-in-effect": "off",
     },
   },
+  {
+    // Direct @anthropic-ai/sdk usage is prohibited — all AI calls must go through
+    // lib/ai/client.ts, which handles logging, cost attribution, and org tracking.
+    files: ["**/*.ts", "**/*.tsx"],
+    ignores: ["lib/ai/client.ts"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        paths: [{
+          name: "@anthropic-ai/sdk",
+          message: "Direct Anthropic SDK usage is prohibited. Use `createMessage` from `@/lib/ai/client` instead. See ADDENDUM_00H §5.",
+        }],
+      }],
+    },
+  },
 ]);
 
 export default eslintConfig;

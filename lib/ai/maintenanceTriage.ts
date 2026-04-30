@@ -1,12 +1,12 @@
 /**
- * lib/ai/maintenanceTriage.ts — FILL: one-line purpose
+ * lib/ai/maintenanceTriage.ts — Haiku-powered maintenance request classification
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   Server-only — called from maintenance submission API routes
+ * Data:   Anthropic API via lib/ai/client.ts (logged to ai_usage)
+ * Notes:  Falls back to keyword classifier when API key absent or API fails.
  */
+import { createMessage } from "@/lib/ai/client"
+
 export interface TriageResult {
   category: string
   urgency: string
@@ -46,26 +46,22 @@ Respond with ONLY valid JSON, no markdown, no explanation:
 export async function triageMaintenanceRequest(
   title: string,
   description: string,
+  orgId: string | null = null,
 ): Promise<TriageResult> {
   if (!process.env.ANTHROPIC_API_KEY) {
     return fallbackTriage(title, description)
   }
 
   try {
-    const Anthropic = (await import("@anthropic-ai/sdk")).default
-    const client = new Anthropic()
-
-    const message = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 250,
-      system: SYSTEM_PROMPT,
-      messages: [
-        {
-          role: "user",
-          content: `Title: ${title}\n\nDescription: ${description}`,
-        },
-      ],
-    })
+    const { message } = await createMessage(
+      {
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 250,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: "user", content: `Title: ${title}\n\nDescription: ${description}` }],
+      },
+      { orgId, purpose: "maintenance_triage" },
+    )
 
     const text = message.content[0].type === "text" ? message.content[0].text.trim() : ""
     const raw = JSON.parse(text) as Partial<TriageResult>

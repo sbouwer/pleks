@@ -24,6 +24,38 @@ import { isFoundingAgentActive, getMonthlyPriceCents, foundingAgentMonthsRemaini
 import type { MessagingUsageData } from "@/lib/actions/billing"
 import { cn } from "@/lib/utils"
 
+// ── AI usage section ──────────────────────────────────────────────────────────
+
+function AiUsageSection() {
+  const [count, setCount] = useState<number | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      const { getAiUsageCount } = await import("@/lib/actions/billing")
+      const result = await getAiUsageCount()
+      if (!cancelled) {
+        if ("error" in result) {
+          console.error("AiUsageSection:", result.error)
+        } else {
+          setCount(result.count)
+        }
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [])
+
+  if (count === null) return <div className="h-6 w-24 animate-pulse bg-muted rounded" />
+
+  return (
+    <div className="flex justify-between text-sm">
+      <span>AI triage calls</span>
+      <span className="text-muted-foreground">{count} this month (unlimited)</span>
+    </div>
+  )
+}
+
 // ── Messaging usage section ───────────────────────────────────────────────────
 
 function MessagingUsageSection() {
@@ -272,13 +304,22 @@ export default function BillingPage() {
         </Card>
       )}
 
-      {/* ── Messaging usage ── */}
+      {/* ── Messaging + AI usage ── */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Messaging usage</CardTitle>
+          <CardTitle className="text-base">This month&apos;s usage</CardTitle>
         </CardHeader>
-        <CardContent>
-          <MessagingUsageSection />
+        <CardContent className="space-y-4">
+          {tier === "owner" ? (
+            <p className="text-sm text-muted-foreground">
+              Upgrade to Steward to see detailed usage metrics.
+            </p>
+          ) : (
+            <>
+              <MessagingUsageSection />
+              <AiUsageSection />
+            </>
+          )}
         </CardContent>
       </Card>
 

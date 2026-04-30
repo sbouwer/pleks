@@ -1,11 +1,12 @@
 /**
- * Standalone severity classification for maintenance requests.
- * Used when the full triage pipeline isn't available (e.g. tenant portal,
- * severity re-evaluation after an update).
+ * lib/ai/maintenance/severity.ts — Standalone Haiku severity classifier for maintenance requests
  *
- * The primary path is triageMaintenanceRequest() in lib/ai/maintenanceTriage.ts,
- * which returns severity as part of the single Haiku call.
+ * Auth:   Server-only — used in tenant portal and severity re-evaluation flows
+ * Data:   Anthropic API via lib/ai/client.ts (logged to ai_usage)
+ * Notes:  Primary path is triageMaintenanceRequest() which bundles severity in one call.
+ *         This file handles severity-only cases (tenant portal, post-update re-eval).
  */
+import { createMessage } from "@/lib/ai/client"
 
 export type Severity = "routine" | "elevated" | "urgent" | "critical"
 
@@ -44,21 +45,22 @@ Respond with ONLY valid JSON, no markdown:
 export async function classifySeverity(
   title: string,
   description: string,
+  orgId: string | null = null,
 ): Promise<SeverityResult> {
   if (!process.env.ANTHROPIC_API_KEY) {
     return fallbackSeverity(title, description)
   }
 
   try {
-    const Anthropic = (await import("@anthropic-ai/sdk")).default
-    const client = new Anthropic()
-
-    const message = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 150,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: `Title: ${title}\n\nDescription: ${description}` }],
-    })
+    const { message } = await createMessage(
+      {
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 150,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: "user", content: `Title: ${title}\n\nDescription: ${description}` }],
+      },
+      { orgId, purpose: "maintenance_triage" },
+    )
 
     const text = message.content[0].type === "text" ? message.content[0].text.trim() : ""
     const raw = JSON.parse(text) as Partial<SeverityResult>

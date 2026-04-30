@@ -1,7 +1,11 @@
-// Bank reconciliation matching engine (D-014)
-// Order: exact reference → fuzzy amount+date → AI (Haiku) → manual
-
-import Anthropic from "@anthropic-ai/sdk"
+/**
+ * lib/recon/matchingEngine.ts — Bank reconciliation matching engine (D-014)
+ *
+ * Auth:   Server-only — called from bank feed reconciliation API
+ * Data:   rent_invoices; Anthropic API via lib/ai/client.ts for Tier 3 AI match
+ * Notes:  Order: exact reference → fuzzy amount+date → AI (Haiku) → manual.
+ */
+import { createMessage } from "@/lib/ai/client"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 export interface MatchResult {
@@ -20,7 +24,7 @@ export interface MatchContext {
 
 /** Normalise a reference string for comparison: uppercase, strip spaces/dashes/dots */
 function normalise(s: string): string {
-  return s.toUpperCase().replace(/[\s\-_.]/g, "")
+  return s.toUpperCase().replaceAll(/[\s\-.]/g, "")
 }
 
 // Tier 1: Exact reference match against invoice_number
@@ -48,7 +52,7 @@ export async function matchExact(
     if (normRef === normInv || normRef.includes(normInv) || normInv.includes(normRef)) {
       return {
         matchType: "matched_exact",
-        confidence: normRef === normInv ? 1.0 : 0.95,
+        confidence: normRef === normInv ? 1 : 0.95,
         invoiceId: inv.id as string,
         description: `Invoice ${inv.invoice_number} matched by reference`,
         requiresConfirmation: normRef !== normInv,
@@ -103,7 +107,7 @@ export async function matchFuzzy(
     // Base confidence 0.80; penalise R10 increments and each day off
     const amountPenalty = Math.floor(amountDiff / 1000) * 0.02
     const datePenalty   = Math.floor(daysDiff) * 0.01
-    const confidence    = Math.max(0.55, 0.80 - amountPenalty - datePenalty)
+    const confidence    = Math.max(0.55, 0.8 - amountPenalty - datePenalty)
 
     if (!best || confidence > best.confidence) {
       best = {
@@ -144,16 +148,14 @@ export async function matchAI(
     )
     .join("\n")
 
-  const client = new Anthropic()
   let rawText: string
   try {
-    const msg = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 128,
-      system:
-        'You are a bank reconciliation assistant. Given a bank transaction and open invoices, determine if the transaction matches one. Respond with JSON only: {"match":<1-based index or null>,"confidence":<0.0-1.0>,"reason":"<short>"}. Only match if confidence ≥ 0.65.',
-      messages: [
-        {
+    const { message: msg } = await createMessage(
+      {
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 128,
+        system: 'You are a bank reconciliation assistant. Given a bank transaction and open invoices, determine if the transaction matches one. Respond with JSON only: {"match":<1-based index or null>,"confidence":<0.0-1.0>,"reason":"<short>"}. Only match if confidence ≥ 0.65.',
+        messages: [{
           role: "user",
           content: [
             `Transaction:`,
@@ -165,9 +167,10 @@ export async function matchAI(
             `Open invoices:`,
             candidates,
           ].join("\n"),
-        },
-      ],
-    })
+        }],
+      },
+      { orgId: ctx.orgId, purpose: "recon_matching" },
+    )
     const block = msg.content[0]
     if (block.type !== "text") return null
     rawText = block.text
