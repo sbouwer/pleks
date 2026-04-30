@@ -1,0 +1,2 @@
+https://app.pleks.co.za/api/health
+https://pleks.co.za/status

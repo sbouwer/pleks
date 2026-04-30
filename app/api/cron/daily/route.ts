@@ -7,6 +7,7 @@
  */
 import { NextRequest } from "next/server"
 import * as Sentry from "@sentry/nextjs"
+import { createServiceClient } from "@/lib/supabase/server"
 import { GET as invoiceGenerate } from "../invoice-generate/route"
 import { GET as leaseExpiryCheck } from "../lease-expiry-check/route"
 import { GET as arrearsSequence } from "../arrears-sequence/route"
@@ -56,6 +57,15 @@ export async function GET(req: NextRequest) {
     headers: new Headers({ "x-cron-secret": process.env.CRON_SECRET! }),
   })
 
+  // Track in cron_runs — read by /api/health/deep cron freshness check
+  const service = await createServiceClient()
+  const { data: cronRun } = await service.from("cron_runs").insert({
+    job_name:   "daily",
+    started_at: today.toISOString(),
+    status:     "running",
+  }).select("id").single()
+  const cronRunId = cronRun?.id ?? null
+
   // Daily jobs
   await runJob("invoice_generate", invoiceGenerate, cronReq, results)
   await runJob("lease_expiry_check", leaseExpiryCheck, cronReq, results)
@@ -84,6 +94,20 @@ export async function GET(req: NextRequest) {
     await runJob("owner_statement_gen", ownerStatementGen, cronReq, results)
   } else {
     results.owner_statement_gen = "skipped (not 2nd)"
+  }
+
+  // Finish cron_runs entry
+  if (cronRunId) {
+    await service.from("cron_runs").update({
+      finished_at:    new Date().toISOString(),
+      status:         "completed",
+      rows_processed: Object.keys(results).length,
+    }).eq("id", cronRunId)
+  }
+
+  // Heartbeat — Better Stack confirms the orchestrator completed (fire-and-forget)
+  if (process.env.HEARTBEAT_DAILY) {
+    void fetch(process.env.HEARTBEAT_DAILY, { method: "POST" }).catch(() => undefined)
   }
 
   return Response.json({ ok: true, ran_at: today.toISOString(), results })

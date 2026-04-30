@@ -35,6 +35,7 @@ const CATEGORIES: { value: FeedbackCategory; label: string }[] = [
   { value: "feature", label: "Feature request" },
   { value: "ux",      label: "UX / design" },
   { value: "billing", label: "Billing" },
+  { value: "praise",  label: "Something I love" },
   { value: "general", label: "General" },
 ]
 
@@ -44,7 +45,7 @@ interface FeedbackDialogProps {
   role:         FeedbackRole
 }
 
-export function FeedbackDialog({ open, onOpenChange, role }: FeedbackDialogProps) {
+export function FeedbackDialog({ open, onOpenChange, role }: Readonly<FeedbackDialogProps>) {
   const [category, setCategory] = useState<FeedbackCategory>("general")
   const [subject,  setSubject]  = useState("")
   const [body,     setBody]     = useState("")
@@ -52,7 +53,7 @@ export function FeedbackDialog({ open, onOpenChange, role }: FeedbackDialogProps
   const [saving,   setSaving]   = useState(false)
   const [done,     setDone]     = useState(false)
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: { preventDefault(): void }) {
     e.preventDefault()
     if (saving) return
     setSaving(true)

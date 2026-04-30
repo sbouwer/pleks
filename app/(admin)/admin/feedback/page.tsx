@@ -5,15 +5,12 @@
  * Auth:   pleks_admin_token cookie == ADMIN_SECRET
  * Data:   feedback_submissions (all orgs) via listFeedbackSubmissions
  */
-import { cookies } from "next/headers"
-import { redirect } from "next/navigation"
+import { requireAdminAuth } from "@/lib/admin/auth"
 import { listFeedbackSubmissions } from "@/lib/feedback/queries"
 import { FeedbackInbox } from "@/components/feedback/FeedbackInbox"
 
 export default async function AdminFeedbackPage() {
-  const cookieStore = await cookies()
-  const token = cookieStore.get("pleks_admin_token")?.value
-  if (!token || token !== process.env.ADMIN_SECRET) redirect("/admin/login")
+  await requireAdminAuth()
 
   const submissions = await listFeedbackSubmissions({ limit: 200 })
 

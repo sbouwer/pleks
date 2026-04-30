@@ -1,11 +1,11 @@
 /**
- * proxy.ts — FILL: one-line purpose
+ * proxy.ts — Next.js middleware: session refresh, subdomain routing, and route auth
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   Multi-gate: Supabase session refresh (all authenticated routes), HMAC
+ *         admin-token for /admin/* pages and /api/admin/* API routes, manifest-driven
+ *         portal-role enforcement via ROUTE_MANIFEST.
+ * Notes:  WEBHOOK_PREFIXES bypass all gates — handlers must validate their own secrets.
+ *         Apex domain (pleks.co.za) serves marketing; app subdomain serves the product.
  */
 import { type NextRequest, NextResponse } from "next/server"
 import { updateSession } from "@/lib/supabase/middleware"
@@ -19,7 +19,7 @@ import type { User } from "@supabase/supabase-js"
 
 // ── Bypass lists (checked before manifest) ───────────────────────────────────
 // /api/admin is NOT in this list — it gets its own middleware gate below.
-const WEBHOOK_PREFIXES = ["/api/webhooks", "/api/cron", "/api/waitlist"]
+const WEBHOOK_PREFIXES = ["/api/webhooks", "/api/cron", "/api/waitlist", "/api/health", "/api/status"]
 
 // ── Subdomain split ───────────────────────────────────────────────────────────
 // In production: pleks.co.za = marketing apex, app.pleks.co.za = product.
@@ -62,8 +62,12 @@ async function checkAdminAuth(pathname: string, request: NextRequest): Promise<N
 // ── Admin API gate (/api/admin/* routes) ─────────────────────────────────────
 // Defense-in-depth: individual handlers also call verifyAdmin(), but this gate
 // ensures a handler that forgets the check is still blocked at the proxy level.
+// Exemption: /api/admin/auth is the login endpoint itself — it can't require a
+// valid token to be reachable, otherwise nobody could ever log in (chicken-and-egg).
+// The route's POST handler does its own raw-secret check.
 async function checkAdminApiAuth(pathname: string, request: NextRequest): Promise<NextResponse | null> {
   if (!pathname.startsWith("/api/admin")) return null
+  if (pathname === "/api/admin/auth") return null
   const adminToken = request.cookies.get("pleks_admin_token")?.value
   const adminSecret = process.env.ADMIN_SECRET
   if (!await verifyAdminToken(adminToken, adminSecret))

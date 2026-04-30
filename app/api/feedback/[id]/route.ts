@@ -6,8 +6,8 @@
  * Data:   feedback_submissions + feedback_replies via service client
  */
 import { NextRequest } from "next/server"
-import { cookies } from "next/headers"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { isAdminAuthenticated } from "@/lib/admin/auth"
 import { getFeedbackSubmissionById } from "@/lib/feedback/queries"
 
 export async function GET(
@@ -24,26 +24,23 @@ export async function GET(
   if (!submission) return Response.json({ error: "Not found" }, { status: 404 })
 
   // Platform admin bypass
-  const cookieStore = await cookies()
-  const adminToken = cookieStore.get("pleks_admin_token")?.value
-  if (adminToken && adminToken === process.env.ADMIN_SECRET) {
-    return Response.json(submission)
-  }
+  if (await isAdminAuthenticated()) return Response.json(submission)
 
   // Submitter access
   if (submission.submitter_id === user.id) return Response.json(submission)
 
-  // Org admin access
+  // Org admin access (owner role or is_admin flag)
   const service = await createServiceClient()
   const { data: membership } = await service
     .from("user_orgs")
-    .select("role")
+    .select("role, is_admin")
     .eq("user_id", user.id)
     .eq("org_id", submission.org_id)
     .is("deleted_at", null)
     .maybeSingle()
 
-  if (membership && ["owner", "admin"].includes((membership as { role: string }).role)) {
+  const m = membership as { role: string; is_admin: boolean } | null
+  if (m && (m.role === "owner" || m.is_admin === true)) {
     return Response.json(submission)
   }
 

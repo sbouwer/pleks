@@ -7,7 +7,7 @@
 import { createServiceClient } from "@/lib/supabase/server"
 
 export type FeedbackStatus   = "open" | "in_progress" | "resolved" | "wont_fix"
-export type FeedbackCategory = "bug" | "feature" | "general" | "billing" | "ux"
+export type FeedbackCategory = "bug" | "feature" | "general" | "billing" | "ux" | "praise"
 export type FeedbackRole     = "landlord" | "tenant" | "supplier" | "agent"
 
 export interface FeedbackSubmission {

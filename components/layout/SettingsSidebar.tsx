@@ -119,7 +119,7 @@ export function SettingsSidebar() {
         .then(({ data: membership }) => {
           if (!membership) return
           const m = membership as { role: string; is_admin: boolean }
-          setIsAdmin(m.role === "owner" || m.role === "admin" || m.is_admin === true)
+          setIsAdmin(m.role === "owner" || m.is_admin === true)
         })
     })
   }, [orgId])

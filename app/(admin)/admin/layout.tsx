@@ -2,12 +2,13 @@
  * app/(admin)/admin/layout.tsx — Platform admin shell with top nav
  *
  * Route:  /admin/*
- * Auth:   pleks_admin_token cookie == ADMIN_SECRET env var (not Supabase auth)
+ * Auth:   pleks_admin_token cookie verified via HMAC (verifyAdminToken) — not Supabase auth
  * Notes:  Unauthenticated requests render children only (login page manages its own layout).
  */
 import Link from "next/link"
 import Image from "next/image"
 import { cookies } from "next/headers"
+import { verifyAdminToken } from "@/lib/auth/admin-token"
 import { AdminLogout } from "./AdminLogout"
 
 const NAV = [
@@ -23,7 +24,7 @@ const NAV = [
 export default async function AdminLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const cookieStore = await cookies()
   const token = cookieStore.get("pleks_admin_token")?.value
-  const isAuthenticated = !!token && token === process.env.ADMIN_SECRET
+  const isAuthenticated = await verifyAdminToken(token, process.env.ADMIN_SECRET)
 
   // Not authenticated — render children only (login page handles its own layout)
   if (!isAuthenticated) {

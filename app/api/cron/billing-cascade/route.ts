@@ -1,24 +1,11 @@
 /**
- * GET /api/cron/billing-cascade
- * Runs daily. Manages the subscription past-due → cancelled lifecycle for paid tiers:
+ * app/api/cron/billing-cascade/route.ts — Subscription past-due → cancelled lifecycle
  *
- *   Stage A — active → past_due
- *     Subscriptions with amount_cents > 0 whose current_period_end has passed
- *     are marked past_due and given a 14-day grace period.
- *     Day-0 notification sent once per billing cycle.
- *
- *   Stage B — day ~4 reminder
- *     past_due subscriptions with ~10 days left on grace_period_end receive
- *     a payment reminder (deduped via communication_log).
- *
- *   Stage C — past_due → cancelled
- *     past_due subscriptions whose grace_period_end has elapsed are cancelled.
- *     canWrite() in lib/billing/subscriptionStatus.ts excludes 'cancelled', so
- *     this hard-locks landlord write access. Customer must re-subscribe.
- *
- *   NOTE: copy + audit_log action key + email template still use "frozen" /
- *   "account_frozen" labels — those are user-facing strings and will be renamed
- *   in a follow-up pass alongside the email template content rewrite.
+ * Route:  GET /api/cron/billing-cascade
+ * Auth:   x-cron-secret header — called by daily orchestrator, not directly by Vercel
+ * Data:   subscriptions, communication_log via service client
+ * Notes:  3-stage: active→past_due (Day 0), reminder (~Day 4), past_due→cancelled (Day 14).
+ *         Email copy still uses "account_frozen" label — pending content rewrite.
  */
 
 import { NextRequest } from "next/server"
@@ -32,6 +19,10 @@ import {
 
 const GRACE_DAYS = 14
 const REMINDER_WINDOW_DAYS = { min: 9, max: 11 } // ~4 days in from 14-day window
+
+function pingHeartbeat(url: string | undefined): void {
+  if (url) void fetch(url, { method: "POST" }).catch(() => undefined)
+}
 
 export async function GET(req: NextRequest) {
   if (req.headers.get("x-cron-secret") !== process.env.CRON_SECRET) {
@@ -226,6 +217,8 @@ export async function GET(req: NextRequest) {
 
     cancelled++
   }
+
+  pingHeartbeat(process.env.HEARTBEAT_BILLING_CASCADE)
 
   return Response.json({ ok: true, marked_past_due: markedPastDue, reminded, cancelled })
 }
