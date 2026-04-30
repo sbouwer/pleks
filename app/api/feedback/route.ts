@@ -4,7 +4,7 @@
  * Route:  POST /api/feedback
  * Auth:   Any authenticated Supabase user — resolves role + org from session tables
  * Data:   feedback_submissions via service client
- * Notes:  Rate-limited to 5 submissions per user per 24 hours.
+ * Notes:  Rate-limited to 10 submissions per user per hour.
  *         Role is resolved server-side (user_orgs → tenants → landlords → contractors).
  */
 import { NextRequest } from "next/server"
@@ -47,7 +47,7 @@ async function resolveSubmitterContext(
     .from("contractors")
     .select("org_id")
     .eq("auth_user_id", userId)
-    .is("deleted_at", null)
+    .eq("is_active", true)
     .maybeSingle()
   if (contractor) return { orgId: (contractor as { org_id: string }).org_id, role: "supplier" }
 
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   if (await isFeedbackRateLimited(user.id)) {
-    return Response.json({ error: "Rate limit exceeded — 5 submissions per 24 hours" }, { status: 429 })
+    return Response.json({ error: "Rate limit exceeded — 10 submissions per hour" }, { status: 429 })
   }
 
   const ctx = await resolveSubmitterContext(user.id)
