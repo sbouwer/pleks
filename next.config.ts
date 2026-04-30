@@ -98,7 +98,6 @@ export default withSentryConfig(serwistConfig, {
   tunnelRoute: "/monitoring",
   // Upload source maps to Sentry on production builds (requires SENTRY_AUTH_TOKEN)
   widenClientFileUpload: true,
-  disableLogger: true,
   silent: !process.env.CI,
   telemetry: false,
 })
