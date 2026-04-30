@@ -25,6 +25,7 @@ import { GET as bankFeedSync } from "../bank-feed-sync/route"
 import { GET as infoRequests } from "../info-requests/route"
 import { GET as insuranceRenewals } from "../insurance-renewals/route"
 import { GET as feedbackDigest } from "../feedback-digest/route"
+import { GET as costSnapshots } from "../cost-snapshots/route"
 
 type CronHandler = (req: NextRequest) => Promise<Response>
 
@@ -82,6 +83,7 @@ export async function GET(req: NextRequest) {
   await runJob("info_requests", infoRequests, cronReq, results)
   await runJob("insurance_renewals", insuranceRenewals, cronReq, results)
   await runJob("feedback_digest", feedbackDigest, cronReq, results)
+  await runJob("cost_snapshots", costSnapshots, cronReq, results)
 
   // Monthly jobs
   if (dayOfMonth === 1) {

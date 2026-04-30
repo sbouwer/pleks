@@ -929,3 +929,172 @@ CREATE POLICY "feedback_replies_platform_admin_insert" ON feedback_replies
         AND o.settings->>'platform_admin' = 'true'
     )
   );
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §17  BUILD_00H: AI usage tracking + platform cost aggregates
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- ── ai_usage — append-only log of every Anthropic API call, with org attribution ──
+
+CREATE TABLE IF NOT EXISTS ai_usage (
+  id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id               uuid REFERENCES organisations(id),
+  user_id              uuid REFERENCES auth.users(id),
+
+  -- What was called
+  purpose              text NOT NULL,
+  model                text NOT NULL,
+
+  -- Token counts + cost
+  input_tokens         int NOT NULL DEFAULT 0,
+  output_tokens        int NOT NULL DEFAULT 0,
+  cache_read_tokens    int NOT NULL DEFAULT 0,
+  cache_write_tokens   int NOT NULL DEFAULT 0,
+  cost_cents           int NOT NULL DEFAULT 0,
+
+  -- Quality signals
+  latency_ms           int,
+  success              boolean NOT NULL DEFAULT true,
+  error_code           text,
+
+  -- Context — NO PII, NO prompt/response text
+  metadata             jsonb NOT NULL DEFAULT '{}'::jsonb,
+
+  created_at           timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_usage_org_created
+  ON ai_usage(org_id, created_at DESC) WHERE org_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_ai_usage_purpose_created
+  ON ai_usage(purpose, created_at DESC);
+
+ALTER TABLE ai_usage ENABLE ROW LEVEL SECURITY;
+
+-- Org admin reads own org's AI usage
+-- (Platform admin reads via service-role after requireAdminAuth() — no client-side RLS policy needed)
+DROP POLICY IF EXISTS "ai_usage_org_admin_select" ON ai_usage;
+CREATE POLICY "ai_usage_org_admin_select" ON ai_usage
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM user_orgs uo
+      WHERE uo.user_id = auth.uid()
+        AND uo.org_id = ai_usage.org_id
+        AND uo.is_admin = true
+        AND uo.deleted_at IS NULL
+    )
+  );
+
+-- No client INSERT/UPDATE/DELETE — service role only via lib/ai/client.ts
+DROP POLICY IF EXISTS "ai_usage_insert_deny" ON ai_usage;
+CREATE POLICY "ai_usage_insert_deny" ON ai_usage
+  FOR INSERT WITH CHECK (false);
+DROP POLICY IF EXISTS "ai_usage_update_deny" ON ai_usage;
+CREATE POLICY "ai_usage_update_deny" ON ai_usage
+  FOR UPDATE USING (false) WITH CHECK (false);
+DROP POLICY IF EXISTS "ai_usage_delete_deny" ON ai_usage;
+CREATE POLICY "ai_usage_delete_deny" ON ai_usage
+  FOR DELETE USING (false);
+
+-- Purge rows older than 2 years (run via pg_cron on 2nd of each month)
+CREATE OR REPLACE FUNCTION purge_old_ai_usage()
+RETURNS void AS $$
+  DELETE FROM ai_usage
+  WHERE created_at < (now() - interval '2 years');
+$$ LANGUAGE sql SECURITY DEFINER;
+
+-- ── platform_cost_snapshots — one row per org per month, built by daily cron ──
+
+CREATE TABLE IF NOT EXISTS platform_cost_snapshots (
+  id                             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id                         uuid NOT NULL REFERENCES organisations(id),
+  period                         date NOT NULL,
+
+  -- Directly attributable
+  email_count                    int NOT NULL DEFAULT 0,
+  email_cost_cents               int NOT NULL DEFAULT 0,
+  wa_count                       int NOT NULL DEFAULT 0,
+  wa_cost_cents                  int NOT NULL DEFAULT 0,
+  sms_count                      int NOT NULL DEFAULT 0,
+  sms_cost_cents                 int NOT NULL DEFAULT 0,
+  ai_call_count                  int NOT NULL DEFAULT 0,
+  ai_input_tokens                bigint NOT NULL DEFAULT 0,
+  ai_output_tokens               bigint NOT NULL DEFAULT 0,
+  ai_cost_cents                  int NOT NULL DEFAULT 0,
+
+  -- Shared infrastructure — activity-weighted proration
+  allocated_vercel_cents         int NOT NULL DEFAULT 0,
+  allocated_supabase_cents       int NOT NULL DEFAULT 0,
+
+  -- Fixed overhead — spread evenly across active orgs
+  allocated_fixed_overhead_cents int NOT NULL DEFAULT 0,
+
+  -- Composite total
+  total_cost_cents               int NOT NULL DEFAULT 0,
+
+  -- Revenue (from subscription_charges when available) and derived margin
+  revenue_cents                  int NOT NULL DEFAULT 0,
+  gross_margin_cents             int NOT NULL DEFAULT 0,
+
+  -- Activity signals for churn detection and proration
+  last_user_login_at             timestamptz,
+  active_leases                  int NOT NULL DEFAULT 0,
+  cron_invocations_for_org       int NOT NULL DEFAULT 0,
+
+  frozen                         boolean NOT NULL DEFAULT false,
+  updated_at                     timestamptz NOT NULL DEFAULT now(),
+
+  UNIQUE(org_id, period)
+);
+
+CREATE INDEX IF NOT EXISTS idx_pcs_period
+  ON platform_cost_snapshots(period DESC);
+CREATE INDEX IF NOT EXISTS idx_pcs_org_period
+  ON platform_cost_snapshots(org_id, period DESC);
+CREATE INDEX IF NOT EXISTS idx_pcs_margin_period
+  ON platform_cost_snapshots(period DESC, gross_margin_cents ASC);
+
+ALTER TABLE platform_cost_snapshots ENABLE ROW LEVEL SECURITY;
+
+-- All client SELECT denied — admin dashboard reads via service-role after requireAdminAuth()
+-- No client writes — service role only via cron
+DROP POLICY IF EXISTS "pcs_insert_deny" ON platform_cost_snapshots;
+CREATE POLICY "pcs_insert_deny" ON platform_cost_snapshots
+  FOR INSERT WITH CHECK (false);
+DROP POLICY IF EXISTS "pcs_update_deny" ON platform_cost_snapshots;
+CREATE POLICY "pcs_update_deny" ON platform_cost_snapshots
+  FOR UPDATE USING (false) WITH CHECK (false);
+DROP POLICY IF EXISTS "pcs_delete_deny" ON platform_cost_snapshots;
+CREATE POLICY "pcs_delete_deny" ON platform_cost_snapshots
+  FOR DELETE USING (false);
+
+-- Purge snapshots older than 36 months
+CREATE OR REPLACE FUNCTION purge_old_cost_snapshots()
+RETURNS void AS $$
+  DELETE FROM platform_cost_snapshots
+  WHERE period < (now() - interval '36 months')::date;
+$$ LANGUAGE sql SECURITY DEFINER;
+
+-- Aggregate helper for cost snapshot builder — avoids PostgREST 1,000-row default limit.
+-- Returns one row per org for the given period; called from lib/observability/cost.ts.
+CREATE OR REPLACE FUNCTION get_ai_usage_agg_by_org(p_start timestamptz, p_end timestamptz)
+RETURNS TABLE (
+  org_id        uuid,
+  call_count    bigint,
+  input_tokens  bigint,
+  output_tokens bigint,
+  cost_cents    bigint
+)
+LANGUAGE sql STABLE SECURITY DEFINER AS $$
+  SELECT
+    org_id,
+    count(*)              AS call_count,
+    sum(input_tokens)     AS input_tokens,
+    sum(output_tokens)    AS output_tokens,
+    sum(cost_cents)       AS cost_cents
+  FROM ai_usage
+  WHERE created_at >= p_start
+    AND created_at <  p_end
+    AND success = true
+    AND org_id IS NOT NULL
+  GROUP BY org_id;
+$$;

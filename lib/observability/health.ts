@@ -51,7 +51,7 @@ async function checkDb(): Promise<HealthReport["components"]["db"]> {
   try {
     const supabase = await createServiceClient()
     const { error } = await withTimeout(
-      supabase.from("prime_rates").select("effective_from").limit(1),
+      supabase.from("prime_rates").select("effective_date").limit(1),
       COMPONENT_TIMEOUT_MS
     )
     if (error) {
@@ -94,7 +94,7 @@ async function checkStorage(): Promise<HealthReport["components"]["storage"]> {
 
 // Jobs that write to cron_runs — must match actual job_name values in handlers.
 // "daily" is written by the orchestrator itself; others write their own entries.
-const TRACKED_DAILY_JOBS = ["daily", "insurance-renewals", "expire-info-requests"]
+const TRACKED_DAILY_JOBS = ["daily", "insurance-renewals", "expire-info-requests", "cost-snapshots"]
 
 async function checkCrons(): Promise<HealthReport["components"]["crons"]> {
   try {

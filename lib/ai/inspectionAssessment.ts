@@ -1,9 +1,13 @@
-// AI assessment for inspection module
-// Track A: Claude Sonnet 4.6 for Steward+ (ai_inspection)
-// Track B: keyword-based fallback for Owner tier (zero API cost)
-
+/**
+ * lib/ai/inspectionAssessment.ts — Sonnet-powered wear-and-tear + dilapidations assessment
+ *
+ * Auth:   Server-only — called from inspection completion API
+ * Data:   Anthropic API via lib/ai/client.ts (logged to ai_usage); inspection_items via Supabase
+ * Notes:  Track A (Steward+): Claude Sonnet 4.6. Track B (Owner): keyword fallback, zero API cost.
+ */
 import type { Tier } from "@/lib/constants"
 import { hasFeature } from "@/lib/tier/gates"
+import { createMessage } from "@/lib/ai/client"
 
 export const WEAR_AND_TEAR_SYSTEM_PROMPT = `You are a South African property inspection expert with deep knowledge of the Rental Housing Act 50 of 1999 and industry standards for wear and tear assessment.
 
@@ -133,19 +137,17 @@ export async function runInspectionAssessment(
   )).join("\n")
 
   try {
-    const Anthropic = (await import("@anthropic-ai/sdk")).default
-    const anthropic = new Anthropic()
-
     const residentialClassifications = "wear_and_tear|tenant_damage|pre_existing|acceptable"
     const commercialClassifications = "fair_wear|dilapidation|make_good_required|tenant_improvement_retained|tenant_improvement_remove|pre_existing|acceptable"
 
-    const message = await anthropic.messages.create({
-      model: "claude-sonnet-4-6-20250514",
-      max_tokens: 2048,
-      system: systemPrompt,
-      messages: [{
-        role: "user",
-        content: `Assess the following ${mapped.length} inspection items.
+    const { message } = await createMessage(
+      {
+        model: "claude-sonnet-4-6-20250514",
+        max_tokens: 2048,
+        system: systemPrompt,
+        messages: [{
+          role: "user",
+          content: `Assess the following ${mapped.length} inspection items.
 Lease type: ${leaseType}
 Lease duration: ${leaseDurationMonths} months
 
@@ -163,8 +165,10 @@ For each item, respond with a JSON array:
 ]
 
 Return ONLY the JSON array.`,
-      }],
-    })
+        }],
+      },
+      { orgId, purpose: "inspection_assessment" },
+    )
 
     const responseText = message.content[0].type === "text" ? message.content[0].text : ""
     const jsonStart = responseText.indexOf("[")

@@ -1,12 +1,16 @@
 /**
- * POST /api/applications/[id]/detect-document
- * Haiku-based document type detection.
- * Returns { documentType, confidence, summary } for real-time display.
+ * app/api/applications/[id]/detect-document/route.ts — Haiku document type detection
+ *
+ * Route:  POST /api/applications/[id]/detect-document
+ * Auth:   Service role (internal — triggered from document upload flow)
+ * Data:   application-docs storage bucket; Anthropic API via lib/ai/client.ts
+ * Notes:  Images only — PDFs fall through to key-based classification.
+ *         Triggers bank statement extraction when bank_statement detected.
  */
 
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
-import Anthropic from "@anthropic-ai/sdk"
+import { createMessage } from "@/lib/ai/client"
 
 function getServiceClient() {
   return createClient(
@@ -14,8 +18,6 @@ function getServiceClient() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 }
-
-const anthropic = new Anthropic()
 
 interface Props { params: Promise<{ id: string }> }
 
@@ -42,21 +44,24 @@ export async function POST(req: NextRequest, { params }: Props) {
       const base64 = Buffer.from(buffer).toString("base64")
       const mediaType = ext === "png" ? "image/png" : "image/jpeg"
 
-      const response = await anthropic.messages.create({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 256,
-        messages: [{
-          role: "user",
-          content: [
-            { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
-            {
-              type: "text",
-              text: `Identify this document. Respond ONLY as JSON with no markdown:
-{"document_type":"sa_id"|"passport"|"payslip"|"bank_statement"|"employment_letter"|"other","confidence":0.0,"details":"brief description max 60 chars"}`
-            },
-          ],
-        }],
-      })
+      const { message: response } = await createMessage(
+        {
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 256,
+          messages: [{
+            role: "user",
+            content: [
+              { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
+              {
+                type: "text",
+                text: `Identify this document. Respond ONLY as JSON with no markdown:
+{"document_type":"sa_id"|"passport"|"payslip"|"bank_statement"|"employment_letter"|"other","confidence":0.0,"details":"brief description max 60 chars"}`,
+              },
+            ],
+          }],
+        },
+        { orgId: null, purpose: "document_detection" },
+      )
 
       const text = response.content[0].type === "text" ? response.content[0].text : ""
       const parsed = JSON.parse(text.trim()) as { document_type: string; confidence: number; details: string }

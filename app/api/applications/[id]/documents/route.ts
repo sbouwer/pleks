@@ -1,15 +1,14 @@
 /**
- * app/api/applications/[id]/documents/route.ts — FILL: one-line purpose
+ * app/api/applications/[id]/documents/route.ts — Bank statement extraction + pre-screen scoring
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/applications/[id]/documents
+ * Auth:   Service role (triggered from detect-document or upload flow)
+ * Data:   applications, listings, application-docs storage; Anthropic API via lib/ai/client.ts
+ * Notes:  Sonnet income extraction gated behind ai_full (Portfolio+). Falls back to self-reported income.
  */
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
-import Anthropic from "@anthropic-ai/sdk"
+import { createMessage } from "@/lib/ai/client"
 import { INCOME_EXTRACTION_PROMPT } from "@/lib/screening/bankStatementExtraction"
 import { calculatePreScreenScore, getPreScreenIndicator } from "@/lib/screening/preScreenScore"
 import { hasFeature } from "@/lib/tier/gates"
@@ -59,15 +58,17 @@ export async function POST(
 
       if (fileData) {
         const text = await fileData.text()
-        const anthropic = new Anthropic()
-        const message = await anthropic.messages.create({
-          model: "claude-sonnet-4-6-20250514",
-          max_tokens: 2048,
-          messages: [{
-            role: "user",
-            content: `${INCOME_EXTRACTION_PROMPT}\n\nBank statement text:\n${text.slice(0, 15000)}`,
-          }],
-        })
+        const { message } = await createMessage(
+          {
+            model: "claude-sonnet-4-6-20250514",
+            max_tokens: 2048,
+            messages: [{
+              role: "user",
+              content: `${INCOME_EXTRACTION_PROMPT}\n\nBank statement text:\n${text.slice(0, 15000)}`,
+            }],
+          },
+          { orgId: application.org_id as string, purpose: "applicant_income_extraction" },
+        )
 
         const responseText = message.content[0].type === "text" ? message.content[0].text : ""
         const jsonStart = responseText.indexOf("{")

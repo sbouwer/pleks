@@ -18,6 +18,7 @@ const NAV = [
   { href: "/admin/waitlist", label: "Waitlist" },
   { href: "/admin/lease-requests", label: "Lease Requests" },
   { href: "/admin/feedback", label: "Feedback" },
+  { href: "/admin/platform-health", label: "Platform Health" },
   { href: "/admin/audit", label: "Audit Log" },
 ]
 

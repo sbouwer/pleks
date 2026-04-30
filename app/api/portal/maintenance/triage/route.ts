@@ -1,17 +1,14 @@
 /**
- * app/api/portal/maintenance/triage/route.ts — FILL: one-line purpose
+ * app/api/portal/maintenance/triage/route.ts — Haiku urgency triage for tenant maintenance requests
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/portal/maintenance/triage
+ * Auth:   getTenantSession (tenant portal session cookie)
+ * Data:   Anthropic API via lib/ai/client.ts
+ * Notes:  Returns urgency level + rationale; non-blocking (null on failure).
  */
 import { NextResponse } from "next/server"
 import { getTenantSession } from "@/lib/portal/getTenantSession"
-import Anthropic from "@anthropic-ai/sdk"
-
-const client = new Anthropic()
+import { createMessage } from "@/lib/ai/client"
 
 export async function POST(req: Request) {
   // Verify tenant session
@@ -26,10 +23,11 @@ export async function POST(req: Request) {
   }
 
   try {
-    const message = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 200,
-      system: `You are a maintenance triage assistant for South African residential property.
+    const { message } = await createMessage(
+      {
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 200,
+        system: `You are a maintenance triage assistant for South African residential property.
 Assess the urgency of maintenance requests based on tenant descriptions.
 
 Urgency levels (choose exactly one):
@@ -39,13 +37,15 @@ Urgency levels (choose exactly one):
 - cosmetic: aesthetic issues only, no functional impact
 
 Respond with JSON only: {"urgency": "<level>", "rationale": "<one sentence explanation>"}`,
-      messages: [
-        {
-          role: "user",
-          content: `Category: ${category}\nDescription: ${description}`,
-        },
-      ],
-    })
+        messages: [
+          {
+            role: "user",
+            content: `Category: ${category}\nDescription: ${description}`,
+          },
+        ],
+      },
+      { orgId: null, purpose: "maintenance_triage" },
+    )
 
     const text = message.content[0].type === "text" ? message.content[0].text : ""
     const jsonStart = text.indexOf("{")
