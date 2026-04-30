@@ -79,14 +79,18 @@ export async function generateDeductionJustification(deductionItemId: string) {
     : 12
 
   const orgId = leaseForTier?.org_id as string | null ?? null
-  const { message } = await createMessage(
-    {
-      model: "claude-sonnet-4-6-20250514",
-      max_tokens: 300,
-      system: WEAR_TEAR_SYSTEM_PROMPT,
-      messages: [{
-        role: "user",
-        content: `Write a deduction justification for this item.
+  let justification = ""
+  let aiModel = "claude-sonnet-4-6"
+
+  try {
+    const { message } = await createMessage(
+      {
+        model: "claude-sonnet-4-6-20250514",
+        max_tokens: 300,
+        system: WEAR_TEAR_SYSTEM_PROMPT,
+        messages: [{
+          role: "user",
+          content: `Write a deduction justification for this item.
 
 Room: ${item.room ?? "Not specified"}
 Item: ${item.item_description}
@@ -95,17 +99,19 @@ ${(item.deduction_amount_cents as number) > 0 ? `Deduction amount: R${((item.ded
 ${item.quote_amount_cents ? `Quote obtained: R${((item.quote_amount_cents as number) / 100).toFixed(2)}` : ""}
 
 Write 2-4 sentences justifying why this is tenant damage (not normal wear and tear) and why the deduction amount is reasonable. Be specific and factual.`,
-      }],
-    },
-    { orgId, purpose: "deposit_justification" },
-  )
-
-  const justification = message.content[0].type === "text"
-    ? message.content[0].text.trim() : ""
+        }],
+      },
+      { orgId, purpose: "deposit_justification" },
+    )
+    justification = message.content[0].type === "text" ? message.content[0].text.trim() : ""
+  } catch {
+    justification = "AI justification temporarily unavailable — please add manually."
+    aiModel = "error"
+  }
 
   await supabase.from("deposit_deduction_items").update({
     ai_justification: justification,
     ai_justification_at: new Date().toISOString(),
-    ai_model: "claude-sonnet-4-6",
+    ai_model: aiModel,
   }).eq("id", deductionItemId)
 }
