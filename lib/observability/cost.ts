@@ -64,7 +64,7 @@ export function calculateAiCostCents(args: {
   cache_read_tokens?: number
   cache_write_tokens?: number
 }): number {
-  const pricing = ANTHROPIC_PRICES[args.model] ?? ANTHROPIC_PRICES[FALLBACK_MODEL_KEY]!
+  const pricing = ANTHROPIC_PRICES[args.model] ?? ANTHROPIC_PRICES[FALLBACK_MODEL_KEY]
   const inputUsdCents    = (args.input_tokens / 1_000_000) * pricing.input_cents_per_mtok
   const outputUsdCents   = (args.output_tokens / 1_000_000) * pricing.output_cents_per_mtok
   const cacheReadCents   = ((args.cache_read_tokens  ?? 0) / 1_000_000) * pricing.cache_read_cents_per_mtok
@@ -119,9 +119,9 @@ export function getMonthlyAggregate(period: Date): {
   const found = MONTHLY_AGGREGATES[key]
   if (found) return found
   // Fall back to most recent known month
-  const keys = Object.keys(MONTHLY_AGGREGATES).sort()
-  const last = keys[keys.length - 1]
-  return MONTHLY_AGGREGATES[last] ?? { vercel_cents: 37_000, supabase_cents: 46_250, fixed_overhead_cents: 55_000 }
+  const keys = Object.keys(MONTHLY_AGGREGATES).sort((a, b) => a.localeCompare(b))
+  const last = keys.at(-1)
+  return (last ? MONTHLY_AGGREGATES[last] : undefined) ?? { vercel_cents: 37_000, supabase_cents: 46_250, fixed_overhead_cents: 55_000 }
 }
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
@@ -226,7 +226,7 @@ export async function buildCostSnapshots(params: {
       last_user_login_at:              org.last_login_at,
       active_leases:                   org.active_leases,
       cron_invocations_for_org:        0,         // cron_runs has no org_id
-      frozen:                          false,
+      frozen:                          !isCurrentMonth, // re-freeze historical months even on force-rebuild
       updated_at:                      new Date().toISOString(),
     }
   })
