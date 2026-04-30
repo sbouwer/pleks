@@ -7,6 +7,7 @@
 import { cache } from "react"
 import { cookies } from "next/headers"
 import { createClient } from "@/lib/supabase/server"
+import { setSentryUser } from "@/lib/observability/user-context"
 
 /**
  * Cached per-request server auth helpers.
@@ -44,6 +45,7 @@ export const getServerOrgMembership = cache(async () => {
     try {
       const parsed = JSON.parse(cached.value) as { org_id: string; role: string; tier?: string; user_id: string }
       if (parsed.org_id && parsed.role && parsed.user_id === user.id) {
+        setSentryUser({ id: user.id, org_id: parsed.org_id, role: parsed.role })
         return { org_id: parsed.org_id, role: parsed.role, tier: parsed.tier ?? null }
       }
     } catch {
@@ -60,5 +62,6 @@ export const getServerOrgMembership = cache(async () => {
     .is("deleted_at", null)
     .single()
 
+  if (data) setSentryUser({ id: user.id, org_id: data.org_id, role: data.role })
   return data ? { ...data, tier: null } : null
 })

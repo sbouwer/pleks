@@ -1,13 +1,12 @@
 /**
- * app/api/cron/daily/route.ts — FILL: one-line purpose
+ * app/api/cron/daily/route.ts — Daily cron orchestrator — runs all scheduled jobs sequentially
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET /api/cron/daily
+ * Auth:   x-cron-secret header (CRON_SECRET env var) — called by Vercel Cron at 05:00 UTC
+ * Notes:  Vercel free tier allows 1 cron job; monthly jobs gated by day-of-month check
  */
 import { NextRequest } from "next/server"
+import * as Sentry from "@sentry/nextjs"
 import { GET as invoiceGenerate } from "../invoice-generate/route"
 import { GET as leaseExpiryCheck } from "../lease-expiry-check/route"
 import { GET as arrearsSequence } from "../arrears-sequence/route"
@@ -36,13 +35,12 @@ async function runJob(
   try {
     const res = await handler(cronReq)
     results[name] = res.ok ? "ok" : "failed"
-  } catch {
+  } catch (err) {
+    Sentry.captureException(err, { tags: { cron_job: name } })
     results[name] = "error"
   }
 }
 
-// Single daily cron — runs all jobs sequentially at 05:00 UTC (07:00 SAST)
-// Vercel free tier only allows 1 cron job
 export async function GET(req: NextRequest) {
   const secret = req.headers.get("x-cron-secret") ?? req.headers.get("authorization")?.replace("Bearer ", "")
   if (secret !== process.env.CRON_SECRET) {
