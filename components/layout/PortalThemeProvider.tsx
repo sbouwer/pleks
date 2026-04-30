@@ -28,7 +28,7 @@ export function PortalThemeProvider({ children }: Readonly<{ children: React.Rea
 
   useEffect(() => {
     const saved = localStorage.getItem("pleks-portal-theme") as Theme | null
-    if (saved === "dark" || saved === "light") setTheme(saved) // eslint-disable-line react-hooks/set-state-in-effect
+    if (saved === "dark" || saved === "light") setTheme(saved)
   }, [])
 
   function toggle() {
