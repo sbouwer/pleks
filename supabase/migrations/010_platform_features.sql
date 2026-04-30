@@ -785,7 +785,7 @@ CREATE TABLE IF NOT EXISTS feedback_submissions (
   org_id        uuid NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
   submitter_id  uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   role          text NOT NULL CHECK (role IN ('landlord', 'tenant', 'supplier', 'agent')),
-  category      text NOT NULL CHECK (category IN ('bug', 'feature', 'general', 'billing', 'ux')),
+  category      text NOT NULL CHECK (category IN ('bug', 'feature', 'general', 'billing', 'ux', 'praise')),
   subject       text NOT NULL,
   body          text NOT NULL,
   rating        smallint CHECK (rating BETWEEN 1 AND 5),

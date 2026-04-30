@@ -8,15 +8,15 @@ import { createServiceClient } from "@/lib/supabase/server"
 
 export async function isFeedbackRateLimited(userId: string): Promise<boolean> {
   const service = await createServiceClient()
-  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+  const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
   const { count, error } = await service
     .from("feedback_submissions")
     .select("id", { count: "exact", head: true })
     .eq("submitter_id", userId)
-    .gte("created_at", since)
+    .gte("created_at", hourAgo)
   if (error) {
     console.error("feedback rate-limit check failed:", error.message)
     return false
   }
-  return (count ?? 0) >= 5
+  return (count ?? 0) >= 10
 }

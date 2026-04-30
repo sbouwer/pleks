@@ -12,7 +12,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { isFeedbackRateLimited } from "@/lib/feedback/rate-limit"
 import { createFeedbackSubmission, type FeedbackCategory, type FeedbackRole } from "@/lib/feedback/queries"
 
-const VALID_CATEGORIES: FeedbackCategory[] = ["bug", "feature", "general", "billing", "ux"]
+const VALID_CATEGORIES = new Set<FeedbackCategory>(["bug", "feature", "general", "billing", "ux", "praise"])
 
 async function resolveSubmitterContext(
   userId: string
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
 
   const { category, subject, body, rating } = parsed
 
-  if (!VALID_CATEGORIES.includes(category as FeedbackCategory)) {
+  if (!VALID_CATEGORIES.has(category as FeedbackCategory)) {
     return Response.json({ error: "Invalid category" }, { status: 400 })
   }
   if (typeof subject !== "string" || subject.trim().length < 3 || subject.trim().length > 200) {
