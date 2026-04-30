@@ -273,30 +273,28 @@ async function fetchAiUsageByOrg(
   periodStart: string,
   periodEnd: string,
 ): Promise<Map<string, { call_count: number; input_tokens: number; output_tokens: number; cost_cents: number }>> {
-  const { data, error } = await db
-    .from("ai_usage")
-    .select("org_id, input_tokens, output_tokens, cost_cents")
-    .gte("created_at", periodStart)
-    .lt("created_at", periodEnd)
-    .eq("success", true)
+  // Uses get_ai_usage_agg_by_org() RPC so PostgreSQL aggregates before returning —
+  // avoids the PostgREST 1,000-row default that would silently truncate high-volume orgs.
+  const { data, error } = await db.rpc("get_ai_usage_agg_by_org", {
+    p_start: periodStart,
+    p_end:   periodEnd,
+  })
   if (error) {
     console.error("[cost-snapshots] fetchAiUsageByOrg failed:", error.message)
     return new Map()
   }
 
-  const result = new Map<string, { call_count: number; input_tokens: number; output_tokens: number; cost_cents: number }>()
-  for (const row of data ?? []) {
-    const orgId = row.org_id as string | null
-    if (!orgId) continue
-    const existing = result.get(orgId) ?? { call_count: 0, input_tokens: 0, output_tokens: 0, cost_cents: 0 }
-    result.set(orgId, {
-      call_count:    existing.call_count + 1,
-      input_tokens:  existing.input_tokens  + ((row.input_tokens  as number) ?? 0),
-      output_tokens: existing.output_tokens + ((row.output_tokens as number) ?? 0),
-      cost_cents:    existing.cost_cents    + ((row.cost_cents    as number) ?? 0),
-    })
-  }
-  return result
+  return new Map((data ?? []).map((row: {
+    org_id: string; call_count: number; input_tokens: number; output_tokens: number; cost_cents: number
+  }) => [
+    row.org_id,
+    {
+      call_count:    Number(row.call_count),
+      input_tokens:  Number(row.input_tokens),
+      output_tokens: Number(row.output_tokens),
+      cost_cents:    Number(row.cost_cents),
+    },
+  ]))
 }
 
 async function fetchActiveOrgs(

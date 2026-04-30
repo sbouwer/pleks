@@ -1073,3 +1073,28 @@ RETURNS void AS $$
   DELETE FROM platform_cost_snapshots
   WHERE period < (now() - interval '36 months')::date;
 $$ LANGUAGE sql SECURITY DEFINER;
+
+-- Aggregate helper for cost snapshot builder — avoids PostgREST 1,000-row default limit.
+-- Returns one row per org for the given period; called from lib/observability/cost.ts.
+CREATE OR REPLACE FUNCTION get_ai_usage_agg_by_org(p_start timestamptz, p_end timestamptz)
+RETURNS TABLE (
+  org_id        uuid,
+  call_count    bigint,
+  input_tokens  bigint,
+  output_tokens bigint,
+  cost_cents    bigint
+)
+LANGUAGE sql STABLE SECURITY DEFINER AS $$
+  SELECT
+    org_id,
+    count(*)              AS call_count,
+    sum(input_tokens)     AS input_tokens,
+    sum(output_tokens)    AS output_tokens,
+    sum(cost_cents)       AS cost_cents
+  FROM ai_usage
+  WHERE created_at >= p_start
+    AND created_at <  p_end
+    AND success = true
+    AND org_id IS NOT NULL
+  GROUP BY org_id;
+$$;
