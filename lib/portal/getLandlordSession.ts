@@ -1,15 +1,12 @@
 /**
- * lib/portal/getLandlordSession.ts — FILL: one-line purpose
+ * lib/portal/getLandlordSession.ts — Authenticate and resolve landlord portal session
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   Supabase auth (landlords.auth_user_id) — redirects to /login if not found or suspended
+ * Data:   landlords + contacts via service client
  */
-import { createClient } from "@/lib/supabase/server"
-import { createServiceClient } from "@/lib/supabase/server"
+import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
+import { setSentryUser } from "@/lib/observability/user-context"
 
 export interface LandlordSession {
   userId: string
@@ -49,6 +46,7 @@ export async function getLandlordSession(): Promise<LandlordSession> {
     `${contact?.first_name ?? ""} ${contact?.last_name ?? ""}`.trim() ||
     "Landlord"
 
+  setSentryUser({ id: user.id, org_id: landlord.org_id, role: "landlord", scope_id: landlord.id })
   return {
     userId: user.id,
     landlordId: landlord.id,

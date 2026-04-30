@@ -1,15 +1,14 @@
 /**
- * lib/portal/getTenantSession.ts — FILL: one-line purpose
+ * lib/portal/getTenantSession.ts — Resolve tenant portal session from Supabase auth or token cookie
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   Magic-link Supabase session or pleks_tenant_token cookie (set by /portal/access)
+ * Data:   tenants + tenant_portal_tokens + leases via service client
+ * Notes:  Token-based auth has no Supabase user ID — uses tenantId UUID as Sentry scope_id
  */
 import { cache } from "react"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { cookies } from "next/headers"
+import { setSentryUser } from "@/lib/observability/user-context"
 
 export interface TenantPortalSession {
   tenantId: string
@@ -80,6 +79,7 @@ export const getTenantSession = cache(
             `${contact?.first_name ?? ""} ${contact?.last_name ?? ""}`.trim() ||
             "Tenant"
 
+          setSentryUser({ id: user.id, org_id: tenant.org_id, role: "tenant", scope_id: tenant.id })
           return {
             tenantId: tenant.id,
             leaseId: activeLeaseResult.leaseId,
@@ -125,6 +125,7 @@ export const getTenantSession = cache(
       `${contact?.first_name ?? ""} ${contact?.last_name ?? ""}`.trim() ||
       "Tenant"
 
+    setSentryUser({ id: tokenRecord.tenant_id, org_id: tokenRecord.org_id, role: "tenant", scope_id: tokenRecord.tenant_id })
     return {
       tenantId: tokenRecord.tenant_id,
       leaseId: tokenRecord.lease_id,

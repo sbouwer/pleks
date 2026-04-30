@@ -1,13 +1,11 @@
 "use client"
 
 /**
- * app/(supplier)/SupplierShell.tsx — FILL: one-line purpose
+ * app/(supplier)/SupplierShell.tsx — Supplier portal client-side shell (sidebar + nav + layout)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /supplier/*
+ * Auth:   Parent layout.tsx gates auth; this component is purely presentational
+ * Notes:  FeedbackButton mounts here so suppliers can submit feedback from any page.
  */
 
 import { useCallback, useState } from "react"
@@ -16,6 +14,7 @@ import { SidebarContent, type NavGroup } from "@/components/layout/SidebarConten
 import { Topbar } from "@/components/layout/TopBar"
 import { MobileNav } from "@/components/layout/MobileNav"
 import { PortalThemeProvider } from "@/components/layout/PortalThemeProvider"
+import { FeedbackButton } from "@/components/feedback/FeedbackButton"
 import {
   LayoutDashboard,
   Briefcase,
@@ -67,6 +66,7 @@ export function SupplierShell({ children }: Readonly<{ children: React.ReactNode
         <Topbar settingsHref="/supplier/profile" />
         <main className="flex-1 overflow-y-auto bg-muted/30 p-6">{children}</main>
       </div>
+      <FeedbackButton role="supplier" />
     </PortalThemeProvider>
   )
 }

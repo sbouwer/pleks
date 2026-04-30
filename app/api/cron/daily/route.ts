@@ -1,13 +1,12 @@
 /**
- * app/api/cron/daily/route.ts — FILL: one-line purpose
+ * app/api/cron/daily/route.ts — Daily cron orchestrator — runs all scheduled jobs sequentially
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET /api/cron/daily
+ * Auth:   x-cron-secret header (CRON_SECRET env var) — called by Vercel Cron at 05:00 UTC
+ * Notes:  Vercel free tier allows 1 cron job; monthly jobs gated by day-of-month check
  */
 import { NextRequest } from "next/server"
+import * as Sentry from "@sentry/nextjs"
 import { GET as invoiceGenerate } from "../invoice-generate/route"
 import { GET as leaseExpiryCheck } from "../lease-expiry-check/route"
 import { GET as arrearsSequence } from "../arrears-sequence/route"
@@ -24,6 +23,7 @@ import { GET as maintenanceDelayCheck } from "../maintenance-delay-check/route"
 import { GET as bankFeedSync } from "../bank-feed-sync/route"
 import { GET as infoRequests } from "../info-requests/route"
 import { GET as insuranceRenewals } from "../insurance-renewals/route"
+import { GET as feedbackDigest } from "../feedback-digest/route"
 
 type CronHandler = (req: NextRequest) => Promise<Response>
 
@@ -36,13 +36,12 @@ async function runJob(
   try {
     const res = await handler(cronReq)
     results[name] = res.ok ? "ok" : "failed"
-  } catch {
+  } catch (err) {
+    Sentry.captureException(err, { tags: { cron_job: name } })
     results[name] = "error"
   }
 }
 
-// Single daily cron — runs all jobs sequentially at 05:00 UTC (07:00 SAST)
-// Vercel free tier only allows 1 cron job
 export async function GET(req: NextRequest) {
   const secret = req.headers.get("x-cron-secret") ?? req.headers.get("authorization")?.replace("Bearer ", "")
   if (secret !== process.env.CRON_SECRET) {
@@ -72,6 +71,7 @@ export async function GET(req: NextRequest) {
   await runJob("bank_feed_sync", bankFeedSync, cronReq, results)
   await runJob("info_requests", infoRequests, cronReq, results)
   await runJob("insurance_renewals", insuranceRenewals, cronReq, results)
+  await runJob("feedback_digest", feedbackDigest, cronReq, results)
 
   // Monthly jobs
   if (dayOfMonth === 1) {

@@ -1,13 +1,12 @@
 /**
- * app/api/webhooks/payfast/subscription/route.ts — FILL: one-line purpose
+ * app/api/webhooks/payfast/subscription/route.ts — PayFast ITN handler for subscription payments
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/webhooks/payfast/subscription
+ * Auth:   PayFast ITN signature validation (validatePayFastITN)
+ * Data:   subscriptions + organisations + user_orgs — activates tier on payment complete
  */
 import { NextResponse } from "next/server"
+import * as Sentry from "@sentry/nextjs"
 import { validatePayFastITN } from "@/lib/payfast/validate"
 import { createServiceClient } from "@/lib/supabase/server"
 import { buildBranding } from "@/lib/comms/send-email"
@@ -37,70 +36,79 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing org_id or tier" }, { status: 400 })
   }
 
-  const tierAmounts: Record<string, number> = {
-    steward: 59900,
-    portfolio: 99900,
-    firm: 249900,
-  }
-  const periodDays = billingCycle === "annual" ? 365 : 30
+  try {
+    const tierAmounts: Record<string, number> = {
+      steward: 59900,
+      portfolio: 99900,
+      firm: 249900,
+    }
+    const periodDays = billingCycle === "annual" ? 365 : 30
 
-  const supabase = await createServiceClient()
+    const supabase = await createServiceClient()
 
-  await supabase
-    .from("subscriptions")
-    .update({
-      tier,
-      billing_cycle: billingCycle,
-      amount_cents: tierAmounts[tier] || 0,
-      payfast_token: payfastToken,
-      status: "active",
-      current_period_start: new Date().toISOString(),
-      current_period_end: new Date(
-        Date.now() + periodDays * 24 * 60 * 60 * 1000
-      ).toISOString(),
-    })
-    .eq("org_id", orgId)
-
-  await supabase.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "subscriptions",
-    record_id: orgId,
-    action: "UPDATE",
-    new_values: { tier, status: "active", billing_cycle: billingCycle },
-  })
-
-  // Send subscription activated email to org admin
-  const [{ data: org }, { data: adminRow }] = await Promise.all([
-    supabase
-      .from("organisations")
-      .select("name, email, phone, address_line1, city, brand_logo_url, brand_accent_color")
-      .eq("id", orgId)
-      .single(),
-    supabase
-      .from("user_orgs")
-      .select("user_profiles(email, full_name)")
+    await supabase
+      .from("subscriptions")
+      .update({
+        tier,
+        billing_cycle: billingCycle,
+        amount_cents: tierAmounts[tier] || 0,
+        payfast_token: payfastToken,
+        status: "active",
+        current_period_start: new Date().toISOString(),
+        current_period_end: new Date(
+          Date.now() + periodDays * 24 * 60 * 60 * 1000
+        ).toISOString(),
+      })
       .eq("org_id", orgId)
-      .in("role", ["owner", "agent"])
-      .is("deleted_at", null)
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle(),
-  ])
 
-  const profile = adminRow?.user_profiles as unknown as { email: string; full_name?: string } | null
-  if (profile?.email) {
-    void sendSubscriptionActivated(
-      {
-        orgId,
-        orgName: org?.name ?? "Pleks",
-        adminEmail: profile.email,
-        adminName: profile.full_name ?? undefined,
-        branding: buildBranding(org),
-      },
-      tier,
-      billingCycle
-    )
+    await supabase.from("audit_log").insert({
+      org_id: orgId,
+      table_name: "subscriptions",
+      record_id: orgId,
+      action: "UPDATE",
+      new_values: { tier, status: "active", billing_cycle: billingCycle },
+    })
+
+    // Send subscription activated email to org admin
+    const [{ data: org }, { data: adminRow }] = await Promise.all([
+      supabase
+        .from("organisations")
+        .select("name, email, phone, address_line1, city, brand_logo_url, brand_accent_color")
+        .eq("id", orgId)
+        .single(),
+      supabase
+        .from("user_orgs")
+        .select("user_profiles(email, full_name)")
+        .eq("org_id", orgId)
+        .in("role", ["owner", "agent"])
+        .is("deleted_at", null)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle(),
+    ])
+
+    const profile = adminRow?.user_profiles as unknown as { email: string; full_name?: string } | null
+    if (profile?.email) {
+      void sendSubscriptionActivated(
+        {
+          orgId,
+          orgName: org?.name ?? "Pleks",
+          adminEmail: profile.email,
+          adminName: profile.full_name ?? undefined,
+          branding: buildBranding(org),
+        },
+        tier,
+        billingCycle
+      )
+    }
+
+    return NextResponse.json({ ok: true })
+  } catch (err) {
+    Sentry.captureException(err, {
+      tags: { webhook_type: "payfast_subscription" },
+      extra: { org_id: orgId, tier },
+    })
+    console.error("[payfast/subscription] unhandled error:", err)
+    return NextResponse.json({ error: "Internal error" }, { status: 500 })
   }
-
-  return NextResponse.json({ ok: true })
 }
