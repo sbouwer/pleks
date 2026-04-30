@@ -62,8 +62,12 @@ async function checkAdminAuth(pathname: string, request: NextRequest): Promise<N
 // ── Admin API gate (/api/admin/* routes) ─────────────────────────────────────
 // Defense-in-depth: individual handlers also call verifyAdmin(), but this gate
 // ensures a handler that forgets the check is still blocked at the proxy level.
+// Exemption: /api/admin/auth is the login endpoint itself — it can't require a
+// valid token to be reachable, otherwise nobody could ever log in (chicken-and-egg).
+// The route's POST handler does its own raw-secret check.
 async function checkAdminApiAuth(pathname: string, request: NextRequest): Promise<NextResponse | null> {
   if (!pathname.startsWith("/api/admin")) return null
+  if (pathname === "/api/admin/auth") return null
   const adminToken = request.cookies.get("pleks_admin_token")?.value
   const adminSecret = process.env.ADMIN_SECRET
   if (!await verifyAdminToken(adminToken, adminSecret))
