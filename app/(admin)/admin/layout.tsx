@@ -2,7 +2,7 @@
  * app/(admin)/admin/layout.tsx — Platform admin shell with top nav
  *
  * Route:  /admin/*
- * Auth:   pleks_admin_token cookie == ADMIN_SECRET env var (not Supabase auth)
+ * Auth:   pleks_admin_token cookie verified via HMAC (verifyAdminToken) — not Supabase auth
  * Notes:  Unauthenticated requests render children only (login page manages its own layout).
  */
 import Link from "next/link"
