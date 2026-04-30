@@ -94,7 +94,7 @@ async function checkStorage(): Promise<HealthReport["components"]["storage"]> {
 
 // Jobs that write to cron_runs — must match actual job_name values in handlers.
 // "daily" is written by the orchestrator itself; others write their own entries.
-const TRACKED_DAILY_JOBS = ["daily", "insurance-renewals", "info-requests"]
+const TRACKED_DAILY_JOBS = ["daily", "insurance-renewals", "expire-info-requests"]
 
 async function checkCrons(): Promise<HealthReport["components"]["crons"]> {
   try {
