@@ -1,11 +1,9 @@
 /**
- * app/(admin)/admin/layout.tsx — FILL: one-line purpose
+ * app/(admin)/admin/layout.tsx — Platform admin shell with top nav
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /admin/*
+ * Auth:   pleks_admin_token cookie == ADMIN_SECRET env var (not Supabase auth)
+ * Notes:  Unauthenticated requests render children only (login page manages its own layout).
  */
 import Link from "next/link"
 import Image from "next/image"
@@ -18,6 +16,7 @@ const NAV = [
   { href: "/admin/subscriptions", label: "Subscriptions" },
   { href: "/admin/waitlist", label: "Waitlist" },
   { href: "/admin/lease-requests", label: "Lease Requests" },
+  { href: "/admin/feedback", label: "Feedback" },
   { href: "/admin/audit", label: "Audit Log" },
 ]
 

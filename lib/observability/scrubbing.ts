@@ -53,6 +53,8 @@ export function scrubEvent(event: SentryErrorEvent, _hint?: SentryEventHint): Se
   })
 
   if (event.request) {
+    // Drop request body on all routes — covers /api/feedback where body may contain
+    // free-text user input that could include PII (email, phone, ID numbers).
     delete event.request.data
     delete event.request.cookies
     delete event.request.headers

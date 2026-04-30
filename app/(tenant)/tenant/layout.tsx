@@ -1,13 +1,11 @@
 "use client"
 
 /**
- * app/(tenant)/tenant/layout.tsx — FILL: one-line purpose
+ * app/(tenant)/tenant/layout.tsx — Tenant portal root layout
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /tenant/*
+ * Auth:   Supabase auth + tenant record check (handled by getTenantSession in each page)
+ * Notes:  FeedbackButton mounts here so tenants can submit feedback from any portal page.
  */
 
 import { useCallback, useState } from "react"
@@ -15,6 +13,7 @@ import { PortalSidebar, PORTAL_NAV_GROUPS } from "@/components/layout/PortalSide
 import { Topbar } from "@/components/layout/TopBar"
 import { MobileNav } from "@/components/layout/MobileNav"
 import { PortalThemeProvider } from "@/components/layout/PortalThemeProvider"
+import { FeedbackButton } from "@/components/feedback/FeedbackButton"
 
 export default function PortalLayout({
   children,
@@ -38,6 +37,7 @@ export default function PortalLayout({
         <Topbar settingsHref="/tenant/account" />
         <main className="flex-1 overflow-y-auto bg-muted/30 p-6">{children}</main>
       </div>
+      <FeedbackButton role="tenant" />
     </PortalThemeProvider>
   )
 }

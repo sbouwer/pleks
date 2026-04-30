@@ -1,13 +1,11 @@
 "use client"
 
 /**
- * app/(landlord)/landlord/layout.tsx — FILL: one-line purpose
+ * app/(landlord)/landlord/layout.tsx — Landlord/owner portal root layout
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /landlord/*
+ * Auth:   Supabase auth + landlord record check (getLandlordSession in each page)
+ * Notes:  FeedbackButton mounts here so landlords can submit feedback from any portal page.
  */
 
 import { useCallback, useState } from "react"
@@ -15,6 +13,7 @@ import { LandlordSidebar, LANDLORD_NAV_GROUPS } from "@/components/portal/Landlo
 import { Topbar } from "@/components/layout/TopBar"
 import { MobileNav } from "@/components/layout/MobileNav"
 import { PortalThemeProvider } from "@/components/layout/PortalThemeProvider"
+import { FeedbackButton } from "@/components/feedback/FeedbackButton"
 
 export default function LandlordPortalLayout({
   children,
@@ -38,6 +37,7 @@ export default function LandlordPortalLayout({
         <Topbar settingsHref="/landlord/profile" />
         <main className="flex-1 overflow-y-auto bg-muted/30 p-6">{children}</main>
       </div>
+      <FeedbackButton role="landlord" />
     </PortalThemeProvider>
   )
 }

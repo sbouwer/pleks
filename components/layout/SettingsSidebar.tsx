@@ -1,13 +1,12 @@
 "use client"
 
 /**
- * components/layout/SettingsSidebar.tsx — FILL: one-line purpose
+ * components/layout/SettingsSidebar.tsx — Settings navigation sidebar
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /settings/*
+ * Auth:   Rendered inside the dashboard layout (gateway-protected)
+ * Data:   org type from organisations table to show/hide team-related items
+ * Notes:  Feedback item (admin-only) resolves visibility via user_orgs role check.
  */
 
 import { useEffect, useState } from "react"
@@ -26,6 +25,7 @@ interface SettingsItem {
   label: string
   /** Additional path prefixes that also activate this item */
   extraPrefixes?: string[]
+  adminOnly?: boolean
 }
 
 interface SettingsGroup {
@@ -64,9 +64,11 @@ function getGroups(orgType: OrgType): SettingsGroup[] {
     {
       title: "Account",
       items: [
-        { href: "/settings/deposits",      label: "Deposits" },
-        { href: "/settings/subscription",      label: "Subscription" },
-        { href: "/settings/notifications", label: "Notifications" },
+        { href: "/settings/deposits",       label: "Deposits" },
+        { href: "/settings/subscription",   label: "Subscription" },
+        { href: "/settings/notifications",  label: "Notifications" },
+        { href: "/settings/feedback",       label: "Feedback inbox", adminOnly: true },
+        { href: "/settings/my-feedback",    label: "My feedback" },
       ],
     },
     {
@@ -89,6 +91,7 @@ export function SettingsSidebar() {
   const pathname  = usePathname()
   const { orgId } = useOrg()
   const [orgType, setOrgType] = useState<OrgType>("other")
+  const [isAdmin,  setIsAdmin]  = useState(false)
 
   useEffect(() => {
     if (!orgId) return
@@ -103,6 +106,22 @@ export function SettingsSidebar() {
           setOrgType("landlord")
         }
       })
+    // Resolve org admin status to show feedback inbox link
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return
+      supabase
+        .from("user_orgs")
+        .select("role, is_admin")
+        .eq("user_id", user.id)
+        .eq("org_id", orgId)
+        .is("deleted_at", null)
+        .maybeSingle()
+        .then(({ data: membership }) => {
+          if (!membership) return
+          const m = membership as { role: string; is_admin: boolean }
+          setIsAdmin(m.role === "owner" || m.role === "admin" || m.is_admin === true)
+        })
+    })
   }, [orgId])
 
   const groups = getGroups(orgType)
@@ -143,7 +162,7 @@ export function SettingsSidebar() {
               {group.title}
             </p>
             <ul className="space-y-0.5">
-              {group.items.map((item) => {
+              {group.items.filter((item) => !item.adminOnly || isAdmin).map((item) => {
                 const active = isActive(item)
                 return (
                   <li key={item.href}>
