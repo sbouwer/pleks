@@ -1,3 +1,9 @@
+/**
+ * lib/supabase/middleware.ts — Session refresh + AAL extraction for Next.js middleware
+ *
+ * Notes: JWT payloads are base64url (- and _ chars) — must convert to standard base64
+ *        before atob(), otherwise AAL extraction silently fails on tokens with those chars.
+ */
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 

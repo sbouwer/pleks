@@ -1,5 +1,14 @@
 "use client"
 
+/**
+ * components/layout/GlobalSearch.tsx — FILL: one-line purpose
+ *
+ * FILL: fill in relevant fields and delete unused ones:
+ * Route:  /the/url/this/renders
+ * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
+ * Data:   where data comes from, any non-obvious access pattern
+ * Notes:  gotchas, invariants, why-not-X decisions
+ */
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Search, Building2, User, Wrench, FileText, X, Loader2 } from "lucide-react"

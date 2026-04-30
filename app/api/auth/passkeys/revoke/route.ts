@@ -1,3 +1,9 @@
+/**
+ * app/api/auth/passkeys/revoke/route.ts — Delete a passkey from user_passkeys
+ *
+ * Route:  POST /api/auth/passkeys/revoke
+ * Auth:   aal1 session required; enforces user_id match — own passkeys only
+ */
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { logAuthEvent } from "@/lib/auth/events"
 

@@ -1,3 +1,10 @@
+/**
+ * lib/auth/passkeys/mint-session.ts — Mint a Supabase session for a user after passkey auth
+ *
+ * Notes: uses admin.generateLink() + verifyOtp() as a two-step exchange to produce real
+ *        session tokens server-side without requiring the user's password. The magic link
+ *        is never sent — it's consumed immediately on the server.
+ */
 import { createServiceClient } from "@/lib/supabase/server"
 
 function extractJti(accessToken: string): string {

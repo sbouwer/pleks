@@ -1,3 +1,9 @@
+/**
+ * lib/auth/server.ts — Cached per-request server auth helpers
+ *
+ * getServerUser()          — GoTrue-verified user (not cookie-spoofable; one round-trip per render tree)
+ * getServerOrgMembership() — org_id + role from pleks_org cookie (zero DB) or user_orgs DB fallback
+ */
 import { cache } from "react"
 import { cookies } from "next/headers"
 import { createClient } from "@/lib/supabase/server"

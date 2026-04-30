@@ -22,6 +22,39 @@ Default to using these instead of asking the user to copy-paste data. For exampl
 
 ---
 
+## ⚠ MANDATORY: FILE HEADERS
+
+Every `.ts`, `.tsx`, and `.yml` file must have a filled-in header. Rules:
+
+- **Touch a file with a stub header (contains `FILL:`)** → fill it in before committing. Replace every `FILL:` line with real content; delete unused placeholder lines.
+- **Update a file that already has a filled header** → update the header if the purpose, route, auth, or data source has changed.
+- **Create a new file** → write the header filled in from the start. Never commit a `FILL:` stub.
+
+TS/TSX format:
+```ts
+/**
+ * app/path/to/file.tsx — one-line purpose
+ *
+ * Route:  /the/url (omit if not a page)
+ * Auth:   what gate protects it
+ * Data:   where data comes from
+ * Notes:  gotchas or non-obvious decisions (omit if none)
+ */
+```
+
+YAML format:
+```yaml
+# .github/workflows/example.yml
+# One-line purpose.
+# Trigger: push to main
+# Auth:    GITHUB_TOKEN / secrets used
+# Notes:   any gotchas (omit if none)
+```
+
+Delete any lines that don't apply (e.g. omit `Route:` for a utility library, omit `Notes:` if there's nothing worth saying).
+
+---
+
 ## ⚠ MANDATORY: RUN CHECKS BEFORE EVERY COMMIT
 
 Before committing ANY changes, run:

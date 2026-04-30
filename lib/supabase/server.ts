@@ -1,3 +1,10 @@
+/**
+ * lib/supabase/server.ts — Server-side Supabase client factories
+ *
+ * createClient()             — cookie-based client; use only for auth.getUser(), never DB queries
+ * createServiceClient()      — service-role client; bypasses RLS — every query must include org_id filter
+ * getCachedServiceClient()   — React.cache() wrapper; deduplicates across one SSR render tree
+ */
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { cache } from "react"

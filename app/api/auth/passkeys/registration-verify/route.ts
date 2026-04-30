@@ -1,3 +1,10 @@
+/**
+ * app/api/auth/passkeys/registration-verify/route.ts — Verify registration and store passkey
+ *
+ * Route:  POST /api/auth/passkeys/registration-verify
+ * Auth:   aal1 session required
+ * Data:   writes to user_passkeys table via service-role client
+ */
 import { verifyRegistrationResponse } from "@simplewebauthn/server"
 import type { RegistrationResponseJSON } from "@simplewebauthn/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"

@@ -1,3 +1,10 @@
+/**
+ * app/(dashboard)/settings/security/page.tsx — Security settings: TOTP factors and passkeys
+ *
+ * Route:  /settings/security
+ * Auth:   gatewaySSR() — logged-in org member
+ * Data:   auth.listFactors() for TOTP status; user_passkeys table for enrolled passkeys
+ */
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { gatewaySSR } from "@/lib/supabase/gateway"

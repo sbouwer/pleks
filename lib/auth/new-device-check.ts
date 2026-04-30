@@ -1,3 +1,10 @@
+/**
+ * lib/auth/new-device-check.ts — Send "new device login" email at most once per device per 30 days
+ *
+ * Data:  Reads login_notifications_sent + auth_events; sends via Resend.
+ * Notes: Rate-limited per (user, device_fingerprint) pair — won't re-notify within 30 days
+ *        even if the device logs in many times.
+ */
 import { createServiceClient } from "@/lib/supabase/server"
 import { sendLoginNotificationEmail } from "./login-notification-email"
 import { logAuthEvent } from "./events"

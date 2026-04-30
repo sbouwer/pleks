@@ -1,3 +1,10 @@
+/**
+ * app/api/auth/passkeys/auth-options/route.ts — Generate WebAuthn authentication challenge
+ *
+ * Route:  POST /api/auth/passkeys/auth-options
+ * Auth:   public (called pre-login, before a session exists)
+ * Data:   reads user_passkeys for allowCredentials list; omit for discoverable credential flow
+ */
 import { generateAuthenticationOptions } from "@simplewebauthn/server"
 import type { AuthenticatorTransportFuture } from "@simplewebauthn/server"
 import { createServiceClient } from "@/lib/supabase/server"

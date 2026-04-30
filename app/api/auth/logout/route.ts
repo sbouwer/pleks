@@ -1,3 +1,11 @@
+/**
+ * app/api/auth/logout/route.ts — Sign out and clear httpOnly org cookies
+ *
+ * Route:  POST /api/auth/logout
+ * Auth:   any session (unauthenticated calls are safe no-ops)
+ * Notes:  pleks_org and pleks_has_org are httpOnly — they cannot be cleared from the
+ *         browser directly. All logout paths must call this endpoint.
+ */
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { createClient } from "@/lib/supabase/server"

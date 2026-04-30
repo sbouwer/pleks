@@ -1,3 +1,12 @@
+/**
+ * lib/auth/login-notification-email.tsx — FILL: one-line purpose
+ *
+ * FILL: fill in relevant fields and delete unused ones:
+ * Route:  /the/url/this/renders
+ * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
+ * Data:   where data comes from, any non-obvious access pattern
+ * Notes:  gotchas, invariants, why-not-X decisions
+ */
 import * as React from "react"
 import { EmailLayout, type OrgBranding } from "@/lib/comms/templates/layout"
 import { render } from "@react-email/components"

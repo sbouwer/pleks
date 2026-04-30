@@ -1,3 +1,9 @@
+/**
+ * app/api/auth/passkeys/registration-options/route.ts — Generate WebAuthn registration challenge
+ *
+ * Route:  POST /api/auth/passkeys/registration-options
+ * Auth:   aal1 session required (must be logged in to enrol a passkey)
+ */
 import { generateRegistrationOptions } from "@simplewebauthn/server"
 import type { AuthenticatorTransportFuture } from "@simplewebauthn/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"

@@ -1,3 +1,10 @@
+/**
+ * lib/auth/step-up.ts — Step-up challenge engine for sensitive server actions
+ *
+ * Data:  Reads/writes step_up_challenges table via service-role client.
+ * Notes: Tokens are single-use (consumed_at) and expire in 15 min server-side.
+ *        Verified challenges have an additional 5-min window after verification.
+ */
 import crypto from "crypto"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 

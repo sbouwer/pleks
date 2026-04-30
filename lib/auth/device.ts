@@ -1,3 +1,10 @@
+/**
+ * lib/auth/device.ts — Device fingerprint resolution and upsert
+ *
+ * Data:  Reads/writes device_fingerprints table via service-role client.
+ * Notes: Fingerprint is coarse (User-Agent + Accept-Language hash) — not
+ *        hardware-unique, but sufficient for new-device notification heuristics.
+ */
 import crypto from "crypto"
 import { createServiceClient } from "@/lib/supabase/server"
 

@@ -1,5 +1,6 @@
 import type { NextConfig } from "next"
 import withSerwist from "@serwist/next"
+import { withSentryConfig } from "@sentry/nextjs"
 
 const securityHeaders = [
   // Prevent clickjacking
@@ -83,8 +84,21 @@ const nextConfig: NextConfig = {
   },
 }
 
-export default withSerwist({
+const serwistConfig = withSerwist({
   swSrc: "app/sw.ts",
   swDest: "public/sw.js",
   disable: process.env.NODE_ENV === "development",
 })(nextConfig)
+
+export default withSentryConfig(serwistConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  // Tunnel Sentry requests through /monitoring to avoid ad-blocker interference
+  // and avoid adding sentry.io to the Content-Security-Policy connect-src.
+  tunnelRoute: "/monitoring",
+  // Upload source maps to Sentry on production builds (requires SENTRY_AUTH_TOKEN)
+  widenClientFileUpload: true,
+  disableLogger: true,
+  silent: !process.env.CI,
+  telemetry: false,
+})

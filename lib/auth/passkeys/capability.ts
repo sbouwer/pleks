@@ -1,5 +1,12 @@
 "use client"
 
+/**
+ * lib/auth/passkeys/capability.ts — Client-side WebAuthn capability detection
+ *
+ * Notes: must be "use client" — PublicKeyCredential only exists in the browser.
+ *        Check both discoverable (autofill passkeys) and platform (Touch ID / Windows Hello).
+ */
+
 export interface PasskeyCapability {
   available: boolean
   discoverable: boolean

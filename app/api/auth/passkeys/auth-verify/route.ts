@@ -1,3 +1,9 @@
+/**
+ * app/api/auth/passkeys/auth-verify/route.ts — Verify passkey auth response and mint session
+ *
+ * Route:  POST /api/auth/passkeys/auth-verify
+ * Auth:   public (session is created by this handler via mint-session)
+ */
 import { verifyAuthenticationResponse } from "@simplewebauthn/server"
 import type { AuthenticationResponseJSON, AuthenticatorTransportFuture } from "@simplewebauthn/server"
 import { createServiceClient } from "@/lib/supabase/server"

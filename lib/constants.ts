@@ -1,3 +1,12 @@
+/**
+ * lib/constants.ts — FILL: one-line purpose
+ *
+ * FILL: fill in relevant fields and delete unused ones:
+ * Route:  /the/url/this/renders
+ * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
+ * Data:   where data comes from, any non-obvious access pattern
+ * Notes:  gotchas, invariants, why-not-X decisions
+ */
 export const APP_NAME = "Pleks"
 export const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
 

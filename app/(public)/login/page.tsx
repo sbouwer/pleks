@@ -1,5 +1,14 @@
 "use client"
 
+/**
+ * app/(public)/login/page.tsx — Email + password login with passkey conditional UI
+ *
+ * Route:  /login
+ * Auth:   unauthenticated (redirects to dashboard if already logged in)
+ * Notes:  ?redirect= is sanitised via safeRedirect() to block open-redirect.
+ *         All sign-in failures return a generic message to prevent user enumeration.
+ */
+
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"

@@ -1,3 +1,10 @@
+/**
+ * lib/auth/passkeys/rp-config.ts — WebAuthn Relying Party config derived from request host
+ *
+ * Notes: *.vercel.app is on the Public Suffix List — browsers treat each subdomain as a
+ *        separate origin, making rpId binding impossible. Passkey operations are refused
+ *        on preview deploys to prevent credential confusion across environments.
+ */
 export interface RpConfig {
   rpId: string
   origin: string

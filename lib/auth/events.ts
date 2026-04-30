@@ -1,3 +1,9 @@
+/**
+ * lib/auth/events.ts — Write-only auth event logger into auth_events table
+ *
+ * Notes: fire-and-forget — errors are swallowed so a logging failure never
+ *        blocks the auth flow that called it.
+ */
 import { createServiceClient } from "@/lib/supabase/server"
 
 type AuthEventType =

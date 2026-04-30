@@ -1,5 +1,14 @@
 "use server"
 
+/**
+ * lib/import/propertyImport.ts — FILL: one-line purpose
+ *
+ * FILL: fill in relevant fields and delete unused ones:
+ * Route:  /the/url/this/renders
+ * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
+ * Data:   where data comes from, any non-obvious access pattern
+ * Notes:  gotchas, invariants, why-not-X decisions
+ */
 import { createClient } from "@/lib/supabase/server"
 import { parseCSV, detectTpnFormat, type ImportResult } from "./csvParser"
 import { convertTpnExport } from "./tpnParser"

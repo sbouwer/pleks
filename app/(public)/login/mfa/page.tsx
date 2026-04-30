@@ -1,5 +1,14 @@
 "use client"
 
+/**
+ * app/(public)/login/mfa/page.tsx — TOTP MFA challenge after password success
+ *
+ * Route:  /login/mfa
+ * Auth:   aal1 session required (password step already done)
+ * Notes:  redirects to /settings/security/enrol-totp if user has no verified TOTP factors,
+ *         closing the bypass window where a user could skip MFA by navigating directly.
+ */
+
 import { useState, useEffect, useRef, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"

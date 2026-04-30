@@ -1,3 +1,10 @@
+/**
+ * app/api/auth/step-up/route.ts — Verify a TOTP code against a pending step-up challenge
+ *
+ * Route:  POST /api/auth/step-up
+ * Auth:   aal1 session required
+ * Notes:  Challenge tokens are single-use and expire 5 min after verification.
+ */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { logAuthEvent } from "@/lib/auth/events"

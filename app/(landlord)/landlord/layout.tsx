@@ -1,5 +1,15 @@
 "use client"
 
+/**
+ * app/(landlord)/landlord/layout.tsx — FILL: one-line purpose
+ *
+ * FILL: fill in relevant fields and delete unused ones:
+ * Route:  /the/url/this/renders
+ * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
+ * Data:   where data comes from, any non-obvious access pattern
+ * Notes:  gotchas, invariants, why-not-X decisions
+ */
+
 import { useCallback, useState } from "react"
 import { LandlordSidebar, LANDLORD_NAV_GROUPS } from "@/components/portal/LandlordSidebar"
 import { Topbar } from "@/components/layout/TopBar"

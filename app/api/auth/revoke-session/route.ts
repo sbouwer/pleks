@@ -1,3 +1,9 @@
+/**
+ * app/api/auth/revoke-session/route.ts — Revoke a device session by fingerprint or JWT ID
+ *
+ * Route:  POST /api/auth/revoke-session
+ * Auth:   aal1 session required; enforces user_id match — own sessions only
+ */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { logAuthEvent } from "@/lib/auth/events"
