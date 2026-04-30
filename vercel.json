@@ -1,6 +1,7 @@
 {
   "crons": [
-    { "path": "/api/cron/daily", "schedule": "0 5 * * *" }
+    { "path": "/api/cron/daily",                   "schedule": "0 5 * * *" },
+    { "path": "/api/cron/process-audit-exports",   "schedule": "*/2 * * * *" }
   ],
   "buildCommand": "npm run check && next build"
 }
