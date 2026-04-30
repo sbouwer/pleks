@@ -34,7 +34,7 @@ export interface Incident {
   summary:     string
 }
 
-const COMPONENT_TIMEOUT_MS = 1500
+const COMPONENT_TIMEOUT_MS = 3000
 
 // Accepts PromiseLike<T> so Supabase's thenable query builders work correctly.
 function withTimeout<T>(p: PromiseLike<T>, ms: number): Promise<T> {
@@ -54,10 +54,15 @@ async function checkDb(): Promise<HealthReport["components"]["db"]> {
       supabase.from("prime_rates").select("effective_from").limit(1),
       COMPONENT_TIMEOUT_MS
     )
-    if (error) return { status: "down", latency_ms: Date.now() - start, error: error.message }
+    if (error) {
+      console.error("[health] db check failed:", error.message)
+      return { status: "down", latency_ms: Date.now() - start, error: error.message }
+    }
     return { status: "ok", latency_ms: Date.now() - start }
   } catch (e) {
-    return { status: "down", latency_ms: Date.now() - start, error: e instanceof Error ? e.message : "unknown" }
+    const msg = e instanceof Error ? e.message : "unknown"
+    console.error("[health] db check exception:", msg)
+    return { status: "down", latency_ms: Date.now() - start, error: msg }
   }
 }
 
@@ -89,7 +94,7 @@ async function checkStorage(): Promise<HealthReport["components"]["storage"]> {
 
 // Jobs that write to cron_runs — must match actual job_name values in handlers.
 // "daily" is written by the orchestrator itself; others write their own entries.
-const TRACKED_DAILY_JOBS = ["daily", "insurance-renewals", "info-requests"]
+const TRACKED_DAILY_JOBS = ["daily", "insurance-renewals", "expire-info-requests"]
 
 async function checkCrons(): Promise<HealthReport["components"]["crons"]> {
   try {
