@@ -1,11 +1,9 @@
 /**
- * app/api/cron/arrears-sequence/route.ts — FILL: one-line purpose
+ * app/api/cron/arrears-sequence/route.ts — Daily arrears sequence progression
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET /api/cron/arrears-sequence
+ * Auth:   x-cron-secret header — called by daily orchestrator, not directly by Vercel
+ * Data:   rent_invoices, arrears_cases, arrears_sequence_steps via service client
  */
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
@@ -14,7 +12,7 @@ import { differenceInDays } from "date-fns"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 function normalizeSAPhone(phone: string): string {
-  const digits = phone.replace(/\D/g, "")
+  const digits = phone.replaceAll(/\D/g, "")
   if (digits.startsWith("27") && digits.length === 11) return `+${digits}`
   if (digits.startsWith("0") && digits.length === 10) return `+27${digits.slice(1)}`
   return phone
@@ -217,6 +215,10 @@ export async function GET(req: Request) {
   for (const arrearsCase of paidCases || []) {
     const resolved = await autoResolveIfPaid(supabase, arrearsCase)
     if (resolved) processed++
+  }
+
+  if (process.env.HEARTBEAT_ARREARS_SEQUENCE) {
+    void fetch(process.env.HEARTBEAT_ARREARS_SEQUENCE, { method: "POST" }).catch(() => undefined)
   }
 
   return NextResponse.json({ ok: true, processed })
