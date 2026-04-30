@@ -1,14 +1,12 @@
 /**
- * app/(admin)/admin/site-content/page.tsx — FILL: one-line purpose
+ * app/(admin)/admin/site-content/page.tsx — Marketing copy editor for platform admin
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /admin/site-content
+ * Auth:   requireAdminAuth() — pleks_admin_token HMAC verification
+ * Data:   site_content table via service client
  */
-import { gateway } from "@/lib/supabase/gateway"
-import { redirect } from "next/navigation"
+import { requireAdminAuth } from "@/lib/admin/auth"
+import { createServiceClient } from "@/lib/supabase/server"
 import { SiteContentEditor } from "./SiteContentEditor"
 
 export const metadata = { title: "Site Content" }
@@ -23,10 +21,10 @@ const SECTION_LABELS: Record<string, string> = {
 }
 
 export default async function SiteContentPage() {
-  const gw = await gateway()
-  if (!gw) redirect("/admin/login")
+  await requireAdminAuth()
 
-  const { data, error } = await gw.db
+  const service = await createServiceClient()
+  const { data, error } = await service
     .from("site_content")
     .select("key, label, section, sort_order, value")
     .order("section")
