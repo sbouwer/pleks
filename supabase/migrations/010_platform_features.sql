@@ -970,20 +970,8 @@ CREATE INDEX IF NOT EXISTS idx_ai_usage_purpose_created
 
 ALTER TABLE ai_usage ENABLE ROW LEVEL SECURITY;
 
--- Platform admin reads all rows
-DROP POLICY IF EXISTS "ai_usage_platform_admin_select" ON ai_usage;
-CREATE POLICY "ai_usage_platform_admin_select" ON ai_usage
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM user_orgs uo
-      JOIN organisations o ON o.id = uo.org_id
-      WHERE uo.user_id = auth.uid()
-        AND uo.is_admin = true
-        AND o.settings->>'platform_admin' = 'true'
-    )
-  );
-
 -- Org admin reads own org's AI usage
+-- (Platform admin reads via service-role after requireAdminAuth() — no client-side RLS policy needed)
 DROP POLICY IF EXISTS "ai_usage_org_admin_select" ON ai_usage;
 CREATE POLICY "ai_usage_org_admin_select" ON ai_usage
   FOR SELECT USING (
@@ -1067,19 +1055,7 @@ CREATE INDEX IF NOT EXISTS idx_pcs_margin_period
 
 ALTER TABLE platform_cost_snapshots ENABLE ROW LEVEL SECURITY;
 
--- Platform admin only — internal operational data
-DROP POLICY IF EXISTS "pcs_platform_admin_select" ON platform_cost_snapshots;
-CREATE POLICY "pcs_platform_admin_select" ON platform_cost_snapshots
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM user_orgs uo
-      JOIN organisations o ON o.id = uo.org_id
-      WHERE uo.user_id = auth.uid()
-        AND uo.is_admin = true
-        AND o.settings->>'platform_admin' = 'true'
-    )
-  );
-
+-- All client SELECT denied — admin dashboard reads via service-role after requireAdminAuth()
 -- No client writes — service role only via cron
 DROP POLICY IF EXISTS "pcs_insert_deny" ON platform_cost_snapshots;
 CREATE POLICY "pcs_insert_deny" ON platform_cost_snapshots
