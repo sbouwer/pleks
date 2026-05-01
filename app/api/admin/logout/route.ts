@@ -11,8 +11,8 @@ export async function POST() {
   res.cookies.set("pleks_admin_token", "", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/admin",
+    sameSite: "strict",
+    path: "/",
     maxAge: 0,
   })
   return res

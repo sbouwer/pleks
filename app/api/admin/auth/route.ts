@@ -1,11 +1,11 @@
 /**
- * app/api/admin/auth/route.ts — FILL: one-line purpose
+ * app/api/admin/auth/route.ts — Admin login/logout: issues and clears the admin session cookie
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/admin/auth (login), DELETE /api/admin/auth (logout)
+ * Auth:   POST verifies raw ADMIN_SECRET; DELETE is open (clearing a cookie needs no auth).
+ *         Exempt from the proxy admin-API gate so the login endpoint is reachable pre-auth.
+ * Notes:  Cookie uses Path=/ (not Path=/admin) so the browser sends it on /api/admin/* requests.
+ *         Security comes from the HMAC-signed token + HttpOnly + SameSite=Strict, not path scoping.
  */
 import { NextResponse } from "next/server"
 import { signAdminToken } from "@/lib/auth/admin-token"
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     "Set-Cookie",
     [
       `pleks_admin_token=${token}`,
-      "Path=/admin",
+      "Path=/",
       "HttpOnly",
       "SameSite=Strict",
       "Max-Age=86400",
@@ -40,7 +40,7 @@ export async function DELETE() {
   const response = NextResponse.json({ ok: true })
   response.headers.set(
     "Set-Cookie",
-    "pleks_admin_token=; Path=/admin; HttpOnly; SameSite=Strict; Max-Age=0"
+    "pleks_admin_token=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0"
   )
   return response
 }
