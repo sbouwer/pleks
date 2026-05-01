@@ -3,7 +3,9 @@
  *
  * Auth:   Server-only — called after requireAdminAuth()
  * Data:   audit_log, organisations, auth.users (read via service-role)
- * Notes:  Cursor pagination on created_at DESC — stable on insert-heavy append-only table.
+ * Notes:  Cursor pagination on (created_at DESC, id DESC) — composite cursor avoids
+ *         skipped rows when multiple entries share the same microsecond timestamp.
+ *         Cursor is encoded as "ISO-ts|uuid" and decoded on use.
  *         Free-text search uses new_values::text ILIKE — fast on a small filtered set.
  */
 import { createServiceClient } from "@/lib/supabase/server"
@@ -19,7 +21,7 @@ export interface AuditFilters {
   changedBy?: string        // free text, matched against auth.users email
   severity?: string[]       // low|medium|high (derived — used to post-filter)
   search?: string           // free text over new_values::text
-  cursor?: string           // created_at ISO for cursor pagination
+  cursor?: string           // composite: "ISO-ts|uuid" — encodes (created_at, id)
 }
 
 export interface AuditEntry extends AuditLogRow {
@@ -39,6 +41,7 @@ export async function queryAuditLog(filters: AuditFilters): Promise<{
     .from("audit_log")
     .select("id, org_id, table_name, record_id, action, changed_by, old_values, new_values, ip_address, user_agent, created_at")
     .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
     .limit(PAGE_SIZE + 1) // fetch one extra to detect next page
 
   // Date range
@@ -53,8 +56,14 @@ export async function queryAuditLog(filters: AuditFilters): Promise<{
   // Table filter
   if (filters.tableName?.length) query = query.in("table_name", filters.tableName)
 
-  // Cursor pagination
-  if (filters.cursor) query = query.lt("created_at", filters.cursor)
+  // Composite cursor: "ISO-ts|uuid" — (created_at < ts) OR (created_at = ts AND id < id)
+  // Prevents skipping rows when multiple entries share the same microsecond timestamp.
+  if (filters.cursor) {
+    const [cursorTs, cursorId] = filters.cursor.split("|")
+    if (cursorTs && cursorId) {
+      query = query.or(`created_at.lt.${cursorTs},and(created_at.eq.${cursorTs},id.lt.${cursorId})`)
+    }
+  }
 
   const { data, error } = await query
   if (error) {
@@ -80,7 +89,8 @@ export async function queryAuditLog(filters: AuditFilters): Promise<{
     org_name: e.org_id ? orgMap.get(e.org_id) : undefined,
   }))
 
-  const nextCursor = hasMore ? entries[entries.length - 1]?.created_at ?? null : null
+  const last = hasMore ? entries[entries.length - 1] : null
+  const nextCursor = last ? `${last.created_at}|${last.id}` : null
   return { entries: enriched, nextCursor }
 }
 
@@ -112,12 +122,8 @@ export async function getAuditEntry(id: string): Promise<AuditEntry | null> {
 
 export async function getDistinctTableNames(): Promise<string[]> {
   const db = await createServiceClient()
-  const { data } = await db
-    .from("audit_log")
-    .select("table_name")
-    .order("table_name")
-    .limit(200)
-
-  const unique = [...new Set((data ?? []).map((r) => r.table_name as string))]
-  return unique.sort()
+  // RPC does SELECT DISTINCT at the DB level — avoids the PostgREST row-limit
+  // truncation that occurs when one table accumulates many audit entries.
+  const { data } = await db.rpc("get_distinct_audit_tables")
+  return (data ?? []).map((r: { table_name: string }) => r.table_name)
 }

@@ -125,14 +125,14 @@ export async function getAdminDashboardData(): Promise<DashboardSnapshot> {
 
     // MRR current month
     db.from("subscriptions")
-      .select("price_cents, billing_cycle")
+      .select("amount_cents, billing_cycle")
       .eq("status", "active")
       .neq("tier", "owner_free")
       .gte("created_at", firstOfMonth.toISOString()),
 
     // MRR last month (rough — subs active as of start of month)
     db.from("subscriptions")
-      .select("price_cents, billing_cycle")
+      .select("amount_cents, billing_cycle")
       .eq("status", "active")
       .neq("tier", "owner_free")
       .gte("created_at", firstOfLastMonth.toISOString())
@@ -221,9 +221,9 @@ export async function getAdminDashboardData(): Promise<DashboardSnapshot> {
   const conv     = waitlist > 0 ? Math.round((paid / waitlist) * 100) : 0
 
   // MRR (sum of monthly-equivalent prices)
-  function mrrFromRows(rows: { price_cents: number | null; billing_cycle: string | null }[]): number {
+  function mrrFromRows(rows: { amount_cents: number | null; billing_cycle: string | null }[]): number {
     return rows.reduce((sum, r) => {
-      const p = (r.price_cents as number) ?? 0
+      const p = r.amount_cents ?? 0
       const annual = r.billing_cycle === "annual"
       return sum + (annual ? Math.round(p / 12) : p)
     }, 0)

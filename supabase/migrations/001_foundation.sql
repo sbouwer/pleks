@@ -684,6 +684,24 @@ CREATE INDEX IF NOT EXISTS idx_audit_exports_expires
 
 -- No RLS — admin-only via service-role queries
 
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §19  Admin audit viewer: distinct table names + composite cursor index
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- Distinct table names for the filter dropdown — SELECT DISTINCT avoids the
+-- PostgREST row-limit truncation that a plain .select().order().limit() causes
+-- when one audited table accumulates many rows before others alphabetically.
+CREATE OR REPLACE FUNCTION get_distinct_audit_tables()
+RETURNS TABLE (table_name text)
+LANGUAGE sql STABLE SECURITY DEFINER AS $$
+  SELECT DISTINCT table_name FROM audit_log ORDER BY table_name;
+$$;
+
+-- Composite index for (created_at DESC, id DESC) cursor pagination.
+-- Prevents skipping rows at page boundaries when entries share a microsecond timestamp.
+CREATE INDEX IF NOT EXISTS idx_audit_log_created_id
+  ON audit_log(created_at DESC, id DESC);
+
 -- contractor_contacts: multiple people per contractor firm
 CREATE TABLE IF NOT EXISTS public.contractor_contacts (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
