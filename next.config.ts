@@ -24,8 +24,8 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https:",
       "font-src 'self' data:",
-      "connect-src 'self' https://app.pleks.co.za https://pleks.vercel.app https://*.supabase.co wss://*.supabase.co https://api.resend.com",
-      "manifest-src 'self' https://app.pleks.co.za https://pleks.vercel.app",
+      "connect-src 'self' https://app.pleks.co.za https://*.supabase.co wss://*.supabase.co https://api.resend.com",
+      "manifest-src 'self' https://app.pleks.co.za",
       "frame-src https://maps.google.com https://www.google.com",
       "worker-src 'self'",
       "object-src 'none'",
@@ -71,6 +71,9 @@ const nextConfig: NextConfig = {
 
       // /landlord/* unchanged — route group renamed but URL prefix stays the same.
       // /settings/profile NOT redirected — URL is repurposed (new user-profile stub), not retired.
+
+      // ── Retired pages ──
+      { source: "/status", destination: "https://status.pleks.co.za", permanent: true },
     ]
   },
 

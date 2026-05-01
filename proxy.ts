@@ -26,7 +26,7 @@ const WEBHOOK_PREFIXES = ["/api/webhooks", "/api/cron", "/api/waitlist", "/api/h
 // Paths served on the apex; all others redirect to the app subdomain.
 const APEX_PREFIXES = [
   "/pricing", "/for-agents", "/for-landlords", "/early-access", "/migrate",
-  "/privacy", "/terms", "/credit-check-policy", "/contact", "/status",
+  "/privacy", "/terms", "/credit-check-policy", "/contact",
   "/demo", "/marketing",
 ]
 
@@ -302,6 +302,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    String.raw`/((?!_next/static|_next/image|_next/data|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)`,
   ],
 }
