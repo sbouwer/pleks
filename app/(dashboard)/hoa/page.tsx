@@ -1,14 +1,13 @@
 /**
- * app/(dashboard)/hoa/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/hoa/page.tsx — HOA entity list (server)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /hoa
+ * Auth:   Dashboard layout gateway; org-type guard redirects non-HOA orgs to /dashboard; firm-tier gate shows upgrade prompt
+ * Data:   hoa_entities, subscriptions via Supabase server client
  */
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
+import { getCurrentOrgCapabilities } from "@/lib/auth/server"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -28,6 +27,9 @@ export default async function HOAListPage() {
 
   if (!membership) redirect("/onboarding")
   const orgId = membership.org_id
+
+  const caps = await getCurrentOrgCapabilities()
+  if (!caps?.hasHOA) redirect("/dashboard")
 
   // Firm tier check
   const { data: sub } = await supabase

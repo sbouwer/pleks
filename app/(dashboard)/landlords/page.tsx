@@ -1,15 +1,13 @@
 /**
- * app/(dashboard)/landlords/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/landlords/page.tsx — Landlord portfolio list with SSR prefetch (server)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /landlords
+ * Auth:   Dashboard layout gateway; org-type guard redirects landlord-type orgs to /properties
+ * Data:   fetchLandlords() prefetched via React Query + HydrationBoundary
  */
 import { HydrationBoundary, QueryClient, dehydrate } from "@tanstack/react-query"
 import { redirect } from "next/navigation"
-import { getServerOrgMembership } from "@/lib/auth/server"
+import { getServerOrgMembership, getCurrentOrgCapabilities } from "@/lib/auth/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { PORTFOLIO_QUERY_KEYS, STALE_TIME, fetchLandlords } from "@/lib/queries/portfolio"
 import { LandlordsPageClient } from "./LandlordsPageClient"
@@ -17,6 +15,9 @@ import { LandlordsPageClient } from "./LandlordsPageClient"
 export default async function LandlordsPage() {
   const membership = await getServerOrgMembership()
   if (!membership) redirect("/login")
+
+  const caps = await getCurrentOrgCapabilities()
+  if (!caps?.hasLandlordsList) redirect("/properties")
 
   const { org_id: orgId } = membership
   const queryClient = new QueryClient()

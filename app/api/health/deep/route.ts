@@ -11,8 +11,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { checkHealth } from "@/lib/observability/health"
 
-export const runtime = "nodejs"
-export const dynamic = "force-dynamic"
+export const runtime         = "nodejs"
+export const dynamic         = "force-dynamic"
+export const preferredRegion = "fra1"  // Co-locate with Supabase EU to avoid trans-Atlantic cold-start timeouts
 
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token")

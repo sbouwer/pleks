@@ -644,6 +644,64 @@ COMMENT ON TABLE contact_leads IS
   'Inbound leads from the public /contact page. No RLS policies — service-role only, '
   'written by the submitContactForm server action and read by admin-only UI.';
 
+-- ═══════════════════════════════════════════════════════════════
+-- §18  ADDENDUM_00I: audit_log filter indexes + async export job table
+-- ═══════════════════════════════════════════════════════════════
+
+-- Additional audit_log indexes for the admin filter rail
+-- Existing: (org_id), (record_id), (created_at)
+-- New: support common filter combinations in the audit viewer
+CREATE INDEX IF NOT EXISTS idx_audit_log_table_created
+  ON audit_log(table_name, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_action_created
+  ON audit_log(action, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_changed_by_created
+  ON audit_log(changed_by, created_at DESC) WHERE changed_by IS NOT NULL;
+
+-- Async audit-log CSV export job table
+-- Operator queues an export; cron processes it; signed URL emailed on completion.
+CREATE TABLE IF NOT EXISTS audit_exports (
+  id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  requested_by         text NOT NULL,
+  filter_params        jsonb NOT NULL DEFAULT '{}',
+  status               text NOT NULL DEFAULT 'queued'
+                       CHECK (status IN ('queued', 'processing', 'completed', 'failed')),
+  row_count            integer,
+  file_path            text,
+  signed_url           text,
+  error_message        text,
+  notification_sent_at timestamptz,
+  created_at           timestamptz NOT NULL DEFAULT now(),
+  started_at           timestamptz,
+  completed_at         timestamptz,
+  expires_at           timestamptz NOT NULL DEFAULT (now() + interval '7 days')
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_exports_status_created
+  ON audit_exports(status, created_at) WHERE status IN ('queued', 'processing');
+CREATE INDEX IF NOT EXISTS idx_audit_exports_expires
+  ON audit_exports(expires_at) WHERE status = 'completed';
+
+-- No RLS — admin-only via service-role queries
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §19  Admin audit viewer: distinct table names + composite cursor index
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- Distinct table names for the filter dropdown — SELECT DISTINCT avoids the
+-- PostgREST row-limit truncation that a plain .select().order().limit() causes
+-- when one audited table accumulates many rows before others alphabetically.
+CREATE OR REPLACE FUNCTION get_distinct_audit_tables()
+RETURNS TABLE (table_name text)
+LANGUAGE sql STABLE SECURITY DEFINER AS $$
+  SELECT DISTINCT table_name FROM audit_log ORDER BY table_name;
+$$;
+
+-- Composite index for (created_at DESC, id DESC) cursor pagination.
+-- Prevents skipping rows at page boundaries when entries share a microsecond timestamp.
+CREATE INDEX IF NOT EXISTS idx_audit_log_created_id
+  ON audit_log(created_at DESC, id DESC);
+
 -- contractor_contacts: multiple people per contractor firm
 CREATE TABLE IF NOT EXISTS public.contractor_contacts (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),

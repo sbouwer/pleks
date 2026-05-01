@@ -1,0 +1,1103 @@
+"use client"
+
+/**
+ * app/(dashboard)/settings/team/TeamSettingsClient.tsx — Team management UI (client component)
+ *
+ * Route:  /settings/team (rendered by page.tsx server wrapper)
+ * Auth:   Rendered inside gateway-protected server wrapper; org-type guard in page.tsx
+ * Data:   user_orgs, invites, organisations via Supabase client; /api/team/* routes
+ */
+
+import { useEffect, useState, useMemo, useRef, useCallback } from "react"
+import { createPortal } from "react-dom"
+import { createClient } from "@/lib/supabase/client"
+import { useOrg } from "@/hooks/useOrg"
+import { useTier } from "@/hooks/useTier"
+import { usePermissions } from "@/hooks/usePermissions"
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { toast } from "sonner"
+import { Plus, Trash2, Pencil, ChevronUp, ChevronDown, ArrowUpDown, ShieldAlert } from "lucide-react"
+
+// ── Constants ──────────────────────────────────────────────────────────────────
+
+// Grouped role definitions — single source of truth.
+// Each group has a display label and a list of [slug, displayName] pairs.
+// "owner" is special-cased separately (never appears in invite dropdowns).
+const ROLE_GROUPS: { group: string; roles: [string, string][] }[] = [
+  {
+    group: "Management",
+    roles: [
+      ["property_manager",  "Property Manager"],
+      ["office_manager",    "Office Manager"],
+      ["portfolio_manager", "Portfolio Manager"],
+      ["director",          "Director"],
+    ],
+  },
+  {
+    group: "Leasing & Applications",
+    roles: [
+      ["agent",               "Letting Agent"],
+      ["leasing_consultant",  "Leasing Consultant"],
+      ["sales_agent",         "Sales Agent"],
+    ],
+  },
+  {
+    group: "Finance & Accounts",
+    roles: [
+      ["accountant",      "Accountant"],
+      ["bookkeeper",      "Bookkeeper"],
+      ["account_manager", "Account Manager"],
+      ["accounts_payable","Accounts Payable"],
+      ["trust_accountant","Trust Accountant"],
+    ],
+  },
+  {
+    group: "Operations",
+    roles: [
+      ["maintenance_manager", "Maintenance Manager"],
+      ["inspection_manager",  "Inspection Manager"],
+      ["facilities_manager",  "Facilities Manager"],
+    ],
+  },
+  {
+    group: "Admin & Support",
+    roles: [
+      ["admin_assistant", "Admin Assistant"],
+      ["receptionist",    "Receptionist"],
+    ],
+  },
+  {
+    group: "HR & Compliance",
+    roles: [
+      ["hr_manager",         "HR Manager"],
+      ["compliance_officer", "Compliance Officer"],
+    ],
+  },
+  {
+    group: "IT",
+    roles: [
+      ["it_manager",    "IT Manager"],
+      ["it_department", "IT Department"],
+    ],
+  },
+]
+
+// Slug → display label (includes owner which is never in ROLE_GROUPS)
+const ROLE_LABELS: Record<string, string> = {
+  owner: "Owner",
+  ...Object.fromEntries(ROLE_GROUPS.flatMap((g) => g.roles)),
+}
+
+// Reverse map: display label → system slug
+const ROLE_LABEL_TO_SLUG: Record<string, string> = Object.fromEntries(
+  Object.entries(ROLE_LABELS).map(([k, v]) => [v, k])
+)
+
+// Flat list of all non-owner display labels (used as the org default quick-pick set)
+const DEFAULT_ROLES: string[] = ROLE_GROUPS.flatMap((g) => g.roles.map(([, label]) => label))
+
+const TITLES = ["Mr", "Mrs", "Ms", "Miss", "Dr", "Prof", "Adv"]
+const PORTFOLIO_TIERS = new Set(["portfolio", "firm"])
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function getRoleLabel(role: string): string {
+  return ROLE_LABELS[role] ?? role
+}
+
+function getMemberDisplayName(m: Member): string {
+  return (
+    [m.user_profiles?.first_name, m.user_profiles?.last_name].filter(Boolean).join(" ") ||
+    m.user_profiles?.full_name ||
+    "Unnamed"
+  )
+}
+
+// ── Interfaces ─────────────────────────────────────────────────────────────────
+
+interface Member {
+  id: string
+  user_id: string
+  role: string
+  is_admin: boolean
+  additional_roles: string[]
+  user_profiles: {
+    full_name: string | null
+    title: string | null
+    first_name: string | null
+    last_name: string | null
+    mobile: string | null
+    emergency_phone: string | null
+    emergency_contact_name: string | null
+  } | null
+}
+
+interface PendingInvite {
+  id: string
+  email: string
+  role: string
+}
+
+type SortCol = "name" | "role"
+type SortDir = "asc" | "desc"
+
+// ── Role combobox ──────────────────────────────────────────────────────────────
+// Input that opens a filtered dropdown grouped by function.
+// Typing narrows results across all groups; no match shows "+ Add '…'" option.
+
+function RoleCombobox({ value, onChange, orgRoles }: Readonly<{
+  value: string
+  onChange: (v: string) => void
+  orgRoles: string[]
+}>) {
+  const [inputVal, setInputVal]   = useState(getRoleLabel(value))
+  const [open, setOpen]           = useState(false)
+  const [dropRect, setDropRect]   = useState<DOMRect | null>(null)
+  const containerRef              = useRef<HTMLDivElement>(null)
+  const inputRef                  = useRef<HTMLInputElement>(null)
+
+  const measureAndOpen = useCallback(() => {
+    if (inputRef.current) setDropRect(inputRef.current.getBoundingClientRect())
+    setOpen(true)
+  }, [])
+
+  // Close on outside click
+  useEffect(() => {
+    function onPointerDown(e: PointerEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener("pointerdown", onPointerDown)
+    return () => document.removeEventListener("pointerdown", onPointerDown)
+  }, [])
+
+  const query = inputVal.trim().toLowerCase()
+
+  // Standard labels not in the default set that the org has saved as custom
+  const standardLabels = new Set(DEFAULT_ROLES)
+  const customRoles    = orgRoles.filter((r) => !standardLabels.has(r) && r !== "Owner")
+
+  // Build filtered groups: standard groups + custom section
+  const allGroups: { group: string; labels: string[] }[] = [
+    ...ROLE_GROUPS.map((g) => ({
+      group:  g.group,
+      labels: g.roles.map(([, label]) => label),
+    })),
+    ...(customRoles.length > 0 ? [{ group: "Custom", labels: customRoles }] : []),
+  ]
+
+  const filteredGroups = allGroups
+    .map((g) => ({
+      group:  g.group,
+      labels: query
+        ? g.labels.filter((l) => l.toLowerCase().includes(query))
+        : g.labels,
+    }))
+    .filter((g) => g.labels.length > 0)
+
+  const hasResults = filteredGroups.length > 0
+  const showAddOption = query.length > 0 && !DEFAULT_ROLES.some(
+    (l) => l.toLowerCase() === query
+  ) && !customRoles.some((l) => l.toLowerCase() === query)
+
+  function pick(label: string) {
+    setInputVal(label)
+    onChange(label)
+    setOpen(false)
+  }
+
+  function addCustom() {
+    const trimmed = inputVal.trim()
+    if (!trimmed) return
+    onChange(trimmed)
+    setOpen(false)
+  }
+
+  const dropdown = open && dropRect && (
+    <div
+      style={{
+        position: "fixed",
+        top:   dropRect.bottom + 4,
+        left:  dropRect.left,
+        width: dropRect.width,
+        zIndex: 9999,
+      }}
+      className="rounded-md border border-border bg-popover shadow-md max-h-64 overflow-y-auto"
+    >
+      {hasResults ? (
+        <div className="py-1">
+          {filteredGroups.map((g) => (
+            <div key={g.group}>
+              <p className="px-3 pt-2 pb-0.5 text-[10px] font-semibold text-muted-foreground
+                            uppercase tracking-wider">
+                {g.group}
+              </p>
+              {g.labels.map((label) => (
+                <button
+                  key={label}
+                  type="button"
+                  onPointerDown={(e) => { e.preventDefault(); pick(label) }}
+                  className={cn(
+                    "w-full px-3 py-1.5 text-left text-sm transition-colors",
+                    inputVal === label
+                      ? "bg-brand/10 text-brand"
+                      : "hover:bg-muted/60 text-foreground"
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="px-3 py-2 text-sm text-muted-foreground">No roles match.</p>
+      )}
+      {showAddOption && (
+        <div className="border-t border-border/50">
+          <button
+            type="button"
+            onPointerDown={(e) => { e.preventDefault(); addCustom() }}
+            className="w-full px-3 py-2 text-left text-sm text-brand hover:bg-brand/5 transition-colors"
+          >
+            + Add &ldquo;{inputVal.trim()}&rdquo;
+          </button>
+        </div>
+      )}
+    </div>
+  )
+
+  return (
+    <div ref={containerRef}>
+      <Input
+        ref={inputRef}
+        value={inputVal}
+        onChange={(e) => { setInputVal(e.target.value); onChange(e.target.value); measureAndOpen() }}
+        onFocus={measureAndOpen}
+        placeholder="Type or select a role…"
+        className="h-8 text-sm"
+        autoComplete="off"
+      />
+      {typeof document !== "undefined" && dropdown && createPortal(dropdown, document.body)}
+    </div>
+  )
+}
+
+// ── Sort icon ──────────────────────────────────────────────────────────────────
+
+function SortIcon({ col, sortCol, sortDir }: Readonly<{ col: SortCol; sortCol: SortCol; sortDir: SortDir }>) {
+  if (col !== sortCol) return <ArrowUpDown className="h-3 w-3 opacity-40" />
+  return sortDir === "asc"
+    ? <ChevronUp className="h-3 w-3" />
+    : <ChevronDown className="h-3 w-3" />
+}
+
+// ── Edit modal ─────────────────────────────────────────────────────────────────
+
+interface EditModalProps {
+  member: Member
+  orgId: string
+  orgRoles: string[]
+  isMe: boolean
+  isOwner: boolean
+  showEmergency: boolean
+  onClose: () => void
+  onSaved: () => void
+}
+
+function EditMemberModal({
+  member, orgId, orgRoles, isMe, isOwner, showEmergency, onClose, onSaved,
+}: Readonly<EditModalProps>) {
+  const p = member.user_profiles
+  const [title, setTitle]               = useState(p?.title ?? "")
+  const [firstName, setFirstName]       = useState(p?.first_name ?? "")
+  const [lastName, setLastName]         = useState(p?.last_name ?? "")
+  const [mobile, setMobile]             = useState(p?.mobile ?? "")
+  const [emergencyPhone, setEmPhone]    = useState(p?.emergency_phone ?? "")
+  const [emergencyName, setEmName]      = useState(p?.emergency_contact_name ?? "")
+  const [roleInput, setRoleInput]       = useState(getRoleLabel(member.role))
+  const [saving, setSaving]             = useState(false)
+
+  async function handleSave() {
+    setSaving(true)
+    const body: Record<string, unknown> = {
+      userId: member.user_id, orgId,
+      title: title || null,
+      first_name: firstName || null,
+      last_name: lastName || null,
+      mobile: mobile || null,
+    }
+
+    if (!isOwner) {
+      // Map display label back to system slug where possible; otherwise save as-is
+      body.role = ROLE_LABEL_TO_SLUG[roleInput] ?? roleInput
+    }
+
+    if (showEmergency && isMe) {
+      body.emergency_phone = emergencyPhone || null
+      body.emergency_contact_name = emergencyName || null
+    }
+
+    const res = await fetch("/api/team/member", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+
+    setSaving(false)
+    if (!res.ok) {
+      const { error } = await res.json() as { error: string }
+      toast.error(error ?? "Failed to save")
+    } else {
+      toast.success("Saved")
+      onSaved()
+      onClose()
+    }
+  }
+
+  const displayName = getMemberDisplayName(member)
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit — {displayName}</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-5 py-1 overflow-y-auto max-h-[70vh] pr-1">
+
+          {/* Personal details */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Personal Details
+            </p>
+            <div className="grid grid-cols-[88px_1fr_1fr] gap-2">
+              <div>
+                <label htmlFor="edit-title" className="text-xs text-muted-foreground mb-1 block">Title</label>
+                <Select value={title} onValueChange={(v) => setTitle(v ?? "")}>
+                  <SelectTrigger id="edit-title" className="h-8 text-sm">
+                    <SelectValue placeholder="–" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">–</SelectItem>
+                    {TITLES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label htmlFor="edit-first" className="text-xs text-muted-foreground mb-1 block">First name</label>
+                <Input id="edit-first" value={firstName} onChange={(e) => setFirstName(e.target.value)} className="h-8 text-sm" />
+              </div>
+              <div>
+                <label htmlFor="edit-last" className="text-xs text-muted-foreground mb-1 block">Last name</label>
+                <Input id="edit-last" value={lastName} onChange={(e) => setLastName(e.target.value)} className="h-8 text-sm" />
+              </div>
+            </div>
+            <div>
+              <label htmlFor="edit-mobile" className="text-xs text-muted-foreground mb-1 block">Mobile</label>
+              <Input id="edit-mobile" type="tel" value={mobile} onChange={(e) => setMobile(e.target.value)}
+                placeholder="082 000 0000" className="h-8 text-sm" />
+            </div>
+          </div>
+
+          {/* Role — free-text + quick-pick chips */}
+          <div className="border-t border-border/40 pt-4 space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Role</p>
+            {isOwner ? (
+              <p className="text-sm text-muted-foreground">
+                Owner — role cannot be changed here. Use ownership transfer to assign a new owner.
+              </p>
+            ) : (
+              <>
+                <RoleCombobox value={member.role} onChange={setRoleInput} orgRoles={orgRoles} />
+                <p className="text-xs text-muted-foreground">
+                  Type a custom title or pick from the list. New labels are saved to your org&apos;s role library.
+                </p>
+              </>
+            )}
+          </div>
+
+          {/* Emergency contact — own row only, portfolio/firm tiers */}
+          {showEmergency && isMe && (
+            <div className="space-y-2 border-t border-border/40 pt-4">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                After-Hours Emergency
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label htmlFor="edit-em-phone" className="text-xs text-muted-foreground mb-1 block">Phone</label>
+                  <Input id="edit-em-phone" type="tel" value={emergencyPhone}
+                    onChange={(e) => setEmPhone(e.target.value)}
+                    placeholder="082 999 8888" className="h-8 text-sm" />
+                </div>
+                <div>
+                  <label htmlFor="edit-em-name" className="text-xs text-muted-foreground mb-1 block">Contact name</label>
+                  <Input id="edit-em-name" value={emergencyName}
+                    onChange={(e) => setEmName(e.target.value)}
+                    placeholder="Your name or service" className="h-8 text-sm" />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {showEmergency && !isMe && (
+            <div className="border-t border-border/40 pt-4">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">
+                After-Hours Emergency
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {p?.emergency_phone
+                  ? <>{p.emergency_phone}{p.emergency_contact_name && ` · ${p.emergency_contact_name}`}</>
+                  : <span className="italic text-xs">Not set — member configures in their own profile</span>
+                }
+              </p>
+            </div>
+          )}
+
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// ── Member row (compact list — owner/steward/portfolio tiers) ──────────────────
+
+function MemberRow({ member, currentUserId, callerIsOwner, onEdit, onRemove, onToggleAdmin }: Readonly<{
+  member: Member
+  currentUserId: string | null
+  callerIsOwner: boolean
+  onEdit: (m: Member) => void
+  onRemove: (id: string, orgId?: string) => void
+  onToggleAdmin: (m: Member) => void
+}>) {
+  const isMe     = member.user_id === currentUserId
+  const isOwner  = member.role === "owner"
+  const canRemove = !isMe && !isOwner
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-border/50 px-4 py-2.5">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-medium">
+            {getMemberDisplayName(member)}
+            {isMe && <span className="ml-1.5 text-xs text-muted-foreground font-normal">(you)</span>}
+          </span>
+          <span className="inline-block rounded-full bg-muted/50 border border-border/40 px-2 py-0.5 text-xs">
+            {getRoleLabel(member.role)}
+          </span>
+          {(isOwner || member.is_admin) && (
+            <span className="inline-block rounded-full bg-brand/10 border border-brand/30 px-2 py-0.5 text-xs text-brand">
+              {isOwner ? "Owner" : "Admin"}
+            </span>
+          )}
+        </div>
+        {member.user_profiles?.mobile && (
+          <p className="text-xs text-muted-foreground mt-0.5">{member.user_profiles.mobile}</p>
+        )}
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        {callerIsOwner && !isOwner && (
+          <Button variant="ghost" size="sm"
+            className="h-7 text-xs text-muted-foreground hover:text-foreground px-2"
+            onClick={() => onToggleAdmin(member)}
+            title={member.is_admin ? "Revoke admin" : "Grant admin"}>
+            {member.is_admin ? "Admin ✓" : "Admin"}
+          </Button>
+        )}
+        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground"
+          onClick={() => onEdit(member)}>
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
+        {canRemove && (
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"
+            onClick={() => onRemove(member.id)}>
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Firm member table (firm tier — search, filter, sortable columns) ────────────
+
+interface FirmTableProps {
+  members: Member[]
+  search: string
+  onSearch: (v: string) => void
+  roleFilter: string
+  onRoleFilter: (v: string) => void
+  uniqueRoles: string[]
+  sortCol: SortCol
+  sortDir: SortDir
+  onSort: (col: SortCol) => void
+  currentUserId: string | null
+  callerIsOwner: boolean
+  onEdit: (m: Member) => void
+  onRemove: (id: string) => void
+  onToggleAdmin: (m: Member) => void
+}
+
+function FirmMemberTable({
+  members, search, onSearch, roleFilter, onRoleFilter,
+  uniqueRoles, sortCol, sortDir, onSort, currentUserId, callerIsOwner, onEdit, onRemove, onToggleAdmin,
+}: Readonly<FirmTableProps>) {
+  return (
+    <div className="space-y-3">
+      {/* Search + role filter */}
+      <div className="flex gap-2">
+        <Input
+          placeholder="Search by name…"
+          value={search}
+          onChange={(e) => onSearch(e.target.value)}
+          className="flex-1 h-8 text-sm"
+        />
+        <Select value={roleFilter} onValueChange={(v) => onRoleFilter(v ?? "")}>
+          <SelectTrigger className="w-44 h-8 text-sm">
+            <SelectValue placeholder="All roles" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">All roles</SelectItem>
+            {uniqueRoles.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Table */}
+      <div className="rounded-lg border border-border/50 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-muted/30 border-b border-border/50">
+              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground w-2/5">
+                <button type="button" onClick={() => onSort("name")}
+                  className="flex items-center gap-1 hover:text-foreground transition-colors">
+                  Name <SortIcon col="name" sortCol={sortCol} sortDir={sortDir} />
+                </button>
+              </th>
+              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">
+                <button type="button" onClick={() => onSort("role")}
+                  className="flex items-center gap-1 hover:text-foreground transition-colors">
+                  Role <SortIcon col="role" sortCol={sortCol} sortDir={sortDir} />
+                </button>
+              </th>
+              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Mobile</th>
+              {callerIsOwner && <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Admin</th>}
+              <th className="px-4 py-2.5 w-20" />
+            </tr>
+          </thead>
+          <tbody>
+            {members.length === 0 && (
+              <tr>
+                <td colSpan={callerIsOwner ? 5 : 4} className="px-4 py-6 text-center text-sm text-muted-foreground">
+                  No members match your search.
+                </td>
+              </tr>
+            )}
+            {members.map((m) => {
+              const isMe      = m.user_id === currentUserId
+              const isOwner   = m.role === "owner"
+              const canRemove = !isMe && !isOwner
+              return (
+                <tr key={m.id}
+                  className="border-b border-border/40 last:border-0 hover:bg-muted/20 transition-colors">
+                  <td className="px-4 py-2.5 font-medium">
+                    {getMemberDisplayName(m)}
+                    {isMe && (
+                      <span className="ml-1.5 text-xs text-muted-foreground font-normal">(you)</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5 text-muted-foreground">{getRoleLabel(m.role)}</td>
+                  <td className="px-4 py-2.5 text-muted-foreground">{m.user_profiles?.mobile ?? "—"}</td>
+                  {callerIsOwner && (
+                    <td className="px-4 py-2.5">
+                      {isOwner ? (
+                        <span className="text-xs text-muted-foreground">always</span>
+                      ) : (
+                        <Button variant="ghost" size="sm"
+                          className="h-6 text-xs px-2"
+                          onClick={() => onToggleAdmin(m)}
+                          title={m.is_admin ? "Revoke admin" : "Grant admin"}>
+                          {m.is_admin ? "✓ Admin" : "—"}
+                        </Button>
+                      )}
+                    </td>
+                  )}
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-1 justify-end">
+                      <Button variant="ghost" size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                        onClick={() => onEdit(m)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      {canRemove && (
+                        <Button variant="ghost" size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                          onClick={() => onRemove(m.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+// ── Page ───────────────────────────────────────────────────────────────────────
+
+export function TeamSettingsClient() {
+  const { orgId }           = useOrg()
+  const { tier }            = useTier()
+  const { isOwner: callerIsOwner } = usePermissions()
+
+  const [members, setMembers]           = useState<Member[]>([])
+  const [orgRoles, setOrgRoles]         = useState<string[]>(DEFAULT_ROLES)
+  const [pendingInvites, setPending]    = useState<PendingInvite[]>([])
+  const [inviteEmail, setInviteEmail]   = useState("")
+  const [inviteRole, setInviteRole]     = useState("")
+  const [loading, setLoading]           = useState(false)
+  const [currentUserId, setCurrentUser] = useState<string | null>(null)
+  const [editingMember, setEditing]     = useState<Member | null>(null)
+  const [showTransfer, setShowTransfer]           = useState(false)
+  const [transferTargetId, setTransferTargetId]   = useState("")
+  const [transferConfirm, setTransferConfirm]     = useState("")
+  const [transferring, setTransferring]           = useState(false)
+  const [search, setSearch]             = useState("")
+  const [roleFilter, setRoleFilter]     = useState("")
+  const [sortCol, setSortCol]           = useState<SortCol>("name")
+  const [sortDir, setSortDir]           = useState<SortDir>("asc")
+
+  const isFirm      = tier === "firm"
+  const usersLimit: null = null
+  const atLimit     = false
+  const showEmergency = PORTFOLIO_TIERS.has(tier)
+
+  // ── Derived lists ────────────────────────────────────────────────────────────
+
+  const uniqueRoles = useMemo(() => {
+    const seen = new Set<string>()
+    const roles: string[] = []
+    for (const m of members) {
+      const label = getRoleLabel(m.role)
+      if (!seen.has(label)) { seen.add(label); roles.push(label) }
+    }
+    return roles.sort()
+  }, [members])
+
+  const filteredMembers = useMemo(() => {
+    let list = members
+    if (search) {
+      const q = search.toLowerCase()
+      list = list.filter((m) => getMemberDisplayName(m).toLowerCase().includes(q))
+    }
+    if (roleFilter) {
+      list = list.filter((m) => getRoleLabel(m.role) === roleFilter)
+    }
+    return [...list].sort((a, b) => {
+      const va = sortCol === "name" ? getMemberDisplayName(a) : getRoleLabel(a.role)
+      const vb = sortCol === "name" ? getMemberDisplayName(b) : getRoleLabel(b.role)
+      return sortDir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va)
+    })
+  }, [members, search, roleFilter, sortCol, sortDir])
+
+  // ── Data loading ─────────────────────────────────────────────────────────────
+
+  async function loadMembers(supabase: ReturnType<typeof createClient>) {
+    if (!orgId) return
+    const { data: coreData, error } = await supabase
+      .from("user_orgs")
+      .select("id, user_id, role, user_profiles(full_name)")
+      .eq("org_id", orgId)
+      .is("deleted_at", null)
+    if (error) { console.error("loadMembers:", error.message); return }
+
+    const base = (coreData as unknown as Omit<Member, "additional_roles" | "is_admin">[]) ?? []
+    const memberIds = base.map((m) => m.id)
+    const userIds   = base.map((m) => m.user_id)
+    if (memberIds.length === 0) { setMembers([]); return }
+
+    // additional_roles + is_admin — §5/§8 migrations; graceful fallback
+    const rolesMap   = new Map<string, string[]>()
+    const adminMap   = new Map<string, boolean>()
+    const { data: rolesData } = await supabase
+      .from("user_orgs").select("id, additional_roles, is_admin").in("id", memberIds)
+    for (const r of (rolesData as unknown as { id: string; additional_roles: string[]; is_admin: boolean }[]) ?? []) {
+      rolesMap.set(r.id, r.additional_roles ?? [])
+      adminMap.set(r.id, r.is_admin ?? false)
+    }
+
+    // personal + emergency fields — §5-6 migration; graceful fallback
+    const profileMap = new Map<string, Partial<Member["user_profiles"]>>()
+    const { data: profileData } = await supabase
+      .from("user_profiles")
+      .select("id, title, first_name, last_name, mobile, emergency_phone, emergency_contact_name")
+      .in("id", userIds)
+    for (const p of (profileData as unknown as (Partial<Member["user_profiles"]> & { id: string })[]) ?? []) {
+      profileMap.set(p.id, p)
+    }
+
+    setMembers(base.map((m) => ({
+      ...m,
+      is_admin: adminMap.get(m.id) ?? false,
+      additional_roles: rolesMap.get(m.id) ?? [],
+      user_profiles: {
+        full_name: (m.user_profiles as { full_name: string | null } | null)?.full_name ?? null,
+        ...profileMap.get(m.user_id),
+      } as Member["user_profiles"],
+    })))
+  }
+
+  async function loadOrgRoles(supabase: ReturnType<typeof createClient>) {
+    if (!orgId) return
+    const { data } = await supabase
+      .from("organisations").select("custom_roles").eq("id", orgId).single()
+    const saved = (data as unknown as { custom_roles: string[] } | null)?.custom_roles ?? []
+    // Merge: system defaults first, then org-specific custom labels
+    setOrgRoles([...DEFAULT_ROLES, ...saved.filter((r) => !DEFAULT_ROLES.includes(r))])
+  }
+
+  useEffect(() => {
+    if (!orgId) return
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data }) => setCurrentUser(data.user?.id ?? null))
+    loadMembers(supabase)
+    loadOrgRoles(supabase)
+    supabase.from("invites").select("id, email, role")
+      .eq("org_id", orgId).is("accepted_at", null)
+      .then(({ data }) => setPending((data as unknown as PendingInvite[]) ?? []))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgId])
+
+  // ── Handlers ─────────────────────────────────────────────────────────────────
+
+  function toggleSort(col: SortCol) {
+    if (sortCol === col) setSortDir((d) => d === "asc" ? "desc" : "asc")
+    else { setSortCol(col); setSortDir("asc") }
+  }
+
+  async function handleRemove(memberOrgId: string) {
+    if (!orgId) return
+    const res = await fetch("/api/team/member", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memberOrgId, orgId }),
+    })
+    if (!res.ok) {
+      const { error } = await res.json() as { error: string }
+      toast.error(error ?? "Failed to remove member")
+    } else {
+      toast.success("Member removed")
+      loadMembers(createClient())
+    }
+  }
+
+  async function handleToggleAdmin(member: Member) {
+    if (!orgId) return
+    const res = await fetch("/api/team/member", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: member.user_id, orgId, is_admin: !member.is_admin }),
+    })
+    if (!res.ok) {
+      const { error } = await res.json() as { error: string }
+      toast.error(error ?? "Failed to update admin status")
+    } else {
+      toast.success(member.is_admin ? "Admin access revoked" : "Admin access granted")
+      loadMembers(createClient())
+    }
+  }
+
+  async function handleRevokeInvite(inviteId: string) {
+    if (!orgId) return
+    const res = await fetch("/api/team/invite", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ inviteId, orgId }),
+    })
+    if (!res.ok) {
+      const { error } = await res.json() as { error: string }
+      toast.error(error ?? "Failed to revoke invite")
+    } else {
+      toast.success("Invite revoked")
+      setPending((p) => p.filter((i) => i.id !== inviteId))
+    }
+  }
+
+  async function handleInvite() {
+    if (!inviteEmail || !inviteRole || !orgId) return
+    if (atLimit) { toast.error("User limit reached. Upgrade to add more members."); return }
+    setLoading(true)
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    const roleSlug = ROLE_LABEL_TO_SLUG[inviteRole] ?? inviteRole
+    const { error } = await supabase.from("invites").insert({
+      org_id: orgId, email: inviteEmail.trim(), role: roleSlug, invited_by: user?.id,
+    })
+    if (error) {
+      toast.error("Failed to send invite")
+    } else {
+      toast.success(`Invite sent to ${inviteEmail}`)
+      setInviteEmail(""); setInviteRole("")
+      const { data } = await supabase.from("invites").select("id, email, role")
+        .eq("org_id", orgId).is("accepted_at", null)
+      setPending((data as unknown as PendingInvite[]) ?? [])
+    }
+    setLoading(false)
+  }
+
+  async function handleTransferOwnership() {
+    if (!orgId || !transferTargetId) return
+    if (transferConfirm !== "TRANSFER") {
+      toast.error("Type TRANSFER to confirm")
+      return
+    }
+    setTransferring(true)
+    const res = await fetch("/api/team/transfer-ownership", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ newOwnerUserId: transferTargetId, orgId }),
+    })
+    const data = await res.json() as { error?: string }
+    setTransferring(false)
+    if (!res.ok) {
+      toast.error(data.error ?? "Transfer failed")
+    } else {
+      toast.success("Ownership transferred. You are now a Property Manager.")
+      setShowTransfer(false)
+      setTransferTargetId("")
+      setTransferConfirm("")
+      loadMembers(createClient())
+    }
+  }
+
+  function handleSaved() {
+    const supabase = createClient()
+    loadMembers(supabase)
+    loadOrgRoles(supabase)
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────────
+
+  return (
+    <div>
+      <h1 className="font-heading text-3xl mb-6">Team</h1>
+
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="text-lg">
+            Members ({members.length}{usersLimit ? `/${usersLimit}` : ""})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isFirm ? (
+            <FirmMemberTable
+              members={filteredMembers}
+              search={search} onSearch={setSearch}
+              roleFilter={roleFilter} onRoleFilter={setRoleFilter}
+              uniqueRoles={uniqueRoles}
+              sortCol={sortCol} sortDir={sortDir} onSort={toggleSort}
+              currentUserId={currentUserId}
+              callerIsOwner={callerIsOwner}
+              onEdit={setEditing}
+              onRemove={handleRemove}
+              onToggleAdmin={handleToggleAdmin}
+            />
+          ) : (
+            <div className="space-y-2">
+              {filteredMembers.map((m) => (
+                <MemberRow key={m.id} member={m} currentUserId={currentUserId}
+                  callerIsOwner={callerIsOwner}
+                  onEdit={setEditing} onRemove={handleRemove} onToggleAdmin={handleToggleAdmin} />
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {editingMember && orgId && (
+        <EditMemberModal
+          key={editingMember.id}
+          member={editingMember}
+          orgId={orgId}
+          orgRoles={orgRoles}
+          isMe={editingMember.user_id === currentUserId}
+          isOwner={editingMember.role === "owner"}
+          showEmergency={showEmergency}
+          onClose={() => setEditing(null)}
+          onSaved={handleSaved}
+        />
+      )}
+
+      {pendingInvites.length > 0 && (
+        <Card className="mb-6">
+          <CardHeader><CardTitle className="text-lg">Pending Invites</CardTitle></CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {pendingInvites.map((inv) => (
+                <div key={inv.id}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-border/50 px-4 py-2.5">
+                  <div className="min-w-0">
+                    <p className="text-sm truncate">{inv.email}</p>
+                    <p className="text-xs text-muted-foreground">{getRoleLabel(inv.role)} · pending</p>
+                  </div>
+                  <Button variant="ghost" size="icon"
+                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                    onClick={() => handleRevokeInvite(inv.id)}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader><CardTitle className="text-lg">Invite team member</CardTitle></CardHeader>
+        <CardContent>
+          {atLimit ? (
+            <p className="text-sm text-muted-foreground">
+              You&apos;ve reached the user limit for your plan.{" "}
+              <a href="/settings/subscription" className="text-brand hover:underline">Upgrade</a> to add more.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              <Input
+                type="email"
+                placeholder="Email address"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleInvite() }}
+              />
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Role</p>
+                <RoleCombobox
+                  value={inviteRole}
+                  onChange={setInviteRole}
+                  orgRoles={orgRoles.filter((r) => r !== "Owner")}
+                />
+              </div>
+              <Button
+                onClick={handleInvite}
+                disabled={loading || !inviteEmail || !inviteRole}
+                className="w-full"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Send invite
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Transfer ownership — owner only */}
+      {callerIsOwner && (
+        <Card className="mt-6 border-destructive/30">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <ShieldAlert className="h-4 w-4 text-destructive" />
+              Transfer ownership
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!showTransfer ? (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Transfer ownership of this organisation to another team member. You will become a Property Manager and lose owner privileges.
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                  onClick={() => setShowTransfer(true)}
+                >
+                  Transfer ownership…
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Select the team member who will become the new owner. This cannot be undone without their consent.
+                </p>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">New owner</p>
+                  <select
+                    className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-brand/40"
+                    value={transferTargetId}
+                    onChange={(e) => setTransferTargetId(e.target.value)}
+                  >
+                    <option value="">— Select team member —</option>
+                    {members
+                      .filter((m) => m.role !== "owner")
+                      .map((m) => (
+                        <option key={m.user_id} value={m.user_id}>
+                          {getMemberDisplayName(m)} ({getRoleLabel(m.role)})
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">
+                    Type <span className="font-mono font-semibold text-destructive">TRANSFER</span> to confirm
+                  </p>
+                  <Input
+                    value={transferConfirm}
+                    onChange={(e) => setTransferConfirm(e.target.value)}
+                    placeholder="TRANSFER"
+                    className="font-mono"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { setShowTransfer(false); setTransferTargetId(""); setTransferConfirm("") }}
+                    disabled={transferring}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={handleTransferOwnership}
+                    disabled={transferring || !transferTargetId || transferConfirm !== "TRANSFER"}
+                  >
+                    {transferring ? "Transferring…" : "Transfer ownership"}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  )
+}

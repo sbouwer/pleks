@@ -10,6 +10,11 @@ import { requireAdminAuth } from "@/lib/admin/auth"
 import { createServiceClient } from "@/lib/supabase/server"
 import Link from "next/link"
 
+interface AiPurposeRow {
+  purpose: string
+  cost_cents: number
+}
+
 interface SnapshotRow {
   period: string
   email_count: number
@@ -55,11 +60,11 @@ export default async function OrgCostDrillDownPage({
         .gte("period", twelveMthsAgo.toISOString().slice(0, 10))
         .order("period", { ascending: false }),
       db.from("organisations").select("id, name").eq("id", orgId).single(),
-      db.from("ai_usage")
-        .select("purpose, cost_cents")
-        .eq("org_id", orgId)
-        .gte("created_at", twelveMthsAgo.toISOString())
-        .eq("success", true),
+      // RPC aggregates in Postgres — avoids PostgREST 1,000-row default truncation.
+      db.rpc("get_ai_usage_agg_by_purpose", {
+        p_org_id: orgId,
+        p_start:  twelveMthsAgo.toISOString(),
+      }),
     ])
 
   if (snapErr) console.error("[platform-health/org] snapshots failed:", snapErr.message)
@@ -69,13 +74,8 @@ export default async function OrgCostDrillDownPage({
   const rows = (snapshots ?? []) as SnapshotRow[]
   const orgName = (org as { name: string } | null)?.name ?? orgId
 
-  // AI spend by purpose
-  const purposeTotals = new Map<string, number>()
-  for (const r of aiByPurpose ?? []) {
-    const p = r.purpose as string
-    purposeTotals.set(p, (purposeTotals.get(p) ?? 0) + ((r.cost_cents as number) ?? 0))
-  }
-  const purposeEntries = [...purposeTotals.entries()].sort((a, b) => b[1] - a[1])
+  // AI spend by purpose — already aggregated and sorted by the RPC
+  const purposeEntries = (aiByPurpose as AiPurposeRow[] | null ?? []).map(r => [r.purpose, r.cost_cents] as const)
 
   return (
     <div className="space-y-8">

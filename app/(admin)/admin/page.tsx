@@ -1,154 +1,145 @@
 /**
- * app/(admin)/admin/page.tsx — FILL: one-line purpose
+ * app/(admin)/admin/page.tsx — Platform admin KPI dashboard
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /admin
+ * Auth:   requireAdminAuth() — HMAC pleks_admin_token cookie
+ * Data:   getAdminDashboardData() — parallel Supabase queries (page is dynamic via cookies()).
+ *         MRRSnapshotCard and SentryErrorsCard fetch their own data independently.
  */
 import { requireAdminAuth } from "@/lib/admin/auth"
-import { createServiceClient } from "@/lib/supabase/server"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { formatDateShort } from "@/lib/reports/periods"
-import { PrimeRateWidget } from "./PrimeRateWidget"
+import { getAdminDashboardData } from "@/lib/admin/dashboard-queries"
+import { AttentionQueueCard }    from "@/components/admin/DashboardCards/AttentionQueueCard"
+import { TierDistributionCard }  from "@/components/admin/DashboardCards/TierDistributionCard"
+import { MRRSnapshotCard }       from "@/components/admin/DashboardCards/MRRSnapshotCard"
+import { ConversionFunnelCard }  from "@/components/admin/DashboardCards/ConversionFunnelCard"
+import { RecentSignupsCard }     from "@/components/admin/DashboardCards/RecentSignupsCard"
+import { FailedCronsCard }       from "@/components/admin/DashboardCards/FailedCronsCard"
+import { SentryErrorsCard }      from "@/components/admin/DashboardCards/SentryErrorsCard"
+import { UptimeHeartbeatCard }   from "@/components/admin/DashboardCards/UptimeHeartbeatCard"
+import { PrimeRateCard }         from "@/components/admin/DashboardCards/PrimeRateCard"
+import { CostHealthCard }        from "@/components/admin/DashboardCards/CostHealthCard"
+
+// Page is dynamic via requireAdminAuth() → cookies(). No revalidate config —
+// the ISR + cookies() combination is a hard error in Next.js 16.
+
+function getGreeting(): string {
+  const h = ((new Date().getUTCHours() + 2) % 24 + 24) % 24 // SAST
+  if (h < 12) return "Good morning"
+  if (h < 17) return "Good afternoon"
+  return "Good evening"
+}
+
+function getSastTime(): string {
+  return new Date().toLocaleString("en-ZA", {
+    timeZone: "Africa/Johannesburg",
+    dateStyle: "medium",
+    timeStyle: "short",
+  })
+}
+
+function buildSummaryLine(snap: Awaited<ReturnType<typeof getAdminDashboardData>>): string {
+  const parts: string[] = []
+  if (snap.attentionQueue.length > 0) parts.push(`${snap.attentionQueue.length} item${snap.attentionQueue.length === 1 ? "" : "s"} need attention`)
+  if (snap.failedCrons.length > 0) parts.push(`${snap.failedCrons.length} cron${snap.failedCrons.length === 1 ? "" : "s"} failing`)
+  if (snap.funnel.trialing > 0) parts.push(`${snap.funnel.trialing} trialing`)
+  if (parts.length === 0) return "All systems nominal."
+  return parts.join(". ") + "."
+}
 
 export default async function AdminOverviewPage() {
   await requireAdminAuth()
-  const supabase = await createServiceClient()
-
-  const [orgsRes, paidRes, trialingRes, waitlistRes] = await Promise.all([
-    supabase.from("organisations").select("id", { count: "exact", head: true }),
-    supabase.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "active").neq("tier", "owner"),
-    supabase.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "trialing"),
-    supabase.from("waitlist").select("id", { count: "exact", head: true }),
-  ])
-
-  // Recent orgs
-  const { data: recentOrgs } = await supabase
-    .from("organisations")
-    .select("id, name, type, founding_agent, created_at")
-    .order("created_at", { ascending: false })
-    .limit(10)
-
-  // Get subscription info for recent orgs
-  const orgIds = (recentOrgs ?? []).map((o) => o.id)
-  const { data: orgSubs } = orgIds.length > 0
-    ? await supabase.from("subscriptions").select("org_id, tier, status").in("org_id", orgIds)
-    : { data: [] }
-  const subByOrg = new Map((orgSubs ?? []).map((s) => [s.org_id, s]))
-
-  // Expiring trials
-  const sevenDays = new Date(new Date().getTime() + 7 * 24 * 60 * 60 * 1000)
-  const { data: expiringTrials } = await supabase
-    .from("subscriptions")
-    .select("org_id, trial_ends_at, organisations(name)")
-    .eq("status", "trialing")
-    .eq("trial_converted", false)
-    .lte("trial_ends_at", sevenDays.toISOString())
-    .gte("trial_ends_at", new Date().toISOString())
-
-  // Current prime rate
-  const { data: primeRate } = await supabase
-    .from("prime_rates")
-    .select("rate_percent, effective_date")
-    .order("effective_date", { ascending: false })
-    .limit(1)
-    .single()
-
-  // Recent waitlist
-  const { data: recentWaitlist } = await supabase
-    .from("waitlist")
-    .select("email, role, created_at")
-    .order("created_at", { ascending: false })
-    .limit(10)
+  const snap = await getAdminDashboardData()
+  const adminName = (process.env.ADMIN_NAME ?? "").split(" ")[0] || "Admin"
 
   return (
-    <div className="space-y-6">
-      <h1 className="font-heading text-2xl">Overview</h1>
+    <div>
+      {/* Page header — D-ADMIN-22 operator context bar */}
+      <div style={{ marginBottom: 28 }}>
+        {/* Context bar */}
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          marginBottom: 10,
+          fontFamily: "var(--mono)",
+          fontSize: 10.5,
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+          color: "var(--ink-mute)",
+        }}>
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--positive)", display: "inline-block", flexShrink: 0 }} />
+          <span>Operator</span>
+          <span>·</span>
+          <span>{getSastTime()} SAST</span>
+        </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Organisations</p><p className="font-heading text-2xl">{orgsRes.count ?? 0}</p></CardContent></Card>
-        <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Paid subscribers</p><p className="font-heading text-2xl">{paidRes.count ?? 0}</p></CardContent></Card>
-        <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Trialing</p><p className="font-heading text-2xl">{trialingRes.count ?? 0}</p></CardContent></Card>
-        <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Waitlist</p><p className="font-heading text-2xl">{waitlistRes.count ?? 0}</p></CardContent></Card>
-        <PrimeRateWidget
-          currentRate={primeRate?.rate_percent ?? 11.25}
-          effectiveSince={primeRate?.effective_date ?? "2024-01-01"}
-        />
+        <p style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.01em" }}>
+          {getGreeting()}, {adminName}.
+        </p>
+        <p style={{ margin: "0 0 18px", fontSize: 13.5, color: "var(--ink-mute)" }}>
+          {buildSummaryLine(snap)}
+        </p>
+        <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+          {[
+            { label: "Total orgs",   value: snap.totalOrgs },
+            { label: "Active (paid)", value: snap.activeOrgs },
+            { label: "Trialing",     value: snap.funnel.trialing },
+            { label: "Waitlist",     value: snap.funnel.waitlist },
+          ].map(({ label, value }) => (
+            <div key={label}>
+              <p style={{
+                margin: "0 0 2px",
+                fontFamily: "var(--mono)",
+                fontSize: 10,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                color: "var(--ink-mute)",
+              }}>
+                {label}
+              </p>
+              <p style={{
+                margin: 0,
+                fontFamily: "var(--mono)",
+                fontSize: 24,
+                fontWeight: 600,
+                color: "var(--ink)",
+                fontFeatureSettings: '"tnum"',
+                lineHeight: 1,
+              }}>
+                {value.toLocaleString()}
+              </p>
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* Expiring trials */}
-      {(expiringTrials ?? []).length > 0 && (
-        <Card className="border-amber-300/50">
-          <CardHeader><CardTitle className="text-sm text-amber-600">Trials expiring within 7 days</CardTitle></CardHeader>
-          <CardContent>
-            <table className="w-full text-sm">
-              <thead><tr className="border-b text-xs text-muted-foreground"><th className="text-left py-2">Org</th><th className="text-left py-2">Ends</th><th className="text-right py-2">Days</th></tr></thead>
-              <tbody>
-                {(expiringTrials ?? []).map((t) => {
-                  const org = t.organisations as unknown as { name: string } | null
-                  const days = Math.ceil((new Date(t.trial_ends_at!).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
-                  return (
-                    <tr key={t.org_id} className="border-b border-border/50">
-                      <td className="py-2">{org?.name ?? t.org_id}</td>
-                      <td className="py-2">{formatDateShort(new Date(t.trial_ends_at!))}</td>
-                      <td className="text-right py-2"><Badge variant="secondary">{days}d</Badge></td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
-      )}
+      {/* 12-col KPI grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gap: 16 }}>
 
-      {/* Recent orgs */}
-      <Card>
-        <CardHeader><CardTitle className="text-sm">Recent signups</CardTitle></CardHeader>
-        <CardContent className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead><tr className="border-b text-xs text-muted-foreground"><th className="text-left py-2">Name</th><th className="text-left py-2">Type</th><th className="text-left py-2">Tier</th><th className="text-left py-2">Status</th><th className="text-center py-2">Founding</th><th className="text-left py-2">Created</th></tr></thead>
-            <tbody>
-              {(recentOrgs ?? []).map((o) => {
-                const sub = subByOrg.get(o.id)
-                return (
-                  <tr key={o.id} className="border-b border-border/50">
-                    <td className="py-2"><a href={`/admin/orgs/${o.id}`} className="hover:text-brand">{o.name}</a></td>
-                    <td className="py-2 capitalize text-xs">{o.type}</td>
-                    <td className="py-2 capitalize text-xs">{sub?.tier ?? "—"}</td>
-                    <td className="py-2 text-xs">{sub?.status ?? "—"}</td>
-                    <td className="text-center py-2">{o.founding_agent ? "Yes" : "—"}</td>
-                    <td className="py-2 text-xs">{formatDateShort(new Date(o.created_at))}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </CardContent>
-      </Card>
+        {/* Row 1 — 8 + 4 = 12 */}
+        <AttentionQueueCard
+          items={snap.attentionQueue}
+          totalCount={snap.attentionQueue.length}
+        />
+        <TierDistributionCard tiers={snap.tierDistribution} />
 
-      {/* Recent waitlist */}
-      {(recentWaitlist ?? []).length > 0 && (
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Recent waitlist</CardTitle></CardHeader>
-          <CardContent>
-            <table className="w-full text-sm">
-              <thead><tr className="border-b text-xs text-muted-foreground"><th className="text-left py-2">Email</th><th className="text-left py-2">Role</th><th className="text-left py-2">Signed up</th></tr></thead>
-              <tbody>
-                {(recentWaitlist ?? []).map((w, i) => (
-                  <tr key={i} className="border-b border-border/50">
-                    <td className="py-2">{w.email}</td>
-                    <td className="py-2 capitalize text-xs">{w.role ?? "—"}</td>
-                    <td className="py-2 text-xs">{formatDateShort(new Date(w.created_at))}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
-      )}
+        {/* Row 2 — 12 (full width MRR with trend chart) */}
+        <MRRSnapshotCard />
+
+        {/* Row 3 — 4 + 4 + 4 = 12 */}
+        <ConversionFunnelCard funnel={snap.funnel} />
+        <RecentSignupsCard signups={snap.recentSignups} />
+        <FailedCronsCard failed={snap.failedCrons} />
+
+        {/* Row 4 — 8 + 4 = 12 */}
+        <SentryErrorsCard />
+        <PrimeRateCard primeRate={snap.primeRate} />
+
+        {/* Row 5 — 8 + 4 = 12 */}
+        <UptimeHeartbeatCard />
+        <CostHealthCard />
+
+      </div>
     </div>
   )
 }

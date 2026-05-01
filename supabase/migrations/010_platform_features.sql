@@ -1098,3 +1098,29 @@ LANGUAGE sql STABLE SECURITY DEFINER AS $$
     AND org_id IS NOT NULL
   GROUP BY org_id;
 $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §18  Admin drill-down: AI usage aggregated by purpose for a single org
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- Per-org, per-purpose aggregate helper for the admin cost drill-down page.
+-- Avoids PostgREST 1,000-row default that would silently truncate high-volume orgs.
+CREATE OR REPLACE FUNCTION get_ai_usage_agg_by_purpose(
+  p_org_id uuid,
+  p_start  timestamptz
+)
+RETURNS TABLE (
+  purpose    text,
+  cost_cents bigint
+)
+LANGUAGE sql STABLE SECURITY DEFINER AS $$
+  SELECT
+    purpose,
+    sum(cost_cents) AS cost_cents
+  FROM ai_usage
+  WHERE org_id     = p_org_id
+    AND created_at >= p_start
+    AND success    = true
+  GROUP BY purpose
+  ORDER BY sum(cost_cents) DESC;
+$$;

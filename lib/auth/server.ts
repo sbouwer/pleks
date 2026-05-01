@@ -1,13 +1,16 @@
 /**
  * lib/auth/server.ts — Cached per-request server auth helpers
  *
- * getServerUser()          — GoTrue-verified user (not cookie-spoofable; one round-trip per render tree)
- * getServerOrgMembership() — org_id + role from pleks_org cookie (zero DB) or user_orgs DB fallback
+ * getServerUser()             — GoTrue-verified user (not cookie-spoofable; one round-trip per render tree)
+ * getServerOrgMembership()    — org_id + role from pleks_org cookie (zero DB) or user_orgs DB fallback
+ * getCurrentOrgCapabilities() — OrgCapabilities for the current org (ADDENDUM_61A — org-type-aware rendering)
  */
 import { cache } from "react"
 import { cookies } from "next/headers"
-import { createClient } from "@/lib/supabase/server"
+import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { setSentryUser } from "@/lib/observability/user-context"
+import { getOrgCapabilities, type OrgCapabilities } from "@/lib/org/capabilities"
+import type { OrgType } from "@/lib/constants"
 
 /**
  * Cached per-request server auth helpers.
@@ -64,4 +67,46 @@ export const getServerOrgMembership = cache(async () => {
 
   if (data) setSentryUser({ id: user.id, org_id: data.org_id, role: data.role })
   return data ? { ...data, tier: null } : null
+})
+
+/**
+ * Org capabilities — cached per render tree (ADDENDUM_61A).
+ * Resolves org type + name from DB, derives the full capability object.
+ * Use in server components for redirect guards and capability-aware rendering.
+ *
+ * When §6.4 (cookie payload extension) ships, this can read type+name from
+ * the pleks_org cookie to eliminate the DB round-trip. Until then it queries
+ * once per render tree (React.cache deduplicates).
+ */
+export const getCurrentOrgCapabilities = cache(async (): Promise<OrgCapabilities | null> => {
+  const membership = await getServerOrgMembership()
+  if (!membership) return null
+
+  // Fast path: pleks_org cookie carries type+name once proxy.ts §6.4 ships.
+  const cookieStore = await cookies()
+  const raw = cookieStore.get("pleks_org")?.value
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as { type?: string; name?: string }
+      if (parsed.type && parsed.name) {
+        return getOrgCapabilities(parsed.type as OrgType, parsed.name)
+      }
+    } catch { /* fall through to DB */ }
+  }
+
+  // Slow path: DB query (cookie not yet populated — one round-trip, cached per render tree).
+  const service = await createServiceClient()
+  const { data: org, error } = await service
+    .from("organisations")
+    .select("type, name")
+    .eq("id", membership.org_id)
+    .single()
+
+  if (error) {
+    console.error("[getCurrentOrgCapabilities] query failed:", error.message)
+    return null
+  }
+  if (!org) return null
+
+  return getOrgCapabilities((org.type as OrgType) ?? "agency", org.name as string)
 })
