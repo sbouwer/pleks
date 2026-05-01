@@ -3,7 +3,9 @@
  *
  * Route:  GET /api/cron/process-audit-exports
  * Auth:   x-cron-secret header (CRON_SECRET env var)
- * Notes:  Runs every 2 minutes via Vercel Cron. Processes up to 3 jobs per invocation.
+ * Notes:  Called from the daily orchestrator (05:00 UTC) — not a standalone Vercel cron
+ *         (Hobby plan supports daily crons only; process-audit-exports is wired as a step
+ *         in /api/cron/daily). Processes up to 3 queued jobs per invocation.
  *         Uploads CSV to Supabase Storage, updates job record with signed URL (7-day TTL).
  *         Sends Resend email to ADMIN_EMAIL when complete (no-op if RESEND_API_KEY unset).
  */
