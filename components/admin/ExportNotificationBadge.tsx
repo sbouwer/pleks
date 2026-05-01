@@ -7,12 +7,12 @@
 import Link from "next/link"
 import { createServiceClient } from "@/lib/supabase/server"
 
-export async function ExportNotificationBadge({ adminEmail }: { adminEmail: string }) {
+export async function ExportNotificationBadge({ requestedBy }: Readonly<{ requestedBy: string }>) {
   const db = await createServiceClient()
   const { data } = await db
     .from("audit_exports")
     .select("id, signed_url, row_count, completed_at, filter_params")
-    .eq("requested_by", adminEmail)
+    .eq("requested_by", requestedBy)
     .eq("status", "completed")
     .is("notification_sent_at", null)
     .order("completed_at", { ascending: false })

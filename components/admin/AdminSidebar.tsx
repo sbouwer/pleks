@@ -14,20 +14,17 @@ import { createServiceClient } from "@/lib/supabase/server"
 interface InboxCounts {
   feedback: number
   lease_requests: number
-  contact_leads: number
 }
 
 async function getInboxCounts(): Promise<InboxCounts> {
   const db = await createServiceClient()
-  const [fbRes, lrRes, clRes] = await Promise.all([
+  const [fbRes, lrRes] = await Promise.all([
     db.from("feedback_submissions").select("id", { count: "exact", head: true }).in("status", ["open", "in_progress"]),
     db.from("custom_lease_requests").select("id", { count: "exact", head: true }).eq("status", "pending"),
-    db.from("contact_leads").select("id", { count: "exact", head: true }).eq("status", "new"),
   ])
   return {
     feedback:       fbRes.count ?? 0,
     lease_requests: lrRes.count ?? 0,
-    contact_leads:  clRes.count ?? 0,
   }
 }
 
@@ -190,7 +187,7 @@ export async function AdminSidebar() {
             <NavItem href="/admin/orgs"          label="Organisations"  pathname={pathname} />
             <NavItem href="/admin/subscriptions" label="Subscriptions"  pathname={pathname} />
             <NavItem href="/admin/waitlist"       label="Waitlist"      pathname={pathname} />
-            <NavItem href="/admin/contact-leads"  label="Contact leads" pathname={pathname} badge={counts.contact_leads} />
+            {/* Contact leads — nav item stubbed until ADDENDUM_00J ships the page */}
           </ul>
         </div>
 
@@ -205,9 +202,9 @@ export async function AdminSidebar() {
         <div style={{ marginTop: 14 }}>
           <p style={GROUP_TITLE_STYLE}>Platform</p>
           <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-            <NavItem href="/admin/platform-health"          label="Health"  pathname={pathname} />
-            <NavItem href="https://sentry.io"               label="Errors"  pathname={pathname} external />
-            <NavItem href="https://uptime.betterstack.com"  label="Uptime"  pathname={pathname} external />
+            <NavItem href="/admin/platform-health"                                                              label="Health"  pathname={pathname} />
+            <NavItem href={`https://${process.env.SENTRY_ORG ?? "sentry"}.sentry.io/issues/`}               label="Errors"  pathname={pathname} external />
+            <NavItem href="https://uptime.betterstack.com/monitors"                                          label="Uptime"  pathname={pathname} external />
           </ul>
         </div>
 

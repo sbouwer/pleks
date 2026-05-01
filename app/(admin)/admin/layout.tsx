@@ -9,6 +9,7 @@ import { cookies } from "next/headers"
 import { verifyAdminToken } from "@/lib/auth/admin-token"
 import { AdminSidebar } from "@/components/admin/AdminSidebar"
 import { AdminTopBar } from "@/components/admin/AdminTopBar"
+import { ExportNotificationBadge } from "@/components/admin/ExportNotificationBadge"
 
 export default async function AdminLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const cookieStore = await cookies()
@@ -24,7 +25,9 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
       <div style={{ display: "flex", flex: 1 }}>
         <AdminSidebar />
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-          <AdminTopBar />
+          <AdminTopBar>
+            <ExportNotificationBadge requestedBy={token?.slice(0, 16) ?? "admin"} />
+          </AdminTopBar>
           <main style={{ flex: 1, background: "var(--paper)", overflowY: "auto", padding: "28px 32px" }}>
             {children}
           </main>
