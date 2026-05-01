@@ -6,13 +6,14 @@
  * Data:   messaging_usage, ai_usage, organisations (read); platform_cost_snapshots (write)
  * Notes:  Rebuilds current-month rows only. Closed months are frozen (never overwritten).
  *         maxDuration 300s — snapshot build scans multiple tables across all orgs.
+ *         Vercel Hobby caps at 60s; export is honoured on Pro and above.
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { buildCostSnapshots } from "@/lib/observability/cost"
 import * as Sentry from "@sentry/nextjs"
 
-export const runtime    = "nodejs"
+export const runtime     = "nodejs"
 export const maxDuration = 300
 
 export async function GET(request: NextRequest) {

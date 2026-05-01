@@ -300,8 +300,11 @@ export async function proxy(request: NextRequest) {
   return handleProtectedRoute(rule, request)
 }
 
+// Matcher must be a literal string (or array of literals). Next.js 16 statically
+// analyzes the matcher value and rejects non-literal AST nodes (like String.raw
+// tagged templates) with "Invalid segment configuration export detected" — even
+// though the runtime value is a valid regex string. Backslashes for regex escapes
+// must be doubled here since this is a normal string literal, not a raw one.
 export const config = {
-  matcher: [
-    String.raw`/((?!_next/static|_next/image|_next/data|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)`,
-  ],
+  matcher: "/((?!_next/static|_next/image|_next/data|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
 }

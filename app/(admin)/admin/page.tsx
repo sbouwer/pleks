@@ -3,7 +3,7 @@
  *
  * Route:  /admin
  * Auth:   requireAdminAuth() — HMAC pleks_admin_token cookie
- * Data:   getAdminDashboardData() — parallel Supabase queries, cached 60s.
+ * Data:   getAdminDashboardData() — parallel Supabase queries (page is dynamic via cookies()).
  *         MRRSnapshotCard and SentryErrorsCard fetch their own data independently.
  */
 import { requireAdminAuth } from "@/lib/admin/auth"
@@ -19,7 +19,8 @@ import { UptimeHeartbeatCard }   from "@/components/admin/DashboardCards/UptimeH
 import { PrimeRateCard }         from "@/components/admin/DashboardCards/PrimeRateCard"
 import { CostHealthCard }        from "@/components/admin/DashboardCards/CostHealthCard"
 
-export const revalidate = 60
+// Page is dynamic via requireAdminAuth() → cookies(). No revalidate config —
+// the ISR + cookies() combination is a hard error in Next.js 16.
 
 function getGreeting(): string {
   const h = ((new Date().getUTCHours() + 2) % 24 + 24) % 24 // SAST
