@@ -100,13 +100,16 @@ async function refreshOrgCookieParallel(
   service: Awaited<ReturnType<typeof createServiceClient>>,
   userId: string, orgId: string, supabaseResponse: NextResponse
 ) {
-  const [orgsRes, subRes] = await Promise.all([
+  const [orgsRes, subRes, orgRes] = await Promise.all([
     service.from("user_orgs").select("role").eq("user_id", userId).eq("org_id", orgId).is("deleted_at", null).single(),
     service.from("subscriptions").select("tier, status, trial_tier, trial_ends_at, trial_converted").eq("org_id", orgId).in("status", ["active", "trialing"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    service.from("organisations").select("type, name").eq("id", orgId).single(),
   ])
   if (orgsRes.data) {
     supabaseResponse.cookies.set("pleks_org", JSON.stringify({
-      org_id: orgId, role: orgsRes.data.role, tier: deriveTierFromSub(subRes.data), user_id: userId,
+      org_id: orgId, role: orgsRes.data.role, tier: deriveTierFromSub(subRes.data),
+      type: orgRes.data?.type ?? "agency", name: orgRes.data?.name ?? "",
+      user_id: userId,
     }), { ...AUTH_COOKIE_OPTS, maxAge: 300 })
   }
 }
@@ -121,13 +124,17 @@ async function setOrgCookiesFromDb(
   if (!orgs?.length) return !hasOrgCookieRaw
 
   const orgId = orgs[0].org_id
-  const { data: sub } = await service
-    .from("subscriptions").select("tier, status, trial_tier, trial_ends_at, trial_converted")
-    .eq("org_id", orgId).in("status", ["active", "trialing"]).order("created_at", { ascending: false }).limit(1).maybeSingle()
+  const [subData, orgData] = await Promise.all([
+    service.from("subscriptions").select("tier, status, trial_tier, trial_ends_at, trial_converted")
+      .eq("org_id", orgId).in("status", ["active", "trialing"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    service.from("organisations").select("type, name").eq("id", orgId).single(),
+  ])
 
   supabaseResponse.cookies.set("pleks_has_org", JSON.stringify({ org_id: orgId, user_id: user.id }), { ...AUTH_COOKIE_OPTS, maxAge: 60 * 60 * 24 * 7 })
   supabaseResponse.cookies.set("pleks_org", JSON.stringify({
-    org_id: orgId, role: orgs[0].role, tier: deriveTierFromSub(sub), user_id: user.id,
+    org_id: orgId, role: orgs[0].role, tier: deriveTierFromSub(subData.data),
+    type: orgData.data?.type ?? "agency", name: orgData.data?.name ?? "",
+    user_id: user.id,
   }), { ...AUTH_COOKIE_OPTS, maxAge: 300 })
   return false
 }

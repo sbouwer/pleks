@@ -1,13 +1,12 @@
 "use client"
 
 /**
- * components/layout/Sidebar.tsx — FILL: one-line purpose
+ * components/layout/Sidebar.tsx — Main navigation sidebar for the agent workspace
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   Rendered inside the dashboard layout (gateway-protected)
+ * Notes:  Nav items filtered by tier (useTier) and org type (useOrgCapabilities).
+ *         /landlords and /hoa hidden for landlord-type orgs (D-61A-04).
+ *         Trust Ledger label reflects trustAccountLabel capability (D-61A-07).
  */
 
 import { useState } from "react"
@@ -17,6 +16,7 @@ import { SidebarContent, type NavGroup } from "./SidebarContent"
 import { SettingsSidebar } from "./SettingsSidebar"
 import { useTier } from "@/hooks/useTier"
 import { useNavBadges } from "@/hooks/useNavBadges"
+import { useOrgCapabilities } from "@/hooks/useOrgCapabilities"
 import {
   LayoutDashboard,
   Building2,
@@ -89,6 +89,7 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false)
   const { isSteward, isPortfolio, isFirm } = useTier()
   const badges = useNavBadges()
+  const caps = useOrgCapabilities()
 
   // Settings pages get their own dedicated sidebar
   if (pathname.startsWith("/settings")) {
@@ -103,22 +104,28 @@ export function Sidebar() {
     "/applications": badges.applications,
     "/maintenance": badges.maintenance,
   }
-  // Arrears lives under Finance → Payments hub, not a direct nav item — skip for now
 
-  // Filter tier-gated nav items, inject action-required counts
   const groups = NAV_GROUPS.map((group) => ({
     ...group,
     items: group.items
       .filter((item) => {
+        // Tier gates
         if (item.href === "/calendar") return isPortfolio || isFirm
         if (item.href === "/finance/trust-ledger") return isSteward || isPortfolio || isFirm
+        // Org-type gates — D-61A-04: hide, don't grey-out
+        if (item.href === "/landlords" && caps !== null && !caps.hasLandlordsList) return false
+        if (item.href === "/hoa" && caps !== null && !caps.hasHOA) return false
         return true
       })
       .map((item) => ({
         ...item,
+        // D-61A-07: trust ledger relabelled for landlord-type orgs
+        label: item.href === "/finance/trust-ledger" && caps?.trustAccountLabel === "deposits"
+          ? "Deposit holdings"
+          : item.label,
         count: BADGE_COUNTS[item.href] ?? undefined,
       })),
-  }))
+  })).filter((group) => group.items.length > 0)
 
   return (
     <aside

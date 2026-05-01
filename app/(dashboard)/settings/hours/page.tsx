@@ -1,15 +1,13 @@
 /**
- * app/(dashboard)/settings/hours/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/settings/hours/page.tsx — Opening hours settings (server); redirects landlord-type orgs
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /settings/hours
+ * Auth:   Dashboard layout gateway; org-type guard redirects landlord orgs to /settings/details
+ * Data:   organisations table via Supabase server client; getServerOrgMembership for org_id
  */
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
-import { getServerOrgMembership } from "@/lib/auth/server"
+import { getServerOrgMembership, getCurrentOrgCapabilities } from "@/lib/auth/server"
 import { HoursForm } from "./HoursForm"
 
 const SELECT_FIELDS = [
@@ -21,6 +19,9 @@ const SELECT_FIELDS = [
 export default async function HoursPage() {
   const membership = await getServerOrgMembership()
   if (!membership) redirect("/login")
+
+  const caps = await getCurrentOrgCapabilities()
+  if (!caps?.hasOpeningHours) redirect("/settings/details")
 
   const supabase = await createClient()
   const { data: org } = await supabase

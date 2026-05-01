@@ -1,19 +1,17 @@
 "use client"
 
 /**
- * components/layout/MobileMoreSheet.tsx — FILL: one-line purpose
+ * components/layout/MobileMoreSheet.tsx — Mobile "More" navigation sheet
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   Rendered inside the dashboard layout (gateway-protected)
+ * Notes:  Mirrors Sidebar.tsx filtering — /landlords hidden if !hasLandlordsList,
+ *         /hoa hidden if !hasHOA (D-61A-04). Trust Ledger relabelled per trustAccountLabel (D-61A-07).
  */
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { useRouter } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { useOrgCapabilities } from "@/hooks/useOrgCapabilities"
 
 const SECTIONS = [
   {
@@ -55,19 +53,36 @@ const SECTIONS = [
 ]
 
 interface MobileMoreSheetProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  readonly open: boolean
+  readonly onOpenChange: (open: boolean) => void
 }
 
 export function MobileMoreSheet({ open, onOpenChange }: MobileMoreSheetProps) {
   const pathname = usePathname()
   const router = useRouter()
+  const caps = useOrgCapabilities()
 
   async function handleSignOut() {
     await fetch("/api/auth/logout", { method: "POST" })
     onOpenChange(false)
     router.push("/login")
   }
+
+  const sections = SECTIONS.map((section) => ({
+    ...section,
+    items: section.items
+      .filter((item) => {
+        if (item.href === "/landlords" && caps !== null && !caps.hasLandlordsList) return false
+        if (item.href === "/hoa" && caps !== null && !caps.hasHOA) return false
+        return true
+      })
+      .map((item) => ({
+        ...item,
+        label: item.href === "/finance/trust-ledger" && caps?.trustAccountLabel === "deposits"
+          ? "Deposit holdings"
+          : item.label,
+      })),
+  })).filter((section) => section.items.length > 0)
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -80,7 +95,7 @@ export function MobileMoreSheet({ open, onOpenChange }: MobileMoreSheetProps) {
         </SheetHeader>
 
         <div className="px-4 pt-4 pb-6 space-y-5">
-          {SECTIONS.map((section) => (
+          {sections.map((section) => (
             <div key={section.label}>
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">
                 {section.label}

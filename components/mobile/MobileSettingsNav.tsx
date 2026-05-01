@@ -1,65 +1,68 @@
 "use client"
 
 /**
- * components/mobile/MobileSettingsNav.tsx — FILL: one-line purpose
+ * components/mobile/MobileSettingsNav.tsx — Mobile settings navigation list
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /settings (mobile)
+ * Auth:   Rendered inside the dashboard layout (gateway-protected)
+ * Notes:  Mirrors SettingsSidebar.tsx filtering — team/hours/compliance hidden for
+ *         landlord-type orgs via useOrgCapabilities() (D-61A-04).
  */
 
 import Link from "next/link"
 import { ChevronLeft, ChevronRight } from "lucide-react"
-
-const SETTINGS_GROUPS = [
-  {
-    title: "Organisation",
-    items: [
-      { href: "/settings/details", label: "Details" },
-      { href: "/settings/team", label: "Team" },
-      { href: "/settings/hours", label: "Opening hours" },
-      { href: "/settings/branding", label: "Branding" },
-      { href: "/settings/configuration", label: "Configuration" },
-    ],
-  },
-  {
-    title: "Communication",
-    items: [
-      { href: "/settings/documents/templates", label: "Templates" },
-    ],
-  },
-  {
-    title: "Documents",
-    items: [
-      { href: "/settings/lease-templates", label: "Lease templates" },
-      { href: "/settings/compliance", label: "Compliance" },
-    ],
-  },
-  {
-    title: "Account",
-    items: [
-      { href: "/settings/deposits", label: "Deposits" },
-      { href: "/settings/subscription", label: "Subscription" },
-      { href: "/settings/notifications", label: "Notifications" },
-    ],
-  },
-  {
-    title: "My profile",
-    items: [
-      { href: "/settings/profile/signature", label: "Signature" },
-    ],
-  },
-  {
-    title: "Data",
-    items: [
-      { href: "/settings/import", label: "Import" },
-    ],
-  },
-]
+import { useOrgCapabilities } from "@/hooks/useOrgCapabilities"
 
 export function MobileSettingsNav() {
+  const caps = useOrgCapabilities()
+  const depositLabel = caps?.trustAccountLabel === "deposits" ? "Deposits" : "Trust account"
+
+  const SETTINGS_GROUPS = [
+    {
+      title: "Organisation",
+      items: [
+        { href: "/settings/details", label: "Details" },
+        ...(caps?.hasTeam ? [{ href: "/settings/team", label: "Team" }] : []),
+        ...(caps?.hasOpeningHours ? [{ href: "/settings/hours", label: "Opening hours" }] : []),
+        { href: "/settings/branding", label: "Branding" },
+        { href: "/settings/configuration", label: "Configuration" },
+      ],
+    },
+    {
+      title: "Communication",
+      items: [
+        { href: "/settings/documents/templates", label: "Templates" },
+      ],
+    },
+    {
+      title: "Documents",
+      items: [
+        { href: "/settings/lease-templates", label: "Lease templates" },
+        ...(caps?.hasCompliance ? [{ href: "/settings/compliance", label: "Compliance" }] : []),
+      ],
+    },
+    {
+      title: "Account",
+      items: [
+        { href: "/settings/deposits", label: depositLabel },
+        { href: "/settings/subscription", label: "Subscription" },
+        { href: "/settings/notifications", label: "Notifications" },
+      ],
+    },
+    {
+      title: "My profile",
+      items: [
+        { href: "/settings/profile/signature", label: "Signature" },
+      ],
+    },
+    {
+      title: "Data",
+      items: [
+        { href: "/settings/import", label: "Import" },
+      ],
+    },
+  ].filter((group) => group.items.length > 0)
+
   return (
     <div className="px-4 pb-20">
       <Link
