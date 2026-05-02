@@ -81,7 +81,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   org_id                uuid NOT NULL REFERENCES organisations(id),
   tier                  text NOT NULL DEFAULT 'owner'
-                        CHECK (tier IN ('owner', 'steward', 'portfolio', 'firm')),
+                        CHECK (tier IN ('owner', 'steward', 'growth', 'portfolio', 'firm', 'bespoke')),
   billing_cycle         text NOT NULL DEFAULT 'monthly'
                         CHECK (billing_cycle IN ('monthly', 'annual')),
   amount_cents          integer NOT NULL DEFAULT 0,
@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   cancelled_at          timestamptz,
   -- Trial fields (024_trial_subscriptions)
   trial_tier            text
-    CHECK (trial_tier IS NULL OR trial_tier IN ('steward','portfolio','firm')),
+    CHECK (trial_tier IS NULL OR trial_tier IN ('steward', 'growth', 'portfolio', 'firm', 'bespoke')),
   trial_starts_at       timestamptz,
   trial_ends_at         timestamptz,
   trial_converted       boolean DEFAULT false,

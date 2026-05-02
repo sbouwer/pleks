@@ -2,9 +2,9 @@
  * lib/constants.ts — App-wide constants: tier model, pricing, org/lease enums, and ZAR formatters
  *
  * Notes:  TIER_ORDER/TIER_LIMITS/TIER_PRICING drive canActivateLease and subscription gating.
- *         Annual pricing deferred until post-traction. Bespoke is a sales-only custom tier
- *         (no public price — agreed per contract). No overage charges; activation is blocked
- *         at the lease cap and the user is prompted to upgrade.
+ *         No annual pricing — monthly only. Bespoke is a real tier (monthly base + per-lease
+ *         pricing, enterprise, year 2+). No seat caps. No overage charges; activation is
+ *         blocked at the lease cap and the user is prompted to upgrade.
  */
 export const APP_NAME = "Pleks"
 export const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
@@ -22,8 +22,8 @@ export const TIER_LIMITS = {
   bespoke:   { leases: null },
 } as const
 
-// Monthly pricing in cents. Annual pricing deferred post-traction.
-// Bespoke pricing is per-agreement (bespoke_min_monthly_cents + bespoke_per_lease_cents on subscriptions).
+// Monthly pricing in cents only — no annual option.
+// Bespoke: monthly base + per-lease charge; pricing agreed on contract, null here.
 export const TIER_PRICING = {
   owner:     { monthly: 0 },
   steward:   { monthly: 69900 },
