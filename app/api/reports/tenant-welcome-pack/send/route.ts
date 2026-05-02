@@ -11,7 +11,8 @@ import { buildTenantWelcomePackData } from "@/lib/reports/tenantWelcomePack"
 import { buildTenantWelcomePackHTML } from "@/lib/reports/tenantWelcomePackHTML"
 import { getReportBranding } from "@/lib/reports/reportBranding"
 import { sendEmail } from "@/lib/comms/send-email"
-import { formatZAR } from "@/lib/constants"
+import { formatZAR, type OrgType } from "@/lib/constants"
+import { getOrgCapabilities } from "@/lib/org/capabilities"
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -47,25 +48,32 @@ export async function POST(req: NextRequest) {
     .single()
   if (!membership) return Response.json({ error: "Forbidden" }, { status: 403 })
 
-  const [data, orgInfo] = await Promise.all([
+  const [data, orgInfo, orgRow] = await Promise.all([
     buildTenantWelcomePackData(orgId, leaseId, tenantId),
     getReportBranding(orgId),
+    service.from("organisations").select("type, name").eq("id", orgId).single(),
   ])
+
+  const capabilities = getOrgCapabilities(
+    ((orgRow.data as { type: string } | null)?.type as OrgType) ?? "agency",
+    ((orgRow.data as { name: string } | null)?.name as string) ?? "",
+  )
 
   if (!data.tenantEmail) {
     return Response.json({ error: "Tenant has no email address on file" }, { status: 422 })
   }
 
   // Generate HTML without toolbar for the email
-  const rawHtml = buildTenantWelcomePackHTML(data, orgInfo)
+  const rawHtml = buildTenantWelcomePackHTML(data, orgInfo, undefined, capabilities.copy.signatureAttribution)
 
+  const unitSuffix = data.unitNumber ? " Unit " + data.unitNumber : ""
   const result = await sendEmail({
     orgId,
     templateKey: "reports.tenant_welcome_pack",
     to: { email: data.tenantEmail, name: data.tenantName },
     subject: `Welcome to ${data.propertyName} — Your Tenant Guide`,
     rawHtml,
-    bodyPreview: `Welcome to ${data.propertyName}${data.unitNumber ? ` Unit ${data.unitNumber}` : ""}. Monthly rent: ${formatZAR(data.rentAmountCents)}. Payment ref: ${data.paymentReference}.`,
+    bodyPreview: `Welcome to ${data.propertyName}${unitSuffix}. Monthly rent: ${formatZAR(data.rentAmountCents)}. Payment ref: ${data.paymentReference}.`,
     entityType: "tenant",
     entityId: tenantId,
     triggeredBy: user.id,
