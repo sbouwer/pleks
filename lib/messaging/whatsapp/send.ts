@@ -1,13 +1,13 @@
 "use server"
 
 /**
- * lib/messaging/whatsapp/send.ts — FILL: one-line purpose
+ * lib/messaging/whatsapp/send.ts — sends WhatsApp messages via Africa's Talking
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   tenant_messaging_consent, org_whatsapp_preferences, document_templates,
+ *         whatsapp_messages, communication_log (service client)
+ * Notes:  Enforces consent + CS-window + quota + org opt-in chain before sending.
+ *         Uses document_templates DB table for Meta-approved template content (not registry keys).
+ *         Phase 2 of BUILD_63 will wire this into the channel router.
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { sendWhatsAppMessage } from "./provider"

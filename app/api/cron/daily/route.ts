@@ -27,6 +27,7 @@ import { GET as insuranceRenewals } from "../insurance-renewals/route"
 import { GET as feedbackDigest } from "../feedback-digest/route"
 import { GET as costSnapshots } from "../cost-snapshots/route"
 import { GET as processAuditExports } from "../process-audit-exports/route"
+import { POST as mandatoryRetry } from "../tenant-comms/mandatory-retry/route"
 
 type CronHandler = (req: NextRequest) => Promise<Response>
 
@@ -86,6 +87,7 @@ export async function GET(req: NextRequest) {
   await runJob("feedback_digest", feedbackDigest, cronReq, results)
   await runJob("cost_snapshots", costSnapshots, cronReq, results)
   await runJob("process_audit_exports", processAuditExports, cronReq, results)
+  await runJob("mandatory_retry", mandatoryRetry, cronReq, results)
 
   // Monthly jobs
   if (dayOfMonth === 1) {

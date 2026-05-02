@@ -1144,3 +1144,119 @@ ALTER TABLE subscriptions ADD CONSTRAINT subscriptions_tier_check
 ALTER TABLE subscriptions DROP CONSTRAINT IF EXISTS subscriptions_trial_tier_check;
 ALTER TABLE subscriptions ADD CONSTRAINT subscriptions_trial_tier_check
   CHECK (trial_tier IS NULL OR trial_tier IN ('steward', 'growth', 'portfolio', 'firm'));
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §20  BUILD_63: Tenant communication lifecycle — audit trail + delivery events
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Adds audit-grade fields to communication_log, a delivery-events table fed by
+-- Resend / Africa's Talking webhooks, a mandatory-comm retry queue, and a
+-- platform-level WhatsApp template variant catalog.
+
+-- ── Audit-grade fields on communication_log ────────────────────────────────
+ALTER TABLE communication_log
+  ADD COLUMN IF NOT EXISTS body_full             text,
+  ADD COLUMN IF NOT EXISTS template_version_hash text,
+  ADD COLUMN IF NOT EXISTS tone_variant          text
+    CHECK (tone_variant IN ('friendly','professional','firm','n/a')),
+  ADD COLUMN IF NOT EXISTS trigger_event_type    text,
+  ADD COLUMN IF NOT EXISTS trigger_event_id      uuid,
+  ADD COLUMN IF NOT EXISTS attempt_number        integer NOT NULL DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS first_attempt_log_id  uuid REFERENCES communication_log(id),
+  ADD COLUMN IF NOT EXISTS failed_reason_code    text;
+
+CREATE INDEX IF NOT EXISTS idx_comm_log_trigger
+  ON communication_log(trigger_event_type, trigger_event_id);
+
+CREATE INDEX IF NOT EXISTS idx_comm_log_mandatory
+  ON communication_log(org_id, template_key)
+  WHERE template_key IN (
+    'arrears.letter_of_demand','arrears.final_notice',
+    'lease.renewal_notice','lease.expiry_reminder','lease.terminated',
+    'deposit.return_schedule','deposit.returned',
+    'inspection.move_in_report','inspection.dispute_window',
+    'maintenance.emergency'
+  );
+
+-- ── Delivery events (provider webhooks + portal view events) ──────────────
+CREATE TABLE IF NOT EXISTS communication_delivery_events (
+  id                   uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id               uuid        NOT NULL REFERENCES organisations(id),
+  communication_log_id uuid        NOT NULL REFERENCES communication_log(id),
+  event_type           text        NOT NULL CHECK (event_type IN (
+                         'queued','sent','delivered','opened','clicked',
+                         'bounced_hard','bounced_soft','complained',
+                         'unsubscribed','failed','page_view','portal_view'
+                       )),
+  provider             text        NOT NULL CHECK (provider IN (
+                         'resend','africastalking_sms','africastalking_whatsapp','pleks_portal'
+                       )),
+  provider_event_id    text,
+  occurred_at          timestamptz NOT NULL,
+  raw_payload          jsonb,
+  received_at          timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(provider, provider_event_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_comm_delivery_log
+  ON communication_delivery_events(communication_log_id);
+CREATE INDEX IF NOT EXISTS idx_comm_delivery_org
+  ON communication_delivery_events(org_id, occurred_at DESC);
+
+ALTER TABLE communication_delivery_events ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "org_delivery_read" ON communication_delivery_events;
+CREATE POLICY "org_delivery_read" ON communication_delivery_events
+  FOR SELECT USING (org_id IN (
+    SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL
+  ));
+
+-- ── Mandatory-comm retry queue ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS mandatory_comm_retries (
+  id                   uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id               uuid        NOT NULL REFERENCES organisations(id),
+  communication_log_id uuid        NOT NULL REFERENCES communication_log(id),
+  template_key         text        NOT NULL,
+  recipient_snapshot   jsonb       NOT NULL,
+  attempt_count        integer     NOT NULL DEFAULT 1,
+  next_attempt_at      timestamptz NOT NULL,
+  last_failure_reason  text,
+  surrendered_at       timestamptz,
+  surrender_reason     text,
+  created_at           timestamptz NOT NULL DEFAULT now(),
+  updated_at           timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_mandatory_retries_due
+  ON mandatory_comm_retries(next_attempt_at)
+  WHERE surrendered_at IS NULL;
+
+ALTER TABLE mandatory_comm_retries ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "org_mandatory_retries_read" ON mandatory_comm_retries;
+CREATE POLICY "org_mandatory_retries_read" ON mandatory_comm_retries
+  FOR SELECT USING (org_id IN (
+    SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL
+  ));
+
+-- ── WhatsApp Meta template variant catalog (platform-level, no org_id) ────
+CREATE TABLE IF NOT EXISTS whatsapp_template_variants (
+  id                   uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  template_key         text        NOT NULL,
+  tone_variant         text        NOT NULL CHECK (tone_variant IN ('friendly','professional','firm','n/a')),
+  meta_template_name   text        NOT NULL,
+  language_code        text        NOT NULL DEFAULT 'en_ZA',
+  meta_approval_status text        NOT NULL DEFAULT 'pending'
+                         CHECK (meta_approval_status IN ('pending','approved','rejected','paused')),
+  approved_at          timestamptz,
+  created_at           timestamptz NOT NULL DEFAULT now(),
+  updated_at           timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(template_key, tone_variant, language_code)
+);
+
+CREATE INDEX IF NOT EXISTS idx_wa_variants_key
+  ON whatsapp_template_variants(template_key, tone_variant)
+  WHERE meta_approval_status = 'approved';
+
+-- No RLS needed: platform-level reference table, service-role managed,
+-- readable by authenticated users via service client in router.

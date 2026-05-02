@@ -1,6 +1,10 @@
 /**
- * Single entry point for all outbound emails.
- * Every module calls sendEmail() — never calls Resend directly.
+ * lib/comms/send-email.ts — single entry point for all outbound emails
+ *
+ * Data:   Resend (provider), communication_log (audit), communication_preferences (opt-out)
+ * Notes:  Every module calls sendEmail() — never calls Resend directly.
+ *         BUILD_63: extended with body_full, template_version_hash, tone_variant,
+ *         trigger_event fields, attempt_number, first_attempt_log_id for audit trail.
  *
  * Pipeline:
  *  1. Validate template key
@@ -12,6 +16,7 @@
  *  7. Return { success, logId }
  */
 
+import { createHash } from "node:crypto"
 import { Resend } from "resend"
 import { render } from "@react-email/components"
 import { createServiceClient } from "@/lib/supabase/server"
@@ -51,6 +56,12 @@ export interface SendEmailParams {
     content: string | Buffer  // base64 string or Buffer
     contentType?: string
   }>
+  // BUILD_63 audit fields
+  toneVariant?: "friendly" | "professional" | "firm" | "n/a"
+  triggerEventType?: string  // 'arrears_action' | 'invoice_issued' | 'lease_state' | 'cron:*' | 'manual'
+  triggerEventId?: string    // UUID of the causing entity
+  attemptNumber?: number     // retry chain position (default 1)
+  firstAttemptLogId?: string // UUID of the first attempt's log row (retry chains)
 }
 
 export interface SendEmailResult {
@@ -98,35 +109,64 @@ async function logToDb(
     to: SendEmailParams["to"]
     subject: string
     bodyPreview?: string
+    bodyFull?: string
     entityType?: string
     entityId?: string
     triggeredBy?: string
     status: "sent" | "failed"
     providerId?: string
     failedReason?: string
+    toneVariant?: string
+    triggerEventType?: string
+    triggerEventId?: string
+    attemptNumber?: number
+    firstAttemptLogId?: string
   }
 ): Promise<string> {
+  const templateVersionHash = params.bodyFull
+    ? createHash("sha256").update(params.bodyFull).digest("hex")
+    : null
+
   const { data: log } = await service
     .from("communication_log")
     .insert({
       org_id: params.orgId,
       channel: "email",
-      contact_id: params.to.contactId ?? null,      // existing column name
-      sent_to_email: params.to.email,               // existing column name
-      recipient_name: params.to.name,               // added in migration 027
-      template_key: params.templateKey,             // added in migration 027
+      contact_id: params.to.contactId ?? null,
+      sent_to_email: params.to.email,
+      recipient_name: params.to.name,
+      template_key: params.templateKey,
       subject: params.subject,
-      body: params.bodyPreview?.slice(0, 200) ?? null,  // existing column name
+      body: params.bodyPreview?.slice(0, 200) ?? null,
+      body_full: params.bodyFull ?? null,
+      template_version_hash: templateVersionHash,
       entity_type: params.entityType ?? null,
       entity_id: params.entityId ?? null,
       status: params.status,
-      external_id: params.providerId ?? null,       // existing column name
+      external_id: params.providerId ?? null,
       failed_reason: params.failedReason ?? null,
       triggered_by: params.triggeredBy ?? null,
+      tone_variant: params.toneVariant ?? null,
+      trigger_event_type: params.triggerEventType ?? null,
+      trigger_event_id: params.triggerEventId ?? null,
+      attempt_number: params.attemptNumber ?? 1,
+      first_attempt_log_id: params.firstAttemptLogId ?? null,
+      failed_reason_code: params.failedReason ? deriveFailedReasonCode(params.failedReason) : null,
     })
     .select("id")
     .single()
   return log?.id ?? ""
+}
+
+function deriveFailedReasonCode(reason: string): string {
+  const r = reason.toLowerCase()
+  if (r.includes("hard_bounce") || r.includes("bounced_hard")) return "hard_bounce"
+  if (r.includes("soft_bounce") || r.includes("bounced_soft")) return "soft_bounce"
+  if (r.includes("suppressed")) return "suppressed"
+  if (r.includes("rate_limit") || r.includes("429")) return "rate_limit"
+  if (r.includes("no_consent") || r.includes("consent")) return "no_consent"
+  if (r.includes("no_channel")) return "no_channel_available"
+  return "provider_error"
 }
 
 export async function sendEmail(params: SendEmailParams): Promise<SendEmailResult> {
@@ -173,6 +213,16 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailResul
   const service = await createServiceClient()
   let logId = ""
 
+  // Shared audit fields for both success + failure log rows
+  const auditFields = {
+    bodyFull: html,
+    toneVariant: params.toneVariant,
+    triggerEventType: params.triggerEventType,
+    triggerEventId: params.triggerEventId,
+    attemptNumber: params.attemptNumber,
+    firstAttemptLogId: params.firstAttemptLogId,
+  }
+
   try {
     const result = await getResend().emails.send({
       from: fromAddress,
@@ -197,6 +247,7 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailResul
 
     logId = await logToDb(service, {
       ...params,
+      ...auditFields,
       status: "sent",
       providerId: result.data?.id,
     })
@@ -212,6 +263,7 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailResul
     const message = err instanceof Error ? err.message : "Unknown send error"
     logId = await logToDb(service, {
       ...params,
+      ...auditFields,
       status: "failed",
       failedReason: message,
     })

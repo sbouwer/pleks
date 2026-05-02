@@ -1,18 +1,24 @@
 /**
- * Template registry — every outbound communication template across all modules.
- * Components are wired in as each module's templates are built.
- * is_mandatory = true → bypasses communication_preferences checks (legal requirement).
+ * lib/comms/template-registry.ts — every outbound communication template across all modules.
+ *
+ * Data:   static registry; tone_profile + allowed_channels drive router decisions (BUILD_63)
+ * Notes:  is_mandatory=true bypasses communication_preferences (legal requirement)
+ *         tone_profile drives channel-router channel priority (BUILD_63)
+ *         allowed_channels constrains which channels the router may use per template
  */
 
-export type TemplateChannel  = "email" | "sms" | "both"
-export type TemplateCategory = "applications" | "arrears" | "maintenance" | "inspections" | "leases" | "deposits" | "statements" | "subscriptions" | "portal" | "reports" | "onboarding" | "insurance" | "feedback"
+export type TemplateChannel  = "email" | "sms" | "whatsapp" | "both"
+export type TemplateCategory = "applications" | "arrears" | "maintenance" | "inspections" | "leases" | "deposits" | "statements" | "subscriptions" | "portal" | "reports" | "onboarding" | "insurance" | "feedback" | "rent" | "notices"
+export type ToneProfile      = "transactional" | "relational" | "legal"
 
 export interface TemplateEntry {
   key: string
   channel: TemplateChannel
   category: TemplateCategory
-  is_mandatory: boolean    // true = letter of demand, CPA s14, deposit return, dispute notice
+  is_mandatory: boolean
   description: string
+  tone_profile?: ToneProfile
+  allowed_channels?: Array<"whatsapp" | "sms" | "email">
 }
 
 export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
@@ -295,6 +301,40 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
   // ── Feedback (ADDENDUM_00F) ──────────────────────────────────────────────────
   "feedback.reply":                    { key: "feedback.reply",                    channel: "email", category: "feedback",    is_mandatory: false, description: "Submitter notified when a platform admin replies to their feedback" },
   "feedback.daily_digest":             { key: "feedback.daily_digest",             channel: "email", category: "feedback",    is_mandatory: false, description: "Daily digest of new feedback submissions sent to platform admin inbox" },
+
+  // ── Rent lifecycle (BUILD_63) ─────────────────────────────────────────────
+  "rent.invoice_issued":               { key: "rent.invoice_issued",               channel: "email",    category: "rent",        is_mandatory: false, tone_profile: "transactional", allowed_channels: ["email"],             description: "Monthly rent invoice issued to tenant" },
+  "rent.payment_received":             { key: "rent.payment_received",             channel: "email",    category: "rent",        is_mandatory: false, tone_profile: "transactional", allowed_channels: ["email"],             description: "Rent payment receipt confirmed" },
+  "rent.monthly_statement":            { key: "rent.monthly_statement",            channel: "email",    category: "rent",        is_mandatory: false, tone_profile: "transactional", allowed_channels: ["email"],             description: "Monthly account statement — all charges, payments, balance" },
+
+  // ── Deposit extras (BUILD_63) ─────────────────────────────────────────────
+  "deposit.interest_statement":        { key: "deposit.interest_statement",        channel: "email",    category: "deposits",    is_mandatory: false, tone_profile: "transactional", allowed_channels: ["email"],             description: "Annual deposit interest statement (NCA requirement)" },
+  "deposit.pre_moveout_inspection":    { key: "deposit.pre_moveout_inspection",    channel: "email",    category: "deposits",    is_mandatory: false, tone_profile: "relational",    allowed_channels: ["email", "whatsapp"], description: "Pre-move-out inspection scheduled — tenant checklist reminder" },
+  "deposit.dispute_resolution":        { key: "deposit.dispute_resolution",        channel: "email",    category: "deposits",    is_mandatory: false, tone_profile: "transactional", allowed_channels: ["email"],             description: "Deposit dispute raised — resolution process explained" },
+
+  // ── Arrears lifecycle extras (BUILD_63) ───────────────────────────────────
+  "arrears.reminder_step1":            { key: "arrears.reminder_step1",            channel: "sms",      category: "arrears",     is_mandatory: false, tone_profile: "relational",    allowed_channels: ["whatsapp", "sms"],  description: "Step 1 arrears nudge — friendly tone (cron)" },
+  "arrears.reminder_step2":            { key: "arrears.reminder_step2",            channel: "sms",      category: "arrears",     is_mandatory: false, tone_profile: "relational",    allowed_channels: ["whatsapp", "sms", "email"], description: "Step 2 arrears reminder — escalated tone (cron)" },
+  "arrears.resolved":                  { key: "arrears.resolved",                  channel: "email",    category: "arrears",     is_mandatory: false, tone_profile: "transactional", allowed_channels: ["email"],             description: "Arrears case closed — account up to date" },
+
+  // ── Lease lifecycle extras (BUILD_63) ─────────────────────────────────────
+  "lease.amended":                     { key: "lease.amended",                     channel: "email",    category: "leases",      is_mandatory: false, tone_profile: "transactional", allowed_channels: ["email"],             description: "Lease amendment executed and confirmed" },
+  "lease.escalation_notice":           { key: "lease.escalation_notice",           channel: "email",    category: "leases",      is_mandatory: false, tone_profile: "transactional", allowed_channels: ["email", "whatsapp"], description: "Upcoming rent escalation notice — new amount and date" },
+  "lease.notice_acknowledged":         { key: "lease.notice_acknowledged",         channel: "email",    category: "leases",      is_mandatory: false, tone_profile: "transactional", allowed_channels: ["email"],             description: "Tenant notice-to-vacate received and acknowledged" },
+
+  // ── Inspection lifecycle extras (BUILD_63) ────────────────────────────────
+  "inspection.rescheduled":            { key: "inspection.rescheduled",            channel: "both",     category: "inspections", is_mandatory: false, tone_profile: "relational",    allowed_channels: ["whatsapp", "email"], description: "Inspection rescheduled — new date and time confirmed" },
+  "inspection.move_in_report":         { key: "inspection.move_in_report",         channel: "email",    category: "inspections", is_mandatory: true,  tone_profile: "legal",         allowed_channels: ["email"],             description: "Move-in inspection report delivered to tenant (RHA s5(3)(e) — cannot be unsubscribed)" },
+
+  // ── Maintenance extras (BUILD_63) ─────────────────────────────────────────
+  "maintenance.delay":                 { key: "maintenance.delay",                 channel: "both",     category: "maintenance", is_mandatory: false, tone_profile: "relational",    allowed_channels: ["whatsapp", "email"], description: "Maintenance delay notification with revised ETA" },
+
+  // ── Portal lifecycle extras (BUILD_63) ────────────────────────────────────
+  "portal.invite_reminder":            { key: "portal.invite_reminder",            channel: "sms",      category: "portal",      is_mandatory: false, tone_profile: "relational",    allowed_channels: ["whatsapp", "sms"],  description: "Portal activation reminder — invite still unaccepted at T+7" },
+  "portal.access_revoked":             { key: "portal.access_revoked",             channel: "email",    category: "portal",      is_mandatory: false, tone_profile: "transactional", allowed_channels: ["email"],             description: "Portal access revoked — lease ended or manually removed" },
+
+  // ── Delivery fallback (BUILD_63 §7.2) ─────────────────────────────────────
+  "notice.delivery_fallback":          { key: "notice.delivery_fallback",          channel: "sms",      category: "notices",     is_mandatory: false, tone_profile: "transactional", allowed_channels: ["whatsapp", "sms"],  description: "Side-channel delivery alert: 'We tried to reach you — view your notice here'" },
 }
 
 /** Returns the template entry or throws if the key is unknown */

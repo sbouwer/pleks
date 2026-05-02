@@ -1,11 +1,10 @@
 /**
- * lib/messaging/whatsapp/sms-fallback.ts — FILL: one-line purpose
+ * lib/messaging/whatsapp/sms-fallback.ts — SMS fallback for WhatsApp messages that can't send
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   Africa's Talking SMS API via sendSMS, communication_log (service client)
+ * Notes:  Strips WhatsApp markdown (*bold*, _italic_) before sending.
+ *         Truncates to 160 GSM-7 chars with "... pleks.co.za" suffix.
+ *         Called by sendWhatsApp when WhatsApp eligibility fails and SMS is permitted.
  */
 import { sendSMS } from "@/lib/sms/sendSMS"
 import { createServiceClient } from "@/lib/supabase/server"
