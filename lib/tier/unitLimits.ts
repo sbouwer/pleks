@@ -1,37 +1,27 @@
 /**
- * lib/tier/unitLimits.ts — FILL: one-line purpose
+ * lib/tier/unitLimits.ts — Check whether an org can add another active unit against their tier cap
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   Server-only; called from server actions and API routes
+ * Data:   Supabase RPC get_active_unit_count; TIER_LIMITS from constants
+ * Notes:  No overage grace band — activation is blocked at the exact cap.
+ *         Caller shows an upgrade prompt when allowed = false.
  */
 import { TIER_LIMITS, type Tier } from "@/lib/constants"
 import { type SupabaseClient } from "@supabase/supabase-js"
-
-const OVERAGE_GRACE_BAND = 5
 
 export async function checkUnitLimit(
   supabase: SupabaseClient,
   orgId: string,
   tier: Tier
-): Promise<{ allowed: boolean; current: number; limit: number | null; overage: boolean }> {
+): Promise<{ allowed: boolean; current: number; limit: number | null }> {
   const limit = TIER_LIMITS[tier].leases
 
   const { data } = await supabase.rpc("get_active_unit_count", { p_org_id: orgId })
   const current = (data as number) ?? 0
 
   if (limit === null) {
-    return { allowed: true, current, limit: null, overage: false }
+    return { allowed: true, current, limit: null }
   }
 
-  const hardLimit = limit + OVERAGE_GRACE_BAND
-
-  return {
-    allowed: current < hardLimit,
-    current,
-    limit,
-    overage: current >= limit,
-  }
+  return { allowed: current < limit, current, limit }
 }

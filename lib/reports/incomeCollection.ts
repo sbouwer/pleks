@@ -1,11 +1,8 @@
 /**
- * lib/reports/incomeCollection.ts — FILL: one-line purpose
+ * lib/reports/incomeCollection.ts — Build income-collection report data for a given period
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   Server-only; called from /api/reports (org-scoped, service client)
+ * Data:   rent_invoices + payments tables
  */
 import { toDateStr } from "./periods"
 import { createServiceClient } from "@/lib/supabase/server"

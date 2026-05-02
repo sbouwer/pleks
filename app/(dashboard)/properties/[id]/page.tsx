@@ -610,7 +610,7 @@ export default async function PropertyDetailPage({
   const membership = await getServerOrgMembership()
   if (!membership) redirect("/login")
   const { org_id: orgId } = membership
-  const tier              = membership.tier ?? "owner_free"
+  const tier              = membership.tier ?? "owner"
   // Owners are always admin; other roles (admin, manager) gated server-side on action submit.
   const isAdminUi         = membership.role === "owner"
 
@@ -651,7 +651,7 @@ export default async function PropertyDetailPage({
   const managingSchemeId  = (propRaw.managing_scheme_id as string | null) ?? null
 
   // Broker visibility: Steward+ tiers see the insurance broker card; free Owner does not.
-  const canSeeBroker = tier !== "owner_free"
+  const canSeeBroker = tier !== "owner"
 
   // Tab-specific data fetching
   const [overviewData, unitsData, operationsData, insuranceData, schemeData] = await Promise.all([
@@ -813,7 +813,7 @@ export default async function PropertyDetailPage({
             activeClaims={insuranceData.activeClaims}
             canSeeBroker={canSeeBroker}
             checklist={insuranceData.checklist}
-            canTick={tier !== "owner_free"}
+            canTick={tier !== "owner"}
           />
         )}
 

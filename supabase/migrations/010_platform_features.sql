@@ -1124,3 +1124,23 @@ LANGUAGE sql STABLE SECURITY DEFINER AS $$
   GROUP BY purpose
   ORDER BY sum(cost_cents) DESC;
 $$;
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §19  Tier model: expand subscriptions CHECK to include growth + bespoke tiers
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- The 2026-04 pricing overhaul introduced a 6-tier model
+-- (owner / steward / growth / portfolio / firm / bespoke).
+-- The original CHECK only allowed (owner / steward / portfolio / firm) — growth
+-- and bespoke were missing, so any subscription insert for those tiers would
+-- fail at the DB level.
+-- No data migration needed — existing rows use 'owner' which remains valid.
+
+ALTER TABLE subscriptions DROP CONSTRAINT IF EXISTS subscriptions_tier_check;
+ALTER TABLE subscriptions ADD CONSTRAINT subscriptions_tier_check
+  CHECK (tier IN ('owner', 'steward', 'growth', 'portfolio', 'firm', 'bespoke'));
+
+-- trial_tier: allow trialling the growth tier as well
+ALTER TABLE subscriptions DROP CONSTRAINT IF EXISTS subscriptions_trial_tier_check;
+ALTER TABLE subscriptions ADD CONSTRAINT subscriptions_trial_tier_check
+  CHECK (trial_tier IS NULL OR trial_tier IN ('steward', 'growth', 'portfolio', 'firm'));
