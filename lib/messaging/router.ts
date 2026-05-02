@@ -84,22 +84,25 @@ export async function routeAndSend(params: RouteAndSendParams): Promise<RouteAnd
     : (CHANNEL_PRIORITY_DEFAULT[toneProfile] ?? ["email"])
 
   let lastError: string | undefined
+  let lastLogId: string | undefined
 
   for (const channel of channels) {
     if (channel === "email") {
       const result = await attemptEmail(params, template.is_mandatory)
       if (result.success) return { success: true, channel: "email", logId: result.logId }
       lastError = result.error
+      lastLogId = result.logId
     } else if (channel === "sms") {
       const result = await attemptSms(params)
       if (result.success) return { success: true, channel: "sms", logId: result.logId }
       lastError = result.error
+      lastLogId = result.logId
     }
   }
 
   // All channels failed — queue mandatory retry if applicable
   if (template.is_mandatory) {
-    const queued = await queueMandatoryRetry(params, lastError)
+    const queued = await queueMandatoryRetry(params, lastError, lastLogId)
     return { success: false, queued, error: lastError }
   }
 
@@ -145,15 +148,27 @@ async function attemptSms(
   if (!params.to.phone) return { success: false, error: "no_phone_number" }
   if (!params.smsBody) return { success: false, error: "no_sms_body" }
 
-  const result = await sendSMS(params.orgId, params.to.phone, params.smsBody)
-  if (result.sent) return { success: true }
-  if (result.skipped) return { success: false, error: `sms_skipped:${result.reason}` }
-  return { success: false, error: result.reason ?? "sms_failed" }
+  const result = await sendSMS(params.orgId, params.to.phone, params.smsBody, {
+    templateKey:       params.templateKey,
+    contactId:         params.to.contactId,
+    recipientName:     params.to.name,
+    entityType:        params.entityType,
+    entityId:          params.entityId,
+    toneVariant:       params.toneVariant,
+    triggerEventType:  params.triggerEventType,
+    triggerEventId:    params.triggerEventId,
+    attemptNumber:     params.attemptNumber,
+    firstAttemptLogId: params.firstAttemptLogId,
+  })
+  if (result.sent) return { success: true, logId: result.logId }
+  if (result.skipped) return { success: false, error: `sms_skipped:${result.reason}`, logId: result.logId }
+  return { success: false, error: result.reason ?? "sms_failed", logId: result.logId }
 }
 
 async function queueMandatoryRetry(
   params: RouteAndSendParams,
   failureReason: string | undefined,
+  failedLogId: string | undefined,
 ): Promise<boolean> {
   try {
     const service = await createServiceClient()
@@ -161,7 +176,7 @@ async function queueMandatoryRetry(
 
     const { error } = await service.from("mandatory_comm_retries").insert({
       org_id: params.orgId,
-      communication_log_id: params.firstAttemptLogId ?? null,
+      communication_log_id: failedLogId ?? params.firstAttemptLogId ?? null,
       template_key: params.templateKey,
       recipient_snapshot: {
         tenant_id: params.tenantId,

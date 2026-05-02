@@ -40,6 +40,67 @@ interface RetryRow {
   }
 }
 
+type ServiceClient = Awaited<ReturnType<typeof createServiceClient>>
+
+async function fetchOriginalBody(
+  service: ServiceClient,
+  logId: string,
+): Promise<{ rawHtml?: string; subject?: string }> {
+  const { data, error } = await service
+    .from("communication_log")
+    .select("body_full, subject")
+    .eq("id", logId)
+    .single()
+  if (error) {
+    console.error("[mandatory-retry] Failed to fetch original log body:", error.message)
+    return {}
+  }
+  return {
+    rawHtml: (data?.body_full as string | null) ?? undefined,
+    subject: (data?.subject as string | null) ?? undefined,
+  }
+}
+
+async function sendFallbackAlert(retry: RetryRow): Promise<void> {
+  const snap = retry.recipient_snapshot
+  if (!(snap.email ?? snap.phone)) return
+  await routeAndSend({
+    orgId:             retry.org_id,
+    templateKey:       "notice.delivery_fallback",
+    tenantId:          snap.tenant_id,
+    to: { email: snap.email ?? undefined, phone: snap.phone ?? undefined, name: "Tenant" },
+    subject:           "Important notice — we tried to reach you",
+    smsBody:           "Pleks: We tried to send you an important notice. Please check your email or contact your agent. pleks.co.za",
+    triggerEventType:  "mandatory_retry",
+    triggerEventId:    retry.communication_log_id ?? undefined,
+    firstAttemptLogId: retry.communication_log_id ?? undefined,
+  })
+}
+
+async function settleRetry(
+  service: ServiceClient,
+  retryId: string,
+  newAttemptCount: number,
+  failureReason: string | undefined,
+): Promise<"surrendered" | "advanced"> {
+  if (newAttemptCount >= MAX_ATTEMPTS) {
+    await service.from("mandatory_comm_retries").update({
+      surrendered_at:      new Date().toISOString(),
+      surrender_reason:    "cascade_exhausted",
+      last_failure_reason: failureReason ?? null,
+      updated_at:          new Date().toISOString(),
+    }).eq("id", retryId)
+    return "surrendered"
+  }
+  await service.from("mandatory_comm_retries").update({
+    attempt_count:       newAttemptCount,
+    next_attempt_at:     nextAttemptAt(newAttemptCount),
+    last_failure_reason: failureReason ?? null,
+    updated_at:          new Date().toISOString(),
+  }).eq("id", retryId)
+  return "advanced"
+}
+
 export async function POST(req: NextRequest) {
   if (req.headers.get("x-cron-secret") !== CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -47,7 +108,6 @@ export async function POST(req: NextRequest) {
 
   const service = await createServiceClient()
 
-  // Fetch due rows
   const { data: rows, error } = await service
     .from("mandatory_comm_retries")
     .select("id, org_id, communication_log_id, template_key, attempt_count, recipient_snapshot")
@@ -68,28 +128,23 @@ export async function POST(req: NextRequest) {
     const snap = retry.recipient_snapshot
     const newAttemptCount = retry.attempt_count + 1
 
-    // Deliver-alert side channel at attempt 3 (before the final retry)
-    if (retry.attempt_count === 3 && (snap.email ?? snap.phone)) {
-      await routeAndSend({
-        orgId:              retry.org_id,
-        templateKey:        "notice.delivery_fallback",
-        tenantId:           snap.tenant_id,
-        to: { email: snap.email ?? undefined, phone: snap.phone ?? undefined, name: "Tenant" },
-        subject:            "Important notice — we tried to reach you",
-        smsBody:            "Pleks: We tried to send you an important notice. Please check your email or contact your agent. pleks.co.za",
-        triggerEventType:   "mandatory_retry",
-        triggerEventId:     retry.communication_log_id ?? undefined,
-        firstAttemptLogId:  retry.communication_log_id ?? undefined,
-      })
+    // Delivery-alert side channel fires at attempt 3 (the penultimate attempt)
+    if (retry.attempt_count === 3) {
+      await sendFallbackAlert(retry)
     }
 
-    // Attempt the retry send
+    // Fetch stored body_full for replay — stored precisely for this purpose (BUILD_63 §8)
+    const { rawHtml, subject: origSubject } = retry.communication_log_id
+      ? await fetchOriginalBody(service, retry.communication_log_id)
+      : {}
+
     const result = await routeAndSend({
       orgId:             retry.org_id,
       templateKey:       retry.template_key,
       tenantId:          snap.tenant_id,
       to: { email: snap.email ?? undefined, phone: snap.phone ?? undefined, name: "Tenant" },
-      subject:           "Important notice (retry)",
+      subject:           origSubject ?? "Important notice (retry)",
+      rawHtml,
       toneVariant:       snap.tone_variant as "friendly" | "professional" | "firm" | "n/a",
       triggerEventType:  "mandatory_retry",
       triggerEventId:    retry.communication_log_id ?? undefined,
@@ -98,30 +153,13 @@ export async function POST(req: NextRequest) {
     })
 
     if (result.success) {
-      // Success — remove from queue
       await service.from("mandatory_comm_retries").delete().eq("id", retry.id)
       processed++
       continue
     }
 
-    // Failure — surrender after max attempts, otherwise advance
-    if (newAttemptCount >= MAX_ATTEMPTS) {
-      await service.from("mandatory_comm_retries").update({
-        surrendered_at:     new Date().toISOString(),
-        surrender_reason:   "cascade_exhausted",
-        last_failure_reason: result.error ?? null,
-        updated_at:         new Date().toISOString(),
-      }).eq("id", retry.id)
-      surrendered++
-    } else {
-      const next = nextAttemptAt(newAttemptCount)
-      await service.from("mandatory_comm_retries").update({
-        attempt_count:       newAttemptCount,
-        next_attempt_at:     next,
-        last_failure_reason: result.error ?? null,
-        updated_at:          new Date().toISOString(),
-      }).eq("id", retry.id)
-    }
+    const outcome = await settleRetry(service, retry.id, newAttemptCount, result.error)
+    if (outcome === "surrendered") surrendered++
   }
 
   return NextResponse.json({ processed, surrendered, total: retries.length })

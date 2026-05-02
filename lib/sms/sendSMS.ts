@@ -1,42 +1,63 @@
 /**
- * lib/sms/sendSMS.ts — FILL: one-line purpose
+ * lib/sms/sendSMS.ts — Africa's Talking SMS sender with communication_log audit trail
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   internal — called by router.ts; tier gate enforced inside
+ * Data:   Africa's Talking API (Steward+ only), communication_log (service client)
+ * Notes:  Parses AT response for messageId and logs every send (success + failure) to
+ *         communication_log so delivery webhooks and frequency limiter can track SMS.
+ *         Tier gate: sms_notifications feature requires Steward+.
  */
 import { hasFeature } from "@/lib/tier/gates"
 import { getOrgTier } from "@/lib/tier/getOrgTier"
+import { createServiceClient } from "@/lib/supabase/server"
 
-interface SMSResult {
+export interface SMSAuditParams {
+  templateKey?: string
+  contactId?: string
+  recipientName?: string
+  entityType?: string
+  entityId?: string
+  toneVariant?: "friendly" | "professional" | "firm" | "n/a"
+  triggerEventType?: string
+  triggerEventId?: string
+  attemptNumber?: number
+  firstAttemptLogId?: string
+}
+
+export interface SMSResult {
   sent: boolean
   skipped?: boolean
   reason?: string
+  logId?: string
+}
+
+interface ATResponse {
+  SMSMessageData?: {
+    Recipients?: Array<{ messageId: string; status: string }>
+  }
 }
 
 export async function sendSMS(
   orgId: string,
   to: string,
-  message: string
+  message: string,
+  audit?: SMSAuditParams
 ): Promise<SMSResult> {
   // Tier gate — SMS requires Steward+ (sms_notifications feature)
   const tier = await getOrgTier(orgId)
   if (!hasFeature(tier, "sms_notifications")) {
-    // Silent skip — log but don't throw
-    const { createClient } = await import("@/lib/supabase/server")
-    const supabase = await createClient()
-    await supabase.from("communication_log").insert({
+    const service = await createServiceClient()
+    const { data: log } = await service.from("communication_log").insert({
       org_id: orgId,
       channel: "sms",
       direction: "outbound",
-      subject: "SMS skipped — Owner tier",
-      body: message,
+      subject: audit?.templateKey ?? "sms",
+      body: message.slice(0, 200),
       status: "logged",
       sent_to_phone: to,
-    })
-    return { sent: false, skipped: true, reason: "SMS not available on Owner tier" }
+      template_key: audit?.templateKey ?? null,
+    }).select("id").single()
+    return { sent: false, skipped: true, reason: "SMS not available on Owner tier", logId: log?.id ?? undefined }
   }
 
   // Check AT credentials
@@ -44,6 +65,27 @@ export async function sendSMS(
   const username = process.env.AT_USERNAME
   if (!apiKey || !username) {
     return { sent: false, reason: "Africa's Talking credentials not configured" }
+  }
+
+  const service = await createServiceClient()
+
+  const sharedLogFields = {
+    org_id:               orgId,
+    channel:              "sms" as const,
+    direction:            "outbound" as const,
+    subject:              audit?.templateKey ?? "sms",
+    body:                 message.slice(0, 200),
+    sent_to_phone:        to,
+    template_key:         audit?.templateKey ?? null,
+    contact_id:           audit?.contactId ?? null,
+    recipient_name:       audit?.recipientName ?? null,
+    entity_type:          audit?.entityType ?? null,
+    entity_id:            audit?.entityId ?? null,
+    tone_variant:         audit?.toneVariant ?? null,
+    trigger_event_type:   audit?.triggerEventType ?? null,
+    trigger_event_id:     audit?.triggerEventId ?? null,
+    attempt_number:       audit?.attemptNumber ?? 1,
+    first_attempt_log_id: audit?.firstAttemptLogId ?? null,
   }
 
   try {
@@ -69,11 +111,32 @@ export async function sendSMS(
 
     if (!response.ok) {
       const text = await response.text()
-      return { sent: false, reason: `AT API error: ${response.status} ${text}` }
+      const reason = `AT API error: ${response.status} ${text}`
+      const { data: log } = await service.from("communication_log").insert({
+        ...sharedLogFields,
+        status: "failed",
+        failed_reason: reason,
+      }).select("id").single()
+      return { sent: false, reason, logId: log?.id ?? undefined }
     }
 
-    return { sent: true }
+    const body = await response.json() as ATResponse
+    const messageId = body.SMSMessageData?.Recipients?.[0]?.messageId ?? null
+
+    const { data: log } = await service.from("communication_log").insert({
+      ...sharedLogFields,
+      status: "sent",
+      external_id: messageId,
+    }).select("id").single()
+
+    return { sent: true, logId: log?.id ?? undefined }
   } catch (err) {
-    return { sent: false, reason: err instanceof Error ? err.message : "SMS send failed" }
+    const reason = err instanceof Error ? err.message : "SMS send failed"
+    const { data: log } = await service.from("communication_log").insert({
+      ...sharedLogFields,
+      status: "failed",
+      failed_reason: reason,
+    }).select("id").single()
+    return { sent: false, reason, logId: log?.id ?? undefined }
   }
 }
