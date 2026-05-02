@@ -1,11 +1,9 @@
 /**
- * lib/tier/canActivateLease.ts — FILL: one-line purpose
+ * lib/tier/canActivateLease.ts — Guard lease activation against the org's tier lease cap
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   Server-only; called from lease activation actions
+ * Data:   getOrgTier (cookie fast-path + DB fallback), getActiveLeaseCount
+ * Notes:  Returns ok:false with an upgrade prompt when the cap is reached — no overages.
  */
 import { getOrgTier } from "./getOrgTier"
 import { getActiveLeaseCount } from "./getActiveLeaseCount"

@@ -1,11 +1,10 @@
 /**
- * lib/constants.ts — FILL: one-line purpose
+ * lib/constants.ts — App-wide constants: tier model, pricing, org/lease enums, and ZAR formatters
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  TIER_ORDER/TIER_LIMITS/TIER_PRICING drive canActivateLease and subscription gating.
+ *         Annual pricing deferred until post-traction. Bespoke is a sales-only custom tier
+ *         (no public price — agreed per contract). No overage charges; activation is blocked
+ *         at the lease cap and the user is prompted to upgrade.
  */
 export const APP_NAME = "Pleks"
 export const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
@@ -33,8 +32,6 @@ export const TIER_PRICING = {
   firm:      { monthly: 449900 },
   bespoke:   { monthly: null },
 } as const
-
-export const OVERAGE_RATE_CENTS = 3500
 
 // Founding agent pricing (first 10 clients — 24-month lock)
 export const FOUNDING_AGENT_PRICE_CENTS = 29900 // R299/month

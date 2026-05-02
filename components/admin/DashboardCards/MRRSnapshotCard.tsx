@@ -34,9 +34,9 @@ async function fetchMRRData(): Promise<{
 
     // Fallback: current active subs
     db.from("subscriptions")
-      .select("price_cents, billing_cycle")
+      .select("amount_cents, billing_cycle")
       .eq("status", "active")
-      .neq("tier", "owner_free"),
+      .neq("tier", "owner"),
   ])
 
   // Build monthly revenue totals from snapshots
@@ -58,9 +58,9 @@ async function fetchMRRData(): Promise<{
     return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-01`
   })()
 
-  function mrrFromSubs(rows: { price_cents: number | null; billing_cycle: string | null }[]): number {
+  function mrrFromSubs(rows: { amount_cents: number | null; billing_cycle: string | null }[]): number {
     return rows.reduce((sum, r) => {
-      const p = (r.price_cents as number) ?? 0
+      const p = (r.amount_cents as number) ?? 0
       return sum + (r.billing_cycle === "annual" ? Math.round(p / 12) : p)
     }, 0)
   }

@@ -6,59 +6,84 @@
  * Route:  /settings (mobile)
  * Auth:   Rendered inside the dashboard layout (gateway-protected)
  * Notes:  Mirrors SettingsSidebar.tsx filtering — team/hours/compliance hidden for
- *         landlord-type orgs via useOrgCapabilities() (D-61A-04).
+ *         landlord-type orgs via useOrgCapabilities() (D-61A-04). Group structure and
+ *         admin gating kept in sync with SettingsSidebar.tsx.
  */
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { ChevronLeft, ChevronRight } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
+import { useOrg } from "@/hooks/useOrg"
 import { useOrgCapabilities } from "@/hooks/useOrgCapabilities"
 
 export function MobileSettingsNav() {
+  const { orgId } = useOrg()
   const caps = useOrgCapabilities()
   const depositLabel = caps?.trustAccountLabel === "deposits" ? "Deposits" : "Trust account"
+  const [isAdmin, setIsAdmin] = useState(false)
+
+  useEffect(() => {
+    if (!orgId) return
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return
+      supabase
+        .from("user_orgs")
+        .select("role, is_admin")
+        .eq("user_id", user.id)
+        .eq("org_id", orgId)
+        .is("deleted_at", null)
+        .maybeSingle()
+        .then(({ data: membership }) => {
+          if (!membership) return
+          const m = membership as { role: string; is_admin: boolean }
+          setIsAdmin(m.role === "owner" || m.is_admin === true)
+        })
+    })
+  }, [orgId])
 
   const SETTINGS_GROUPS = [
     {
       title: "Organisation",
       items: [
         { href: "/settings/details", label: "Details" },
-        ...(caps?.hasTeam ? [{ href: "/settings/team", label: "Team" }] : []),
-        ...(caps?.hasOpeningHours ? [{ href: "/settings/hours", label: "Opening hours" }] : []),
+        ...((caps === null || caps.hasTeam) ? [{ href: "/settings/team", label: "Team" }] : []),
+        ...((caps === null || caps.hasOpeningHours) ? [{ href: "/settings/hours", label: "Opening hours" }] : []),
         { href: "/settings/branding", label: "Branding" },
         { href: "/settings/configuration", label: "Configuration" },
       ],
     },
     {
-      title: "Communication",
-      items: [
-        { href: "/settings/documents/templates", label: "Templates" },
-      ],
-    },
-    {
       title: "Documents",
       items: [
+        { href: "/settings/documents/templates", label: "Templates" },
         { href: "/settings/lease-templates", label: "Lease templates" },
-        ...(caps?.hasCompliance ? [{ href: "/settings/compliance", label: "Compliance" }] : []),
       ],
     },
+    ...((caps === null || caps.hasCompliance) ? [{
+      title: "Compliance",
+      items: [{ href: "/settings/compliance", label: "Compliance" }],
+    }] : []),
     {
       title: "Account",
       items: [
         { href: "/settings/deposits", label: depositLabel },
         { href: "/settings/subscription", label: "Subscription" },
         { href: "/settings/notifications", label: "Notifications" },
-      ],
-    },
-    {
-      title: "My profile",
-      items: [
-        { href: "/settings/profile/signature", label: "Signature" },
+        ...(isAdmin ? [{ href: "/settings/feedback", label: "Feedback inbox" }] : []),
+        { href: "/settings/my-feedback", label: "My feedback" },
       ],
     },
     {
       title: "Data",
+      items: [{ href: "/settings/import", label: "Import" }],
+    },
+    {
+      title: "My profile",
       items: [
-        { href: "/settings/import", label: "Import" },
+        { href: "/settings/profile", label: "Profile" },
+        { href: "/settings/profile/signature", label: "Signature" },
       ],
     },
   ].filter((group) => group.items.length > 0)
