@@ -16,7 +16,7 @@
 
 export type CompletenessTopic =
   | "address" | "owner" | "scheme" | "insurance" | "broker"
-  | "documents" | "units" | "banking"
+  | "documents" | "units" | "banking" | "universals"
 
 export interface CompletenessItem {
   topic:    CompletenessTopic
@@ -48,6 +48,10 @@ export interface CompletenessSnapshot {
   checklistTotal?:     number
   /** Map of pending info_request topic → request id */
   pendingRequests:     Partial<Record<CompletenessTopic, string>>
+  /** Count of universal fields (wifi, cell signal, backup power) still marked "unknown" */
+  unknownUniversalsCount: number
+  /** True when org tier is owner or steward — shows unknown universals as open items */
+  isOwnerStewardTier:  boolean
 }
 
 export interface CompletenessResult {
@@ -57,14 +61,98 @@ export interface CompletenessResult {
 }
 
 const WEIGHTS: Record<CompletenessTopic, number> = {
-  address:   15,
-  owner:     15,
-  scheme:    10,
-  insurance: 15,
-  broker:    10,
-  documents: 10,
-  units:     15,
-  banking:   10,
+  address:    15,
+  owner:      15,
+  scheme:     10,
+  insurance:  15,
+  broker:     10,
+  documents:  10,
+  units:      15,
+  banking:    10,
+  universals:  0, // informational open item — does not affect scored percentage
+}
+
+function buildOwnerItem(snap: CompletenessSnapshot): CompletenessItem {
+  const done = snap.managedMode === "self_owned" || snap.hasLandlord
+  return {
+    topic:  "owner",
+    label:  snap.managedMode === "self_owned" ? "Owner — you" : "Owner / landlord linked",
+    done,
+    weight: WEIGHTS.owner,
+    detail: done ? undefined : "Link an existing owner or add a new one",
+    pendingRequestId: snap.pendingRequests.owner,
+  }
+}
+
+function buildSchemeItem(snap: CompletenessSnapshot): CompletenessItem | null {
+  if (!snap.hasManagingScheme) return null
+  return {
+    topic:  "scheme",
+    label:  "Managing scheme contact",
+    done:   snap.hasSchemeContact,
+    weight: WEIGHTS.scheme,
+    detail: snap.hasSchemeContact ? undefined : "Add the BC / HOA managing agent contact",
+    pendingRequestId: snap.pendingRequests.scheme,
+  }
+}
+
+function buildBrokerItem(snap: CompletenessSnapshot): CompletenessItem | null {
+  if (!snap.isOwnerProBrokerVisible) return null
+  return {
+    topic:  "broker",
+    label:  "Broker contact",
+    done:   snap.brokerLinked,
+    weight: WEIGHTS.broker,
+    detail: snap.brokerLinked ? undefined : "Link your insurance broker for incident notifications",
+    pendingRequestId: snap.pendingRequests.broker,
+  }
+}
+
+function buildDocumentsItem(snap: CompletenessSnapshot): CompletenessItem {
+  const done = snap.documentsCount > 0
+  return {
+    topic:  "documents",
+    label:  "Compliance documents",
+    done,
+    weight: WEIGHTS.documents,
+    detail: done ? `${snap.documentsCount} on file` : "No CoCs or title deed uploaded",
+    pendingRequestId: snap.pendingRequests.documents,
+  }
+}
+
+function buildUnitsItem(snap: CompletenessSnapshot): CompletenessItem {
+  const done = snap.unitsTotalCount > 0 && snap.unitsWithDetailCount === snap.unitsTotalCount
+  return {
+    topic:  "units",
+    label:  "Unit details (size, bedrooms)",
+    done,
+    weight: WEIGHTS.units,
+    detail: done ? undefined : `${snap.unitsWithDetailCount} of ${snap.unitsTotalCount} units have full details`,
+  }
+}
+
+function buildBankingItem(snap: CompletenessSnapshot): CompletenessItem | null {
+  if (snap.managedMode !== "managed_for_owner") return null
+  return {
+    topic:  "banking",
+    label:  "Owner banking details",
+    done:   snap.hasOwnerBanking,
+    weight: WEIGHTS.banking,
+    detail: snap.hasOwnerBanking ? undefined : "Required for owner statement payouts",
+    pendingRequestId: snap.pendingRequests.banking,
+  }
+}
+
+function buildUniversalsItem(snap: CompletenessSnapshot): CompletenessItem | null {
+  if (!snap.isOwnerStewardTier || snap.unknownUniversalsCount === 0) return null
+  const fields = snap.unknownUniversalsCount === 1 ? "field" : "fields"
+  return {
+    topic:  "universals",
+    label:  "Property utility details",
+    done:   false,
+    weight: 0,
+    detail: `${snap.unknownUniversalsCount} ${fields} marked Unknown — confirm WiFi, cell signal, or backup power`,
+  }
 }
 
 function buildInsuranceItem(snap: CompletenessSnapshot): CompletenessItem {
@@ -94,80 +182,17 @@ function buildInsuranceItem(snap: CompletenessSnapshot): CompletenessItem {
 }
 
 export function computePropertyCompleteness(snap: CompletenessSnapshot): CompletenessResult {
-  const items: CompletenessItem[] = []
-
-  // Address + scenario — assumed present (you can't have a property without these)
-  items.push({ topic: "address", label: "Address & property type", done: true, weight: WEIGHTS.address })
-
-  // Owner / landlord
-  const ownerDone = snap.managedMode === "self_owned" || snap.hasLandlord
-  items.push({
-    topic:  "owner",
-    label:  snap.managedMode === "self_owned" ? "Owner — you" : "Owner / landlord linked",
-    done:   ownerDone,
-    weight: WEIGHTS.owner,
-    detail: ownerDone ? undefined : "Link an existing owner or add a new one",
-    pendingRequestId: snap.pendingRequests.owner,
-  })
-
-  // Scheme — only counts when applicable
-  if (snap.hasManagingScheme) {
-    items.push({
-      topic:  "scheme",
-      label:  "Managing scheme contact",
-      done:   snap.hasSchemeContact,
-      weight: WEIGHTS.scheme,
-      detail: snap.hasSchemeContact ? undefined : "Add the BC / HOA managing agent contact",
-      pendingRequestId: snap.pendingRequests.scheme,
-    })
-  }
-
-  // Insurance — checklist-based partial credit when items exist; field-count fallback
-  items.push(buildInsuranceItem(snap))
-
-  // Broker — only shown for Owner Pro tiers
-  if (snap.isOwnerProBrokerVisible) {
-    items.push({
-      topic:  "broker",
-      label:  "Broker contact",
-      done:   snap.brokerLinked,
-      weight: WEIGHTS.broker,
-      detail: snap.brokerLinked ? undefined : "Link your insurance broker for incident notifications",
-      pendingRequestId: snap.pendingRequests.broker,
-    })
-  }
-
-  // Documents — at least 1 doc on file
-  items.push({
-    topic:  "documents",
-    label:  "Compliance documents",
-    done:   snap.documentsCount > 0,
-    weight: WEIGHTS.documents,
-    detail: snap.documentsCount > 0 ? `${snap.documentsCount} on file` : "No CoCs or title deed uploaded",
-    pendingRequestId: snap.pendingRequests.documents,
-  })
-
-  // Units detail
-  const unitsDone = snap.unitsTotalCount > 0 && snap.unitsWithDetailCount === snap.unitsTotalCount
-  items.push({
-    topic:  "units",
-    label:  "Unit details (size, bedrooms)",
-    done:   unitsDone,
-    weight: WEIGHTS.units,
-    detail: unitsDone ? undefined : `${snap.unitsWithDetailCount} of ${snap.unitsTotalCount} units have full details`,
-  })
-
-  // Banking — only for managed properties
-  if (snap.managedMode === "managed_for_owner") {
-    items.push({
-      topic:  "banking",
-      label:  "Owner banking details",
-      done:   snap.hasOwnerBanking,
-      weight: WEIGHTS.banking,
-      detail: snap.hasOwnerBanking ? undefined : "Required for owner statement payouts",
-      pendingRequestId: snap.pendingRequests.banking,
-    })
-  }
+  const items: CompletenessItem[] = [
+    { topic: "address", label: "Address & property type", done: true, weight: WEIGHTS.address },
+    buildOwnerItem(snap),
+    buildSchemeItem(snap),
+    buildInsuranceItem(snap),
+    buildBrokerItem(snap),
+    buildDocumentsItem(snap),
+    buildUnitsItem(snap),
+    buildBankingItem(snap),
+    buildUniversalsItem(snap),
+  ].filter((i): i is CompletenessItem => i !== null)
 
   const totalWeight  = items.reduce((sum, i) => sum + i.weight, 0)
   const earnedWeight = items.reduce((sum, i) => sum + (i.earnedWeight ?? (i.done ? i.weight : 0)), 0)

@@ -749,6 +749,7 @@ export default async function PropertyDetailPage({
               propertyId={id}
               orgId={orgId}
               isOwnerProBrokerVisible={canSeeBroker}
+              isOwnerStewardTier={tier === "owner" || tier === "steward"}
             />
             {/* LandlordPicker rendered inline for assign flow */}
             {!property.landlord_id && (

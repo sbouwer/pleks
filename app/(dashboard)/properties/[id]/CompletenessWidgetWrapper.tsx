@@ -1,11 +1,11 @@
 /**
- * app/(dashboard)/properties/[id]/CompletenessWidgetWrapper.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/[id]/CompletenessWidgetWrapper.tsx — Server wrapper that computes and renders the property setup completeness widget
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   Service client; rendered inside the authenticated property detail page
+ * Data:   properties, landlords, managing_schemes, units, property_brokers, property_documents,
+ *         property_insurance_checklists, property_info_requests via service client
+ * Notes:  universals (WiFi, cell signal, backup power) are tracked as open items only on
+ *         owner/steward tiers — portfolio/firm tiers see the agent-flag copy in the wizard instead
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import {
@@ -17,9 +17,10 @@ import {
 import { CompletenessWidget } from "./CompletenessWidget"
 
 interface Props {
-  propertyId:           string
-  orgId:                string
+  propertyId:              string
+  orgId:                   string
   isOwnerProBrokerVisible: boolean
+  isOwnerStewardTier:      boolean
 }
 
 type ServiceClient = Awaited<ReturnType<typeof createServiceClient>>
@@ -50,6 +51,7 @@ interface PropertyRow {
   onboarding_completed_pct:        number | null
   onboarding_completed_at:         string | null
   onboarding_widget_dismissed_at:  string | null
+  property_profile:                Record<string, unknown> | null
 }
 
 // ── Data fetchers (kept small to keep cognitive complexity low) ───────────────
@@ -146,7 +148,16 @@ function countInsuranceFields(p: PropertyRow): number {
 
 // ── Main wrapper ──────────────────────────────────────────────────────────────
 
-export async function CompletenessWidgetWrapper({ propertyId, orgId, isOwnerProBrokerVisible }: Readonly<Props>) {
+function countUnknownUniversals(profile: Record<string, unknown> | null): number {
+  const u = (profile?.universals ?? {}) as Record<string, string>
+  return (
+    (u.wifi_available    === "unknown" ? 1 : 0) +
+    (u.cell_signal       === "unknown" ? 1 : 0) +
+    (u.backup_power      === "unknown" ? 1 : 0)
+  )
+}
+
+export async function CompletenessWidgetWrapper({ propertyId, orgId, isOwnerProBrokerVisible, isOwnerStewardTier }: Readonly<Props>) {
   const service = await createServiceClient()
 
   const { data: property, error: propErr } = await service
@@ -155,7 +166,8 @@ export async function CompletenessWidgetWrapper({ propertyId, orgId, isOwnerProB
       id, created_at, scenario_type, managed_mode, has_managing_scheme,
       insurance_provider, insurance_policy_number, insurance_renewal_date, insurance_replacement_value_cents,
       landlord_id, owner_email, managing_scheme_id,
-      onboarding_completed_pct, onboarding_completed_at, onboarding_widget_dismissed_at
+      onboarding_completed_pct, onboarding_completed_at, onboarding_widget_dismissed_at,
+      property_profile
     `)
     .eq("id", propertyId)
     .eq("org_id", orgId)
@@ -193,6 +205,8 @@ export async function CompletenessWidgetWrapper({ propertyId, orgId, isOwnerProB
     checklistConfirmed:    checklistTotal > 0 ? checklistConfirmed : undefined,
     checklistTotal:        checklistTotal > 0 ? checklistTotal : undefined,
     pendingRequests,
+    unknownUniversalsCount: countUnknownUniversals(property.property_profile),
+    isOwnerStewardTier,
   }
 
   const result = computePropertyCompleteness(snapshot)

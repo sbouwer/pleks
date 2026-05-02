@@ -25,13 +25,14 @@ import {
 // ── Topic → action mapping ────────────────────────────────────────────────────
 
 const TOPIC_DEEP_LINKS: Partial<Record<CompletenessTopic, (propertyId: string) => string>> = {
-  insurance: (id) => `/properties/${id}/insurance`,
-  scheme:    (id) => `/properties/${id}/scheme`,
-  documents: (id) => `/properties/${id}/documents`,
-  units:     (id) => `/properties/${id}/units`,
-  owner:     (id) => `/properties/${id}?tab=overview#owner`,
-  banking:   (id) => `/properties/${id}?tab=overview#owner`,
-  broker:    (id) => `/properties/${id}/insurance`,
+  insurance:  (id) => `/properties/${id}/insurance`,
+  scheme:     (id) => `/properties/${id}/scheme`,
+  documents:  (id) => `/properties/${id}/documents`,
+  units:      (id) => `/properties/${id}/units`,
+  owner:      (id) => `/properties/${id}?tab=overview#owner`,
+  banking:    (id) => `/properties/${id}?tab=overview#owner`,
+  broker:     (id) => `/properties/${id}/insurance`,
+  universals: (id) => `/properties/${id}/edit`,
 }
 
 const TOPIC_REQUEST_FIELDS: Partial<Record<CompletenessTopic, string[]>> = {
