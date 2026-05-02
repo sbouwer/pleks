@@ -1,11 +1,8 @@
 /**
- * lib/reports/rentRoll.ts — FILL: one-line purpose
+ * lib/reports/rentRoll.ts — builds rent roll data for the reports module
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:  units, leases, arrears_cases, payments via service client
+ * Notes: payment_method taken from last payment per lease; vacant units included as rows
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import type { RentRollData, RentRollRow, ReportFilters } from "./types"
@@ -61,14 +58,14 @@ export async function buildRentRoll(filters: ReportFilters): Promise<RentRollDat
   // Get last payment per unit
   const { data: lastPayments } = await supabase
     .from("payments")
-    .select("lease_id, payment_date")
+    .select("lease_id, payment_date, payment_method")
     .eq("org_id", orgId)
     .order("payment_date", { ascending: false })
 
-  const lastPaymentByLease = new Map<string, string>()
+  const lastPaymentByLease = new Map<string, { date: string; method: string }>()
   for (const p of lastPayments ?? []) {
     if (p.lease_id && !lastPaymentByLease.has(p.lease_id)) {
-      lastPaymentByLease.set(p.lease_id, p.payment_date)
+      lastPaymentByLease.set(p.lease_id, { date: p.payment_date, method: p.payment_method ?? "" })
     }
   }
 
@@ -88,8 +85,8 @@ export async function buildRentRoll(filters: ReportFilters): Promise<RentRollDat
       ? Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
       : null
 
-    const paymentMethod = ""
     const lastPay = lease ? lastPaymentByLease.get(lease.id) : null
+    const paymentMethod = lastPay?.method ?? ""
 
     let leaseType = "vacant"
     if (lease) {
@@ -114,7 +111,7 @@ export async function buildRentRoll(filters: ReportFilters): Promise<RentRollDat
       payment_method: paymentMethod,
       status,
       days_to_expiry: daysToExpiry,
-      last_payment_date: lastPay ? new Date(lastPay) : null,
+      last_payment_date: lastPay ? new Date(lastPay.date) : null,
       arrears_cents: arrearsByUnit.get(unit.id) ?? 0,
       escalation_percent: lease?.escalation_percent ?? null,
       escalation_review_date: lease?.escalation_review_date ? new Date(lease.escalation_review_date) : null,

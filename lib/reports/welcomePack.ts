@@ -1,11 +1,8 @@
 /**
- * lib/reports/welcomePack.ts — FILL: one-line purpose
+ * lib/reports/welcomePack.ts — builds owner welcome pack portfolio data
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:  properties, units, leases, contacts via service client scoped to a landlord
+ * Notes: CPA notice window = 40 days; compliance section looks 12 months forward for escalations
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import type {
@@ -162,7 +159,7 @@ export async function buildWelcomePackData(
         ? tenantDisplayName(tv.first_name, tv.last_name, tv.company_name) || null
         : null
 
-      const paymentMethod = lease ? "EFT" : ""
+      const paymentMethod = ""
       const flags = computeFlags(lease?.status ?? "", daysRemaining, !!lease)
 
       return {

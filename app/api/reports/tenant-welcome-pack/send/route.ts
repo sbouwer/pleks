@@ -1,11 +1,9 @@
 /**
- * app/api/reports/tenant-welcome-pack/send/route.ts — FILL: one-line purpose
+ * app/api/reports/tenant-welcome-pack/send/route.ts — sends tenant welcome pack via email
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/reports/tenant-welcome-pack/send
+ * Auth:   Supabase user session + user_orgs membership check
+ * Data:   builds welcome pack from leaseId/tenantId, renders HTML, sends via sendEmail
  */
 import { NextRequest } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
