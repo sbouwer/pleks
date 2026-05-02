@@ -48,5 +48,5 @@ sonar-results.json
 # Claude Code internal state
 .claude/
 
-# Design mockups and reference files
-brief/design/
+# Build specs, legal docs, and design references — local only
+brief/
