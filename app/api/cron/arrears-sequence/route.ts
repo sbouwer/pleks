@@ -42,6 +42,8 @@ type ArrearsCase = {
   id: string
   org_id: string
   tenant_id: string
+  lease_id: string | null
+  unit_id: string | null
   current_step: number
   sequence_id: string
   oldest_outstanding_date: string | null
@@ -122,25 +124,59 @@ function buildSmsBody(
   return `REMINDER ${name}: Rent arrears of ${amountDisplay} unpaid. Act immediately to avoid a letter of demand. — ${sender}`
 }
 
+async function fetchPropertyLabel(supabase: SupabaseClient, unitId: string): Promise<string | undefined> {
+  const { data } = await supabase
+    .from("units")
+    .select("unit_number, properties(address_line1, suburb, city)")
+    .eq("id", unitId)
+    .maybeSingle()
+  if (!data) return undefined
+  // Supabase infers the embedded relation as array; unit→property is many-to-one so cast through unknown
+  type PropRow = { address_line1: string; suburb: string | null; city: string }
+  const raw = data as unknown as { unit_number: string; properties: PropRow | PropRow[] | null }
+  const prop = Array.isArray(raw.properties) ? raw.properties[0] : raw.properties
+  if (!prop) return undefined
+  const parts = [prop.address_line1, `Unit ${raw.unit_number}`, prop.suburb ?? prop.city].filter(Boolean)
+  return parts.length > 0 ? parts.join(", ") : undefined
+}
+
+async function fetchLeaseStartDate(supabase: SupabaseClient, leaseId: string): Promise<string | undefined> {
+  const { data } = await supabase
+    .from("leases")
+    .select("start_date")
+    .eq("id", leaseId)
+    .maybeSingle()
+  return data?.start_date ? formatDate(data.start_date as string) : undefined
+}
+
+function resolveSubject(templateKey: string, amountDisplay: string, ref: string): string {
+  if (templateKey === "arrears.letter_of_demand") return `LETTER OF DEMAND — ${amountDisplay} — Ref ${ref}`
+  if (templateKey === "arrears.final_notice")     return `FINAL NOTICE — Lease cancellation pending — ${amountDisplay}`
+  return `Rent reminder: ${amountDisplay} overdue`
+}
+
 interface EmailElementParams {
-  branding:       ReturnType<typeof buildBranding>
-  tenantName:     string
-  amountDisplay:  string
-  daysOverdue:    number
-  nextStep:       number
-  toneVariant:    ToneVariant | "n/a"
-  oldestDate:     string
-  sender:         string
-  caseId:         string
+  branding:        ReturnType<typeof buildBranding>
+  tenantName:      string
+  amountDisplay:   string
+  daysOverdue:     number
+  nextStep:        number
+  toneVariant:     ToneVariant | "n/a"
+  oldestDate:      string
+  sender:          string
+  caseId:          string
   monthsInArrears: number
+  propertyLabel?:  string   // full address from unit+property join; falls back to "See reference XXXX"
+  leaseStartDate?: string   // actual lease start date; falls back to oldestDate if unavailable
 }
 
 function buildEmailElement(
   templateKey: string,
   p: EmailElementParams,
 ): React.ReactElement | undefined {
-  const ref = p.caseId.slice(0, 8).toUpperCase()
-  const propertyLabel = `See reference ${ref}`
+  const ref           = p.caseId.slice(0, 8).toUpperCase()
+  const propertyLabel = p.propertyLabel ?? `See reference ${ref}`
+  const leaseStart    = p.leaseStartDate ?? p.oldestDate
 
   if (templateKey === "arrears.reminder_step2") {
     return React.createElement(ArrearsReminderEmail, {
@@ -159,7 +195,7 @@ function buildEmailElement(
       branding:              p.branding,
       tenantName:            p.tenantName,
       propertyLabel,
-      leaseStartDate:        p.oldestDate,
+      leaseStartDate:        leaseStart,
       amountOwedDisplay:     p.amountDisplay,
       monthsInArrears:       p.monthsInArrears,
       oldestOutstandingDate: p.oldestDate,
@@ -172,7 +208,7 @@ function buildEmailElement(
       branding:               p.branding,
       tenantName:             p.tenantName,
       propertyLabel,
-      leaseStartDate:         p.oldestDate,
+      leaseStartDate:         leaseStart,
       amountOwedDisplay:      p.amountDisplay,
       monthsInArrears:        p.monthsInArrears,
       oldestOutstandingDate:  p.oldestDate,
@@ -246,6 +282,7 @@ async function advanceSequenceStep(
   arrearsCase: ArrearsCase,
   today: Date,
   capabilities: OrgCapabilities,
+  orgTone: string,
 ): Promise<boolean> {
   if (!arrearsCase.oldest_outstanding_date) return false
 
@@ -289,10 +326,10 @@ async function advanceSequenceStep(
   const amountDisplay = formatAmount(arrearsCase.total_arrears_cents)
   const sender        = capabilities.copy.tenantWelcomeSender
 
-  // Resolve tone variant
+  // Resolve tone variant — org tone_tenant used as fallback for relational steps
   const toneVariant = templateKey === "arrears.letter_of_demand" || templateKey === "arrears.final_notice"
     ? ("n/a" as const)
-    : resolveToneVariant(step.tone ?? "professional", "professional")
+    : resolveToneVariant(step.tone ?? "professional", orgTone)
 
   // Build SMS body (for relational steps)
   const smsBody = (toneVariant !== "n/a" && tenant?.phone)
@@ -305,20 +342,22 @@ async function advanceSequenceStep(
   const oldestDate  = arrearsCase.oldest_outstanding_date
     ? formatDate(arrearsCase.oldest_outstanding_date)
     : "unknown date"
+
+  const propertyLabel = arrearsCase.unit_id
+    ? await fetchPropertyLabel(supabase, arrearsCase.unit_id)
+    : undefined
+  const leaseStartDate = arrearsCase.lease_id
+    ? await fetchLeaseStartDate(supabase, arrearsCase.lease_id)
+    : undefined
+
   const emailElement = buildEmailElement(templateKey, {
     branding, tenantName, amountDisplay, daysOverdue, nextStep, toneVariant, oldestDate, sender,
     caseId: arrearsCase.id, monthsInArrears: arrearsCase.months_in_arrears,
+    propertyLabel, leaseStartDate,
   })
 
-  const ref = arrearsCase.id.slice(0, 8).toUpperCase()
-  let subject: string
-  if (templateKey === "arrears.letter_of_demand") {
-    subject = `LETTER OF DEMAND — ${amountDisplay} — Ref ${ref}`
-  } else if (templateKey === "arrears.final_notice") {
-    subject = `FINAL NOTICE — Lease cancellation pending — ${amountDisplay}`
-  } else {
-    subject = `Rent reminder: ${amountDisplay} overdue`
-  }
+  const ref     = arrearsCase.id.slice(0, 8).toUpperCase()
+  const subject = resolveSubject(templateKey, amountDisplay, ref)
 
   // Record the action before sending (idempotency anchor)
   await supabase.from("arrears_actions").insert({
@@ -435,25 +474,29 @@ export async function GET(req: Request) {
   // 2. Advance sequences for open cases
   const { data: openCases, error: casesErr } = await supabase
     .from("arrears_cases")
-    .select("id, org_id, tenant_id, current_step, sequence_id, oldest_outstanding_date, total_arrears_cents, months_in_arrears")
+    .select("id, org_id, tenant_id, lease_id, unit_id, current_step, sequence_id, oldest_outstanding_date, total_arrears_cents, months_in_arrears")
     .eq("status", "open")
     .eq("sequence_paused", false)
     .not("sequence_id", "is", null)
   if (casesErr) console.error("[arrears-sequence] open cases:", casesErr.message)
 
-  // Batch org capabilities
+  // Batch org capabilities + tenant tone preference
   const uniqueOrgIds = [...new Set((openCases ?? []).map((c) => c.org_id))]
   const capabilitiesMap = new Map<string, OrgCapabilities>()
+  const orgToneMap      = new Map<string, string>()
   if (uniqueOrgIds.length > 0) {
-    const { data: orgs } = await supabase.from("organisations").select("id, type, name").in("id", uniqueOrgIds)
+    const { data: orgs } = await supabase.from("organisations").select("id, type, name, settings").in("id", uniqueOrgIds)
     for (const org of orgs ?? []) {
       capabilitiesMap.set(org.id, getOrgCapabilities((org.type as OrgType) ?? "agency", (org.name as string) ?? ""))
+      const settings = org.settings as { communication?: { tone_tenant?: string } } | null
+      orgToneMap.set(org.id, settings?.communication?.tone_tenant ?? "professional")
     }
   }
 
   for (const arrearsCase of openCases ?? []) {
     const capabilities = capabilitiesMap.get(arrearsCase.org_id) ?? getOrgCapabilities("agency", "")
-    const advanced = await advanceSequenceStep(supabase, arrearsCase as ArrearsCase, today, capabilities)
+    const orgTone      = orgToneMap.get(arrearsCase.org_id) ?? "professional"
+    const advanced = await advanceSequenceStep(supabase, arrearsCase as ArrearsCase, today, capabilities, orgTone)
     if (advanced) processed++
   }
 
