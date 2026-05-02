@@ -1,11 +1,9 @@
 /**
- * lib/arrears/defaultSequences.ts — FILL: one-line purpose
+ * lib/arrears/defaultSequences.ts — default arrears sequence step definitions
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   static seed data; seeded into arrears_sequences + arrears_sequence_steps on org creation
+ * Notes:  action_type values map to template keys in arrears-sequence/route.ts (BUILD_63).
+ *         "letter_of_demand" → arrears.letter_of_demand; "pre_legal_notice" → arrears.final_notice.
  */
 export const RESIDENTIAL_DEFAULT_SEQUENCE = [
   { step_number: 1, trigger_days: 3, action_type: "sms", tone: "friendly", ai_draft: true, requires_agent_approval: false },

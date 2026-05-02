@@ -15,8 +15,14 @@ import { checkFrequencyLimit } from "./frequency"
 import type { ReactElement } from "react"
 
 // ── Channel priority by tone_profile ─────────────────────────────────────────
-// Phase 1: email + SMS only. WhatsApp slots are reserved for Phase 2.
-const CHANNEL_PRIORITY: Record<string, Array<"email" | "sms">> = {
+// Phase 1: email + SMS only. WhatsApp slots are reserved for Phase 3 of the router.
+// When a template has allowed_channels defined, that list IS the priority order —
+// implemented channels are used in the order they appear (e.g. ["whatsapp","sms","email"]
+// becomes ["sms","email"] once whatsapp slots in). Without allowed_channels, fall back to
+// tone_profile default below.
+const IMPLEMENTED_CHANNELS = new Set<string>(["email", "sms"])
+
+const CHANNEL_PRIORITY_DEFAULT: Record<string, Array<"email" | "sms">> = {
   transactional: ["email"],
   relational:    ["email", "sms"],
   legal:         ["email"],
@@ -66,15 +72,16 @@ export async function routeAndSend(params: RouteAndSendParams): Promise<RouteAnd
     }
   }
 
-  // Resolve channel priority from tone_profile, falling back to template.allowed_channels
+  // Resolve channel list:
+  // - If template defines allowed_channels, that list is both the whitelist AND the priority
+  //   order; we just filter out unimplemented channels (WhatsApp → Phase 3).
+  // - Otherwise fall back to the tone_profile default priority.
   const toneProfile = template.tone_profile ?? "transactional"
-  const priority = CHANNEL_PRIORITY[toneProfile] ?? ["email"]
-
-  // Filter to channels the template permits
   const allowed = template.allowed_channels
-  const channels = allowed
-    ? priority.filter((c) => (allowed as string[]).includes(c))
-    : priority
+
+  const channels: Array<"email" | "sms"> = allowed
+    ? (allowed as string[]).filter((c): c is "email" | "sms" => IMPLEMENTED_CHANNELS.has(c))
+    : (CHANNEL_PRIORITY_DEFAULT[toneProfile] ?? ["email"])
 
   let lastError: string | undefined
 

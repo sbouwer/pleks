@@ -1,24 +1,31 @@
 /**
- * app/api/cron/arrears-sequence/route.ts — Daily arrears sequence progression
+ * app/api/cron/arrears-sequence/route.ts — daily arrears sequence progression
  *
  * Route:  GET /api/cron/arrears-sequence
  * Auth:   x-cron-secret header — called by daily orchestrator, not directly by Vercel
- * Data:   rent_invoices, arrears_cases, arrears_sequence_steps via service client
+ * Data:   rent_invoices, arrears_cases, arrears_sequence_steps, tenant_view (service client)
+ * Notes:  BUILD_63 Phase 2 rewrite — routes every step through lib/messaging/router.ts.
+ *         Step → template_key resolved by action_type; tone resolved from step.tone + org prefs.
+ *         A3/A4 (LOD + final notice) are mandatory — queued for retry if send fails.
+ *         SMS body generated per tone for A1/A2; React Email component used for A2 email
+ *         fallback and A3/A4.
  */
+import * as React from "react"
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
-import { sendSMS } from "@/lib/sms/sendSMS"
 import { differenceInDays } from "date-fns"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { getOrgCapabilities, type OrgCapabilities } from "@/lib/org/capabilities"
 import type { OrgType } from "@/lib/constants"
+import { routeAndSend } from "@/lib/messaging/router"
+import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
+import { ArrearsReminderEmail } from "@/lib/comms/templates/tenant/arrears/reminder"
+import { LetterOfDemandEmail } from "@/lib/comms/templates/tenant/arrears/letter-of-demand"
+import { FinalNoticeEmail } from "@/lib/comms/templates/tenant/arrears/final-notice"
 
-function normalizeSAPhone(phone: string): string {
-  const digits = phone.replaceAll(/\D/g, "")
-  if (digits.startsWith("27") && digits.length === 11) return `+${digits}`
-  if (digits.startsWith("0") && digits.length === 10) return `+27${digits.slice(1)}`
-  return phone
-}
+// ── Types ───────────────────────────────────────────────────────────────────
+
+type ToneVariant = "friendly" | "professional" | "firm"
 
 type OverdueInvoice = {
   id: string
@@ -39,9 +46,150 @@ type ArrearsCase = {
   sequence_id: string
   oldest_outstanding_date: string | null
   total_arrears_cents: number
+  months_in_arrears: number
 }
 
-async function handleOverdueInvoice(supabase: SupabaseClient, inv: OverdueInvoice, today: Date): Promise<boolean> {
+type TenantInfo = {
+  first_name: string | null
+  last_name: string | null
+  email: string | null
+  phone: string | null
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+function normalizeSAPhone(phone: string): string {
+  const digits = phone.replaceAll(/\D/g, "")
+  if (digits.startsWith("27") && digits.length === 11) return `+${digits}`
+  if (digits.startsWith("0") && digits.length === 10) return `+27${digits.slice(1)}`
+  return phone
+}
+
+function formatAmount(cents: number): string {
+  return "R " + (cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
+}
+
+function formatDate(isoDate: string): string {
+  return new Date(isoDate).toLocaleDateString("en-ZA", {
+    day: "numeric", month: "long", year: "numeric",
+  })
+}
+
+function tenantDisplayName(info: TenantInfo): string {
+  return [info.first_name, info.last_name].filter(Boolean).join(" ").trim() || "Tenant"
+}
+
+/**
+ * Maps step action_type to the BUILD_63 template key.
+ * Returns null for steps that don't fire comms (agent_task, etc.).
+ */
+function resolveTemplateKey(actionType: string, stepNumber: number): string | null {
+  if (actionType === "letter_of_demand") return "arrears.letter_of_demand"
+  if (actionType === "pre_legal_notice") return "arrears.final_notice"
+  if (actionType === "agent_task")       return null
+  // sms / email / whatsapp → relational by step
+  return stepNumber <= 1 ? "arrears.reminder_step1" : "arrears.reminder_step2"
+}
+
+/**
+ * Maps step tone string (DB) + org preference → ToneVariant for router.
+ * DB tone "formal" / "legal" → "firm" (for steps that aren't legal template keys).
+ */
+function resolveToneVariant(stepTone: string, orgTone: string): ToneVariant {
+  if (stepTone === "friendly") return "friendly"
+  if (stepTone === "firm" || stepTone === "formal" || stepTone === "legal") return "firm"
+  const o = orgTone as ToneVariant
+  return (o === "friendly" || o === "professional" || o === "firm") ? o : "professional"
+}
+
+/** SMS body for A1/A2 per tone (≤160 chars GSM-7). */
+function buildSmsBody(
+  templateKey: string,
+  tenantFirstName: string,
+  amountDisplay: string,
+  tone: ToneVariant,
+  sender: string,
+): string {
+  const name = tenantFirstName || "Tenant"
+  if (templateKey === "arrears.reminder_step1") {
+    if (tone === "friendly")      return `Hi ${name}, just a reminder — your rent (${amountDisplay}) is overdue. Please pay or contact us soon. — ${sender}`
+    if (tone === "firm")          return `${name}: Rent of ${amountDisplay} is overdue. Pay immediately or contact us to avoid escalation. — ${sender}`
+    return `Hi ${name}, your rent account has an overdue balance of ${amountDisplay}. Please arrange payment urgently. — ${sender}`
+  }
+  // arrears.reminder_step2
+  if (tone === "friendly")        return `Hi ${name}, your rent (${amountDisplay}) is still outstanding. Please pay urgently before formal action is taken. — ${sender}`
+  if (tone === "firm")            return `${name}: ${amountDisplay} in rent arrears remains unpaid. Formal proceedings will follow without immediate payment. — ${sender}`
+  return `REMINDER ${name}: Rent arrears of ${amountDisplay} unpaid. Act immediately to avoid a letter of demand. — ${sender}`
+}
+
+interface EmailElementParams {
+  branding:       ReturnType<typeof buildBranding>
+  tenantName:     string
+  amountDisplay:  string
+  daysOverdue:    number
+  nextStep:       number
+  toneVariant:    ToneVariant | "n/a"
+  oldestDate:     string
+  sender:         string
+  caseId:         string
+  monthsInArrears: number
+}
+
+function buildEmailElement(
+  templateKey: string,
+  p: EmailElementParams,
+): React.ReactElement | undefined {
+  const ref = p.caseId.slice(0, 8).toUpperCase()
+  const propertyLabel = `See reference ${ref}`
+
+  if (templateKey === "arrears.reminder_step2") {
+    return React.createElement(ArrearsReminderEmail, {
+      branding:          p.branding,
+      tenantName:        p.tenantName,
+      propertyLabel,
+      amountOwedDisplay: p.amountDisplay,
+      daysOverdue:       p.daysOverdue,
+      step:              p.nextStep <= 1 ? 1 : 2,
+      tone:              p.toneVariant === "n/a" ? "professional" : p.toneVariant,
+      senderName:        p.sender,
+    })
+  }
+  if (templateKey === "arrears.letter_of_demand") {
+    return React.createElement(LetterOfDemandEmail, {
+      branding:              p.branding,
+      tenantName:            p.tenantName,
+      propertyLabel,
+      leaseStartDate:        p.oldestDate,
+      amountOwedDisplay:     p.amountDisplay,
+      monthsInArrears:       p.monthsInArrears,
+      oldestOutstandingDate: p.oldestDate,
+      paymentDeadlineDays:   7,
+      referenceNumber:       ref,
+    })
+  }
+  if (templateKey === "arrears.final_notice") {
+    return React.createElement(FinalNoticeEmail, {
+      branding:               p.branding,
+      tenantName:             p.tenantName,
+      propertyLabel,
+      leaseStartDate:         p.oldestDate,
+      amountOwedDisplay:      p.amountDisplay,
+      monthsInArrears:        p.monthsInArrears,
+      oldestOutstandingDate:  p.oldestDate,
+      cancellationNoticeDays: 20,
+      referenceNumber:        ref,
+    })
+  }
+  return undefined
+}
+
+// ── Core case handlers ───────────────────────────────────────────────────────
+
+async function handleOverdueInvoice(
+  supabase: SupabaseClient,
+  inv: OverdueInvoice,
+  today: Date,
+): Promise<boolean> {
   await supabase.from("rent_invoices").update({ status: "overdue" }).eq("id", inv.id).eq("status", "open")
 
   const { data: existing } = await supabase
@@ -54,105 +202,166 @@ async function handleOverdueInvoice(supabase: SupabaseClient, inv: OverdueInvoic
   if (existing && existing.length > 0) {
     const daysOverdue = differenceInDays(today, new Date(inv.due_date))
     const months = Math.ceil(daysOverdue / 30)
-
     const { data: allOverdue } = await supabase
       .from("rent_invoices")
       .select("balance_cents")
       .eq("lease_id", inv.lease_id)
       .eq("status", "overdue")
-
-    const totalArrears = (allOverdue || []).reduce((sum, i) => sum + (i.balance_cents || 0), 0)
-
+    const totalArrears = (allOverdue ?? []).reduce((s, i) => s + (i.balance_cents ?? 0), 0)
     await supabase.from("arrears_cases").update({
       total_arrears_cents: totalArrears,
       months_in_arrears: months,
     }).eq("id", existing[0].id)
-
     return false
   }
 
   const lease = inv.leases as { property_id: string; lease_type: string } | null
-
   const { data: sequence } = await supabase
     .from("arrears_sequences")
     .select("id")
     .eq("org_id", inv.org_id)
-    .eq("lease_type", lease?.lease_type || "residential")
+    .eq("lease_type", lease?.lease_type ?? "residential")
     .eq("is_default", true)
     .limit(1)
     .maybeSingle()
 
   await supabase.from("arrears_cases").insert({
-    org_id: inv.org_id,
-    lease_id: inv.lease_id,
-    tenant_id: inv.tenant_id,
-    unit_id: inv.unit_id,
-    property_id: lease?.property_id || "",
-    lease_type: lease?.lease_type || "residential",
-    total_arrears_cents: inv.balance_cents || 0,
+    org_id:                  inv.org_id,
+    lease_id:                inv.lease_id,
+    tenant_id:               inv.tenant_id,
+    unit_id:                 inv.unit_id,
+    property_id:             lease?.property_id ?? "",
+    lease_type:              lease?.lease_type ?? "residential",
+    total_arrears_cents:     inv.balance_cents ?? 0,
     oldest_outstanding_date: inv.due_date,
-    months_in_arrears: 1,
-    sequence_id: sequence?.id || null,
-    status: "open",
+    months_in_arrears:       1,
+    sequence_id:             sequence?.id ?? null,
+    status:                  "open",
   })
-
   return true
 }
 
-async function advanceSequenceStep(supabase: SupabaseClient, arrearsCase: ArrearsCase, today: Date, capabilities: OrgCapabilities): Promise<boolean> {
+async function advanceSequenceStep(
+  supabase: SupabaseClient,
+  arrearsCase: ArrearsCase,
+  today: Date,
+  capabilities: OrgCapabilities,
+): Promise<boolean> {
   if (!arrearsCase.oldest_outstanding_date) return false
 
   const daysOverdue = differenceInDays(today, new Date(arrearsCase.oldest_outstanding_date))
   const nextStep = arrearsCase.current_step + 1
 
-  const { data: step } = await supabase
+  const { data: step, error: stepErr } = await supabase
     .from("arrears_sequence_steps")
     .select("*")
     .eq("sequence_id", arrearsCase.sequence_id)
     .eq("step_number", nextStep)
     .single()
 
-  if (!step || daysOverdue < step.trigger_days) return false
+  if (stepErr || !step || daysOverdue < step.trigger_days) return false
 
+  // Idempotency — don't fire twice for the same step
   const { data: existingAction } = await supabase
     .from("arrears_actions")
     .select("id")
     .eq("case_id", arrearsCase.id)
     .eq("step_number", nextStep)
     .limit(1)
-
   if (existingAction && existingAction.length > 0) return false
 
-  await supabase.from("arrears_actions").insert({
-    org_id: arrearsCase.org_id,
-    case_id: arrearsCase.id,
-    step_number: nextStep,
-    action_type: step.action_type,
-    channel: step.action_type === "sms" || step.action_type === "whatsapp" ? step.action_type : "email",
-    subject: "Arrears step " + nextStep + ": " + step.action_type + " (" + step.tone + ")",
-    ai_drafted: step.ai_draft,
+  const templateKey = resolveTemplateKey(step.action_type, nextStep)
+  if (!templateKey) {
+    // agent_task or unrecognised — advance step but don't send comm
+    await supabase.from("arrears_cases").update({ current_step: nextStep }).eq("id", arrearsCase.id)
+    return true
+  }
+
+  // Fetch tenant info
+  const { data: tenantRaw } = await supabase
+    .from("tenant_view")
+    .select("first_name, last_name, email, phone")
+    .eq("id", arrearsCase.tenant_id)
+    .maybeSingle()
+  const tenant = tenantRaw as TenantInfo | null
+
+  const tenantName    = tenantDisplayName(tenant ?? { first_name: null, last_name: null, email: null, phone: null })
+  const amountDisplay = formatAmount(arrearsCase.total_arrears_cents)
+  const sender        = capabilities.copy.tenantWelcomeSender
+
+  // Resolve tone variant
+  const toneVariant = templateKey === "arrears.letter_of_demand" || templateKey === "arrears.final_notice"
+    ? ("n/a" as const)
+    : resolveToneVariant(step.tone ?? "professional", "professional")
+
+  // Build SMS body (for relational steps)
+  const smsBody = (toneVariant !== "n/a" && tenant?.phone)
+    ? buildSmsBody(templateKey, tenant.first_name ?? "Tenant", amountDisplay, toneVariant, sender)
+    : undefined
+
+  // Build email element
+  const orgSettings = await fetchOrgSettings(arrearsCase.org_id)
+  const branding    = buildBranding(orgSettings)
+  const oldestDate  = arrearsCase.oldest_outstanding_date
+    ? formatDate(arrearsCase.oldest_outstanding_date)
+    : "unknown date"
+  const emailElement = buildEmailElement(templateKey, {
+    branding, tenantName, amountDisplay, daysOverdue, nextStep, toneVariant, oldestDate, sender,
+    caseId: arrearsCase.id, monthsInArrears: arrearsCase.months_in_arrears,
   })
 
-  if (step.action_type === "sms") {
-    const { data: tenant } = await supabase
-      .from("tenant_view")
-      .select("first_name, phone")
-      .eq("id", arrearsCase.tenant_id)
-      .maybeSingle()
+  const ref = arrearsCase.id.slice(0, 8).toUpperCase()
+  let subject: string
+  if (templateKey === "arrears.letter_of_demand") {
+    subject = `LETTER OF DEMAND — ${amountDisplay} — Ref ${ref}`
+  } else if (templateKey === "arrears.final_notice") {
+    subject = `FINAL NOTICE — Lease cancellation pending — ${amountDisplay}`
+  } else {
+    subject = `Rent reminder: ${amountDisplay} overdue`
+  }
 
-    if (tenant?.phone) {
-      const amountRands = (arrearsCase.total_arrears_cents / 100).toFixed(2)
-      const message = "Hi " + (tenant.first_name || "Tenant") + ", your rental account is R" + amountRands + " in arrears. Please make payment urgently or contact your agent to avoid further action. - " + capabilities.copy.tenantWelcomeSender
-      await sendSMS(normalizeSAPhone(tenant.phone), message, arrearsCase.org_id).catch(() => null)
-    }
+  // Record the action before sending (idempotency anchor)
+  await supabase.from("arrears_actions").insert({
+    org_id:      arrearsCase.org_id,
+    case_id:     arrearsCase.id,
+    step_number: nextStep,
+    action_type: step.action_type,
+    channel:     emailElement ? "email" : "sms",
+    subject,
+    ai_drafted:  step.ai_draft,
+  })
+
+  // Route and send
+  if (tenant?.email || tenant?.phone) {
+    await routeAndSend({
+      orgId:             arrearsCase.org_id,
+      templateKey,
+      tenantId:          arrearsCase.tenant_id,
+      to: {
+        email:     tenant.email ?? undefined,
+        phone:     tenant.phone ? normalizeSAPhone(tenant.phone) : undefined,
+        name:      tenantName,
+      },
+      subject,
+      emailElement,
+      smsBody,
+      bodyPreview: `${amountDisplay} overdue — step ${nextStep}`,
+      entityType:  "arrears_case",
+      entityId:    arrearsCase.id,
+      toneVariant,
+      triggerEventType: "arrears_action",
+      triggerEventId:   arrearsCase.id,
+    })
   }
 
   await supabase.from("arrears_cases").update({ current_step: nextStep }).eq("id", arrearsCase.id)
-
   return true
 }
 
-async function autoResolveIfPaid(supabase: SupabaseClient, arrearsCase: { id: string; lease_id: string }): Promise<boolean> {
+async function autoResolveIfPaid(
+  supabase: SupabaseClient,
+  arrearsCase: { id: string; lease_id: string; org_id: string; tenant_id: string },
+): Promise<boolean> {
   const { data: stillOverdue } = await supabase
     .from("rent_invoices")
     .select("id")
@@ -163,68 +372,99 @@ async function autoResolveIfPaid(supabase: SupabaseClient, arrearsCase: { id: st
   if (stillOverdue && stillOverdue.length > 0) return false
 
   await supabase.from("arrears_cases").update({
-    status: "resolved",
-    resolved_at: new Date().toISOString(),
+    status:           "resolved",
+    resolved_at:      new Date().toISOString(),
     resolution_notes: "All overdue invoices paid",
     total_arrears_cents: 0,
   }).eq("id", arrearsCase.id)
 
+  // Fire arrears.resolved comm (non-mandatory, transactional, email only)
+  const { data: tenantRaw } = await supabase
+    .from("tenant_view")
+    .select("first_name, last_name, email, phone")
+    .eq("id", arrearsCase.tenant_id)
+    .maybeSingle()
+  const tenant = tenantRaw as TenantInfo | null
+  if (tenant?.email) {
+    await routeAndSend({
+      orgId:       arrearsCase.org_id,
+      templateKey: "arrears.resolved",
+      tenantId:    arrearsCase.tenant_id,
+      to: {
+        email: tenant.email,
+        name:  tenantDisplayName(tenant),
+      },
+      subject:         "Your rental account is now up to date",
+      bodyPreview:     "All arrears have been cleared — your account is in good standing.",
+      entityType:      "arrears_case",
+      entityId:        arrearsCase.id,
+      triggerEventType:"arrears_action",
+      triggerEventId:  arrearsCase.id,
+    }).catch(() => undefined)  // fire-and-forget; not mandatory
+  }
+
   return true
 }
 
+// ── Route handler ────────────────────────────────────────────────────────────
+
 export async function GET(req: Request) {
-  const cronSecret = req.headers.get("x-cron-secret") || new URL(req.url).searchParams.get("secret")
+  const cronSecret = req.headers.get("x-cron-secret") ?? new URL(req.url).searchParams.get("secret")
   if (cronSecret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   const supabase = await createServiceClient()
-  const today = new Date()
+  const today    = new Date()
   const todayStr = today.toISOString().split("T")[0]
-  let processed = 0
+  let processed  = 0
 
-  // 1. Detect new arrears — overdue invoices without an arrears case
-  const { data: overdueInvoices } = await supabase
+  // 1. Detect new arrears — overdue invoices without an open case
+  const { data: overdueInvoices, error: invErr } = await supabase
     .from("rent_invoices")
     .select("id, org_id, lease_id, tenant_id, unit_id, due_date, balance_cents, leases(property_id, lease_type)")
     .in("status", ["open", "partial", "overdue"])
     .lt("due_date", todayStr)
+  if (invErr) console.error("[arrears-sequence] overdue invoices:", invErr.message)
 
-  for (const inv of overdueInvoices || []) {
+  for (const inv of overdueInvoices ?? []) {
     const created = await handleOverdueInvoice(supabase, inv as OverdueInvoice, today)
     if (created) processed++
   }
 
-  // 2. Advance sequences for open cases (not paused)
-  const { data: openCases } = await supabase
+  // 2. Advance sequences for open cases
+  const { data: openCases, error: casesErr } = await supabase
     .from("arrears_cases")
-    .select("id, org_id, tenant_id, current_step, sequence_id, oldest_outstanding_date, total_arrears_cents")
+    .select("id, org_id, tenant_id, current_step, sequence_id, oldest_outstanding_date, total_arrears_cents, months_in_arrears")
     .eq("status", "open")
     .eq("sequence_paused", false)
     .not("sequence_id", "is", null)
+  if (casesErr) console.error("[arrears-sequence] open cases:", casesErr.message)
 
-  const uniqueOrgIds = [...new Set((openCases || []).map((c) => c.org_id))]
+  // Batch org capabilities
+  const uniqueOrgIds = [...new Set((openCases ?? []).map((c) => c.org_id))]
   const capabilitiesMap = new Map<string, OrgCapabilities>()
   if (uniqueOrgIds.length > 0) {
     const { data: orgs } = await supabase.from("organisations").select("id, type, name").in("id", uniqueOrgIds)
-    for (const org of orgs || []) {
+    for (const org of orgs ?? []) {
       capabilitiesMap.set(org.id, getOrgCapabilities((org.type as OrgType) ?? "agency", (org.name as string) ?? ""))
     }
   }
 
-  for (const arrearsCase of openCases || []) {
+  for (const arrearsCase of openCases ?? []) {
     const capabilities = capabilitiesMap.get(arrearsCase.org_id) ?? getOrgCapabilities("agency", "")
     const advanced = await advanceSequenceStep(supabase, arrearsCase as ArrearsCase, today, capabilities)
     if (advanced) processed++
   }
 
   // 3. Auto-resolve cases where all invoices are now paid
-  const { data: paidCases } = await supabase
+  const { data: paidCases, error: paidErr } = await supabase
     .from("arrears_cases")
-    .select("id, lease_id, org_id")
+    .select("id, lease_id, org_id, tenant_id")
     .in("status", ["open", "payment_arrangement"])
+  if (paidErr) console.error("[arrears-sequence] paid cases:", paidErr.message)
 
-  for (const arrearsCase of paidCases || []) {
+  for (const arrearsCase of paidCases ?? []) {
     const resolved = await autoResolveIfPaid(supabase, arrearsCase)
     if (resolved) processed++
   }
