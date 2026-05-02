@@ -65,8 +65,8 @@ export function SettingsSidebar() {
       title: "Organisation",
       items: [
         { href: "/settings/details", label: "Details" },
-        ...(caps?.hasTeam ? [{ href: "/settings/team", label: "Team" }] : []),
-        ...(caps?.hasOpeningHours ? [{ href: "/settings/hours", label: "Opening hours" }] : []),
+        ...((caps === null || caps.hasTeam) ? [{ href: "/settings/team", label: "Team" }] : []),
+        ...((caps === null || caps.hasOpeningHours) ? [{ href: "/settings/hours", label: "Opening hours" }] : []),
         { href: "/settings/branding", label: "Branding" },
         { href: "/settings/configuration", label: "Configuration" },
       ],
@@ -78,7 +78,7 @@ export function SettingsSidebar() {
         { href: "/settings/lease-templates", label: "Lease templates" },
       ],
     },
-    ...(caps?.hasCompliance ? [{
+    ...((caps === null || caps.hasCompliance) ? [{
       title: "Compliance",
       items: [{ href: "/settings/compliance", label: "Compliance" }],
     }] : []),
