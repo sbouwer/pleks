@@ -10,6 +10,8 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { sendSMS } from "@/lib/sms/sendSMS"
 import { differenceInDays } from "date-fns"
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { getOrgCapabilities, type OrgCapabilities } from "@/lib/org/capabilities"
+import type { OrgType } from "@/lib/constants"
 
 function normalizeSAPhone(phone: string): string {
   const digits = phone.replaceAll(/\D/g, "")
@@ -97,7 +99,7 @@ async function handleOverdueInvoice(supabase: SupabaseClient, inv: OverdueInvoic
   return true
 }
 
-async function advanceSequenceStep(supabase: SupabaseClient, arrearsCase: ArrearsCase, today: Date): Promise<boolean> {
+async function advanceSequenceStep(supabase: SupabaseClient, arrearsCase: ArrearsCase, today: Date, capabilities: OrgCapabilities): Promise<boolean> {
   if (!arrearsCase.oldest_outstanding_date) return false
 
   const daysOverdue = differenceInDays(today, new Date(arrearsCase.oldest_outstanding_date))
@@ -140,7 +142,7 @@ async function advanceSequenceStep(supabase: SupabaseClient, arrearsCase: Arrear
 
     if (tenant?.phone) {
       const amountRands = (arrearsCase.total_arrears_cents / 100).toFixed(2)
-      const message = "Hi " + (tenant.first_name || "Tenant") + ", your rental account is R" + amountRands + " in arrears. Please make payment urgently or contact your agent to avoid further action. - Pleks"
+      const message = "Hi " + (tenant.first_name || "Tenant") + ", your rental account is R" + amountRands + " in arrears. Please make payment urgently or contact your agent to avoid further action. - " + capabilities.copy.tenantWelcomeSender
       await sendSMS(normalizeSAPhone(tenant.phone), message, arrearsCase.org_id).catch(() => null)
     }
   }
@@ -201,8 +203,18 @@ export async function GET(req: Request) {
     .eq("sequence_paused", false)
     .not("sequence_id", "is", null)
 
+  const uniqueOrgIds = [...new Set((openCases || []).map((c) => c.org_id))]
+  const capabilitiesMap = new Map<string, OrgCapabilities>()
+  if (uniqueOrgIds.length > 0) {
+    const { data: orgs } = await supabase.from("organisations").select("id, type, name").in("id", uniqueOrgIds)
+    for (const org of orgs || []) {
+      capabilitiesMap.set(org.id, getOrgCapabilities((org.type as OrgType) ?? "agency", (org.name as string) ?? ""))
+    }
+  }
+
   for (const arrearsCase of openCases || []) {
-    const advanced = await advanceSequenceStep(supabase, arrearsCase as ArrearsCase, today)
+    const capabilities = capabilitiesMap.get(arrearsCase.org_id) ?? getOrgCapabilities("agency", "")
+    const advanced = await advanceSequenceStep(supabase, arrearsCase as ArrearsCase, today, capabilities)
     if (advanced) processed++
   }
 

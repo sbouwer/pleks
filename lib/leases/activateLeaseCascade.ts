@@ -1,14 +1,16 @@
 /**
- * lib/leases/activateLeaseCascade.ts — FILL: one-line purpose
+ * lib/leases/activateLeaseCascade.ts — Orchestrate all side-effects when a lease activates
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   Server-only; called from DocuSeal webhook and manual activation actions
+ * Data:   leases, units, organisations, tenancy_history, deposits, invoices via service client
+ * Notes:  Each step returns a CascadeStep so failures are recorded without aborting the whole
+ *         cascade. Fetches OrgCapabilities so BUILD_63 email step can use org-type-correct
+ *         sender framing (signatureAttribution, tenantWelcomeSender) without an extra DB round-trip.
  */
 import { SupabaseClient } from "@supabase/supabase-js"
 import { seedInspectionRooms } from "@/lib/inspections/seedRooms"
+import { getOrgCapabilities, type OrgCapabilities } from "@/lib/org/capabilities"
+import type { OrgType } from "@/lib/constants"
 
 export interface CascadeStep {
   step: string
@@ -20,6 +22,7 @@ export interface ActivationResult {
   leaseId: string
   status: "active"
   steps: CascadeStep[]
+  capabilities: OrgCapabilities
 }
 
 // ── Step helpers ──────────────────────────────────────────────────────────────
@@ -228,16 +231,18 @@ export async function activateLeaseCascade(
   triggeredBy: "docuseal" | "manual",
   userId?: string
 ): Promise<ActivationResult> {
-  const { data: lease } = await supabase
-    .from("leases")
-    .select("*, units(unit_number, properties(id, name))")
-    .eq("id", leaseId)
-    .single()
+  const [{ data: lease }, { data: org }, { data: coTenants }] = await Promise.all([
+    supabase.from("leases").select("*, units(unit_number, properties(id, name))").eq("id", leaseId).single(),
+    supabase.from("organisations").select("type, name").eq("id", orgId).single(),
+    supabase.from("lease_co_tenants").select("tenant_id").eq("lease_id", leaseId),
+  ])
 
   if (!lease) throw new Error("Lease not found")
 
-  const { data: coTenants } = await supabase
-    .from("lease_co_tenants").select("tenant_id").eq("lease_id", leaseId)
+  const capabilities = getOrgCapabilities(
+    ((org?.type as OrgType) ?? "agency"),
+    ((org?.name as string) ?? ""),
+  )
 
   // Step 1: Activate lease — must succeed (throws on failure)
   await supabase.from("leases").update({ status: "active", signed_at: new Date().toISOString() }).eq("id", leaseId)
@@ -253,5 +258,5 @@ export async function activateLeaseCascade(
     await stepAuditLog(supabase, leaseId, orgId, triggeredBy, userId),
   ]
 
-  return { leaseId, status: "active", steps }
+  return { leaseId, status: "active", steps, capabilities }
 }

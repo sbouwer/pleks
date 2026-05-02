@@ -1,16 +1,17 @@
 "use server"
 
 /**
- * lib/statements/generateOwnerStatement.ts — FILL: one-line purpose
+ * lib/statements/generateOwnerStatement.ts — Generate and persist monthly owner statement data
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   Server-only; called from cron (owner-statement-gen) and manual triggers
+ * Data:   properties + organisations, rent_invoices, supplier_invoices via service client
+ * Notes:  Returns signatureAttribution + tenantWelcomeSender from OrgCapabilities so the
+ *         PDF renderer can use org-type-correct framing without re-fetching the org.
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { calculateManagementFee } from "@/lib/finance/managementFee"
+import { getOrgCapabilities } from "@/lib/org/capabilities"
+import type { OrgType } from "@/lib/constants"
 
 export async function generateOwnerStatement(
   propertyId: string,
@@ -28,6 +29,10 @@ export async function generateOwnerStatement(
   if (!property) return null
 
   const org = property.organisations as Record<string, unknown>
+  const capabilities = getOrgCapabilities(
+    ((org.type as OrgType) ?? "agency"),
+    ((org.name as string) ?? ""),
+  )
   const periodFromStr = periodFrom.toISOString().split("T")[0]
   const periodToStr = periodTo.toISOString().split("T")[0]
 
@@ -131,5 +136,12 @@ export async function generateOwnerStatement(
     .select("id")
     .single()
 
-  return statement
+  if (!statement) return null
+
+  return {
+    ...statement,
+    // Org-type-aware copy for PDF rendering — avoids re-fetching org in the render layer
+    signatureAttribution: capabilities.copy.signatureAttribution,
+    tenantWelcomeSender: capabilities.copy.tenantWelcomeSender,
+  }
 }
