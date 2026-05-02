@@ -67,10 +67,12 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
   },
   "arrears.letter_of_demand": {
     key: "arrears.letter_of_demand", channel: "email", category: "arrears", is_mandatory: true,
+    tone_profile: "legal", allowed_channels: ["email"],
     description: "Formal letter of demand (legal document — cannot be unsubscribed)",
   },
   "arrears.final_notice": {
     key: "arrears.final_notice", channel: "email", category: "arrears", is_mandatory: true,
+    tone_profile: "legal", allowed_channels: ["email"],
     description: "Final pre-cancellation notice (legal — cannot be unsubscribed)",
   },
   "arrears.payment_received": {
@@ -109,6 +111,7 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
   },
   "maintenance.emergency": {
     key: "maintenance.emergency", channel: "sms", category: "maintenance", is_mandatory: true,
+    tone_profile: "legal", allowed_channels: ["email", "sms", "whatsapp"],
     description: "Emergency maintenance alert — immediate action required",
   },
 
@@ -127,6 +130,7 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
   },
   "inspection.dispute_window": {
     key: "inspection.dispute_window", channel: "email", category: "inspections", is_mandatory: true,
+    tone_profile: "legal", allowed_channels: ["email"],
     description: "Move-out: 7-day dispute window notice (RHA requirement — cannot be unsubscribed)",
   },
 
@@ -149,14 +153,17 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
   },
   "lease.renewal_notice": {
     key: "lease.renewal_notice", channel: "email", category: "leases", is_mandatory: true,
+    tone_profile: "legal", allowed_channels: ["email"],
     description: "CPA s14 renewal notice 40-80 business days before expiry (legal — cannot be unsubscribed)",
   },
   "lease.expiry_reminder": {
     key: "lease.expiry_reminder", channel: "email", category: "leases", is_mandatory: true,
+    tone_profile: "legal", allowed_channels: ["email"],
     description: "30-day expiry reminder (legal — cannot be unsubscribed)",
   },
   "lease.terminated": {
     key: "lease.terminated", channel: "email", category: "leases", is_mandatory: true,
+    tone_profile: "legal", allowed_channels: ["email"],
     description: "Lease termination notice (legal — cannot be unsubscribed)",
   },
   "lease.document_emailed": {
@@ -171,10 +178,12 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
   },
   "deposit.return_schedule": {
     key: "deposit.return_schedule", channel: "email", category: "deposits", is_mandatory: true,
+    tone_profile: "legal", allowed_channels: ["email"],
     description: "Itemised deduction schedule (RHA s5(7) — cannot be unsubscribed)",
   },
   "deposit.returned": {
     key: "deposit.returned", channel: "email", category: "deposits", is_mandatory: true,
+    tone_profile: "legal", allowed_channels: ["email"],
     description: "Deposit refunded (legal notification — cannot be unsubscribed)",
   },
 
@@ -203,14 +212,17 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
   },
   "subscription.payment_failed": {
     key: "subscription.payment_failed", channel: "email", category: "subscriptions", is_mandatory: true,
+    tone_profile: "transactional", allowed_channels: ["email"],
     description: "Payment could not be collected — 14-day grace period starts (billing cascade day 0)",
   },
   "subscription.payment_reminder": {
     key: "subscription.payment_reminder", channel: "email", category: "subscriptions", is_mandatory: true,
+    tone_profile: "transactional", allowed_channels: ["email"],
     description: "Payment still overdue — reminder sent ~day 4 of grace period (billing cascade)",
   },
   "subscription.account_frozen": {
     key: "subscription.account_frozen", channel: "email", category: "subscriptions", is_mandatory: true,
+    tone_profile: "legal", allowed_channels: ["email"],
     description: "Grace period elapsed — account frozen, premium features suspended (billing cascade day 14)",
   },
 
@@ -263,14 +275,17 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
   // ── Critical incident notifications (BUILD_59) ────────────────────
   "incident.critical_broker": {
     key: "incident.critical_broker", channel: "email", category: "maintenance", is_mandatory: true,
+    tone_profile: "legal", allowed_channels: ["email"],
     description: "Insurance broker notified of critical property incident",
   },
   "incident.critical_owner": {
     key: "incident.critical_owner", channel: "email", category: "maintenance", is_mandatory: true,
+    tone_profile: "legal", allowed_channels: ["email"],
     description: "Owner paper-trail notification of critical property incident",
   },
   "incident.critical_scheme": {
     key: "incident.critical_scheme", channel: "email", category: "maintenance", is_mandatory: true,
+    tone_profile: "legal", allowed_channels: ["email"],
     description: "Managing scheme / body corporate notified of critical property incident",
   },
 
@@ -295,8 +310,8 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
   "info_request.self_track_nudge":     { key: "info_request.self_track_nudge",     channel: "email", category: "onboarding", is_mandatory: false, description: "Internal nudge at T+30 days for self-track info requests the agent committed to follow up themselves" },
 
   // ── Insurance checklist (ADDENDUM_60A) ──────────────────────────────────────
-  "insurance.checklist_brief":         { key: "insurance.checklist_brief",         channel: "email", category: "insurance",   is_mandatory: true,  description: "Broker receives insurance coverage verification request with HTML brief attached" },
-  "insurance.renewal_reminder":        { key: "insurance.renewal_reminder",        channel: "email", category: "insurance",   is_mandatory: true,  description: "Agent reminded at T+7 post-renewal that checklist items are still unverified" },
+  "insurance.checklist_brief":         { key: "insurance.checklist_brief",         channel: "email", category: "insurance",   is_mandatory: true,  tone_profile: "legal", allowed_channels: ["email"], description: "Broker receives insurance coverage verification request with HTML brief attached" },
+  "insurance.renewal_reminder":        { key: "insurance.renewal_reminder",        channel: "email", category: "insurance",   is_mandatory: true,  tone_profile: "legal", allowed_channels: ["email"], description: "Agent reminded at T+7 post-renewal that checklist items are still unverified" },
 
   // ── Feedback (ADDENDUM_00F) ──────────────────────────────────────────────────
   "feedback.reply":                    { key: "feedback.reply",                    channel: "email", category: "feedback",    is_mandatory: false, description: "Submitter notified when a platform admin replies to their feedback" },

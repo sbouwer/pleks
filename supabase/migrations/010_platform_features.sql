@@ -1260,3 +1260,17 @@ CREATE INDEX IF NOT EXISTS idx_wa_variants_key
 
 -- No RLS needed: platform-level reference table, service-role managed,
 -- readable by authenticated users via service client in router.
+
+-- ── auth_events: portal-token login support (BUILD_63 §9.2) ───────────────────
+-- tenant_portal_login / landlord_portal_login events have no auth.users row —
+-- user_id must be nullable for these paths. tenant_id provides the identity link.
+-- token_link added to auth_method CHECK for magic-link / portal-token flows.
+ALTER TABLE auth_events ALTER COLUMN user_id DROP NOT NULL;
+ALTER TABLE auth_events ADD COLUMN IF NOT EXISTS tenant_id uuid REFERENCES tenants(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_auth_events_tenant ON auth_events(tenant_id) WHERE tenant_id IS NOT NULL;
+
+ALTER TABLE auth_events DROP CONSTRAINT IF EXISTS auth_events_auth_method_check;
+ALTER TABLE auth_events ADD CONSTRAINT auth_events_auth_method_check
+  CHECK (auth_method IN (
+    'password', 'magic_link', 'totp', 'passkey', 'recovery_code', 'oauth', 'admin', 'token_link'
+  ));
