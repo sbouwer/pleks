@@ -97,14 +97,14 @@ export async function getAdminDashboardData(): Promise<DashboardSnapshot> {
     // Funnel counts
     db.from("waitlist").select("id", { count: "exact", head: true }),
     db.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "trialing"),
-    db.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "active").neq("tier", "owner_free"),
+    db.from("subscriptions").select("id", { count: "exact", head: true }).eq("status", "active").neq("tier", "owner"),
 
     // Org count
     db.from("organisations").select("id", { count: "exact", head: true }),
 
     // Recent signups
     db.from("organisations")
-      .select("id, name, created_at, subscriptions(tier, status)")
+      .select("id, name, created_at, subscriptions(tier, status, created_at)")
       .order("created_at", { ascending: false })
       .limit(7),
 
@@ -127,14 +127,14 @@ export async function getAdminDashboardData(): Promise<DashboardSnapshot> {
     db.from("subscriptions")
       .select("amount_cents, billing_cycle")
       .eq("status", "active")
-      .neq("tier", "owner_free")
+      .neq("tier", "owner")
       .gte("created_at", firstOfMonth.toISOString()),
 
     // MRR last month (rough — subs active as of start of month)
     db.from("subscriptions")
       .select("amount_cents, billing_cycle")
       .eq("status", "active")
-      .neq("tier", "owner_free")
+      .neq("tier", "owner")
       .gte("created_at", firstOfLastMonth.toISOString())
       .lt("created_at", firstOfMonth.toISOString()),
   ])
@@ -234,12 +234,12 @@ export async function getAdminDashboardData(): Promise<DashboardSnapshot> {
 
   // Recent signups
   const recentSignupsNorm = (recentSignups.data ?? []).map((o) => {
-    const subs = (o.subscriptions as unknown as { tier: string; status: string }[] | null) ?? []
-    const sub = subs[0]
+    const subs = (o.subscriptions as unknown as { tier: string; status: string; created_at: string }[] | null) ?? []
+    const sub = subs.toSorted((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
     return {
       id: o.id as string,
       name: o.name as string,
-      tier: sub?.tier ?? "owner_free",
+      tier: sub?.tier ?? "owner",
       status: sub?.status ?? "trialing",
       created_at: o.created_at as string,
     }
