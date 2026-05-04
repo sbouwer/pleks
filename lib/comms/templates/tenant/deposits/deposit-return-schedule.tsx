@@ -12,6 +12,7 @@ import { Section, Text, Hr } from "@react-email/components"
 import { EmailLayout, type OrgBranding } from "../../layout"
 
 export interface DeductionItem {
+  id: string
   room: string | null
   item_description: string
   deduction_amount_cents: number
@@ -36,34 +37,35 @@ export interface DepositReturnScheduleEmailProps {
   referenceNumber: string          // first 8 chars of reconciliation id
 }
 
-const CLASSIFICATION_LABELS: Record<string, string> = {
-  tenant_damage:       "Tenant Damage",
-  rent_arrears:        "Rent Arrears",
-  arrears:             "Rent Arrears",
-  utilities:           "Utilities",
-  cleaning:            "Cleaning",
-  lock_replacement:    "Lock Replacement",
-  contractual_penalty: "Contractual Penalty",
-  other:               "Other",
+// Canonical classifications from deposit_deduction_items.classification CHECK constraint.
+// Exported for reuse in PDF renders and future tooling.
+// All positive-amount items are shown regardless of classification — an agent claiming
+// wear_and_tear as a deduction is a process error, but the tenant must still see it.
+export const CLASSIFICATION_LABELS: Record<string, string> = {
+  tenant_damage: "Deductions — Tenant Damage",
+  wear_and_tear: "Deductions — Wear & Tear",
+  pre_existing:  "Deductions — Pre-existing Condition",
+  disputed:      "Deductions — Disputed",
 }
 
 function classificationLabel(c: string): string {
-  return CLASSIFICATION_LABELS[c] ?? c.replaceAll("_", " ").replaceAll(/\b\w/g, (l) => l.toUpperCase())
+  if (CLASSIFICATION_LABELS[c]) return CLASSIFICATION_LABELS[c]
+  return "Deductions — " + c.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ")
 }
 
 function formatCents(cents: number): string {
   return "R " + (cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
 }
 
-function groupByClassification(items: DeductionItem[]): Map<string, DeductionItem[]> {
-  const map = new Map<string, DeductionItem[]>()
+function groupByClassification(items: DeductionItem[]): Record<string, DeductionItem[]> {
+  const groups: Record<string, DeductionItem[]> = {}
   for (const item of items) {
     if (item.deduction_amount_cents <= 0) continue
-    const bucket = map.get(item.classification) ?? []
-    bucket.push(item)
-    map.set(item.classification, bucket)
+    const key = item.classification ?? "other"
+    if (!groups[key]) groups[key] = []
+    groups[key].push(item)
   }
-  return map
+  return groups
 }
 
 export function DepositReturnScheduleEmail({
@@ -84,7 +86,8 @@ export function DepositReturnScheduleEmail({
 }: Readonly<DepositReturnScheduleEmailProps>) {
   const preview = `Deposit return schedule — ${propertyLabel} — Ref ${referenceNumber}`
   const groups = groupByClassification(deductionItems)
-  const groupKeys = [...groups.keys()]
+  const hasAnyDeductions = deductionItems.some((i) => i.deduction_amount_cents > 0)
+  const groupKeys = Object.keys(groups).sort((a, b) => a.localeCompare(b))
 
   return (
     <EmailLayout preview={preview} branding={branding}>
@@ -120,12 +123,12 @@ export function DepositReturnScheduleEmail({
         </Text>
       </Section>
 
-      {/* Deduction items — grouped by classification, all types shown (RHA s5(7)) */}
+      {/* Deduction items — all positive-amount items, every classification shown (RHA s5(7)) */}
       {groupKeys.map((key) => (
         <Section key={key} style={box}>
-          <Text style={sectionHead}>Deductions — {classificationLabel(key)}</Text>
-          {(groups.get(key) ?? []).map((item, i) => (
-            <Section key={i} style={itemRow}>
+          <Text style={sectionHead}>{classificationLabel(key)}</Text>
+          {groups[key].map((item) => (
+            <Section key={item.id} style={itemRow}>
               <Text style={itemDesc}>
                 {item.room ? `${item.room}: ` : ""}{item.item_description}
               </Text>
@@ -138,7 +141,7 @@ export function DepositReturnScheduleEmail({
         </Section>
       ))}
 
-      {groupKeys.length === 0 && (
+      {!hasAnyDeductions && (
         <Text style={para}>
           No deductions have been applied. The full deposit plus accrued interest will be refunded
           to you.

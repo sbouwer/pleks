@@ -60,13 +60,13 @@ export async function sendDepositSchedule(leaseId: string): Promise<{ success?: 
   // Fetch deduction items
   const { data: items, error: itemsErr } = await db
     .from("deposit_deduction_items")
-    .select("room, item_description, deduction_amount_cents, classification, ai_justification")
+    .select("id, room, item_description, deduction_amount_cents, classification, ai_justification")
     .eq("lease_id", leaseId)
     .order("created_at")
 
   if (itemsErr) return { error: itemsErr.message }
 
-  // Fetch timer for deadline
+  // Fetch timer for deadline — fail-fast if deadline not set (broken legal notice otherwise)
   const { data: timer } = await db
     .from("deposit_timers")
     .select("deadline, return_days")
@@ -74,6 +74,10 @@ export async function sendDepositSchedule(leaseId: string): Promise<{ success?: 
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle()
+
+  if (!timer?.deadline) {
+    return { error: "Deposit timer not configured. The deposit deadline must be set up before the return schedule can be sent. Please configure the deposit timer first." }
+  }
 
   // Fetch lease + property info
   const { data: lease } = await db
@@ -96,10 +100,6 @@ export async function sendDepositSchedule(leaseId: string): Promise<{ success?: 
   const orgSettings = await fetchOrgSettings(orgId)
   const branding = buildBranding(orgSettings)
 
-  if (!timer?.deadline) {
-    return { error: "Deposit timer has no deadline set — configure the timer before sending the schedule" }
-  }
-
   const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
   const refNum = recon.id.slice(0, 8).toUpperCase()
   const deadline = formatDateLocal(timer.deadline as string)
@@ -107,6 +107,7 @@ export async function sendDepositSchedule(leaseId: string): Promise<{ success?: 
   const returnDays = (timer.return_days as number | null) ?? (hasDeductions ? 21 : 14)
 
   const deductionItems: DeductionItem[] = (items ?? []).map((i) => ({
+    id: i.id as string,
     room: i.room as string | null,
     item_description: i.item_description as string,
     deduction_amount_cents: i.deduction_amount_cents as number,
