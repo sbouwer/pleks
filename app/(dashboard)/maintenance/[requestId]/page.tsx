@@ -362,7 +362,7 @@ export default async function MaintenanceDetailPage({
         )}
 
         {/* Two-column independent stacks — columns don't affect each other's height */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
 
           {/* Left column: Details → Memos */}
           <div className="flex flex-col gap-4">

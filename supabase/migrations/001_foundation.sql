@@ -719,3 +719,16 @@ CREATE POLICY "org_contractor_contacts" ON public.contractor_contacts
   FOR ALL USING (org_id IN (
     SELECT org_id FROM public.user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL
   ));
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §1  Expand audit_log action CHECK to cover all application action types
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Original constraint only allowed INSERT/UPDATE/DELETE. NOTE (memos),
+-- SYNC (bank reconciliation), OWNERSHIP_TRANSFERRED, CONFLICT_ACKNOWLEDGED
+-- are all valid audit actions used in production code.
+ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS audit_log_action_check;
+ALTER TABLE audit_log ADD CONSTRAINT audit_log_action_check
+  CHECK (action = ANY (ARRAY[
+    'INSERT', 'UPDATE', 'DELETE',
+    'NOTE', 'SYNC', 'OWNERSHIP_TRANSFERRED', 'CONFLICT_ACKNOWLEDGED'
+  ]));

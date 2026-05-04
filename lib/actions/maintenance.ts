@@ -576,7 +576,7 @@ export async function addMaintenanceNote(
   if (!trimmed) return { error: "Note cannot be empty" }
   if (trimmed.length > 1000) return { error: "Note exceeds 1,000 character limit" }
 
-  await db.from("audit_log").insert({
+  const { error: noteError } = await db.from("audit_log").insert({
     org_id: orgId,
     table_name: "maintenance_requests",
     record_id: requestId,
@@ -584,6 +584,7 @@ export async function addMaintenanceNote(
     changed_by: userId,
     new_values: { note: trimmed, notified_landlord: notifyLandlord },
   })
+  if (noteError) return { error: noteError.message }
 
   // Optional: notify landlord via maintenance.memo_landlord_notified
   if (notifyLandlord) {
