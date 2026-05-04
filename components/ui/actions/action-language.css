@@ -1,0 +1,278 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   pleks/action-language.css
+
+   Centralized action vocabulary for the entire Pleks app.
+   Drop into app/globals.css with a single @import, OR import directly
+   from any layout that needs it.
+
+   Tokens consumed (already defined in globals.css):
+     --paper, --paper-sunk, --paper-raised, --rule, --rule-strong
+     --ink, --ink-soft, --ink-mute
+     --amber, --amber-ink, --amber-wash
+     --critical, --critical-wash
+     --positive, --positive-wash
+     --r-sm, --pub-sans, --pub-mono
+
+   Five primitives:
+     .pa-primary        solid amber. bar OR icon, never both.
+     .pa-secondary      ghost. paper-sunk + amber bracket on hover.
+     .pa-destructive    red outline. red wash on hover.
+     .pa-link           amber inline link with arrow.
+     .pa-edit           pencil. icon-only by default; .with-label adds text.
+
+   Two icon flavours:
+     .pa-iconbtn        bare 32×32 icon button (toolbars, row actions)
+     .pa-iconstack      36×36 icon + mono caps caption (profile cards)
+
+   One modal:
+     .pa-modal          card surface + 4px amber baseline
+   ──────────────────────────────────────────────────────────────────────── */
+
+/* Shared amber-bracket reveal — every ghost surface gets this on hover.
+   Use the .pa-bracket utility on any element you want the bracket on. */
+.pa-bracket { position: relative; }
+.pa-bracket::after {
+  content: ""; position: absolute; top: 3px; right: 3px;
+  width: 7px; height: 7px;
+  border-top: 1.5px solid var(--amber);
+  border-right: 1.5px solid var(--amber);
+  opacity: 0; transform: translate(-2px, 2px);
+  transition: opacity .15s, transform .15s;
+  pointer-events: none;
+}
+.pa-bracket:hover::after,
+.pa-bracket:focus-visible::after {
+  opacity: 1; transform: translate(0, 0);
+}
+
+/* ── Primary ──────────────────────────────────────────────────────────── */
+.pa-primary {
+  display: inline-flex; align-items: center; gap: 10px;
+  background: var(--amber); color: var(--ink);
+  padding: 10px 16px 10px 12px;
+  border: 0; border-radius: var(--r-sm, 5px);
+  font-family: var(--pub-sans); font-size: 14px; font-weight: 600;
+  letter-spacing: -0.005em;
+  cursor: pointer; transition: filter .15s, box-shadow .15s;
+}
+.pa-primary::before {
+  content: ""; width: 3px; height: 14px; background: var(--ink);
+  flex-shrink: 0; transition: background .15s;
+}
+.pa-primary.has-icon { padding-left: 14px; }
+.pa-primary.has-icon::before { display: none; }
+.pa-primary:hover:not(:disabled) {
+  filter: brightness(0.94);
+  box-shadow: 0 0 0 3px oklch(0.68 0.14 65 / 0.22);
+}
+.pa-primary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px oklch(0.68 0.14 65 / 0.4);
+}
+.pa-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.pa-primary svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+/* ── Secondary (ghost) ────────────────────────────────────────────────── */
+.pa-secondary {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 8px;
+  background: transparent; color: var(--ink);
+  padding: 8px 12px; border: 0; border-radius: var(--r-sm, 5px);
+  font-family: var(--pub-sans); font-size: 14px; font-weight: 500;
+  cursor: pointer; transition: background .15s, color .15s;
+}
+.pa-secondary::after {
+  content: ""; position: absolute; top: 3px; right: 3px;
+  width: 7px; height: 7px;
+  border-top: 1.5px solid var(--amber);
+  border-right: 1.5px solid var(--amber);
+  opacity: 0; transform: translate(-2px, 2px);
+  transition: opacity .15s, transform .15s;
+  pointer-events: none;
+}
+.pa-secondary:hover:not(:disabled) { background: var(--paper-sunk); }
+.pa-secondary:hover:not(:disabled)::after,
+.pa-secondary:focus-visible::after { opacity: 1; transform: translate(0, 0); }
+.pa-secondary:focus-visible {
+  outline: none; background: var(--paper-sunk);
+  box-shadow: 0 0 0 2px oklch(0.68 0.14 65 / 0.3);
+}
+.pa-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+.pa-secondary svg { width: 16px; height: 16px; opacity: 0.7; flex-shrink: 0; }
+
+/* ── Destructive ──────────────────────────────────────────────────────── */
+.pa-destructive {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: transparent; color: var(--critical);
+  padding: 8px 14px;
+  border: 1px solid var(--critical); border-radius: var(--r-sm, 5px);
+  font-family: var(--pub-sans); font-size: 14px; font-weight: 500;
+  cursor: pointer; transition: background .15s, color .15s;
+}
+.pa-destructive:hover:not(:disabled) { background: var(--critical-wash); }
+.pa-destructive:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px oklch(0.52 0.18 25 / 0.25);
+}
+.pa-destructive:disabled { opacity: 0.5; cursor: not-allowed; }
+.pa-destructive svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+/* ── Inline link ──────────────────────────────────────────────────────── */
+.pa-link {
+  display: inline-flex; align-items: center; gap: 6px;
+  color: var(--amber-ink); font-weight: 500; text-decoration: none;
+  font-size: 14px; cursor: pointer; transition: color .15s;
+  font-family: var(--pub-sans);
+}
+.pa-link:hover {
+  color: oklch(0.54 0.14 65);
+  text-decoration: underline; text-underline-offset: 3px;
+}
+.pa-link .pa-link-arrow { transition: transform .2s; display: inline-flex; }
+.pa-link:hover .pa-link-arrow { transform: translateX(2px); }
+.pa-link svg { width: 14px; height: 14px; }
+
+/* ── Edit affordance ──────────────────────────────────────────────────── */
+.pa-edit {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 6px;
+  background: transparent; color: var(--ink-soft);
+  padding: 6px; border: 0; border-radius: var(--r-sm, 5px);
+  font-family: var(--pub-sans); font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: background .15s, color .15s;
+}
+.pa-edit::after {
+  content: ""; position: absolute; top: 2px; right: 2px;
+  width: 6px; height: 6px;
+  border-top: 1.5px solid var(--amber);
+  border-right: 1.5px solid var(--amber);
+  opacity: 0; transform: translate(-2px, 2px);
+  transition: opacity .15s, transform .15s;
+  pointer-events: none;
+}
+.pa-edit.with-label { padding: 6px 10px 6px 8px; }
+.pa-edit:hover:not(:disabled) { background: var(--amber-wash); color: var(--amber-ink); }
+.pa-edit:hover:not(:disabled)::after,
+.pa-edit:focus-visible::after { opacity: 1; transform: translate(0, 0); }
+.pa-edit:focus-visible {
+  outline: none; background: var(--amber-wash); color: var(--amber-ink);
+  box-shadow: 0 0 0 2px oklch(0.68 0.14 65 / 0.3);
+}
+.pa-edit svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+/* ── Bare icon button (toolbar / row actions) ────────────────────────── */
+.pa-iconbtn {
+  position: relative;
+  width: 32px; height: 32px; border-radius: var(--r-sm, 5px);
+  border: 1px solid var(--rule-strong);
+  background: var(--paper-raised); color: var(--ink-soft);
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: background .15s, border-color .15s, color .15s;
+}
+.pa-iconbtn::after {
+  content: ""; position: absolute; top: 2px; right: 2px;
+  width: 6px; height: 6px;
+  border-top: 1.5px solid var(--amber);
+  border-right: 1.5px solid var(--amber);
+  opacity: 0; transform: translate(-2px, 2px);
+  transition: opacity .15s, transform .15s;
+  pointer-events: none;
+}
+.pa-iconbtn:hover:not(:disabled) {
+  background: var(--amber-wash); border-color: var(--amber); color: var(--amber-ink);
+}
+.pa-iconbtn:hover:not(:disabled)::after,
+.pa-iconbtn:focus-visible::after { opacity: 1; transform: translate(0, 0); }
+.pa-iconbtn:focus-visible {
+  outline: none; background: var(--amber-wash); border-color: var(--amber); color: var(--amber-ink);
+}
+.pa-iconbtn svg { width: 14px; height: 14px; }
+
+/* ── Icon stack (profile-card actions: Call / Email / WhatsApp / More) ── */
+.pa-iconstack {
+  display: inline-flex; flex-direction: column; align-items: center; gap: 6px;
+  background: transparent; border: 0; padding: 0;
+  cursor: pointer; color: var(--ink-soft);
+  font-family: var(--pub-sans);
+}
+.pa-iconstack-icon {
+  position: relative;
+  width: 36px; height: 36px; border-radius: var(--r-sm, 5px);
+  border: 1px solid var(--rule-strong);
+  background: var(--paper-raised);
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.pa-iconstack-icon::after {
+  content: ""; position: absolute; top: 3px; right: 3px;
+  width: 6px; height: 6px;
+  border-top: 1.5px solid var(--amber);
+  border-right: 1.5px solid var(--amber);
+  opacity: 0; transform: translate(-2px, 2px);
+  transition: opacity .15s, transform .15s;
+  pointer-events: none;
+}
+.pa-iconstack:hover .pa-iconstack-icon,
+.pa-iconstack:focus-visible .pa-iconstack-icon {
+  background: var(--amber-wash);
+  border-color: var(--amber);
+  color: var(--amber-ink);
+}
+.pa-iconstack:hover .pa-iconstack-icon::after,
+.pa-iconstack:focus-visible .pa-iconstack-icon::after { opacity: 1; transform: translate(0, 0); }
+.pa-iconstack:focus-visible { outline: none; }
+.pa-iconstack-icon svg { width: 16px; height: 16px; }
+.pa-iconstack-label {
+  font-family: var(--pub-mono); font-size: 10px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ink-mute);
+  transition: color .15s;
+}
+.pa-iconstack:hover .pa-iconstack-label,
+.pa-iconstack:focus-visible .pa-iconstack-label { color: var(--amber-ink); }
+
+/* ── Modal ────────────────────────────────────────────────────────────── */
+.pa-modal-backdrop {
+  position: fixed; inset: 0;
+  background: oklch(0.18 0.012 260 / 0.32);
+  backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 50;
+}
+.pa-modal {
+  position: relative;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-md, 8px);
+  padding: 24px 26px 22px;
+  width: min(440px, calc(100vw - 32px));
+  box-shadow: 0 24px 60px oklch(0.18 0.012 260 / 0.16),
+              0 0 0 1px oklch(0.18 0.012 260 / 0.04);
+}
+.pa-modal::after {
+  content: ""; position: absolute; left: -1px; right: -1px; bottom: -4px;
+  height: 4px; background: var(--amber);
+  border-radius: 0 0 var(--r-md, 8px) var(--r-md, 8px);
+}
+.pa-modal-head {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+}
+.pa-modal-head svg { width: 18px; height: 18px; color: var(--amber-ink); flex-shrink: 0; }
+.pa-modal-title {
+  font-family: var(--pub-sans); font-size: 16px; font-weight: 600;
+  letter-spacing: -0.005em; flex: 1;
+}
+.pa-modal-close {
+  background: transparent; border: 0; padding: 4px;
+  cursor: pointer; color: var(--ink-mute);
+  border-radius: var(--r-sm, 5px); transition: color .15s, background .15s;
+}
+.pa-modal-close:hover { color: var(--ink); background: var(--paper-sunk); }
+.pa-modal-body { color: var(--ink-soft); font-size: 14px; line-height: 1.5; }
+.pa-modal-actions {
+  display: flex; gap: 8px; justify-content: flex-end;
+  margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--rule);
+}
+
+/* ── Dark-mode adjustments (.pleks-portal[data-theme="dark"]) ────────── */
+.pleks-portal[data-theme="dark"] .pa-primary { color: var(--paper); }
+.pleks-portal[data-theme="dark"] .pa-primary::before { background: var(--paper); }
