@@ -114,14 +114,14 @@ function buildSmsBody(
 ): string {
   const name = tenantFirstName || "Tenant"
   if (templateKey === "arrears.reminder_step1") {
-    if (tone === "friendly")      return `Hi ${name}, just a reminder — your rent (${amountDisplay}) is overdue. Please pay or contact us soon. — ${sender}`
-    if (tone === "firm")          return `${name}: Rent of ${amountDisplay} is overdue. Pay immediately or contact us to avoid escalation. — ${sender}`
-    return `Hi ${name}, your rent account has an overdue balance of ${amountDisplay}. Please arrange payment urgently. — ${sender}`
+    if (tone === "friendly")      return `Hi ${name}, just a reminder - your rent (${amountDisplay}) is overdue. Please pay or contact us soon. - ${sender}`
+    if (tone === "firm")          return `${name}: Rent of ${amountDisplay} is overdue. Pay immediately or contact us to avoid escalation. - ${sender}`
+    return `Hi ${name}, your rent account has an overdue balance of ${amountDisplay}. Please arrange payment urgently. - ${sender}`
   }
   // arrears.reminder_step2
-  if (tone === "friendly")        return `Hi ${name}, your rent (${amountDisplay}) is still outstanding. Please pay urgently before formal action is taken. — ${sender}`
-  if (tone === "firm")            return `${name}: ${amountDisplay} in rent arrears remains unpaid. Formal proceedings will follow without immediate payment. — ${sender}`
-  return `REMINDER ${name}: Rent arrears of ${amountDisplay} unpaid. Act immediately to avoid a letter of demand. — ${sender}`
+  if (tone === "friendly")        return `Hi ${name}, your rent (${amountDisplay}) is still outstanding. Please pay urgently before formal action is taken. - ${sender}`
+  if (tone === "firm")            return `${name}: ${amountDisplay} in rent arrears remains unpaid. Formal proceedings will follow without immediate payment. - ${sender}`
+  return `REMINDER ${name}: Rent arrears of ${amountDisplay} unpaid. Act immediately to avoid a letter of demand. - ${sender}`
 }
 
 async function fetchPropertyLabel(supabase: SupabaseClient, unitId: string): Promise<string | undefined> {

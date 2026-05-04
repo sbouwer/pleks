@@ -278,6 +278,7 @@ export async function updateInspectionStatus(inspectionId: string, newStatus: st
     const closeDate = new Date(now)
     closeDate.setDate(closeDate.getDate() + 7)
     updates.status = "awaiting_tenant_review"
+    updates.conducted_date = now.toISOString()
     updates.dispute_window_open = true
     updates.dispute_window_opened_at = now.toISOString()
     updates.dispute_window_closes_at = closeDate.toISOString()

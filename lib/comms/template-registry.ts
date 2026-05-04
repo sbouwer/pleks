@@ -134,7 +134,7 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
   "inspection.dispute_window": {
     key: "inspection.dispute_window", channel: "email", category: "inspections", is_mandatory: true,
     tone_profile: "legal", allowed_channels: ["email"],
-    description: "Move-out: 7-day dispute window notice (RHA requirement — cannot be unsubscribed)",
+    description: "Move-out: 7-day procedural dispute window before deposit return schedule — s5(3)(c) joint inspection (cannot be unsubscribed)",
   },
 
   // ── Leases ───────────────────────────────────────────────────────
@@ -343,7 +343,7 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
 
   // ── Inspection lifecycle extras (BUILD_63) ────────────────────────────────
   "inspection.rescheduled":            { key: "inspection.rescheduled",            channel: "both",     category: "inspections", is_mandatory: false, tone_profile: "relational",    allowed_channels: ["whatsapp", "email"], description: "Inspection rescheduled — new date and time confirmed" },
-  "inspection.move_in_report":         { key: "inspection.move_in_report",         channel: "email",    category: "inspections", is_mandatory: true,  tone_profile: "legal",         allowed_channels: ["email"],             description: "Move-in inspection report delivered to tenant (RHA s5(3)(e) — cannot be unsubscribed)" },
+  "inspection.move_in_report":         { key: "inspection.move_in_report",         channel: "email",    category: "inspections", is_mandatory: true,  tone_profile: "legal",         allowed_channels: ["email"],             description: "Move-in inspection report delivered to tenant — joint inspection record per RHA s5(3)(c) (cannot be unsubscribed)" },
 
   // ── Maintenance extras (BUILD_63) ─────────────────────────────────────────
   "maintenance.delay":                 { key: "maintenance.delay",                 channel: "both",     category: "maintenance", is_mandatory: false, tone_profile: "relational",    allowed_channels: ["whatsapp", "email"], description: "Maintenance delay notification with revised ETA" },

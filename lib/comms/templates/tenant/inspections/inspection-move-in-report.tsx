@@ -2,7 +2,7 @@
  * lib/comms/templates/tenant/inspections/inspection-move-in-report.tsx — move-in inspection report
  *
  * Data:   tenant name, property label, conducted date, overall condition, reference number, org branding
- * Notes:  Mandatory legal — RHA s5(3)(e). Formal voice. Single variant. Email only.
+ * Notes:  Mandatory legal — RHA s5(3)(c) joint inspection requirement. Formal voice. Single variant. Email only.
  *         Serves as the baseline condition record for the tenancy. Fired when move_in inspection
  *         transitions to awaiting_tenant_review. BUILD_63 Phase 4 (I4).
  */
@@ -43,9 +43,9 @@ export function InspectionMoveInReportEmail({
       <Text style={refLine}>Ref: {referenceNumber} · Property: {propertyLabel}</Text>
 
       <Text style={para}>
-        In accordance with section 5(3)(e) of the Rental Housing Act 50 of 1999, please find below
-        the results of your move-in inspection. This report serves as the official record of the
-        property&apos;s condition at the commencement of your tenancy.
+        Following the joint move-in inspection conducted pursuant to section 5(3)(c) of the Rental
+        Housing Act 50 of 1999, please find below the official record of the property&apos;s condition
+        at the commencement of your tenancy.
       </Text>
 
       <Section style={box}>
@@ -73,8 +73,8 @@ export function InspectionMoveInReportEmail({
 
       <Hr style={{ borderColor: "#e4e4e7", margin: "24px 0" }} />
       <Text style={small}>
-        This notice is issued pursuant to section 5(3)(e) of the Rental Housing Act 50 of 1999.
-        Reference: {referenceNumber}. Landlord agent: {branding.orgName}.
+        This report documents the joint inspection conducted pursuant to section 5(3)(c) of the
+        Rental Housing Act 50 of 1999. Reference: {referenceNumber}. Landlord agent: {branding.orgName}.
         This document is maintained as Tribunal evidence. If you believe the report is inaccurate,
         you may refer the matter to the Rental Housing Tribunal in your province.
       </Text>

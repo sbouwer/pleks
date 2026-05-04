@@ -26,7 +26,7 @@ export function buildInspectionReminderSms(
   scheduledDate: string,
   senderName: string,
 ): string {
-  return `${senderName}: Reminder — your ${inspectionTypeLabel} at ${propertyLabel} is scheduled for tomorrow, ${scheduledDate}. Please ensure the property is accessible.`
+  return `${senderName}: Reminder - your ${inspectionTypeLabel} at ${propertyLabel} is scheduled for tomorrow, ${scheduledDate}. Please ensure the property is accessible.`
 }
 
 export function InspectionReminderEmail({

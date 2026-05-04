@@ -2,7 +2,8 @@
  * lib/comms/templates/tenant/inspections/inspection-dispute-window.tsx — move-out dispute window notice
  *
  * Data:   tenant name, property label, conducted date, dispute deadline, reference number, org branding
- * Notes:  Mandatory legal — RHA s5(3)(g). 7-day dispute window. Formal voice. Email only.
+ * Notes:  Mandatory legal — RHA s5(3)(c) joint inspection requirement. 7-day procedural dispute
+ *         window before deposit return schedule is issued. Formal voice. Email only.
  *         Stored in body_full for Tribunal evidence trail. Fired when move_out inspection
  *         transitions to awaiting_tenant_review. BUILD_63 Phase 4 (I6).
  */
@@ -38,10 +39,10 @@ export function InspectionDisputeWindowEmail({
       <Text style={refLine}>Ref: {referenceNumber} · Property: {propertyLabel}</Text>
 
       <Text style={para}>
-        In accordance with section 5(3)(g) of the Rental Housing Act 50 of 1999, please be advised
-        that the move-out inspection of the above property has been completed. You have{" "}
+        Following the joint move-out inspection of the above property conducted pursuant to
+        section 5(3)(c) of the Rental Housing Act 50 of 1999, you are advised that you have{" "}
         <strong>7 days</strong> from the date of this notice to dispute the inspection findings
-        before any deposit deductions are finalised.
+        before the formal deposit return schedule is issued.
       </Text>
 
       <Section style={box}>
@@ -69,8 +70,8 @@ export function InspectionDisputeWindowEmail({
 
       <Hr style={{ borderColor: "#e4e4e7", margin: "24px 0" }} />
       <Text style={small}>
-        This notice is issued pursuant to section 5(3)(g) of the Rental Housing Act 50 of 1999.
-        Reference: {referenceNumber}. Landlord agent: {branding.orgName}.
+        This notice follows the joint move-out inspection conducted pursuant to section 5(3)(c)
+        of the Rental Housing Act 50 of 1999. Reference: {referenceNumber}. Landlord agent: {branding.orgName}.
         If you believe this notice is incorrect, you may refer the matter to the Rental Housing
         Tribunal in your province.
       </Text>

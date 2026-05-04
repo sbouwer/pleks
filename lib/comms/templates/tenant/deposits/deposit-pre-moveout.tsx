@@ -78,7 +78,7 @@ export function buildPreMoveoutSms(
   leaseEndDate: string,
   senderName: string,
 ): string {
-  return `Hi ${tenantFirstName}, your lease at ${propertyLabel} ends ${leaseEndDate}. Contact us to schedule a pre-moveout inspection. — ${senderName}`
+  return `Hi ${tenantFirstName}, your lease at ${propertyLabel} ends ${leaseEndDate}. Contact us to schedule a pre-moveout inspection. - ${senderName}`
 }
 
 const greet:       React.CSSProperties = { fontSize: 14, color: "#3f3f46", margin: "0 0 8px" }
