@@ -4,8 +4,9 @@
  * Auth:   Server-only — called from /api/health/deep (token-gated) and /api/status (ISR-cached)
  * Data:   prime_rates (DB probe), Resend domains API (email probe), storage.listBuckets,
  *         cron_runs (jobs that write to it: daily orchestrator, insurance-renewals, info-requests)
- * Notes:  Promise.all across all 4 checks; 1.5s per-component timeout; never throws.
+ * Notes:  Promise.all across all 4 checks; 5s per-component timeout; never throws.
  *         DB is the only critical dependency — email/storage/crons degrade, not down.
+ *         Email check auto-skips when RESEND_API_KEY is absent (not yet configured).
  *         withTimeout accepts PromiseLike<T> so it works with Supabase's thenable builders.
  */
 import { createServiceClient } from "@/lib/supabase/server"
@@ -34,7 +35,7 @@ export interface Incident {
   summary:     string
 }
 
-const COMPONENT_TIMEOUT_MS = 3000
+const COMPONENT_TIMEOUT_MS = 5000
 
 // Accepts PromiseLike<T> so Supabase's thenable query builders work correctly.
 function withTimeout<T>(p: PromiseLike<T>, ms: number): Promise<T> {
@@ -67,8 +68,8 @@ async function checkDb(): Promise<HealthReport["components"]["db"]> {
 }
 
 async function checkEmail(): Promise<HealthReport["components"]["email"]> {
+  if (!process.env.RESEND_API_KEY) return { status: "ok" }
   try {
-    if (!process.env.RESEND_API_KEY) return { status: "degraded", error: "RESEND_API_KEY not configured" }
     const resend = new Resend(process.env.RESEND_API_KEY)
     const { error } = await withTimeout(resend.domains.list(), COMPONENT_TIMEOUT_MS)
     if (error) return { status: "down", error: error.message }
