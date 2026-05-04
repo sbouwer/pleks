@@ -103,13 +103,13 @@
 /* ── Destructive ──────────────────────────────────────────────────────── */
 .pa-destructive {
   display: inline-flex; align-items: center; gap: 8px;
-  background: transparent; color: var(--critical);
+  background: transparent; color: var(--danger);
   padding: 8px 14px;
-  border: 1px solid var(--critical); border-radius: var(--r-sm, 5px);
+  border: 1px solid var(--danger); border-radius: var(--r-sm, 5px);
   font-family: var(--pub-sans); font-size: 14px; font-weight: 500;
   cursor: pointer; transition: background .15s, color .15s;
 }
-.pa-destructive:hover:not(:disabled) { background: var(--critical-wash); }
+.pa-destructive:hover:not(:disabled) { background: var(--danger-bg); }
 .pa-destructive:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px oklch(0.52 0.18 25 / 0.25);

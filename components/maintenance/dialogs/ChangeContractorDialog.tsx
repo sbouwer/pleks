@@ -27,7 +27,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import { changeContractor } from "@/lib/actions/maintenance"
 
@@ -70,11 +69,11 @@ export function ChangeContractorDialog({ requestId, currentContractorId, contrac
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<ActionButton tone="secondary" />}>
-        <UserCheck className="h-3 w-3" />
+    <>
+      <ActionButton tone="secondary" icon={<UserCheck className="h-3 w-3" />} onClick={() => setOpen(true)}>
         Change
-      </DialogTrigger>
+      </ActionButton>
+      <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <div className="flex items-center gap-2 mb-1">
@@ -126,5 +125,6 @@ export function ChangeContractorDialog({ requestId, currentContractorId, contrac
         </div>
       </DialogContent>
     </Dialog>
+    </>
   )
 }
