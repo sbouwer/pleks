@@ -118,14 +118,17 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
   // ── Inspections ──────────────────────────────────────────────────
   "inspection.scheduled": {
     key: "inspection.scheduled", channel: "both", category: "inspections", is_mandatory: false,
+    tone_profile: "relational", allowed_channels: ["whatsapp", "email"],
     description: "Inspection created and tenant notified",
   },
   "inspection.reminder": {
     key: "inspection.reminder", channel: "both", category: "inspections", is_mandatory: false,
+    tone_profile: "relational", allowed_channels: ["whatsapp", "sms", "email"],
     description: "24h reminder before scheduled inspection (cron)",
   },
   "inspection.report_ready": {
     key: "inspection.report_ready", channel: "email", category: "inspections", is_mandatory: false,
+    tone_profile: "transactional", allowed_channels: ["email"],
     description: "Inspection report published and available",
   },
   "inspection.dispute_window": {

@@ -30,6 +30,7 @@ import { GET as processAuditExports } from "../process-audit-exports/route"
 import { POST as mandatoryRetry } from "../tenant-comms/mandatory-retry/route"
 import { GET as preMoveoutInspection } from "../tenant-comms/pre-moveout-inspection/route"
 import { GET as depositInterestStatement } from "../tenant-comms/deposit-interest-statement/route"
+import { GET as inspectionReminder } from "../tenant-comms/inspection-reminder/route"
 
 type CronHandler = (req: NextRequest) => Promise<Response>
 
@@ -91,6 +92,7 @@ export async function GET(req: NextRequest) {
   await runJob("process_audit_exports", processAuditExports, cronReq, results)
   await runJob("mandatory_retry", mandatoryRetry, cronReq, results)
   await runJob("pre_moveout_inspection", preMoveoutInspection, cronReq, results)
+  await runJob("inspection_reminder", inspectionReminder, cronReq, results)
 
   // Monthly jobs
   if (dayOfMonth === 1) {
