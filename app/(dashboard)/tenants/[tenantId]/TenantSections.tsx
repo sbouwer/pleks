@@ -14,7 +14,7 @@ import { ContactEditForm } from "@/components/contacts/edit/ContactEditForm"
 import { TenantEmploymentForm } from "@/components/contacts/edit/TenantEmploymentForm"
 import { AddressEditForm } from "@/components/contacts/edit/AddressEditForm"
 import { updateContactJuristicFields } from "@/lib/actions/contacts"
-import { EditButton } from "@/components/ui/actions"
+import { ActionButton, EditButton } from "@/components/ui/actions"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 
@@ -68,7 +68,7 @@ export function TenantContactSection({ entityId, phones, emails }: Readonly<Tena
     <div className="border-t pt-3 mt-3">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Contact</span>
-        {!editing && <EditButton label="Edit" onClick={() => setEditing(true)} />}
+        {!editing && <EditButton mode="label" label="Edit" onClick={() => setEditing(true)} />}
       </div>
       {editing ? (
         <ContactEditForm
@@ -177,7 +177,7 @@ export function TenantEmploymentSection({
     <div className="border-t pt-3 mt-3">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Employment</span>
-        {!editing && <EditButton label="Edit" onClick={() => setEditing(true)} />}
+        {!editing && <EditButton mode="label" label="Edit" onClick={() => setEditing(true)} />}
       </div>
       {editing ? (
         <TenantEmploymentForm
@@ -232,7 +232,7 @@ export function TenantAddressSection({ entityId, address }: Readonly<TenantAddre
     <div className="border-t pt-3 mt-3">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Address</span>
-        {!editing && <EditButton label="Edit" onClick={() => setEditing(true)} />}
+        {!editing && <EditButton mode="label" label="Edit" onClick={() => setEditing(true)} />}
       </div>
       {editing ? (
         <AddressEditForm
@@ -331,7 +331,7 @@ function JuristicView({ juristicType, turnoverUnder2m, assetValueUnder2m, sizeBa
     <div className="border-t pt-3 mt-3">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">CPA classification</span>
-        <EditButton label="Edit CPA classification" onClick={onEdit} />
+        <EditButton mode="label" label="Edit" onClick={onEdit} />
       </div>
       <div className="space-y-1">
         <DetailRow label="Entity type">{juristicType ? (JURISTIC_TYPE_LABELS[juristicType] ?? juristicType) : "Not set"}</DetailRow>
@@ -417,22 +417,10 @@ function JuristicEdit({ contactId, juristicType: init, turnoverUnder2m: initT, a
         )}
 
         <div className="flex gap-2 pt-1">
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={isPending}
-            className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          >
+          <ActionButton tone="primary" onClick={handleSave} disabled={isPending}>
             {isPending ? "Saving…" : "Save"}
-          </button>
-          <button
-            type="button"
-            onClick={onDone}
-            disabled={isPending}
-            className="rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium hover:bg-muted"
-          >
-            Cancel
-          </button>
+          </ActionButton>
+          <ActionButton tone="secondary" onClick={onDone} disabled={isPending}>Cancel</ActionButton>
         </div>
       </div>
     </div>
