@@ -296,10 +296,10 @@ export function MobileMaintenanceView({
 
   const handleStatus = useCallback(async (newStatus: string) => {
     const result = await updateMaintenanceStatus(requestId, newStatus)
-    if (result?.error) {
+    if ("error" in result) {
       toast.error(result.error)
     } else {
-      toast.success("Status updated")
+      toast.success(result.toast ?? "Status updated")
       router.refresh()
     }
   }, [requestId, router])

@@ -1,11 +1,9 @@
 /**
- * app/(dashboard)/maintenance/[requestId]/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/maintenance/[requestId]/page.tsx — maintenance request detail page
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /maintenance/[requestId]
+ * Auth:   createClient auth.getUser() + gatewaySSR for org-scoped delay events
+ * Data:   maintenance_requests, contractor_updates, audit_log, maintenance_delay_events
  */
 import { createClient } from "@/lib/supabase/server"
 import { gatewaySSR } from "@/lib/supabase/gateway"
@@ -231,7 +229,7 @@ export default async function MaintenanceDetailPage({
             {request.category && ` · ${request.category}`}
           </p>
         </div>
-        <MaintenanceActions requestId={requestId} status={request.status} actualCostCents={request.actual_cost_cents ?? null} />
+        <MaintenanceActions requestId={requestId} status={request.status} actualCostCents={request.actual_cost_cents ?? null} contractorId={request.contractor_id ?? null} />
       </div>
 
       {/* Urgency + AI triage */}

@@ -109,6 +109,11 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
     key: "maintenance.landlord_approval", channel: "email", category: "maintenance", is_mandatory: false,
     description: "Cost exceeds threshold — landlord approval required",
   },
+  "maintenance.work_order": {
+    key: "maintenance.work_order", channel: "email", category: "maintenance", is_mandatory: false,
+    tone_profile: "transactional", allowed_channels: ["email"],
+    description: "Work order dispatched to contractor with token-protected portal link",
+  },
   "maintenance.emergency": {
     key: "maintenance.emergency", channel: "sms", category: "maintenance", is_mandatory: true,
     tone_profile: "legal", allowed_channels: ["email", "sms", "whatsapp"],

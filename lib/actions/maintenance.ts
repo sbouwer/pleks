@@ -1,13 +1,12 @@
 "use server"
 
 /**
- * lib/actions/maintenance.ts — FILL: one-line purpose
+ * lib/actions/maintenance.ts — server actions for maintenance request lifecycle
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   gateway() — org-scoped, session-required
+ * Data:   maintenance_requests, contractor_updates, audit_log, communication_log
+ * Notes:  updateMaintenanceStatus("work_order_sent") validates contractor, sets
+ *         work_order_sent_at, generates work_order_token if absent, and emails contractor.
  */
 import { gateway } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
@@ -15,6 +14,9 @@ import { revalidatePath } from "next/cache"
 import { triageMaintenanceRequest, deriveSeverityFromTriage } from "@/lib/ai/maintenanceTriage"
 import { hasFeature } from "@/lib/tier/gates"
 import { getOrgTier } from "@/lib/tier/getOrgTier"
+import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
+import { WorkOrderDispatchEmail } from "@/lib/comms/templates/maintenance/work-order-dispatch"
+import * as React from "react"
 
 export async function createMaintenanceRequest(formData: FormData) {
   const gw = await gateway()
@@ -133,12 +135,13 @@ export async function updateMaintenanceStatus(
   requestId: string,
   newStatus: string,
   notes?: string
-) {
+): Promise<{ success: true; toast?: string } | { error: string }> {
   const gw = await gateway()
   if (!gw) return { error: "Not authenticated" }
   const { db, userId } = gw
 
   const updates: Record<string, unknown> = { status: newStatus }
+  let toastMessage: string | undefined
 
   if (newStatus === "approved") {
     updates.reviewed_by = userId
@@ -155,6 +158,82 @@ export async function updateMaintenanceStatus(
     updates.reviewed_by = userId
     updates.reviewed_at = new Date().toISOString()
     updates.rejection_reason = notes || null
+  }
+
+  if (newStatus === "work_order_sent") {
+    // Fetch full request to validate contractor + get WO identifiers
+    const { data: req, error: fetchErr } = await db
+      .from("maintenance_requests")
+      .select("contractor_id, work_order_number, work_order_token, org_id, title, urgency, unit_id, units(unit_number, properties(name))")
+      .eq("id", requestId)
+      .single()
+
+    if (fetchErr || !req) return { error: "Could not load maintenance request." }
+    if (!req.contractor_id) return { error: "Assign a contractor before sending the work order." }
+
+    updates.work_order_sent_at = new Date().toISOString()
+
+    // Generate token if this request pre-dates token support
+    let token = req.work_order_token as string | null
+    if (!token) {
+      token = crypto.randomUUID()
+      updates.work_order_token = token
+    }
+
+    // Fetch contractor details for the email
+    const { data: contractor } = await db
+      .from("contractors")
+      .select("first_name, last_name, company_name, email, contact_id")
+      .eq("id", req.contractor_id)
+      .single()
+
+    const contractorDisplayName = (contractor?.company_name as string | null)
+      || [contractor?.first_name, contractor?.last_name].filter(Boolean).join(" ")
+      || "Contractor"
+
+    toastMessage = `Work order sent to ${contractorDisplayName}`
+
+    if (contractor?.email) {
+      const orgId = req.org_id as string
+      const orgSettings = await fetchOrgSettings(orgId)
+      const branding = buildBranding(orgSettings)
+
+      const unit = req.units as unknown as { unit_number: string; properties: { name: string } } | null
+      const propertyLabel = unit?.properties.name ?? "Property"
+      const unitLabel = unit?.unit_number ?? ""
+      const woUrl = `${process.env.NEXT_PUBLIC_APP_URL}/wo/${req.work_order_number}?token=${token}`
+
+      try {
+        await sendEmail({
+          orgId,
+          templateKey: "maintenance.work_order",
+          to: {
+            email: contractor.email as string,
+            name: contractorDisplayName,
+            contactId: (contractor.contact_id as string | null) ?? undefined,
+          },
+          subject: `Work Order ${req.work_order_number} — ${propertyLabel}`,
+          emailElement: React.createElement(WorkOrderDispatchEmail, {
+            branding,
+            contractorName: contractorDisplayName,
+            workOrderNumber: req.work_order_number as string,
+            propertyLabel,
+            unitLabel,
+            jobTitle: req.title as string,
+            urgency: (req.urgency as string | null) ?? "routine",
+            woUrl,
+            senderName: orgSettings?.name ?? "Pleks",
+          }),
+          entityType: "maintenance_request",
+          entityId: requestId,
+          triggeredBy: userId,
+          triggerEventType: "manual",
+          toneVariant: "professional",
+        })
+      } catch {
+        // Email failure is non-fatal — status still updates
+      }
+    }
   }
 
   const { error } = await db
@@ -183,7 +262,7 @@ export async function updateMaintenanceStatus(
 
   revalidatePath(`/maintenance/${requestId}`)
   revalidatePath("/maintenance")
-  return { success: true }
+  return { success: true, toast: toastMessage }
 }
 
 // ── Data-fetching server actions for the maintenance form ──────────

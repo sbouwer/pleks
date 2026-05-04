@@ -1,13 +1,11 @@
 "use client"
 
 /**
- * app/(dashboard)/maintenance/[requestId]/MaintenanceActions.tsx — FILL: one-line purpose
+ * app/(dashboard)/maintenance/[requestId]/MaintenanceActions.tsx — status action buttons for a maintenance request
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   calls updateMaintenanceStatus server action
+ * Notes:  "Send Work Order" is disabled and shows a tooltip when no contractor is assigned.
+ *         The action returns a custom toast message for work_order_sent.
  */
 import { Button } from "@/components/ui/button"
 import { SignOffCard } from "@/components/maintenance/SignOffCard"
@@ -22,19 +20,20 @@ interface MaintenanceActionsProps {
   readonly requestId: string
   readonly status: string
   readonly actualCostCents: number | null
+  readonly contractorId: string | null
 }
 
-export function MaintenanceActions({ requestId, status, actualCostCents }: MaintenanceActionsProps) {
+export function MaintenanceActions({ requestId, status, actualCostCents, contractorId }: MaintenanceActionsProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const { orgId } = useOrg()
 
   async function handleStatus(newStatus: string) {
     const result = await updateMaintenanceStatus(requestId, newStatus)
-    if (result?.error) {
+    if ("error" in result) {
       toast.error(result.error)
     } else {
-      toast.success("Status updated")
+      toast.success(result.toast ?? "Status updated")
       if (orgId) {
         queryClient.invalidateQueries({ queryKey: OPERATIONAL_QUERY_KEYS.maintenance(orgId) })
         queryClient.invalidateQueries({ queryKey: DASHBOARD_QUERY_KEYS.attentionItems(orgId) })
@@ -42,6 +41,8 @@ export function MaintenanceActions({ requestId, status, actualCostCents }: Maint
       router.refresh()
     }
   }
+
+  const noContractor = !contractorId
 
   return (
     <div className="flex flex-wrap gap-2">
@@ -52,7 +53,18 @@ export function MaintenanceActions({ requestId, status, actualCostCents }: Maint
         </>
       )}
       {status === "approved" && (
-        <Button size="sm" onClick={() => handleStatus("work_order_sent")}>Send Work Order</Button>
+        <div title={noContractor ? "Assign a contractor in the Cost & Contractor section first" : undefined}>
+          <Button
+            size="sm"
+            disabled={noContractor}
+            onClick={() => handleStatus("work_order_sent")}
+          >
+            Send Work Order
+          </Button>
+          {noContractor && (
+            <p className="text-xs text-muted-foreground mt-1">No contractor assigned</p>
+          )}
+        </div>
       )}
       {status === "pending_completion" && (
         <SignOffCard requestId={requestId} actualCostCents={actualCostCents} />
