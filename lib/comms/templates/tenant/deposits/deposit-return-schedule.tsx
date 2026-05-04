@@ -36,8 +36,34 @@ export interface DepositReturnScheduleEmailProps {
   referenceNumber: string          // first 8 chars of reconciliation id
 }
 
+const CLASSIFICATION_LABELS: Record<string, string> = {
+  tenant_damage:       "Tenant Damage",
+  rent_arrears:        "Rent Arrears",
+  arrears:             "Rent Arrears",
+  utilities:           "Utilities",
+  cleaning:            "Cleaning",
+  lock_replacement:    "Lock Replacement",
+  contractual_penalty: "Contractual Penalty",
+  other:               "Other",
+}
+
+function classificationLabel(c: string): string {
+  return CLASSIFICATION_LABELS[c] ?? c.replaceAll("_", " ").replaceAll(/\b\w/g, (l) => l.toUpperCase())
+}
+
 function formatCents(cents: number): string {
   return "R " + (cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
+}
+
+function groupByClassification(items: DeductionItem[]): Map<string, DeductionItem[]> {
+  const map = new Map<string, DeductionItem[]>()
+  for (const item of items) {
+    if (item.deduction_amount_cents <= 0) continue
+    const bucket = map.get(item.classification) ?? []
+    bucket.push(item)
+    map.set(item.classification, bucket)
+  }
+  return map
 }
 
 export function DepositReturnScheduleEmail({
@@ -55,12 +81,10 @@ export function DepositReturnScheduleEmail({
   deadlineDate,
   returnDays,
   referenceNumber,
-}: DepositReturnScheduleEmailProps) {
+}: Readonly<DepositReturnScheduleEmailProps>) {
   const preview = `Deposit return schedule — ${propertyLabel} — Ref ${referenceNumber}`
-
-  const tenantDamageItems = deductionItems.filter(
-    (i) => i.classification === "tenant_damage" && i.deduction_amount_cents > 0
-  )
+  const groups = groupByClassification(deductionItems)
+  const groupKeys = [...groups.keys()]
 
   return (
     <EmailLayout preview={preview} branding={branding}>
@@ -96,11 +120,11 @@ export function DepositReturnScheduleEmail({
         </Text>
       </Section>
 
-      {/* Deduction items */}
-      {tenantDamageItems.length > 0 && (
-        <Section style={box}>
-          <Text style={sectionHead}>Deductions — Tenant Damage</Text>
-          {tenantDamageItems.map((item, i) => (
+      {/* Deduction items — grouped by classification, all types shown (RHA s5(7)) */}
+      {groupKeys.map((key) => (
+        <Section key={key} style={box}>
+          <Text style={sectionHead}>Deductions — {classificationLabel(key)}</Text>
+          {(groups.get(key) ?? []).map((item, i) => (
             <Section key={i} style={itemRow}>
               <Text style={itemDesc}>
                 {item.room ? `${item.room}: ` : ""}{item.item_description}
@@ -112,9 +136,9 @@ export function DepositReturnScheduleEmail({
             </Section>
           ))}
         </Section>
-      )}
+      ))}
 
-      {tenantDamageItems.length === 0 && (
+      {groupKeys.length === 0 && (
         <Text style={para}>
           No deductions have been applied. The full deposit plus accrued interest will be refunded
           to you.

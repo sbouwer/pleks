@@ -96,10 +96,15 @@ export async function sendDepositSchedule(leaseId: string): Promise<{ success?: 
   const orgSettings = await fetchOrgSettings(orgId)
   const branding = buildBranding(orgSettings)
 
+  if (!timer?.deadline) {
+    return { error: "Deposit timer has no deadline set — configure the timer before sending the schedule" }
+  }
+
   const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
   const refNum = recon.id.slice(0, 8).toUpperCase()
-  const deadline = timer?.deadline ? formatDateLocal(timer.deadline as string) : "within the statutory period"
-  const returnDays = (timer?.return_days as number | null) ?? 14
+  const deadline = formatDateLocal(timer.deadline as string)
+  const hasDeductions = (items ?? []).some((i) => (i.deduction_amount_cents as number) > 0)
+  const returnDays = (timer.return_days as number | null) ?? (hasDeductions ? 21 : 14)
 
   const deductionItems: DeductionItem[] = (items ?? []).map((i) => ({
     room: i.room as string | null,
