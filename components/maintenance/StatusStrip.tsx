@@ -78,7 +78,7 @@ function buildDelaySub(count: number, reason: string | null): string | undefined
 
 function Cell({ label, main, sub }: Readonly<{ label: string; main: React.ReactNode; sub?: string }>) {
   return (
-    <div className="flex flex-col gap-0.5 px-4 py-3 min-w-0">
+    <div className="flex flex-col gap-0.5 px-4 py-3 min-w-0 flex-1">
       <span className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{label}</span>
       <span className="text-sm font-medium truncate">{main}</span>
       {sub && <span className="text-xs text-muted-foreground truncate">{sub}</span>}

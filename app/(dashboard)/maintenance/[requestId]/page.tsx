@@ -93,9 +93,10 @@ export default async function MaintenanceDetailPage({
     { data: allocations },
     { data: incidentNotifs },
   ] = await Promise.all([
-    db.from("contractors")
+    db.from("contractor_view")
       .select("id, first_name, last_name, company_name")
       .eq("org_id", orgId)
+      .eq("is_active", true)
       .order("company_name"),
     db.from("audit_log")
       .select("id, action, new_values, old_values, created_at, changed_by, actor_name")
