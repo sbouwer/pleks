@@ -214,7 +214,7 @@ export async function DELETE(
       await fireLeaseAmendedComm(supabase, leaseId, membership.org_id, user.id, {
         description: charge.description,
         amountCents: Number(charge.amount_cents),
-        dateStr: charge.start_date,
+        dateStr: new Date().toISOString().split("T")[0],
         changeType: "removed",
       })
     } catch {

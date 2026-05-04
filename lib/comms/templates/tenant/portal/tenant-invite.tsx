@@ -37,7 +37,7 @@ export function PortalTenantInviteEmail({
       </Text>
 
       <Text style={para}>
-        Click the button below to set up your account. This link is valid for 24 hours.
+        Click the button below to set up your account. The link will expire after a few days.
       </Text>
 
       <Button href={portalUrl} style={cta}>Set Up My Account</Button>
