@@ -1,18 +1,15 @@
 "use client"
 
 /**
- * app/(dashboard)/leases/[leaseId]/MigratedDocSection.tsx — FILL: one-line purpose
+ * app/(dashboard)/leases/[leaseId]/MigratedDocSection.tsx — Upload/download banner for migrated leases without a generated doc
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /leases/[leaseId] (Details tab)
+ * Auth:   gateway (dashboard layout)
+ * Data:   /api/leases/[leaseId]/upload-document and /api/leases/[leaseId]/download-document
  */
 import { useState } from "react"
-import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton, InlineLink } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { FileX, Download } from "lucide-react"
 import { toast } from "sonner"
@@ -103,13 +100,13 @@ export function MigratedDocSection({
                 {uploading && <span className="text-xs text-muted-foreground">Uploading...</span>}
               </div>
             ) : (
-              <Button variant="outline" size="sm" onClick={() => setShowUpload(true)}>
+              <ActionButton tone="secondary" onClick={() => setShowUpload(true)}>
                 Upload signed document
-              </Button>
+              </ActionButton>
             )}
-            <Button variant="ghost" size="sm" render={<Link href={`/leases/new?renewal_of=${leaseId}`} />}>
-              Generate renewal lease →
-            </Button>
+            <InlineLink href={`/leases/new?renewal_of=${leaseId}`}>
+              Generate renewal lease
+            </InlineLink>
           </div>
         </CardContent>
       </Card>
@@ -122,24 +119,18 @@ export function MigratedDocSection({
       <CardContent className="pt-4">
         <div className="flex items-center justify-between">
           <div>
-            <Button variant="outline" size="sm" onClick={handleDownload}>
-              <Download className="size-4 mr-1.5" />
+            <ActionButton tone="secondary" icon={<Download className="size-4" />} onClick={handleDownload}>
               Download lease
-            </Button>
+            </ActionButton>
             <p className="text-xs text-muted-foreground mt-1">Original signed document</p>
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs"
-              onClick={() => setShowUpload(!showUpload)}
-            >
+          <div className="flex gap-2 items-center">
+            <ActionButton tone="secondary" onClick={() => setShowUpload(!showUpload)}>
               Replace document
-            </Button>
-            <Button variant="ghost" size="sm" render={<Link href={`/leases/new?renewal_of=${leaseId}`} />}>
-              Generate renewal →
-            </Button>
+            </ActionButton>
+            <InlineLink href={`/leases/new?renewal_of=${leaseId}`}>
+              Generate renewal
+            </InlineLink>
           </div>
         </div>
         {showUpload && (

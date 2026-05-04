@@ -1,19 +1,18 @@
 "use client"
 
 /**
- * app/(dashboard)/leases/[leaseId]/SigningOptions.tsx — FILL: one-line purpose
+ * app/(dashboard)/leases/[leaseId]/SigningOptions.tsx — Three-path signing workflow for draft leases
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /leases/[leaseId] (Details tab, draft only)
+ * Auth:   gateway (dashboard layout)
+ * Data:   sendForSigning server action; upload via /api/leases/[id]/upload-document
+ * Notes:  Path A = DocuSeal digital, Path B = print/sign/upload, Path C = own document
  */
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
 import { FileSignature, PenLine, Upload, CheckCircle2, FileText, Loader2 } from "lucide-react"
@@ -185,9 +184,9 @@ export function SigningOptions({
                 <span className="text-sm font-medium">Document on file</span>
               </div>
               {canProceed ? (
-                <Button size="sm" onClick={() => setActivationOpen(true)}>
-                  Mark as signed →
-                </Button>
+                <ActionButton tone="primary" onClick={() => setActivationOpen(true)}>
+                  Mark as signed
+                </ActionButton>
               ) : (
                 <p className="text-xs text-muted-foreground">Complete prerequisites above to activate</p>
               )}
@@ -198,9 +197,9 @@ export function SigningOptions({
                 Mark as signed once all parties have signed the lease.
               </p>
               {canProceed && (
-                <Button size="sm" onClick={() => setActivationOpen(true)}>
-                  Mark as signed →
-                </Button>
+                <ActionButton tone="primary" onClick={() => setActivationOpen(true)}>
+                  Mark as signed
+                </ActionButton>
               )}
             </>
           )}
@@ -231,9 +230,14 @@ export function SigningOptions({
               </p>
             </div>
           </div>
-          <Button size="sm" onClick={handleGenerate} disabled={generating || !canProceed}>
-            {generating ? <><Loader2 className="size-3.5 mr-1.5 animate-spin" />Generating…</> : "Generate document"}
-          </Button>
+          <ActionButton
+            tone="primary"
+            onClick={handleGenerate}
+            disabled={generating || !canProceed}
+            icon={generating ? <Loader2 className="size-3.5 animate-spin" /> : undefined}
+          >
+            {generating ? "Generating…" : "Generate document"}
+          </ActionButton>
         </div>
       )}
 
@@ -251,14 +255,14 @@ export function SigningOptions({
                 </p>
               </div>
             </div>
-            <Button
-              size="sm"
+            <ActionButton
+              tone="primary"
               className="w-full"
               onClick={handleSendDigital}
               disabled={!canProceed || sendingDigital || !hasGeneratedDoc}
             >
               {sendingDigital ? "Sending…" : "Send for signing"}
-            </Button>
+            </ActionButton>
             {!canProceed && (
               <p className="text-xs text-muted-foreground text-center">
                 Complete prerequisites first
@@ -279,15 +283,14 @@ export function SigningOptions({
                 </p>
               </div>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
+            <ActionButton
+              tone="secondary"
               className="w-full"
               onClick={handleDownload}
               disabled={!hasGeneratedDoc}
             >
               Download lease
-            </Button>
+            </ActionButton>
             {hasDownloaded && (
               <div className="pt-1 space-y-1.5">
                 <p className="text-xs text-muted-foreground">Upload signed copy:</p>
@@ -329,6 +332,7 @@ export function SigningOptions({
                   Document uploaded ✓
                 </span>
                 <button
+                  type="button"
                   onClick={() => setShowReplaceC(true)}
                   className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
                 >
@@ -368,9 +372,9 @@ export function SigningOptions({
               <span className="text-sm font-medium">Signed document on file</span>
             </div>
             {canProceed ? (
-              <Button size="sm" onClick={() => setActivationOpen(true)}>
-                Mark as signed →
-              </Button>
+              <ActionButton tone="primary" onClick={() => setActivationOpen(true)}>
+                Mark as signed
+              </ActionButton>
             ) : (
               <p className="text-xs text-muted-foreground">
                 Complete prerequisites above to activate

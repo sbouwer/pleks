@@ -1,13 +1,12 @@
 "use client"
 
 /**
- * app/(dashboard)/leases/LeaseRow.tsx — FILL: one-line purpose
+ * app/(dashboard)/leases/LeaseRow.tsx — Single lease row card in the desktop lease list
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /leases
+ * Auth:   gateway (dashboard layout)
+ * Data:   SerializedLease prop from LeaseListTabs
+ * Notes:  The tenant-name button uses e.stopPropagation so the parent Link still works
  */
 
 import Link from "next/link"

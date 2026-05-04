@@ -1,13 +1,11 @@
 /**
- * app/(dashboard)/leases/[leaseId]/PrerequisitesCard.tsx — FILL: one-line purpose
+ * app/(dashboard)/leases/[leaseId]/PrerequisitesCard.tsx — Checklist of signing prerequisites for a draft lease
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /leases/[leaseId] (Details tab, draft only)
+ * Auth:   gateway (dashboard layout)
+ * Data:   PrerequisitesCheck result passed from parent server component
  */
-import Link from "next/link"
+import { InlineLink } from "@/components/ui/actions"
 import { Check, X, AlertTriangle } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
@@ -64,12 +62,9 @@ function PrerequisiteRow({ item }: { item: PrerequisiteResult }) {
         </p>
         <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">{item.message}</p>
         {item.action && (
-          <Link
-            href={item.action.href}
-            className="mt-1 inline-block text-xs font-medium text-primary underline underline-offset-2 hover:opacity-80"
-          >
-            {item.action.label} →
-          </Link>
+          <InlineLink href={item.action.href} className="mt-1 text-xs">
+            {item.action.label}
+          </InlineLink>
         )}
       </div>
     </div>

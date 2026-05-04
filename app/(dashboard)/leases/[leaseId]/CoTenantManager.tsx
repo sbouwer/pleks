@@ -1,17 +1,15 @@
 "use client"
 
 /**
- * app/(dashboard)/leases/[leaseId]/CoTenantManager.tsx — FILL: one-line purpose
+ * app/(dashboard)/leases/[leaseId]/CoTenantManager.tsx — Add/remove co-tenants on an existing lease
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /leases/[leaseId] (sidebar or details section)
+ * Auth:   gateway (dashboard layout)
+ * Data:   addLeaseCoTenant / removeLeaseCoTenant server actions
  */
 import { useState, useTransition } from "react"
 import { X, UserPlus } from "lucide-react"
-import Link from "next/link"
+import { IconButton, InlineLink } from "@/components/ui/actions"
 import { TenantPicker, type PickedTenant } from "@/components/shared/TenantPicker"
 import { addLeaseCoTenant, removeLeaseCoTenant } from "@/lib/actions/leases"
 
@@ -93,25 +91,20 @@ export function CoTenantManager({ leaseId, orgId, coTenants, primaryTenantId }: 
                 {ct.name.slice(0, 2).toUpperCase()}
               </div>
               <div className="min-w-0 flex-1">
-                <Link
-                  href={`/tenants/${ct.tenantId}`}
-                  className="text-sm font-medium hover:underline truncate block"
-                >
+                <InlineLink href={`/tenants/${ct.tenantId}`} withArrow={false} className="text-sm font-medium truncate block">
                   {ct.name}
-                </Link>
+                </InlineLink>
                 {ct.email && (
                   <p className="text-xs text-muted-foreground truncate">{ct.email}</p>
                 )}
               </div>
-              <button
-                type="button"
+              <IconButton
+                icon={<X className="h-3.5 w-3.5" />}
+                label="Remove co-tenant"
+                className="pa-iconbtn--destructive shrink-0"
                 onClick={() => handleRemove(ct.tenantId)}
                 disabled={pending}
-                className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive transition-colors"
-                title="Remove co-tenant"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
+              />
             </div>
           ))}
         </div>

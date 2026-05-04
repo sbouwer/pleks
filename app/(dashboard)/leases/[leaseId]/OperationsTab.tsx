@@ -1,13 +1,11 @@
 /**
- * app/(dashboard)/leases/[leaseId]/OperationsTab.tsx — FILL: one-line purpose
+ * app/(dashboard)/leases/[leaseId]/OperationsTab.tsx — Inspections, maintenance, compliance and audit trail for a lease
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /leases/[leaseId] (Operations tab)
+ * Auth:   gateway (dashboard layout)
+ * Data:   passed as props from the parent server component
  */
-import Link from "next/link"
+import { InlineLink } from "@/components/ui/actions"
 import { Calendar, Wrench, Building2 } from "lucide-react"
 
 const AUDIT_DOT: Record<string, string> = {
@@ -109,28 +107,25 @@ export function OperationsTab({
     <div className="space-y-5">
       {/* Action bar */}
       <div className="flex flex-wrap gap-2">
-        <Link
+        <InlineLink
           href={unitId ? `/inspections?unit=${unitId}&action=new` : `/inspections?action=new`}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-sm font-medium hover:bg-muted transition-colors"
+          withArrow={false}
         >
           <Calendar className="h-3.5 w-3.5" />
           Schedule inspection
-        </Link>
-        <Link
+        </InlineLink>
+        <InlineLink
           href={unitId ? `/maintenance?unit=${unitId}&action=new` : `/maintenance?action=new`}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-sm font-medium hover:bg-muted transition-colors"
+          withArrow={false}
         >
           <Wrench className="h-3.5 w-3.5" />
           Log maintenance
-        </Link>
+        </InlineLink>
         {unitId && (
-          <Link
-            href={`/properties/${unitId}`}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-sm font-medium hover:bg-muted transition-colors"
-          >
+          <InlineLink href={`/properties/${unitId}`} withArrow={false}>
             <Building2 className="h-3.5 w-3.5" />
             View unit
-          </Link>
+          </InlineLink>
         )}
       </div>
 
@@ -170,12 +165,9 @@ export function OperationsTab({
             )}
           </div>
           <div className="px-4 py-3 border-t shrink-0">
-            <Link
-              href={unitId ? `/inspections?unit=${unitId}` : `/inspections`}
-              className="text-xs text-brand hover:underline"
-            >
-              View all inspections →
-            </Link>
+            <InlineLink href={unitId ? `/inspections?unit=${unitId}` : `/inspections`}>
+              View all inspections
+            </InlineLink>
           </div>
         </div>
 
@@ -211,12 +203,9 @@ export function OperationsTab({
             )}
           </div>
           <div className="px-4 py-3 border-t shrink-0">
-            <Link
-              href={unitId ? `/maintenance?unit=${unitId}` : `/maintenance`}
-              className="text-xs text-brand hover:underline"
-            >
-              View all maintenance →
-            </Link>
+            <InlineLink href={unitId ? `/maintenance?unit=${unitId}` : `/maintenance`}>
+              View all maintenance
+            </InlineLink>
           </div>
         </div>
       </div>

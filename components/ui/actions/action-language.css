@@ -284,3 +284,7 @@
 /* ── Dark-mode adjustments (.pleks-portal[data-theme="dark"]) ────────── */
 .pleks-portal[data-theme="dark"] .pa-primary { color: var(--paper); }
 .pleks-portal[data-theme="dark"] .pa-primary::before { background: var(--paper); }
+/* Ghost hover: paper-sunk is darker than the surface in dark mode — flip to paper-raised */
+.pleks-portal[data-theme="dark"] .pa-secondary:hover:not(:disabled) { background: var(--paper-raised); }
+.pleks-portal[data-theme="dark"] .pa-secondary:focus-visible { background: var(--paper-raised); }
+.pleks-portal[data-theme="dark"] .pa-modal-close:hover { background: var(--paper-raised); }

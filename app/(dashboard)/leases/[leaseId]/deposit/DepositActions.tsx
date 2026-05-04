@@ -11,7 +11,7 @@
  */
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { disburseDeposit } from "@/lib/deposits/disburse"
 import { calculateDepositReturn } from "@/lib/deposits/calculateReturn"
 import { sendDepositSchedule } from "@/lib/actions/deposits"
@@ -78,30 +78,29 @@ export function DepositActions({ leaseId, reconStatus, hasUnconfirmedItems }: De
 
   return (
     <div className="flex flex-wrap gap-3">
-      <Button variant="outline" size="sm" onClick={handleRecalculate} disabled={processing}>
+      <ActionButton tone="secondary" onClick={handleRecalculate} disabled={processing}>
         Recalculate
-      </Button>
-      <Button variant="outline" size="sm" onClick={handleGeneratePDF}>
+      </ActionButton>
+      <ActionButton tone="secondary" onClick={handleGeneratePDF}>
         Generate Schedule PDF
-      </Button>
+      </ActionButton>
       {reconStatus !== "sent_to_tenant" && reconStatus !== "refunded" && (
-        <Button
-          variant="outline"
-          size="sm"
+        <ActionButton
+          tone="secondary"
           onClick={handleSendToTenant}
           disabled={processing || hasUnconfirmedItems}
         >
           {processing ? "Sending..." : "Send to Tenant"}
-        </Button>
+        </ActionButton>
       )}
       {reconStatus !== "refunded" && (
-        <Button
-          size="sm"
+        <ActionButton
+          tone="primary"
           onClick={handleDisburse}
           disabled={processing || hasUnconfirmedItems}
         >
           {processing ? "Processing..." : "Disburse Deposit"}
-        </Button>
+        </ActionButton>
       )}
     </div>
   )

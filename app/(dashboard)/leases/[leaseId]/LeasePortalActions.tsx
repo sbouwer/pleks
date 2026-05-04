@@ -1,17 +1,16 @@
 "use client"
 
 /**
- * app/(dashboard)/leases/[leaseId]/LeasePortalActions.tsx — FILL: one-line purpose
+ * app/(dashboard)/leases/[leaseId]/LeasePortalActions.tsx — Tenant portal invite / revoke / WhatsApp link actions
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /leases/[leaseId] (Contacts tab)
+ * Auth:   gateway (dashboard layout)
+ * Data:   generateTenantPortalLink, revokeTenantPortalAccess, emailLeaseToTenant server actions
+ * Notes:  Multi-tenant mode shows a dropdown to pick which tenant gets the WhatsApp link
  */
 
 import { useState, useRef, useEffect } from "react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { toast } from "sonner"
 import { Link2, ShieldOff, Copy, Check, Loader2, MessageCircle, Send, ChevronDown } from "lucide-react"
 import { generateTenantPortalLink, revokeTenantPortalAccess } from "@/lib/portal/inviteTenant"
@@ -85,29 +84,27 @@ export function LeasePortalActions({ tenantId, allTenants, leaseId, portalInvite
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
-        <Button
-          size="sm"
-          variant="outline"
+        <ActionButton
+          tone="secondary"
+          icon={emailing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
           onClick={handleEmailLease}
           disabled={emailing}
         >
-          {emailing ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Send className="h-3.5 w-3.5 mr-1.5" />}
           Email lease
-        </Button>
+        </ActionButton>
 
         {/* WhatsApp link — single tenant: generate directly; multiple: pick first */}
         {hasMultipleTenants ? (
           <div ref={whatsappRef} className="relative">
-            <Button
-              size="sm"
-              variant="outline"
+            <ActionButton
+              tone="secondary"
+              icon={generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
               onClick={() => setWhatsappOpen(v => !v)}
               disabled={generating}
             >
-              {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Link2 className="h-3.5 w-3.5 mr-1.5" />}
               WhatsApp link
               <ChevronDown className="h-3 w-3 ml-1 opacity-60" />
-            </Button>
+            </ActionButton>
             {whatsappOpen && (
               <div className="absolute left-0 top-9 z-20 min-w-[180px] rounded-lg border border-border bg-card shadow-md py-1">
                 <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
@@ -128,28 +125,25 @@ export function LeasePortalActions({ tenantId, allTenants, leaseId, portalInvite
             )}
           </div>
         ) : (
-          <Button
-            size="sm"
-            variant="outline"
+          <ActionButton
+            tone="secondary"
+            icon={generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
             onClick={() => handleGenerateLink(tenantId)}
             disabled={generating}
           >
-            {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Link2 className="h-3.5 w-3.5 mr-1.5" />}
             WhatsApp link
-          </Button>
+          </ActionButton>
         )}
 
         {(hasAuthUser || portalInviteSentAt) && (
-          <Button
-            size="sm"
-            variant="ghost"
+          <ActionButton
+            tone="destructive"
+            icon={revoking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldOff className="h-3.5 w-3.5" />}
             onClick={handleRevoke}
             disabled={revoking}
-            className="text-danger hover:text-danger hover:bg-danger/10"
           >
-            {revoking ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <ShieldOff className="h-3.5 w-3.5 mr-1.5" />}
             Revoke access
-          </Button>
+          </ActionButton>
         )}
       </div>
 

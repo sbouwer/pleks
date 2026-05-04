@@ -1,11 +1,10 @@
 /**
- * app/(dashboard)/leases/new/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/leases/new/page.tsx — Create-lease page: path fork between generated template and uploaded doc
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /leases/new
+ * Auth:   requireAdminAuth via getServerOrgMembership (redirects to /login if missing)
+ * Data:   pre-fills property/unit/tenant from query params; owner tier auto-prefills from single property
+ * Notes:  LeaseDisclaimerGate guards the form until the disclaimer has been accepted
  */
 import { Suspense } from "react"
 import { createServiceClient } from "@/lib/supabase/server"

@@ -1,16 +1,14 @@
 "use client"
 
 /**
- * app/(dashboard)/leases/[leaseId]/LeaseActions.tsx — FILL: one-line purpose
+ * app/(dashboard)/leases/[leaseId]/LeaseActions.tsx — Action bar for the lease detail header (status-dependent)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /leases/[leaseId]
+ * Auth:   gateway (dashboard layout)
+ * Data:   markAsSigned / giveNotice server actions; invalidates react-query lease/property/dashboard caches
  */
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -73,32 +71,30 @@ export function LeaseActions({ leaseId, status, unitId }: LeaseActionsProps) {
           <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <Clock className="size-3.5" /> Awaiting signatures
           </span>
-          <Button size="sm" variant="outline" onClick={handleMarkSigned}>
+          <ActionButton tone="secondary" onClick={handleMarkSigned}>
             Mark as signed
-          </Button>
+          </ActionButton>
         </div>
       )}
 
       {isActive && (
         <>
-          <Button size="sm" variant="outline">
-            <Download className="mr-1.5 h-4 w-4" /> Download
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => handleNotice("landlord")}>
-            <Bell className="mr-1.5 h-4 w-4" /> Give notice
-          </Button>
-          <Button size="sm" variant="outline">
-            <RefreshCw className="mr-1.5 h-4 w-4" /> Renew
-          </Button>
+          <ActionButton tone="secondary" icon={<Download className="h-4 w-4" />}>
+            Download
+          </ActionButton>
+          <ActionButton tone="secondary" icon={<Bell className="h-4 w-4" />} onClick={() => handleNotice("landlord")}>
+            Give notice
+          </ActionButton>
+          <ActionButton tone="secondary" icon={<RefreshCw className="h-4 w-4" />}>
+            Renew
+          </ActionButton>
         </>
       )}
 
       {/* More dropdown */}
       <DropdownMenu>
-        <DropdownMenuTrigger render={<Button size="sm" variant="outline" />}>
-            <MoreHorizontal className="mr-1 h-4 w-4" />
-            More
-            <ChevronDown className="ml-1 h-3 w-3" />
+        <DropdownMenuTrigger className="pa-secondary">
+          <span><MoreHorizontal className="mr-1 h-4 w-4" /> More <ChevronDown className="ml-1 h-3 w-3" /></span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" side="bottom" className="w-56">
           <DropdownMenuItem render={<Link href={`/leases/${leaseId}/edit`} />}>

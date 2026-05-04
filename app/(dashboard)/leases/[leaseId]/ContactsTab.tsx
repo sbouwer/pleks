@@ -9,9 +9,7 @@
  */
 
 import { useState } from "react"
-import Link from "next/link"
 import { InlineLink } from "@/components/ui/actions"
-import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { ContactCard, type PortalStatus } from "@/components/contacts/ContactCard"
 import { CoTenantAvatars } from "@/components/contacts/CoTenantAvatars"
@@ -223,9 +221,9 @@ export function ContactsTab({
       {/* Action bar */}
       <div className="flex flex-wrap gap-2">
         {activeTenant && (
-          <Button variant="outline" size="sm" render={<Link href={`/tenants/${activeTenant.tenantId}`} />}>
+          <InlineLink href={`/tenants/${activeTenant.tenantId}`} withArrow={false}>
             Edit tenant
-          </Button>
+          </InlineLink>
         )}
         {primaryTenantId && (
           <LeasePortalActions

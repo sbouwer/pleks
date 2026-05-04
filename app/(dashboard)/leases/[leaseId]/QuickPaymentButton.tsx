@@ -1,18 +1,16 @@
 "use client"
 
 /**
- * app/(dashboard)/leases/[leaseId]/QuickPaymentButton.tsx — FILL: one-line purpose
+ * app/(dashboard)/leases/[leaseId]/QuickPaymentButton.tsx — Inline quick-payment form for unpaid invoices
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /leases/[leaseId] (Operations tab invoice rows)
+ * Auth:   gateway (dashboard layout)
+ * Data:   recordPayment server action; returns a receipt number on success
  */
 
 import { useState, useTransition, useRef } from "react"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
-import { Button } from "@/components/ui/button"
+import { ActionButton, IconButton } from "@/components/ui/actions"
 import { FormSelect } from "@/components/ui/FormSelect"
 import { PlusCircle, Loader2, X } from "lucide-react"
 import { toast } from "sonner"
@@ -56,6 +54,7 @@ export function QuickPaymentButton({ invoiceId, balanceCents }: QuickPaymentButt
   if (!open) {
     return (
       <button
+        type="button"
         onClick={() => setOpen(true)}
         className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
       >
@@ -69,9 +68,11 @@ export function QuickPaymentButton({ invoiceId, balanceCents }: QuickPaymentButt
     <div className="mt-3 rounded-lg border bg-muted/20 p-4">
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs font-semibold">Record payment</p>
-        <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground transition-colors">
-          <X className="h-3.5 w-3.5" />
-        </button>
+        <IconButton
+          icon={<X className="h-3.5 w-3.5" />}
+          label="Close"
+          onClick={() => setOpen(false)}
+        />
       </div>
       <form ref={formRef} onSubmit={handleSubmit} className="space-y-3">
         <input type="hidden" name="invoice_id" value={invoiceId} />
@@ -113,10 +114,15 @@ export function QuickPaymentButton({ invoiceId, balanceCents }: QuickPaymentButt
             className="mt-1 w-full rounded-md border bg-background px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
-        <Button type="submit" size="sm" className="w-full" disabled={pending}>
-          {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+        <ActionButton
+          tone="primary"
+          type="submit"
+          className="w-full"
+          disabled={pending}
+          icon={pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : undefined}
+        >
           {pending ? "Recording…" : "Record payment"}
-        </Button>
+        </ActionButton>
       </form>
     </div>
   )

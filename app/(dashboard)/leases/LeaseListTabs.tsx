@@ -1,13 +1,12 @@
 "use client"
 
 /**
- * app/(dashboard)/leases/LeaseListTabs.tsx — FILL: one-line purpose
+ * app/(dashboard)/leases/LeaseListTabs.tsx — Tabbed lease list with filter counts and footer metrics
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /leases
+ * Auth:   gateway (dashboard layout)
+ * Data:   SerializedLease array from LeasesPageClient
+ * Notes:  Tab buttons are intentional phase-pill UI — do not migrate to ActionButton
  */
 import { useState, useMemo } from "react"
 import { EmptyState } from "@/components/shared/EmptyState"

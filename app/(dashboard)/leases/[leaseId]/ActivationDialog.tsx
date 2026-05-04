@@ -1,13 +1,11 @@
 "use client"
 
 /**
- * app/(dashboard)/leases/[leaseId]/ActivationDialog.tsx — FILL: one-line purpose
+ * app/(dashboard)/leases/[leaseId]/ActivationDialog.tsx — Confirmation dialog for activating a draft lease
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /leases/[leaseId] (used from SigningOptions)
+ * Auth:   gateway (dashboard layout)
+ * Data:   markAsSigned server action; cascade steps returned and surfaced to parent
  */
 
 import { useState } from "react"
@@ -18,7 +16,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { toast } from "sonner"
 import { markAsSigned } from "@/lib/actions/leases"
 
@@ -121,16 +119,16 @@ export function ActivationDialog({
         </div>
 
         <DialogFooter>
-          <Button
-            variant="outline"
+          <ActionButton
+            tone="secondary"
             onClick={() => onOpenChange(false)}
             disabled={activating}
           >
             Cancel
-          </Button>
-          <Button onClick={handleActivate} disabled={activating}>
+          </ActionButton>
+          <ActionButton tone="primary" onClick={handleActivate} disabled={activating}>
             {activating ? "Activating…" : "Activate lease"}
-          </Button>
+          </ActionButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>

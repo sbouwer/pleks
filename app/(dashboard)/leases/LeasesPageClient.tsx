@@ -1,18 +1,17 @@
 "use client"
 
 /**
- * app/(dashboard)/leases/LeasesPageClient.tsx — FILL: one-line purpose
+ * app/(dashboard)/leases/LeasesPageClient.tsx — Client shell for the /leases page: data fetch + mobile/desktop split
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /leases
+ * Auth:   gateway (dashboard layout)
+ * Data:   fetchLeasesAction via react-query; stale time from STALE_TIME.leases
  */
 
 import { useQuery } from "@tanstack/react-query"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Plus } from "lucide-react"
 import { LeaseListTabs } from "./LeaseListTabs"
 import type { SerializedLease } from "./LeaseRow"
@@ -37,6 +36,7 @@ const LEASE_STATUS_LABELS: Record<string, string> = {
 interface Props { orgId: string }
 
 export function LeasesPageClient({ orgId }: Props) {
+  const router = useRouter()
   const { data: rawLeases = [] } = useQuery({
     queryKey: PORTFOLIO_QUERY_KEYS.leases(orgId),
     queryFn: () => fetchLeasesAction(orgId),
@@ -93,9 +93,9 @@ export function LeasesPageClient({ orgId }: Props) {
             {serialised.length} lease{serialised.length === 1 ? "" : "s"}
           </p>
         </div>
-        <Button size="sm" render={<Link href="/leases/new" />}>
-          <Plus className="mr-1 h-4 w-4" /> Create Lease
-        </Button>
+        <ActionButton tone="primary" icon={<Plus className="h-4 w-4" />} onClick={() => router.push("/leases/new")}>
+          Create Lease
+        </ActionButton>
       </div>
 
       {/* Mobile lease cards */}

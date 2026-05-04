@@ -1,18 +1,15 @@
 "use client"
 
 /**
- * app/(dashboard)/leases/[leaseId]/LeaseDetailsTab.tsx — FILL: one-line purpose
+ * app/(dashboard)/leases/[leaseId]/LeaseDetailsTab.tsx — Lease terms, signing options, amendments, and special agreements
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /leases/[leaseId] (Details tab)
+ * Auth:   gateway (dashboard layout)
+ * Data:   all props passed from the server component; no client-side fetching
  */
 
 import { toast } from "sonner"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
+import { ActionButton, InlineLink } from "@/components/ui/actions"
 import { formatZAR } from "@/lib/constants"
 import { PrerequisitesCard } from "./PrerequisitesCard"
 import { SigningOptions } from "./SigningOptions"
@@ -129,9 +126,9 @@ export function LeaseDetailsTab({
           <span className="mt-0.5 text-amber-500">⚠</span>
           <p className="text-amber-200">
             Trust account banking details are not configured.{" "}
-            <Link href="/settings/compliance" className="underline hover:text-foreground">
+            <InlineLink href="/settings/compliance" withArrow={false}>
               Settings → Banking
-            </Link>
+            </InlineLink>
           </p>
         </div>
       )}
@@ -147,29 +144,29 @@ export function LeaseDetailsTab({
       {/* Action bar */}
       <div className="flex flex-wrap gap-2">
         {lease.generated_doc_path && (
-          <Button variant="outline" size="sm" render={<Link href={`/api/leases/${leaseId}/document`} target="_blank" />}>
+          <InlineLink href={`/api/leases/${leaseId}/document`} external withArrow={false}>
             View lease
-          </Button>
+          </InlineLink>
         )}
         {isDraft && (
-          <Button variant="outline" size="sm" render={<Link href={`/leases/${leaseId}/edit`} />}>
+          <InlineLink href={`/leases/${leaseId}/edit`} withArrow={false}>
             Edit lease
-          </Button>
+          </InlineLink>
         )}
         {isActive && (
           <>
-            <Button variant="outline" size="sm" onClick={() => toast.info("Amendment creation coming soon")}>
+            <ActionButton tone="secondary" onClick={() => toast.info("Amendment creation coming soon")}>
               Create amendment
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => toast.info("Escalation processing coming soon")}>
+            </ActionButton>
+            <ActionButton tone="secondary" onClick={() => toast.info("Escalation processing coming soon")}>
               Process escalation
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => toast.info("Renewal offers coming soon")}>
+            </ActionButton>
+            <ActionButton tone="secondary" onClick={() => toast.info("Renewal offers coming soon")}>
               Renew
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => toast.info("Notice recording coming soon")}>
+            </ActionButton>
+            <ActionButton tone="secondary" onClick={() => toast.info("Notice recording coming soon")}>
               Give notice
-            </Button>
+            </ActionButton>
           </>
         )}
       </div>
