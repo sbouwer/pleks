@@ -1,13 +1,13 @@
 "use client"
 
 /**
- * components/maintenance/LogMaintenanceForm.tsx — FILL: one-line purpose
+ * components/maintenance/LogMaintenanceForm.tsx — 3-step wizard for logging a maintenance request
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /maintenance/new
+ * Auth:   server-side (page.tsx); this component is client-only
+ * Data:   createMaintenanceRequest server action; AI triage via /api/maintenance/triage
+ * Notes:  Step 1: property/unit/tenant. Step 2: problem + AI triage. Step 3: contractor + access.
+ *         Sticky right rail shows a live preview of what gets sent to each party.
  */
 import { useState, useEffect, useRef, useCallback } from "react"
 import { Loader2, AlertTriangle, CheckCircle2, Pencil, RotateCcw } from "lucide-react"
@@ -21,6 +21,7 @@ import { fetchBuildingsForProperty } from "@/lib/actions/buildings"
 import { formatZAR } from "@/lib/constants"
 import { InlineCombobox } from "@/components/shared/InlineCombobox"
 import { FormSelect } from "@/components/ui/FormSelect"
+import { cn } from "@/lib/utils"
 
 interface Property {
   id: string
@@ -83,7 +84,6 @@ const URGENCY_LABELS: Record<string, string> = {
 const CATEGORIES = Object.keys(CATEGORY_LABELS)
 const URGENCIES = ["emergency", "urgent", "routine", "cosmetic"]
 
-// Maps category to contractor speciality keywords for filtering
 const CATEGORY_SPECIALITY: Record<string, string[]> = {
   electrical: ["electrical", "electrician"],
   plumbing: ["plumbing", "plumber"],
@@ -99,7 +99,7 @@ const CATEGORY_SPECIALITY: Record<string, string[]> = {
 
 interface ContactOption { label: string; name: string; phone: string; role: string }
 
-// ── Helpers outside the component to reduce its cognitive complexity ──────────
+// ── Helpers outside the component to reduce cognitive complexity ──────────────
 
 function buildSubmitFormData(args: {
   unitId: string; propertyId: string; buildingId: string; title: string; description: string
@@ -144,6 +144,48 @@ function filterContractors(contractors: Contractor[], effectiveCategory: string)
   )
 }
 
+// ── Step indicator ────────────────────────────────────────────────────────────
+
+const STEPS = [
+  { n: 1, label: "Property & Tenant" },
+  { n: 2, label: "What's Wrong" },
+  { n: 3, label: "Contractor & Access" },
+]
+
+function stepDotCls(current: number, target: number) {
+  if (current === target) return "bg-brand text-white"
+  if (current > target)  return "bg-brand/20 text-brand"
+  return "bg-muted text-muted-foreground"
+}
+
+function StepIndicator({ step }: { step: number }) {
+  return (
+    <div className="flex items-center gap-0 mb-6">
+      {STEPS.map((s, i) => (
+        <div key={s.n} className="flex items-center">
+          <div className="flex items-center gap-2">
+            <span className={cn(
+              "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+              stepDotCls(step, s.n)
+            )}>
+              {step > s.n ? "✓" : s.n}
+            </span>
+            <span className={cn("text-xs", step === s.n ? "font-medium" : "text-muted-foreground")}>
+              {s.label}
+            </span>
+          </div>
+          {i < STEPS.length - 1 && (
+            <div className={cn(
+              "mx-3 h-px w-8 flex-shrink-0",
+              step > s.n ? "bg-brand/40" : "bg-border"
+            )} />
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 interface Props {
   orgId: string
   properties: Property[]
@@ -170,23 +212,23 @@ export function LogMaintenanceForm({
   approvalThresholdCents,
   contractors,
 }: Readonly<Props>) {
+  // Wizard step
+  const [step, setStep] = useState(1)
+
   // Location state
   const [propertyId, setPropertyId] = useState(initialPropertyId ?? "")
   const [units, setUnits] = useState<Unit[]>(initialUnits)
-  // Client-side fallback: if server didn't auto-select (multiple units) but only 1 exists, pick it
   const [unitId, setUnitId] = useState(initialUnitId ?? (initialUnits.length === 1 ? initialUnits[0].id : ""))
   const [tenant, setTenant] = useState<Tenant | null>(initialTenant)
   const [leaseId, setLeaseId] = useState(initialLeaseId ?? "")
   const [loadingUnits, setLoadingUnits] = useState(false)
   const [loadingTenant, setLoadingTenant] = useState(false)
-  // Track user-initiated changes (vs server-provided initial state)
   const [userChangedProperty, setUserChangedProperty] = useState(false)
   const [userChangedUnit, setUserChangedUnit] = useState(false)
-  // Building state (multi-building properties only)
   const [buildings, setBuildings] = useState<{ id: string; name: string }[]>([])
   const [buildingId, setBuildingId] = useState("")
 
-  // Access contact state — tenant + agent + landlord from server; tenant updates on unit change
+  // Access contact state
   const [contactOptions, setContactOptions] = useState<ContactOption[]>(initialContacts)
   const [selectedContactRole, setSelectedContactRole] = useState(initialContacts[0]?.role ?? "")
   const [customContactName, setCustomContactName] = useState("")
@@ -226,10 +268,11 @@ export function LogMaintenanceForm({
   const effectiveCategory = overriding ? overrideCategory : triageResult?.category ?? ""
   const effectiveUrgency = overriding ? overrideUrgency : triageResult?.urgency ?? ""
 
-  // Fetch units + property contacts + buildings when property changes — only when USER changes it, not on mount
+  // ── Effects ────────────────────────────────────────────────────────────────
+
   useEffect(() => {
     if (!propertyId) { setUnits([]); setUnitId(""); setTenant(null); setLeaseId(""); setContactOptions([]); setBuildings([]); setBuildingId(""); return }
-    if (!userChangedProperty) return  // server already provided initialUnits
+    if (!userChangedProperty) return
     let cancelled = false
     setLoadingUnits(true)
     setUnitId("")
@@ -246,10 +289,7 @@ export function LogMaintenanceForm({
         if (!cancelled) setBuildings(bldList.filter((b) => b.is_visible_in_ui))
         if (cancelled) return
         setUnits(unitList)
-        if (unitList.length === 1) {
-          setUnitId(unitList[0].id)
-          setUserChangedUnit(true)  // trigger tenant fetch even though user didn't manually pick
-        }
+        if (unitList.length === 1) { setUnitId(unitList[0].id); setUserChangedUnit(true) }
         setContactOptions(propContacts)
         setSelectedContactRole(propContacts[0]?.role ?? "")
         setShowCustomContact(propContacts.length === 0)
@@ -261,46 +301,36 @@ export function LogMaintenanceForm({
     return () => { cancelled = true }
   }, [propertyId, userChangedProperty])
 
-  // Fetch tenant + build contact options when unit changes
   useEffect(() => {
     if (!unitId) {
       setTenant(null)
       setLeaseId("")
-      // Keep property-level contacts (agent/landlord) but remove tenant
       setContactOptions((prev) => prev.filter((c) => c.role !== "tenant"))
       return
     }
     const unit = units.find((u) => u.id === unitId)
-    if (unit?.access_instructions && !accessInstructions) {
-      setAccessInstructions(unit.access_instructions)
-    }
-    if (!userChangedUnit && initialTenant) return  // server already resolved tenant
+    if (unit?.access_instructions && !accessInstructions) setAccessInstructions(unit.access_instructions)
+    if (!userChangedUnit && initialTenant) return
     let cancelled = false
     setLoadingTenant(true)
     async function run() {
       try {
         const result = await fetchTenantForUnit(unitId, unit?.prospective_tenant_id ?? null)
         if (cancelled) return
-
         let tenantContact: ContactOption | null = null
-
         if (result.tenant) {
           setTenant(result.tenant)
           setLeaseId(result.leaseId ?? "")
-          tenantContact = { label: `Tenant \u2014 ${result.tenant.name}`, name: result.tenant.name, phone: result.tenant.phone ?? "", role: "tenant" }
+          tenantContact = { label: `Tenant — ${result.tenant.name}`, name: result.tenant.name, phone: result.tenant.phone ?? "", role: "tenant" }
         } else {
           setTenant(null)
           setLeaseId("")
         }
-
         setContactOptions((prev) => {
           const propertyContacts = prev.filter((c) => c.role !== "tenant")
           return tenantContact ? [tenantContact, ...propertyContacts] : propertyContacts
         })
-        if (tenantContact) {
-          setSelectedContactRole("tenant")
-          setShowCustomContact(false)
-        }
+        if (tenantContact) { setSelectedContactRole("tenant"); setShowCustomContact(false) }
       } finally {
         if (!cancelled) setLoadingTenant(false)
       }
@@ -310,7 +340,6 @@ export function LogMaintenanceForm({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unitId])
 
-  // Debounced triage after title + description both have content
   useEffect(() => {
     if (!title.trim() || !description.trim() || triageConfirmed) return
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -322,11 +351,7 @@ export function LogMaintenanceForm({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ title, description }),
         })
-        if (res.ok) {
-          const data = await res.json() as TriageResult
-          setTriageResult(data)
-          setTriageConfirmed(false)
-        }
+        if (res.ok) { const data = await res.json() as TriageResult; setTriageResult(data); setTriageConfirmed(false) }
       } catch { /* non-critical */ } finally {
         setTriaging(false)
       }
@@ -335,7 +360,8 @@ export function LogMaintenanceForm({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [title, description])
 
-  // Fetch preferred contractor when category + property confirmed
+  // ── Contractor helpers ────────────────────────────────────────────────────
+
   const fetchPreferredContractor = useCallback(async (category: string, propId: string) => {
     if (!category || !propId) return
     setLoadingPreferred(true)
@@ -360,17 +386,13 @@ export function LogMaintenanceForm({
   function handleConfirmTriage() {
     setTriageConfirmed(true)
     setOverriding(false)
-    if (triageResult && propertyId) {
-      fetchPreferredContractor(triageResult.category, propertyId)
-    }
+    if (triageResult && propertyId) fetchPreferredContractor(triageResult.category, propertyId)
   }
 
   function handleConfirmOverride() {
     setTriageConfirmed(true)
     setOverriding(false)
-    if (overrideCategory && propertyId) {
-      fetchPreferredContractor(overrideCategory, propertyId)
-    }
+    if (overrideCategory && propertyId) fetchPreferredContractor(overrideCategory, propertyId)
   }
 
   function handleResetTriage() {
@@ -385,7 +407,6 @@ export function LogMaintenanceForm({
     e.preventDefault()
     if (!unitId || !propertyId) { toast.error("Select a property and unit"); return }
     if (!title.trim() || !description.trim()) { toast.error("Title and description required"); return }
-
     setSubmitting(true)
     const formData = buildSubmitFormData({
       unitId, propertyId, buildingId, title, description, leaseId, tenant, contractorId,
@@ -394,22 +415,17 @@ export function LogMaintenanceForm({
       triageConfirmed, overrideCategory, overrideUrgency,
     })
     const result = await createMaintenanceRequest(formData)
-    if (result?.error) {
-      toast.error(result.error)
-      setSubmitting(false)
-    }
-    // On success, createMaintenanceRequest redirects — no need to setSubmitting(false)
+    if (result?.error) { toast.error(result.error); setSubmitting(false) }
   }
 
   const selectedProperty = properties.find((p) => p.id === propertyId)
   const selectedUnit = units.find((u) => u.id === unitId)
   const locationConfirmed = !!(propertyId && unitId)
 
-  // Filter contractors by speciality for the picker
   const filtered = filterContractors(contractors, effectiveCategory)
   const pickableContractors = filtered.length > 0 ? filtered : contractors
 
-  // ── Render helpers — extracted to reduce cognitive complexity ─────────────
+  // ── Section renderers ──────────────────────────────────────────────────────
 
   function renderWhereSection() {
     return (
@@ -480,6 +496,33 @@ export function LogMaintenanceForm({
             )}
           </div>
         )}
+      </div>
+    )
+  }
+
+  function renderProblemSection() {
+    return (
+      <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">What&apos;s the problem</p>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Title *</Label>
+          <Input
+            value={title}
+            onChange={(e) => { setTitle(e.target.value); if (triageConfirmed) handleResetTriage() }}
+            placeholder="Brief description — e.g. Lounge light trips circuit breaker"
+            required
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Description *</Label>
+          <Textarea
+            value={description}
+            onChange={(e) => { setDescription(e.target.value); if (triageConfirmed) handleResetTriage() }}
+            rows={4}
+            placeholder="Full details — what's happening, when it started, what's been tried."
+            required
+          />
+        </div>
       </div>
     )
   }
@@ -560,54 +603,22 @@ export function LogMaintenanceForm({
   }
 
   function renderAssignmentPanel() {
-    if (!triageConfirmed) return null
+    if (!triageConfirmed && step !== 3) return null
     return (
       <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 space-y-3">
         <div className="flex items-center justify-between">
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Assignment</p>
-          <button type="button" onClick={handleResetTriage} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"><RotateCcw className="h-3 w-3" /> Retriage</button>
+          {triageConfirmed && (
+            <button type="button" onClick={handleResetTriage} className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"><RotateCcw className="h-3 w-3" /> Retriage</button>
+          )}
         </div>
-        <div className="text-sm space-y-0.5">
-          <p><span className="text-muted-foreground">Category:</span> {CATEGORY_LABELS[effectiveCategory] ?? effectiveCategory}</p>
-          <p><span className="text-muted-foreground">Urgency:</span> {URGENCY_LABELS[effectiveUrgency] ?? effectiveUrgency}</p>
-        </div>
-        {(() => {
-          if (loadingPreferred) {
-            return <p className="text-xs text-muted-foreground">Finding preferred contractor…</p>
-          }
-          if (preferredContractor && !showContractorPicker) {
-            return (
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium">{preferredContractor.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Preferred for {CATEGORY_LABELS[effectiveCategory] ?? effectiveCategory}{preferredContractor.scope === "property" ? " at this property" : ""}{preferredContractor.phone ? ` · ${preferredContractor.phone}` : ""}
-                  </p>
-                </div>
-                <button type="button" onClick={() => setShowContractorPicker(true)} className="text-xs text-brand hover:underline shrink-0">Change</button>
-              </div>
-            )
-          }
-          return (
-            <div className="space-y-1.5">
-              <Label className="text-xs">{preferredContractor ? "Choose different contractor" : "Contractor (optional)"}</Label>
-              <InlineCombobox
-                value={contractorId}
-                displayValue={pickableContractors.find((c) => c.id === contractorId)?.name ?? ""}
-                placeholder="No contractor assigned yet"
-                items={[{ id: "", name: "No contractor assigned yet", specialities: [] }, ...pickableContractors]}
-                getSearchText={(c) => c.name}
-                renderItem={(c) => <span>{c.name || "No contractor assigned yet"}</span>}
-                onSelect={(c) => setContractorId(c.id)}
-              />
-              {preferredContractor && (
-                <button type="button" onClick={() => { setContractorId(preferredContractor.id); setShowContractorPicker(false) }} className="text-xs text-brand hover:underline">
-                  Use {preferredContractor.name}
-                </button>
-              )}
-            </div>
-          )
-        })()}
+        {triageConfirmed && (
+          <div className="text-sm space-y-0.5">
+            <p><span className="text-muted-foreground">Category:</span> {CATEGORY_LABELS[effectiveCategory] ?? effectiveCategory}</p>
+            <p><span className="text-muted-foreground">Urgency:</span> {URGENCY_LABELS[effectiveUrgency] ?? effectiveUrgency}</p>
+          </div>
+        )}
+        {renderContractorPicker()}
         <div className="space-y-1.5">
           <Label className="text-xs">Estimated cost (optional)</Label>
           <div className="relative">
@@ -620,6 +631,42 @@ export function LogMaintenanceForm({
             </p>
           )}
         </div>
+      </div>
+    )
+  }
+
+  function renderContractorPicker() {
+    if (loadingPreferred) return <p className="text-xs text-muted-foreground">Finding preferred contractor…</p>
+    if (preferredContractor && !showContractorPicker) {
+      return (
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium">{preferredContractor.name}</p>
+            <p className="text-xs text-muted-foreground">
+              Preferred for {CATEGORY_LABELS[effectiveCategory] ?? effectiveCategory}{preferredContractor.scope === "property" ? " at this property" : ""}{preferredContractor.phone ? ` · ${preferredContractor.phone}` : ""}
+            </p>
+          </div>
+          <button type="button" onClick={() => setShowContractorPicker(true)} className="text-xs text-brand hover:underline shrink-0">Change</button>
+        </div>
+      )
+    }
+    return (
+      <div className="space-y-1.5">
+        <Label className="text-xs">{preferredContractor ? "Choose different contractor" : "Contractor (optional)"}</Label>
+        <InlineCombobox
+          value={contractorId}
+          displayValue={pickableContractors.find((c) => c.id === contractorId)?.name ?? ""}
+          placeholder="No contractor assigned yet"
+          items={[{ id: "", name: "No contractor assigned yet", specialities: [] }, ...pickableContractors]}
+          getSearchText={(c) => c.name}
+          renderItem={(c) => <span>{c.name || "No contractor assigned yet"}</span>}
+          onSelect={(c) => setContractorId(c.id)}
+        />
+        {preferredContractor && (
+          <button type="button" onClick={() => { setContractorId(preferredContractor.id); setShowContractorPicker(false) }} className="text-xs text-brand hover:underline">
+            Use {preferredContractor.name}
+          </button>
+        )}
       </div>
     )
   }
@@ -653,7 +700,7 @@ export function LogMaintenanceForm({
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">Access instructions</Label>
-          <Textarea value={accessInstructions} onChange={(e) => setAccessInstructions(e.target.value)} rows={2} placeholder="e.g. Key at reception. Tenant works from home — call 30 min before. No power cuts before 10am." className="resize-none text-sm" />
+          <Textarea value={accessInstructions} onChange={(e) => setAccessInstructions(e.target.value)} rows={2} placeholder="e.g. Key at reception. Tenant works from home — call 30 min before." className="resize-none text-sm" />
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs">Special instructions (optional)</Label>
@@ -663,59 +710,158 @@ export function LogMaintenanceForm({
     )
   }
 
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+  // ── Right rail preview ─────────────────────────────────────────────────────
 
-      {/* ─── Where ──────────────────────────────────────── */}
-      {renderWhereSection()}
+  function renderRightRail() {
+    const selectedContractor = contractorId
+      ? (pickableContractors.find((c) => c.id === contractorId) ?? null)
+      : null
+    const hasSomeData = !!(selectedContractor || tenant || estimatedCostCents > 0)
 
-      {/* ─── What's the problem ─────────────────────────── */}
-      <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">What&apos;s the problem</p>
-
-        <div className="space-y-1.5">
-          <Label className="text-xs">Title *</Label>
-          <Input
-            value={title}
-            onChange={(e) => { setTitle(e.target.value); if (triageConfirmed) handleResetTriage() }}
-            placeholder="Brief description — e.g. Lounge light trips circuit breaker"
-            required
-          />
+    if (!hasSomeData) {
+      return (
+        <div className="flex flex-col items-center justify-center text-center py-8 text-muted-foreground">
+          <p className="text-sm font-medium">Preview</p>
+          <p className="text-xs mt-1">Fill in the form to see what gets sent to each party.</p>
         </div>
+      )
+    }
 
-        <div className="space-y-1.5">
-          <Label className="text-xs">Description *</Label>
-          <Textarea
-            value={description}
-            onChange={(e) => { setDescription(e.target.value); if (triageConfirmed) handleResetTriage() }}
-            rows={4}
-            placeholder="Full details — what's happening, when it started, what's been tried. More detail = better classification."
-            required
-          />
+    return (
+      <div className="space-y-4">
+        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Preview · what gets sent</p>
+
+        {selectedContractor && (
+          <div className="space-y-1">
+            <div className="flex items-baseline justify-between">
+              <p className="text-sm font-medium">{selectedContractor.name}</p>
+              <span className="text-xs text-muted-foreground">contractor</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Email <span className="font-mono">maintenance.work_order</span> with WO link, photos inline, signed token (7d).
+            </p>
+          </div>
+        )}
+
+        {tenant && (
+          <>
+            <div className="border-t border-dashed border-border" />
+            <div className="space-y-1">
+              <div className="flex items-baseline justify-between">
+                <p className="text-sm font-medium">{tenant.name}</p>
+                <span className="text-xs text-muted-foreground">tenant</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {selectedContractor
+                  ? "WhatsApp maintenance.scheduled once contractor acknowledges. Auto."
+                  : "WhatsApp maintenance.logged — request confirmed."
+                }
+              </p>
+            </div>
+          </>
+        )}
+
+        <div className="border-t border-dashed border-border" />
+        <div className="space-y-1">
+          <div className="flex items-baseline justify-between">
+            <p className="text-sm font-medium">Landlord</p>
+            <span className="text-xs text-muted-foreground">owner</span>
+          </div>
+          {estimatedCostCents > 0 && aboveThreshold && (
+            <p className="text-xs text-warning">
+              Approval required · est. {formatZAR(estimatedCostCents)} above {formatZAR(approvalThresholdCents)} threshold. Email <span className="font-mono">maintenance.landlord_approval_request</span> on submit.
+            </p>
+          )}
+          {estimatedCostCents > 0 && !aboveThreshold && (
+            <p className="text-xs text-muted-foreground">
+              Auto-approve · est. {formatZAR(estimatedCostCents)} below {formatZAR(approvalThresholdCents)} threshold. No email until completion.
+            </p>
+          )}
+          {estimatedCostCents === 0 && (
+            <p className="text-xs text-muted-foreground">
+              Auto-approve threshold: {formatZAR(approvalThresholdCents)}. Enter an estimated cost to see approval status.
+            </p>
+          )}
         </div>
       </div>
+    )
+  }
 
-      {/* ─── AI classification ──────────────────────────── */}
-      {renderTriagePanel()}
+  // ── Step navigation ────────────────────────────────────────────────────────
 
-      {/* ─── Assignment (appears after triage confirmed) ─── */}
-      {renderAssignmentPanel()}
+  const step2CanAdvance = !!title.trim() && !!description.trim() && !triaging
 
-      {/* ─── Access ──────────────────────────────────────── */}
-      {renderAccessSection()}
-
-      {/* ─── Submit ──────────────────────────────────────── */}
-      <div className="flex justify-end gap-3 pt-2">
-        <Button
-          type="submit"
-          disabled={submitting || !unitId || !propertyId || !title.trim() || !description.trim()}
-        >
-          {submitting ? (
-            <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Logging…</>
-          ) : (
-            "Log request"
+  function renderStepNav() {
+    return (
+      <div className="flex items-center justify-between gap-3 pt-2">
+        <div>
+          {step > 1 && (
+            <Button type="button" variant="outline" onClick={() => setStep((s) => s - 1)}>
+              Back
+            </Button>
           )}
-        </Button>
+        </div>
+        <div className="flex gap-3">
+          {step < 3 && (
+            <Button
+              type="button"
+              disabled={step === 1 ? !locationConfirmed : !step2CanAdvance}
+              onClick={() => setStep((s) => s + 1)}
+            >
+              Next
+            </Button>
+          )}
+          {step === 3 && (
+            <Button
+              type="submit"
+              disabled={submitting || !unitId || !propertyId || !title.trim() || !description.trim()}
+            >
+              {submitting
+                ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Logging…</>
+                : "Create job"
+              }
+            </Button>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <StepIndicator step={step} />
+
+      <div className="lg:grid lg:grid-cols-[1fr_360px] lg:gap-6 lg:items-start">
+
+        {/* Main form column */}
+        <div className="space-y-4">
+          {step === 1 && renderWhereSection()}
+
+          {step === 2 && (
+            <>
+              {renderProblemSection()}
+              {renderTriagePanel()}
+            </>
+          )}
+
+          {step === 3 && (
+            <>
+              {renderAssignmentPanel()}
+              {renderAccessSection()}
+            </>
+          )}
+
+          {renderStepNav()}
+        </div>
+
+        {/* Sticky right rail — desktop only */}
+        <div className="hidden lg:block">
+          <div className="sticky top-6 rounded-xl border border-border/60 bg-surface-elevated px-5 py-4">
+            {renderRightRail()}
+          </div>
+        </div>
       </div>
     </form>
   )

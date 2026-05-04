@@ -193,6 +193,10 @@ export default async function MaintenanceDetailPage({
   const isTerminal = ["completed", "closed", "cancelled", "rejected"].includes(req.status as string)
   const insuranceBadge = INSURANCE_BADGE[req.insurance_decision as string ?? ""] ?? INSURANCE_BADGE.pending
 
+  const lastAudit = auditRows && auditRows.length > 0 ? auditRows[auditRows.length - 1] : null
+  const lastEditedAt  = (lastAudit?.created_at as string | null) ?? null
+  const lastEditedBy  = (lastAudit?.actor_name  as string | null) ?? null
+
   // ── Mobile timeline (legacy) for MobileMaintenanceView ───────────────────────
   const legacyTimeline = timelineEvents.slice(-10).reverse().map(e => ({ label: e.summary, date: e.occurred_at }))
   const persistedNotes = timelineEvents
@@ -238,23 +242,29 @@ export default async function MaintenanceDetailPage({
       {/* ── Desktop view ────────────────────────────────────────────────────── */}
       <div className="hidden lg:block space-y-4">
 
-        {/* Header row */}
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h1 className="font-heading text-2xl leading-tight truncate">{req.title as string}</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {req.work_order_number && <span className="font-mono">{req.work_order_number as string} · </span>}
-              {unit ? `Unit ${unitNumber}, ${propertyName}` : ""}
-              {(req.category_override ?? req.category) ? ` · ${req.category_override ?? req.category}` : ""}
-            </p>
-          </div>
-          <MaintenanceActions
-            requestId={requestId}
-            status={req.status as string}
-            actualCostCents={(req.actual_cost_cents as number | null) ?? null}
-            contractorId={(req.contractor_id as string | null) ?? null}
-          />
+        {/* Title */}
+        <div className="min-w-0">
+          <h1 className="font-heading text-2xl leading-tight truncate">{req.title as string}</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {req.work_order_number && <span className="font-mono">{req.work_order_number as string} · </span>}
+            {unit ? `Unit ${unitNumber}, ${propertyName}` : ""}
+            {(req.category_override ?? req.category) ? ` · ${req.category_override ?? req.category}` : ""}
+          </p>
         </div>
+
+        {/* Action row */}
+        <MaintenanceActions
+          requestId={requestId}
+          status={req.status as string}
+          actualCostCents={(req.actual_cost_cents as number | null) ?? null}
+          contractorId={(req.contractor_id as string | null) ?? null}
+          workOrderNumber={(req.work_order_number as string | null) ?? null}
+          contractorName={contractorName}
+          loggedBy={(req.logged_by as string | null) ?? null}
+          contractors={contractors}
+          lastEditedAt={lastEditedAt}
+          lastEditedBy={lastEditedBy}
+        />
 
         {/* Status strip */}
         <StatusStrip
@@ -380,7 +390,9 @@ export default async function MaintenanceDetailPage({
 
         {/* Notes + Photos row */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          <NotesCard requestId={requestId} hasLandlord={hasLandlord} isReadOnly={isTerminal} />
+          <div id="notes-card">
+            <NotesCard requestId={requestId} hasLandlord={hasLandlord} isReadOnly={isTerminal} />
+          </div>
           <PhotosCard photos={photos} isReadOnly={isTerminal} />
         </div>
 
@@ -420,7 +432,7 @@ export default async function MaintenanceDetailPage({
         )}
 
         {/* Delay log + record panel (includes delay history) */}
-        <Card>
+        <Card id="delay-panel">
           <CardContent className="pt-4">
             <RecordDelayPanel requestId={requestId} initialDelays={(delayEvents ?? []) as Parameters<typeof RecordDelayPanel>[0]["initialDelays"]} />
           </CardContent>
