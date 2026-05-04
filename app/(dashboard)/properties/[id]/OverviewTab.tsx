@@ -1,17 +1,15 @@
 /**
- * app/(dashboard)/properties/[id]/OverviewTab.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/[id]/OverviewTab.tsx — property overview: landlord, units, financials, activity
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties/[id] (overview tab)
+ * Auth:   gateway-protected server wrapper
+ * Data:   landlord, units, arrears, activity passed from server page
  */
 import { Card, CardContent } from "@/components/ui/card"
 import { ContactCard } from "@/components/contacts/ContactCard"
+import { InlineLink } from "@/components/ui/actions"
 import { formatZAR } from "@/lib/constants"
 import { ExternalLink } from "lucide-react"
-import Link from "next/link"
 import { cn } from "@/lib/utils"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -255,12 +253,7 @@ export function OverviewTab({
             ) : (
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">No landlord assigned.</p>
-                <Link
-                  href={`/properties/${propertyId}?tab=overview`}
-                  className="text-xs text-brand hover:underline"
-                >
-                  Assign landlord →
-                </Link>
+                <InlineLink href={`/properties/${propertyId}?tab=overview`}>Assign landlord</InlineLink>
               </div>
             )}
           </div>
@@ -300,7 +293,7 @@ export function OverviewTab({
                 label="Insurance"
                 value={
                   insurancePeekLabel ??
-                  <Link href={`/properties/${propertyId}?tab=insurance`} className="text-brand hover:underline text-xs">Add policy →</Link>
+                  <InlineLink href={`/properties/${propertyId}?tab=insurance`}>Add policy</InlineLink>
                 }
               />
             </div>

@@ -1,13 +1,12 @@
 /**
- * app/(dashboard)/properties/[id]/OperationsTab.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/[id]/OperationsTab.tsx — property operations: inspections, maintenance, compliance, audit log
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties/[id] (operations tab)
+ * Auth:   gateway-protected server wrapper
+ * Data:   inspections, maintenance, complianceItems, auditItems passed from server page
  */
 import Link from "next/link"
+import { InlineLink } from "@/components/ui/actions"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -100,9 +99,7 @@ function SectionCard({ title, viewAllHref, children }: Readonly<{
       <div className="flex items-center justify-between px-4 py-3 border-b">
         <span className="text-xs text-muted-foreground uppercase tracking-wide">{title}</span>
         {viewAllHref && (
-          <Link href={viewAllHref} className="text-xs text-brand hover:underline">
-            View all →
-          </Link>
+          <InlineLink href={viewAllHref}>View all</InlineLink>
         )}
       </div>
       <CardContent className="pt-3 pb-3">{children}</CardContent>

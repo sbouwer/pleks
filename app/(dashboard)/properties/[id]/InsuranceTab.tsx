@@ -7,6 +7,7 @@
  * Notes:  canSeeBroker gates broker card to Owner Pro+; SectionCard uses Link-based pa-edit (server component)
  */
 import Link from "next/link"
+import { InlineLink } from "@/components/ui/actions"
 import { formatZAR } from "@/lib/constants"
 import { ShieldCheck, User, Building2, AlertTriangle, Pencil } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -191,7 +192,7 @@ export function InsuranceTab({
         ) : (
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground">No insurance policy recorded.</p>
-            <Link href={editHref} className="text-xs text-brand hover:underline">Add policy →</Link>
+            <InlineLink href={editHref}>Add policy</InlineLink>
           </div>
         )}
       </SectionCard>
@@ -233,7 +234,7 @@ export function InsuranceTab({
           ) : (
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">No broker assigned.</p>
-              <Link href={editHref} className="text-xs text-brand hover:underline">Assign broker →</Link>
+              <InlineLink href={editHref}>Assign broker</InlineLink>
             </div>
           )}
         </SectionCard>
@@ -309,12 +310,7 @@ export function InsuranceTab({
                     <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", badge.cls)}>
                       {badge.label}
                     </span>
-                    <Link
-                      href={`/maintenance/${claim.id}`}
-                      className="text-xs text-brand hover:underline"
-                    >
-                      View
-                    </Link>
+                    <InlineLink href={`/maintenance/${claim.id}`} withArrow={false}>View</InlineLink>
                   </div>
                 </div>
               )

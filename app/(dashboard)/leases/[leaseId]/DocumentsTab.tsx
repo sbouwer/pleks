@@ -1,16 +1,15 @@
 "use client"
 
 /**
- * app/(dashboard)/leases/[leaseId]/DocumentsTab.tsx — FILL: one-line purpose
+ * app/(dashboard)/leases/[leaseId]/DocumentsTab.tsx — lease documents, comms log, and digital signature history
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /leases/[leaseId] (documents tab)
+ * Auth:   gateway-protected server wrapper
+ * Data:   leaseDocs, commLog, signedLeasePath passed from server page
  */
 import { useState } from "react"
 import { FileText, Mail, MessageSquare, FileWarning, Settings, BarChart3, Upload, Send } from "lucide-react"
+import { InlineLink } from "@/components/ui/actions"
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -206,14 +205,14 @@ function LeaseDocumentRows({
                   <p className="text-sm font-medium">Signed lease agreement</p>
                   <p className="text-xs text-muted-foreground">Uploaded</p>
                 </div>
-                <a
+                <InlineLink
                   href={`/api/documents/lease?path=${encodeURIComponent(signedLeasePath)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="ml-3 shrink-0 text-xs text-brand hover:underline"
+                  external
+                  withArrow={false}
+                  className="ml-3 shrink-0"
                 >
                   Download
-                </a>
+                </InlineLink>
               </div>
             </div>
           )}
@@ -232,14 +231,14 @@ function LeaseDocumentRows({
                     {doc.file_size_bytes ? ` · ${fmtFileSize(doc.file_size_bytes)}` : ""}
                   </p>
                 </div>
-                <a
+                <InlineLink
                   href={`/api/documents/lease?path=${encodeURIComponent(doc.storage_path)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="ml-3 shrink-0 text-xs text-brand hover:underline"
+                  external
+                  withArrow={false}
+                  className="ml-3 shrink-0"
                 >
                   Download
-                </a>
+                </InlineLink>
               </div>
             </div>
           ))}
