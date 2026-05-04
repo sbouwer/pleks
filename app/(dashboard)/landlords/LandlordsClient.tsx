@@ -207,7 +207,7 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
                             label="Delete landlord"
                             onClick={() => handleDelete(l)}
                             disabled={isDeleting}
-                            className="hover:border-destructive/50 hover:bg-destructive/5 hover:text-destructive"
+                            className="pa-iconbtn--destructive"
                           />
                         )}
                       </div>

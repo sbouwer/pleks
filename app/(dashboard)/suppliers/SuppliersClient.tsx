@@ -329,7 +329,7 @@ export function SuppliersClient({ contractors: initial, orgId }: Readonly<Props>
                             label="Delete supplier"
                             onClick={() => handleDelete(c)}
                             disabled={isDeleting}
-                            className="hover:border-destructive/50 hover:bg-destructive/5 hover:text-destructive"
+                            className="pa-iconbtn--destructive"
                           />
                         )}
                       </div>

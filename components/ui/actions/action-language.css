@@ -187,6 +187,14 @@
   outline: none; background: var(--amber-wash); border-color: var(--amber); color: var(--amber-ink);
 }
 .pa-iconbtn svg { width: 14px; height: 14px; }
+.pa-iconbtn.pa-iconbtn--destructive:hover:not(:disabled) {
+  background: var(--danger-bg); border-color: var(--danger); color: var(--danger);
+}
+.pa-iconbtn.pa-iconbtn--destructive:hover:not(:disabled)::after,
+.pa-iconbtn.pa-iconbtn--destructive:focus-visible::after { border-color: var(--danger); }
+.pa-iconbtn.pa-iconbtn--destructive:focus-visible {
+  background: var(--danger-bg); border-color: var(--danger); color: var(--danger);
+}
 
 /* ── Icon stack (profile-card actions: Call / Email / WhatsApp / More) ── */
 .pa-iconstack {

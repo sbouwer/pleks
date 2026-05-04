@@ -186,7 +186,7 @@ export function TenantsClient({ tenants: initial }: Readonly<Props>) {
                               label="Delete tenant"
                               onClick={() => handleDelete(t)}
                               disabled={deletingId === t.id}
-                              className="hover:border-destructive/50 hover:bg-destructive/5 hover:text-destructive"
+                              className="pa-iconbtn--destructive"
                             />
                           )}
                         </div>
