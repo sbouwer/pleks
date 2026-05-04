@@ -13,7 +13,7 @@ import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
 import { ClipboardCheck, Clock, StickyNote } from "lucide-react"
 import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { SignOffCard } from "@/components/maintenance/SignOffCard"
 import { CancelDialog } from "@/components/maintenance/dialogs/CancelDialog"
 import { ChangeContractorDialog } from "@/components/maintenance/dialogs/ChangeContractorDialog"
@@ -92,41 +92,36 @@ export function MaintenanceActions({
         {/* Left cluster — high-frequency ops */}
         <div className="flex flex-wrap items-center gap-2">
           {status === "in_progress" && (
-            <Button size="sm" onClick={() => handleStatus("pending_completion")}>
-              <ClipboardCheck className="h-3.5 w-3.5 mr-1.5" />
+            <ActionButton tone="primary" icon={<ClipboardCheck className="h-3.5 w-3.5" />} onClick={() => handleStatus("pending_completion")}>
               Request sign-off
-            </Button>
+            </ActionButton>
           )}
           {status === "pending_review" && (
             <>
-              <Button size="sm" onClick={() => handleStatus("approved")}>Approve</Button>
-              <Button size="sm" variant="outline" onClick={() => handleStatus("rejected")}>Reject</Button>
+              <ActionButton tone="primary" onClick={() => handleStatus("approved")}>Approve</ActionButton>
+              <ActionButton tone="secondary" onClick={() => handleStatus("rejected")}>Reject</ActionButton>
             </>
           )}
           {status === "approved" && (
             <div title={!contractorId ? "Assign a contractor first" : undefined}>
-              <Button size="sm" disabled={!contractorId} onClick={() => handleStatus("work_order_sent")}>
+              <ActionButton tone="primary" disabled={!contractorId} onClick={() => handleStatus("work_order_sent")}>
                 Send Work Order
-              </Button>
+              </ActionButton>
             </div>
           )}
           {status === "pending_completion" && (
             <SignOffCard requestId={requestId} actualCostCents={actualCostCents} />
           )}
           {status === "completed" && (
-            <Button size="sm" variant="outline" onClick={() => handleStatus("closed")}>Close</Button>
+            <ActionButton tone="secondary" onClick={() => handleStatus("closed")}>Close</ActionButton>
           )}
 
-          <Button size="sm" variant="ghost" className="h-8 px-2.5 text-xs gap-1.5"
-            onClick={() => scrollTo("notes-card")}>
-            <StickyNote className="h-3.5 w-3.5" />
+          <ActionButton tone="secondary" icon={<StickyNote className="h-3.5 w-3.5" />} onClick={() => scrollTo("notes-card")}>
             Add memo
-          </Button>
-          <Button size="sm" variant="ghost" className="h-8 px-2.5 text-xs gap-1.5"
-            onClick={() => scrollTo("delay-panel")}>
-            <Clock className="h-3.5 w-3.5" />
+          </ActionButton>
+          <ActionButton tone="secondary" icon={<Clock className="h-3.5 w-3.5" />} onClick={() => scrollTo("delay-panel")}>
             Record delay
-          </Button>
+          </ActionButton>
           {!isPreWO && (
             <ChangeContractorDialog
               requestId={requestId}
@@ -146,14 +141,9 @@ export function MaintenanceActions({
               </p>
             </div>
           )}
-          <Button
-            size="sm"
-            variant="outline"
-            className="border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive"
-            onClick={() => setCancelOpen(true)}
-          >
+          <ActionButton tone="destructive" onClick={() => setCancelOpen(true)}>
             Cancel job
-          </Button>
+          </ActionButton>
         </div>
       </div>
 

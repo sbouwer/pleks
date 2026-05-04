@@ -11,7 +11,7 @@ import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { UserCheck } from "lucide-react"
 import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -71,7 +71,7 @@ export function ChangeContractorDialog({ requestId, currentContractorId, contrac
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button variant="outline" size="sm" className="h-7 px-2 text-xs gap-1" />}>
+      <DialogTrigger render={<ActionButton tone="secondary" />}>
         <UserCheck className="h-3 w-3" />
         Change
       </DialogTrigger>
@@ -116,12 +116,12 @@ export function ChangeContractorDialog({ requestId, currentContractorId, contrac
           </div>
 
           <div className="flex gap-2">
-            <Button onClick={handleSave} disabled={pending || available.length === 0} className="flex-1">
+            <ActionButton tone="primary" className="flex-1" disabled={pending || available.length === 0} onClick={handleSave}>
               {pending ? "Reassigning…" : "Reassign contractor"}
-            </Button>
-            <Button variant="outline" onClick={() => setOpen(false)} disabled={pending}>
+            </ActionButton>
+            <ActionButton tone="secondary" onClick={() => setOpen(false)} disabled={pending}>
               Cancel
-            </Button>
+            </ActionButton>
           </div>
         </div>
       </DialogContent>

@@ -12,7 +12,7 @@ import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { AlertTriangle, ShieldAlert } from "lucide-react"
 import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -207,12 +207,12 @@ export function CancelDialog({
               After cancellation you can recreate as a new job — the old WO is preserved for the audit trail.
             </p>
             <div className="flex gap-2 shrink-0">
-              <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={pending}>
+              <ActionButton tone="secondary" onClick={() => handleOpenChange(false)} disabled={pending}>
                 Keep job open
-              </Button>
-              <Button variant="destructive" onClick={handleCancel} disabled={!valid || pending}>
+              </ActionButton>
+              <ActionButton tone="destructive" onClick={handleCancel} disabled={!valid || pending}>
                 {pending ? "Cancelling…" : "Cancel job"}
-              </Button>
+              </ActionButton>
             </div>
           </div>
 
