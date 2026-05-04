@@ -18,6 +18,7 @@ import { StageRail } from "@/components/maintenance/StageRail"
 import { DetailsCard } from "@/components/maintenance/DetailsCard"
 import { CostContractorCard } from "@/components/maintenance/CostContractorCard"
 import { NotesCard } from "@/components/maintenance/NotesCard"
+import type { NoteItem } from "@/components/maintenance/NotesCard"
 import { PhotosCard } from "@/components/maintenance/PhotosCard"
 import type { MaintenancePhoto } from "@/components/maintenance/PhotosCard"
 import { TimelineCard } from "@/components/maintenance/TimelineCard"
@@ -197,11 +198,20 @@ export default async function MaintenanceDetailPage({
   const lastEditedAt  = (lastAudit?.created_at as string | null) ?? null
   const lastEditedBy  = (lastAudit?.actor_name  as string | null) ?? null
 
+  // ── Notes for NotesCard ───────────────────────────────────────────────────────
+  const noteEvents: NoteItem[] = timelineEvents
+    .filter((e) => e.type === "note")
+    .map((e) => ({
+      id: e.id,
+      text: e.summary,
+      createdAt: e.occurred_at,
+      actorName: e.actor.name,
+      actorType: e.actor.type,
+    }))
+
   // ── Mobile timeline (legacy) for MobileMaintenanceView ───────────────────────
   const legacyTimeline = timelineEvents.slice(-10).reverse().map(e => ({ label: e.summary, date: e.occurred_at }))
-  const persistedNotes = timelineEvents
-    .filter(e => e.type === "note")
-    .map(e => ({ id: e.id, note: e.summary, createdAt: e.occurred_at }))
+  const persistedNotes = noteEvents.map((n) => ({ id: n.id, note: n.text, createdAt: n.createdAt }))
 
   return (
     <div>
@@ -350,86 +360,94 @@ export default async function MaintenanceDetailPage({
           </Card>
         )}
 
-        {/* Main two-col grid */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          <DetailsCard
-            requestId={requestId}
-            status={req.status as string}
-            title={req.title as string}
-            description={req.description as string | null}
-            category={(req.category as string | null) ?? null}
-            categoryOverride={(req.category_override as string | null) ?? null}
-            urgency={(req.urgency as string | null) ?? null}
-            urgencyOverride={(req.urgency_override as string | null) ?? null}
-            accessInstructions={(req.access_instructions as string | null) ?? null}
-            specialInstructions={(req.special_instructions as string | null) ?? null}
-            contactName={(req.contact_name as string | null) ?? null}
-            contactPhone={(req.contact_phone as string | null) ?? null}
-            estimatedCostCents={(req.estimated_cost_cents as number | null) ?? null}
-            scheduledDate={(req.scheduled_date as string | null) ?? null}
-            scheduledTimeFrom={(req.scheduled_time_from as string | null) ?? null}
-            scheduledTimeTo={(req.scheduled_time_to as string | null) ?? null}
-            tenantName={tenantName}
-            tenantPhone={tenantPhone}
-            propertyName={propertyName}
-            unitNumber={unitNumber}
-          />
-          <CostContractorCard
-            requestId={requestId}
-            status={req.status as string}
-            contractorId={(req.contractor_id as string | null) ?? null}
-            contractorName={contractorName}
-            contractorPhone={contractorPhone}
-            contractorEmail={contractorEmail}
-            contractors={contractors}
-            estimatedCostCents={(req.estimated_cost_cents as number | null) ?? null}
-            actualCostCents={(req.actual_cost_cents as number | null) ?? null}
-            workOrderNumber={(req.work_order_number as string | null) ?? null}
-          />
-        </div>
+        {/* Two-column independent stacks — columns don't affect each other's height */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
 
-        {/* Notes + Photos row */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-          <div id="notes-card">
-            <NotesCard requestId={requestId} hasLandlord={hasLandlord} isReadOnly={isTerminal} />
+          {/* Left column: Details → Memos */}
+          <div className="flex flex-col gap-4">
+            <DetailsCard
+              requestId={requestId}
+              status={req.status as string}
+              title={req.title as string}
+              description={req.description as string | null}
+              category={(req.category as string | null) ?? null}
+              categoryOverride={(req.category_override as string | null) ?? null}
+              urgency={(req.urgency as string | null) ?? null}
+              urgencyOverride={(req.urgency_override as string | null) ?? null}
+              accessInstructions={(req.access_instructions as string | null) ?? null}
+              specialInstructions={(req.special_instructions as string | null) ?? null}
+              contactName={(req.contact_name as string | null) ?? null}
+              contactPhone={(req.contact_phone as string | null) ?? null}
+              estimatedCostCents={(req.estimated_cost_cents as number | null) ?? null}
+              scheduledDate={(req.scheduled_date as string | null) ?? null}
+              scheduledTimeFrom={(req.scheduled_time_from as string | null) ?? null}
+              scheduledTimeTo={(req.scheduled_time_to as string | null) ?? null}
+              tenantName={tenantName}
+              tenantPhone={tenantPhone}
+              propertyName={propertyName}
+              unitNumber={unitNumber}
+            />
+            <div id="notes-card">
+              <NotesCard
+                requestId={requestId}
+                hasLandlord={hasLandlord}
+                isReadOnly={isTerminal}
+                notes={noteEvents}
+              />
+            </div>
           </div>
-          <PhotosCard photos={photos} isReadOnly={isTerminal} />
-        </div>
 
-        {/* Cost allocations (if any, after sign-off) */}
-        {(allocations ?? []).length > 0 && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold">Cost allocations</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              {(allocations ?? []).map((a) => (
-                <div key={a.id as string} className="space-y-0.5">
-                  <div className="flex justify-between items-baseline">
-                    <span className={`text-xs font-medium uppercase tracking-wide ${a.allocation_type === "landlord_expense" ? "text-muted-foreground" : "text-warning"}`}>
-                      {a.allocation_type === "landlord_expense" ? "Landlord expense" : "Tenant charge"}
-                    </span>
-                    <span className="font-medium">{formatZAR(a.amount_cents as number)}</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{a.description as string}</p>
-                  {a.lease_clause_ref && <p className="text-xs text-muted-foreground">Clause {a.lease_clause_ref as string}</p>}
-                  {a.allocation_type === "tenant_charge" && a.collection_method && (
-                    <p className="text-xs text-muted-foreground">
-                      {a.collection_method === "next_invoice" && "→ Next rent invoice"}
-                      {a.collection_method === "separate_invoice" && "→ Separate invoice"}
-                      {a.collection_method === "deposit_deduction" && "→ Deduct from deposit at lease end"}
-                      {a.collection_method === "already_paid" && "→ Paid on-site"}
-                      {a.added_to_invoice_at && ` (added ${new Date(a.added_to_invoice_at as string).toLocaleDateString("en-ZA")})`}
-                    </p>
-                  )}
-                  {a.allocation_type === "landlord_expense" && (
-                    <p className="text-xs text-muted-foreground">→ Owner statement</p>
-                  )}
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        )}
+          {/* Right column: Cost & contractor → Photos → Cost allocations */}
+          <div className="flex flex-col gap-4">
+            <CostContractorCard
+              requestId={requestId}
+              status={req.status as string}
+              contractorId={(req.contractor_id as string | null) ?? null}
+              contractorName={contractorName}
+              contractorPhone={contractorPhone}
+              contractorEmail={contractorEmail}
+              contractors={contractors}
+              estimatedCostCents={(req.estimated_cost_cents as number | null) ?? null}
+              actualCostCents={(req.actual_cost_cents as number | null) ?? null}
+              workOrderNumber={(req.work_order_number as string | null) ?? null}
+            />
+            <PhotosCard photos={photos} isReadOnly={isTerminal} />
+            {(allocations ?? []).length > 0 && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base font-semibold">Cost allocations</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 text-sm">
+                  {(allocations ?? []).map((a) => (
+                    <div key={a.id as string} className="space-y-0.5">
+                      <div className="flex justify-between items-baseline">
+                        <span className={`text-xs font-medium uppercase tracking-wide ${a.allocation_type === "landlord_expense" ? "text-muted-foreground" : "text-warning"}`}>
+                          {a.allocation_type === "landlord_expense" ? "Landlord expense" : "Tenant charge"}
+                        </span>
+                        <span className="font-medium">{formatZAR(a.amount_cents as number)}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{a.description as string}</p>
+                      {a.lease_clause_ref && <p className="text-xs text-muted-foreground">Clause {a.lease_clause_ref as string}</p>}
+                      {a.allocation_type === "tenant_charge" && a.collection_method && (
+                        <p className="text-xs text-muted-foreground">
+                          {a.collection_method === "next_invoice" && "→ Next rent invoice"}
+                          {a.collection_method === "separate_invoice" && "→ Separate invoice"}
+                          {a.collection_method === "deposit_deduction" && "→ Deduct from deposit at lease end"}
+                          {a.collection_method === "already_paid" && "→ Paid on-site"}
+                          {a.added_to_invoice_at && ` (added ${new Date(a.added_to_invoice_at as string).toLocaleDateString("en-ZA")})`}
+                        </p>
+                      )}
+                      {a.allocation_type === "landlord_expense" && (
+                        <p className="text-xs text-muted-foreground">→ Owner statement</p>
+                      )}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
+        </div>
 
         {/* Delay log + record panel (includes delay history) */}
         <Card id="delay-panel">

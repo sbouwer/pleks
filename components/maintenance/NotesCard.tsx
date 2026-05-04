@@ -1,10 +1,11 @@
 "use client"
 
 /**
- * components/maintenance/NotesCard.tsx — add-note form for maintenance requests
+ * components/maintenance/NotesCard.tsx — memo history + add-note form for maintenance requests
  *
- * Data:   calls addMaintenanceNote on submit; no local note history (shown in TimelineCard)
- * Notes:  Optional "notify landlord" checkbox fires memo_landlord_notified comm.
+ * Data:   notes passed as props from page (from timelineEvents); calls addMaintenanceNote on submit
+ * Notes:  Shows memo history (agent-private, append-only) above compose form.
+ *         Optional "notify landlord" checkbox fires memo_landlord_notified comm.
  */
 
 import { useState, useTransition } from "react"
@@ -16,13 +17,39 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { addMaintenanceNote } from "@/lib/actions/maintenance"
 
+export interface NoteItem {
+  id: string
+  text: string
+  createdAt: string
+  actorName: string | undefined
+  actorType: string
+}
+
 interface Props {
   requestId: string
   hasLandlord: boolean
   isReadOnly: boolean
+  notes: NoteItem[]
 }
 
-export function NotesCard({ requestId, hasLandlord, isReadOnly }: Readonly<Props>) {
+function fmtDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-ZA", {
+    day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+  })
+}
+
+function actorChipCls(type: string): string {
+  if (type === "agent") return "bg-brand/10 text-brand"
+  if (type === "landlord") return "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+  return "bg-muted text-muted-foreground"
+}
+
+function initials(name: string | undefined): string {
+  if (!name) return "?"
+  return name.split(" ").map((w) => w[0] ?? "").join("").slice(0, 2).toUpperCase()
+}
+
+export function NotesCard({ requestId, hasLandlord, isReadOnly, notes = [] }: Readonly<Props>) {
   const router = useRouter()
   const [note, setNote] = useState("")
   const [notifyLandlord, setNotifyLandlord] = useState(false)
@@ -46,20 +73,58 @@ export function NotesCard({ requestId, hasLandlord, isReadOnly }: Readonly<Props
   return (
     <Card>
       <CardHeader className="pb-3">
-        <div className="flex items-center gap-2">
-          <MessageSquarePlus className="h-4 w-4 text-muted-foreground" />
-          <CardTitle className="text-base font-semibold">Add note</CardTitle>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <MessageSquarePlus className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-base font-semibold">Memos</CardTitle>
+            {notes.length > 0 && (
+              <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full font-medium">
+                {notes.length}
+              </span>
+            )}
+          </div>
+          <div className="flex gap-1.5">
+            <span className="text-[10px] uppercase tracking-widest text-muted-foreground bg-muted px-2 py-0.5 rounded">
+              agent-private
+            </span>
+            <span className="text-[10px] uppercase tracking-widest text-muted-foreground bg-muted px-2 py-0.5 rounded">
+              append-only
+            </span>
+          </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3">
-        {isReadOnly ? (
-          <p className="text-sm text-muted-foreground">Notes cannot be added to completed or closed requests.</p>
-        ) : (
-          <>
+      <CardContent className="space-y-0 px-4 pb-4">
+
+        {/* Note history */}
+        {notes.length > 0 && (
+          <div className="space-y-3 max-h-[320px] overflow-y-auto pb-3 pr-1">
+            {notes.map((n) => (
+              <div key={n.id} className="flex gap-2.5">
+                <div className="h-7 w-7 shrink-0 rounded-full bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground">
+                  {initials(n.actorName)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 text-xs mb-1 flex-wrap">
+                    <span className="font-medium">{n.actorName ?? "Unknown"}</span>
+                    <span className={`text-[10px] uppercase tracking-wide px-1.5 py-px rounded font-medium ${actorChipCls(n.actorType)}`}>
+                      {n.actorType}
+                    </span>
+                    <span className="text-muted-foreground ml-auto shrink-0">{fmtDate(n.createdAt)}</span>
+                  </div>
+                  <p className="text-sm leading-relaxed text-foreground">{n.text}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Compose form */}
+        {!isReadOnly && (
+          <div className={`space-y-3 ${notes.length > 0 ? "border-t border-border pt-3" : ""}`}>
             <Textarea
               rows={3}
               value={note}
-              onChange={e => setNote(e.target.value)}
+              onChange={(e) => setNote(e.target.value)}
               placeholder="Internal memo — not visible to tenant or contractor…"
               disabled={pending}
             />
@@ -68,7 +133,7 @@ export function NotesCard({ requestId, hasLandlord, isReadOnly }: Readonly<Props
                 <input
                   type="checkbox"
                   checked={notifyLandlord}
-                  onChange={e => setNotifyLandlord(e.target.checked)}
+                  onChange={(e) => setNotifyLandlord(e.target.checked)}
                   disabled={pending}
                   className="rounded"
                 />
@@ -83,8 +148,13 @@ export function NotesCard({ requestId, hasLandlord, isReadOnly }: Readonly<Props
             >
               {pending ? "Saving…" : "Add note"}
             </Button>
-          </>
+          </div>
         )}
+
+        {isReadOnly && notes.length === 0 && (
+          <p className="text-sm text-muted-foreground">No memos recorded.</p>
+        )}
+
       </CardContent>
     </Card>
   )

@@ -133,10 +133,12 @@ export function PhotosCard({ photos, isReadOnly }: Readonly<Props>) {
         {filtered.length === 0 ? (
           <p className="text-sm text-muted-foreground">No {activePhase} photos.</p>
         ) : (
-          <div className="grid grid-cols-3 gap-2">
-            {filtered.map(photo => (
-              <PhotoThumb key={photo.id} photo={photo} isReadOnly={isReadOnly} />
-            ))}
+          <div className="max-h-[320px] overflow-y-auto pr-1">
+            <div className="grid grid-cols-3 gap-2">
+              {filtered.map(photo => (
+                <PhotoThumb key={photo.id} photo={photo} isReadOnly={isReadOnly} />
+              ))}
+            </div>
           </div>
         )}
       </CardContent>
