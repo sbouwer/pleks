@@ -1,19 +1,18 @@
 "use client"
 
 /**
- * app/(dashboard)/maintenance/[requestId]/RecordDelayPanel.tsx — FILL: one-line purpose
+ * app/(dashboard)/maintenance/[requestId]/RecordDelayPanel.tsx — delay log card with record-delay form
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   initialDelays from server page; calls recordMaintenanceDelay action on submit
+ * Notes:  Self-contained Card with CardHeader so it visually matches other detail-page cards.
+ *         Delay list is optimistic — new entries prepend locally without a full page refresh.
  */
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { toast } from "sonner"
 import { Loader2, Plus, Clock } from "lucide-react"
@@ -83,7 +82,7 @@ export function RecordDelayPanel({ requestId, initialDelays }: Props) {
       return
     }
     if (result.event) {
-      setDelays((prev) => [result.event!, ...prev])
+      setDelays((prev) => [result.event, ...prev])
     }
     toast.success("Delay recorded")
     setOpen(false)
@@ -94,101 +93,107 @@ export function RecordDelayPanel({ requestId, initialDelays }: Props) {
   }
 
   return (
-    <div className="mt-6">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <Clock className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold">Delay log</h3>
-          {delays.length > 0 && (
-            <span className="text-xs text-muted-foreground">({delays.length})</span>
-          )}
+    <Card id="delay-panel">
+      <CardHeader className="pb-3 shrink-0">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-base font-semibold">Delay log</CardTitle>
+            {delays.length > 0 && (
+              <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full font-medium">
+                {delays.length}
+              </span>
+            )}
+          </div>
+          <Button size="sm" variant="outline" onClick={() => setOpen((v) => !v)}>
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            Record delay
+          </Button>
         </div>
-        <Button size="sm" variant="outline" onClick={() => setOpen((v) => !v)}>
-          <Plus className="h-3.5 w-3.5 mr-1" />
-          Record delay
-        </Button>
-      </div>
+      </CardHeader>
 
-      {open && (
-        <div className="rounded-xl border border-border/60 bg-muted/20 p-4 space-y-3 mb-4">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Delay type *</Label>
-            <Select value={delayType} onValueChange={(v) => setDelayType(v ?? "")}>
-              <SelectTrigger className="text-sm">
-                <SelectValue placeholder="Select reason" />
-              </SelectTrigger>
-              <SelectContent>
-                {["Tenant", "Contractor", "Agent", "External"].map((group) => (
-                  <div key={group}>
-                    <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{group}</p>
-                    {DELAY_OPTIONS.filter((d) => d.group === group).map((d) => (
-                      <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
-                    ))}
-                  </div>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
+      <CardContent className="pb-4 space-y-3">
+        {open && (
+          <div className="rounded-xl border border-border/60 bg-muted/20 p-4 space-y-3">
             <div className="space-y-1.5">
-              <Label className="text-xs">Original date</Label>
-              <DatePickerInput value={originalDate} onChange={setOriginalDate} placeholder="Original date" />
+              <Label className="text-xs">Delay type *</Label>
+              <Select value={delayType} onValueChange={(v) => setDelayType(v ?? "")}>
+                <SelectTrigger className="text-sm">
+                  <SelectValue placeholder="Select reason" />
+                </SelectTrigger>
+                <SelectContent>
+                  {["Tenant", "Contractor", "Agent", "External"].map((group) => (
+                    <div key={group}>
+                      <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{group}</p>
+                      {DELAY_OPTIONS.filter((d) => d.group === group).map((d) => (
+                        <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+                      ))}
+                    </div>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Rescheduled to</Label>
-              <DatePickerInput value={rescheduledTo} onChange={setRescheduledTo} placeholder="Rescheduled to" />
-            </div>
-          </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs">Note</Label>
-            <Textarea
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              rows={2}
-              placeholder="Optional note..."
-              className="text-sm resize-none"
-              maxLength={500}
-            />
-          </div>
-
-          <div className="flex gap-2 pt-1">
-            <Button size="sm" onClick={handleSubmit} disabled={!delayType || saving}>
-              {saving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
-              Save
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-          </div>
-        </div>
-      )}
-
-      {delays.length > 0 ? (
-        <div className="space-y-2">
-          {delays.map((d) => {
-            const option = DELAY_OPTIONS.find((o) => o.value === d.delay_type)
-            const attrColor = ATTRIBUTION_COLOR[d.attributed_to] ?? "text-muted-foreground"
-            return (
-              <div key={d.id} className="flex items-start gap-3 text-sm py-2 border-b border-border/40 last:border-0">
-                <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
-                <div className="flex-1 min-w-0">
-                  <span className="font-medium">{option?.label ?? d.delay_type}</span>
-                  {d.note && <p className="text-xs text-muted-foreground mt-0.5">{d.note}</p>}
-                  {d.rescheduled_to && (
-                    <p className="text-xs text-muted-foreground">→ Rescheduled to {new Date(d.rescheduled_to).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}</p>
-                  )}
-                </div>
-                <div className="shrink-0 text-right">
-                  <p className={`text-xs font-medium capitalize ${attrColor}`}>{d.attributed_to}</p>
-                  <p className="text-xs text-muted-foreground">{new Date(d.occurred_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}</p>
-                </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Original date</Label>
+                <DatePickerInput value={originalDate} onChange={setOriginalDate} placeholder="Original date" />
               </div>
-            )
-          })}
-        </div>
-      ) : (
-        <p className="text-xs text-muted-foreground">No delays recorded.</p>
-      )}
-    </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Rescheduled to</Label>
+                <DatePickerInput value={rescheduledTo} onChange={setRescheduledTo} placeholder="Rescheduled to" />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Note</Label>
+              <Textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                rows={2}
+                placeholder="Optional note..."
+                className="text-sm resize-none"
+                maxLength={500}
+              />
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <Button size="sm" onClick={handleSubmit} disabled={!delayType || saving}>
+                {saving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
+                Save
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+            </div>
+          </div>
+        )}
+
+        {delays.length > 0 ? (
+          <div className="space-y-2">
+            {delays.map((d) => {
+              const option = DELAY_OPTIONS.find((o) => o.value === d.delay_type)
+              const attrColor = ATTRIBUTION_COLOR[d.attributed_to] ?? "text-muted-foreground"
+              return (
+                <div key={d.id} className="flex items-start gap-3 text-sm py-2 border-b border-border/40 last:border-0">
+                  <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium">{option?.label ?? d.delay_type}</span>
+                    {d.note && <p className="text-xs text-muted-foreground mt-0.5">{d.note}</p>}
+                    {d.rescheduled_to && (
+                      <p className="text-xs text-muted-foreground">→ Rescheduled to {new Date(d.rescheduled_to).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}</p>
+                    )}
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className={`text-xs font-medium capitalize ${attrColor}`}>{d.attributed_to}</p>
+                    <p className="text-xs text-muted-foreground">{new Date(d.occurred_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}</p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">No delays recorded.</p>
+        )}
+      </CardContent>
+    </Card>
   )
 }

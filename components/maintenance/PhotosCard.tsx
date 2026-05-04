@@ -1,18 +1,30 @@
 "use client"
 
 /**
- * components/maintenance/PhotosCard.tsx — maintenance photo viewer with tenant visibility toggle
+ * components/maintenance/PhotosCard.tsx — maintenance photo viewer with upload + tenant visibility toggle
  *
- * Data:   photo list passed as props; calls togglePhotoVisibilityToTenant on toggle
- * Notes:  Groups photos by phase (before/during/after). Signed URLs expire — page must supply them.
- *         Visibility toggle only shown to agents (not on terminal-status requests).
+ * Data:   photo list + requestId passed as props from server page
+ * Notes:  h-full flex-col so it matches NotesCard height in the grid row.
+ *         Phase tabs in header; Add photo dialog POSTs FormData to /api/maintenance/[id]/photo.
+ *         Visibility (Eye/EyeOff) toggle only shown to agents on non-terminal requests.
  */
 
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { Eye, EyeOff, Image as ImageIcon } from "lucide-react"
+import { Eye, EyeOff, Image as ImageIcon, Plus, Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { togglePhotoVisibilityToTenant } from "@/lib/actions/maintenance"
 
 export interface MaintenancePhoto {
@@ -26,6 +38,7 @@ export interface MaintenancePhoto {
 }
 
 interface Props {
+  requestId: string
   photos: MaintenancePhoto[]
   isReadOnly: boolean
 }
@@ -37,7 +50,7 @@ function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-ZA", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
 }
 
-function PhotoThumb({ photo, isReadOnly }: { photo: MaintenancePhoto; isReadOnly: boolean }) {
+function PhotoThumb({ photo, isReadOnly }: Readonly<{ photo: MaintenancePhoto; isReadOnly: boolean }>) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
 
@@ -83,64 +96,146 @@ function PhotoThumb({ photo, isReadOnly }: { photo: MaintenancePhoto; isReadOnly
   )
 }
 
-export function PhotosCard({ photos, isReadOnly }: Readonly<Props>) {
-  const [activePhase, setActivePhase] = useState("before")
-  const phases = PHASE_ORDER.filter(p => photos.some(ph => ph.photo_phase === p))
-  const filtered = photos.filter(p => p.photo_phase === activePhase)
+function AddPhotoDialog({ requestId }: Readonly<{ requestId: string }>) {
+  const router = useRouter()
+  const [open, setOpen] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [phase, setPhase] = useState("during")
+  const [caption, setCaption] = useState("")
+  const [file, setFile] = useState<File | null>(null)
 
-  if (photos.length === 0) {
-    return (
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center gap-2">
-            <ImageIcon className="h-4 w-4 text-muted-foreground" />
-            <CardTitle className="text-base font-semibold">Photos</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">No photos attached.</p>
-        </CardContent>
-      </Card>
-    )
+  async function handleUpload() {
+    if (!file) { toast.error("Select a photo first"); return }
+    setUploading(true)
+    try {
+      const fd = new FormData()
+      fd.append("file", file)
+      fd.append("phase", phase)
+      if (caption.trim()) fd.append("caption", caption.trim())
+
+      const res = await fetch(`/api/maintenance/${requestId}/photo`, { method: "POST", body: fd })
+      const json = await res.json() as { error?: string }
+      if (!res.ok || json.error) {
+        toast.error(json.error ?? "Upload failed")
+      } else {
+        toast.success("Photo uploaded")
+        setOpen(false)
+        setFile(null)
+        setCaption("")
+        setPhase("during")
+        router.refresh()
+      }
+    } catch {
+      toast.error("Upload failed — check your connection")
+    } finally {
+      setUploading(false)
+    }
   }
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={
+        <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1">
+          <Plus className="h-3.5 w-3.5" />
+          Add photo
+        </Button>
+      } />
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Upload photo</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 pt-1">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Phase *</Label>
+            <Select value={phase} onValueChange={(v) => setPhase(v ?? "during")}>
+              <SelectTrigger className="text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="before">Before</SelectItem>
+                <SelectItem value="during">During</SelectItem>
+                <SelectItem value="after">After</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Photo *</Label>
+            <Input
+              type="file"
+              accept="image/*"
+              disabled={uploading}
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              className="text-sm cursor-pointer"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Caption <span className="text-muted-foreground">(optional)</span></Label>
+            <Input
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+              placeholder="e.g. Burst pipe under sink"
+              disabled={uploading}
+              maxLength={200}
+              className="text-sm"
+            />
+          </div>
+          <Button onClick={handleUpload} disabled={uploading || !file} className="w-full" size="sm">
+            {uploading && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
+            {uploading ? "Uploading…" : "Upload"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+export function PhotosCard({ requestId, photos, isReadOnly }: Readonly<Props>) {
+  const phases = PHASE_ORDER.filter(p => photos.some(ph => ph.photo_phase === p))
+  const defaultPhase = phases[0] ?? "before"
+  const [activePhase, setActivePhase] = useState(defaultPhase)
+  const filtered = photos.filter(p => p.photo_phase === activePhase)
+
+  return (
+    <Card className="flex flex-col h-full min-h-[260px]">
+      <CardHeader className="pb-3 shrink-0">
+        <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <ImageIcon className="h-4 w-4 text-muted-foreground" />
             <CardTitle className="text-base font-semibold">Photos</CardTitle>
-            <span className="text-xs text-muted-foreground">({photos.length})</span>
+            {photos.length > 0 && (
+              <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full font-medium">
+                {photos.length}
+              </span>
+            )}
           </div>
-          {phases.length > 1 && (
-            <div className="flex gap-1">
-              {phases.map(p => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setActivePhase(p)}
-                  className={`text-xs px-2 py-0.5 rounded-full transition-colors ${activePhase === p ? "bg-brand text-white" : "text-muted-foreground hover:text-foreground"}`}
-                >
-                  {PHASE_LABEL[p] ?? p}
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="flex items-center gap-1.5">
+            {phases.length > 1 && phases.map(p => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setActivePhase(p)}
+                className={`text-xs px-2 py-0.5 rounded-full transition-colors ${activePhase === p ? "bg-brand text-white" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                {PHASE_LABEL[p] ?? p}
+              </button>
+            ))}
+            {!isReadOnly && <AddPhotoDialog requestId={requestId} />}
+          </div>
         </div>
       </CardHeader>
-      <CardContent>
-        {filtered.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No {activePhase} photos.</p>
-        ) : (
-          <div className="max-h-[320px] overflow-y-auto pr-1">
-            <div className="grid grid-cols-3 gap-2">
+
+      <CardContent className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
+        {(() => {
+          if (photos.length === 0) return <p className="text-sm text-muted-foreground">No photos attached.</p>
+          if (filtered.length === 0) return <p className="text-sm text-muted-foreground">No {activePhase} photos.</p>
+          return (
+            <div className="grid grid-cols-3 gap-2 pr-1">
               {filtered.map(photo => (
                 <PhotoThumb key={photo.id} photo={photo} isReadOnly={isReadOnly} />
               ))}
             </div>
-          </div>
-        )}
+          )
+        })()}
       </CardContent>
     </Card>
   )

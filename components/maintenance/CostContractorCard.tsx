@@ -3,9 +3,10 @@
  *
  * Data:   props from server page — no fetching
  * Notes:  Shows current contractor with change affordance, plus estimated vs actual cost.
- *         ChangeContractorDialog only shown when not in terminal state.
+ *         h-full flex-col so it stretches to match its grid-row partner (DetailsCard).
  */
 
+import { Wrench } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChangeContractorDialog } from "./dialogs/ChangeContractorDialog"
 import { formatZAR } from "@/lib/constants"
@@ -28,20 +29,23 @@ interface Props {
   workOrderNumber: string | null
 }
 
-const TERMINAL = ["completed", "closed", "cancelled", "rejected"]
+const TERMINAL = new Set(["completed", "closed", "cancelled", "rejected"])
 
 export function CostContractorCard({
   requestId, status, contractorId, contractorName, contractorPhone,
   contractorEmail, contractors, estimatedCostCents, actualCostCents, workOrderNumber,
 }: Readonly<Props>) {
-  const isReadOnly = TERMINAL.includes(status)
-  const isOver = actualCostCents && estimatedCostCents && actualCostCents > estimatedCostCents
+  const isReadOnly = TERMINAL.has(status)
+  const isOver = Boolean(actualCostCents && estimatedCostCents && actualCostCents > estimatedCostCents)
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
+    <Card className="flex flex-col h-full min-h-[260px]">
+      <CardHeader className="pb-3 shrink-0">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base font-semibold">Contractor & Cost</CardTitle>
+          <div className="flex items-center gap-2">
+            <Wrench className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-base font-semibold">Contractor & Cost</CardTitle>
+          </div>
           {!isReadOnly && (
             <ChangeContractorDialog
               requestId={requestId}
@@ -51,8 +55,9 @@ export function CostContractorCard({
           )}
         </div>
       </CardHeader>
-      <CardContent className="text-sm space-y-3">
-        <div>
+      <CardContent className="text-sm flex flex-col flex-1 min-h-0 overflow-y-auto pb-4">
+        {/* flex-1 so contractor block expands to align first divider with DetailsCard */}
+        <div className="flex-1 min-h-[3rem] pb-2">
           <p className="text-xs text-muted-foreground mb-0.5">Contractor</p>
           {contractorName ? (
             <div>
@@ -91,7 +96,7 @@ export function CostContractorCard({
           </div>
         </div>
 
-        {isOver && estimatedCostCents && actualCostCents && (
+        {isOver && actualCostCents !== null && estimatedCostCents !== null && (
           <p className="text-xs text-danger">
             +{formatZAR(actualCostCents - estimatedCostCents)} over estimate
           </p>

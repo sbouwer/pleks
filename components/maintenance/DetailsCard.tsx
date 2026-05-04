@@ -3,8 +3,10 @@
  *
  * Data:   all props from server page — no fetching
  * Notes:  Edit button opens MaintenanceEditDialog (client). Read-only in terminal states.
+ *         h-full flex-col so it stretches to match its grid-row partner (CostContractorCard).
  */
 
+import { ClipboardList } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { MaintenanceEditDialog } from "./dialogs/MaintenanceEditDialog"
 
@@ -31,7 +33,7 @@ interface Props {
   unitNumber: string | null
 }
 
-const TERMINAL = ["completed", "closed", "cancelled", "rejected"]
+const TERMINAL = new Set(["completed", "closed", "cancelled", "rejected"])
 
 export function DetailsCard(props: Readonly<Props>) {
   const {
@@ -41,15 +43,18 @@ export function DetailsCard(props: Readonly<Props>) {
     scheduledTimeFrom, scheduledTimeTo, tenantName, tenantPhone,
     propertyName, unitNumber,
   } = props
-  const isReadOnly = TERMINAL.includes(status)
+  const isReadOnly = TERMINAL.has(status)
   const displayCategory = categoryOverride ?? category
   const displayUrgency  = urgencyOverride  ?? urgency
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
+    <Card className="flex flex-col h-full min-h-[260px]">
+      <CardHeader className="pb-3 shrink-0">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base font-semibold">Details</CardTitle>
+          <div className="flex items-center gap-2">
+            <ClipboardList className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-base font-semibold">Details</CardTitle>
+          </div>
           {!isReadOnly && (
             <MaintenanceEditDialog
               requestId={requestId}
@@ -70,8 +75,9 @@ export function DetailsCard(props: Readonly<Props>) {
           )}
         </div>
       </CardHeader>
-      <CardContent className="text-sm space-y-3">
-        <div>
+      <CardContent className="text-sm flex flex-col flex-1 min-h-0 overflow-y-auto pb-4">
+        {/* flex-1 so description expands to align first divider with CostContractorCard */}
+        <div className="flex-1 min-h-[3rem] pb-2">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Description</p>
           <p className="whitespace-pre-wrap leading-relaxed">{description ?? "—"}</p>
         </div>

@@ -576,12 +576,16 @@ export async function addMaintenanceNote(
   if (!trimmed) return { error: "Note cannot be empty" }
   if (trimmed.length > 1000) return { error: "Note exceeds 1,000 character limit" }
 
+  const { data: profile } = await db.from("user_profiles").select("full_name").eq("id", userId).maybeSingle()
+  const actorName = (profile?.full_name as string | null) ?? null
+
   const { error: noteError } = await db.from("audit_log").insert({
     org_id: orgId,
     table_name: "maintenance_requests",
     record_id: requestId,
     action: "NOTE",
     changed_by: userId,
+    actor_name: actorName,
     new_values: { note: trimmed, notified_landlord: notifyLandlord },
   })
   if (noteError) return { error: noteError.message }
@@ -696,21 +700,18 @@ export async function cancelMaintenanceRequest(
 
   if (updateErr) return { error: updateErr.message }
 
+  const { data: cancelProfile } = await db.from("user_profiles").select("full_name").eq("id", userId).maybeSingle()
+  const cancelActorName = (cancelProfile?.full_name as string | null) ?? null
+
   await db.from("audit_log").insert([
     {
-      org_id: orgId,
-      table_name: "maintenance_requests",
-      record_id: requestId,
-      action: "UPDATE",
-      changed_by: userId,
+      org_id: orgId, table_name: "maintenance_requests", record_id: requestId,
+      action: "UPDATE", changed_by: userId, actor_name: cancelActorName,
       new_values: { status: "cancelled", cancellation_category: category, cancellation_reason: trimmedReason },
     },
     {
-      org_id: orgId,
-      table_name: "maintenance_requests",
-      record_id: requestId,
-      action: "NOTE",
-      changed_by: userId,
+      org_id: orgId, table_name: "maintenance_requests", record_id: requestId,
+      action: "NOTE", changed_by: userId, actor_name: cancelActorName,
       new_values: { note: `Request cancelled: ${trimmedReason}` },
     },
   ])
@@ -825,22 +826,19 @@ export async function changeContractor(
 
   if (updateErr) return { error: updateErr.message }
 
+  const { data: changeProfile } = await db.from("user_profiles").select("full_name").eq("id", userId).maybeSingle()
+  const changeActorName = (changeProfile?.full_name as string | null) ?? null
+
   await db.from("audit_log").insert([
     {
-      org_id: orgId,
-      table_name: "maintenance_requests",
-      record_id: requestId,
-      action: "UPDATE",
-      changed_by: userId,
+      org_id: orgId, table_name: "maintenance_requests", record_id: requestId,
+      action: "UPDATE", changed_by: userId, actor_name: changeActorName,
       old_values: { contractor_id: req.contractor_id },
       new_values: { contractor_id: newContractorId },
     },
     {
-      org_id: orgId,
-      table_name: "maintenance_requests",
-      record_id: requestId,
-      action: "NOTE",
-      changed_by: userId,
+      org_id: orgId, table_name: "maintenance_requests", record_id: requestId,
+      action: "NOTE", changed_by: userId, actor_name: changeActorName,
       new_values: { note: `Contractor changed: ${trimmedReason}` },
     },
   ])
