@@ -1,14 +1,10 @@
 /**
- * components/contacts/SectionCard.tsx — FILL: one-line purpose
+ * components/contacts/SectionCard.tsx — card with optional count badge and action link used on contact detail pages
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Used for Properties, Financial summary, Owner statements sections on landlord/tenant detail pages.
  */
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import Link from "next/link"
+import { InlineLink } from "@/components/ui/actions"
 
 interface SectionCardProps {
   title: string
@@ -28,9 +24,7 @@ export function SectionCard({ title, count, action, children }: Readonly<Section
           )}
         </div>
         {action && (
-          <Link href={action.href} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-            {action.label}
-          </Link>
+          <InlineLink href={action.href}>{action.label}</InlineLink>
         )}
       </CardHeader>
       <CardContent className="pt-0">{children}</CardContent>

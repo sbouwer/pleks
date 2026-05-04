@@ -1,16 +1,13 @@
 "use client"
 
 /**
- * components/properties/VacantSection.tsx — FILL: one-line purpose
+ * components/properties/VacantSection.tsx — Vacant unit panel for selecting prospective tenants and initiating lease creation
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   gateway (dashboard layout)
+ * Data:   setProspectiveTenants server action; TenantPicker for tenant search
  */
 import { useState } from "react"
-import Link from "next/link"
+import { InlineLink } from "@/components/ui/actions"
 import { TenantPicker } from "@/components/shared/TenantPicker"
 import type { PickedTenant } from "@/components/shared/TenantPicker"
 import { ChevronDown, UserRound, CheckCircle2, Plus, X, Clock } from "lucide-react"
@@ -210,9 +207,7 @@ export function VacantSection({
         ) : (
           <p className="text-sm text-muted-foreground">No active lease</p>
         )}
-        <Link href={leaseHref} className="text-sm text-brand hover:underline">
-          Create a lease →
-        </Link>
+        <InlineLink href={leaseHref} withArrow>Create a lease</InlineLink>
       </div>
     </div>
   )

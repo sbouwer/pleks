@@ -7,8 +7,7 @@
  * Notes:  Used in landlord, tenant, and contractor sidebar panels for Contact, Address, etc.
  */
 import { useState, useTransition } from "react"
-import { Button } from "@/components/ui/button"
-import { EditButton } from "@/components/ui/actions"
+import { ActionButton, EditButton } from "@/components/ui/actions"
 
 interface SidebarSectionProps {
   title: string
@@ -44,12 +43,12 @@ export function SidebarSection({ title, children, editForm, onSave }: Readonly<S
         <div className="space-y-3">
           {editForm}
           <div className="flex gap-2 pt-1">
-            <Button size="sm" onClick={handleSave} disabled={isPending} className="h-7 text-xs">
+            <ActionButton tone="primary" onClick={handleSave} disabled={isPending}>
               {isPending ? "Saving…" : "Save"}
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setEditing(false)} disabled={isPending} className="h-7 text-xs">
+            </ActionButton>
+            <ActionButton tone="secondary" onClick={() => setEditing(false)} disabled={isPending}>
               Cancel
-            </Button>
+            </ActionButton>
           </div>
         </div>
       ) : (

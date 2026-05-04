@@ -8,7 +8,7 @@
  *         Delay list is optimistic — new entries prepend locally without a full page refresh.
  */
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
@@ -105,10 +105,9 @@ export function RecordDelayPanel({ requestId, initialDelays }: Props) {
               </span>
             )}
           </div>
-          <Button size="sm" variant="outline" onClick={() => setOpen((v) => !v)}>
-            <Plus className="h-3.5 w-3.5 mr-1" />
+          <ActionButton tone="secondary" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => setOpen((v) => !v)}>
             Record delay
-          </Button>
+          </ActionButton>
         </div>
       </CardHeader>
 
@@ -158,11 +157,11 @@ export function RecordDelayPanel({ requestId, initialDelays }: Props) {
             </div>
 
             <div className="flex gap-2 pt-1">
-              <Button size="sm" onClick={handleSubmit} disabled={!delayType || saving}>
+              <ActionButton tone="primary" onClick={handleSubmit} disabled={!delayType || saving}>
                 {saving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
                 Save
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+              </ActionButton>
+              <ActionButton tone="secondary" onClick={() => setOpen(false)}>Cancel</ActionButton>
             </div>
           </div>
         )}

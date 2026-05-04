@@ -1,23 +1,20 @@
 "use client"
 
 /**
- * app/(dashboard)/landlords/LandlordsClient.tsx — FILL: one-line purpose
+ * app/(dashboard)/landlords/LandlordsClient.tsx — searchable, sortable landlord list with inline delete
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /landlords
+ * Auth:   dashboard layout (gateway)
+ * Data:   landlords prop from server page; invalidates portfolio query cache on delete
  */
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
 import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
+import { ActionButton, EditButton, IconButton } from "@/components/ui/actions"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
-import { Search, X, ArrowUpDown, ArrowUp, ArrowDown, Trash2, Pencil } from "lucide-react"
-import Link from "next/link"
+import { Search, X, ArrowUpDown, ArrowUp, ArrowDown, Trash2 } from "lucide-react"
 import { useOrg } from "@/hooks/useOrg"
 import { usePermissions } from "@/hooks/usePermissions"
 import { PORTFOLIO_QUERY_KEYS } from "@/lib/queries/portfolio"
@@ -148,12 +145,10 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
                   <div className="flex items-center gap-1.5 shrink-0">
                     {l.phone && (
                       <a href={`tel:${l.phone}`}>
-                        <Button size="sm" variant="outline" className="h-7 text-xs px-2.5">Call</Button>
+                        <ActionButton tone="secondary">Call</ActionButton>
                       </a>
                     )}
-                    <Link href={`/landlords/${l.id}`}>
-                      <Button size="sm" variant="ghost" className="h-7 text-xs px-2">→</Button>
-                    </Link>
+                    <ActionButton tone="secondary" onClick={() => router.push(`/landlords/${l.id}`)}>→</ActionButton>
                   </div>
                 </div>
               )
@@ -205,15 +200,15 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
                     </td>
                     <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-foreground"
-                          render={<Link href={`/landlords/${l.id}`} />}>
-                          <Pencil className="size-3.5" />
-                        </Button>
+                        <EditButton label="Edit landlord" onClick={() => router.push(`/landlords/${l.id}`)} />
                         {isAdmin && (
-                          <Button variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive"
-                            onClick={() => handleDelete(l)} disabled={isDeleting}>
-                            <Trash2 className="size-3.5" />
-                          </Button>
+                          <IconButton
+                            icon={<Trash2 className="size-3.5" />}
+                            label="Delete landlord"
+                            onClick={() => handleDelete(l)}
+                            disabled={isDeleting}
+                            className="hover:border-destructive/50 hover:bg-destructive/5 hover:text-destructive"
+                          />
                         )}
                       </div>
                     </td>

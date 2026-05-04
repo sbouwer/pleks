@@ -1,30 +1,27 @@
 "use client"
 
 /**
- * app/(dashboard)/suppliers/SuppliersClient.tsx — FILL: one-line purpose
+ * app/(dashboard)/suppliers/SuppliersClient.tsx — searchable, sortable supplier/contractor list with add form and inline delete
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /suppliers
+ * Auth:   dashboard layout (gateway)
+ * Data:   contractors prop from server page; invalidates portfolio query cache on delete
  */
 
 import { useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { EditButton, IconButton } from "@/components/ui/actions"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
-import Link from "next/link"
 import { usePermissions } from "@/hooks/usePermissions"
 import {
   Search, Trash2, X, Plus, Check,
   ArrowUpDown, ArrowUp, ArrowDown,
-  Pencil,
 } from "lucide-react"
 import { PORTFOLIO_QUERY_KEYS } from "@/lib/queries/portfolio"
 
@@ -325,24 +322,15 @@ export function SuppliersClient({ contractors: initial, orgId }: Readonly<Props>
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-muted-foreground hover:text-foreground"
-                          render={<Link href={`/suppliers/${c.id}`} />}
-                        >
-                          <Pencil className="size-3.5" />
-                        </Button>
+                        <EditButton label="Edit supplier" onClick={() => router.push(`/suppliers/${c.id}`)} />
                         {isAdmin && (
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            className="text-muted-foreground hover:text-destructive"
+                          <IconButton
+                            icon={<Trash2 className="size-3.5" />}
+                            label="Delete supplier"
                             onClick={() => handleDelete(c)}
                             disabled={isDeleting}
-                          >
-                            <Trash2 className="size-3.5" />
-                          </Button>
+                            className="hover:border-destructive/50 hover:bg-destructive/5 hover:text-destructive"
+                          />
                         )}
                       </div>
                     </td>

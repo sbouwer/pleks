@@ -1,16 +1,15 @@
 "use client"
 
 /**
- * app/(dashboard)/suppliers/[id]/SupplierSections.tsx — FILL: one-line purpose
+ * app/(dashboard)/suppliers/[id]/SupplierSections.tsx — inline-editable supplier/contractor detail sections (contact, rates, banking, address)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /suppliers/[id]
+ * Auth:   gateway-protected server wrapper
+ * Data:   contractor fields passed from server page; each section manages own edit state
  */
 
 import { useState } from "react"
+import { EditButton } from "@/components/ui/actions"
 import { DetailRow } from "@/components/contacts/DetailRow"
 import { ContactEditForm } from "@/components/contacts/edit/ContactEditForm"
 import { AddressEditForm } from "@/components/contacts/edit/AddressEditForm"
@@ -66,9 +65,7 @@ export function ContractorContactSection({ entityId, phones, emails }: Readonly<
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Contact</span>
         {!editing && (
-          <button onClick={() => setEditing(true)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-            Edit
-          </button>
+          <EditButton mode="label" label="Edit" onClick={() => setEditing(true)} />
         )}
       </div>
       {editing ? (
@@ -129,9 +126,7 @@ export function ContractorRatesSection({
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Rates</span>
         {!editing && (
-          <button onClick={() => setEditing(true)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-            Edit
-          </button>
+          <EditButton mode="label" label="Edit" onClick={() => setEditing(true)} />
         )}
       </div>
       {editing ? (
@@ -181,9 +176,7 @@ export function ContractorBankingSection({
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Banking</span>
         {!editing && (
-          <button onClick={() => setEditing(true)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-            Edit
-          </button>
+          <EditButton mode="label" label="Edit" onClick={() => setEditing(true)} />
         )}
       </div>
       {editing ? (
@@ -241,9 +234,7 @@ export function ContractorAddressSection({ entityId, address }: Readonly<Contrac
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Address</span>
         {!editing && (
-          <button onClick={() => setEditing(true)} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-            Edit
-          </button>
+          <EditButton mode="label" label="Edit" onClick={() => setEditing(true)} />
         )}
       </div>
       {editing ? (

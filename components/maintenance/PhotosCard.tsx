@@ -13,18 +13,11 @@ import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Eye, EyeOff, Image as ImageIcon, Plus, Loader2 } from "lucide-react"
 import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
+import { ActionButton, Modal } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
 import { togglePhotoVisibilityToTenant } from "@/lib/actions/maintenance"
 
 export interface MaintenancePhoto {
@@ -133,18 +126,12 @@ function AddPhotoDialog({ requestId }: Readonly<{ requestId: string }>) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={
-        <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1">
-          <Plus className="h-3.5 w-3.5" />
-          Add photo
-        </Button>
-      } />
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Upload photo</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 pt-1">
+    <>
+      <ActionButton tone="secondary" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => setOpen(true)}>
+        Add photo
+      </ActionButton>
+      <Modal open={open} onClose={() => setOpen(false)} title="Upload photo" icon={<ImageIcon className="h-4 w-4" />}>
+        <div className="space-y-4">
           <div className="space-y-1.5">
             <Label className="text-xs">Phase *</Label>
             <Select value={phase} onValueChange={(v) => setPhase(v ?? "during")}>
@@ -179,13 +166,13 @@ function AddPhotoDialog({ requestId }: Readonly<{ requestId: string }>) {
               className="text-sm"
             />
           </div>
-          <Button onClick={handleUpload} disabled={uploading || !file} className="w-full" size="sm">
+          <ActionButton tone="primary" onClick={handleUpload} disabled={uploading || !file} className="w-full">
             {uploading && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
             {uploading ? "Uploading…" : "Upload"}
-          </Button>
+          </ActionButton>
         </div>
-      </DialogContent>
-    </Dialog>
+      </Modal>
+    </>
   )
 }
 
