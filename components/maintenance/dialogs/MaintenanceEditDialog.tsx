@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * components/maintenance/dialogs/MaintenanceEditDialog.tsx — slide-in sheet to edit a maintenance request's fields
+ * components/maintenance/dialogs/MaintenanceEditDialog.tsx — centered dialog to edit a maintenance request's fields
  *
  * Data:   current field values passed as props; calls updateMaintenanceRequest on save
  * Notes:  Triggered from DetailsCard. Refreshes page via router.refresh() on success.
@@ -16,12 +16,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet"
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog"
 import {
   Select,
   SelectContent,
@@ -69,20 +70,20 @@ export function MaintenanceEditDialog({ requestId, current }: Readonly<Props>) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
 
-  const [title, setTitle]                         = useState(current.title)
-  const [description, setDescription]             = useState(current.description)
-  const [categoryOverride, setCategoryOverride]   = useState(current.category_override ?? "")
-  const [urgencyOverride, setUrgencyOverride]     = useState(current.urgency_override ?? "")
+  const [title, setTitle]                           = useState(current.title)
+  const [description, setDescription]               = useState(current.description)
+  const [categoryOverride, setCategoryOverride]     = useState(current.category_override ?? "")
+  const [urgencyOverride, setUrgencyOverride]       = useState(current.urgency_override ?? "")
   const [accessInstructions, setAccessInstructions] = useState(current.access_instructions ?? "")
   const [specialInstructions, setSpecialInstructions] = useState(current.special_instructions ?? "")
-  const [contactName, setContactName]             = useState(current.contact_name ?? "")
-  const [contactPhone, setContactPhone]           = useState(current.contact_phone ?? "")
-  const [estimatedCost, setEstimatedCost]         = useState(
+  const [contactName, setContactName]               = useState(current.contact_name ?? "")
+  const [contactPhone, setContactPhone]             = useState(current.contact_phone ?? "")
+  const [estimatedCost, setEstimatedCost]           = useState(
     current.estimated_cost_cents != null ? String(current.estimated_cost_cents / 100) : ""
   )
-  const [scheduledDate, setScheduledDate]         = useState(current.scheduled_date ?? "")
-  const [scheduledFrom, setScheduledFrom]         = useState(current.scheduled_time_from ?? "")
-  const [scheduledTo, setScheduledTo]             = useState(current.scheduled_time_to ?? "")
+  const [scheduledDate, setScheduledDate]   = useState(current.scheduled_date ?? "")
+  const [scheduledFrom, setScheduledFrom]   = useState(current.scheduled_time_from ?? "")
+  const [scheduledTo, setScheduledTo]       = useState(current.scheduled_time_to ?? "")
 
   function handleSave() {
     if (!title.trim()) { toast.error("Title is required"); return }
@@ -96,18 +97,18 @@ export function MaintenanceEditDialog({ requestId, current }: Readonly<Props>) {
 
     startTransition(async () => {
       const result = await updateMaintenanceRequest(requestId, {
-        title:               title.trim(),
-        description:         description.trim() || undefined,
-        category_override:   categoryOverride.trim() || null,
-        urgency_override:    urgencyOverride || null,
-        access_instructions: accessInstructions.trim() || null,
+        title:                title.trim(),
+        description:          description.trim() || undefined,
+        category_override:    categoryOverride.trim() || null,
+        urgency_override:     urgencyOverride || null,
+        access_instructions:  accessInstructions.trim() || null,
         special_instructions: specialInstructions.trim() || null,
-        contact_name:        contactName.trim() || null,
-        contact_phone:       contactPhone.trim() || null,
+        contact_name:         contactName.trim() || null,
+        contact_phone:        contactPhone.trim() || null,
         estimated_cost_cents: costCents,
-        scheduled_date:      scheduledDate || null,
-        scheduled_time_from: scheduledFrom || null,
-        scheduled_time_to:   scheduledTo || null,
+        scheduled_date:       scheduledDate || null,
+        scheduled_time_from:  scheduledFrom || null,
+        scheduled_time_to:    scheduledTo || null,
       })
 
       if ("error" in result) {
@@ -121,15 +122,16 @@ export function MaintenanceEditDialog({ requestId, current }: Readonly<Props>) {
   }
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger render={<Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1" />}>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1" />}>
         <Pencil className="h-3 w-3" />
         Edit
-      </SheetTrigger>
-      <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
-        <SheetHeader className="mb-4">
-          <SheetTitle>Edit request</SheetTitle>
-        </SheetHeader>
+      </DialogTrigger>
+
+      <DialogContent className="sm:max-w-lg max-h-[85dvh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit request</DialogTitle>
+        </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-1.5">
@@ -212,17 +214,17 @@ export function MaintenanceEditDialog({ requestId, current }: Readonly<Props>) {
               </div>
             </div>
           </div>
-
-          <div className="flex gap-2 pt-2">
-            <Button onClick={handleSave} disabled={pending} className="flex-1">
-              {pending ? "Saving…" : "Save changes"}
-            </Button>
-            <Button variant="outline" onClick={() => setOpen(false)} disabled={pending}>
-              Cancel
-            </Button>
-          </div>
         </div>
-      </SheetContent>
-    </Sheet>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={pending}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={pending || !title.trim()}>
+            {pending ? "Saving…" : "Save changes"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
