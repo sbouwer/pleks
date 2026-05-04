@@ -1,13 +1,11 @@
 "use client"
 
 /**
- * app/(dashboard)/settings/lease-templates/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/settings/lease-templates/page.tsx — Master lease template settings: clauses, branding, custom upload
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /settings/lease-templates
+ * Auth:   gateway (dashboard layout); LeaseDisclaimerGate for clause editing
+ * Data:   /api/org/info, /api/org/brand, /api/user/preferences, /api/leases/org-clause-defaults
  */
 import { useState, useEffect, useCallback } from "react"
 import { LeaseDisclaimerGate } from "@/components/leases/LeaseDisclaimerGate"
@@ -22,6 +20,7 @@ import { ClauseConfigurator } from "@/components/leases/ClauseConfigurator"
 import { LeaseBrandingSection } from "@/components/leases/LeaseBrandingSection"
 import { LeasePreview } from "@/components/leases/LeasePreview"
 import Link from "next/link"
+import { InlineLink } from "@/components/ui/actions"
 import { toast } from "sonner"
 import { Eye, ExternalLink } from "lucide-react"
 import { useIsMobile } from "@/hooks/useIsMobile"
@@ -136,7 +135,7 @@ export default function LeaseTemplatesPage() {
       </p>
       <p className="text-xs text-muted-foreground mb-6">
         For property-specific house rules, edit them on each{" "}
-        <Link href="/properties" className="text-brand hover:underline">property&rsquo;s edit page</Link>.
+        <InlineLink href="/properties" withArrow={false}>property&rsquo;s edit page</InlineLink>.
         {" "}For unit-specific clause overrides, edit them on each unit&rsquo;s detail page.
       </p>
 

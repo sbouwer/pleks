@@ -1,18 +1,15 @@
 "use client"
 
 /**
- * app/(dashboard)/settings/import/_components/Step0Upload.tsx — FILL: one-line purpose
+ * app/(dashboard)/settings/import/_components/Step0Upload.tsx — File upload step for portfolio import wizard
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   gateway (dashboard layout)
+ * Data:   file read client-side; /api/import/analyse for column detection; GL parser for TPN reports
  */
 import { useState, useRef } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Upload, CheckCircle2, Loader2 } from "lucide-react"
-import Link from "next/link"
+import { InlineLink } from "@/components/ui/actions"
 import type { AnalysisResult } from "../page"
 import type { GLPropertyBlock } from "@/lib/import/parseGLReport"
 
@@ -188,9 +185,7 @@ export function Step0Upload({ onAnalysed, onGlDetected }: Readonly<Step0UploadPr
 
       <p className="mt-6 text-xs text-muted-foreground">
         Starting fresh with no data?{" "}
-        <Link href="/templates/pleks_import_template.xlsx" className="text-brand hover:underline" download>
-          Download blank template →
-        </Link>
+        <InlineLink href="/templates/pleks_import_template.xlsx">Download blank template</InlineLink>
       </p>
     </div>
   )

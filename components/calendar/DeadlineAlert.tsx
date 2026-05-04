@@ -1,14 +1,11 @@
 /**
- * components/calendar/DeadlineAlert.tsx — FILL: one-line purpose
+ * components/calendar/DeadlineAlert.tsx — Overdue alert banner shown above the operations calendar
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   gateway (dashboard layout)
+ * Data:   CalendarEvent[] passed as props from the calendar server page
  */
-import Link from "next/link"
-import { AlertTriangle, ExternalLink } from "lucide-react"
+import { AlertTriangle } from "lucide-react"
+import { InlineLink } from "@/components/ui/actions"
 import type { CalendarEvent } from "@/lib/calendar/events"
 
 interface DeadlineAlertProps {
@@ -51,9 +48,7 @@ export function DeadlineAlert({ alerts }: DeadlineAlertProps) {
                   Deadline: {new Date(alert.date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
                 </span>
               </div>
-              <Link href={alert.link} className="text-xs text-brand hover:underline flex items-center gap-1 shrink-0">
-                View lease <ExternalLink className="h-3 w-3" />
-              </Link>
+              <InlineLink href={alert.link} className="shrink-0">View lease</InlineLink>
             </div>
           ))}
         </div>
@@ -73,9 +68,7 @@ export function DeadlineAlert({ alerts }: DeadlineAlertProps) {
                   Deadline was: {new Date(alert.date).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}
                 </span>
               </div>
-              <Link href={alert.link} className="text-xs text-brand hover:underline flex items-center gap-1 shrink-0">
-                View <ExternalLink className="h-3 w-3" />
-              </Link>
+              <InlineLink href={alert.link} className="shrink-0">View</InlineLink>
             </div>
           ))}
         </div>
@@ -95,9 +88,7 @@ export function DeadlineAlert({ alerts }: DeadlineAlertProps) {
                   Was scheduled: {new Date(alert.date).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })}
                 </span>
               </div>
-              <Link href={alert.link} className="text-xs text-brand hover:underline flex items-center gap-1 shrink-0">
-                View <ExternalLink className="h-3 w-3" />
-              </Link>
+              <InlineLink href={alert.link} className="shrink-0">View</InlineLink>
             </div>
           ))}
         </div>

@@ -1,13 +1,11 @@
 "use client"
 
 /**
- * app/(dashboard)/billing/reconciliation/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/billing/reconciliation/page.tsx — Bank statement upload and reconciliation page
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /billing/reconciliation
+ * Auth:   gateway (dashboard layout)
+ * Data:   bank_statement_imports + bank_feed_connections via Supabase client; /api/bank-feed/sync
  */
 
 import React, { useEffect, useState } from "react"
@@ -22,6 +20,7 @@ import { Upload, Check, AlertTriangle, RefreshCw } from "lucide-react"
 import { createBankImport } from "@/lib/actions/recon"
 import { toast } from "sonner"
 import Link from "next/link"
+import { InlineLink } from "@/components/ui/actions"
 import { DesktopOnlyCard } from "@/components/mobile/DesktopOnlyCard"
 
 interface ImportRecord {
@@ -201,9 +200,7 @@ export default function ReconciliationPage() {
           {(tier === "steward" || tier === "firm" || tier === "portfolio") && feedConnections.length === 0 && (
             <p className="text-xs text-muted-foreground mt-3">
               Want automatic daily sync?{" "}
-              <Link href="/settings/deposits" className="text-brand hover:underline">
-                Connect a live bank feed →
-              </Link>
+              <InlineLink href="/settings/deposits">Connect a live bank feed</InlineLink>
             </p>
           )}
         </CardContent>

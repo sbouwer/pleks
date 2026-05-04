@@ -1,17 +1,15 @@
 "use client"
 
 /**
- * app/(dashboard)/properties/[id]/InsuranceChecklist.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/[id]/InsuranceChecklist.tsx — Insurance verification checklist with inline confirm/N/A actions
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   gateway (dashboard layout)
+ * Data:   props from InsuranceTab server component; insuranceChecklistActions server actions
  */
 
 import { useState, useTransition } from "react"
 import { CheckCircle2, Circle, Minus, ChevronDown, ChevronUp, Loader2, Send, Mail } from "lucide-react"
+import { InlineLink } from "@/components/ui/actions"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import {
@@ -299,12 +297,7 @@ function ChecklistRow({
                   Upgrade to Steward to verify this item inline, send broker briefs, and ask the
                   owner via a secure link.
                 </p>
-                <a
-                  href="/onboarding?tier=steward"
-                  className="inline-block mt-2 text-xs text-brand font-medium hover:underline"
-                >
-                  Upgrade to Steward →
-                </a>
+                <InlineLink href="/onboarding?tier=steward" className="mt-2">Upgrade to Steward</InlineLink>
               </div>
             )
           )}

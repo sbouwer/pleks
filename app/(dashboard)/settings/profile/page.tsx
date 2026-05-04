@@ -1,18 +1,16 @@
 /**
- * app/(dashboard)/settings/profile/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/settings/profile/page.tsx — User profile page showing account email and signature link
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /settings/profile
+ * Auth:   getServerUser (Supabase auth)
+ * Data:   getServerUser for email; gatewaySSR for org membership check
  */
 import { redirect } from "next/navigation"
 import { getServerUser } from "@/lib/auth/server"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import Link from "next/link"
+import { InlineLink } from "@/components/ui/actions"
 
 export const metadata = { title: "My Profile" }
 
@@ -48,16 +46,14 @@ export default async function ProfilePage() {
           <CardDescription>Used on lease documents and reports.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Link href="/settings/profile/signature" className="text-sm text-brand hover:underline">
-            Manage signature →
-          </Link>
+          <InlineLink href="/settings/profile/signature">Manage signature</InlineLink>
         </CardContent>
       </Card>
 
       {gw && (
         <p className="text-xs text-muted-foreground">
           To update your organisation&apos;s name, logo, and contact details, visit{" "}
-          <Link href="/settings/details" className="underline">Settings → Details</Link>.
+          <InlineLink href="/settings/details">Settings → Details</InlineLink>.
         </p>
       )}
     </div>

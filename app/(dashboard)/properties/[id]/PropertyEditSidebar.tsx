@@ -1,15 +1,13 @@
 "use client"
 
 /**
- * app/(dashboard)/properties/[id]/PropertyEditSidebar.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/[id]/PropertyEditSidebar.tsx — Sidebar for property edit page: landlord, agent, units
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   gateway (dashboard layout)
+ * Data:   props from property edit page server component
  */
 import Link from "next/link"
+import { InlineLink } from "@/components/ui/actions"
 import { LandlordPicker } from "./LandlordPicker"
 import { AgentPicker } from "./AgentPicker"
 
@@ -129,12 +127,7 @@ export function PropertyEditSidebar({
                   <span className="text-xs text-muted-foreground truncate max-w-[80px]">
                     {unit.tenantName ?? "Vacant"}
                   </span>
-                  <Link
-                    href={`/properties/${propertyId}/units/${unit.id}`}
-                    className="text-xs text-brand hover:underline"
-                  >
-                    View
-                  </Link>
+                  <InlineLink href={`/properties/${propertyId}/units/${unit.id}`} withArrow={false}>View</InlineLink>
                 </div>
               </div>
             ))}

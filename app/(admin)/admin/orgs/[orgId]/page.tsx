@@ -1,11 +1,9 @@
 /**
- * app/(admin)/admin/orgs/[orgId]/page.tsx — FILL: one-line purpose
+ * app/(admin)/admin/orgs/[orgId]/page.tsx — Admin detail page for a single organisation
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /admin/orgs/[orgId]
+ * Auth:   requireAdminAuth
+ * Data:   organisations, subscriptions, user_orgs, audit_log via service client
  */
 import { requireAdminAuth } from "@/lib/admin/auth"
 import { createServiceClient } from "@/lib/supabase/server"
@@ -15,6 +13,7 @@ import { formatDateShort } from "@/lib/reports/periods"
 import { formatZAR } from "@/lib/constants"
 import { AdminOrgActions } from "./AdminOrgActions"
 import { LeaseConfigSection } from "./LeaseConfigSection"
+import { InlineLink } from "@/components/ui/actions"
 
 export default async function AdminOrgDetailPage({
   params,
@@ -178,12 +177,7 @@ export default async function AdminOrgDetailPage({
             trialEndsAt={sub?.trial_ends_at ?? null}
           />
           <div className="mt-4 pt-4 border-t border-border/50">
-            <a
-              href={`/admin/orgs/${orgId}/lease-clauses`}
-              className="text-sm text-brand hover:underline"
-            >
-              Lease clause customisation &rarr;
-            </a>
+            <InlineLink href={`/admin/orgs/${orgId}/lease-clauses`}>Lease clause customisation</InlineLink>
           </div>
         </CardContent>
       </Card>

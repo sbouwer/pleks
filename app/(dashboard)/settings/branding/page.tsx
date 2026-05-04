@@ -1,17 +1,15 @@
 "use client"
 
 /**
- * app/(dashboard)/settings/branding/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/settings/branding/page.tsx — Document branding settings: logo, accent colour, font, layout
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /settings/branding
+ * Auth:   gateway (dashboard layout)
+ * Data:   /api/org/brand for load and PATCH; /api/org/brand/logo for logo upload
  */
 
 import { useEffect, useRef, useState } from "react"
-import Link from "next/link"
+import { InlineLink } from "@/components/ui/actions"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -184,9 +182,7 @@ export default function BrandingPage() {
       <h1 className="font-heading text-3xl mb-1">Branding</h1>
       <p className="text-sm text-muted-foreground mb-6">
         Control how your documents look. Organisation details are configured in{" "}
-        <Link href="/settings/details" className="text-brand hover:underline underline-offset-4">
-          Settings &rarr; Your details
-        </Link>.
+        <InlineLink href="/settings/details">Settings → Your details</InlineLink>.
       </p>
 
       <Tabs defaultValue="setup">

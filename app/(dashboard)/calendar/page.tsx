@@ -1,11 +1,9 @@
 /**
- * app/(dashboard)/calendar/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/calendar/page.tsx — Operations calendar page (Portfolio/Firm tier only)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /calendar
+ * Auth:   gateway (dashboard layout); tier-gated to Portfolio/Firm
+ * Data:   fetchCalendarEvents + fetchOverdueAlerts via service client; properties list
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { getServerOrgMembership } from "@/lib/auth/server"
@@ -14,6 +12,7 @@ import { CalendarDays } from "lucide-react"
 import { fetchCalendarEvents, fetchOverdueAlerts } from "@/lib/calendar/events"
 import { DeadlineAlert } from "@/components/calendar/DeadlineAlert"
 import { CalendarClient } from "./CalendarClient"
+import { InlineLink } from "@/components/ui/actions"
 
 function getTier(membership: { tier?: string | null } | null): string {
   return membership?.tier ?? "owner"
@@ -40,9 +39,7 @@ export default async function CalendarPage() {
             view of inspections, maintenance visits, lease deadlines, legal deadlines, and move-in/out dates
             across your entire portfolio.
           </p>
-          <a href="/settings/subscription" className="inline-block mt-2 text-brand hover:underline text-sm">
-            Upgrade your plan →
-          </a>
+          <InlineLink href="/settings/subscription" className="inline-block mt-2">Upgrade your plan</InlineLink>
         </div>
       </div>
     )

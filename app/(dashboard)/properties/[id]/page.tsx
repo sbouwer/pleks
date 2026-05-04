@@ -1,11 +1,9 @@
 /**
- * app/(dashboard)/properties/[id]/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/[id]/page.tsx — Property detail page with tabbed layout (Overview, Units, Insurance, etc.)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties/[id]
+ * Auth:   gateway (dashboard layout)
+ * Data:   properties, units, leases, inspections, insurance, scheme via service client; tab-specific fetchers
  */
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { getServerOrgMembership } from "@/lib/auth/server"
@@ -21,6 +19,7 @@ import { InsuranceTab, type InsurancePolicy, type InsuranceBroker, type Insuranc
 import type { ChecklistItemRow } from "./InsuranceChecklist"
 import { SchemeTab, type ManagingSchemeData } from "./SchemeTab"
 import { AgentPicker } from "./AgentPicker"
+import { InlineLink } from "@/components/ui/actions"
 import { LandlordPicker } from "./LandlordPicker"
 import { CompletenessWidgetWrapper } from "./CompletenessWidgetWrapper"
 import { ReclassifyDialog } from "./ReclassifyDialog"
@@ -825,9 +824,7 @@ export default async function PropertyDetailPage({
         {activeTab === "scheme" && !schemeData && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">No managing scheme linked to this property.</p>
-            <a href={`/properties/${id}/scheme/edit`} className="text-sm text-brand hover:underline">
-              Add managing scheme →
-            </a>
+            <InlineLink href={`/properties/${id}/scheme/edit`}>Add managing scheme</InlineLink>
           </div>
         )}
 

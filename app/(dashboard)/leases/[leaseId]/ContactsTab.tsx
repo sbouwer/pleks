@@ -1,17 +1,16 @@
 "use client"
 
 /**
- * app/(dashboard)/leases/[leaseId]/ContactsTab.tsx — FILL: one-line purpose
+ * app/(dashboard)/leases/[leaseId]/ContactsTab.tsx — Contacts tab for a lease: owner and tenant contact cards
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /leases/[leaseId] (Contacts tab)
+ * Auth:   gateway (dashboard layout)
+ * Data:   passed as props from the parent server component
  */
 
 import { useState } from "react"
 import Link from "next/link"
+import { InlineLink } from "@/components/ui/actions"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { ContactCard, type PortalStatus } from "@/components/contacts/ContactCard"
@@ -264,9 +263,7 @@ export function ContactsTab({
               <p className="text-sm text-muted-foreground">
                 No owner linked.{" "}
                 {propertyId && (
-                  <Link href={`/properties/${propertyId}`} className="text-brand hover:underline">
-                    Link here
-                  </Link>
+                  <InlineLink href={`/properties/${propertyId}`}>Link here</InlineLink>
                 )}
               </p>
             </div>

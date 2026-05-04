@@ -115,7 +115,7 @@ export function MaintenanceEditDialog({ requestId, current }: Readonly<Props>) {
 
   return (
     <>
-      <EditButton label="Edit request" onClick={() => setOpen(true)} />
+      <EditButton mode="label" label="Edit" onClick={() => setOpen(true)} />
 
       <Modal
         open={open}

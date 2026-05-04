@@ -1,18 +1,16 @@
 /**
- * app/(admin)/admin/orgs/page.tsx — FILL: one-line purpose
+ * app/(admin)/admin/orgs/page.tsx — Admin list of all organisations with subscription status
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /admin/orgs
+ * Auth:   requireAdminAuth
+ * Data:   organisations + subscriptions tables via service client
  */
 import { requireAdminAuth } from "@/lib/admin/auth"
 import { createServiceClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { formatDateShort } from "@/lib/reports/periods"
-import Link from "next/link"
+import { InlineLink } from "@/components/ui/actions"
 
 export default async function AdminOrgsPage() {
   await requireAdminAuth()
@@ -58,9 +56,9 @@ export default async function AdminOrgsPage() {
                 return (
                   <tr key={o.id} className="border-b border-border/50">
                     <td className="py-2">
-                      <Link href={`/admin/orgs/${o.id}`} className="hover:text-brand underline-offset-4 hover:underline">
+                      <InlineLink href={`/admin/orgs/${o.id}`} withArrow={false}>
                         {o.name}
-                      </Link>
+                      </InlineLink>
                     </td>
                     <td className="py-2 capitalize text-xs">{o.type}</td>
                     <td className="py-2 capitalize text-xs">{sub?.tier ?? "—"}</td>

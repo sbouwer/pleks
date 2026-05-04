@@ -1,13 +1,11 @@
 /**
- * components/properties/SinglePropertyView.tsx — FILL: one-line purpose
+ * components/properties/SinglePropertyView.tsx — Single-property owner view with unit, tenant, lease, and quick action panels
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   gateway (landlord/owner dashboard)
+ * Data:   passed as props from the parent server component
  */
 import Link from "next/link"
+import { InlineLink } from "@/components/ui/actions"
 import { Button } from "@/components/ui/button"
 import { Edit, Building2, MapPin, Phone, Mail } from "lucide-react"
 import { EmptyState } from "@/components/shared/EmptyState"
@@ -141,9 +139,7 @@ function TenantCard({ lease }: Readonly<{
       <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 flex flex-col gap-3">
         <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">Tenant</p>
         <p className="text-sm text-muted-foreground">No tenant assigned</p>
-        <Link href="/tenants/new" className="text-sm text-brand hover:underline">
-          Add a tenant →
-        </Link>
+        <InlineLink href="/tenants/new">Add a tenant</InlineLink>
       </div>
     )
   }
@@ -179,9 +175,7 @@ function TenantCard({ lease }: Readonly<{
           </a>
         )}
       </div>
-      <Link href={`/tenants/${tenant.id}`} className="text-xs text-brand hover:underline">
-        View profile →
-      </Link>
+      <InlineLink href={`/tenants/${tenant.id}`}>View profile</InlineLink>
     </div>
   )
 }
@@ -197,9 +191,7 @@ function LeaseSummaryCard({ lease, unitId }: Readonly<{
       <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 flex flex-col gap-3">
         <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">Lease</p>
         <p className="text-sm text-muted-foreground">No active lease</p>
-        <Link href={`/leases/new?unit=${unitId}`} className="text-sm text-brand hover:underline">
-          Create a lease →
-        </Link>
+        <InlineLink href={`/leases/new?unit=${unitId}`}>Create a lease</InlineLink>
       </div>
     )
   }
@@ -246,9 +238,7 @@ function LeaseSummaryCard({ lease, unitId }: Readonly<{
           <span className="font-medium">{nextDueLabel}</span>
         </div>
       </div>
-      <Link href={`/leases/${lease.id}`} className="text-xs text-brand hover:underline">
-        View lease →
-      </Link>
+      <InlineLink href={`/leases/${lease.id}`}>View lease</InlineLink>
     </div>
   )
 }

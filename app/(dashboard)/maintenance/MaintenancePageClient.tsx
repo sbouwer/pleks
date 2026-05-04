@@ -1,11 +1,12 @@
 "use client"
 
 /**
- * app/(dashboard)/maintenance/MaintenancePageClient.tsx — maintenance request list with compact table layout
+ * app/(dashboard)/maintenance/MaintenancePageClient.tsx — Maintenance request list with sortable table layout
  *
- * Data:   fetchMaintenanceAction (React Query); sorted/filtered client-side
- * Notes:  Table-style list matching the properties/tenants/contractors design language.
- *         Tabs filter by workflow state. Columns sortable by title, unit, status, age, urgency.
+ * Route:  /maintenance
+ * Auth:   gateway (dashboard layout)
+ * Data:   fetchMaintenanceAction via React Query; sorted/filtered client-side
+ * Notes:  Tabs filter by workflow state; columns sortable by title, unit, status, age, urgency.
  */
 import { useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"

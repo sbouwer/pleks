@@ -1,11 +1,9 @@
 /**
- * app/(admin)/admin/lease-requests/page.tsx — FILL: one-line purpose
+ * app/(admin)/admin/lease-requests/page.tsx — Admin view of custom lease template requests from organisations
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /admin/lease-requests
+ * Auth:   requireAdminAuth
+ * Data:   custom_lease_requests + organisations tables via service client
  */
 import { requireAdminAuth } from "@/lib/admin/auth"
 import { createServiceClient } from "@/lib/supabase/server"
@@ -13,6 +11,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { formatDateShort } from "@/lib/reports/periods"
 import { LeaseRequestActions } from "./LeaseRequestActions"
+import { InlineLink } from "@/components/ui/actions"
 
 interface LeaseRequest {
   id: string
@@ -86,12 +85,9 @@ export default async function AdminLeaseRequestsPage() {
               {(requests ?? []).map((r: LeaseRequest) => (
                 <tr key={r.id} className="border-b border-border/50">
                   <td className="py-2 pr-2 text-xs">
-                    <a
-                      href={`/admin/orgs/${r.org_id}`}
-                      className="text-brand hover:underline"
-                    >
+                    <InlineLink href={`/admin/orgs/${r.org_id}`} withArrow={false}>
                       {orgMap.get(r.org_id) ?? r.org_id.slice(0, 8)}
-                    </a>
+                    </InlineLink>
                   </td>
                   <td className="py-2 pr-2 text-xs">
                     {formatDateShort(new Date(r.created_at))}

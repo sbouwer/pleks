@@ -1,13 +1,11 @@
 "use client"
 
 /**
- * app/(dashboard)/inspections/InspectionsPageClient.tsx — FILL: one-line purpose
+ * app/(dashboard)/inspections/InspectionsPageClient.tsx — Client-side inspections list with React Query
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /inspections
+ * Auth:   gateway (dashboard layout)
+ * Data:   fetchInspectionsAction via React Query
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import Link from "next/link"

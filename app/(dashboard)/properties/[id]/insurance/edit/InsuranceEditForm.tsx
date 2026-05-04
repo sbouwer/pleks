@@ -1,13 +1,11 @@
 "use client"
 
 /**
- * app/(dashboard)/properties/[id]/insurance/edit/InsuranceEditForm.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/[id]/insurance/edit/InsuranceEditForm.tsx — Insurance policy edit form for a property
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties/[id]/insurance/edit
+ * Auth:   gateway (dashboard layout)
+ * Data:   insurance policy + broker contacts passed as props; saveInsuranceAction server action
  */
 import { useActionState, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -21,6 +19,7 @@ import {
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { saveInsurancePolicy, saveBroker } from "@/lib/actions/insurance"
 import { toast } from "sonner"
+import { InlineLink } from "@/components/ui/actions"
 
 const POLICY_TYPES = [
   { value: "standard_buildings",  label: "Standard buildings" },
@@ -236,7 +235,7 @@ export function InsuranceEditForm({
             ) : (
               <p className="text-sm text-muted-foreground">
                 No contacts with <code>insurance_broker</code> role found.{" "}
-                <a href="/contacts/new" className="text-brand hover:underline">Add one →</a>
+                <InlineLink href="/contacts/new">Add one</InlineLink>
               </p>
             )}
           </div>

@@ -329,14 +329,14 @@ function LettersRows({
                   {doc.file_size_bytes ? ` · ${fmtFileSize(doc.file_size_bytes)}` : ""}
                 </p>
               </div>
-              <a
+              <InlineLink
                 href={`/api/documents/lease?path=${encodeURIComponent(doc.storage_path)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="ml-3 shrink-0 text-xs text-brand hover:underline"
+                external
+                withArrow={false}
+                className="ml-3 shrink-0"
               >
                 Download
-              </a>
+              </InlineLink>
             </div>
           </div>
         ))
@@ -405,14 +405,14 @@ function StatementsRows({
                   {doc.file_size_bytes ? ` · ${fmtFileSize(doc.file_size_bytes)}` : ""}
                 </p>
               </div>
-              <a
+              <InlineLink
                 href={`/api/documents/lease?path=${encodeURIComponent(doc.storage_path)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="ml-3 shrink-0 text-xs text-brand hover:underline"
+                external
+                withArrow={false}
+                className="ml-3 shrink-0"
               >
                 Download
-              </a>
+              </InlineLink>
             </div>
           </div>
         ))
