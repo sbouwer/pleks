@@ -28,6 +28,8 @@ import { GET as feedbackDigest } from "../feedback-digest/route"
 import { GET as costSnapshots } from "../cost-snapshots/route"
 import { GET as processAuditExports } from "../process-audit-exports/route"
 import { POST as mandatoryRetry } from "../tenant-comms/mandatory-retry/route"
+import { GET as preMoveoutInspection } from "../tenant-comms/pre-moveout-inspection/route"
+import { GET as depositInterestStatement } from "../tenant-comms/deposit-interest-statement/route"
 
 type CronHandler = (req: NextRequest) => Promise<Response>
 
@@ -88,12 +90,15 @@ export async function GET(req: NextRequest) {
   await runJob("cost_snapshots", costSnapshots, cronReq, results)
   await runJob("process_audit_exports", processAuditExports, cronReq, results)
   await runJob("mandatory_retry", mandatoryRetry, cronReq, results)
+  await runJob("pre_moveout_inspection", preMoveoutInspection, cronReq, results)
 
   // Monthly jobs
   if (dayOfMonth === 1) {
     await runJob("levy_generate", levyGenerate, cronReq, results)
+    await runJob("deposit_interest_statement", depositInterestStatement, cronReq, results)
   } else {
     results.levy_generate = "skipped (not 1st)"
+    results.deposit_interest_statement = "skipped (not 1st)"
   }
 
   if (dayOfMonth === 2) {

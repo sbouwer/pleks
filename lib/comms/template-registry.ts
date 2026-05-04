@@ -174,7 +174,8 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
   // ── Deposits ─────────────────────────────────────────────────────
   "deposit.received": {
     key: "deposit.received", channel: "email", category: "deposits", is_mandatory: false,
-    description: "Deposit payment recorded",
+    tone_profile: "transactional", allowed_channels: ["email"],
+    description: "Deposit payment received and held in trust — confirmation to tenant on lease activation",
   },
   "deposit.return_schedule": {
     key: "deposit.return_schedule", channel: "email", category: "deposits", is_mandatory: true,

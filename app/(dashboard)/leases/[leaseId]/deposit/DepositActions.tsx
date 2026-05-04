@@ -1,19 +1,20 @@
 "use client"
 
 /**
- * app/(dashboard)/leases/[leaseId]/deposit/DepositActions.tsx — FILL: one-line purpose
+ * app/(dashboard)/leases/[leaseId]/deposit/DepositActions.tsx — agent deposit action buttons
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /leases/[leaseId]/deposit
+ * Auth:   Agent session (gateway)
+ * Data:   disburseDeposit, sendDepositSchedule, calculateDepositReturn server actions
+ * Notes:  "Send to Tenant" transitions status to sent_to_tenant and fires deposit.return_schedule
+ *         mandatory comm (BUILD_63 Phase 3).
  */
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { disburseDeposit } from "@/lib/deposits/disburse"
 import { calculateDepositReturn } from "@/lib/deposits/calculateReturn"
+import { sendDepositSchedule } from "@/lib/actions/deposits"
 import { useUser } from "@/hooks/useUser"
 import { toast } from "sonner"
 
@@ -33,6 +34,16 @@ export function DepositActions({ leaseId, reconStatus, hasUnconfirmedItems }: De
     const result = await calculateDepositReturn(leaseId)
     if ("error" in result) toast.error(result.error)
     else toast.success("Return calculation updated")
+    setProcessing(false)
+    router.refresh()
+  }
+
+  async function handleSendToTenant() {
+    if (!confirm("This will email the deduction schedule to the tenant. Continue?")) return
+    setProcessing(true)
+    const result = await sendDepositSchedule(leaseId)
+    if ("error" in result) toast.error(result.error)
+    else toast.success("Deduction schedule sent to tenant")
     setProcessing(false)
     router.refresh()
   }
@@ -73,6 +84,16 @@ export function DepositActions({ leaseId, reconStatus, hasUnconfirmedItems }: De
       <Button variant="outline" size="sm" onClick={handleGeneratePDF}>
         Generate Schedule PDF
       </Button>
+      {reconStatus !== "sent_to_tenant" && reconStatus !== "refunded" && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleSendToTenant}
+          disabled={processing || hasUnconfirmedItems}
+        >
+          {processing ? "Sending..." : "Send to Tenant"}
+        </Button>
+      )}
       {reconStatus !== "refunded" && (
         <Button
           size="sm"

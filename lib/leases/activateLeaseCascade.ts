@@ -6,11 +6,16 @@
  * Notes:  Each step returns a CascadeStep so failures are recorded without aborting the whole
  *         cascade. Fetches OrgCapabilities so BUILD_63 email step can use org-type-correct
  *         sender framing (signatureAttribution, tenantWelcomeSender) without an extra DB round-trip.
+ *         BUILD_63 Phase 3: stepSendDepositReceived fires deposit.received comm after deposit record.
  */
+import * as React from "react"
 import { SupabaseClient } from "@supabase/supabase-js"
 import { seedInspectionRooms } from "@/lib/inspections/seedRooms"
 import { getOrgCapabilities, type OrgCapabilities } from "@/lib/org/capabilities"
 import type { OrgType } from "@/lib/constants"
+import { routeAndSend } from "@/lib/messaging/router"
+import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
+import { DepositReceivedEmail } from "@/lib/comms/templates/tenant/deposits/deposit-received"
 
 export interface CascadeStep {
   step: string
@@ -100,6 +105,75 @@ async function stepRecordDeposit(
     return { step: "Record deposit", status: "success", detail: `R ${(lease.deposit_amount_cents / 100).toFixed(2)}` }
   } catch (e) {
     return { step: "Record deposit", status: "failed", detail: String(e) }
+  }
+}
+
+async function stepSendDepositReceived(
+  supabase: SupabaseClient,
+  lease: { deposit_amount_cents: number | null; tenant_id: string; start_date: string; unit_id: string },
+  leaseId: string,
+  orgId: string,
+): Promise<CascadeStep> {
+  if (!lease.deposit_amount_cents || lease.deposit_amount_cents <= 0) {
+    return { step: "Send deposit.received comm", status: "skipped", detail: "No deposit" }
+  }
+  try {
+    // Fetch tenant contact
+    const { data: tenant } = await supabase
+      .from("tenant_view")
+      .select("first_name, last_name, email, phone")
+      .eq("id", lease.tenant_id)
+      .single()
+
+    if (!tenant?.email) {
+      return { step: "Send deposit.received comm", status: "skipped", detail: "No tenant email" }
+    }
+
+    // Fetch property label for email body
+    const { data: unit } = await supabase
+      .from("units")
+      .select("unit_number, properties(address_line1, suburb, city)")
+      .eq("id", lease.unit_id)
+      .maybeSingle()
+
+    type PropRow = { address_line1: string; suburb: string | null; city: string }
+    const raw = unit as unknown as { unit_number: string; properties: PropRow | PropRow[] | null } | null
+    const rawProps = raw?.properties ?? null
+    const prop = Array.isArray(rawProps) ? rawProps[0] : rawProps
+    const propertyLabel = prop
+      ? [prop.address_line1, `Unit ${raw?.unit_number}`, prop.suburb ?? prop.city].filter(Boolean).join(", ")
+      : "your property"
+
+    const orgSettings = await fetchOrgSettings(orgId)
+    const branding = buildBranding(orgSettings)
+    const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
+    const depositDisplay = "R " + (lease.deposit_amount_cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
+    const leaseStartDisplay = new Date(lease.start_date).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+
+    await routeAndSend({
+      orgId,
+      tenantId: lease.tenant_id,
+      templateKey: "deposit.received",
+      to: { email: tenant.email, phone: tenant.phone ?? undefined, name: tenantName },
+      subject: `Deposit received — ${depositDisplay} — ${propertyLabel}`,
+      emailElement: React.createElement(DepositReceivedEmail, {
+        branding,
+        tenantName,
+        propertyLabel,
+        depositAmountDisplay: depositDisplay,
+        leaseStartDate: leaseStartDisplay,
+        senderName: orgSettings?.name ?? branding.orgName,
+      }),
+      entityType: "lease",
+      entityId: leaseId,
+      triggerEventType: "lease_activation",
+      triggerEventId: leaseId,
+      toneVariant: "n/a",
+    })
+
+    return { step: "Send deposit.received comm", status: "success" }
+  } catch (e) {
+    return { step: "Send deposit.received comm", status: "failed", detail: String(e) }
   }
 }
 
@@ -252,6 +326,7 @@ export async function activateLeaseCascade(
     await stepUpdateUnit(supabase, lease, orgId, userId, triggeredBy),
     await stepCreateTenancy(supabase, lease, leaseId, orgId, coTenants ?? []),
     await stepRecordDeposit(supabase, lease, leaseId, orgId, userId),
+    await stepSendDepositReceived(supabase, lease, leaseId, orgId),
     await stepGenerateFirstInvoice(supabase, lease, leaseId, orgId),
     await stepScheduleMoveIn(supabase, lease, leaseId, orgId),
     await stepLogLifecycleEvents(supabase, leaseId, orgId, triggeredBy, userId),
