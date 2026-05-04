@@ -7,16 +7,94 @@
  * Data:   maintenance_requests, contractor_updates, audit_log, communication_log
  * Notes:  updateMaintenanceStatus("work_order_sent") validates contractor, sets
  *         work_order_sent_at, generates work_order_token if absent, and emails contractor.
+ *         M1 fires on insert when tenant_id is set. M5 fires additionally on severity=critical.
+ *         BUILD_63 Phase 6.
  */
 import { gateway } from "@/lib/supabase/gateway"
+import { createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { triageMaintenanceRequest, deriveSeverityFromTriage } from "@/lib/ai/maintenanceTriage"
 import { hasFeature } from "@/lib/tier/gates"
 import { getOrgTier } from "@/lib/tier/getOrgTier"
 import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
+import { routeAndSend } from "@/lib/messaging/router"
 import { WorkOrderDispatchEmail } from "@/lib/comms/templates/maintenance/work-order-dispatch"
+import { MaintenanceLoggedEmail } from "@/lib/comms/templates/tenant/maintenance/maintenance-logged"
+import { MaintenanceEmergencyEmail } from "@/lib/comms/templates/tenant/maintenance/maintenance-emergency"
 import * as React from "react"
+
+async function fireTenantCommsOnCreate(
+  orgId: string,
+  tenantId: string | null,
+  unitId: string,
+  userId: string,
+  requestId: string,
+  title: string,
+  workOrderNumber: string,
+  severity: string,
+  urgencyReason: string,
+  contactPhone: string | undefined,
+  contactName: string | undefined,
+): Promise<void> {
+  if (!tenantId) return
+  try {
+    const service = await createServiceClient()
+    const [tenantRes, unitRes, orgSettings] = await Promise.all([
+      service.from("tenant_view").select("first_name, last_name, email, phone").eq("id", tenantId).single(),
+      service.from("units").select("unit_number, properties(name)").eq("id", unitId).single(),
+      fetchOrgSettings(orgId),
+    ])
+    const tenant = tenantRes.data
+    const unit = unitRes.data as { unit_number: string; properties: { name: string } } | null
+    if (!tenant?.email) return
+
+    const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
+    const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
+    const senderName = orgSettings?.name ?? "Pleks"
+    const branding = buildBranding(orgSettings)
+
+    await routeAndSend({
+      orgId,
+      tenantId,
+      templateKey: "maintenance.logged_tenant",
+      to: { email: tenant.email, phone: (tenant.phone as string | null) ?? undefined, name: tenantName },
+      subject: `Maintenance request received — ref ${workOrderNumber}`,
+      emailElement: React.createElement(MaintenanceLoggedEmail, {
+        branding, tenantName, propertyLabel, requestTitle: title, workOrderNumber, senderName,
+      }),
+      entityType: "maintenance_request",
+      entityId: requestId,
+      triggeredBy: userId,
+      triggerEventType: "maintenance_state",
+      triggerEventId: requestId,
+      toneVariant: "n/a",
+    })
+
+    if (severity === "critical") {
+      await routeAndSend({
+        orgId,
+        tenantId,
+        templateKey: "maintenance.emergency",
+        to: { email: tenant.email, phone: (tenant.phone as string | null) ?? undefined, name: tenantName },
+        subject: `URGENT: Critical maintenance issue at ${propertyLabel}`,
+        emailElement: React.createElement(MaintenanceEmergencyEmail, {
+          branding, tenantName, propertyLabel, requestTitle: title,
+          urgencyReason, contactName, contactPhone, senderName,
+        }),
+        smsBody: `URGENT: Critical maintenance issue at ${propertyLabel}: ${title}. Contact ${contactPhone ?? senderName} immediately.`,
+        entityType: "maintenance_request",
+        entityId: requestId,
+        triggeredBy: userId,
+        triggerEventType: "maintenance_state",
+        triggerEventId: requestId,
+        toneVariant: "n/a",
+      })
+    }
+  } catch {
+    // Comms non-fatal
+  }
+}
 
 export async function createMaintenanceRequest(formData: FormData) {
   const gw = await gateway()
@@ -126,6 +204,13 @@ export async function createMaintenanceRequest(formData: FormData) {
     changed_by: userId,
     new_values: { title, category: triage.category, urgency: triage.urgency, severity: triage.severity },
   })
+
+  await fireTenantCommsOnCreate(
+    orgId, tenantId, unitId, userId, request.id, title, workOrderNumber,
+    triage.severity, triage.urgency_reason,
+    (formData.get("contact_phone") as string) || undefined,
+    (formData.get("contact_name") as string) || undefined,
+  )
 
   revalidatePath("/maintenance")
   redirect(`/maintenance/${request.id}`)

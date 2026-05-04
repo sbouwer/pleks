@@ -1,14 +1,22 @@
 /**
- * app/api/maintenance/sign-off/route.ts — FILL: one-line purpose
+ * app/api/maintenance/sign-off/route.ts — agent sign-off: mark request completed and record cost allocations
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/maintenance/sign-off
+ * Auth:   Supabase auth.getUser() + user_orgs membership check
+ * Data:   maintenance_requests, maintenance_cost_allocations, trust_transactions, lease_charges,
+ *         tenant_view, units, audit_log, communication_log
+ * Notes:  Validates allocation sum matches actual_cost_cents. Tenant charges with next_invoice or
+ *         separate_invoice create a lease_charge so they appear on the next rent run.
+ *         M4 comm fires to tenant on completion (maintenance.completed). BUILD_63 Phase 6.
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
+import * as React from "react"
+import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
+import { routeAndSend } from "@/lib/messaging/router"
+import { MaintenanceCompletedEmail } from "@/lib/comms/templates/tenant/maintenance/maintenance-completed"
+
+type Service = Awaited<ReturnType<typeof createServiceClient>>
 
 interface AllocationInput {
   type: "landlord_expense" | "tenant_charge"
@@ -16,6 +24,106 @@ interface AllocationInput {
   description: string
   collectionMethod?: "next_invoice" | "separate_invoice" | "deposit_deduction" | "already_paid"
   clauseRef?: string
+}
+
+type MaintenanceReq = {
+  property_id: string | null
+  unit_id: string | null
+  lease_id: string | null
+}
+
+async function writeFinancialRecords(
+  service: Service,
+  orgId: string,
+  requestId: string,
+  userId: string,
+  request: MaintenanceReq,
+  allocations: AllocationInput[],
+  created: Array<{ id: string; allocation_type: string; amount_cents: number; description: string }>,
+): Promise<void> {
+  const statementMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+    .toISOString().split("T")[0]
+
+  for (const alloc of created.filter((a) => a.allocation_type === "landlord_expense")) {
+    await service.from("trust_transactions").insert({
+      org_id: orgId,
+      property_id: request.property_id,
+      unit_id: request.unit_id,
+      lease_id: request.lease_id,
+      transaction_type: "maintenance_expense",
+      direction: "debit",
+      amount_cents: alloc.amount_cents,
+      description: alloc.description,
+      maintenance_request_id: requestId,
+      statement_month: statementMonth,
+      created_by: userId,
+    })
+  }
+
+  if (request.lease_id) {
+    const today = new Date().toISOString().split("T")[0]
+    for (const input of allocations) {
+      if (
+        input.type === "tenant_charge" &&
+        (input.collectionMethod === "next_invoice" || input.collectionMethod === "separate_invoice")
+      ) {
+        await service.from("lease_charges").insert({
+          org_id: orgId,
+          lease_id: request.lease_id,
+          description: input.description.trim(),
+          charge_type: "maintenance_recovery",
+          amount_cents: input.amountCents,
+          start_date: today,
+          payable_to: "landlord",
+          is_active: true,
+          created_by: userId,
+        })
+      }
+    }
+  }
+}
+
+async function fireCompletedComm(
+  service: Service,
+  requestId: string,
+  tenantId: string,
+  unitId: string,
+  orgId: string,
+  userId: string,
+  requestTitle: string,
+): Promise<void> {
+  const [tenantRes, unitRes, orgSettings] = await Promise.all([
+    service.from("tenant_view").select("first_name, last_name, email, phone").eq("id", tenantId).single(),
+    service.from("units").select("unit_number, properties(name)").eq("id", unitId).single(),
+    fetchOrgSettings(orgId),
+  ])
+  const tenant = tenantRes.data
+  const unit = unitRes.data as { unit_number: string; properties: { name: string } } | null
+  if (!tenant?.email) return
+
+  const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
+  const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
+
+  await routeAndSend({
+    orgId,
+    tenantId,
+    templateKey: "maintenance.completed",
+    to: { email: tenant.email, phone: (tenant.phone as string | null) ?? undefined, name: tenantName },
+    subject: `Maintenance work completed — ${requestTitle}`,
+    emailElement: React.createElement(MaintenanceCompletedEmail, {
+      branding: buildBranding(orgSettings),
+      tenantName,
+      propertyLabel,
+      requestTitle,
+      senderName: orgSettings?.name ?? "Pleks",
+    }),
+    entityType: "maintenance_request",
+    entityId: requestId,
+    triggeredBy: userId,
+    triggerEventType: "maintenance_state",
+    triggerEventId: requestId,
+    toneVariant: "n/a",
+  })
 }
 
 export async function POST(req: NextRequest) {
@@ -43,7 +151,7 @@ export async function POST(req: NextRequest) {
   // Fetch the request
   const { data: request } = await service
     .from("maintenance_requests")
-    .select("id, org_id, unit_id, property_id, lease_id, actual_cost_cents, status")
+    .select("id, org_id, unit_id, property_id, lease_id, actual_cost_cents, status, tenant_id, title")
     .eq("id", requestId)
     .eq("org_id", membership.org_id)
     .single()
@@ -104,51 +212,7 @@ export async function POST(req: NextRequest) {
 
   if (allocError) return NextResponse.json({ error: allocError.message }, { status: 500 })
 
-  // For landlord_expense allocations: create a trust_transaction debit
-  const statementMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-    .toISOString()
-    .split("T")[0]
-
-  for (const alloc of (created ?? []).filter((a) => a.allocation_type === "landlord_expense")) {
-    await service.from("trust_transactions").insert({
-      org_id: membership.org_id,
-      property_id: request.property_id,
-      unit_id: request.unit_id,
-      lease_id: request.lease_id,
-      transaction_type: "maintenance_expense",
-      direction: "debit",
-      amount_cents: alloc.amount_cents,
-      description: alloc.description,
-      maintenance_request_id: requestId,
-      statement_month: statementMonth,
-      created_by: user.id,
-    })
-  }
-
-  // For tenant_charge allocations with next_invoice or separate_invoice:
-  // create a lease_charge record so it appears on the next rent invoice run.
-  // deposit_deduction is deferred to lease-end; already_paid needs no record.
-  if (request.lease_id) {
-    const today = new Date().toISOString().split("T")[0]
-    for (const input of allocations) {
-      if (
-        input.type === "tenant_charge" &&
-        (input.collectionMethod === "next_invoice" || input.collectionMethod === "separate_invoice")
-      ) {
-        await service.from("lease_charges").insert({
-          org_id: membership.org_id,
-          lease_id: request.lease_id,
-          description: input.description.trim(),
-          charge_type: "maintenance_recovery",
-          amount_cents: input.amountCents,
-          start_date: today,
-          payable_to: "landlord",
-          is_active: true,
-          created_by: user.id,
-        })
-      }
-    }
-  }
+  await writeFinancialRecords(service, membership.org_id, requestId, user.id, request, allocations, created ?? [])
 
   // Audit
   await service.from("audit_log").insert({
@@ -159,6 +223,23 @@ export async function POST(req: NextRequest) {
     changed_by: user.id,
     new_values: { status: "completed", allocation_count: records.length },
   })
+
+  // M4 — notify tenant that work is complete
+  if (request.tenant_id) {
+    try {
+      await fireCompletedComm(
+        service,
+        requestId,
+        request.tenant_id as string,
+        request.unit_id as string,
+        membership.org_id,
+        user.id,
+        request.title as string,
+      )
+    } catch {
+      // Comm non-fatal
+    }
+  }
 
   return NextResponse.json({ ok: true })
 }

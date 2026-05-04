@@ -1,11 +1,11 @@
 /**
- * app/api/maintenance/triage/route.ts — FILL: one-line purpose
+ * app/api/maintenance/triage/route.ts — AI-powered maintenance request triage
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  POST /api/maintenance/triage
+ * Auth:   Supabase auth.getUser()
+ * Data:   calls triageMaintenanceRequest (Haiku 4.5) — no DB writes
+ * Notes:  Returns category, urgency, severity, and insurance_relevant flag. Used by the
+ *         maintenance form to pre-fill triage fields before the agent submits the request.
  */
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
