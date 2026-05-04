@@ -1,13 +1,11 @@
 "use client"
 
 /**
- * components/layout/SidebarContent.tsx — FILL: one-line purpose
+ * components/layout/SidebarContent.tsx — reusable sidebar nav renderer used by agent and tenant layouts
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   NavGroup[] passed from parent layout (no DB access)
+ * Notes:  isActive uses exact match for Overview-style index routes (href === activePath)
+ *         and startsWith(href + "/") for everything else — prevents prefix false-positives.
  */
 
 import { useState, useEffect } from "react"
@@ -55,7 +53,7 @@ export function SidebarContent({
 
   function isActive(href: string) {
     if (href === homeHref) return activePath === homeHref
-    return activePath.startsWith(href)
+    return activePath === href || activePath.startsWith(href + "/")
   }
 
   function handleNavClick(href: string) {
