@@ -33,7 +33,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { toast } from "sonner"
-import { Plus, Trash2, Pencil, ChevronUp, ChevronDown, ArrowUpDown, ShieldAlert } from "lucide-react"
+import { Plus, Trash2, ChevronUp, ChevronDown, ArrowUpDown, ShieldAlert } from "lucide-react"
+import { EditButton } from "@/components/ui/actions"
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -527,10 +528,7 @@ function MemberRow({ member, currentUserId, callerIsOwner, onEdit, onRemove, onT
             {member.is_admin ? "Admin ✓" : "Admin"}
           </Button>
         )}
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground"
-          onClick={() => onEdit(member)}>
-          <Pencil className="h-3.5 w-3.5" />
-        </Button>
+        <EditButton label="Edit member" onClick={() => onEdit(member)} />
         {canRemove && (
           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"
             onClick={() => onRemove(member.id)}>
@@ -647,11 +645,7 @@ function FirmMemberTable({
                   )}
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-1 justify-end">
-                      <Button variant="ghost" size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                        onClick={() => onEdit(m)}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
+                      <EditButton label="Edit member" onClick={() => onEdit(m)} />
                       {canRemove && (
                         <Button variant="ghost" size="icon"
                           className="h-7 w-7 text-muted-foreground hover:text-destructive"

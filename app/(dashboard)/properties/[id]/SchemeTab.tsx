@@ -1,14 +1,13 @@
 /**
- * app/(dashboard)/properties/[id]/SchemeTab.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/[id]/SchemeTab.tsx — Managing scheme (body corporate / HOA) detail tab
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties/[id] (scheme tab)
+ * Auth:   gateway-protected server wrapper
+ * Data:   scheme data passed from server page; canEdit gates edit link to non-owner tiers
+ * Notes:  SectionCard uses Link-based pa-edit (server component, no onClick)
  */
 import Link from "next/link"
-import { Building2, User, FileText } from "lucide-react"
+import { Building2, User, FileText, Pencil } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 
 export interface ManagingSchemeData {
@@ -75,7 +74,9 @@ function SectionCard({
           <span className="text-xs text-muted-foreground uppercase tracking-wide">{title}</span>
         </div>
         {editHref && (
-          <Link href={editHref} className="text-xs text-brand hover:underline">Edit</Link>
+          <Link href={editHref} className="pa-edit" aria-label="Edit">
+            <Pencil className="h-3.5 w-3.5" aria-hidden />
+          </Link>
         )}
       </div>
       <div className="px-4 py-3">{children}</div>

@@ -1,16 +1,14 @@
 "use client"
 
 /**
- * components/contacts/SidebarSection.tsx — FILL: one-line purpose
+ * components/contacts/SidebarSection.tsx — collapsible sidebar section with inline edit/save affordance
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   controlled via props (children + editForm); calls onSave callback
+ * Notes:  Used in landlord, tenant, and contractor sidebar panels for Contact, Address, etc.
  */
 import { useState, useTransition } from "react"
 import { Button } from "@/components/ui/button"
+import { EditButton } from "@/components/ui/actions"
 
 interface SidebarSectionProps {
   title: string
@@ -39,12 +37,7 @@ export function SidebarSection({ title, children, editForm, onSave }: Readonly<S
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</span>
         {editForm && !editing && (
-          <button
-            onClick={() => setEditing(true)}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Edit
-          </button>
+          <EditButton label="Edit" onClick={() => setEditing(true)} />
         )}
       </div>
       {editing && editForm ? (

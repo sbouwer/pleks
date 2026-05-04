@@ -1,15 +1,14 @@
 /**
- * app/(dashboard)/properties/[id]/InsuranceTab.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/[id]/InsuranceTab.tsx — Insurance policy, broker, claims, and checklist tab
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties/[id] (insurance tab)
+ * Auth:   gateway-protected server wrapper
+ * Data:   policy, broker, buildings, claims passed from server page; checklist via InsuranceChecklist
+ * Notes:  canSeeBroker gates broker card to Owner Pro+; SectionCard uses Link-based pa-edit (server component)
  */
 import Link from "next/link"
 import { formatZAR } from "@/lib/constants"
-import { ShieldCheck, User, Building2, AlertTriangle } from "lucide-react"
+import { ShieldCheck, User, Building2, AlertTriangle, Pencil } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { InsuranceChecklist, type ChecklistItemRow } from "./InsuranceChecklist"
 import { RenewalBanner } from "./RenewalBanner"
@@ -110,7 +109,9 @@ function SectionCard({
           <span className="text-xs text-muted-foreground uppercase tracking-wide">{title}</span>
         </div>
         {editHref && (
-          <Link href={editHref} className="text-xs text-brand hover:underline">Edit</Link>
+          <Link href={editHref} className="pa-edit" aria-label="Edit">
+            <Pencil className="h-3.5 w-3.5" aria-hidden />
+          </Link>
         )}
       </div>
       <div className="px-4 py-3">{children}</div>

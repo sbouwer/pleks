@@ -1,13 +1,12 @@
 "use client"
 
 /**
- * app/(dashboard)/tenants/[tenantId]/TenantSections.tsx — FILL: one-line purpose
+ * app/(dashboard)/tenants/[tenantId]/TenantSections.tsx — inline-editable tenant detail sections
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /tenants/[tenantId] (rendered by TenantPage server component)
+ * Auth:   gateway-protected server wrapper
+ * Data:   contact, employment, address, juristic props from server page
+ * Notes:  Each section manages its own edit state. JuristicSection has its own sub-form.
  */
 import { useState, useTransition, useMemo } from "react"
 import { DetailRow } from "@/components/contacts/DetailRow"
@@ -15,6 +14,7 @@ import { ContactEditForm } from "@/components/contacts/edit/ContactEditForm"
 import { TenantEmploymentForm } from "@/components/contacts/edit/TenantEmploymentForm"
 import { AddressEditForm } from "@/components/contacts/edit/AddressEditForm"
 import { updateContactJuristicFields } from "@/lib/actions/contacts"
+import { EditButton } from "@/components/ui/actions"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 
@@ -68,14 +68,7 @@ export function TenantContactSection({ entityId, phones, emails }: Readonly<Tena
     <div className="border-t pt-3 mt-3">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Contact</span>
-        {!editing && (
-          <button
-            onClick={() => setEditing(true)}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Edit
-          </button>
-        )}
+        {!editing && <EditButton label="Edit" onClick={() => setEditing(true)} />}
       </div>
       {editing ? (
         <ContactEditForm
@@ -184,14 +177,7 @@ export function TenantEmploymentSection({
     <div className="border-t pt-3 mt-3">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Employment</span>
-        {!editing && (
-          <button
-            onClick={() => setEditing(true)}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Edit
-          </button>
-        )}
+        {!editing && <EditButton label="Edit" onClick={() => setEditing(true)} />}
       </div>
       {editing ? (
         <TenantEmploymentForm
@@ -246,14 +232,7 @@ export function TenantAddressSection({ entityId, address }: Readonly<TenantAddre
     <div className="border-t pt-3 mt-3">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Address</span>
-        {!editing && (
-          <button
-            onClick={() => setEditing(true)}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Edit
-          </button>
-        )}
+        {!editing && <EditButton label="Edit" onClick={() => setEditing(true)} />}
       </div>
       {editing ? (
         <AddressEditForm
@@ -352,7 +331,7 @@ function JuristicView({ juristicType, turnoverUnder2m, assetValueUnder2m, sizeBa
     <div className="border-t pt-3 mt-3">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">CPA classification</span>
-        <button type="button" onClick={onEdit} className="text-xs text-brand hover:underline">Edit</button>
+        <EditButton label="Edit CPA classification" onClick={onEdit} />
       </div>
       <div className="space-y-1">
         <DetailRow label="Entity type">{juristicType ? (JURISTIC_TYPE_LABELS[juristicType] ?? juristicType) : "Not set"}</DetailRow>
