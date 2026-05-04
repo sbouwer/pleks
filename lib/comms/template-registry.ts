@@ -358,6 +358,12 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
   // ── Maintenance extras (BUILD_63) ─────────────────────────────────────────
   "maintenance.delay":                 { key: "maintenance.delay",                 channel: "both",     category: "maintenance", is_mandatory: false, tone_profile: "relational",    allowed_channels: ["whatsapp", "email"], description: "Maintenance delay notification with revised ETA" },
 
+  // ── Maintenance lifecycle hardening (ADDENDUM_45A) ────────────────────────
+  "maintenance.cancelled":             { key: "maintenance.cancelled",             channel: "email",    category: "maintenance", is_mandatory: false, tone_profile: "transactional", allowed_channels: ["whatsapp", "email"], description: "Contractor notified that an active work order has been cancelled (WO token revoked)" },
+  "maintenance.cancelled_tenant":      { key: "maintenance.cancelled_tenant",      channel: "email",    category: "maintenance", is_mandatory: false, tone_profile: "relational",    allowed_channels: ["whatsapp", "email"], description: "Tenant notified that the maintenance request they logged has been cancelled" },
+  "maintenance.contractor_changed":    { key: "maintenance.contractor_changed",    channel: "email",    category: "maintenance", is_mandatory: false, tone_profile: "transactional", allowed_channels: ["email"],             description: "Old contractor notified that the work order has been reassigned to another contractor (WO token revoked)" },
+  "maintenance.memo_landlord_notified":{ key: "maintenance.memo_landlord_notified",channel: "email",    category: "maintenance", is_mandatory: false, tone_profile: "transactional", allowed_channels: ["email"],             description: "Landlord notified that an agent added a memo to a maintenance request and chose to share it" },
+
   // ── Portal lifecycle extras (BUILD_63) ────────────────────────────────────
   "portal.invite_reminder":            { key: "portal.invite_reminder",            channel: "sms",      category: "portal",      is_mandatory: false, tone_profile: "relational",    allowed_channels: ["whatsapp", "sms"],  description: "Portal activation reminder — invite still unaccepted at T+7" },
   "portal.access_revoked":             { key: "portal.access_revoked",             channel: "email",    category: "portal",      is_mandatory: false, tone_profile: "transactional", allowed_channels: ["email"],             description: "Portal access revoked — lease ended or manually removed" },

@@ -1,11 +1,12 @@
 /**
- * app/(public)/wo/[workOrderNumber]/page.tsx — FILL: one-line purpose
+ * app/(public)/wo/[workOrderNumber]/page.tsx — contractor work order portal (public, token-gated)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /wo/[workOrderNumber]?token=<work_order_token>
+ * Auth:   token must match work_order_token AND work_order_token_revoked_at must be null
+ * Data:   maintenance_requests (service client, no RLS — token is the auth)
+ * Notes:  Token revocation (ADDENDUM_45A): if work_order_token_revoked_at is set the link
+ *         renders a "cancelled" screen instead of the job detail. This prevents a contractor
+ *         from accessing a cancelled or reassigned work order via a stale link.
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { notFound } from "next/navigation"
@@ -27,7 +28,8 @@ export default async function WorkOrderPage({ params, searchParams }: Props) {
   const { data: req } = await supabase
     .from("maintenance_requests")
     .select(`
-      id, work_order_number, work_order_token, title, description, category, urgency,
+      id, work_order_number, work_order_token, work_order_token_revoked_at,
+      title, description, category, urgency,
       status, access_instructions, special_instructions, estimated_cost_cents,
       quoted_cost_cents, actual_cost_cents, created_at,
       units(unit_number, access_instructions, properties(name, address_line1, city)),
@@ -46,6 +48,21 @@ export default async function WorkOrderPage({ params, searchParams }: Props) {
           <p className="text-lg font-semibold mb-2">Invalid or missing access link</p>
           <p className="text-sm text-muted-foreground">
             This work order link is invalid. Please use the link from your work order email.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // Revocation check (ADDENDUM_45A) — token valid but WO was cancelled or reassigned
+  if (req.work_order_token_revoked_at) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh] px-4">
+        <div className="text-center max-w-sm">
+          <p className="text-lg font-semibold mb-2">This work order has been cancelled</p>
+          <p className="text-sm text-muted-foreground">
+            Work order {workOrderNumber} has been cancelled or reassigned. Your access link is no longer valid.
+            Please contact the agency if you have questions.
           </p>
         </div>
       </div>

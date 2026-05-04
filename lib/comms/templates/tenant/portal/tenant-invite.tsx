@@ -3,7 +3,9 @@
  *
  * Data:   tenant name, portal magic-link URL, org branding
  * Notes:  Fires on lease activation via activateLeaseCascade. portalUrl is a Supabase
- *         auth.admin.generateLink invite link — time-limited (24h). BUILD_63 Phase 5.
+ *         auth.admin.generateLink invite link — TTL controlled by Supabase Auth global
+ *         "Invite email token validity" setting (default 1 week). Email copy says
+ *         "a few days" to stay accurate across configurations. BUILD_63 Phase 5.
  */
 
 import * as React from "react"

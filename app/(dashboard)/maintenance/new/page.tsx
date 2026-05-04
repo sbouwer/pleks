@@ -1,11 +1,10 @@
 /**
- * app/(dashboard)/maintenance/new/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/maintenance/new/page.tsx — log a new maintenance request
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /maintenance/new
+ * Auth:   createClient auth.getUser() + service client for org scope
+ * Data:   properties, units, tenant prefill, contractors; URL params: ?property= ?unit=
+ * Notes:  Pre-selects property/unit/tenant from URL params or single-property orgs.
  */
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"

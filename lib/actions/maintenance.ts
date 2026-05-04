@@ -22,6 +22,10 @@ import { routeAndSend } from "@/lib/messaging/router"
 import { WorkOrderDispatchEmail } from "@/lib/comms/templates/maintenance/work-order-dispatch"
 import { MaintenanceLoggedEmail } from "@/lib/comms/templates/tenant/maintenance/maintenance-logged"
 import { MaintenanceEmergencyEmail } from "@/lib/comms/templates/tenant/maintenance/maintenance-emergency"
+import { CancelledContractorEmail } from "@/lib/comms/templates/maintenance/cancelled-contractor"
+import { CancelledTenantEmail } from "@/lib/comms/templates/maintenance/cancelled-tenant"
+import { ContractorChangedEmail } from "@/lib/comms/templates/maintenance/contractor-changed"
+import { MemoLandlordNotifiedEmail } from "@/lib/comms/templates/maintenance/memo-landlord-notified"
 import * as React from "react"
 
 async function fireTenantCommsOnCreate(
@@ -216,6 +220,105 @@ export async function createMaintenanceRequest(formData: FormData) {
   redirect(`/maintenance/${request.id}`)
 }
 
+// ── Helper: prepare work_order_sent status transition ────────────────────────
+
+type GatewayDb = import("@supabase/supabase-js").SupabaseClient
+
+async function prepareWorkOrderSent(
+  db: GatewayDb,
+  userId: string,
+  requestId: string,
+): Promise<{ extraUpdates: Record<string, unknown>; toastMessage: string } | { error: string }> {
+  const { data: req, error: fetchErr } = await db
+    .from("maintenance_requests")
+    .select("contractor_id, work_order_number, work_order_token, org_id, title, urgency, unit_id, units(unit_number, properties(name))")
+    .eq("id", requestId)
+    .single()
+
+  if (fetchErr || !req) return { error: "Could not load maintenance request." }
+  if (!req.contractor_id) return { error: "Assign a contractor before sending the work order." }
+
+  const extraUpdates: Record<string, unknown> = { work_order_sent_at: new Date().toISOString() }
+  let token = req.work_order_token as string | null
+  if (!token) {
+    token = crypto.randomUUID()
+    extraUpdates.work_order_token = token
+  }
+
+  const { data: contractor } = await db
+    .from("contractors")
+    .select("first_name, last_name, company_name, email, contact_id")
+    .eq("id", req.contractor_id)
+    .single()
+
+  const contractorDisplayName = (contractor?.company_name as string | null)
+    || [contractor?.first_name, contractor?.last_name].filter(Boolean).join(" ")
+    || "Contractor"
+
+  if (contractor?.email) {
+    await sendWorkOrderEmail({ db, userId, requestId, req, contractor, contractorDisplayName, token })
+  }
+
+  return { extraUpdates, toastMessage: `Work order sent to ${contractorDisplayName}` }
+}
+
+async function sendWorkOrderEmail({ db, userId, requestId, req, contractor, contractorDisplayName, token }: {
+  db: GatewayDb
+  userId: string
+  requestId: string
+  req: Record<string, unknown>
+  contractor: Record<string, unknown>
+  contractorDisplayName: string
+  token: string
+}) {
+  const orgId = req.org_id as string
+  const [orgSettings, photosRes] = await Promise.all([
+    fetchOrgSettings(orgId),
+    db.from("maintenance_photos")
+      .select("id, storage_path, photo_phase, created_at")
+      .eq("request_id", requestId)
+      .eq("photo_phase", "before")
+      .order("created_at"),
+  ])
+  const branding = buildBranding(orgSettings)
+  const unit = req.units as unknown as { unit_number: string; properties: { name: string } } | null
+  const propertyLabel = unit?.properties.name ?? "Property"
+  const unitLabel = unit?.unit_number ?? ""
+  const woUrl = `${process.env.NEXT_PUBLIC_APP_URL}/wo/${req.work_order_number}?token=${token}`
+
+  const rawPhotos = photosRes.data ?? []
+  const woPhotos: Array<{ url: string; caption: string }> = []
+  const service = await createServiceClient()
+  for (const ph of rawPhotos.slice(0, 6)) {
+    try {
+      const { data: signed } = await service.storage
+        .from("maintenance-photos")
+        .createSignedUrl(ph.storage_path as string, 60 * 60 * 24 * 7)
+      if (signed?.signedUrl) {
+        woPhotos.push({ url: signed.signedUrl, caption: `Before · ${new Date(ph.created_at as string).toLocaleDateString("en-ZA")}` })
+      }
+    } catch { /* skip invalid photos */ }
+  }
+
+  try {
+    await sendEmail({
+      orgId, templateKey: "maintenance.work_order",
+      to: { email: contractor.email as string, name: contractorDisplayName, contactId: (contractor.contact_id as string | null) ?? undefined },
+      subject: `Work Order ${req.work_order_number} — ${propertyLabel}`,
+      emailElement: React.createElement(WorkOrderDispatchEmail, {
+        branding, contractorName: contractorDisplayName,
+        workOrderNumber: req.work_order_number as string,
+        propertyLabel, unitLabel, jobTitle: req.title as string,
+        urgency: (req.urgency as string | null) ?? "routine",
+        woUrl, senderName: orgSettings?.name ?? "Pleks",
+        photos: woPhotos, additionalPhotoCount: Math.max(0, rawPhotos.length - 6),
+      }),
+      entityType: "maintenance_request", entityId: requestId,
+      triggeredBy: userId, triggerEventType: "manual", toneVariant: "professional",
+    })
+  } catch { /* email failure is non-fatal */ }
+}
+
 export async function updateMaintenanceStatus(
   requestId: string,
   newStatus: string,
@@ -246,79 +349,10 @@ export async function updateMaintenanceStatus(
   }
 
   if (newStatus === "work_order_sent") {
-    // Fetch full request to validate contractor + get WO identifiers
-    const { data: req, error: fetchErr } = await db
-      .from("maintenance_requests")
-      .select("contractor_id, work_order_number, work_order_token, org_id, title, urgency, unit_id, units(unit_number, properties(name))")
-      .eq("id", requestId)
-      .single()
-
-    if (fetchErr || !req) return { error: "Could not load maintenance request." }
-    if (!req.contractor_id) return { error: "Assign a contractor before sending the work order." }
-
-    updates.work_order_sent_at = new Date().toISOString()
-
-    // Generate token if this request pre-dates token support
-    let token = req.work_order_token as string | null
-    if (!token) {
-      token = crypto.randomUUID()
-      updates.work_order_token = token
-    }
-
-    // Fetch contractor details for the email
-    const { data: contractor } = await db
-      .from("contractors")
-      .select("first_name, last_name, company_name, email, contact_id")
-      .eq("id", req.contractor_id)
-      .single()
-
-    const contractorDisplayName = (contractor?.company_name as string | null)
-      || [contractor?.first_name, contractor?.last_name].filter(Boolean).join(" ")
-      || "Contractor"
-
-    toastMessage = `Work order sent to ${contractorDisplayName}`
-
-    if (contractor?.email) {
-      const orgId = req.org_id as string
-      const orgSettings = await fetchOrgSettings(orgId)
-      const branding = buildBranding(orgSettings)
-
-      const unit = req.units as unknown as { unit_number: string; properties: { name: string } } | null
-      const propertyLabel = unit?.properties.name ?? "Property"
-      const unitLabel = unit?.unit_number ?? ""
-      const woUrl = `${process.env.NEXT_PUBLIC_APP_URL}/wo/${req.work_order_number}?token=${token}`
-
-      try {
-        await sendEmail({
-          orgId,
-          templateKey: "maintenance.work_order",
-          to: {
-            email: contractor.email as string,
-            name: contractorDisplayName,
-            contactId: (contractor.contact_id as string | null) ?? undefined,
-          },
-          subject: `Work Order ${req.work_order_number} — ${propertyLabel}`,
-          emailElement: React.createElement(WorkOrderDispatchEmail, {
-            branding,
-            contractorName: contractorDisplayName,
-            workOrderNumber: req.work_order_number as string,
-            propertyLabel,
-            unitLabel,
-            jobTitle: req.title as string,
-            urgency: (req.urgency as string | null) ?? "routine",
-            woUrl,
-            senderName: orgSettings?.name ?? "Pleks",
-          }),
-          entityType: "maintenance_request",
-          entityId: requestId,
-          triggeredBy: userId,
-          triggerEventType: "manual",
-          toneVariant: "professional",
-        })
-      } catch {
-        // Email failure is non-fatal — status still updates
-      }
-    }
+    const result = await prepareWorkOrderSent(db, userId, requestId)
+    if ("error" in result) return result
+    Object.assign(updates, result.extraUpdates)
+    toastMessage = result.toastMessage
   }
 
   const { error } = await db
@@ -457,4 +491,521 @@ export async function fetchPropertyContactsAction(propertyId: string) {
   }
 
   return contacts
+}
+
+// ── ADDENDUM_45A: lifecycle hardening actions ──────────────────────────────────
+
+const TERMINAL_STATUSES = ["completed", "closed", "cancelled", "rejected"]
+const WO_TOKEN_STATUSES  = ["work_order_sent", "acknowledged", "in_progress", "pending_completion"]
+
+// Editable-fields whitelist for updateMaintenanceRequest
+type EditableFields = {
+  title?: string
+  description?: string
+  category_override?: string | null
+  urgency_override?: string | null
+  access_instructions?: string | null
+  special_instructions?: string | null
+  contact_name?: string | null
+  contact_phone?: string | null
+  estimated_cost_cents?: number | null
+  scheduled_date?: string | null
+  scheduled_time_from?: string | null
+  scheduled_time_to?: string | null
+}
+
+export async function updateMaintenanceRequest(
+  requestId: string,
+  updates: EditableFields,
+): Promise<{ success: true } | { error: string }> {
+  const gw = await gateway()
+  if (!gw) return { error: "Not authenticated" }
+  const { db, userId } = gw
+
+  const { data: existing, error: fetchErr } = await db
+    .from("maintenance_requests")
+    .select("status, title, description, category_override, urgency_override, access_instructions, special_instructions, contact_name, contact_phone, estimated_cost_cents, scheduled_date, scheduled_time_from, scheduled_time_to, org_id")
+    .eq("id", requestId)
+    .single()
+
+  if (fetchErr || !existing) return { error: "Request not found" }
+  if (TERMINAL_STATUSES.includes(existing.status)) {
+    return { error: "Cannot edit a completed, closed, cancelled, or rejected request" }
+  }
+
+  const patch: Record<string, unknown> = {}
+  const oldValues: Record<string, unknown> = {}
+  const keys = Object.keys(updates) as Array<keyof EditableFields>
+  for (const k of keys) {
+    const incoming = updates[k]
+    const current = (existing as Record<string, unknown>)[k]
+    if (incoming !== current) {
+      patch[k] = incoming
+      oldValues[k] = current
+    }
+  }
+  if (Object.keys(patch).length === 0) return { success: true }
+
+  const { error } = await db.from("maintenance_requests").update(patch).eq("id", requestId)
+  if (error) return { error: error.message }
+
+  await db.from("audit_log").insert({
+    org_id: existing.org_id,
+    table_name: "maintenance_requests",
+    record_id: requestId,
+    action: "UPDATE",
+    changed_by: userId,
+    old_values: oldValues,
+    new_values: patch,
+  })
+
+  revalidatePath(`/maintenance/${requestId}`)
+  return { success: true }
+}
+
+export async function addMaintenanceNote(
+  requestId: string,
+  note: string,
+  notifyLandlord = false,
+): Promise<{ success: true } | { error: string }> {
+  const gw = await gateway()
+  if (!gw) return { error: "Not authenticated" }
+  const { db, userId, orgId } = gw
+
+  const trimmed = note.trim()
+  if (!trimmed) return { error: "Note cannot be empty" }
+  if (trimmed.length > 1000) return { error: "Note exceeds 1,000 character limit" }
+
+  await db.from("audit_log").insert({
+    org_id: orgId,
+    table_name: "maintenance_requests",
+    record_id: requestId,
+    action: "NOTE",
+    changed_by: userId,
+    new_values: { note: trimmed, notified_landlord: notifyLandlord },
+  })
+
+  // Optional: notify landlord via maintenance.memo_landlord_notified
+  if (notifyLandlord) {
+    try {
+      const service = await createServiceClient()
+      const { data: req } = await service
+        .from("maintenance_requests")
+        .select("title, work_order_number, unit_id, property_id")
+        .eq("id", requestId)
+        .single()
+
+      if (req?.property_id) {
+        const [unitRes, propRes, orgSettings] = await Promise.all([
+          req.unit_id
+            ? service.from("units").select("unit_number").eq("id", req.unit_id).single()
+            : Promise.resolve({ data: null }),
+          service.from("properties")
+            .select("name, landlord_id, landlords(contact_id, contacts(primary_email, first_name, last_name))")
+            .eq("id", req.property_id)
+            .single(),
+          fetchOrgSettings(orgId),
+        ])
+        const property = propRes.data as {
+          name: string
+          landlord_id: string | null
+          landlords: { contact_id: string | null; contacts: { primary_email: string | null; first_name: string | null; last_name: string | null } | null } | null
+        } | null
+        const landlordContact = property?.landlords?.contacts
+        const landlordEmail = landlordContact?.primary_email
+        if (landlordEmail) {
+          const landlordName = [landlordContact?.first_name, landlordContact?.last_name].filter(Boolean).join(" ") || "Owner"
+          const propertyLabel = `${unitRes.data?.unit_number ? `Unit ${unitRes.data.unit_number}, ` : ""}${property?.name ?? ""}`
+          const agentProfile = await service.from("user_profiles").select("full_name").eq("id", userId).single()
+          const agentName = (agentProfile.data?.full_name as string | null) ?? "Your agent"
+          await sendEmail({
+            orgId,
+            templateKey: "maintenance.memo_landlord_notified",
+            to: { email: landlordEmail, name: landlordName },
+            subject: `Maintenance memo — ${req.work_order_number ?? requestId}`,
+            emailElement: React.createElement(MemoLandlordNotifiedEmail, {
+              branding: buildBranding(orgSettings),
+              landlordName,
+              propertyLabel,
+              workOrderNumber: (req.work_order_number as string | null) ?? requestId,
+              agentName,
+              memoText: trimmed.length > 500 ? `${trimmed.slice(0, 497)}…` : trimmed,
+              requestTitle: (req.title as string | null) ?? "Maintenance request",
+              senderName: orgSettings?.name ?? "Pleks",
+            }),
+            entityType: "maintenance_request",
+            entityId: requestId,
+            triggeredBy: userId,
+            triggerEventType: "manual",
+            toneVariant: "professional",
+          })
+        }
+      }
+    } catch {
+      // Landlord notify is non-fatal
+    }
+  }
+
+  revalidatePath(`/maintenance/${requestId}`)
+  return { success: true }
+}
+
+const VALID_CANCELLATION_CATEGORIES = [
+  "tenant_withdrew", "duplicate_request", "no_longer_required",
+  "contractor_unavailable", "agent_decision", "work_completed_externally",
+  "wrong_property", "other",
+] as const
+
+export async function cancelMaintenanceRequest(
+  requestId: string,
+  reason: string,
+  category: string,
+): Promise<{ success: true } | { error: string }> {
+  const gw = await gateway()
+  if (!gw) return { error: "Not authenticated" }
+  const { db, userId, orgId } = gw
+
+  const trimmedReason = reason.trim()
+  if (!trimmedReason) return { error: "Cancellation reason is required" }
+  if (trimmedReason.length < 10) return { error: "Provide a more specific cancellation reason (min 10 characters)" }
+  if (!(VALID_CANCELLATION_CATEGORIES as readonly string[]).includes(category)) {
+    return { error: "Invalid cancellation category" }
+  }
+
+  const { data: req, error: fetchErr } = await db
+    .from("maintenance_requests")
+    .select("status, work_order_sent_at, contractor_id, tenant_id, logged_by, title, work_order_number, unit_id, org_id")
+    .eq("id", requestId)
+    .single()
+
+  if (fetchErr || !req) return { error: "Request not found" }
+  if (TERMINAL_STATUSES.includes(req.status)) return { error: "Request is already in a terminal state" }
+
+  const revokeToken = WO_TOKEN_STATUSES.includes(req.status)
+  const now = new Date().toISOString()
+
+  const { error: updateErr } = await db.from("maintenance_requests").update({
+    status: "cancelled",
+    cancellation_reason: trimmedReason,
+    cancellation_category: category,
+    cancelled_at: now,
+    cancelled_by: userId,
+    ...(revokeToken ? { work_order_token_revoked_at: now } : {}),
+  }).eq("id", requestId)
+
+  if (updateErr) return { error: updateErr.message }
+
+  await db.from("audit_log").insert([
+    {
+      org_id: orgId,
+      table_name: "maintenance_requests",
+      record_id: requestId,
+      action: "UPDATE",
+      changed_by: userId,
+      new_values: { status: "cancelled", cancellation_category: category, cancellation_reason: trimmedReason },
+    },
+    {
+      org_id: orgId,
+      table_name: "maintenance_requests",
+      record_id: requestId,
+      action: "NOTE",
+      changed_by: userId,
+      new_values: { note: `Request cancelled: ${trimmedReason}` },
+    },
+  ])
+
+  if (revokeToken && req.contractor_id) {
+    void notifyCancelledContractor({ orgId, userId, requestId, req })
+  }
+  if (req.logged_by === "tenant" && req.tenant_id) {
+    void notifyCancelledTenant({ orgId, userId, requestId, req })
+  }
+
+  revalidatePath(`/maintenance/${requestId}`)
+  revalidatePath("/maintenance")
+  return { success: true }
+}
+
+async function notifyCancelledContractor({ orgId, userId, requestId, req }: { orgId: string; userId: string; requestId: string; req: Record<string, unknown> }) {
+  try {
+    const service = await createServiceClient()
+    const [contractorRes, unitRes, orgSettings] = await Promise.all([
+      service.from("contractors").select("first_name, last_name, company_name, email, contact_id").eq("id", req.contractor_id).single(),
+      req.unit_id ? service.from("units").select("unit_number, properties(name)").eq("id", req.unit_id).single() : Promise.resolve({ data: null }),
+      fetchOrgSettings(orgId),
+    ])
+    const c = contractorRes.data
+    const unit = unitRes.data as { unit_number: string; properties: { name: string } } | null
+    if (!c?.email) return
+    const contractorName = (c.company_name as string | null) || [c.first_name, c.last_name].filter(Boolean).join(" ") || "Contractor"
+    const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "the property"
+    await sendEmail({
+      orgId, templateKey: "maintenance.cancelled",
+      to: { email: c.email as string, name: contractorName, contactId: (c.contact_id as string | null) ?? undefined },
+      subject: `Work order cancelled — ${req.work_order_number ?? requestId}`,
+      emailElement: React.createElement(CancelledContractorEmail, {
+        branding: buildBranding(orgSettings), contractorName,
+        workOrderNumber: (req.work_order_number as string | null) ?? requestId,
+        requestTitle: (req.title as string | null) ?? "Maintenance request",
+        propertyLabel, senderName: orgSettings?.name ?? "Pleks",
+      }),
+      entityType: "maintenance_request", entityId: requestId, triggeredBy: userId, triggerEventType: "manual", toneVariant: "professional",
+    })
+  } catch { /* non-fatal */ }
+}
+
+async function notifyCancelledTenant({ orgId, userId, requestId, req }: { orgId: string; userId: string; requestId: string; req: Record<string, unknown> }) {
+  try {
+    const service = await createServiceClient()
+    const [tenantRes, unitRes, orgSettings] = await Promise.all([
+      service.from("tenant_view").select("first_name, last_name, email, phone").eq("id", req.tenant_id).single(),
+      req.unit_id ? service.from("units").select("unit_number, properties(name)").eq("id", req.unit_id).single() : Promise.resolve({ data: null }),
+      fetchOrgSettings(orgId),
+    ])
+    const t = tenantRes.data
+    const unit = unitRes.data as { unit_number: string; properties: { name: string } } | null
+    if (!t?.email) return
+    const tenantName = [t.first_name, t.last_name].filter(Boolean).join(" ") || "Tenant"
+    const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
+    await routeAndSend({
+      orgId, tenantId: req.tenant_id as string, templateKey: "maintenance.cancelled_tenant",
+      to: { email: t.email, phone: (t.phone as string | null) ?? undefined, name: tenantName },
+      subject: `Maintenance request closed — ${req.work_order_number ?? requestId}`,
+      emailElement: React.createElement(CancelledTenantEmail, {
+        branding: buildBranding(orgSettings), tenantName, propertyLabel,
+        requestTitle: (req.title as string | null) ?? "Maintenance request",
+        senderName: orgSettings?.name ?? "Pleks",
+      }),
+      entityType: "maintenance_request", entityId: requestId, triggeredBy: userId,
+      triggerEventType: "maintenance_state", triggerEventId: requestId, toneVariant: "n/a",
+    })
+  } catch { /* non-fatal */ }
+}
+
+export async function changeContractor(
+  requestId: string,
+  newContractorId: string,
+  reason: string,
+): Promise<{ success: true } | { error: string }> {
+  const gw = await gateway()
+  if (!gw) return { error: "Not authenticated" }
+  const { db, userId, orgId } = gw
+
+  const trimmedReason = reason.trim()
+  if (!trimmedReason) return { error: "Reason is required" }
+
+  const { data: req, error: fetchErr } = await db
+    .from("maintenance_requests")
+    .select("status, contractor_id, title, work_order_number, unit_id, org_id, work_order_token")
+    .eq("id", requestId)
+    .single()
+
+  if (fetchErr || !req) return { error: "Request not found" }
+  if (TERMINAL_STATUSES.includes(req.status)) return { error: "Cannot reassign contractor on a terminal request" }
+
+  // Validate new contractor belongs to org
+  const { data: newC, error: newCErr } = await db
+    .from("contractors")
+    .select("id, first_name, last_name, company_name, email, contact_id")
+    .eq("id", newContractorId)
+    .eq("org_id", orgId)
+    .single()
+
+  if (newCErr || !newC) return { error: "Contractor not found in your organisation" }
+
+  const wasWoSent = WO_TOKEN_STATUSES.includes(req.status)
+  const now = new Date().toISOString()
+  const newToken = wasWoSent ? crypto.randomUUID() : undefined
+
+  const { error: updateErr } = await db.from("maintenance_requests").update({
+    contractor_id: newContractorId,
+    ...(wasWoSent ? { work_order_token_revoked_at: now, work_order_token: newToken } : {}),
+  }).eq("id", requestId)
+
+  if (updateErr) return { error: updateErr.message }
+
+  await db.from("audit_log").insert([
+    {
+      org_id: orgId,
+      table_name: "maintenance_requests",
+      record_id: requestId,
+      action: "UPDATE",
+      changed_by: userId,
+      old_values: { contractor_id: req.contractor_id },
+      new_values: { contractor_id: newContractorId },
+    },
+    {
+      org_id: orgId,
+      table_name: "maintenance_requests",
+      record_id: requestId,
+      action: "NOTE",
+      changed_by: userId,
+      new_values: { note: `Contractor changed: ${trimmedReason}` },
+    },
+  ])
+
+  if (wasWoSent) {
+    try {
+      const service = await createServiceClient()
+      const [oldCRes, unitRes, orgSettings] = await Promise.all([
+        req.contractor_id
+          ? service.from("contractors").select("first_name, last_name, company_name, email, contact_id").eq("id", req.contractor_id as string).single()
+          : Promise.resolve({ data: null }),
+        req.unit_id
+          ? service.from("units").select("unit_number, properties(name)").eq("id", req.unit_id).single()
+          : Promise.resolve({ data: null }),
+        fetchOrgSettings(orgId),
+      ])
+      const oldC = oldCRes.data
+      const unit = unitRes.data as { unit_number: string; properties: { name: string } } | null
+      const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "the property"
+      const branding = buildBranding(orgSettings)
+
+      // Notify old contractor their WO is revoked
+      if (oldC?.email) {
+        const oldContractorName = (oldC.company_name as string | null) || [oldC.first_name, oldC.last_name].filter(Boolean).join(" ") || "Contractor"
+        await sendEmail({
+          orgId,
+          templateKey: "maintenance.contractor_changed",
+          to: { email: oldC.email as string, name: oldContractorName, contactId: (oldC.contact_id as string | null) ?? undefined },
+          subject: `Work order reassigned — ${req.work_order_number ?? requestId}`,
+          emailElement: React.createElement(ContractorChangedEmail, {
+            branding,
+            contractorName: oldContractorName,
+            workOrderNumber: (req.work_order_number as string | null) ?? requestId,
+            requestTitle: (req.title as string | null) ?? "Maintenance request",
+            propertyLabel,
+            senderName: orgSettings?.name ?? "Pleks",
+          }),
+          entityType: "maintenance_request",
+          entityId: requestId,
+          triggeredBy: userId,
+          triggerEventType: "manual",
+          toneVariant: "professional",
+        })
+      }
+
+      // Send fresh WO to new contractor
+      if (newC.email && newToken) {
+        const newContractorName = (newC.company_name as string | null) || [newC.first_name, newC.last_name].filter(Boolean).join(" ") || "Contractor"
+        const woUrl = `${process.env.NEXT_PUBLIC_APP_URL}/wo/${req.work_order_number}?token=${newToken}`
+        const unitLabel = unit?.unit_number ?? ""
+        await sendEmail({
+          orgId,
+          templateKey: "maintenance.work_order",
+          to: { email: newC.email as string, name: newContractorName, contactId: (newC.contact_id as string | null) ?? undefined },
+          subject: `Work Order ${req.work_order_number} — ${propertyLabel}`,
+          emailElement: React.createElement(WorkOrderDispatchEmail, {
+            branding,
+            contractorName: newContractorName,
+            workOrderNumber: (req.work_order_number as string | null) ?? requestId,
+            propertyLabel,
+            unitLabel,
+            jobTitle: (req.title as string | null) ?? "Maintenance request",
+            urgency: "routine",
+            woUrl,
+            senderName: orgSettings?.name ?? "Pleks",
+          }),
+          entityType: "maintenance_request",
+          entityId: requestId,
+          triggeredBy: userId,
+          triggerEventType: "manual",
+          toneVariant: "professional",
+        })
+      }
+    } catch {
+      // Non-fatal
+    }
+  }
+
+  revalidatePath(`/maintenance/${requestId}`)
+  return { success: true }
+}
+
+export async function revertStatus(
+  requestId: string,
+  targetStatus: string,
+): Promise<{ success: true } | { error: string }> {
+  const gw = await gateway()
+  if (!gw) return { error: "Not authenticated" }
+  const { db, userId, orgId } = gw
+
+  if (targetStatus !== "pending_review") {
+    return { error: "Revert target must be pending_review" }
+  }
+
+  const { data: req, error: fetchErr } = await db
+    .from("maintenance_requests")
+    .select("status, reviewed_at, work_order_sent_at, org_id")
+    .eq("id", requestId)
+    .single()
+
+  if (fetchErr || !req) return { error: "Request not found" }
+
+  const allowedSources = ["approved", "rejected"]
+  if (!allowedSources.includes(req.status)) {
+    return { error: `Can only revert from 'approved' or 'rejected', not '${req.status}'` }
+  }
+  if (req.work_order_sent_at) {
+    return { error: "Cannot revert — work order has already been sent" }
+  }
+  // Must be within 60 minutes of the transition
+  const transitionAt = req.reviewed_at as string | null
+  if (!transitionAt || Date.now() - new Date(transitionAt).getTime() > 60 * 60 * 1000) {
+    return { error: "Revert window has expired (60 minutes after approval/rejection)" }
+  }
+
+  const { error } = await db.from("maintenance_requests")
+    .update({ status: "pending_review", reviewed_at: null, reviewed_by: null })
+    .eq("id", requestId)
+
+  if (error) return { error: error.message }
+
+  await db.from("audit_log").insert({
+    org_id: orgId,
+    table_name: "maintenance_requests",
+    record_id: requestId,
+    action: "UPDATE",
+    changed_by: userId,
+    old_values: { status: req.status },
+    new_values: { status: "pending_review" },
+  })
+
+  revalidatePath(`/maintenance/${requestId}`)
+  return { success: true }
+}
+
+export async function togglePhotoVisibilityToTenant(
+  photoId: string,
+  visible: boolean,
+): Promise<{ success: true } | { error: string }> {
+  const gw = await gateway()
+  if (!gw) return { error: "Not authenticated" }
+  const { db, userId, orgId } = gw
+
+  const { data: photo, error: fetchErr } = await db
+    .from("maintenance_photos")
+    .select("id, request_id")
+    .eq("id", photoId)
+    .single()
+
+  if (fetchErr || !photo) return { error: "Photo not found" }
+
+  const { error } = await db.from("maintenance_photos")
+    .update({ visible_to_tenant: visible })
+    .eq("id", photoId)
+
+  if (error) return { error: error.message }
+
+  await db.from("audit_log").insert({
+    org_id: orgId,
+    table_name: "maintenance_photos",
+    record_id: photoId,
+    action: "UPDATE",
+    changed_by: userId,
+    new_values: { visible_to_tenant: visible },
+  })
+
+  revalidatePath(`/maintenance/${photo.request_id}`)
+  return { success: true }
 }

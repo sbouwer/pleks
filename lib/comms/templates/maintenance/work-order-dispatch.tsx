@@ -1,14 +1,21 @@
 /**
  * lib/comms/templates/maintenance/work-order-dispatch.tsx — work order dispatch email to contractor
  *
- * Data:   contractor name/email, work order number, property details, WO portal URL
- * Notes:  Fired by updateMaintenanceStatus("work_order_sent"). Contractor accesses the WO
- *         via a token-protected public URL (/wo/[number]?token=[token]). Not tenant-facing.
+ * Data:   contractor name/email, work order number, property details, WO portal URL, optional photos
+ * Notes:  Fired by updateMaintenanceStatus("work_order_sent") and changeContractor.
+ *         Contractor accesses the WO via a token-protected public URL (/wo/[number]?token=[token]).
+ *         ADDENDUM_45A: up to 6 before-phase photos embedded inline as <Img> with 7-day signed URLs.
+ *         Not tenant-facing.
  */
 
 import * as React from "react"
-import { Section, Text, Hr, Button } from "@react-email/components"
+import { Section, Text, Hr, Button, Img } from "@react-email/components"
 import { EmailLayout, type OrgBranding } from "../layout"
+
+export interface WOPhoto {
+  url: string
+  caption: string
+}
 
 export interface WorkOrderDispatchEmailProps {
   branding: OrgBranding
@@ -20,6 +27,8 @@ export interface WorkOrderDispatchEmailProps {
   urgency: string
   woUrl: string
   senderName: string
+  photos?: WOPhoto[]
+  additionalPhotoCount?: number
 }
 
 export function WorkOrderDispatchEmail({
@@ -32,6 +41,8 @@ export function WorkOrderDispatchEmail({
   urgency,
   woUrl,
   senderName,
+  photos = [],
+  additionalPhotoCount = 0,
 }: Readonly<WorkOrderDispatchEmailProps>) {
   const preview = `Work order ${workOrderNumber} — ${jobTitle} — ${propertyLabel}`
 
@@ -41,6 +52,9 @@ export function WorkOrderDispatchEmail({
     routine: "Routine",
     cosmetic: "Cosmetic",
   }
+
+  const visiblePhotos = photos.slice(0, 6)
+  const hiddenCount = additionalPhotoCount + Math.max(0, photos.length - 6)
 
   return (
     <EmailLayout preview={preview} branding={branding}>
@@ -61,6 +75,23 @@ export function WorkOrderDispatchEmail({
         <Text style={boxRow}><strong>Unit:</strong> {unitLabel}</Text>
         <Text style={boxRow}><strong>Priority:</strong> {urgencyLabel[urgency] ?? urgency}</Text>
       </Section>
+
+      {visiblePhotos.length > 0 && (
+        <>
+          <Text style={sectionHead}>Photos ({photos.length + additionalPhotoCount} total)</Text>
+          {visiblePhotos.map((p) => (
+            <Section key={p.url} style={{ margin: "0 0 12px" }}>
+              <Img src={p.url} alt={p.caption} style={{ maxWidth: "100%", height: "auto", borderRadius: 4 }} />
+              <Text style={{ fontSize: 11, color: "#71717a", margin: "4px 0 0" }}>{p.caption}</Text>
+            </Section>
+          ))}
+          {hiddenCount > 0 && (
+            <Text style={{ fontSize: 13, color: "#71717a", margin: "0 0 16px" }}>
+              + {hiddenCount} more photo{hiddenCount > 1 ? "s" : ""} — <a href={woUrl} style={{ color: "#18181b" }}>view on the work order portal</a>
+            </Text>
+          )}
+        </>
+      )}
 
       <Section style={{ textAlign: "center" as const, margin: "24px 0" }}>
         <Button href={woUrl} style={cta}>View Work Order</Button>

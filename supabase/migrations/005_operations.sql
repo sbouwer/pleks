@@ -1509,3 +1509,33 @@ CREATE POLICY "org_info_request_events" ON property_info_request_events
   );
 
 CREATE INDEX IF NOT EXISTS idx_info_request_events_request ON property_info_request_events(request_id);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §ADDENDUM_45A  Maintenance lifecycle hardening — cancellation, reassignment, photo visibility
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- Structured cancellation fields on maintenance_requests
+ALTER TABLE maintenance_requests ADD COLUMN IF NOT EXISTS cancellation_reason     text;
+ALTER TABLE maintenance_requests ADD COLUMN IF NOT EXISTS cancelled_at            timestamptz;
+ALTER TABLE maintenance_requests ADD COLUMN IF NOT EXISTS cancelled_by            uuid REFERENCES auth.users(id);
+
+-- Cancellation category enum (drop constraint first for idempotency)
+ALTER TABLE maintenance_requests DROP CONSTRAINT IF EXISTS maintenance_requests_cancellation_category_check;
+ALTER TABLE maintenance_requests ADD COLUMN IF NOT EXISTS cancellation_category text;
+ALTER TABLE maintenance_requests ADD CONSTRAINT maintenance_requests_cancellation_category_check
+  CHECK (cancellation_category IS NULL OR cancellation_category IN (
+    'tenant_withdrew',
+    'duplicate_request',
+    'no_longer_required',
+    'contractor_unavailable',
+    'agent_decision',
+    'work_completed_externally',
+    'wrong_property',
+    'other'
+  ));
+
+-- WO token revocation marker (preserves history; revoked = contractor loses portal access)
+ALTER TABLE maintenance_requests ADD COLUMN IF NOT EXISTS work_order_token_revoked_at timestamptz;
+
+-- Per-photo tenant-portal visibility toggle
+ALTER TABLE maintenance_photos ADD COLUMN IF NOT EXISTS visible_to_tenant boolean NOT NULL DEFAULT true;
