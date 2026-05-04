@@ -1,13 +1,11 @@
 /**
- * app/(dashboard)/dashboard/AttentionQueue.tsx — FILL: one-line purpose
+ * app/(dashboard)/dashboard/AttentionQueue.tsx — Dashboard needs-attention queue: priority-sorted items needing agent action
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /dashboard (embedded)
+ * Auth:   gateway-protected dashboard layout
+ * Data:   AttentionItem[] passed from server; items sourced from arrears, expiring leases, open maintenance
  */
-import Link from "next/link"
+import { InlineLink } from "@/components/ui/actions"
 import type { AttentionItem } from "@/lib/dashboard/attentionItems"
 
 interface AttentionQueueProps {
@@ -40,9 +38,7 @@ export function AttentionQueue({ items }: Readonly<AttentionQueueProps>) {
             </span>
           )}
         </h2>
-        <Link href="/payments/arrears" className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground">
-          View all →
-        </Link>
+        <InlineLink href="/payments/arrears" withArrow>View all</InlineLink>
       </div>
 
       {items.length === 0 ? (
@@ -66,12 +62,7 @@ export function AttentionQueue({ items }: Readonly<AttentionQueueProps>) {
                 >
                   {item.badge.text}
                 </span>
-                <Link
-                  href={item.href}
-                  className="shrink-0 rounded-sm border border-border px-2.5 py-1.5 text-[12px] font-medium transition-colors hover:bg-muted/30 hover:border-foreground/20"
-                >
-                  Review →
-                </Link>
+                <InlineLink href={item.href} withArrow className="shrink-0">Review</InlineLink>
               </div>
             </li>
           ))}

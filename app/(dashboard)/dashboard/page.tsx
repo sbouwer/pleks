@@ -1,18 +1,17 @@
 /**
- * app/(dashboard)/dashboard/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/dashboard/page.tsx — Main dashboard: greeting, KPI strip, onboarding checklist, heavy data sections
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /dashboard
+ * Auth:   getServerOrgMembership + getServerUser (redirects to /login if missing)
+ * Data:   supabase client (light wave) + Suspense-streamed heavy sections (attentionItems, trustBalance, etc.)
+ * Notes:  Light queries render immediately; heavy sections stream in behind DashboardSectionsSkeleton
  */
 import { Suspense } from "react"
 import { MobileHomeScreen } from "@/components/mobile/MobileHomeScreen"
 import { createClient, getCachedServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { getServerOrgMembership, getServerUser } from "@/lib/auth/server"
-import Link from "next/link"
+import { InlineLink } from "@/components/ui/actions"
 import { Check, Circle } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { DashboardBanners } from "./DashboardBanners"
@@ -312,9 +311,9 @@ export default async function DashboardPage() {
                     <Circle className="h-4 w-4 text-muted-foreground" />
                   )}
                   {item.href && !item.done ? (
-                    <Link href={item.href} className="text-sm hover:text-brand transition-colors">
+                    <InlineLink href={item.href}>
                       {item.label}
-                    </Link>
+                    </InlineLink>
                   ) : (
                     <span className={`text-sm ${item.done ? "text-muted-foreground line-through" : ""}`}>{item.label}</span>
                   )}

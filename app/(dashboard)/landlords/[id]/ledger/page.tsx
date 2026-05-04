@@ -1,16 +1,13 @@
 /**
- * app/(dashboard)/landlords/[id]/ledger/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/landlords/[id]/ledger/page.tsx — Owner ledger: running balance of rent collected, disbursements, and fees per landlord
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /landlords/[id]/ledger
+ * Auth:   createClient + user_orgs membership check (redirects to /login or /onboarding)
+ * Data:   getOwnerLedger — owner_statements + trust_transactions filtered by landlord_id
  */
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect, notFound } from "next/navigation"
-import Link from "next/link"
-import { ArrowLeft } from "lucide-react"
+import { InlineLink } from "@/components/ui/actions"
 import { formatZAR } from "@/lib/constants"
 import { getOwnerLedger, type OwnerLedgerEntry } from "@/lib/finance/ownerLedger"
 
@@ -59,9 +56,9 @@ export default async function OwnerLedgerPage({
   if (propertyCount === 0) {
     return (
       <div className="max-w-4xl mx-auto space-y-6 pb-12">
-        <Link href={`/landlords/${landlordId}`} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-2">
-          <ArrowLeft className="h-3.5 w-3.5" /> Back to {displayName}
-        </Link>
+        <div className="mb-2">
+          <InlineLink href={`/landlords/${landlordId}`}>← Back to {displayName}</InlineLink>
+        </div>
         <h1 className="font-heading text-2xl">Owner Ledger</h1>
         <p className="text-sm text-muted-foreground">No properties linked to this owner.</p>
       </div>
@@ -85,9 +82,9 @@ export default async function OwnerLedgerPage({
     <div className="max-w-4xl mx-auto space-y-6 pb-12">
       {/* Header */}
       <div>
-        <Link href={`/landlords/${landlordId}`} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-2">
-          <ArrowLeft className="h-3.5 w-3.5" /> Back to {displayName}
-        </Link>
+        <div className="mb-2">
+          <InlineLink href={`/landlords/${landlordId}`}>← Back to {displayName}</InlineLink>
+        </div>
         <h1 className="font-heading text-2xl">Owner Ledger</h1>
         <p className="text-sm text-muted-foreground">{displayName} · {propertyCount} {propertyCount === 1 ? "property" : "properties"}</p>
       </div>

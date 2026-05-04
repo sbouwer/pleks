@@ -1,17 +1,14 @@
 "use client"
 
 /**
- * components/portal/LandlordPortalSection.tsx — FILL: one-line purpose
+ * components/portal/LandlordPortalSection.tsx — Landlord portal invite/status sidebar section shown on landlord contact page
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   gateway (dashboard layout); tier-gated (Portfolio/Firm only)
+ * Data:   /api/landlords/[id]/portal-invite for invite dispatch and suspension
  */
 import { useState } from "react"
-import { Mail, CheckCircle2, Clock, ExternalLink, AlertCircle } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Mail, CheckCircle2, Clock, AlertCircle } from "lucide-react"
+import { ActionButton, InlineLink } from "@/components/ui/actions"
 import { SidebarSection } from "@/components/contacts/SidebarSection"
 import { toast } from "sonner"
 
@@ -71,9 +68,7 @@ export function LandlordPortalSection({
             Give your landlords a login to view their properties, track maintenance, approve jobs, and download statements.
           </p>
           <p className="text-xs text-muted-foreground">Available on Portfolio and Firm plans.</p>
-          <Button type="button" size="sm" variant="outline" className="h-7 text-xs w-full mt-1" disabled>
-            Compare plans →
-          </Button>
+          <InlineLink href="/settings/subscription" withArrow>Compare plans</InlineLink>
         </div>
       </SidebarSection>
     )
@@ -93,17 +88,14 @@ export function LandlordPortalSection({
                 Add an email address first
               </p>
             )}
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs w-full"
+            <ActionButton
+              tone="secondary"
+              icon={<Mail className="h-3.5 w-3.5" />}
               disabled={loading || !landlordEmail}
               onClick={sendInvite}
             >
-              <Mail className="h-3.5 w-3.5 mr-1.5" />
               {loading ? "Sending…" : "Invite to portal"}
-            </Button>
+            </ActionButton>
           </div>
         )}
 
@@ -118,16 +110,13 @@ export function LandlordPortalSection({
               </span>
             </div>
             <div className="flex gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-7 text-xs flex-1"
+              <ActionButton
+                tone="secondary"
                 disabled={loading}
                 onClick={sendInvite}
               >
                 {loading ? "Sending…" : "Resend invite"}
-              </Button>
+              </ActionButton>
             </div>
           </div>
         )}
@@ -138,25 +127,16 @@ export function LandlordPortalSection({
               <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
               <span>Portal active</span>
             </div>
-            <a
-              href="/landlord/dashboard"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-brand hover:underline flex items-center gap-1"
-            >
-              <ExternalLink className="h-3 w-3" />
+            <InlineLink href="/landlord/dashboard" external>
               Preview landlord view
-            </a>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="h-7 text-xs text-muted-foreground hover:text-danger w-full"
+            </InlineLink>
+            <ActionButton
+              tone="destructive"
               disabled={loading}
               onClick={suspendAccess}
             >
               {loading ? "Suspending…" : "Suspend access"}
-            </Button>
+            </ActionButton>
           </div>
         )}
 
@@ -166,17 +146,14 @@ export function LandlordPortalSection({
               <AlertCircle className="h-3.5 w-3.5 shrink-0" />
               <span>Access suspended</span>
             </div>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs w-full"
+            <ActionButton
+              tone="secondary"
+              icon={<Mail className="h-3.5 w-3.5" />}
               disabled={loading || !landlordEmail}
               onClick={sendInvite}
             >
-              <Mail className="h-3.5 w-3.5 mr-1.5" />
               {loading ? "Sending…" : "Re-invite to portal"}
-            </Button>
+            </ActionButton>
           </div>
         )}
       </div>

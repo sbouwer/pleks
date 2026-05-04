@@ -1,20 +1,16 @@
 "use client"
 
 /**
- * components/leases/UnitClauseProfile.tsx — FILL: one-line purpose
+ * components/leases/UnitClauseProfile.tsx — Unit-level optional clause override card shown on unit detail pages
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   gateway (dashboard layout)
+ * Data:   /api/leases/unit-clause-profile (GET + PATCH); /api/user/preferences for hint dismiss
  */
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Pencil, X, Check } from "lucide-react"
-import Link from "next/link"
+import { ActionButton, EditButton, InlineLink } from "@/components/ui/actions"
+import { X, Check } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 
@@ -167,9 +163,9 @@ export function UnitClauseProfile({
               <div className="flex items-start justify-between gap-2 mt-2 text-xs text-muted-foreground bg-surface-elevated rounded-md px-3 py-2">
                 <span>
                   Overrides here apply to this unit only. Property rules are set on the{" "}
-                  <a href={`/properties/${propertyId}/edit`} className="text-brand hover:underline">property edit page</a>.{" "}
+                  <InlineLink href={`/properties/${propertyId}/edit`} withArrow={false}>property edit page</InlineLink>.{" "}
                   Organisation defaults are in{" "}
-                  <a href="/settings/lease-templates" className="text-brand hover:underline">Settings &rarr; Lease template</a>.
+                  <InlineLink href="/settings/lease-templates">Settings → Lease template</InlineLink>.
                 </span>
                 <button onClick={dismissHint} className="shrink-0 hover:text-foreground transition-colors" aria-label="Dismiss">
                   <X className="size-3.5" />
@@ -185,9 +181,7 @@ export function UnitClauseProfile({
             )}
           </div>
           {!editing && !isEmpty && (
-            <Button variant="outline" size="sm" className="shrink-0" onClick={startEdit}>
-              <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
-            </Button>
+            <EditButton mode="label" label="Edit" onClick={startEdit} />
           )}
         </div>
       </CardHeader>
@@ -200,13 +194,9 @@ export function UnitClauseProfile({
               No unit features have been set yet. Add features like garden, pool, or air-conditioning
               on this unit to automatically configure the right lease clauses.
             </p>
-            <Button
-              variant="outline"
-              size="sm"
-              render={<Link href={`/properties/${propertyId}/units/${unitId}/edit`} />}
-            >
+            <InlineLink href={`/properties/${propertyId}/units/${unitId}/edit`}>
               Edit unit features
-            </Button>
+            </InlineLink>
           </div>
         )}
 
@@ -265,13 +255,12 @@ export function UnitClauseProfile({
               })}
             </div>
             <div className="flex gap-2 pt-2">
-              <Button size="sm" onClick={save} disabled={saving}>
-                <Check className="h-3.5 w-3.5 mr-1" />
+              <ActionButton tone="primary" icon={<Check className="h-3.5 w-3.5" />} onClick={save} disabled={saving}>
                 {saving ? "Saving..." : "Save"}
-              </Button>
-              <Button variant="outline" size="sm" onClick={cancelEdit} disabled={saving}>
-                <X className="h-3.5 w-3.5 mr-1" /> Cancel
-              </Button>
+              </ActionButton>
+              <ActionButton tone="secondary" icon={<X className="h-3.5 w-3.5" />} onClick={cancelEdit} disabled={saving}>
+                Cancel
+              </ActionButton>
             </div>
           </>
         )}

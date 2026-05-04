@@ -6,9 +6,8 @@
  * Data:   inspections, maintenance, complianceItems, auditItems passed from server page
  */
 import Link from "next/link"
-import { InlineLink } from "@/components/ui/actions"
+import { ActionButton, InlineLink } from "@/components/ui/actions"
 import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -120,12 +119,12 @@ export function OperationsTab({
     <div className="space-y-6">
       {/* Action bar */}
       <div className="flex items-center gap-2">
-        <Button size="sm" render={<a href={`/inspections/new?propertyId=${propertyId}`} />}>
-          Schedule inspection
-        </Button>
-        <Button size="sm" variant="outline" render={<a href={`/maintenance/new?propertyId=${propertyId}`} />}>
-          Log maintenance
-        </Button>
+        <a href={`/inspections/new?propertyId=${propertyId}`}>
+          <ActionButton tone="primary">Schedule inspection</ActionButton>
+        </a>
+        <a href={`/maintenance/new?propertyId=${propertyId}`}>
+          <ActionButton tone="secondary">Log maintenance</ActionButton>
+        </a>
       </div>
 
       {/* Top row: Inspections + Maintenance */}
@@ -207,9 +206,9 @@ export function OperationsTab({
                   <span className={cn("mt-1.5 h-2 w-2 rounded-full shrink-0", DOT_COLOUR[item.colour])} />
                   <div className="min-w-0 flex-1">
                     {item.link ? (
-                      <Link href={item.link} className="text-sm hover:text-brand transition-colors">
+                      <InlineLink href={item.link}>
                         {item.label}
-                      </Link>
+                      </InlineLink>
                     ) : (
                       <p className="text-sm">{item.label}</p>
                     )}

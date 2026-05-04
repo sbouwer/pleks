@@ -1,13 +1,10 @@
 "use client"
 
 /**
- * components/properties/NoTenantCard.tsx — FILL: one-line purpose
+ * components/properties/NoTenantCard.tsx — Vacant unit card for assigning a tenant or co-tenant to a lease
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   gateway (dashboard layout)
+ * Data:   /api/leases/[id]/co-tenant for co-tenant assignment; TenantPicker for search
  */
 import { useState } from "react"
 import { TenantPicker } from "@/components/shared/TenantPicker"

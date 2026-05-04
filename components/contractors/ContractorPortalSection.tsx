@@ -1,20 +1,16 @@
 "use client"
 
 /**
- * components/contractors/ContractorPortalSection.tsx — FILL: one-line purpose
+ * components/contractors/ContractorPortalSection.tsx — Contractor portal invite/status section shown on contractor detail cards
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   gateway (dashboard layout); tier-gated (Portfolio/Firm only)
+ * Data:   /api/suppliers/[id]/portal-invite for invite dispatch
  */
 
 import { useState } from "react"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
+import { ActionButton, InlineLink } from "@/components/ui/actions"
 import { toast } from "sonner"
-import { ExternalLink, Mail, CheckCircle2, Clock } from "lucide-react"
+import { Mail, CheckCircle2, Clock } from "lucide-react"
 
 type PortalStatus = "none" | "invited" | "active" | "suspended"
 
@@ -66,12 +62,9 @@ export function ContractorPortalSection({
             <span className="font-medium text-foreground">Portfolio</span> and{" "}
             <span className="font-medium text-foreground">Firm</span> plans.
           </p>
-          <Link
-            href="/settings/subscription"
-            className="inline-flex items-center gap-1 text-xs text-brand hover:underline mt-1"
-          >
-            Compare plans <ExternalLink className="h-3 w-3" />
-          </Link>
+          <InlineLink href="/settings/subscription" className="mt-1">
+            Compare plans
+          </InlineLink>
         </div>
       </div>
     )
@@ -89,17 +82,14 @@ export function ContractorPortalSection({
                 ? `Invite ${contractorEmail} to the contractor portal.`
                 : "Add an email address to this contractor before sending a portal invite."}
             </p>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs"
+            <ActionButton
+              tone="secondary"
+              icon={<Mail className="h-3 w-3" />}
               onClick={sendInvite}
               disabled={sending || !contractorEmail}
             >
-              <Mail className="h-3 w-3 mr-1.5" />
               {sending ? "Sending..." : "Invite to portal"}
-            </Button>
+            </ActionButton>
           </>
         )}
 
@@ -115,16 +105,13 @@ export function ContractorPortalSection({
                 {" — "}awaiting acceptance
               </span>
             </div>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="h-7 text-xs text-muted-foreground"
+            <ActionButton
+              tone="secondary"
               onClick={sendInvite}
               disabled={sending}
             >
               {sending ? "Sending..." : "Resend invite"}
-            </Button>
+            </ActionButton>
           </div>
         )}
 

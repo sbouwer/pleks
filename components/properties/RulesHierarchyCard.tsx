@@ -1,13 +1,10 @@
 /**
- * components/properties/RulesHierarchyCard.tsx — FILL: one-line purpose
+ * components/properties/RulesHierarchyCard.tsx — Informational card explaining the three levels of lease rule configuration
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   gateway (dashboard layout)
+ * Data:   static — no data fetching; links to lease-templates settings
  */
-import Link from "next/link"
+import { InlineLink } from "@/components/ui/actions"
 
 export function RulesHierarchyCard() {
   return (
@@ -35,12 +32,9 @@ export function RulesHierarchyCard() {
               <span className="text-muted-foreground/60">Applies to: every lease across your portfolio.</span>
             </p>
           </div>
-          <Link
-            href="/settings/lease-templates"
-            className="shrink-0 text-xs text-brand hover:underline whitespace-nowrap"
-          >
-            Edit &rarr;
-          </Link>
+          <InlineLink href="/settings/lease-templates" className="shrink-0 whitespace-nowrap">
+            Edit
+          </InlineLink>
         </div>
 
         <div>

@@ -1,14 +1,13 @@
 /**
- * app/(tenant)/tenant/page.tsx — FILL: one-line purpose
+ * app/(tenant)/tenant/page.tsx — Tenant portal dashboard: lease summary, payments, inspection, maintenance, emergency contact
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /tenant
+ * Auth:   getTenantSession (token-gated tenant portal)
+ * Data:   createServiceClient — rent_invoices, inspections, maintenance_requests, units, organisations, subscriptions
  */
 import { redirect } from "next/navigation"
 import Link from "next/link"
+import { InlineLink } from "@/components/ui/actions"
 import { getTenantSession } from "@/lib/portal/getTenantSession"
 import { createServiceClient } from "@/lib/supabase/server"
 import { formatZAR } from "@/lib/constants"
@@ -241,13 +240,13 @@ export default async function PortalDashboard() {
                 <Wrench className="h-3.5 w-3.5" />
                 Maintenance
               </div>
-              <Link
+              <InlineLink
                 href="/tenant/maintenance/new"
-                onClick={(e) => e.stopPropagation()}
-                className="text-xs text-brand hover:underline"
+                withArrow={false}
+                onClick={(e: React.MouseEvent) => e.stopPropagation()}
               >
                 Report issue
-              </Link>
+              </InlineLink>
             </div>
             {maintenance.length === 0 ? (
               <p className="text-sm text-muted-foreground">No requests logged</p>

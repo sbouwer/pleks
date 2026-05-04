@@ -1,13 +1,11 @@
 /**
- * app/(dashboard)/dashboard/FinancialsPanel.tsx — FILL: one-line purpose
+ * app/(dashboard)/dashboard/FinancialsPanel.tsx — Dashboard financial summary panel: rent, collections, arrears, trust balance
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /dashboard (embedded)
+ * Auth:   gateway-protected dashboard layout
+ * Data:   CollectionRateData, TrustBalanceSummary, FeesDueWidget, UnpaidOwnersData passed from server
  */
-import Link from "next/link"
+import { InlineLink } from "@/components/ui/actions"
 import { formatZAR, formatZARAbbrev } from "@/lib/constants"
 import type { CollectionRateData } from "@/lib/dashboard/collectionRate"
 import type { TrustBalanceSummary } from "@/lib/dashboard/trustBalance"
@@ -42,9 +40,7 @@ export function FinancialsPanel({
           <span className="inline-block h-0.5 w-4 shrink-0 bg-amber-400"></span>
           {"Financials"}
         </h2>
-        <Link href="/reports" className="text-xs text-muted-foreground transition-colors hover:text-foreground">
-          Reports →
-        </Link>
+        <InlineLink href="/reports" withArrow>Reports</InlineLink>
       </div>
 
       {/* 2×2 grid */}
@@ -76,9 +72,7 @@ export function FinancialsPanel({
             {formatZAR(outstanding)}
           </p>
           {outstanding > 0 && (
-            <Link href="/billing/arrears" className="text-[11px] text-red-600 hover:underline">
-              View arrears →
-            </Link>
+            <InlineLink href="/billing/arrears" withArrow className="text-[11px] text-red-600">View arrears</InlineLink>
           )}
         </div>
 

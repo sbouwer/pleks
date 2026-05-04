@@ -1,18 +1,15 @@
 "use client"
 
 /**
- * components/properties/HoaRulesUpload.tsx — FILL: one-line purpose
+ * components/properties/HoaRulesUpload.tsx — HOA/managing scheme conduct rules PDF upload widget
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   gateway (dashboard layout)
+ * Data:   /api/suppliers/scheme-rules/upload (POST/DELETE) and /download (GET) for scheme rules PDF
  */
 
 import { useState, useRef } from "react"
-import { Upload, FileText, X, ExternalLink } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Upload, FileText, X } from "lucide-react"
+import { ActionButton, InlineLink } from "@/components/ui/actions"
 import { toast } from "sonner"
 
 interface HoaRulesUploadProps {
@@ -107,14 +104,13 @@ export function HoaRulesUpload({
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <a
+          <InlineLink
             href={`/api/suppliers/scheme-rules/download?schemeId=${managingSchemeId}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-brand hover:underline flex items-center gap-0.5"
+            external
+            withArrow={false}
           >
-            View <ExternalLink className="h-3 w-3" />
-          </a>
+            View
+          </InlineLink>
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
@@ -179,9 +175,8 @@ export function HoaRulesUpload({
 // Stub upload API (placeholder — BUILD_44 wires to Supabase Storage)
 export function HoaUploadStub() {
   return (
-    <Button variant="outline" size="sm" disabled>
-      <Upload className="h-3.5 w-3.5 mr-1.5" />
+    <ActionButton tone="secondary" icon={<Upload className="h-3.5 w-3.5" />} disabled>
       Upload conduct rules PDF
-    </Button>
+    </ActionButton>
   )
 }

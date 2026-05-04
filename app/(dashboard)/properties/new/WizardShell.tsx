@@ -1,18 +1,16 @@
 "use client"
 
 /**
- * app/(dashboard)/properties/new/WizardShell.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/new/WizardShell.tsx — Multi-step property creation wizard: step navigation, progress indicator, save handler
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties/new
+ * Auth:   gateway-protected dashboard layout
+ * Data:   createPropertyFromWizard server action; documents uploaded as FormData
+ * Notes:  Fixed-height card with scrollable content + pinned footer; advanced mode falls back to PropertyForm
  */
 import { useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
+import { ActionButton, InlineLink } from "@/components/ui/actions"
 import { cn } from "@/lib/utils"
 import { useWizard, computeActiveStepIds, type WizardState } from "./WizardContext"
 import { createPropertyFromWizard, type WizardSavePayload } from "@/lib/actions/createPropertyFromWizard"
@@ -209,9 +207,9 @@ export function WizardShell() {
     return (
       <div className="max-w-2xl space-y-4">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => patch({ mode: "wizard" })}>
+          <ActionButton tone="secondary" onClick={() => patch({ mode: "wizard" })}>
             ← Back to wizard
-          </Button>
+          </ActionButton>
         </div>
         <p className="text-muted-foreground text-sm">
           Advanced setup uses the original property form below — no scenario, no pre-fills. Use this
@@ -228,9 +226,9 @@ export function WizardShell() {
     <div>
       {/* Dynamic page header with back link */}
       <div className="mb-3">
-        <Link href="/properties" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mb-2">
-          ← Properties
-        </Link>
+        <div className="mb-2">
+          <InlineLink href="/properties">← Properties</InlineLink>
+        </div>
         <h1 className="font-heading text-2xl font-bold leading-tight">{stepMeta?.title ?? "Add Property"}</h1>
         <p className="text-sm text-muted-foreground mt-0.5">{stepMeta?.subtitle ?? ""}</p>
       </div>
@@ -254,9 +252,9 @@ export function WizardShell() {
           <div className="flex items-center justify-between px-5 py-4 sm:px-8">
             <div className="flex items-center gap-3">
               {!isFirst && !isSaving && (
-                <Button variant="outline" onClick={goBack}>
+                <ActionButton tone="secondary" onClick={goBack}>
                   Back
-                </Button>
+                </ActionButton>
               )}
               {currentStepId === "picker" && (
                 <button
@@ -268,9 +266,9 @@ export function WizardShell() {
                 </button>
               )}
             </div>
-            <Button onClick={handlePrimary} disabled={!canContinue || isSaving} size="lg">
+            <ActionButton tone="primary" onClick={handlePrimary} disabled={!canContinue || isSaving}>
               {primaryButtonLabel(isLast, isSaving)}
-            </Button>
+            </ActionButton>
           </div>
         </div>
       </div>

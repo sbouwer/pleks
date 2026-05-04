@@ -1,15 +1,11 @@
 /**
- * app/(public)/pricing/page.tsx — FILL: one-line purpose
+ * app/(public)/pricing/page.tsx — Public pricing page: tier cards, FAQ, founding agent callout
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /pricing
+ * Auth:   public (no auth required)
+ * Data:   static — tier definitions and FAQ content hardcoded
  */
-import { Button } from "@/components/ui/button"
-import { ArrowRight } from "lucide-react"
-import Link from "next/link"
+import { InlineLink } from "@/components/ui/actions"
 
 export const metadata = {
   title: "Pleks Pricing — From R699/month | No Setup Fees",
@@ -99,9 +95,9 @@ export default function PricingPage() {
             <span className="text-brand font-semibold">Founding agent pricing:</span>{" "}
             R299/month on Steward for your first 24 months. Limited spots.
           </p>
-          <Button size="sm" variant="link" className="text-brand mt-1" render={<Link href="/early-access" />}>
-            Claim your spot <ArrowRight className="ml-1 size-3" />
-          </Button>
+          <div className="mt-1">
+            <InlineLink href="/early-access" withArrow>Claim your spot</InlineLink>
+          </div>
         </div>
 
         {/* Tier cards */}
@@ -149,12 +145,9 @@ export default function PricingPage() {
                   That&apos;s roughly R{perLease} per lease at cap
                 </p>
 
-                <Link
-                  href={tier.href}
-                  className="mt-auto text-sm font-medium text-brand hover:underline underline-offset-4"
-                >
-                  {tier.cta} →
-                </Link>
+                <InlineLink href={tier.href} className="mt-auto">
+                  {tier.cta}
+                </InlineLink>
               </div>
             )
           })}
@@ -193,9 +186,9 @@ export default function PricingPage() {
         {/* Owner free footnote */}
         <p className="text-center text-sm text-muted-foreground mb-20">
           Just getting started?{" "}
-          <Link href="/register" className="text-brand hover:underline underline-offset-4">
+          <InlineLink href="/register">
             The Owner tier is free — 1 active lease, forever.
-          </Link>
+          </InlineLink>
         </p>
 
         {/* FAQ */}

@@ -15,7 +15,7 @@ import { useOrg } from "@/hooks/useOrg"
 import { useTier } from "@/hooks/useTier"
 import { usePermissions } from "@/hooks/usePermissions"
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
+import { ActionButton, IconButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/dialog"
 import { toast } from "sonner"
 import { Plus, Trash2, ChevronUp, ChevronDown, ArrowUpDown, ShieldAlert } from "lucide-react"
-import { EditButton } from "@/components/ui/actions"
+import { EditButton, InlineLink } from "@/components/ui/actions"
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -476,8 +476,8 @@ function EditMemberModal({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
+          <ActionButton tone="secondary" onClick={onClose} disabled={saving}>Cancel</ActionButton>
+          <ActionButton tone="primary" onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "Save"}</ActionButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -521,19 +521,16 @@ function MemberRow({ member, currentUserId, callerIsOwner, onEdit, onRemove, onT
       </div>
       <div className="flex items-center gap-1 shrink-0">
         {callerIsOwner && !isOwner && (
-          <Button variant="ghost" size="sm"
+          <button type="button"
             className="h-7 text-xs text-muted-foreground hover:text-foreground px-2"
             onClick={() => onToggleAdmin(member)}
             title={member.is_admin ? "Revoke admin" : "Grant admin"}>
             {member.is_admin ? "Admin ✓" : "Admin"}
-          </Button>
+          </button>
         )}
         <EditButton label="Edit member" onClick={() => onEdit(member)} />
         {canRemove && (
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"
-            onClick={() => onRemove(member.id)}>
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
+          <IconButton icon={<Trash2 className="h-3.5 w-3.5" />} label="Remove member" onClick={() => onRemove(member.id)} className="pa-iconbtn--destructive" />
         )}
       </div>
     </div>
@@ -634,12 +631,12 @@ function FirmMemberTable({
                       {isOwner ? (
                         <span className="text-xs text-muted-foreground">always</span>
                       ) : (
-                        <Button variant="ghost" size="sm"
-                          className="h-6 text-xs px-2"
+                        <button type="button"
+                          className="h-6 text-xs px-2 text-muted-foreground hover:text-foreground"
                           onClick={() => onToggleAdmin(m)}
                           title={m.is_admin ? "Revoke admin" : "Grant admin"}>
                           {m.is_admin ? "✓ Admin" : "—"}
-                        </Button>
+                        </button>
                       )}
                     </td>
                   )}
@@ -647,11 +644,7 @@ function FirmMemberTable({
                     <div className="flex items-center gap-1 justify-end">
                       <EditButton label="Edit member" onClick={() => onEdit(m)} />
                       {canRemove && (
-                        <Button variant="ghost" size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                          onClick={() => onRemove(m.id)}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                        <IconButton icon={<Trash2 className="h-3.5 w-3.5" />} label="Remove member" onClick={() => onRemove(m.id)} className="pa-iconbtn--destructive" />
                       )}
                     </div>
                   </td>
@@ -962,11 +955,7 @@ export function TeamSettingsClient() {
                     <p className="text-sm truncate">{inv.email}</p>
                     <p className="text-xs text-muted-foreground">{getRoleLabel(inv.role)} · pending</p>
                   </div>
-                  <Button variant="ghost" size="icon"
-                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
-                    onClick={() => handleRevokeInvite(inv.id)}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
+                  <IconButton icon={<Trash2 className="h-3.5 w-3.5" />} label="Revoke invite" onClick={() => handleRevokeInvite(inv.id)} className="pa-iconbtn--destructive" />
                 </div>
               ))}
             </div>
@@ -980,7 +969,7 @@ export function TeamSettingsClient() {
           {atLimit ? (
             <p className="text-sm text-muted-foreground">
               You&apos;ve reached the user limit for your plan.{" "}
-              <a href="/settings/subscription" className="text-brand hover:underline">Upgrade</a> to add more.
+              <InlineLink href="/settings/subscription" withArrow={false}>Upgrade</InlineLink> to add more.
             </p>
           ) : (
             <div className="space-y-3">
@@ -999,14 +988,15 @@ export function TeamSettingsClient() {
                   orgRoles={orgRoles.filter((r) => r !== "Owner")}
                 />
               </div>
-              <Button
+              <ActionButton
+                tone="primary"
+                icon={<Plus className="h-4 w-4" />}
                 onClick={handleInvite}
                 disabled={loading || !inviteEmail || !inviteRole}
                 className="w-full"
               >
-                <Plus className="h-4 w-4 mr-2" />
                 Send invite
-              </Button>
+              </ActionButton>
             </div>
           )}
         </CardContent>
@@ -1027,14 +1017,12 @@ export function TeamSettingsClient() {
                 <p className="text-sm text-muted-foreground">
                   Transfer ownership of this organisation to another team member. You will become a Property Manager and lose owner privileges.
                 </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="border-destructive/40 text-destructive hover:bg-destructive/10"
+                <ActionButton
+                  tone="destructive"
                   onClick={() => setShowTransfer(true)}
                 >
                   Transfer ownership…
-                </Button>
+                </ActionButton>
               </div>
             ) : (
               <div className="space-y-4">
@@ -1070,22 +1058,20 @@ export function TeamSettingsClient() {
                   />
                 </div>
                 <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
+                  <ActionButton
+                    tone="secondary"
                     onClick={() => { setShowTransfer(false); setTransferTargetId(""); setTransferConfirm("") }}
                     disabled={transferring}
                   >
                     Cancel
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
+                  </ActionButton>
+                  <ActionButton
+                    tone="destructive"
                     onClick={handleTransferOwnership}
                     disabled={transferring || !transferTargetId || transferConfirm !== "TRANSFER"}
                   >
                     {transferring ? "Transferring…" : "Transfer ownership"}
-                  </Button>
+                  </ActionButton>
                 </div>
               </div>
             )}

@@ -1,15 +1,14 @@
 /**
- * app/(landlord)/landlord/dashboard/page.tsx — FILL: one-line purpose
+ * app/(landlord)/landlord/dashboard/page.tsx — Landlord portal dashboard: portfolio overview, maintenance approvals, expiring leases
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /landlord/dashboard
+ * Auth:   getLandlordSession (token-gated landlord portal)
+ * Data:   createServiceClient — properties, leases, maintenance_requests filtered by landlord_id
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { getLandlordSession } from "@/lib/portal/getLandlordSession"
 import Link from "next/link"
+import { InlineLink } from "@/components/ui/actions"
 import { formatZAR } from "@/lib/constants"
 import { AlertTriangle, ChevronRight, CheckCircle2, Clock } from "lucide-react"
 
@@ -122,9 +121,9 @@ export default async function LandlordDashboardPage() {
                     {contractorName ? ` · ${contractorName}` : ""}
                   </p>
                 </div>
-                <Link href={`/landlord/maintenance/${req.id}`} className="text-xs text-brand hover:underline shrink-0">
-                  Review →
-                </Link>
+                <InlineLink href={`/landlord/maintenance/${req.id}`} className="shrink-0">
+                  Review
+                </InlineLink>
               </div>
             )
           })}
@@ -155,7 +154,7 @@ export default async function LandlordDashboardPage() {
         <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 space-y-2">
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Active maintenance</p>
-            <Link href="/landlord/maintenance" className="text-xs text-brand hover:underline">View all</Link>
+            <InlineLink href="/landlord/maintenance" withArrow={false}>View all</InlineLink>
           </div>
           {(activeMaintenance ?? []).map((req) => {
             let urgencyDot: string

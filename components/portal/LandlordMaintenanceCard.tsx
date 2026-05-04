@@ -1,21 +1,17 @@
 "use client"
 
 /**
- * components/portal/LandlordMaintenanceCard.tsx — FILL: one-line purpose
+ * components/portal/LandlordMaintenanceCard.tsx — Maintenance request card for landlord portal with approve/reject actions
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   getLandlordSession (token-gated landlord portal)
+ * Data:   /api/approve/[token] for approve/reject dispatch; req data passed as props
  */
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
+import { ActionButton, InlineLink } from "@/components/ui/actions"
 import { Textarea } from "@/components/ui/textarea"
 import { CheckCircle2, XCircle, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { formatZAR } from "@/lib/constants"
-import Link from "next/link"
 
 interface MaintenanceReq {
   id: string
@@ -95,32 +91,27 @@ export function LandlordMaintenanceCard({ req, showApproveActions }: Readonly<Pr
             {cost ? ` · Estimated: ${formatZAR(cost)}` : ""}
           </p>
         </div>
-        <Link href={`/landlord/maintenance/${req.id}`} className="text-xs text-brand hover:underline shrink-0">Details</Link>
+        <InlineLink href={`/landlord/maintenance/${req.id}`} withArrow={false} className="shrink-0">Details</InlineLink>
       </div>
 
       {showApproveActions && !showReject && (
         <div className="flex gap-2 pl-5">
-          <Button
-            type="button"
-            size="sm"
-            className="h-7 text-xs"
+          <ActionButton
+            tone="primary"
+            icon={submitting ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
             disabled={submitting}
             onClick={() => submitDecision("approve")}
           >
-            {submitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
             Approve
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-7 text-xs"
+          </ActionButton>
+          <ActionButton
+            tone="secondary"
+            icon={<XCircle className="h-3 w-3" />}
             disabled={submitting}
             onClick={() => setShowReject(true)}
           >
-            <XCircle className="h-3 w-3 mr-1" />
             Reject
-          </Button>
+          </ActionButton>
         </div>
       )}
 
@@ -134,11 +125,11 @@ export function LandlordMaintenanceCard({ req, showApproveActions }: Readonly<Pr
             className="resize-none text-sm"
           />
           <div className="flex gap-2">
-            <Button type="button" size="sm" variant="outline" className="h-7 text-xs" disabled={submitting} onClick={() => submitDecision("reject")}>
+            <ActionButton tone="destructive" disabled={submitting} onClick={() => submitDecision("reject")}>
               {submitting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
               Confirm rejection
-            </Button>
-            <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowReject(false)}>Cancel</Button>
+            </ActionButton>
+            <ActionButton tone="secondary" onClick={() => setShowReject(false)}>Cancel</ActionButton>
           </div>
         </div>
       )}

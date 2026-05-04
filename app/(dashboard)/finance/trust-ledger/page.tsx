@@ -1,13 +1,12 @@
 "use client"
 
 /**
- * app/(dashboard)/finance/trust-ledger/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/finance/trust-ledger/page.tsx — Trust account ledger: running balance, filterable by date/type, CSV export
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /finance/trust-ledger
+ * Auth:   useOrg (client-side; dashboard layout guards the route)
+ * Data:   trust_transactions + bank_recon_sessions from Supabase client; filtered client-side after fetch
+ * Notes:  CSV export uses buildTrustLedgerCSV; running balance computed via useMemo reduce
  */
 
 import { useEffect, useState, useCallback, useMemo } from "react"
@@ -15,11 +14,10 @@ import { createClient } from "@/lib/supabase/client"
 import { useOrg } from "@/hooks/useOrg"
 import { formatZAR } from "@/lib/constants"
 import { formatTrustType, buildTrustLedgerCSV, type TrustLedgerEntry } from "@/lib/finance/trustLedger"
-import { Button } from "@/components/ui/button"
+import { ActionButton, InlineLink } from "@/components/ui/actions"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { FormSelect } from "@/components/ui/FormSelect"
-import Link from "next/link"
-import { ArrowLeft, Download } from "lucide-react"
+import { Download } from "lucide-react"
 
 const TYPE_FILTER_OPTIONS = [
   { value: "", label: "All types" },
@@ -138,9 +136,9 @@ export default function TrustLedgerPage() {
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <Link href="/finance/deposits" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-2">
-            <ArrowLeft className="h-3.5 w-3.5" /> Finance
-          </Link>
+          <div className="mb-2">
+            <InlineLink href="/finance">← Finance</InlineLink>
+          </div>
           <h1 className="font-heading text-2xl">Trust Account Ledger</h1>
           {summary && (
             <p className="text-sm text-muted-foreground mt-0.5">
@@ -150,12 +148,10 @@ export default function TrustLedgerPage() {
           )}
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={handleCSVDownload}>
-            <Download className="h-3.5 w-3.5 mr-1.5" /> Export CSV
-          </Button>
-          <Button variant="outline" size="sm" render={<Link href="/billing/reconciliation" />}>
-            Reconcile →
-          </Button>
+          <ActionButton tone="secondary" icon={<Download className="h-3.5 w-3.5" />} onClick={handleCSVDownload}>
+            Export CSV
+          </ActionButton>
+          <InlineLink href="/billing/reconciliation" withArrow>Reconcile</InlineLink>
         </div>
       </div>
 
@@ -179,9 +175,9 @@ export default function TrustLedgerPage() {
           />
         </div>
         {(fromDate || toDate || typeFilter) && (
-          <Button variant="ghost" size="sm" onClick={() => { setFromDate(""); setToDate(""); setTypeFilter("") }}>
+          <ActionButton tone="secondary" onClick={() => { setFromDate(""); setToDate(""); setTypeFilter("") }}>
             Clear
-          </Button>
+          </ActionButton>
         )}
       </div>
 

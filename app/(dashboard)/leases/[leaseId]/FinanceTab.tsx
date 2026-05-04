@@ -1,13 +1,11 @@
 /**
- * app/(dashboard)/leases/[leaseId]/FinanceTab.tsx — FILL: one-line purpose
+ * app/(dashboard)/leases/[leaseId]/FinanceTab.tsx — Lease finance tab: balance, deposit, payment history, rent schedule, trust transactions
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /leases/[leaseId] (finance tab)
+ * Auth:   gateway-protected server wrapper
+ * Data:   all financial fields passed as props from server page; LeaseCharges fetches its own data client-side
  */
-import Link from "next/link"
+import { InlineLink } from "@/components/ui/actions"
 import { formatZAR } from "@/lib/constants"
 import { LeaseCharges } from "@/components/leases/LeaseCharges"
 
@@ -187,9 +185,7 @@ function SummaryStrip({
               {formatZAR(arrearsCase.total_arrears_cents)}
             </p>
             <p className="text-xs text-danger mt-1">{months} {monthLabel}</p>
-            <Link href="/billing/arrears" className="text-xs text-danger hover:underline mt-0.5 block">
-              View arrears case →
-            </Link>
+            <InlineLink href="/billing/arrears" withArrow className="text-xs text-danger mt-0.5 block">View arrears case</InlineLink>
           </>
         ) : (
           <p className="text-xl font-heading text-success">None</p>
@@ -204,9 +200,7 @@ function PaymentHistoryCard({ leaseId, recentPayments }: Readonly<{ leaseId: str
     <div className="rounded-xl border bg-card">
       <div className="flex items-center justify-between border-b px-4 py-3">
         <h3 className="text-sm font-semibold">Payment history</h3>
-        <Link href={`/payments?lease=${leaseId}`} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-          View all →
-        </Link>
+        <InlineLink href={`/payments?lease=${leaseId}`} withArrow>View all</InlineLink>
       </div>
       <div className="p-4">
         {recentPayments.length === 0 ? (
@@ -449,9 +443,7 @@ function TrustTransactionsCard({ trustTransactions }: Readonly<{ trustTransactio
     <div className="rounded-xl border bg-card">
       <div className="flex items-center justify-between border-b px-4 py-3">
         <h3 className="text-sm font-semibold">Trust account transactions</h3>
-        <Link href="/finance/trust" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-          View full ledger →
-        </Link>
+        <InlineLink href="/finance/trust" withArrow>View full ledger</InlineLink>
       </div>
       <div className="p-4">
         {trustTransactions.length === 0 ? (
@@ -519,32 +511,12 @@ export function FinanceTab({
   return (
     <div className="space-y-6">
       {/* Action bar */}
-      <div className="flex flex-wrap gap-2">
-        <Link
-          href={`/payments?lease=${leaseId}`}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-sm font-medium hover:bg-muted transition-colors"
-        >
-          Record payment
-        </Link>
-        <Link
-          href={`/leases/${leaseId}/statement`}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-sm font-medium hover:bg-muted transition-colors"
-        >
-          Generate statement
-        </Link>
-        <Link
-          href={`/leases/${leaseId}/deposit`}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-sm font-medium hover:bg-muted transition-colors"
-        >
-          View deposit details
-        </Link>
+      <div className="flex flex-wrap gap-3">
+        <InlineLink href={`/payments?lease=${leaseId}`}>Record payment</InlineLink>
+        <InlineLink href={`/leases/${leaseId}/statement`}>Generate statement</InlineLink>
+        <InlineLink href={`/leases/${leaseId}/deposit`}>View deposit details</InlineLink>
         {arrearsCase && (
-          <Link
-            href="/billing/arrears"
-            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-sm font-medium hover:bg-muted transition-colors"
-          >
-            View arrears case
-          </Link>
+          <InlineLink href="/billing/arrears">View arrears case</InlineLink>
         )}
       </div>
 

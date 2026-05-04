@@ -1,11 +1,9 @@
 /**
- * app/(landlord)/landlord/profile/page.tsx — FILL: one-line purpose
+ * app/(landlord)/landlord/profile/page.tsx — Landlord portal profile: account name, managing agent details, contact
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /landlord/profile
+ * Auth:   getLandlordSession (token-gated landlord portal)
+ * Data:   createServiceClient — organisations for managing agent info
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { getLandlordSession } from "@/lib/portal/getLandlordSession"
@@ -51,7 +49,7 @@ export default async function LandlordProfilePage() {
           Contact your managing agent for any changes to your property details, lease terms, or account access.
         </p>
         {org?.email && (
-          <a href={`mailto:${org.email}`} className="text-brand hover:underline text-sm">
+          <a href={`mailto:${org.email}`} className="hover:underline text-sm">
             {org.email}
           </a>
         )}

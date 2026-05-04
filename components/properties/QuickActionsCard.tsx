@@ -1,19 +1,15 @@
 "use client"
 
 /**
- * components/properties/QuickActionsCard.tsx — FILL: one-line purpose
+ * components/properties/QuickActionsCard.tsx — Quick action links and archive control for a property detail page
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   gateway (dashboard layout)
+ * Data:   archiveProperty server action; navigation links use router.push for client-side redirect post-archive
  */
 import { useState, useTransition } from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
+import { ActionButton, InlineLink } from "@/components/ui/actions"
 import { archiveProperty } from "@/lib/actions/properties"
 
 interface QuickActionsCardProps {
@@ -47,29 +43,20 @@ export function QuickActionsCard({ propertyId, tier, maintenanceCount }: QuickAc
       <p className={headerClass}>Quick actions</p>
       <div className="space-y-2">
         <div>
-          <Link
-            href={`/leases/new?property=${propertyId}`}
-            className="text-sm text-brand hover:underline"
-          >
-            Create lease for this property →
-          </Link>
+          <InlineLink href={`/leases/new?property=${propertyId}`}>
+            Create lease for this property
+          </InlineLink>
         </div>
         <div>
-          <Link
-            href={`/inspections/new?property=${propertyId}`}
-            className="text-sm text-brand hover:underline"
-          >
-            Schedule inspection →
-          </Link>
+          <InlineLink href={`/inspections/new?property=${propertyId}`}>
+            Schedule inspection
+          </InlineLink>
         </div>
         {maintenanceCount > 0 && (
           <div>
-            <Link
-              href={`/maintenance?property=${propertyId}`}
-              className="text-sm text-brand hover:underline"
-            >
-              View maintenance ({maintenanceCount} active) →
-            </Link>
+            <InlineLink href={`/maintenance?property=${propertyId}`}>
+              View maintenance ({maintenanceCount} active)
+            </InlineLink>
           </div>
         )}
 
@@ -90,24 +77,20 @@ export function QuickActionsCard({ propertyId, tier, maintenanceCount }: QuickAc
                   Are you sure? This will archive the property and all its units. Active leases must be terminated first.
                 </p>
                 <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
+                  <ActionButton
+                    tone="secondary"
                     onClick={() => setShowArchiveConfirm(false)}
                     disabled={isPending}
                   >
                     Cancel
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
+                  </ActionButton>
+                  <ActionButton
+                    tone="destructive"
                     onClick={handleArchive}
                     disabled={isPending}
-                    className="bg-danger text-white hover:bg-danger/90"
                   >
                     {isPending ? "Archiving..." : "Archive property"}
-                  </Button>
+                  </ActionButton>
                 </div>
               </div>
             )}

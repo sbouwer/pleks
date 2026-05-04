@@ -1,20 +1,17 @@
 /**
- * app/(dashboard)/finance/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/finance/page.tsx — Finance hub: trust account summary, tenant/owner balances, property performance, unmatched transactions
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /finance
+ * Auth:   gatewaySSR (redirects to /login if missing)
+ * Data:   getFinanceHubData aggregates trust balance, tenant ledgers, owner payouts, property P&L
  */
 import { redirect } from "next/navigation"
-import Link from "next/link"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { getFinanceHubData } from "@/lib/finance/financeHub"
 import { formatZAR } from "@/lib/constants"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { InlineLink } from "@/components/ui/actions"
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr)
@@ -48,12 +45,8 @@ export default async function FinancePage() {
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-semibold">Trust Account</CardTitle>
             <div className="flex gap-2">
-              <Button variant="ghost" size="sm" className="h-7 text-xs" render={<Link href="/finance/trust-ledger" />}>
-                View trust ledger →
-              </Button>
-              <Button variant="ghost" size="sm" className="h-7 text-xs" render={<Link href="/billing/reconciliation" />}>
-                Upload statement →
-              </Button>
+              <InlineLink href="/finance/trust-ledger" withArrow>View trust ledger</InlineLink>
+              <InlineLink href="/billing/reconciliation" withArrow>Upload statement</InlineLink>
             </div>
           </div>
         </CardHeader>
@@ -94,9 +87,7 @@ export default async function FinancePage() {
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-semibold">Tenant Balances</CardTitle>
-            <Button variant="ghost" size="sm" className="h-7 text-xs" render={<Link href="/tenants" />}>
-              View all tenants →
-            </Button>
+            <InlineLink href="/tenants" withArrow>View all tenants</InlineLink>
           </div>
         </CardHeader>
         <CardContent className="overflow-x-auto pt-0">
@@ -121,9 +112,7 @@ export default async function FinancePage() {
                     <td className="py-2 pr-3 text-right font-medium">{formatZAR(t.balance_cents)}</td>
                     <td className="py-2 pr-3"><StatusBadge status={t.status} /></td>
                     <td className="py-2 text-right">
-                      <Link href={`/tenants/${t.tenant_id}/ledger`} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-                        Ledger →
-                      </Link>
+                      <InlineLink href={`/tenants/${t.tenant_id}/ledger`} withArrow>Ledger</InlineLink>
                     </td>
                   </tr>
                 ))}
@@ -146,9 +135,7 @@ export default async function FinancePage() {
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-semibold">Owner Balances</CardTitle>
-              <Button variant="ghost" size="sm" className="h-7 text-xs" render={<Link href="/landlords" />}>
-                View all landlords →
-              </Button>
+              <InlineLink href="/landlords" withArrow>View all landlords</InlineLink>
             </div>
           </CardHeader>
           <CardContent className="overflow-x-auto pt-0">
@@ -173,9 +160,7 @@ export default async function FinancePage() {
                       <td className="py-2 pr-3 text-right font-medium">{formatZAR(o.owed_to_owner_cents)}</td>
                       <td className="py-2 pr-3 capitalize text-xs">{o.payout_status}</td>
                       <td className="py-2 text-right">
-                        <Link href={`/landlords/${o.landlord_id}/ledger`} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-                          Ledger →
-                        </Link>
+                        <InlineLink href={`/landlords/${o.landlord_id}/ledger`} withArrow>Ledger</InlineLink>
                       </td>
                     </tr>
                   ))}
@@ -190,9 +175,7 @@ export default async function FinancePage() {
               </table>
             )}
             <div className="mt-3 text-right">
-              <Button variant="outline" size="sm" className="h-7 text-xs" render={<Link href="/statements" />}>
-                Generate statements →
-              </Button>
+              <InlineLink href="/statements" withArrow>Generate statements</InlineLink>
             </div>
           </CardContent>
         </Card>
@@ -205,9 +188,7 @@ export default async function FinancePage() {
             <CardTitle className="text-sm font-semibold">
               Property Performance — {new Date().toLocaleDateString("en-ZA", { month: "long", year: "numeric" })}
             </CardTitle>
-            <Button variant="ghost" size="sm" className="h-7 text-xs" render={<Link href="/properties" />}>
-              View all properties →
-            </Button>
+            <InlineLink href="/properties" withArrow>View all properties</InlineLink>
           </div>
         </CardHeader>
         <CardContent className="overflow-x-auto pt-0">
@@ -234,9 +215,7 @@ export default async function FinancePage() {
                     <td className="py-2 pr-3 text-right font-medium">{formatZAR(p.net_cents)}</td>
                     <td className="py-2 pr-3 text-right text-xs">{p.unit_count > 0 ? `${p.occupancy_percent}%` : "—"}</td>
                     <td className="py-2 text-right">
-                      <Link href={`/properties/${p.property_id}/financials`} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-                        P&L →
-                      </Link>
+                      <InlineLink href={`/properties/${p.property_id}/financials`} withArrow>P&amp;L</InlineLink>
                     </td>
                   </tr>
                 ))}
@@ -260,9 +239,7 @@ export default async function FinancePage() {
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-semibold">Unmatched Transactions</CardTitle>
-            <Button variant="ghost" size="sm" className="h-7 text-xs" render={<Link href="/billing/reconciliation" />}>
-              Go to reconciliation →
-            </Button>
+            <InlineLink href="/billing/reconciliation" withArrow>Go to reconciliation</InlineLink>
           </div>
         </CardHeader>
         <CardContent className="overflow-x-auto pt-0">
@@ -299,12 +276,12 @@ export default async function FinancePage() {
       </Card>
 
       {/* Quick Actions */}
-      <div className="flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" render={<Link href="/billing" />}>Record payment</Button>
-        <Button variant="outline" size="sm" render={<Link href="/billing/reconciliation" />}>Upload statement</Button>
-        <Button variant="outline" size="sm" render={<Link href="/statements" />}>Generate statements</Button>
-        <Button variant="outline" size="sm" render={<Link href="/finance/deposits" />}>View deposits</Button>
-        <Button variant="outline" size="sm" render={<Link href="/reports" />}>View reports</Button>
+      <div className="flex flex-wrap gap-3">
+        <InlineLink href="/billing">Record payment</InlineLink>
+        <InlineLink href="/billing/reconciliation">Upload statement</InlineLink>
+        <InlineLink href="/statements">Generate statements</InlineLink>
+        <InlineLink href="/finance/deposits">View deposits</InlineLink>
+        <InlineLink href="/reports">View reports</InlineLink>
       </div>
     </div>
   )

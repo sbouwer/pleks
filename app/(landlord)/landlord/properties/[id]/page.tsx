@@ -1,17 +1,16 @@
 /**
- * app/(landlord)/landlord/properties/[id]/page.tsx — FILL: one-line purpose
+ * app/(landlord)/landlord/properties/[id]/page.tsx — Landlord portal property detail: units, maintenance, statements
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /landlord/properties/[id]
+ * Auth:   getLandlordSession (token-gated landlord portal); verifies property.landlord_id matches
+ * Data:   createServiceClient — units, leases, maintenance_requests, owner_statements
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { getLandlordSession } from "@/lib/portal/getLandlordSession"
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { ChevronLeft, Download } from "lucide-react"
+import { InlineLink } from "@/components/ui/actions"
+import { Download } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import { LandlordMaintenanceCard } from "@/components/portal/LandlordMaintenanceCard"
 
@@ -88,9 +87,9 @@ export default async function LandlordPropertyDetailPage({ params }: Props) {
     <div className="max-w-3xl space-y-6">
       {/* Breadcrumb + header */}
       <div>
-        <Link href="/landlord/properties" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 mb-3">
-          <ChevronLeft className="h-3.5 w-3.5" /> Your properties
-        </Link>
+        <div className="mb-3">
+          <InlineLink href="/landlord/properties">← Your properties</InlineLink>
+        </div>
         <h1 className="font-heading text-3xl">{property.name}</h1>
         {[property.address_line1, property.suburb, property.city].filter(Boolean).join(", ") && (
           <p className="text-muted-foreground mt-1">{[property.address_line1, property.suburb, property.city].filter(Boolean).join(", ")}</p>
@@ -179,7 +178,7 @@ export default async function LandlordPropertyDetailPage({ params }: Props) {
         <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4">
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Recent statements</p>
-            <Link href="/landlord/statements" className="text-xs text-brand hover:underline">View all</Link>
+            <InlineLink href="/landlord/statements" withArrow={false}>View all</InlineLink>
           </div>
           <div className="divide-y divide-border/60">
             {statements.map((s) => {
