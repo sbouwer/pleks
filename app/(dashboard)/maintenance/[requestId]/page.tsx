@@ -20,7 +20,6 @@ import { CostContractorCard } from "@/components/maintenance/CostContractorCard"
 import { NotesCard } from "@/components/maintenance/NotesCard"
 import { PhotosCard } from "@/components/maintenance/PhotosCard"
 import type { MaintenancePhoto } from "@/components/maintenance/PhotosCard"
-import { DelayCard } from "@/components/maintenance/DelayCard"
 import { TimelineCard } from "@/components/maintenance/TimelineCard"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatZAR } from "@/lib/constants"
@@ -116,7 +115,7 @@ export default async function MaintenanceDetailPage({
       .eq("request_id", requestId)
       .order("created_at"),
     db.from("maintenance_quotes")
-      .select("id, amount_cents, status, created_at, contractor_name")
+      .select("id, total_incl_vat_cents, status, created_at, contractor_name")
       .eq("request_id", requestId)
       .order("created_at"),
     db.from("communication_log")
@@ -180,7 +179,7 @@ export default async function MaintenanceDetailPage({
       created_at: p.created_at as string,
       uploader_name: p.uploader_name as string | null,
     })),
-    quotes: (quotes ?? []) as Parameters<typeof buildUnifiedTimeline>[0]["quotes"],
+    quotes: (quotes ?? []).map(q => ({ ...q, amount_cents: (q.total_incl_vat_cents as number | null) ?? 0 })) as Parameters<typeof buildUnifiedTimeline>[0]["quotes"],
     comms: (commsRows ?? []) as Parameters<typeof buildUnifiedTimeline>[0]["comms"],
     costAllocations: (allocations ?? []) as Parameters<typeof buildUnifiedTimeline>[0]["costAllocations"],
   })
@@ -420,25 +419,12 @@ export default async function MaintenanceDetailPage({
           </Card>
         )}
 
-        {/* Delay log + record panel */}
+        {/* Delay log + record panel (includes delay history) */}
         <Card>
           <CardContent className="pt-4">
             <RecordDelayPanel requestId={requestId} initialDelays={(delayEvents ?? []) as Parameters<typeof RecordDelayPanel>[0]["initialDelays"]} />
           </CardContent>
         </Card>
-
-        {/* Delay history card */}
-        <DelayCard delays={(delayEvents ?? []).map(d => ({
-          id: d.id as string,
-          delay_type: d.delay_type as string,
-          attributed_to: d.attributed_to as string,
-          occurred_at: d.occurred_at as string,
-          note: d.note as string | null,
-          original_date: d.original_date as string | null,
-          rescheduled_to: d.rescheduled_to as string | null,
-        }))} />
-
-        {/* Sign-off handled by MaintenanceActions */}
 
         {/* Unified timeline */}
         <TimelineCard events={timelineEvents} />

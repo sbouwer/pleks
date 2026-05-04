@@ -1539,3 +1539,22 @@ ALTER TABLE maintenance_requests ADD COLUMN IF NOT EXISTS work_order_token_revok
 
 -- Per-photo tenant-portal visibility toggle
 ALTER TABLE maintenance_photos ADD COLUMN IF NOT EXISTS visible_to_tenant boolean NOT NULL DEFAULT true;
+
+-- Denormalized uploader fields on maintenance_photos (set at upload time)
+ALTER TABLE maintenance_photos ADD COLUMN IF NOT EXISTS uploaded_by   text;
+ALTER TABLE maintenance_photos ADD COLUMN IF NOT EXISTS uploader_name text;
+
+-- Denormalized actor display name on audit_log (set by the mutation that writes the log)
+ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS actor_name text;
+
+-- Denormalized actor display name on contractor_updates (set by the contractor portal)
+ALTER TABLE contractor_updates ADD COLUMN IF NOT EXISTS actor_name text;
+
+-- Denormalized contractor name on maintenance_quotes (set when quote is created)
+ALTER TABLE maintenance_quotes ADD COLUMN IF NOT EXISTS contractor_name text;
+
+-- in_progress_at timestamp on maintenance_requests (set when status → in_progress)
+ALTER TABLE maintenance_requests ADD COLUMN IF NOT EXISTS in_progress_at timestamptz;
+
+-- closed_at timestamp on maintenance_requests (set when status → closed)
+ALTER TABLE maintenance_requests ADD COLUMN IF NOT EXISTS closed_at timestamptz;
