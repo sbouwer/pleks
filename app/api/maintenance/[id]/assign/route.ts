@@ -44,6 +44,15 @@ export async function POST(
     return NextResponse.json({ error: "contractorId is required" }, { status: 400 })
   }
 
+  const { data: current } = await service
+    .from("maintenance_requests")
+    .select("contractor_id")
+    .eq("id", requestId)
+    .eq("org_id", orgId)
+    .single()
+
+  const contractorChanged = current?.contractor_id !== contractorId
+
   const { error: updateError } = await service
     .from("maintenance_requests")
     .update({ contractor_id: contractorId })
@@ -86,7 +95,7 @@ export async function POST(
       const tenant = tenantRes.data
       const unit = unitRes.data as { unit_number: string; properties: { name: string } } | null
 
-      if (tenant?.email) {
+      if (tenant?.email && contractorChanged) {
         const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
         const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
         const contractorName =

@@ -86,7 +86,7 @@ async function fireTenantCommsOnCreate(
           branding, tenantName, propertyLabel, requestTitle: title,
           urgencyReason, contactName, contactPhone, senderName,
         }),
-        smsBody: `URGENT: Critical maintenance issue at ${propertyLabel}: ${title}. Contact ${contactPhone ?? senderName} immediately.`,
+        smsBody: `URGENT: Critical maintenance issue at ${propertyLabel}: ${title}. Contact ${contactPhone ?? contactName ?? "our office"} immediately.`,
         entityType: "maintenance_request",
         entityId: requestId,
         triggeredBy: userId,

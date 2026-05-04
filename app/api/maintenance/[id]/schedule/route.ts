@@ -46,6 +46,17 @@ export async function POST(
     return NextResponse.json({ error: "scheduledDate is required" }, { status: 400 })
   }
 
+  const { data: current } = await service
+    .from("maintenance_requests")
+    .select("scheduled_date, tenant_notified_of_schedule")
+    .eq("id", requestId)
+    .eq("org_id", orgId)
+    .single()
+
+  const scheduleChanged =
+    current?.scheduled_date !== body.scheduledDate ||
+    !current?.tenant_notified_of_schedule
+
   const { error: updateError } = await service
     .from("maintenance_requests")
     .update({
@@ -72,70 +83,81 @@ export async function POST(
     },
   })
 
-  // M3 — notify tenant of confirmed appointment
+  // M3 — notify tenant of confirmed appointment (non-fatal)
+  if (scheduleChanged) {
+    void sendM3Comm(service, orgId, requestId, user.id, body)
+  }
+
+  return NextResponse.json({ ok: true })
+}
+
+type ServiceClient = Awaited<ReturnType<typeof import("@/lib/supabase/server").createServiceClient>>
+type ScheduleBody = { scheduledDate: string; scheduledTimeFrom?: string; scheduledTimeTo?: string }
+
+async function sendM3Comm(
+  service: ServiceClient,
+  orgId: string,
+  requestId: string,
+  userId: string,
+  body: ScheduleBody,
+): Promise<void> {
   try {
-    const { data: maintenanceReq } = await service
+    const { data: req } = await service
       .from("maintenance_requests")
       .select("tenant_id, unit_id, title, contractor_id")
       .eq("id", requestId)
       .single()
+    if (!req?.tenant_id) return
 
-    if (maintenanceReq?.tenant_id) {
-      const [tenantRes, unitRes, contractorRes, orgSettings] = await Promise.all([
-        service.from("tenant_view").select("first_name, last_name, email, phone").eq("id", maintenanceReq.tenant_id).single(),
-        service.from("units").select("unit_number, properties(name)").eq("id", maintenanceReq.unit_id).single(),
-        maintenanceReq.contractor_id
-          ? service.from("contractors").select("first_name, last_name, company_name").eq("id", maintenanceReq.contractor_id).single()
-          : Promise.resolve({ data: null }),
-        fetchOrgSettings(orgId),
-      ])
+    const [tenantRes, unitRes, contractorRes, orgSettings] = await Promise.all([
+      service.from("tenant_view").select("first_name, last_name, email, phone").eq("id", req.tenant_id).single(),
+      service.from("units").select("unit_number, properties(name)").eq("id", req.unit_id).single(),
+      req.contractor_id
+        ? service.from("contractors").select("first_name, last_name, company_name").eq("id", req.contractor_id).single()
+        : Promise.resolve({ data: null }),
+      fetchOrgSettings(orgId),
+    ])
 
-      const tenant = tenantRes.data
-      const unit = unitRes.data as { unit_number: string; properties: { name: string } } | null
-      const contractor = contractorRes.data
+    const tenant = tenantRes.data
+    if (!tenant?.email) return
 
-      if (tenant?.email) {
-        const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
-        const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
-        const contractorName = contractor
-          ? (contractor.company_name as string | null) ||
-            [contractor.first_name, contractor.last_name].filter(Boolean).join(" ") ||
-            undefined
-          : undefined
+    const unit = unitRes.data as { unit_number: string; properties: { name: string } } | null
+    const contractor = contractorRes.data
+    const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
+    const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
+    const contractorName = contractor
+      ? (contractor.company_name as string | null) ||
+        [contractor.first_name, contractor.last_name].filter(Boolean).join(" ") ||
+        undefined
+      : undefined
+    const scheduledDateDisplay = new Date(body.scheduledDate).toLocaleDateString("en-ZA", {
+      day: "numeric", month: "long", year: "numeric",
+    })
 
-        const scheduledDateDisplay = new Date(body.scheduledDate).toLocaleDateString("en-ZA", {
-          day: "numeric", month: "long", year: "numeric",
-        })
-
-        await routeAndSend({
-          orgId,
-          tenantId: maintenanceReq.tenant_id as string,
-          templateKey: "maintenance.scheduled",
-          to: { email: tenant.email, phone: (tenant.phone as string | null) ?? undefined, name: tenantName },
-          subject: `Maintenance appointment — ${scheduledDateDisplay}`,
-          emailElement: React.createElement(MaintenanceScheduledEmail, {
-            branding: buildBranding(orgSettings),
-            tenantName,
-            propertyLabel,
-            requestTitle: maintenanceReq.title as string,
-            scheduledDate: scheduledDateDisplay,
-            scheduledTimeFrom: body.scheduledTimeFrom,
-            scheduledTimeTo: body.scheduledTimeTo,
-            contractorName,
-            senderName: orgSettings?.name ?? "Pleks",
-          }),
-          entityType: "maintenance_request",
-          entityId: requestId,
-          triggeredBy: user.id,
-          triggerEventType: "maintenance_state",
-          triggerEventId: requestId,
-          toneVariant: "n/a",
-        })
-      }
-    }
+    await routeAndSend({
+      orgId,
+      tenantId: req.tenant_id as string,
+      templateKey: "maintenance.scheduled",
+      to: { email: tenant.email, phone: (tenant.phone as string | null) ?? undefined, name: tenantName },
+      subject: `Maintenance appointment — ${scheduledDateDisplay}`,
+      emailElement: React.createElement(MaintenanceScheduledEmail, {
+        branding: buildBranding(orgSettings),
+        tenantName, propertyLabel,
+        requestTitle: req.title as string,
+        scheduledDate: scheduledDateDisplay,
+        scheduledTimeFrom: body.scheduledTimeFrom,
+        scheduledTimeTo: body.scheduledTimeTo,
+        contractorName,
+        senderName: orgSettings?.name ?? "Pleks",
+      }),
+      entityType: "maintenance_request",
+      entityId: requestId,
+      triggeredBy: userId,
+      triggerEventType: "maintenance_state",
+      triggerEventId: requestId,
+      toneVariant: "n/a",
+    })
   } catch {
-    // Comm non-fatal
+    // non-fatal
   }
-
-  return NextResponse.json({ ok: true })
 }

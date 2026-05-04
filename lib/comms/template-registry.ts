@@ -87,26 +87,32 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
   // ── Maintenance ──────────────────────────────────────────────────
   "maintenance.logged_tenant": {
     key: "maintenance.logged_tenant", channel: "both", category: "maintenance", is_mandatory: false,
+    tone_profile: "relational", allowed_channels: ["whatsapp", "email", "sms"],
     description: "Tenant: request logged, reference number",
   },
   "maintenance.logged_agent": {
     key: "maintenance.logged_agent", channel: "email", category: "maintenance", is_mandatory: false,
+    tone_profile: "transactional", allowed_channels: ["email"],
     description: "Agent notified of new maintenance request",
   },
   "maintenance.assigned": {
     key: "maintenance.assigned", channel: "both", category: "maintenance", is_mandatory: false,
-    description: "Contractor assigned to request",
+    tone_profile: "relational", allowed_channels: ["whatsapp", "email", "sms"],
+    description: "Contractor assigned — tenant notified (M2)",
   },
   "maintenance.scheduled": {
     key: "maintenance.scheduled", channel: "both", category: "maintenance", is_mandatory: false,
-    description: "Appointment date/time confirmed",
+    tone_profile: "relational", allowed_channels: ["whatsapp", "email", "sms"],
+    description: "Appointment confirmed — tenant notified with date/time (M3)",
   },
   "maintenance.completed": {
     key: "maintenance.completed", channel: "both", category: "maintenance", is_mandatory: false,
-    description: "Work marked complete by contractor",
+    tone_profile: "relational", allowed_channels: ["whatsapp", "email", "sms"],
+    description: "Work marked complete — tenant notified (M4)",
   },
   "maintenance.landlord_approval": {
     key: "maintenance.landlord_approval", channel: "email", category: "maintenance", is_mandatory: false,
+    tone_profile: "transactional", allowed_channels: ["email"],
     description: "Cost exceeds threshold — landlord approval required",
   },
   "maintenance.work_order": {
