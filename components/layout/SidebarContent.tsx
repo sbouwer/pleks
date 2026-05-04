@@ -4,11 +4,11 @@
  * components/layout/SidebarContent.tsx — reusable sidebar nav renderer used by agent and tenant layouts
  *
  * Data:   NavGroup[] passed from parent layout (no DB access)
- * Notes:  isActive uses exact match for Overview-style index routes (href === activePath)
- *         and startsWith(href + "/") for everything else — prevents prefix false-positives.
+ * Notes:  isActive auto-detects index routes (any href that is a prefix of a sibling href)
+ *         and forces exact matching for those — prevents Finance Overview staying lit on sub-routes.
  */
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -51,8 +51,18 @@ export function SidebarContent({
 
   const activePath = optimisticPath ?? pathname
 
+  // Hrefs that share a prefix with a sibling (e.g. /finance when /finance/deposits also exists)
+  // must use exact matching so the index item doesn't stay lit on sub-routes.
+  const exactHrefs = useMemo(() => {
+    const allHrefs = groups.flatMap(g => g.items.map(i => i.href))
+    return new Set(
+      allHrefs.filter(href => allHrefs.some(other => other !== href && other.startsWith(href + "/")))
+    )
+  }, [groups])
+
   function isActive(href: string) {
     if (href === homeHref) return activePath === homeHref
+    if (exactHrefs.has(href)) return activePath === href
     return activePath === href || activePath.startsWith(href + "/")
   }
 
