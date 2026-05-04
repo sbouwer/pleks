@@ -1,23 +1,12 @@
 "use client"
 
 /**
- * components/shared/ConfirmDialog.tsx — FILL: one-line purpose
+ * components/shared/ConfirmDialog.tsx — generic confirm/cancel modal used across the app
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Uses Modal (not Dialog) to avoid dark-theme portal leak. Pass variant="destructive"
+ *         for irreversible actions — confirm button turns red.
  */
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
+import { ActionButton, Modal } from "@/components/ui/actions"
 
 interface ConfirmDialogProps {
   open: boolean
@@ -41,27 +30,28 @@ export function ConfirmDialog({
   variant = "default",
   onConfirm,
   loading,
-}: ConfirmDialogProps) {
+}: Readonly<ConfirmDialogProps>) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+    <Modal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title={title}
+      actions={
+        <>
+          <ActionButton tone="secondary" onClick={() => onOpenChange(false)} disabled={loading}>
             {cancelLabel}
-          </Button>
-          <Button
-            variant={variant === "destructive" ? "destructive" : "default"}
+          </ActionButton>
+          <ActionButton
+            tone={variant === "destructive" ? "destructive" : "primary"}
             onClick={onConfirm}
             disabled={loading}
           >
             {loading ? "Loading..." : confirmLabel}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </ActionButton>
+        </>
+      }
+    >
+      <p className="text-sm">{description}</p>
+    </Modal>
   )
 }

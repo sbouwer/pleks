@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * components/maintenance/dialogs/MaintenanceEditDialog.tsx — centered dialog to edit a maintenance request's fields
+ * components/maintenance/dialogs/MaintenanceEditDialog.tsx — edit dialog for maintenance request fields
  *
  * Data:   current field values passed as props; calls updateMaintenanceRequest on save
  * Notes:  Triggered from DetailsCard. Refreshes page via router.refresh() on success.
@@ -11,18 +11,10 @@ import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Pencil } from "lucide-react"
 import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
+import { ActionButton, EditButton, Modal } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-} from "@/components/ui/dialog"
 import {
   Select,
   SelectContent,
@@ -79,7 +71,7 @@ export function MaintenanceEditDialog({ requestId, current }: Readonly<Props>) {
   const [contactName, setContactName]               = useState(current.contact_name ?? "")
   const [contactPhone, setContactPhone]             = useState(current.contact_phone ?? "")
   const [estimatedCost, setEstimatedCost]           = useState(
-    current.estimated_cost_cents != null ? String(current.estimated_cost_cents / 100) : ""
+    current.estimated_cost_cents == null ? "" : String(current.estimated_cost_cents / 100)
   )
   const [scheduledDate, setScheduledDate]   = useState(current.scheduled_date ?? "")
   const [scheduledFrom, setScheduledFrom]   = useState(current.scheduled_time_from ?? "")
@@ -89,9 +81,9 @@ export function MaintenanceEditDialog({ requestId, current }: Readonly<Props>) {
     if (!title.trim()) { toast.error("Title is required"); return }
 
     const costCents = estimatedCost.trim()
-      ? Math.round(parseFloat(estimatedCost) * 100)
+      ? Math.round(Number.parseFloat(estimatedCost) * 100)
       : null
-    if (estimatedCost.trim() && isNaN(costCents!)) {
+    if (estimatedCost.trim() && Number.isNaN(costCents)) {
       toast.error("Invalid cost amount"); return
     }
 
@@ -122,18 +114,27 @@ export function MaintenanceEditDialog({ requestId, current }: Readonly<Props>) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1" />}>
-        <Pencil className="h-3 w-3" />
-        Edit
-      </DialogTrigger>
+    <>
+      <EditButton label="Edit request" onClick={() => setOpen(true)} />
 
-      <DialogContent className="sm:max-w-lg max-h-[85dvh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Edit request</DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-4">
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Edit request"
+        icon={<Pencil className="h-5 w-5" />}
+        className="!max-w-lg"
+        actions={
+          <>
+            <ActionButton tone="secondary" onClick={() => setOpen(false)} disabled={pending}>
+              Cancel
+            </ActionButton>
+            <ActionButton tone="primary" onClick={handleSave} disabled={pending || !title.trim()}>
+              {pending ? "Saving…" : "Save changes"}
+            </ActionButton>
+          </>
+        }
+      >
+        <div className="space-y-4 max-h-[65vh] overflow-y-auto">
           <div className="space-y-1.5">
             <Label htmlFor="mr-title">Title</Label>
             <Input id="mr-title" value={title} onChange={e => setTitle(e.target.value)} disabled={pending} />
@@ -215,16 +216,7 @@ export function MaintenanceEditDialog({ requestId, current }: Readonly<Props>) {
             </div>
           </div>
         </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)} disabled={pending}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={pending || !title.trim()}>
-            {pending ? "Saving…" : "Save changes"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </Modal>
+    </>
   )
 }

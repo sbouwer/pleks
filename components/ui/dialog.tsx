@@ -1,13 +1,11 @@
 "use client"
 
 /**
- * components/ui/dialog.tsx — FILL: one-line purpose
+ * components/ui/dialog.tsx — base-ui Dialog primitives with Pleks theme scoping
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  base-ui Portal renders into document.body which inherits :root (dark) tokens.
+ *         DialogPortal wraps children in a display:contents .pleks-portal div so
+ *         portaled modals inherit light-theme CSS variables instead of the dark :root.
  */
 import * as React from "react"
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
@@ -24,8 +22,16 @@ function DialogTrigger({ ...props }: DialogPrimitive.Trigger.Props) {
   return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />
 }
 
-function DialogPortal({ ...props }: DialogPrimitive.Portal.Props) {
-  return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />
+function DialogPortal({ children, ...props }: Readonly<DialogPrimitive.Portal.Props>) {
+  return (
+    <DialogPrimitive.Portal data-slot="dialog-portal" {...props}>
+      {/* display:contents preserves layout but scopes CSS custom properties to .pleks-portal
+          so portaled content inherits light-theme tokens instead of dark :root defaults */}
+      <div className="pleks-portal" style={{ display: "contents" }}>
+        {children}
+      </div>
+    </DialogPrimitive.Portal>
+  )
 }
 
 function DialogClose({ ...props }: DialogPrimitive.Close.Props) {

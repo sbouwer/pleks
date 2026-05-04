@@ -11,7 +11,7 @@ import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { UserCheck } from "lucide-react"
 import { toast } from "sonner"
-import { ActionButton } from "@/components/ui/actions"
+import { ActionButton, Modal } from "@/components/ui/actions"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -21,13 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { changeContractor } from "@/lib/actions/maintenance"
 
 interface Contractor {
@@ -50,6 +43,12 @@ export function ChangeContractorDialog({ requestId, currentContractorId, contrac
 
   const available = contractors.filter(c => c.id !== currentContractorId)
 
+  function handleClose() {
+    setOpen(false)
+    setNewContractorId("")
+    setReason("")
+  }
+
   function handleSave() {
     if (!newContractorId) { toast.error("Select a contractor"); return }
     if (!reason.trim()) { toast.error("Please provide a reason for reassignment"); return }
@@ -60,9 +59,7 @@ export function ChangeContractorDialog({ requestId, currentContractorId, contrac
         toast.error(result.error)
       } else {
         toast.success("Contractor reassigned")
-        setOpen(false)
-        setNewContractorId("")
-        setReason("")
+        handleClose()
         router.refresh()
       }
     })
@@ -73,19 +70,26 @@ export function ChangeContractorDialog({ requestId, currentContractorId, contrac
       <ActionButton tone="secondary" icon={<UserCheck className="h-3 w-3" />} onClick={() => setOpen(true)}>
         Change
       </ActionButton>
-      <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <div className="flex items-center gap-2 mb-1">
-            <UserCheck className="h-5 w-5 text-brand shrink-0" />
-            <DialogTitle>Change contractor</DialogTitle>
-          </div>
-          <DialogDescription>
+      <Modal
+        open={open}
+        onClose={handleClose}
+        title="Change contractor"
+        icon={<UserCheck className="h-5 w-5" />}
+        actions={
+          <>
+            <ActionButton tone="secondary" onClick={handleClose} disabled={pending}>
+              Cancel
+            </ActionButton>
+            <ActionButton tone="primary" disabled={pending || available.length === 0} onClick={handleSave}>
+              {pending ? "Reassigning…" : "Reassign contractor"}
+            </ActionButton>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground -mt-1">
             If a work order has already been sent, the old contractor&apos;s portal link will be revoked and a new one emailed to the replacement.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4 pt-1">
+          </p>
           <div className="space-y-1.5">
             <Label>New contractor</Label>
             <Select value={newContractorId} onValueChange={val => setNewContractorId(val ?? "")} disabled={pending}>
@@ -101,7 +105,6 @@ export function ChangeContractorDialog({ requestId, currentContractorId, contrac
               </SelectContent>
             </Select>
           </div>
-
           <div className="space-y-1.5">
             <Label htmlFor="reassign-reason">Reason for change</Label>
             <Textarea
@@ -113,18 +116,8 @@ export function ChangeContractorDialog({ requestId, currentContractorId, contrac
               disabled={pending}
             />
           </div>
-
-          <div className="flex gap-2">
-            <ActionButton tone="primary" className="flex-1" disabled={pending || available.length === 0} onClick={handleSave}>
-              {pending ? "Reassigning…" : "Reassign contractor"}
-            </ActionButton>
-            <ActionButton tone="secondary" onClick={() => setOpen(false)} disabled={pending}>
-              Cancel
-            </ActionButton>
-          </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </Modal>
     </>
   )
 }
