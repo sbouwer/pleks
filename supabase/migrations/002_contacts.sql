@@ -773,6 +773,7 @@ SELECT
   t.popia_consent_given,
   t.popia_consent_given_at,
   t.portal_access_enabled,
+  t.portal_invite_sent_at,
   t.blacklisted,
   t.blacklisted_reason,
   c.notes,

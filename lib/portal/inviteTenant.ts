@@ -1,13 +1,12 @@
 "use server"
 
 /**
- * lib/portal/inviteTenant.ts — FILL: one-line purpose
+ * lib/portal/inviteTenant.ts — manual tenant portal invite actions
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   gateway() — agent session required
+ * Data:   tenant_view, tenants, audit_log, tenant_portal_tokens
+ * Notes:  inviteUserByEmail sends Supabase's generic email — for branded email use
+ *         stepSendPortalInvite in activateLeaseCascade (P1, auto-fires on activation).
  */
 
 import { createServiceClient } from "@/lib/supabase/server"

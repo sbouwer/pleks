@@ -29,6 +29,8 @@ const eslintConfig = defineConfig([
     "scripts/**",
     // Claude Code agent worktrees — not production code
     ".claude/**",
+    // Design prototypes and build specs — not production code
+    "brief/**",
   ]),
   {
     rules: {
