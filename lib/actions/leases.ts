@@ -469,6 +469,7 @@ export async function sendForSigning(leaseId: string) {
     .single()
 
   if (!lease) return { error: "Lease not found" }
+  if (lease.status !== "draft") return { error: "Lease has already been sent for signing" }
   if (!lease.generated_doc_path) return { error: "Generate the lease document first" }
 
   await db.from("leases").update({ status: "pending_signing", sent_for_signing_at: new Date().toISOString() }).eq("id", leaseId)

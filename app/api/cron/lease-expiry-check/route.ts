@@ -92,19 +92,20 @@ async function handleExpiryReminder(supabase: Supabase, lease: ExpiryLease): Pro
     const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
     const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
     const endDateDisplay = new Date(lease.end_date).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+    const daysRemaining = Math.ceil((new Date(lease.end_date).getTime() - Date.now()) / 86_400_000)
 
     await routeAndSend({
       orgId: lease.org_id,
       tenantId: lease.tenant_id,
       templateKey: "lease.expiry_reminder",
       to: { email: tenant.email, phone: tenant.phone ?? undefined, name: tenantName },
-      subject: `Your lease expires in 30 days - ${propertyLabel}`,
+      subject: `Your lease expires in ${daysRemaining} days - ${propertyLabel}`,
       emailElement: React.createElement(LeaseExpiryReminderEmail, {
         branding: buildBranding(orgSettings),
         tenantName,
         propertyLabel,
         leaseEndDate: endDateDisplay,
-        daysRemaining: 30,
+        daysRemaining,
         senderName: orgSettings?.name ?? "Pleks",
       }),
       entityType: "lease",
@@ -120,25 +121,10 @@ async function handleExpiryReminder(supabase: Supabase, lease: ExpiryLease): Pro
 }
 
 async function handleNoticeExpired(supabase: Supabase, lease: NoticeLease, today: string): Promise<void> {
-  await supabase.from("leases").update({ status: "expired" }).eq("id", lease.id)
-  await supabase.from("units").update({ status: "vacant" }).eq("id", lease.unit_id)
-
-  await supabase.from("unit_status_history").insert({
-    unit_id: lease.unit_id,
-    org_id: lease.org_id,
-    from_status: "notice",
-    to_status: "vacant",
-    reason: "Notice period ended",
-  })
-
-  await supabase.from("tenancy_history").update({
-    move_out_date: today,
-    status: "ended",
-  }).eq("lease_id", lease.id).eq("status", "active")
-
-  // L11 — lease.terminated comm to tenant
-  if (!lease.tenant_id) return
-  try {
+  // L11 fires before status flip: once status = expired the lease won't appear in next cron run,
+  // so if queueing also fails the comm would be silently lost.
+  if (lease.tenant_id) {
+    try {
     const [tenantRes, unitRes, orgSettings] = await Promise.all([
       supabase.from("tenant_view").select("first_name, last_name, email, phone").eq("id", lease.tenant_id).single(),
       supabase.from("units").select("unit_number, properties(name)").eq("id", lease.unit_id).single(),
@@ -171,9 +157,26 @@ async function handleNoticeExpired(supabase: Supabase, lease: NoticeLease, today
       triggerEventId: lease.id,
       toneVariant: "n/a",
     })
-  } catch {
-    // Comm failure is non-fatal
+    } catch {
+      // Comm failure is non-fatal
+    }
   }
+
+  await supabase.from("leases").update({ status: "expired" }).eq("id", lease.id)
+  await supabase.from("units").update({ status: "vacant" }).eq("id", lease.unit_id)
+
+  await supabase.from("unit_status_history").insert({
+    unit_id: lease.unit_id,
+    org_id: lease.org_id,
+    from_status: "notice",
+    to_status: "vacant",
+    reason: "Notice period ended",
+  })
+
+  await supabase.from("tenancy_history").update({
+    move_out_date: today,
+    status: "ended",
+  }).eq("lease_id", lease.id).eq("status", "active")
 }
 
 export async function GET(req: Request) {
@@ -211,7 +214,8 @@ export async function GET(req: Request) {
     .select("id, org_id, tenant_id, end_date, unit_id")
     .eq("is_fixed_term", true)
     .eq("status", "active")
-    .eq("end_date", reminderTargetStr)
+    .lte("end_date", reminderTargetStr)
+    .gt("end_date", today)
     .is("expiry_reminder_sent_at", null)
 
   for (const lease of expiringLeases || []) {

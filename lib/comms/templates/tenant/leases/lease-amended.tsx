@@ -1,8 +1,9 @@
 /**
- * lib/comms/templates/tenant/leases/lease-amended.tsx — lease charge added/updated notification (L6)
+ * lib/comms/templates/tenant/leases/lease-amended.tsx — lease charge added/removed notification (L6)
  *
  * Data:   tenant name, property label, change description, amount, org branding
- * Notes:  Fires on lease_charges POST (new charge added to active lease). BUILD_63 Phase 5.
+ * Notes:  Fires on lease_charges POST (charge added) and DELETE (charge removed) for active leases.
+ *         changeType defaults to "added". BUILD_63 Phase 5.
  */
 
 import * as React from "react"
@@ -17,6 +18,7 @@ export interface LeaseAmendedEmailProps {
   chargeAmountDisplay: string
   effectiveDate: string
   senderName: string
+  changeType?: "added" | "removed"
 }
 
 export function LeaseAmendedEmail({
@@ -27,14 +29,16 @@ export function LeaseAmendedEmail({
   chargeAmountDisplay,
   effectiveDate,
   senderName,
+  changeType = "added",
 }: Readonly<LeaseAmendedEmailProps>) {
   const preview = `Your lease for ${propertyLabel} has been updated`
+  const isRemoval = changeType === "removed"
 
   return (
     <EmailLayout preview={preview} branding={branding}>
       <Text style={greet}>Dear {tenantName},</Text>
 
-      <Text style={h1}>Lease update — new charge added</Text>
+      <Text style={h1}>Lease update — {isRemoval ? "charge removed" : "new charge added"}</Text>
 
       <Text style={para}>
         A change has been made to your lease for <strong>{propertyLabel}</strong>. Please review
@@ -45,12 +49,14 @@ export function LeaseAmendedEmail({
         <Text style={sectionHead}>Change Details</Text>
         <Text style={boxRow}><strong>Charge:</strong> {chargeDescription}</Text>
         <Text style={boxRow}><strong>Amount:</strong> {chargeAmountDisplay} per month</Text>
-        <Text style={boxRow}><strong>Effective from:</strong> {effectiveDate}</Text>
+        <Text style={boxRow}><strong>{isRemoval ? "Last effective:" : "Effective from:"}</strong> {effectiveDate}</Text>
       </Section>
 
       <Text style={para}>
-        This charge will be included in your monthly invoice from the effective date. If you have
-        any questions, please contact {branding.orgEmail ?? senderName}.
+        {isRemoval
+          ? `This charge will no longer appear on your monthly invoice after the above date. If you have any questions, please contact ${branding.orgEmail ?? senderName}.`
+          : `This charge will be included in your monthly invoice from the effective date. If you have any questions, please contact ${branding.orgEmail ?? senderName}.`
+        }
       </Text>
 
       <Hr style={{ borderColor: "#e4e4e7", margin: "24px 0" }} />
