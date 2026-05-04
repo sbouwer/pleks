@@ -1,17 +1,21 @@
 "use server"
 
 /**
- * lib/actions/leases.ts — FILL: one-line purpose
+ * lib/actions/leases.ts — server actions for lease lifecycle (create, sign, activate, notice, terminate)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   gateway() — org-scoped, session-required
+ * Data:   leases, tenants, units, properties, lease_charges, audit_log, communication_log
+ * Notes:  BUILD_63 Phase 5: L1 fires in sendForSigning, L10 fires in giveNotice (tenant-only),
+ *         L4+P1 fire in activateLeaseCascade. L11 fires from lease-expiry-check cron.
  */
 import { gateway } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
+import * as React from "react"
+import { routeAndSend } from "@/lib/messaging/router"
+import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
+import { LeaseCreatedEmail } from "@/lib/comms/templates/tenant/leases/lease-created"
+import { LeaseNoticeAcknowledgedEmail } from "@/lib/comms/templates/tenant/leases/lease-notice-acknowledged"
 
 type LeaseFormFields = {
   unitId: string
@@ -460,14 +464,14 @@ export async function sendForSigning(leaseId: string) {
 
   const { data: lease } = await db
     .from("leases")
-    .select("status, generated_doc_path")
+    .select("status, generated_doc_path, tenant_id, rent_amount_cents, start_date, unit_id")
     .eq("id", leaseId)
     .single()
 
   if (!lease) return { error: "Lease not found" }
   if (!lease.generated_doc_path) return { error: "Generate the lease document first" }
 
-  await db.from("leases").update({ status: "pending_signing" }).eq("id", leaseId)
+  await db.from("leases").update({ status: "pending_signing", sent_for_signing_at: new Date().toISOString() }).eq("id", leaseId)
 
   await db.from("lease_lifecycle_events").insert({
     org_id: orgId,
@@ -477,6 +481,48 @@ export async function sendForSigning(leaseId: string) {
     triggered_by: "agent",
     triggered_by_user: userId,
   })
+
+  // L1 — send lease.created comm to tenant
+  if (lease.tenant_id) {
+    try {
+      const [tenantRes, unitRes, orgSettings] = await Promise.all([
+        db.from("tenant_view").select("first_name, last_name, email, phone").eq("id", lease.tenant_id).single(),
+        db.from("units").select("unit_number, properties(name)").eq("id", lease.unit_id).single(),
+        fetchOrgSettings(orgId),
+      ])
+      const tenant = tenantRes.data
+      const unit = unitRes.data as unknown as { unit_number: string; properties: { name: string } } | null
+      if (tenant?.email) {
+        const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
+        const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
+        const rentDisplay = "R " + ((lease.rent_amount_cents as number) / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
+        const leaseStartDisplay = new Date(lease.start_date as string).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+        await routeAndSend({
+          orgId,
+          tenantId: lease.tenant_id as string,
+          templateKey: "lease.created",
+          to: { email: tenant.email, phone: tenant.phone ?? undefined, name: tenantName },
+          subject: `Your lease is ready to sign — ${propertyLabel}`,
+          emailElement: React.createElement(LeaseCreatedEmail, {
+            branding: buildBranding(orgSettings),
+            tenantName,
+            propertyLabel,
+            rentDisplay,
+            leaseStartDate: leaseStartDisplay,
+            senderName: orgSettings?.name ?? "Pleks",
+          }),
+          entityType: "lease",
+          entityId: leaseId,
+          triggeredBy: userId,
+          triggerEventType: "lease_state",
+          triggerEventId: leaseId,
+          toneVariant: "n/a",
+        })
+      }
+    } catch {
+      // Comm failure is non-fatal
+    }
+  }
 
   revalidatePath(`/leases/${leaseId}`)
   return { success: true }
@@ -520,6 +566,48 @@ export async function giveNotice(leaseId: string, givenBy: "tenant" | "landlord"
     changed_by: userId,
     new_values: { status: "notice", notice_given_by: givenBy, notice_given_date: noticeDate.toISOString() },
   })
+
+  // L10 — send notice acknowledgement comm to tenant (only when tenant gives notice)
+  if (givenBy === "tenant" && lease.tenant_id) {
+    try {
+      const [tenantRes, unitRes, orgSettings] = await Promise.all([
+        db.from("tenant_view").select("first_name, last_name, email, phone").eq("id", lease.tenant_id as string).single(),
+        db.from("units").select("unit_number, properties(name)").eq("id", lease.unit_id as string).single(),
+        fetchOrgSettings(lease.org_id as string),
+      ])
+      const tenant = tenantRes.data
+      const unit = unitRes.data as unknown as { unit_number: string; properties: { name: string } } | null
+      if (tenant?.email) {
+        const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
+        const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
+        const noticeDateDisplay = noticeDate.toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+        const vacateDateDisplay = noticePeriodEnd.toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+        await routeAndSend({
+          orgId: lease.org_id as string,
+          tenantId: lease.tenant_id as string,
+          templateKey: "lease.notice_acknowledged",
+          to: { email: tenant.email, phone: tenant.phone ?? undefined, name: tenantName },
+          subject: `Notice received — ${propertyLabel}`,
+          emailElement: React.createElement(LeaseNoticeAcknowledgedEmail, {
+            branding: buildBranding(orgSettings),
+            tenantName,
+            propertyLabel,
+            noticeDate: noticeDateDisplay,
+            vacateDate: vacateDateDisplay,
+            senderName: orgSettings?.name ?? "Pleks",
+          }),
+          entityType: "lease",
+          entityId: leaseId,
+          triggeredBy: userId,
+          triggerEventType: "lease_state",
+          triggerEventId: leaseId,
+          toneVariant: "n/a",
+        })
+      }
+    } catch {
+      // Comm failure is non-fatal
+    }
+  }
 
   revalidatePath(`/leases/${leaseId}`)
   revalidatePath("/leases")

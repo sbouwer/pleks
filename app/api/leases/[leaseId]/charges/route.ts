@@ -1,14 +1,17 @@
 /**
- * app/api/leases/[leaseId]/charges/route.ts — FILL: one-line purpose
+ * app/api/leases/[leaseId]/charges/route.ts — CRUD for lease additional charges
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /api/leases/[leaseId]/charges
+ * Auth:   Supabase auth.getUser() + user_orgs membership check
+ * Data:   lease_charges, audit_log, communication_log (L6 on POST)
+ * Notes:  POST fires lease.amended comm (L6) to tenant when a charge is added to an active lease.
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
+import * as React from "react"
+import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
+import { routeAndSend } from "@/lib/messaging/router"
+import { LeaseAmendedEmail } from "@/lib/comms/templates/tenant/leases/lease-amended"
 
 export async function GET(
   _req: NextRequest,
@@ -85,6 +88,54 @@ export async function POST(
     changed_by: user.id,
     new_values: { description, charge_type, amount_cents, lease_id: leaseId },
   })
+
+  // L6 — lease.amended comm: only fire when the lease is active and tenant has email
+  try {
+    const { data: lease } = await supabase
+      .from("leases")
+      .select("status, tenant_id, unit_id")
+      .eq("id", leaseId)
+      .single()
+    if (lease?.status === "active" && lease.tenant_id) {
+      const [tenantRes, unitRes, orgSettings] = await Promise.all([
+        supabase.from("tenant_view").select("first_name, last_name, email, phone").eq("id", lease.tenant_id).single(),
+        supabase.from("units").select("unit_number, properties(name)").eq("id", lease.unit_id).single(),
+        fetchOrgSettings(membership.org_id),
+      ])
+      const tenant = tenantRes.data
+      const unit = unitRes.data as unknown as { unit_number: string; properties: { name: string } } | null
+      if (tenant?.email) {
+        const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
+        const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
+        const chargeAmountDisplay = "R " + (Number(amount_cents) / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
+        const effectiveDateDisplay = new Date(start_date).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+        await routeAndSend({
+          orgId: membership.org_id,
+          tenantId: lease.tenant_id as string,
+          templateKey: "lease.amended",
+          to: { email: tenant.email, phone: tenant.phone ?? undefined, name: tenantName },
+          subject: `Lease update — new charge added — ${propertyLabel}`,
+          emailElement: React.createElement(LeaseAmendedEmail, {
+            branding: buildBranding(orgSettings),
+            tenantName,
+            propertyLabel,
+            chargeDescription: description.trim(),
+            chargeAmountDisplay,
+            effectiveDate: effectiveDateDisplay,
+            senderName: orgSettings?.name ?? "Pleks",
+          }),
+          entityType: "lease",
+          entityId: leaseId,
+          triggeredBy: user.id,
+          triggerEventType: "lease_state",
+          triggerEventId: leaseId,
+          toneVariant: "n/a",
+        })
+      }
+    }
+  } catch {
+    // Comm failure is non-fatal
+  }
 
   return NextResponse.json({ ok: true, id: data?.id })
 }

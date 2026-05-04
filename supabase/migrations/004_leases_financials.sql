@@ -1240,3 +1240,26 @@ COMMENT ON COLUMN trust_transactions.payment_method IS
   'Payment instrument used for this ledger entry. Set on rent_received and '
   'expense_paid transactions; null for adjustments and internal transfers. '
   'CHECK constraint mirrors payments.payment_method enum.';
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §N  BUILD_63 Phase 5: LEASE LIFECYCLE COMMS IDEMPOTENCY COLUMNS (2026-05-04)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Adds per-lease timestamp guards so cron jobs can fire each lifecycle comm
+-- exactly once without querying communication_log. Also adds sent_for_signing_at
+-- so L2 sign-reminder cron has a stable anchor date independent of updated_at.
+
+ALTER TABLE leases
+  ADD COLUMN IF NOT EXISTS sent_for_signing_at      timestamptz,
+  ADD COLUMN IF NOT EXISTS sign_reminder_sent_at    timestamptz,
+  ADD COLUMN IF NOT EXISTS expiry_reminder_sent_at  timestamptz,
+  ADD COLUMN IF NOT EXISTS escalation_notice_sent_at timestamptz;
+
+COMMENT ON COLUMN leases.sent_for_signing_at IS
+  'Set when status changes to pending_signing (sendForSigning action). '
+  'Anchor date for the L2 sign-reminder cron (T+3).';
+COMMENT ON COLUMN leases.sign_reminder_sent_at IS
+  'Set after L2 sign-reminder sent. NULL = reminder not yet sent.';
+COMMENT ON COLUMN leases.expiry_reminder_sent_at IS
+  'Set after L9 expiry-reminder sent (T-30). NULL = reminder not yet sent.';
+COMMENT ON COLUMN leases.escalation_notice_sent_at IS
+  'Set after L7 escalation-notice sent (T-30 before escalation_review_date). NULL = not yet sent.';

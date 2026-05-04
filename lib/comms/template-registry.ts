@@ -145,19 +145,23 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
   // ── Leases ───────────────────────────────────────────────────────
   "lease.created": {
     key: "lease.created", channel: "email", category: "leases", is_mandatory: false,
+    tone_profile: "transactional", allowed_channels: ["email"],
     description: "Lease created and sent to tenant for signing",
   },
   "lease.sign_reminder": {
     key: "lease.sign_reminder", channel: "email", category: "leases", is_mandatory: false,
+    tone_profile: "relational", allowed_channels: ["whatsapp", "email"],
     description: "Unsigned lease reminder after 3 days (cron)",
   },
   "lease.signed": {
     key: "lease.signed", channel: "email", category: "leases", is_mandatory: false,
+    tone_profile: "transactional", allowed_channels: ["email"],
     description: "All parties have signed — lease confirmed",
   },
   "lease.activated": {
     key: "lease.activated", channel: "email", category: "leases", is_mandatory: false,
-    description: "Lease is now active",
+    tone_profile: "transactional", allowed_channels: ["email"],
+    description: "Lease is now active — welcome comm with portal link",
   },
   "lease.renewal_notice": {
     key: "lease.renewal_notice", channel: "email", category: "leases", is_mandatory: true,
@@ -238,7 +242,8 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
   // ── Portal ────────────────────────────────────────────────────────
   "portal.tenant_invite": {
     key: "portal.tenant_invite", channel: "email", category: "portal", is_mandatory: false,
-    description: "Magic-link email inviting tenant to activate their portal account",
+    tone_profile: "relational", allowed_channels: ["email"],
+    description: "Magic-link email inviting tenant to activate their portal account — auto-fires on lease activation (P1)",
   },
   "portal.tenant_link": {
     key: "portal.tenant_link", channel: "sms", category: "portal", is_mandatory: false,

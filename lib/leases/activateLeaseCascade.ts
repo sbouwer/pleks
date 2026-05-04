@@ -10,12 +10,14 @@
  */
 import * as React from "react"
 import { SupabaseClient } from "@supabase/supabase-js"
+import { createServiceClient } from "@/lib/supabase/server"
 import { seedInspectionRooms } from "@/lib/inspections/seedRooms"
 import { getOrgCapabilities, type OrgCapabilities } from "@/lib/org/capabilities"
 import type { OrgType } from "@/lib/constants"
 import { routeAndSend } from "@/lib/messaging/router"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { DepositReceivedEmail } from "@/lib/comms/templates/tenant/deposits/deposit-received"
+import { LeaseActivatedEmail } from "@/lib/comms/templates/tenant/leases/lease-activated"
 
 export interface CascadeStep {
   step: string
@@ -251,6 +253,101 @@ async function stepScheduleMoveIn(
   }
 }
 
+async function stepSendLeaseActivated(
+  supabase: SupabaseClient,
+  lease: {
+    tenant_id: string; rent_amount_cents: number; start_date: string
+    end_date: string | null; is_fixed_term: boolean; unit_id: string
+  },
+  leaseId: string,
+  orgId: string,
+): Promise<CascadeStep> {
+  try {
+    const [tenantRes, unitRes, orgSettings] = await Promise.all([
+      supabase.from("tenant_view").select("first_name, last_name, email, phone").eq("id", lease.tenant_id).single(),
+      supabase.from("units").select("unit_number, properties(name)").eq("id", lease.unit_id).single(),
+      fetchOrgSettings(orgId),
+    ])
+    const tenant = tenantRes.data
+    const unit = unitRes.data as unknown as { unit_number: string; properties: { name: string } } | null
+    if (!tenant?.email) return { step: "Send lease.activated comm", status: "skipped", detail: "No tenant email" }
+
+    const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
+    const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
+    const rentDisplay = "R " + (lease.rent_amount_cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
+    const fmt = (d: string) => new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+
+    await routeAndSend({
+      orgId,
+      tenantId: lease.tenant_id,
+      templateKey: "lease.activated",
+      to: { email: tenant.email, phone: tenant.phone ?? undefined, name: tenantName },
+      subject: `Your lease is now active — ${propertyLabel}`,
+      emailElement: React.createElement(LeaseActivatedEmail, {
+        branding: buildBranding(orgSettings),
+        tenantName,
+        propertyLabel,
+        rentDisplay,
+        leaseStartDate: fmt(lease.start_date),
+        leaseEndDate: lease.end_date ? fmt(lease.end_date) : undefined,
+        isFixedTerm: lease.is_fixed_term,
+        portalUrl: `${process.env.NEXT_PUBLIC_APP_URL}/tenant`,
+        senderName: orgSettings?.name ?? "Pleks",
+      }),
+      entityType: "lease",
+      entityId: leaseId,
+      triggerEventType: "lease_activation",
+      triggerEventId: leaseId,
+      toneVariant: "n/a",
+    })
+    return { step: "Send lease.activated comm", status: "success" }
+  } catch (e) {
+    return { step: "Send lease.activated comm", status: "failed", detail: String(e) }
+  }
+}
+
+async function stepSendPortalInvite(
+  supabase: SupabaseClient,
+  lease: { tenant_id: string },
+  orgId: string,
+): Promise<CascadeStep> {
+  try {
+    const { data: tenant } = await supabase
+      .from("tenant_view")
+      .select("first_name, last_name, company_name, email, portal_invite_sent_at")
+      .eq("id", lease.tenant_id)
+      .single()
+
+    // Skip if already invited or no email
+    if (!tenant?.email) return { step: "Portal auto-invite (P1)", status: "skipped", detail: "No tenant email" }
+    if (tenant.portal_invite_sent_at) return { step: "Portal auto-invite (P1)", status: "skipped", detail: "Already invited" }
+
+    const displayName = (tenant.company_name as string | null)
+      || [tenant.first_name, tenant.last_name].filter(Boolean).join(" ")
+      || "Tenant"
+
+    // Use service client for auth admin operations
+    const service = await createServiceClient()
+    const { error: inviteError } = await service.auth.admin.inviteUserByEmail(
+      tenant.email as string,
+      {
+        data: { role: "tenant", tenant_id: lease.tenant_id, org_id: orgId, full_name: displayName },
+        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/tenant`,
+      }
+    )
+    if (inviteError) return { step: "Portal auto-invite (P1)", status: "failed", detail: inviteError.message }
+
+    await supabase
+      .from("tenants")
+      .update({ portal_invite_sent_at: new Date().toISOString() })
+      .eq("id", lease.tenant_id)
+
+    return { step: "Portal auto-invite (P1)", status: "success" }
+  } catch (e) {
+    return { step: "Portal auto-invite (P1)", status: "failed", detail: String(e) }
+  }
+}
+
 async function stepLogLifecycleEvents(
   supabase: SupabaseClient,
   leaseId: string,
@@ -331,6 +428,9 @@ export async function activateLeaseCascade(
     await stepScheduleMoveIn(supabase, lease, leaseId, orgId),
     await stepLogLifecycleEvents(supabase, leaseId, orgId, triggeredBy, userId),
     await stepAuditLog(supabase, leaseId, orgId, triggeredBy, userId),
+    // BUILD_63 Phase 5: L4 + P1
+    await stepSendLeaseActivated(supabase, lease, leaseId, orgId),
+    await stepSendPortalInvite(supabase, lease, orgId),
   ]
 
   return { leaseId, status: "active", steps, capabilities }
