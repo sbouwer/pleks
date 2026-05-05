@@ -7,18 +7,14 @@
  * Notes: Used on /paia-manual so visitors can self-serve a PDF without
  *        requiring the Information Officer to send one manually.
  */
+import { ActionButton } from "@/components/ui/actions/Button"
 
 interface Props { label?: string }
 
 export function PrintButton({ label = "Download PDF" }: Props) {
   return (
-    <button
-      type="button"
-      onClick={() => window.print()}
-      className="act-pill"
-      style={{ cursor: "pointer", border: "none", background: "none", padding: 0, font: "inherit" }}
-    >
+    <ActionButton tone="secondary" onClick={() => globalThis.print()}>
       {label}
-    </button>
+    </ActionButton>
   )
 }
