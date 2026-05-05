@@ -34,7 +34,7 @@ const LEGAL_DOCS = [
   { href: "/credit-check-policy", label: "Credit check policy", version: "v1.3" },
   { href: "/paia-manual",         label: "PAIA manual",         version: "v1.1" },
   { href: "/popia-register",      label: "POPIA register",      version: "v2026.9" },
-  { href: "/privacy",             label: "Privacy policy",      version: "v3.3" },
+  { href: "/privacy",             label: "Privacy policy",      version: "v4.1" },
   { href: "/terms",               label: "Terms of service",    version: "v3.1" },
 ]
 
