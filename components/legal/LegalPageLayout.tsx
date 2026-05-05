@@ -30,7 +30,7 @@ interface Props {
 }
 
 const LEGAL_DOCS = [
-  { href: "/privacy",             label: "Privacy policy",      version: "v3.2" },
+  { href: "/privacy",             label: "Privacy policy",      version: "v3.3" },
   { href: "/terms",               label: "Terms of service",    version: "v2.9" },
   { href: "/cookie-policy",       label: "Cookie policy",       version: "v1.0" },
   { href: "/credit-check-policy", label: "Credit check policy", version: "v1.2" },

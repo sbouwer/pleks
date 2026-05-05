@@ -26,19 +26,19 @@ const SECTIONS = [
 export default function PrivacyPolicyPage() {
   return (
     <LegalPageLayout
-      eyebrowParts={["POPIA · S22 · NOTICE", "plain language", "v3.2"]}
+      eyebrowParts={["POPIA · S22 · NOTICE", "plain language", "v3.3"]}
       titleBefore="Privacy"
       titleHighlight="policy"
       subtitle="How Pleks collects, uses, stores and shares the personal information of agencies, landlords, tenants and rental applicants — written so a person can read it without a lawyer in the room."
       kicker={[
-        { label: "Last reviewed", value: "2026 · 04 · 01", mono: true },
+        { label: "Last reviewed", value: "2026 · 05 · 05", mono: true },
         { label: "In force from",  value: "2026 · 05 · 05", mono: true },
         { label: "Jurisdiction",   value: "Republic of South Africa" },
         { label: "Acts",           value: "POPIA · PAIA · RHA" },
       ]}
       sections={SECTIONS}
       hasSummary
-      endLabel="END · PRIVACY POLICY · v3.2"
+      endLabel="END · PRIVACY POLICY · v3.3"
     >
       {/* Plain-language summary */}
       <div className="summary-card" id="summary">
@@ -67,6 +67,10 @@ export default function PrivacyPolicyPage() {
         <p>
           In limited circumstances where Pleks determines the purpose of processing — such as platform security, billing, and compliance — Pleks acts as a <strong>Responsible Party</strong>.
         </p>
+        <p>
+          Where Pleks acts as Operator, it processes personal information only on the documented instructions of the agency (the Responsible Party), implements appropriate security measures, and will notify the agency without undue delay of any personal information breach that may affect their data subjects. These obligations are given legal force through the data processing provisions in Pleks&rsquo;s{" "}
+          <a href="/terms">Terms of Service</a>.
+        </p>
         <div className="officer-card">
           <span className="l">Information<br />officer</span>
           <span className="v">
@@ -75,8 +79,10 @@ export default function PrivacyPolicyPage() {
           </span>
         </div>
         <p>
-          Our registered office address is available on request and on the PAIA manual. If you act on behalf of a tenant or applicant,
-          references to &ldquo;you&rdquo; in this policy include the data subject whose information you are submitting.
+          Our registered office address and the Pleks PAIA manual — which sets out how to submit formal information-access requests — are
+          available on request. Under the Promotion of Access to Information Act <span className="act-pill">PAIA</span>, you have the
+          right to request access to records held by Pleks; the PAIA manual describes the procedure. If you act on behalf of a tenant
+          or applicant, references to &ldquo;you&rdquo; in this policy include the data subject whose information you are submitting.
         </p>
       </section>
 
@@ -87,7 +93,7 @@ export default function PrivacyPolicyPage() {
         <p>Depending on how you interact with Pleks — as an agency, landlord, tenant or applicant — we may collect the following categories of personal information:</p>
         <ul className="legal-list">
           <li><strong>Contact details.</strong> Full name, email address, phone number, physical address.</li>
-          <li><strong>Identity.</strong> South African ID or passport number, used for verification under FICA.</li>
+          <li><strong>Identity.</strong> South African ID or passport number, collected for identity verification purposes. Where an agency uses Pleks to support their own FICA compliance obligations, a copy of the ID document may be stored on their behalf. Pleks does not itself perform FICA verification — it provides a secure storage and workflow tool for agencies that are Accountable Institutions under the Financial Intelligence Centre Act <span className="act-pill">FICA</span>.</li>
           <li><strong>Banking details.</strong> Account, branch and clearing details — for rent collection and owner payouts only.</li>
           <li><strong>Credit information.</strong> Collected only with your explicit written consent under <span className="act-pill">NCA · S69</span>, for the purpose of assessing rental applications.</li>
           <li><strong>Employment &amp; income.</strong> Pay slips, employer references and bank statements supplied during the application process.</li>
@@ -150,6 +156,12 @@ export default function PrivacyPolicyPage() {
             </tr>
           </tbody>
         </table>
+        <p>
+          For sub-processors operating outside South Africa (Supabase, Vercel, DocuSeal), data processing agreements incorporating
+          Standard Contractual Clauses <span className="act-pill">POPIA · S72</span> are in place and copies are held on file. These
+          agreements require each sub-processor to maintain confidentiality, implement appropriate security measures, and process
+          personal information only on Pleks&rsquo;s documented instructions.
+        </p>
       </section>
 
       {/* 05 */}
@@ -213,8 +225,10 @@ export default function PrivacyPolicyPage() {
         <p className="sec-num"><span className="bar" /><span>07 · Security &amp; transfer</span></p>
         <h2 className="sec-h">How <span className="hl">we protect it</span></h2>
         <p>
-          Pleks encrypts personal information in transit (TLS 1.3) and at rest (AES-256). Sensitive fields — ID numbers,
-          banking details, credit reports — are additionally encrypted at the column level. Access is logged, scoped to the smallest
+          Pleks encrypts personal information in transit (TLS 1.3) and at rest (AES-256 via Supabase disk encryption). Sensitive
+          fields — ID numbers, banking details, credit reports — are additionally encrypted at the application level before being
+          written to the database (encrypt-before-INSERT, decrypt-after-SELECT), so that the raw values are never visible to
+          infrastructure operators or in database dumps. Access is logged to an immutable audit trail, scoped to the smallest
           practical role, and reviewed quarterly.
         </p>
         <p>
