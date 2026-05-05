@@ -1,11 +1,8 @@
 /**
- * app/(demo)/layout.tsx — FILL: one-line purpose
+ * app/(demo)/layout.tsx — demo route group guard
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   public; redirects to /dashboard if user already has an org membership
+ * Notes:  Intentionally uses createClient (auth.getUser only — no DB queries).
  */
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
