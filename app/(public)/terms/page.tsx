@@ -80,7 +80,7 @@ export default function TermsOfServicePage() {
           inspections, and generating compliance documentation.
         </p>
         <p>
-          Pleks is <strong>not</strong> a property management company and does not act as a landlord, agent or intermediary in any
+          Pleks is <strong>not</strong>{" "}a property management company and does not act as a landlord, agent or intermediary in any
           property transaction. All decisions about tenants, leases, and property management remain entirely with you. Pleks (Pty) Ltd
           is a technology provider and is not a &ldquo;Property Practitioner&rdquo; as defined in the Property Practitioners Act 22
           of 2019 <span className="act-pill">PPA</span>. Pleks does not hold, and is not required to hold, a Fidelity Fund Certificate.
@@ -187,7 +187,7 @@ export default function TermsOfServicePage() {
         <div className="officer-card">
           <span className="l">Legal<br />contact</span>
           <span className="v">
-            Pleks (Pty) Ltd
+            Pleks (Pty) Ltd{" "}
             <span className="sub"><a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a></span>
           </span>
         </div>
@@ -203,7 +203,7 @@ export default function TermsOfServicePage() {
           notice where possible.
         </p>
         <p>
-          We target 99.9% monthly uptime for the authenticated dashboard. This target does not constitute a guaranteed
+          We target 99% monthly uptime for the authenticated dashboard. This target does not constitute a guaranteed
           Service Level Agreement (SLA) and does not create an entitlement to compensation or credit unless a separate SLA
           has been agreed in writing. Real-time platform status, including any active incidents and historical uptime, is
           published at{" "}
