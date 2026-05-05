@@ -28,20 +28,20 @@ const SECTIONS = [
 export default function ProcessingRegisterPage() {
   return (
     <LegalPageLayout
-      eyebrowParts={["POPIA · S17 · S18", "processing register", "v2026.7"]}
+      eyebrowParts={["POPIA · S17 · S18", "processing register", "v2026.8"]}
       titleBefore="Processing"
       titleHighlight="register"
       subtitle="Pleks's POPIA processing-purpose register — all 12 platform purposes and 25 operator purposes, with lawful bases, data categories, retention periods, and the full operators directory."
       kicker={[
         { label: "Last reviewed", value: "2026 · 05 · 05", mono: true },
         { label: "In force from",  value: "2026 · 05 · 01", mono: true },
-        { label: "Version",        value: "v2026.7",         mono: true },
+        { label: "Version",        value: "v2026.8",         mono: true },
         { label: "Standard",       value: "POPIA s17 · s18"              },
       ]}
       sections={SECTIONS}
       hasSummary
       showDocLinks={false}
-      endLabel="END · PROCESSING REGISTER · v2026.7"
+      endLabel="END · PROCESSING REGISTER · v2026.8"
     >
       {/* Summary */}
       <div className="summary-card" id="summary">
@@ -107,25 +107,24 @@ export default function ProcessingRegisterPage() {
           <strong>Pleks as Operator (Part B)</strong> — for data arising from agency use of the platform: tenant profiles, leases,
           inspections, maintenance, communications, trust transactions, deposits, applications, credit checks, owner statements, and every
           other artefact of property management. The agency is the Responsible Party; Pleks processes this data on the agency&rsquo;s
-          behalf under the Pleks Operator Agreement, which incorporates the mandatory written-contract terms required by{" "}
-          <span className="act-pill">POPIA · S20</span> and <span className="act-pill">POPIA · S21</span>. Under{" "}
+          behalf under section 09 of the Pleks Terms of Service (&ldquo;ToS §09&rdquo;), which constitutes the mandatory written-contract
+          terms required by <span className="act-pill">POPIA · S20</span> and <span className="act-pill">POPIA · S21</span>. Under{" "}
           <span className="act-pill">POPIA · S21</span> (Operator-to-RP notification), Pleks will notify the agency without undue
           delay — and as a contractual commitment exceeding POPIA&rsquo;s s21 baseline, within 72 hours of becoming aware — of any
           personal information breach affecting data for which the agency is the Responsible Party. The 72-hour window is a Pleks
           contractual obligation, not a POPIA statutory requirement; POPIA s21 requires notification &ldquo;without undue delay.&rdquo;
           The agency must then assess whether its own{" "}
           <span className="act-pill">POPIA · S22</span> obligations to notify the Information Regulator and affected data subjects
-          are triggered. The breach-notification obligation is given contractual force in the Pleks Terms of Service.
+          are triggered. The breach-notification obligation is given contractual force in ToS §09.4.
         </p>
         <p>
           <strong>Agency audit rights over Pleks as Operator.</strong> Under{" "}
           <span className="act-pill">POPIA · S21</span>, agencies as Responsible Parties have the right to verify Pleks&rsquo;s compliance
-          with the Pleks Operator Agreement. Pleks supports this right through: (a) this publicly available processing-purpose register;
+          with ToS §09. Pleks supports this right through: (a) this publicly available processing-purpose register;
           (b) provision of a completed security questionnaire or equivalent on written request (at no cost, once per 12 months); and
           (c) cooperation with reasonable compliance audits on 30 days&rsquo; written notice, subject to confidentiality obligations
-          protecting other agencies&rsquo; data. The Pleks Operator Agreement sets out the full scope of audit rights and is available
-          on written request to the Information Officer at{" "}
-          <a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a>.
+          protecting other agencies&rsquo; data. The full audit-rights framework is set out in{" "}
+          <a href="/terms#dataprocessing">ToS §09.5</a>.
         </p>
         <p>
           <strong>Sovereign-trust invariant.</strong> Pleks holds no client funds. Client funds reside in the agency&rsquo;s own
@@ -514,7 +513,7 @@ export default function ProcessingRegisterPage() {
         <p>
           These 25 purposes are those for which an agency using Pleks is the <strong>Responsible Party</strong> and Pleks is the
           Operator. Every purpose here is processed on behalf of the agency, under the lawful basis the agency holds for the processing,
-          under the Pleks Operator Agreement. <strong>Lawful basis caution: the basis shown for each purpose is the basis typically
+          under ToS §09. <strong>Lawful basis caution: the basis shown for each purpose is the basis typically
           applied by agencies in the SA rental property management sector. It is not a determination by Pleks, and it does not bind
           any individual agency.</strong> An agency may operate on a different basis (e.g., relying on s11(1)(f) legitimate interest
           rather than s11(1)(b) contract for a given purpose). Each agency must confirm and document its own lawful basis in its own
@@ -560,7 +559,7 @@ export default function ProcessingRegisterPage() {
             <code className="purpose-slug">tenant_application</code>
           </div>
           <p className="purpose-desc">Accept rental applications from prospective tenants via the public /apply/[slug] portal. Capture form data, supporting documents (ID, proof of income, bank statements, employer letter), and consent records. Support the agency&rsquo;s shortlist-and-screen workflow. Also processes personal information of third parties named in the application: references, employer contacts, household members, emergency contacts.</p>
-          <p className="purpose-desc"><strong>Reference contacts as data subjects (<span className="act-pill">POPIA · S12</span> / <span className="act-pill">S18</span>).</strong> References named by an applicant are data subjects in their own right. Under s12 (collection directly from the data subject) and s18 (notification), references must be informed that their personal information has been collected and for what purpose. The Pleks Operator Agreement contractually requires the agency to send a s18 notice to each reference at the point of first contact — stating that they have been named as a reference for a rental application, what information will be requested from them, how long it will be retained, and how to exercise their rights. Pleks provides a template s18 notice that agencies may use. Compliance with this obligation is auditable via the communication log.</p>
+          <p className="purpose-desc"><strong>Reference contacts as data subjects (<span className="act-pill">POPIA · S12</span> / <span className="act-pill">S18</span>).</strong> References named by an applicant are data subjects in their own right. Under s12 (collection directly from the data subject) and s18 (notification), references must be informed that their personal information has been collected and for what purpose. ToS §09.1 contractually requires the agency to send a s18 notice to each reference at the point of first contact — stating that they have been named as a reference for a rental application, what information will be requested from them, how long it will be retained, and how to exercise their rights. Pleks provides a template s18 notice that agencies may use. Compliance with this obligation is auditable via the communication log.</p>
           <p className="purpose-desc"><strong>Children&rsquo;s personal information (POPIA s34–s35).</strong> Applications routinely include dependent details and household members who are minors. Under POPIA s34, processing a child&rsquo;s personal information requires consent from a competent person (parent or legal guardian). By submitting an application that includes dependent or household-member details for a person under 18, the applicant represents that they are the competent person within the meaning of s34 and are providing consent on behalf of that minor. Processing of minors&rsquo; information is limited strictly to housing-suitability necessity — establishing occupancy count and dependent-support obligations relevant to affordability. No credit check, identity verification, or marketing processing is performed against minor household members.</p>
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(a) — consent (applicant submits the form and consents to processing for the specific application) + s11(1)(b) — pre-contractual steps at the data subject&rsquo;s request</span></div>
@@ -1037,10 +1036,9 @@ export default function ProcessingRegisterPage() {
         </p>
         <p>
           For questions about this register or to exercise your rights as a data subject, contact our Information Officer — see §02 above.
-          The Pleks Operator Agreement is the contractual instrument that gives this register force for Part B purposes. A copy is
-          available to agencies on written request to{" "}
-          <a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a>. Agencies evaluating Pleks for procurement are encouraged to review
-          the Operator Agreement alongside this register before contracting.
+          The data-processing obligations that give this register contractual force for Part B purposes are set out in{" "}
+          <a href="/terms#dataprocessing">section 09 of the Pleks Terms of Service</a>. Agencies evaluating Pleks for procurement
+          are encouraged to review ToS §09 alongside this register before contracting.
         </p>
       </section>
     </LegalPageLayout>
