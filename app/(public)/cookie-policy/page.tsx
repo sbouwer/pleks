@@ -69,6 +69,10 @@ export default function CookiePolicyPage() {
           of Personal Information Act <span className="act-pill">POPIA</span>, we are required to inform you about cookies that process
           personal information and to obtain your consent for non-essential cookies.
         </p>
+        <p>
+          This policy should be read together with our <a href="/privacy">Privacy Policy</a> and{" "}
+          <a href="/terms">Terms of Service</a>, which describe how we handle personal information more broadly.
+        </p>
       </section>
 
       {/* 02 */}
@@ -90,13 +94,13 @@ export default function CookiePolicyPage() {
           </thead>
           <tbody>
             <tr>
-              <td className="who">sb-*-auth-token<span className="sub">Supabase</span></td>
-              <td>Stores your authenticated session after sign-in. Required to access the dashboard.</td>
+              <td className="who">sb-[projectId]-auth-token<span className="sub">Supabase</span></td>
+              <td>Stores your authenticated session after sign-in. Required to access the dashboard. <em>[projectId] is the unique identifier of the Pleks Supabase project.</em></td>
               <td>Session / 7 days</td>
             </tr>
             <tr>
-              <td className="who">sb-*-auth-token-code-verifier<span className="sub">Supabase</span></td>
-              <td>PKCE code verifier used during the OAuth authentication flow.</td>
+              <td className="who">sb-[projectId]-auth-token-code-verifier<span className="sub">Supabase</span></td>
+              <td>PKCE code verifier used during the OAuth authentication flow. Cleared immediately after sign-in completes.</td>
               <td>Session</td>
             </tr>
             <tr>
@@ -111,6 +115,12 @@ export default function CookiePolicyPage() {
             </tr>
           </tbody>
         </table>
+        <p>
+          <strong>A note on storage type:</strong> Supabase session tokens are stored in <strong>localStorage</strong> (not as HTTP
+          cookies) in the Pleks configuration. This means they are accessible via JavaScript and are not automatically sent with every
+          server request. They are cleared when you sign out or clear your browser data. The same POPIA obligations apply regardless
+          of whether data is stored in a cookie or in localStorage.
+        </p>
       </section>
 
       {/* 03 */}
@@ -152,12 +162,12 @@ export default function CookiePolicyPage() {
           <tbody>
             <tr>
               <td className="who">PayFast<span className="sub">payment processor</span></td>
-              <td>When you complete a subscription payment or set up a recurring debit. Cookies are set on the PayFast checkout page.</td>
+              <td>Cookies are set by PayFast upon redirection to their secure payment gateway — this occurs when completing a subscription payment or setting up a recurring debit mandate. Pleks does not control or access these cookies.</td>
               <td>payfast.io/privacy</td>
             </tr>
             <tr>
               <td className="who">DocuSeal<span className="sub">e-signature</span></td>
-              <td>When you sign or review a lease document within the DocuSeal signing flow.</td>
+              <td>Cookies are set by DocuSeal when you are redirected to or interact with the DocuSeal signing interface to sign or review a lease document. Pleks does not control or access these cookies.</td>
               <td>docuseal.com/privacy</td>
             </tr>
           </tbody>
