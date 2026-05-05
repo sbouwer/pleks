@@ -28,7 +28,7 @@ const SECTIONS = [
 export default function TermsOfServicePage() {
   return (
     <LegalPageLayout
-      eyebrowParts={["SaaS · TERMS", "binding agreement", "v3.0"]}
+      eyebrowParts={["SaaS · TERMS", "binding agreement", "v3.1"]}
       titleBefore="Terms of"
       titleHighlight="service"
       subtitle="The agreement that governs your use of the Pleks property management platform. By using Pleks you confirm that you have read and accepted these terms."
@@ -40,7 +40,7 @@ export default function TermsOfServicePage() {
       ]}
       sections={SECTIONS}
       hasSummary
-      endLabel="END · TERMS OF SERVICE · v3.0"
+      endLabel="END · TERMS OF SERVICE · v3.1"
     >
       {/* Plain-language summary */}
       <div className="summary-card" id="summary">
@@ -51,7 +51,7 @@ export default function TermsOfServicePage() {
           <li><span className="b" /><span>Subscription fees are billed monthly or annually via our payment processor, in ZAR inclusive of VAT where applicable.</span></li>
           <li><span className="b" /><span>Cancel at any time from your account settings; access continues until your billing period ends. Natural-person CPA subscribers may cancel on 20 business days&rsquo; notice at any time on a fixed-term plan.</span></li>
           <li><span className="b" /><span>After cancellation you have 90 days of read-only access before operational data is deleted. Statutory obligations require some categories to be retained for longer — see §04 and the POPIA register.</span></li>
-          <li><span className="b" /><span>§09 sets out the full data-processing terms governing Pleks&rsquo;s obligations as Operator under POPIA s20–s21, including the 72-hour breach-notification commitment.</span></li>
+          <li><span className="b" /><span>§09 sets out the full data-processing terms governing Pleks&rsquo;s obligations as Operator under POPIA s20–s21, including the 72-hour (where reasonably practicable) breach-notification commitment.</span></li>
           <li><span className="b" /><span>Pleks does not hold client funds. Trust money is held in the agency&rsquo;s own Section 86 account.</span></li>
           <li><span className="b" /><span>Governing law: Republic of South Africa. CPA subscribers may also approach the National Consumer Tribunal or Magistrate&rsquo;s Court.</span></li>
         </ul>
@@ -76,7 +76,7 @@ export default function TermsOfServicePage() {
         <p><strong>Key definitions used in these terms:</strong></p>
         <ul className="legal-list">
           <li><strong>Platform</strong> — the Pleks software-as-a-service application, APIs, and associated tooling.</li>
-          <li><strong>Subscriber / Agency</strong> — the entity or individual who holds a Pleks subscription and whose employees or agents use the platform to manage properties.</li>
+          <li><strong>Subscriber / Agency</strong> — includes estate agencies, property practitioners, landlords, and any juristic or natural person subscribing to Pleks. Where an individual landlord subscribes, references to &ldquo;Agency&rdquo; apply to that individual.</li>
           <li><strong>Tenant / Applicant</strong> — a natural person who applies for or occupies a rental property managed through the platform.</li>
           <li><strong>Personal Information</strong> — has the meaning given in POPIA s1 — information that identifies or is reasonably identifiable as relating to a specific natural person or juristic person.</li>
           <li><strong>Responsible Party</strong> — the party that determines the purpose and means of processing personal information; for Part B agency-management data, this is the Agency.</li>
@@ -96,13 +96,14 @@ export default function TermsOfServicePage() {
         <p>
           Pleks is <strong>not</strong>{" "}a property management company and does not act as a landlord, agent or intermediary in any
           property transaction. All decisions about tenants, leases, and property management remain entirely with you. Pleks (Pty) Ltd
-          is a technology provider and is not a &ldquo;Property Practitioner&rdquo; as defined in the Property Practitioners Act 22
-          of 2019 <span className="act-pill">PPA</span>. Pleks does not hold, and is not required to hold, a Fidelity Fund Certificate.
+          is a technology provider. Pleks does not perform any activity that would require it to be registered as a Property
+          Practitioner under the Property Practitioners Act 22 of 2019 <span className="act-pill">PPA</span>, and does not hold, and
+          is not required to hold, a Fidelity Fund Certificate.
         </p>
         <p>
           <strong>Trust funds.</strong> Pleks does not hold client funds. Trust money for rental management is held in the Agency&rsquo;s
-          own Section 86 trust account at the Agency&rsquo;s own bank. Pleks is not a trustee and does not initiate payments on
-          behalf of any party.
+          own Section 86 trust account at the Agency&rsquo;s own bank. Pleks is not a trustee and does not initiate or control
+          payments on behalf of any party.
         </p>
       </section>
 
@@ -131,11 +132,11 @@ export default function TermsOfServicePage() {
         <h2 className="sec-h">Cancelling <span className="hl">your subscription</span></h2>
         <p>
           You may cancel your subscription at any time from within your account settings. Upon cancellation, your subscription will remain
-          active until the end of the current billing period. No pro-rated refunds are issued for partial billing periods.
+          active until the end of the current billing period. No pro-rated refunds are issued for partial billing periods except where required under applicable law.
         </p>
         <p>
           If you are a natural person within the meaning of the <span className="act-pill">CPA</span> and on a fixed-term agreement,
-          you may also cancel the agreement at any time by giving 20 business days&rsquo; written notice to{" "}
+          you may also cancel the agreement at any time by giving at least 20 business days&rsquo; written notice to{" "}
           <a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a>. Pleks may impose a reasonable cancellation penalty calculated in
           accordance with regulation 5 of the CPA Regulations (<span className="act-pill">CPA · S14(2)(B)</span>). Agency and
           juristic-entity subscribers on fixed-term agreements are subject to any notice and penalty terms agreed at sign-up.
@@ -143,8 +144,9 @@ export default function TermsOfServicePage() {
         <p>
           After cancellation, you will retain <strong>read-only access</strong> to your data for 90 days. During this period you
           can use the bulk-export feature to download all leases, inspection reports, financial records, and tenant documents in a
-          single archive. After the 90-day grace period, operational data is permanently deleted. Pleks is not responsible for data
-          loss that results from failure to export within the grace period.
+          single archive. After the 90-day grace period, operational data is permanently deleted unless retention is required for
+          legal, regulatory, or dispute-related purposes as set out below. Pleks is not responsible for data loss that results from
+          failure to export within the grace period.
         </p>
         <p>
           <strong>Statutory retention after cancellation.</strong> Certain data categories are subject to mandatory retention
@@ -183,9 +185,9 @@ export default function TermsOfServicePage() {
           discriminatory practice, carried out through your use of the platform.
         </p>
         <p>
-          <strong>Pleks&rsquo;s indemnity to you.</strong> Pleks indemnifies you against any claim, penalty, legal cost, or loss
-          arising from Pleks&rsquo;s own failure to comply with its obligations as Operator under POPIA s20–s21 and §09 of these
-          terms (including a sub-processor failure that causes a notifiable breach), up to the cap set out in §06.
+          <strong>Pleks&rsquo;s indemnity to you.</strong> Pleks indemnifies you against direct losses arising from Pleks&rsquo;s
+          proven breach of its obligations as Operator under POPIA s20–s21 and §09 of these terms, subject to the limitation of
+          liability in §06.
         </p>
         <p>
           Breach of these conditions may result in immediate suspension or termination of your account without refund,
@@ -218,9 +220,10 @@ export default function TermsOfServicePage() {
         </p>
         <p>
           Pleks relies on third-party infrastructure providers — see the operators directory in the{" "}
-          <a href="/popia-register">POPIA processing register</a> for the current list. We are not liable for any loss or interruption
-          caused by failure, outage, or breach of those third-party services beyond what is recoverable under our agreements with them.
-          See §08 for our service availability terms.
+          <a href="/popia-register">POPIA processing register</a> for the current list. Pleks is not liable for losses caused solely
+          by failure, outage, or breach of those third-party service providers, except to the extent that such loss arises from
+          Pleks&rsquo;s failure to exercise reasonable care in selecting, appointing, or managing those providers. See §08 for our
+          service availability terms.
         </p>
       </section>
 
@@ -315,7 +318,7 @@ export default function TermsOfServicePage() {
         <p><strong>09.4 — Breach notification</strong></p>
         <p>
           Pleks will notify the Agency <strong>without undue delay</strong> — and as a contractual commitment exceeding the POPIA
-          s21 statutory baseline, <strong>within 72 hours</strong> of becoming aware — of any personal information breach affecting
+          s21 statutory baseline, <strong>within 72 hours where reasonably practicable</strong> of becoming aware — of any personal information breach affecting
           Part B data. The notification will include: (a) the nature of the breach and categories of personal information affected;
           (b) an estimate of the number of data subjects likely to be affected; (c) the likely consequences of the breach; and
           (d) the measures Pleks has taken or proposes to take to address the breach. The Agency must then independently assess
@@ -329,8 +332,8 @@ export default function TermsOfServicePage() {
           Agencies as Responsible Parties have the right to verify Pleks&rsquo;s compliance with these data-processing obligations.
           Pleks supports this right through: (a) this publicly available processing register and Terms of Service; (b) provision of
           a completed security questionnaire or equivalent on written request (at no cost, once per 12 months); and (c) cooperation
-          with reasonable compliance audits on 30 days&rsquo; written notice, subject to confidentiality obligations protecting
-          other agencies&rsquo; data.
+          with reasonable compliance audits on 30 days&rsquo; written notice, provided such audits do not unreasonably interfere
+          with Pleks&rsquo;s operations or compromise the security of other customers&rsquo; data.
         </p>
 
         <p><strong>09.6 — End-of-engagement data handling</strong></p>
