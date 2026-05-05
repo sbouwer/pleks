@@ -28,20 +28,20 @@ const SECTIONS = [
 export default function ProcessingRegisterPage() {
   return (
     <LegalPageLayout
-      eyebrowParts={["POPIA · S17 · S18", "processing register", "v2026.5"]}
+      eyebrowParts={["POPIA · S17 · S18", "processing register", "v2026.6"]}
       titleBefore="Processing"
       titleHighlight="register"
       subtitle="Pleks's POPIA processing-purpose register — all 12 platform purposes and 25 operator purposes, with lawful bases, data categories, retention periods, and the full operators directory."
       kicker={[
         { label: "Last reviewed", value: "2026 · 05 · 05", mono: true },
         { label: "In force from",  value: "2026 · 05 · 01", mono: true },
-        { label: "Version",        value: "v2026.5",         mono: true },
+        { label: "Version",        value: "v2026.6",         mono: true },
         { label: "Standard",       value: "POPIA s17 · s18"              },
       ]}
       sections={SECTIONS}
       hasSummary
       showDocLinks={false}
-      endLabel="END · PROCESSING REGISTER · v2026.5"
+      endLabel="END · PROCESSING REGISTER · v2026.6"
     >
       {/* Summary */}
       <div className="summary-card" id="summary">
@@ -82,7 +82,7 @@ export default function ProcessingRegisterPage() {
           <span className="act-pill">PAIA</span>, requests for access to records held by Pleks on behalf of a client agency must be
           directed to that agency&rsquo;s Information Officer, not to Pleks. Pleks will acknowledge any misdirected request within
           2 business days and route it to the correct Responsible Party within 5 business days — so the agency&rsquo;s statutory
-          30-business-day response clock under s23(1) is not materially eroded.
+          30-calendar-day response clock under s23(1) (per PAIA s25, extendable under s26) is not materially eroded.
         </p>
         <p>
           Purposes prefixed <strong>A</strong> are Pleks as Responsible Party. Purposes prefixed <strong>B</strong> are Pleks as
@@ -210,13 +210,13 @@ export default function ProcessingRegisterPage() {
           consequential in credit checking (B4), FitScore generation (B5), and arrears management (B11) — an inaccurate data point
           in any of these purposes can have legal and financial consequences for the data subject. Pleks surfaces data-quality alerts
           when it detects internally inconsistent records (e.g., arrears balance vs trust reconciliation mismatch). Agencies must act
-          on correction requests within the 30-business-day window under s23(1). Pleks will propagate confirmed corrections to all
+          on correction requests within the 30-calendar-day window under s23(1) (per PAIA s25). Pleks will propagate confirmed corrections to all
           downstream records that derived from the corrected source data.
         </p>
         <p>
           Where multiple retention periods apply to the same record, Pleks enforces the longest applicable statutory, contractual, or
           evidentiary period. Purpose-level retention periods in this register are minimum commitments and may be overridden by mandatory
-          statutory retention (Tax Administration Act s29 — 5 years; PPRA trust records; FIC Act s23 — 5 years; Companies Act), active
+          statutory retention (Tax Administration Act s29 — 5 years; PPRA trust records; FIC Act s23 — 5 years; Companies Act s24 — accounting records, 7 years), active
           legal holds, subject-request restrictions, ongoing disputes, or subpoenas.
         </p>
         <p>
@@ -263,7 +263,7 @@ export default function ProcessingRegisterPage() {
             <strong>Right of access (s23).</strong> Request a copy of the personal information Pleks holds about you, the categories
             of recipients, the source, and the purpose. <em>Channel:</em> submit Form 2 to our Information Officer
             at <a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a> or via the in-platform subject-rights dashboard.
-            Response within 30 business days.
+            Response within 30 calendar days, extendable per PAIA s26.
           </li>
           <li>
             <strong>Right to correction (s24).</strong> Request correction or deletion of inaccurate, misleading, outdated, incomplete,
@@ -274,7 +274,9 @@ export default function ProcessingRegisterPage() {
             <strong>Right to deletion / restriction (s25).</strong> Request destruction or deletion of personal information Pleks is
             no longer authorised to retain. Note: statutory retention obligations (s29 Tax Administration Act, PPRA, audit logs) may
             prevent deletion during the applicable retention window; Pleks will explain the basis for any retention that continues
-            after a deletion request. <em>Channel:</em> Information Officer.
+            after a deletion request. If you are not satisfied with Pleks&rsquo;s response, you may apply to the Information Regulator
+            under <span className="act-pill">POPIA · S74</span> or to a court under <span className="act-pill">POPIA · S99</span>.{" "}
+            <em>Channel:</em> Information Officer.
           </li>
           <li>
             <strong>Right to object (s11(3)).</strong> Where Pleks&rsquo;s lawful basis is legitimate interest
@@ -334,7 +336,7 @@ export default function ProcessingRegisterPage() {
             <span>Multi-factor authentication</span>
             <code className="purpose-slug">mfa_totp_passkeys</code>
           </div>
-          <p className="purpose-desc">Enforce MFA for agent accounts (mandatory) and offer optional MFA for tenant/landlord/supplier accounts. Includes TOTP enrolment via authenticator app, passkey (WebAuthn) registration, and step-up challenges for fiduciary-class actions.</p>
+          <p className="purpose-desc">Enforce MFA for agent accounts (mandatory) and offer optional MFA for tenant/landlord/supplier accounts. Includes TOTP enrolment via authenticator app, passkey (WebAuthn) registration, and step-up challenges for fiduciary-class actions. Passkey biometric matching (fingerprint / face) occurs entirely on the user&rsquo;s device via the WebAuthn protocol; Pleks receives only the public key and credential ID — not biometric samples — so passkey enrolment does not constitute processing of biometric information under POPIA s26.</p>
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(b) — contract + s11(1)(c) — compliance with law (POPIA s19 security safeguards)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">TOTP secret (encrypted), passkey credential ID, passkey public key, credential counter, device name, enrolment timestamps, IP at enrolment</span></div>
@@ -464,7 +466,7 @@ export default function ProcessingRegisterPage() {
           </div>
           <p className="purpose-desc">The audit_log table records every state-changing operation in Pleks — creation, update, deletion, and approval of records across the platform. Each row captures the actor, target, event type, timestamp, IP address, and change payload. The log is immutable — no UPDATE or DELETE policies exist on it.</p>
           <div className="purpose-meta">
-            <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(c) — compliance with law (POPIA s17 accountability; ECT Act record requirements) + s11(1)(f) — legitimate interest (security monitoring and fraud prevention)</span></div>
+            <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(c) — compliance with law (POPIA s17 accountability; ECT Act s14 — electronic records as originals) + s11(1)(f) — legitimate interest (security monitoring and fraud prevention)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Actor user ID, actor IP address, target entity identifiers, event type, before-and-after values of changed fields (may incidentally include PII), timestamp</span></div>
             <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">7 years (SA business records retention and PPRA audit timelines) · subject-initiated erasure never removes audit_log rows</span></div>
@@ -757,7 +759,7 @@ export default function ProcessingRegisterPage() {
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Tenant name and contact details, description of the issue, photos of the issue, contractor assignment, cost allocation</span></div>
             <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider, SMS and WhatsApp aggregator (contractor notifications), AI model provider (maintenance triage — B22), transactional email provider (email notifications)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">3 years post-completion (Tribunal evidentiary practice)</span></div>
-            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — SCCs (s72(1)(a)) for AI and email · SMS/WhatsApp is domestic via Africa&rsquo;s Talking</span></div>
+            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — SCCs (s72(1)(a)) for AI, email, and SMS/WhatsApp routing (SMS and WhatsApp aggregator is Kenya-domiciled)</span></div>
           </div>
         </div>
 
@@ -769,7 +771,7 @@ export default function ProcessingRegisterPage() {
           </div>
           <p className="purpose-desc">Handle high-severity maintenance incidents (fire, burst pipe, major break-in, geyser failure) with an expedited workflow. Notify broker (for insurable events), owner, and managing scheme in parallel. Record the incident and the decisions taken. Integrates with insurance claim preparation.</p>
           <div className="purpose-meta">
-            <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(c) — compliance with law (habitability duty; insurer disclosure obligations) + s11(1)(e) — legitimate interest of a third party (insurance claim preparation) + s11(1)(f) — Responsible Party&rsquo;s legitimate interest</span></div>
+            <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(c) — compliance with law (habitability duty; insurer disclosure obligations) + s11(1)(f) — legitimate interests of the Responsible Party and the insurer as affected third party (s11(1)(e), which applies to public bodies, does not apply here)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">As B15 plus insurance broker and policy contact details, owner notification preferences, scheme notification preferences</span></div>
             <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider, transactional email provider (broker and scheme notifications), SMS and WhatsApp aggregator (urgent contractor dispatch)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">5 years (insurance claim evidence + Tribunal evidentiary practice)</span></div>
