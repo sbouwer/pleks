@@ -27,20 +27,20 @@ const SECTIONS = [
 export default function ProcessingRegisterPage() {
   return (
     <LegalPageLayout
-      eyebrowParts={["POPIA · S17 · S18", "processing register", "v2026.1"]}
+      eyebrowParts={["POPIA · S17 · S18", "processing register", "v2026.2"]}
       titleBefore="Processing"
       titleHighlight="register"
       subtitle="Pleks's POPIA processing-purpose register — all 12 platform purposes and 25 operator purposes, with lawful bases, data categories, retention periods, and the full operators directory."
       kicker={[
-        { label: "Last reviewed", value: "2026 · 04 · 20", mono: true },
+        { label: "Last reviewed", value: "2026 · 05 · 05", mono: true },
         { label: "In force from",  value: "2026 · 05 · 01", mono: true },
-        { label: "Version",        value: "v2026.1",         mono: true },
+        { label: "Version",        value: "v2026.2",         mono: true },
         { label: "Standard",       value: "POPIA s17 · s18"              },
       ]}
       sections={SECTIONS}
       hasSummary
       showDocLinks={false}
-      endLabel="END · PROCESSING REGISTER · v2026.1"
+      endLabel="END · PROCESSING REGISTER · v2026.2"
     >
       {/* Summary */}
       <div className="summary-card" id="summary">
@@ -49,7 +49,7 @@ export default function ProcessingRegisterPage() {
         <ul className="summary-list">
           <li><span className="b" /><span>Pleks operates in two roles: as <strong>Responsible Party</strong> for 12 platform purposes (authentication, billing, support — Part A) and as <strong>Operator</strong> for 25 agency-side purposes (tenant data, leases, inspections — Part B).</span></li>
           <li><span className="b" /><span>For Part B data, the <strong>agency is the Responsible Party</strong>. Data-subject requests about tenant or lease records must be directed to the agency, not to Pleks.</span></li>
-          <li><span className="b" /><span>Credit checks (B4) require the applicant&rsquo;s <strong>explicit consent</strong> under both <span className="act-pill">POPIA · S11</span> and <span className="act-pill">NCA · S69</span> before any bureau query is submitted.</span></li>
+          <li><span className="b" /><span>Credit checks (B4) require the applicant&rsquo;s <strong>explicit consent</strong> under <span className="act-pill">POPIA · S11(1)(a)</span> and the Credit Bureau Code of Conduct (issued under POPIA, October 2020) before any bureau query is submitted.</span></li>
           <li><span className="b" /><span>AI processing (B22) is <strong>assistive only</strong>. Pleks does not make automated decisions about tenants or applicants — all decisions remain with the agency or landlord.</span></li>
           <li><span className="b" /><span>All cross-border transfers to US/international vendors are governed by Standard Contractual Clauses under <span className="act-pill">POPIA · S72(1)(a)</span>.</span></li>
         </ul>
@@ -154,8 +154,9 @@ export default function ProcessingRegisterPage() {
           agency&rsquo;s response. The Regulator&rsquo;s contact details are surfaced on every data-subject-rights interface in the platform.
           Formal information-access requests to Pleks under <span className="act-pill">PAIA</span> must be submitted on Form 2 (Request
           for Access to Record of Public/Private Body), available from the Information Regulator. Pleks will respond using Form 3
-          (Outcome of Request and Notice of Fees) within the statutory 30-day window. The Pleks PAIA manual is available on request
-          from our Information Officer.
+          (Outcome of Request and Notice of Fees) within the statutory 30-day window. In compliance with{" "}
+          <span className="act-pill">PAIA · S51(3)</span> and the 2021 Regulations, the Pleks PAIA manual is published on this
+          website at <a href="/paia-manual">/paia-manual</a>.
         </p>
       </section>
 
@@ -219,7 +220,7 @@ export default function ProcessingRegisterPage() {
           </div>
           <p className="purpose-desc">Enforce MFA for agent accounts (mandatory) and offer optional MFA for tenant/landlord/supplier accounts. Includes TOTP enrolment via authenticator app, passkey (WebAuthn) registration, and step-up challenges for fiduciary-class actions.</p>
           <div className="purpose-meta">
-            <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(b) — contract + s11(1)(d) — obligation imposed by law (POPIA s19 security safeguards)</span></div>
+            <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(b) — contract + s11(1)(c) — compliance with law (POPIA s19 security safeguards)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">TOTP secret (encrypted), passkey credential ID, passkey public key, credential counter, device name, enrolment timestamps, IP at enrolment</span></div>
             <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase (storage), Resend (enrolment/unenrolment notifications)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">7 years alongside auth events · revoked passkey records purged after 30 days</span></div>
@@ -438,6 +439,7 @@ export default function ProcessingRegisterPage() {
             <code className="purpose-slug">tenant_application</code>
           </div>
           <p className="purpose-desc">Accept rental applications from prospective tenants via the public /apply/[slug] portal. Capture form data, supporting documents (ID, proof of income, bank statements, employer letter), and consent records. Support the agency&rsquo;s shortlist-and-screen workflow. Also processes personal information of third parties named in the application: references, employer contacts, household members, emergency contacts.</p>
+          <p className="purpose-desc"><strong>Children&rsquo;s personal information (POPIA s34–s35).</strong> Applications routinely include dependent details and household members who are minors. Under POPIA s34, processing a child&rsquo;s personal information requires consent from a competent person (parent or legal guardian). By submitting an application that includes dependent or household-member details for a person under 18, the applicant represents that they are the competent person within the meaning of s34 and are providing consent on behalf of that minor. Processing of minors&rsquo; information is limited strictly to housing-suitability necessity — establishing occupancy count and dependent-support obligations relevant to affordability. No credit check, identity verification, or marketing processing is performed against minor household members.</p>
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(a) — consent (applicant submits the form and consents to processing for the specific application) + s11(1)(b) — pre-contractual steps at the data subject&rsquo;s request</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Full name, ID number, DOB, contact phone/email, employment details, salary, dependent details, previous rental history, landlord/employer/character references, supporting documents</span></div>
@@ -453,7 +455,7 @@ export default function ProcessingRegisterPage() {
             <span>Credit checking (Searchworx)</span>
             <code className="purpose-slug">credit_check_searchworx</code>
           </div>
-          <p className="purpose-desc">Obtain a credit bureau report on an applicant for the purpose of assessing tenancy suitability. Searchworx acts as the aggregator across TransUnion, Experian, Compuscan, and XDS. A DPIA (Data Protection Impact Assessment) is in progress for this purpose and will be completed before the feature ships to production — credit data is among the highest-sensitivity personal information categories. No credit check is performed without dual consent under POPIA s11(1)(a) and NCA s69.</p>
+          <p className="purpose-desc">Obtain a credit bureau report on an applicant for the purpose of assessing tenancy suitability. Searchworx acts as the aggregator across TransUnion, Experian, Compuscan, and XDS. A DPIA (Data Protection Impact Assessment) is in progress for this purpose and will be completed before the feature ships to production — credit data is among the highest-sensitivity personal information categories. No credit check is performed without explicit written consent under POPIA s11(1)(a), in compliance with the Credit Bureau Code of Conduct (issued under POPIA, October 2020) and the Searchworx user agreement. The NCA s69 register of credit agreements does not provide the consent basis for bureau enquiries — that basis is POPIA s11(1)(a) alone.</p>
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(a) — explicit consent (applicant consents to the specific purpose of a credit check before it is run; consent may be withdrawn for future checks but not to unwind a check already performed)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Applicant ID number, full name, DOB, residential addresses (current and historical), employment history, credit history, default records, civil judgments, credit score, affordability result</span></div>
@@ -501,7 +503,7 @@ export default function ProcessingRegisterPage() {
             <span>Lease lifecycle management</span>
             <code className="purpose-slug">lease_lifecycle</code>
           </div>
-          <p className="purpose-desc">Manage the lease over its full lifecycle — activation, escalation at anniversaries, CPA s14 auto-renewal notice (20 business days before expiry), notice acknowledgement, amendment (with audit trail), termination, move-out, and deposit reconciliation.</p>
+          <p className="purpose-desc">Manage the lease over its full lifecycle — activation, escalation at anniversaries, CPA s14 auto-renewal notice (sent not more than 80 nor less than 40 business days before expiry, per CPA s14(2)(d)), notice acknowledgement, amendment (with audit trail), termination, move-out, and deposit reconciliation. Where the lease is not subject to the CPA (e.g., landlord not supplying services in the ordinary course of business), the contractual notice period specified in the lease applies instead.</p>
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(b) — contract + s11(1)(c) — compliance with law (RHA and CPA specific notice obligations)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Tenant contact details, lease state, notice history</span></div>
@@ -583,7 +585,7 @@ export default function ProcessingRegisterPage() {
           </div>
           <p className="purpose-desc">Monthly reconciliation of the agency&rsquo;s Section 86 trust account. Bank statement import (OFX/CSV/QIF), matching rent receipts against ledger entries, verification of disbursements, three-balance comparison, and sign-off. Produces an PPRA-compliant audit export (PDF + XLSX) with SHA-256 manifest hash for tamper-evidence.</p>
           <div className="purpose-meta">
-            <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(c) — compliance with law (Property Practitioners Act s54, Estate Agency Affairs Act s32 trust account requirements, PPRA audit requirements, Tax Administration Act s29)</span></div>
+            <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(c) — compliance with law (Property Practitioners Act s54, PPA Regulation 33 — 5 years from the end of the financial year, PPRA audit requirements, Tax Administration Act s29)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Tenant names on trust transactions, landlord and supplier names on disbursements, transaction amounts, payment references, dates, bank statement narrative text, masked bank account numbers (encrypted at rest)</span></div>
             <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase (storage), AI model provider (variance explanation narrative — B22)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">5 years (PPRA trust record retention + Tax Administration Act s29)</span></div>
@@ -647,7 +649,7 @@ export default function ProcessingRegisterPage() {
           </div>
           <p className="purpose-desc">Handle high-severity maintenance incidents (fire, burst pipe, major break-in, geyser failure) with an expedited workflow. Notify broker (for insurable events), owner, and managing scheme in parallel. Record the incident and the decisions taken. Integrates with insurance claim preparation.</p>
           <div className="purpose-meta">
-            <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(d) — legal obligation + s11(1)(e) — legitimate interest of a third party (insurance claim preparation) + s11(1)(f) — Responsible Party&rsquo;s legitimate interest</span></div>
+            <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(c) — compliance with law (habitability duty; insurer disclosure obligations) + s11(1)(e) — legitimate interest of a third party (insurance claim preparation) + s11(1)(f) — Responsible Party&rsquo;s legitimate interest</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">As B15 plus insurance broker and policy contact details, owner notification preferences, scheme notification preferences</span></div>
             <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase (storage), Resend (broker and scheme notifications), Africa&rsquo;s Talking (urgent contractor dispatch)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">5 years (insurance claim evidence + Tribunal evidentiary practice)</span></div>
@@ -741,7 +743,7 @@ export default function ProcessingRegisterPage() {
             <span>AI-assisted processing</span>
             <code className="purpose-slug">ai_assisted_processing</code>
           </div>
-          <p className="purpose-desc">Bounded, assistive AI processing across multiple workflows — income extraction from bank statements, FitScore rationale, maintenance triage, deposit deduction justification, lease clause conflict checking, arrears letter drafting, wear-and-tear assessment, municipal bill extraction, AGM notice drafting, and trust audit narrative. AI processing is assistive only: Pleks does not make automated decisions about tenants or applicants. All decisions remain with the agency or landlord. Prompts and responses are not retained — Anthropic operates under a zero-retention Enterprise DPA. PII minimisation is applied before cross-border transfer: prompts contain structured context values (amounts, dates, categories) and do not include direct identifiers (name, ID number, contact details) where the task does not require them — reducing the transfer classification from &ldquo;personal information&rdquo; to &ldquo;anonymised or pseudonymised data&rdquo; for the majority of sub-purposes.</p>
+          <p className="purpose-desc">Bounded, assistive AI processing across multiple workflows — income extraction from bank statements, FitScore rationale, maintenance triage, deposit deduction justification, lease clause conflict checking, arrears letter drafting, wear-and-tear assessment, municipal bill extraction, AGM notice drafting, and trust audit narrative. AI processing is assistive only: Pleks does not make automated decisions about tenants or applicants. All decisions remain with the agency or landlord. Prompts and responses are not retained — Anthropic operates under a zero-retention Enterprise DPA. PII minimisation is applied before cross-border transfer: prompts contain structured context values (amounts, dates, categories) and exclude direct identifiers (name, ID number, contact details) where the task does not require them. This minimisation reduces but does not eliminate identifiability — structured context (property address, exact rent, exact arrears, dates) may remain reasonably linkable to an individual and constitutes pseudonymised, not anonymised, personal information under POPIA s1. All cross-border AI transfers therefore remain personal information transfers and are governed by SCCs under POPIA s72(1)(a).</p>
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">Multiple — follows the lawful basis of the sub-purpose (e.g., B4 consent for FitScore, B7 contract for lease clause checking)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Structured context specific to the sub-purpose only. Direct identifiers (name, ID number, contact details) are stripped where not required by the task. No prompt text or response text retained by Pleks or Anthropic.</span></div>
