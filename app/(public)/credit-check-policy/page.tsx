@@ -26,7 +26,7 @@ const SECTIONS = [
 export default function CreditCheckPolicyPage() {
   return (
     <LegalPageLayout
-      eyebrowParts={["NCA · S69 · CONSENT", "applicants", "v1.2"]}
+      eyebrowParts={["POPIA · S11(1)(A) · CONSENT", "applicants", "v1.3"]}
       titleBefore="Credit check"
       titleHighlight="policy"
       subtitle="How Searchworx credit and background checks work, what the application fee covers, and the rights you hold as a data subject under POPIA and the National Credit Act."
@@ -34,22 +34,24 @@ export default function CreditCheckPolicyPage() {
         { label: "Last reviewed", value: "2026 · 05 · 05", mono: true },
         { label: "In force from",  value: "2026 · 05 · 05", mono: true },
         { label: "Conducted by",   value: "Searchworx (Pty) Ltd" },
-        { label: "Acts",           value: "NCA · POPIA · FICA" },
+        { label: "Acts",           value: "POPIA · NCA · Credit Bureau Code of Conduct" },
       ]}
       sections={SECTIONS}
       hasSummary
-      endLabel="END · CREDIT CHECK POLICY · v1.2"
+      endLabel="END · CREDIT CHECK POLICY · v1.3"
     >
       {/* Plain-language summary */}
       <div className="summary-card" id="summary">
         <p className="sc-eyebrow">Plain-language summary</p>
         <h2 className="sc-h">What this means for you as an applicant</h2>
         <ul className="summary-list">
-          <li><span className="b" /><span>No credit check will ever be run without your explicit written consent — this is a legal requirement under the NCA.</span></li>
+          <li><span className="b" /><span>No credit check will ever be run without your explicit written consent — this is a requirement under POPIA s11(1)(a) and the Credit Bureau Code of Conduct.</span></li>
           <li><span className="b" /><span>The application fee is paid by you (the applicant) — the agency using Pleks does not pay for your check.</span></li>
-          <li><span className="b" /><span>Checks are run by Searchworx, a registered bureau intermediary. Pleks acts as a platform that facilitates the display of results retrieved via Searchworx — it does not query bureaus directly.</span></li>
-          <li><span className="b" /><span>You have the right to receive a free copy of the credit report generated for your application.</span></li>
+          <li><span className="b" /><span>Checks are run by Searchworx, a registered credit bureau intermediary. Pleks initiates the check on behalf of the agency, stores the result, and generates a derivative FitScore — it acts as an Operator under the agency&rsquo;s instruction.</span></li>
+          <li><span className="b" /><span>You have the right to receive a free copy of the credit report generated for your application, to correct inaccuracies, and to lodge a complaint with the Information Regulator.</span></li>
           <li><span className="b" /><span>Check results are retained for 12 months, then permanently deleted unless tied to an active lease.</span></li>
+          <li><span className="b" /><span>Credit checks are not performed on minors. If your application includes household members under 18, no bureau query is run for them.</span></li>
+          <li><span className="b" /><span>If you do not consent to the credit check, your application cannot proceed to Stage 2. You retain the right to apply through another channel that does not require a credit check.</span></li>
         </ul>
       </div>
 
@@ -74,6 +76,14 @@ export default function CreditCheckPolicyPage() {
               <td>Credit profile, payment history, accounts in arrears, judgements.</td>
             </tr>
             <tr>
+              <td className="who">Experian<span className="sub">credit bureau</span></td>
+              <td>Credit profile, payment behaviour, adverse listings, judgements.</td>
+            </tr>
+            <tr>
+              <td className="who">Compuscan<span className="sub">credit bureau</span></td>
+              <td>Credit bureau records including SCHUFA-style behavioural scoring.</td>
+            </tr>
+            <tr>
               <td className="who">XDS<span className="sub">credit bureau</span></td>
               <td>Credit bureau records, default listings, adverse payment behaviour.</td>
             </tr>
@@ -90,11 +100,19 @@ export default function CreditCheckPolicyPage() {
         <p>
           The results of these checks form part of your <strong>FitScore</strong> — a weighted applicant rating that the agency uses
           to evaluate your suitability for the property. FitScore combines bureau data with income affordability and employment
-          verification. No single factor is automatically disqualifying. FitScore is an assistive tool and does not constitute an
-          automated decision within the meaning of <span className="act-pill">POPIA · S71</span>. Final decisions are made solely by
-          the agency or landlord using Pleks — no outcome is triggered automatically by any score threshold. Under POPIA s71, if you
-          believe a decision affecting you has been made solely on the basis of automated processing, you have the right to request
-          that the decision be reconsidered by a human reviewer.
+          verification. No single factor is automatically disqualifying.
+        </p>
+        <p>
+          <strong>Automated decisions:</strong> Pleks does not make automated decisions about applicants. FitScore is assistive only
+          — the agency or landlord reviews the underlying data and makes the final tenancy decision. No outcome is triggered
+          automatically by any score threshold. POPIA s71(1) prohibits automated decisions with legal or material consequences
+          except in limited circumstances; Pleks does not rely on any of those exceptions. If you believe an automated decision was
+          nonetheless taken, your <span className="act-pill">POPIA · S71(2)</span> rights apply: you may make representations to
+          the agency and request the underlying logic of the decision. Contact our Information Officer.
+        </p>
+        <p>
+          <strong>Minors:</strong> Credit checks are not performed on minors. If your application includes household members under 18,
+          no bureau query is run for them.
         </p>
       </section>
 
@@ -104,24 +122,24 @@ export default function CreditCheckPolicyPage() {
         <h2 className="sec-h">Who runs <span className="hl">the checks</span></h2>
         <p>
           All credit and background checks are conducted by <strong>Searchworx (Pty) Ltd</strong>, a registered credit bureau
-          intermediary operating under the National Credit Act 34 of 2005 <span className="act-pill">NCA · S69</span>. Pleks acts
-          as a platform provider that facilitates the display of results retrieved via Searchworx — all bureau queries, data
-          handling, and reporting are performed by Searchworx. Where results are received by Pleks and stored on its infrastructure
-          for display purposes, Pleks is processing that data as an Operator on behalf of the agency and remains bound by its POPIA
-          obligations accordingly. Credit check results are made available to the agency or landlord managing the property for the
-          sole purpose of evaluating your application.
+          intermediary regulated under the National Credit Act 34 of 2005 (ss 43–46) and the Credit Bureau Code of Conduct issued
+          under POPIA (October 2020). Pleks initiates the credit check on instruction of the agency, receives the report from
+          Searchworx, stores it on its infrastructure, generates a derivative FitScore (B5 of the POPIA processing register), and
+          makes the result available to the agency. Throughout, Pleks acts as an Operator on behalf of the agency under the Pleks
+          Operator Agreement; the agency is the Responsible Party for the application data. Credit check results are made available
+          to the agency or landlord managing the property for the sole purpose of evaluating your application.
         </p>
         <div className="officer-card">
           <span className="l">Service<br />provider</span>
           <span className="v">
             Searchworx (Pty) Ltd
-            <span className="sub">Registered credit bureau intermediary · NCA</span>
+            <br /><span className="sub">Registered credit bureau intermediary · NCA ss 43–46</span>
           </span>
         </div>
         <p>
           Searchworx is bound by its own regulatory obligations regarding the handling of your personal information, including
-          obligations under the <span className="act-pill">NCA</span>, the <span className="act-pill">POPIA</span>, and the
-          Financial Intelligence Centre Act <span className="act-pill">FICA</span>.
+          obligations under the <span className="act-pill">NCA</span>, the <span className="act-pill">POPIA</span>, the Credit Bureau
+          Code of Conduct, and the Financial Intelligence Centre Act (FICA) as an accountable institution.
         </p>
       </section>
 
@@ -136,9 +154,9 @@ export default function CreditCheckPolicyPage() {
           and payment are obtained simultaneously — bureau queries are only executed after both have been confirmed.
         </p>
         <ul className="legal-list">
-          <li>The fee is non-refundable once the credit check process has been initiated, as third-party bureau queries are executed immediately and cannot be reversed.</li>
+          <li>The fee is non-refundable once the credit check process has been initiated, as third-party bureau queries are executed immediately and cannot be reversed. If the bureau query fails for technical reasons before any report is generated, the fee is refunded in full.</li>
           <li>The fee is paid directly by the applicant — the agency using Pleks does not pay for your check.</li>
-          <li>Joint applications (two applicants on one lease) are charged a higher bundled fee, also shown before payment.</li>
+          <li>Joint applications (two applicants on one lease) are charged a higher bundled fee, also shown before payment. Each joint applicant must complete the consent process individually — one applicant cannot consent on behalf of the other. Credit checks for joint applicants are run separately; results are made available to the agency for evaluation but are not disclosed between applicants.</li>
           <li>If your application is withdrawn before Stage 2, no fee is charged — credit checks are only triggered when you choose to proceed.</li>
         </ul>
       </section>
@@ -153,13 +171,23 @@ export default function CreditCheckPolicyPage() {
           you will be asked to read this policy and provide your informed consent via a signed digital consent form.
         </p>
         <p>
-          The NCA independently requires that credit bureaus may only be queried with the data subject&rsquo;s written consent under{" "}
-          <span className="act-pill">NCA · S69</span>. Both frameworks apply. No credit check will be performed without this dual
-          consent being obtained first.
+          Credit checks are processed under <span className="act-pill">POPIA · S11(1)(A)</span> explicit consent. The NCA establishes
+          the regulatory framework for credit bureaus (ss 43–46) and your right to access and challenge credit records
+          (<span className="act-pill">NCA · S72</span>), but does not itself impose the consent requirement for bureau enquiries — that
+          flows from POPIA and the Credit Bureau Code of Conduct (issued under POPIA, October 2020). NCA s69 establishes the National
+          Register of Credit Agreements — it is not the section under which bureau enquiries operate. No credit check will be performed
+          without explicit POPIA s11(1)(a) consent being obtained first.
         </p>
         <p>
-          Pleks retains a timestamped record of your consent in our audit log, as required by <span className="act-pill">POPIA · S19</span>.
-          You may request a copy of this record by contacting our Information Officer.
+          <strong>Consequences of not consenting:</strong> If you do not consent to the credit check, your application cannot proceed to
+          Stage 2. The agency may decline your application on that basis. You retain the right to apply through another channel that
+          does not require a bureau check, including agencies that use different screening methods. Under <span className="act-pill">POPIA · S18</span>,
+          you are entitled to know these consequences before deciding whether to consent.
+        </p>
+        <p>
+          Pleks retains a timestamped record of your consent in our audit log for accountability purposes, as required by{" "}
+          <span className="act-pill">POPIA · S17</span> (Documentation). You may request a copy of this record by contacting our
+          Information Officer.
         </p>
       </section>
 
@@ -169,17 +197,19 @@ export default function CreditCheckPolicyPage() {
         <h2 className="sec-h">Your <span className="hl">rights</span></h2>
         <p>As the subject of a credit check, you have the following rights under South African law:</p>
         <ul className="legal-list">
-          <li>You may request a <strong>free copy</strong> of the credit report generated as part of your application — contact our Information Officer below.</li>
-          <li>If you believe information in the report is inaccurate, you may lodge a dispute directly with the relevant bureau (TransUnion, XDS, or TPN). Bureaus are required to investigate and respond within 20 business days under the <span className="act-pill">NCA · S72</span>.</li>
-          <li>Under <span className="act-pill">POPIA · S71</span>, if you believe a decision about your application was made solely on the basis of automated processing, you may request that the agency reconsider the decision with human involvement. Contact our Information Officer to initiate this request.</li>
-          <li>You may contact our Information Officer for assistance with the dispute process, or to escalate a complaint.</li>
-          <li>You may lodge a complaint about data handling with the <a href="https://inforeg.org.za" target="_blank" rel="noopener noreferrer">Information Regulator</a> at any time.</li>
+          <li><strong>Right of access (POPIA s23).</strong> Request a copy of the personal information Pleks holds about you, including the credit report and FitScore generated for your application. A free copy of the report is available on request — contact our Information Officer.</li>
+          <li><strong>Right to correction (POPIA s24).</strong> Request correction or deletion of inaccurate, misleading, outdated, or incomplete personal information held by Pleks. Contact our Information Officer or use the in-platform subject-rights dashboard.</li>
+          <li><strong>Right to deletion / restriction (POPIA s25).</strong> Request destruction or deletion of personal information Pleks is no longer authorised to retain. Statutory retention obligations (see §07) may prevent immediate deletion; Pleks will explain any basis for retention that continues after a request.</li>
+          <li><strong>Right to object (POPIA s11(3)).</strong> Where any processing relies on legitimate interest, you may object on grounds relating to your particular situation. Credit check processing relies on s11(1)(a) consent — so withdrawal of consent (§06) is the primary mechanism; objection under s11(3) applies to any downstream legitimate-interest processing such as FitScore analytics.</li>
+          <li><strong>Bureau dispute (NCA s72).</strong> If you believe information in the report is inaccurate, you may lodge a dispute directly with the relevant bureau. Bureaus are required to investigate and respond within 20 business days. Contact details: TransUnion 0861 482 482; Experian 0861 105 665; Compuscan 0861 514 131; XDS 0860 937 000; TPN 0861 876 000.</li>
+          <li><strong>Automated-decision rights (POPIA s71(2)).</strong> Pleks does not make automated decisions about applicants (see §01). If you believe an automated decision was nonetheless taken, you may make representations to the agency and request the underlying logic of the decision. Contact our Information Officer to initiate this.</li>
+          <li><strong>Complaint to the Information Regulator.</strong> You may lodge a complaint about data handling with the <a href="https://inforeg.org.za" target="_blank" rel="noopener noreferrer">Information Regulator</a> under POPIA s74, or apply to court under s99, at any time — independently of any response from Pleks or the agency.</li>
         </ul>
         <div className="officer-card">
           <span className="l">Information<br />officer</span>
           <span className="v">
             Stéan Bouwer
-            <span className="sub"><a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a></span>
+            <br /><span className="sub"><a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a></span>
           </span>
         </div>
       </section>
@@ -196,8 +226,13 @@ export default function CreditCheckPolicyPage() {
         <p>
           You may, however, <strong>withdraw consent for any future checks or processing of your information</strong> by contacting
           us at <a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a>. Withdrawal of consent for future processing will not
-          affect the lawfulness of processing that occurred before withdrawal.
+          affect the lawfulness of processing that occurred before withdrawal. Withdrawal of consent will:
         </p>
+        <ul className="legal-list">
+          <li>(a) prevent any future bureau queries being run against your records;</li>
+          <li>(b) require the agency to suspend further use of the existing report in evaluating your application — the agency may then decline the application on the basis of incomplete information; and</li>
+          <li>(c) trigger a deletion request under <span className="act-pill">POPIA · S25</span> for the stored report data, subject to the applicable statutory retention windows set out in §07.</li>
+        </ul>
       </section>
 
       {/* 07 */}
@@ -209,25 +244,25 @@ export default function CreditCheckPolicyPage() {
           <div className="ret-row">
             <span className="what">
               Credit check results
-              <span style={{ display: "block", fontSize: "12.5px", color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>declined or withdrawn applications</span>
+              <br /><span style={{ display: "block", fontSize: "12.5px", color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>declined or withdrawn applications</span>
             </span>
-            <span className="basis">POPIA · principle 8</span>
+            <span className="basis">POPIA · s14</span>
             <span className="span">12 months</span>
           </div>
           <div className="ret-row">
             <span className="what">
               Credit check results
-              <span style={{ display: "block", fontSize: "12.5px", color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>part of an active lease record</span>
+              <br /><span style={{ display: "block", fontSize: "12.5px", color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>part of an active lease record</span>
             </span>
-            <span className="basis">RHA · S5(7)</span>
+            <span className="basis">Prescription Act · PPA s54</span>
             <span className="span">5 years</span>
           </div>
           <div className="ret-row">
             <span className="what">
               Consent audit log
-              <span style={{ display: "block", fontSize: "12.5px", color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>timestamp + consent text version</span>
+              <br /><span style={{ display: "block", fontSize: "12.5px", color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>timestamp + consent text version</span>
             </span>
-            <span className="basis">POPIA · S19</span>
+            <span className="basis">POPIA · s17</span>
             <span className="span">10 years</span>
           </div>
         </div>
@@ -236,11 +271,11 @@ export default function CreditCheckPolicyPage() {
           For the full retention schedule across all data categories, see our <a href="/privacy">Privacy Policy</a>.
         </p>
         <p>
-          <strong>NCA intermediary records:</strong> The NCA requires credit bureau intermediaries to retain records of bureau
-          queries for a minimum of 3 years. This obligation rests with Searchworx as the licensed intermediary. Our 10-year
-          consent audit log (above) satisfies any parallel accountability obligation on Pleks&rsquo;s side and comfortably covers
-          this window. The 12-month deletion period for declined-application results applies to the credit report data held by
-          Pleks — it does not affect Searchworx&rsquo;s separate intermediary records.
+          <strong>NCA intermediary records:</strong> Searchworx, as the licensed credit bureau intermediary, is subject to
+          bureau-industry retention obligations under the National Credit Regulations. This obligation rests with Searchworx.
+          Our 10-year consent audit log (above) satisfies any parallel accountability obligation on Pleks&rsquo;s side. The
+          12-month deletion period for declined-application results applies to the credit report data held by Pleks — it does
+          not affect Searchworx&rsquo;s separate intermediary records.
         </p>
       </section>
     </LegalPageLayout>

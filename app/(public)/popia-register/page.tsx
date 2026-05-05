@@ -28,20 +28,20 @@ const SECTIONS = [
 export default function ProcessingRegisterPage() {
   return (
     <LegalPageLayout
-      eyebrowParts={["POPIA · S17 · S18", "processing register", "v2026.6"]}
+      eyebrowParts={["POPIA · S17 · S18", "processing register", "v2026.7"]}
       titleBefore="Processing"
       titleHighlight="register"
       subtitle="Pleks's POPIA processing-purpose register — all 12 platform purposes and 25 operator purposes, with lawful bases, data categories, retention periods, and the full operators directory."
       kicker={[
         { label: "Last reviewed", value: "2026 · 05 · 05", mono: true },
         { label: "In force from",  value: "2026 · 05 · 01", mono: true },
-        { label: "Version",        value: "v2026.6",         mono: true },
+        { label: "Version",        value: "v2026.7",         mono: true },
         { label: "Standard",       value: "POPIA s17 · s18"              },
       ]}
       sections={SECTIONS}
       hasSummary
       showDocLinks={false}
-      endLabel="END · PROCESSING REGISTER · v2026.6"
+      endLabel="END · PROCESSING REGISTER · v2026.7"
     >
       {/* Summary */}
       <div className="summary-card" id="summary">
@@ -582,7 +582,7 @@ export default function ProcessingRegisterPage() {
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(a) — explicit consent (applicant consents to the specific purpose of a credit check before it is run; consent may be withdrawn for future checks but not to unwind a check already performed)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Applicant ID number, full name, DOB, residential addresses (current and historical), employment history, credit history, default records, civil judgments, credit score, affordability result</span></div>
             <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">credit bureau aggregator — SA-domiciled, domestic processing (see §C); underlying bureaus via credit bureau aggregator; database and storage provider; AI model provider (FitScore generation — B5)</span></div>
-            <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">12 months from the pull date or lease termination date, whichever is later · consent log entry retained 10 years (POPIA s19 accountability)</span></div>
+            <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">12 months from the pull date or lease termination date, whichever is later · consent log entry retained 10 years (POPIA s17 — Documentation)</span></div>
             <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">No for the credit check itself (credit bureau aggregator and SA credit bureaus are domestic) · Yes for derivative AI processing (FitScore via the AI model provider — SCCs)</span></div>
           </div>
         </div>
