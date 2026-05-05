@@ -1,19 +1,18 @@
 "use client"
 
 /**
- * app/(dashboard)/applications/ApplicationsPageClient.tsx — FILL: one-line purpose
+ * app/(dashboard)/applications/ApplicationsPageClient.tsx — Application list grouped by listing with bulk-decide panel
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /applications
+ * Auth:   gateway (dashboard layout)
+ * Data:   fetchApplicationsAction + server-side listings prop via React Query
  */
 import { useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton, IconButton } from "@/components/ui/actions"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { BulkDecidePanel } from "@/components/applications/BulkDecidePanel"
 import { Users, Copy, Check, ExternalLink, Plus } from "lucide-react"
@@ -76,9 +75,7 @@ function CopyButton({ url }: { url: string }) {
     setTimeout(() => setCopied(false), 2000)
   }
   return (
-    <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={copy}>
-      {copied ? <Check className="size-3.5 text-green-500" /> : <Copy className="size-3.5" />}
-    </Button>
+    <IconButton icon={copied ? <Check className="size-3.5 text-green-500" /> : <Copy className="size-3.5" />} label="Copy link" onClick={copy} />
   )
 }
 
@@ -103,9 +100,7 @@ function ListingHeader({ listing, appCount }: { listing: ListingShape; appCount:
         <div className="flex items-center gap-2">
           <code className="flex-1 text-xs bg-muted px-2 py-1 rounded truncate">{listingUrl}</code>
           <CopyButton url={listingUrl} />
-          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" render={<a href={listingUrl} target="_blank" rel="noreferrer" />}>
-            <ExternalLink className="size-3.5" />
-          </Button>
+          <a href={listingUrl} target="_blank" rel="noreferrer" className="pa-iconbtn" aria-label="Open listing"><ExternalLink className="size-3.5" /></a>
         </div>
       )}
     </div>
@@ -113,6 +108,7 @@ function ListingHeader({ listing, appCount }: { listing: ListingShape; appCount:
 }
 
 export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
+  const router = useRouter()
   const queryClient = useQueryClient()
   const { user } = useUser()
   const queryKey = OPERATIONAL_QUERY_KEYS.applications(orgId)
@@ -172,16 +168,13 @@ export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
           {dataUpdatedAt > 0 && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
               <span>Updated {relativeTime(new Date(dataUpdatedAt))}</span>
-              <button onClick={() => queryClient.invalidateQueries({ queryKey })} className="text-brand hover:underline">
-                Refresh
-              </button>
+              <button type="button" className="pa-link" onClick={() => queryClient.invalidateQueries({ queryKey })}>Refresh</button>
             </div>
           )}
         </div>
-        <Button render={<Link href="/properties" />}>
-          <Plus className="size-4 mr-1.5" />
+        <ActionButton tone="primary" icon={<Plus className="size-4" />} onClick={() => router.push("/properties")}>
           New listing
-        </Button>
+        </ActionButton>
       </div>
 
       {!hasContent ? (
@@ -206,10 +199,9 @@ export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
               <li className="flex gap-2"><span className="text-brand font-medium shrink-0">4.</span> Come back here to review and decide</li>
             </ol>
           </div>
-          <Button render={<Link href="/properties" />}>
-            <Plus className="size-4 mr-1.5" />
+          <ActionButton tone="primary" icon={<Plus className="size-4" />} onClick={() => router.push("/properties")}>
             Go to properties
-          </Button>
+          </ActionButton>
         </div>
       ) : (
         <div className="space-y-6">

@@ -12,7 +12,7 @@ import { useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { Wrench, Plus, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
 import { OPERATIONAL_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
@@ -229,9 +229,9 @@ export function MaintenancePageClient({ orgId }: Readonly<Props>) {
             <h1 className="font-heading text-2xl">Maintenance</h1>
             {list.length > 0 && <p className="text-xs text-muted-foreground">{list.length} total</p>}
           </div>
-          <Button size="sm" render={<Link href="/maintenance/new" />}>
-            <Plus className="h-4 w-4 mr-1" /> Log
-          </Button>
+          <ActionButton tone="primary" icon={<Plus className="h-4 w-4" />} onClick={() => router.push("/maintenance/new")}>
+            Log
+          </ActionButton>
         </div>
 
         {emergencies.length > 0 && (
@@ -273,15 +273,13 @@ export function MaintenancePageClient({ orgId }: Readonly<Props>) {
             {dataUpdatedAt > 0 && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
                 <span>Updated {relativeTime(new Date(dataUpdatedAt))}</span>
-                <button type="button" onClick={() => queryClient.invalidateQueries({ queryKey })} className="text-brand hover:underline">
-                  Refresh
-                </button>
+                <button type="button" className="pa-link" onClick={() => queryClient.invalidateQueries({ queryKey })}>Refresh</button>
               </div>
             )}
           </div>
-          <Button render={<Link href="/maintenance/new" />}>
-            <Plus className="h-4 w-4 mr-1" /> Log request
-          </Button>
+          <ActionButton tone="primary" icon={<Plus className="h-4 w-4" />} onClick={() => router.push("/maintenance/new")}>
+            Log request
+          </ActionButton>
         </div>
 
         {emergencies.length > 0 && (

@@ -1,19 +1,18 @@
 "use client"
 
 /**
- * app/(dashboard)/billing/BillingPageClient.tsx — FILL: one-line purpose
+ * app/(dashboard)/billing/BillingPageClient.tsx — Payment list with batch entry and invoice views
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /billing
+ * Auth:   gateway (dashboard layout)
+ * Data:   fetchPaymentsAction via React Query
  */
 
 import { useState, useTransition } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Card, CardContent } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { EmptyState } from "@/components/shared/EmptyState"
@@ -40,6 +39,7 @@ const STATUS_MAP: Record<string, "pending" | "active" | "completed" | "arrears">
 interface Props { orgId: string }
 
 export function BillingPageClient({ orgId }: Readonly<Props>) {
+  const router = useRouter()
   const queryClient = useQueryClient()
   const queryKey = OPERATIONAL_QUERY_KEYS.payments(orgId)
   const { data: list = [], dataUpdatedAt } = useQuery({
@@ -81,21 +81,15 @@ export function BillingPageClient({ orgId }: Readonly<Props>) {
           {dataUpdatedAt > 0 && (
             <div className="hidden lg:flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
               <span>Updated {relativeTime(new Date(dataUpdatedAt))}</span>
-              <button
-                onClick={() => queryClient.invalidateQueries({ queryKey })}
-                className="text-brand hover:underline"
-              >
-                Refresh
-              </button>
+              <button type="button" className="pa-link" onClick={() => queryClient.invalidateQueries({ queryKey })}>Refresh</button>
             </div>
           )}
         </div>
         {/* Desktop action bar */}
         <div className="hidden lg:flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={handleSendReminders} disabled={sendingReminders}>
-            {sendingReminders ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <MessageSquare className="h-4 w-4 mr-1" />}
+          <ActionButton tone="secondary" icon={sendingReminders ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquare className="h-4 w-4" />} onClick={handleSendReminders} disabled={sendingReminders}>
             Send reminders
-          </Button>
+          </ActionButton>
           <div className="flex items-center border border-border rounded-md overflow-hidden text-xs">
             <button
               type="button"
@@ -112,21 +106,17 @@ export function BillingPageClient({ orgId }: Readonly<Props>) {
               <List className="size-3.5" /> Invoices
             </button>
           </div>
-          <Button size="sm" variant="outline" render={<Link href="/billing/bulk-import" />}>
-            <Upload className="h-4 w-4 mr-1" /> Bulk import
-          </Button>
-          <Button render={<Link href="/billing/invoices/new" />}>
-            <Plus className="h-4 w-4 mr-1" /> Add Invoice
-          </Button>
+          <ActionButton tone="secondary" icon={<Upload className="h-4 w-4" />} onClick={() => router.push("/billing/bulk-import")}>
+            Bulk import
+          </ActionButton>
+          <ActionButton tone="primary" icon={<Plus className="h-4 w-4" />} onClick={() => router.push("/billing/invoices/new")}>
+            Add Invoice
+          </ActionButton>
         </div>
         {/* Mobile action bar */}
         <div className="lg:hidden flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={handleSendReminders} disabled={sendingReminders}>
-            {sendingReminders ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MessageSquare className="h-3.5 w-3.5" />}
-          </Button>
-          <Button size="sm" render={<Link href="/billing/invoices/new" />}>
-            <Plus className="h-4 w-4" />
-          </Button>
+          <ActionButton tone="secondary" icon={sendingReminders ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MessageSquare className="h-3.5 w-3.5" />} onClick={handleSendReminders} disabled={sendingReminders} />
+          <ActionButton tone="primary" icon={<Plus className="h-4 w-4" />} onClick={() => router.push("/billing/invoices/new")} />
         </div>
       </div>
 
@@ -144,11 +134,7 @@ export function BillingPageClient({ orgId }: Readonly<Props>) {
 
       {/* Mobile: invoice list toggle */}
       <div className="lg:hidden mb-4">
-        <button
-          type="button"
-          onClick={() => setMode(mode === "batch" ? "single" : "batch")}
-          className="text-xs text-brand hover:underline"
-        >
+        <button type="button" className="pa-link" onClick={() => setMode(mode === "batch" ? "single" : "batch")}>
           {mode === "batch" ? "View invoice list →" : "← Back to quick entry"}
         </button>
       </div>

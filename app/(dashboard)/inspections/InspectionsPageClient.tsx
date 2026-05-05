@@ -8,8 +8,9 @@
  * Data:   fetchInspectionsAction via React Query
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Card, CardContent } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { EmptyState } from "@/components/shared/EmptyState"
@@ -31,6 +32,7 @@ const STATUS_MAP: Record<string, "scheduled" | "pending" | "active" | "completed
 interface Props { orgId: string }
 
 export function InspectionsPageClient({ orgId }: Readonly<Props>) {
+  const router = useRouter()
   const queryClient = useQueryClient()
   const queryKey = OPERATIONAL_QUERY_KEYS.inspections(orgId)
   const { data: list = [], dataUpdatedAt } = useQuery({
@@ -50,18 +52,13 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
           {dataUpdatedAt > 0 && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
               <span>Updated {relativeTime(new Date(dataUpdatedAt))}</span>
-              <button
-                onClick={() => queryClient.invalidateQueries({ queryKey })}
-                className="text-brand hover:underline"
-              >
-                Refresh
-              </button>
+              <button type="button" className="pa-link" onClick={() => queryClient.invalidateQueries({ queryKey })}>Refresh</button>
             </div>
           )}
         </div>
-        <Button render={<Link href="/inspections/new" />}>
-          <Plus className="h-4 w-4 mr-1" /> Schedule Inspection
-        </Button>
+        <ActionButton tone="primary" icon={<Plus className="h-4 w-4" />} onClick={() => router.push("/inspections/new")}>
+          Schedule Inspection
+        </ActionButton>
       </div>
 
       {list.length === 0 ? (
