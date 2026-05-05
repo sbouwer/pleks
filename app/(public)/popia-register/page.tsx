@@ -28,20 +28,20 @@ const SECTIONS = [
 export default function ProcessingRegisterPage() {
   return (
     <LegalPageLayout
-      eyebrowParts={["POPIA · S17 · S18", "processing register", "v2026.4"]}
+      eyebrowParts={["POPIA · S17 · S18", "processing register", "v2026.5"]}
       titleBefore="Processing"
       titleHighlight="register"
       subtitle="Pleks's POPIA processing-purpose register — all 12 platform purposes and 25 operator purposes, with lawful bases, data categories, retention periods, and the full operators directory."
       kicker={[
         { label: "Last reviewed", value: "2026 · 05 · 05", mono: true },
         { label: "In force from",  value: "2026 · 05 · 01", mono: true },
-        { label: "Version",        value: "v2026.4",         mono: true },
+        { label: "Version",        value: "v2026.5",         mono: true },
         { label: "Standard",       value: "POPIA s17 · s18"              },
       ]}
       sections={SECTIONS}
       hasSummary
       showDocLinks={false}
-      endLabel="END · PROCESSING REGISTER · v2026.4"
+      endLabel="END · PROCESSING REGISTER · v2026.5"
     >
       {/* Summary */}
       <div className="summary-card" id="summary">
@@ -118,6 +118,16 @@ export default function ProcessingRegisterPage() {
           are triggered. The breach-notification obligation is given contractual force in the Pleks Terms of Service.
         </p>
         <p>
+          <strong>Agency audit rights over Pleks as Operator.</strong> Under{" "}
+          <span className="act-pill">POPIA · S21</span>, agencies as Responsible Parties have the right to verify Pleks&rsquo;s compliance
+          with the Pleks Operator Agreement. Pleks supports this right through: (a) this publicly available processing-purpose register;
+          (b) provision of a completed security questionnaire or equivalent on written request (at no cost, once per 12 months); and
+          (c) cooperation with reasonable compliance audits on 30 days&rsquo; written notice, subject to confidentiality obligations
+          protecting other agencies&rsquo; data. The Pleks Operator Agreement sets out the full scope of audit rights and is available
+          on written request to the Information Officer at{" "}
+          <a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a>.
+        </p>
+        <p>
           <strong>Sovereign-trust invariant.</strong> Pleks holds no client funds. Client funds reside in the agency&rsquo;s own
           Section 86 trust account at the agency&rsquo;s own bank. Pleks does not initiate payments and is not the trustee. This
           is the financial expression of the same principle: Pleks is an Operator, not a custodian.
@@ -192,6 +202,17 @@ export default function ProcessingRegisterPage() {
           <li><strong>Signed URLs with TTL:</strong> all sensitive downloads use time-limited signed URLs; no public bucket access to customer data.</li>
           <li><strong>Operator contractual controls:</strong> every third-party Operator operates under a Data Processing Addendum with SCCs where cross-border, and documented retention and breach-notification terms.</li>
         </ul>
+        <p>
+          <strong>Data quality (<span className="act-pill">POPIA · S16</span> / <span className="act-pill">S11(2)</span>).</strong>{" "}
+          Pleks is obliged to keep personal information complete, accurate, not misleading, and updated. For Part A data, Pleks owns
+          this obligation directly. For Part B data, the agency is the Responsible Party and holds the quality obligation; Pleks
+          provides the mechanism (the s23 in-platform correction interface in Purpose B23) to discharge it. Accuracy is especially
+          consequential in credit checking (B4), FitScore generation (B5), and arrears management (B11) — an inaccurate data point
+          in any of these purposes can have legal and financial consequences for the data subject. Pleks surfaces data-quality alerts
+          when it detects internally inconsistent records (e.g., arrears balance vs trust reconciliation mismatch). Agencies must act
+          on correction requests within the 30-business-day window under s23(1). Pleks will propagate confirmed corrections to all
+          downstream records that derived from the corrected source data.
+        </p>
         <p>
           Where multiple retention periods apply to the same record, Pleks enforces the longest applicable statutory, contractual, or
           evidentiary period. Purpose-level retention periods in this register are minimum commitments and may be overridden by mandatory
@@ -491,8 +512,11 @@ export default function ProcessingRegisterPage() {
         <p>
           These 25 purposes are those for which an agency using Pleks is the <strong>Responsible Party</strong> and Pleks is the
           Operator. Every purpose here is processed on behalf of the agency, under the lawful basis the agency holds for the processing,
-          under the Pleks Operator Agreement. <strong>The lawful basis shown is the agency&rsquo;s lawful basis for the underlying
-          processing.</strong> The agency must confirm its lawful basis for each purpose in its own register.
+          under the Pleks Operator Agreement. <strong>Lawful basis caution: the basis shown for each purpose is the basis typically
+          applied by agencies in the SA rental property management sector. It is not a determination by Pleks, and it does not bind
+          any individual agency.</strong> An agency may operate on a different basis (e.g., relying on s11(1)(f) legitimate interest
+          rather than s11(1)(b) contract for a given purpose). Each agency must confirm and document its own lawful basis in its own
+          register. Where the agency relies on s11(1)(f) legitimate interest, it must conduct and retain a balancing test.
         </p>
 
         <div className="purpose-entry">
@@ -583,7 +607,7 @@ export default function ProcessingRegisterPage() {
             <span>Lease generation, signing, and document management</span>
             <code className="purpose-slug">lease_generation_signing</code>
           </div>
-          <p className="purpose-desc">Generate a lease document from the agency&rsquo;s configured template + clause profile + unit-level overrides; render to PDF; route through the e-signature provider (see §C) for digital signing; store signed lease PDF and signatures. Covers lease creation, amendment, renewal, and termination document flows.</p>
+          <p className="purpose-desc">Generate a lease document from the agency&rsquo;s configured template + clause profile + unit-level overrides; render to PDF; route through the e-signature provider (see §C) for digital signing; store signed lease PDF and signatures. Covers lease creation, amendment, renewal, and termination document flows. <strong>ECT Act signature class note:</strong> standard residential lease agreements are validly signed with an ordinary electronic signature under ECT s13(1). Suretyship obligations under the General Law Amendment Act s6 are not covered by ECT s13 and may require an Advanced Electronic Signature or wet signature — agencies should seek legal advice before accepting a surety via the platform. This register does not constitute legal advice on signature validity.</p>
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(b) — contract (the lease is the contract) + s11(1)(c) — compliance with law (RHA s5 written lease requirements, CPA s14, ECT Act signature requirements)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Full names, ID numbers, DOBs, contact details, employment details, signatures, co-tenant and landlord signatures, sureties if any</span></div>
@@ -601,7 +625,7 @@ export default function ProcessingRegisterPage() {
           </div>
           <p className="purpose-desc">Manage the lease over its full lifecycle — activation, escalation at anniversaries, CPA s14 auto-renewal notice (sent not more than 80 nor less than 40 business days before expiry, per CPA s14(2)(d)), notice acknowledgement, amendment (with audit trail), termination, move-out, and deposit reconciliation. Where the lease is not subject to the CPA (e.g., landlord not supplying services in the ordinary course of business), the contractual notice period specified in the lease applies instead.</p>
           <div className="purpose-meta">
-            <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(b) — contract + s11(1)(c) — compliance with law (RHA and CPA specific notice obligations)</span></div>
+            <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(b) — contract + s11(1)(c) — compliance with law (RHA and CPA specific notice obligations). RHA commencement note: the written-lease requirement cites RHA s5 as amended by the Rental Housing Amendment Act 35 of 2014. Commencement of that Amendment has been irregular across provinces; agencies operating in provinces where the Amendment has not commenced should confirm the applicable statutory basis with their attorneys.</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Tenant contact details, lease state, notice history</span></div>
             <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider, transactional email provider and SMS and WhatsApp aggregator (notice delivery)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">Follows Purpose B6 — 5 years post-termination</span></div>
@@ -711,7 +735,7 @@ export default function ProcessingRegisterPage() {
             <span>Inspection management</span>
             <code className="purpose-slug">inspection_management</code>
           </div>
-          <p className="purpose-desc">Schedule and conduct property inspections (move-in, periodic, move-out). Capture condition per room and per item. Preserve photo EXIF data (GPS and timestamp) for Tribunal evidentiary purposes. Generate inspection PDF with agent and tenant signatures.</p>
+          <p className="purpose-desc">Schedule and conduct property inspections (move-in, periodic, move-out). Capture condition per room and per item. Preserve photo EXIF data (GPS and timestamp) for Tribunal evidentiary purposes. Generate inspection PDF with agent and tenant signatures. <strong>Photo protocol:</strong> agents must not photograph identifiable persons (including children present at inspection). Where a person is inadvertently captured, the image must be blurred or cropped to remove the identifiable person before upload and storage. Agents are notified of this requirement within the inspection workflow. Photos of tenant belongings or personal effects visible in the property are retained only where necessary to document condition relevant to deposit deductions.</p>
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(b) — contract + s11(1)(c) — compliance with law (Rental Housing Act inspection requirements)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Tenant name and signature, agent name and signature, property address, photos of the property interior and exterior (EXIF GPS and timestamp preserved; may incidentally include tenant belongings or persons)</span></div>
@@ -991,7 +1015,7 @@ export default function ProcessingRegisterPage() {
               <td className="op-name">Searchworx<span className="sub">credit bureau aggregator</span></td>
               <td>Credit bureau intermediary — aggregates TransUnion, Experian, Compuscan, XDS, Home Affairs (DHA), TPN. Explicit applicant consent required per check.</td>
               <td>South Africa (Johannesburg — domestic)</td>
-              <td>Searchworx Services Agreement + POPIA-compliant DPA. Searchworx is itself bound by NCA, POPIA, and FICA regulatory obligations.</td>
+              <td>Searchworx Services Agreement + POPIA-compliant DPA. Searchworx is itself bound by NCA, POPIA, and FICA regulatory obligations. Data residency: asserted as SA-domiciled; Pleks is seeking written confirmation from Searchworx that all credit data (including data transiting to underlying bureaus TransUnion, Experian, XDS, Compuscan) remains within SA infrastructure. This entry will be updated on receipt of confirmation.</td>
               <td>B4 only</td>
             </tr>
             <tr>
@@ -1010,8 +1034,11 @@ export default function ProcessingRegisterPage() {
           also trigger a re-consent notification flow to affected agencies.
         </p>
         <p>
-          For questions about this register, to exercise your rights as a data subject, or to request a copy of the Pleks Operator
-          Agreement, contact our Information Officer — see §02 above.
+          For questions about this register or to exercise your rights as a data subject, contact our Information Officer — see §02 above.
+          The Pleks Operator Agreement is the contractual instrument that gives this register force for Part B purposes. A copy is
+          available to agencies on written request to{" "}
+          <a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a>. Agencies evaluating Pleks for procurement are encouraged to review
+          the Operator Agreement alongside this register before contracting.
         </p>
       </section>
     </LegalPageLayout>
