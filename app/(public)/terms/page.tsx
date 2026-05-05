@@ -26,19 +26,19 @@ const SECTIONS = [
 export default function TermsOfServicePage() {
   return (
     <LegalPageLayout
-      eyebrowParts={["SaaS · TERMS", "binding agreement", "v2.8"]}
+      eyebrowParts={["SaaS · TERMS", "binding agreement", "v2.9"]}
       titleBefore="Terms of"
       titleHighlight="service"
       subtitle="The agreement that governs your use of the Pleks property management platform. By using Pleks you confirm that you have read and accepted these terms."
       kicker={[
-        { label: "Last reviewed", value: "2026 · 04 · 01", mono: true },
+        { label: "Last reviewed", value: "2026 · 05 · 05", mono: true },
         { label: "Effective",     value: "2026 · 05 · 05", mono: true },
         { label: "Jurisdiction",  value: "Republic of South Africa" },
-        { label: "Framework",     value: "CPA · ECT Act" },
+        { label: "Framework",     value: "CPA · ECT Act · PPA" },
       ]}
       sections={SECTIONS}
       hasSummary
-      endLabel="END · TERMS OF SERVICE · v2.8"
+      endLabel="END · TERMS OF SERVICE · v2.9"
     >
       {/* Plain-language summary */}
       <div className="summary-card" id="summary">
@@ -81,7 +81,9 @@ export default function TermsOfServicePage() {
         </p>
         <p>
           Pleks is <strong>not</strong> a property management company and does not act as a landlord, agent or intermediary in any
-          property transaction. All decisions about tenants, leases, and property management remain entirely with you.
+          property transaction. All decisions about tenants, leases, and property management remain entirely with you. Pleks (Pty) Ltd
+          is a technology provider and is not a &ldquo;Property Practitioner&rdquo; as defined in the Property Practitioners Act 22
+          of 2019 <span className="act-pill">PPA</span>. Pleks does not hold, and is not required to hold, a Fidelity Fund Certificate.
         </p>
       </section>
 
@@ -98,6 +100,7 @@ export default function TermsOfServicePage() {
           <li>We reserve the right to change pricing with 30 days&rsquo; written notice to your registered email address.</li>
           <li>Applicant credit check fees are paid directly by the applicant at the time of their application — not by your agency subscription.</li>
           <li>Failed payments may result in temporary suspension of your account until the balance is settled.</li>
+          <li>If you subscribe on an annual basis and are a natural person (not a juristic entity), we will notify you by email between 40 and 80 business days before your renewal date, as required by section 14 of the Consumer Protection Act <span className="act-pill">CPA · S14</span>. Agency and company subscribers are not subject to this notice obligation.</li>
         </ul>
       </section>
 
@@ -110,10 +113,11 @@ export default function TermsOfServicePage() {
           active until the end of the current billing period. No pro-rated refunds are issued for partial billing periods.
         </p>
         <p>
-          After cancellation, you will retain <strong>read-only access</strong> to your data for 90 days. This gives you time to export
-          records, download lease documents, and complete any open processes. After this 90-day period, your data will be permanently
-          deleted unless a longer retention period is required by law — see our <a href="/privacy">Privacy Policy</a> for the full
-          retention schedule.
+          After cancellation, you will retain <strong>read-only access</strong> to your data for 90 days. During this period you
+          can use the bulk-export feature to download all leases, inspection reports, financial records, and tenant documents in a
+          single archive. After the 90-day grace period your data will be permanently deleted unless a longer retention period is
+          required by law — see our <a href="/privacy">Privacy Policy</a> for the full retention schedule. Pleks is not responsible
+          for data loss that results from failure to export within the grace period.
         </p>
       </section>
 
@@ -133,9 +137,11 @@ export default function TermsOfServicePage() {
         <p>
           You warrant that any personal information submitted to or processed through Pleks has been collected lawfully
           and is processed in compliance with applicable data protection legislation, including the Protection of Personal
-          Information Act <span className="act-pill">POPIA</span>. You indemnify Pleks (Pty) Ltd against any claim,
-          penalty, or loss arising from unlawful collection, processing, or sharing of personal information through your
-          use of the platform.
+          Information Act <span className="act-pill">POPIA</span>. You further warrant that you will not use the platform
+          to engage in any discriminatory practice prohibited under the Rental Housing Act <span className="act-pill">RHA</span>,
+          including unlawful discrimination against prospective tenants on any protected ground. You indemnify Pleks (Pty) Ltd
+          against any claim, penalty, legal cost, or loss arising from unlawful collection, processing, or sharing of personal
+          information, or from any discriminatory practice, carried out through your use of the platform.
         </p>
         <p>
           Breach of these conditions may result in immediate suspension or termination of your account without refund,
@@ -159,7 +165,10 @@ export default function TermsOfServicePage() {
         </p>
         <p>
           Nothing in this clause limits liability for fraud, gross negligence, or any liability that cannot be excluded under
-          applicable law including the <span className="act-pill">CPA</span>.
+          applicable law including the <span className="act-pill">CPA</span>. Pleks relies on third-party infrastructure providers
+          including Supabase, Vercel, and PayFast. We are not liable for any loss or interruption caused by failure, outage, or
+          breach of those third-party services beyond what is recoverable under our agreements with them. See section 08 for our
+          service availability terms.
         </p>
       </section>
 
@@ -194,7 +203,10 @@ export default function TermsOfServicePage() {
           notice where possible.
         </p>
         <p>
-          Real-time platform status, including any active incidents and historical uptime, is published at{" "}
+          We target 99.9% monthly uptime for the authenticated dashboard. This target does not constitute a guaranteed
+          Service Level Agreement (SLA) and does not create an entitlement to compensation or credit unless a separate SLA
+          has been agreed in writing. Real-time platform status, including any active incidents and historical uptime, is
+          published at{" "}
           <a href="https://status.pleks.co.za" target="_blank" rel="noopener noreferrer">status.pleks.co.za</a>.
           You can check this page at any time to confirm whether a service disruption has been reported.
         </p>
