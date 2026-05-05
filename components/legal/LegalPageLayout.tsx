@@ -11,6 +11,7 @@
 import { useState, useEffect, Fragment } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 
 export interface LegalSection { id: string; num: string; label: string }
 export interface KickerCell   { label: string; value: string; mono?: boolean }
@@ -30,12 +31,12 @@ interface Props {
 }
 
 const LEGAL_DOCS = [
-  { href: "/cookie-policy",       label: "Cookie policy",       version: "v1.2" },
-  { href: "/credit-check-policy", label: "Credit check policy", version: "v1.4" },
-  { href: "/paia-manual",         label: "PAIA manual",         version: "v1.1" },
-  { href: "/popia-register",      label: "POPIA register",      version: "v2026.9" },
-  { href: "/privacy",             label: "Privacy policy",      version: "v4.1" },
-  { href: "/terms",               label: "Terms of service",    version: "v3.2" },
+  { href: "/cookie-policy",       label: "Cookie policy",       version: LEGAL_VERSIONS.cookiePolicy      },
+  { href: "/credit-check-policy", label: "Credit check policy", version: LEGAL_VERSIONS.creditCheckPolicy },
+  { href: "/paia-manual",         label: "PAIA manual",         version: LEGAL_VERSIONS.paiaManual        },
+  { href: "/popia-register",      label: "POPIA register",      version: LEGAL_VERSIONS.popiaRegister     },
+  { href: "/privacy",             label: "Privacy policy",      version: LEGAL_VERSIONS.privacy           },
+  { href: "/terms",               label: "Terms of service",    version: LEGAL_VERSIONS.terms             },
 ]
 
 export function LegalPageLayout({

@@ -3,11 +3,11 @@
  *
  * Route:  /popia-register
  * Auth:   public
- * Notes:  Standalone register — no doc-switcher links shown in sidenav.
- *         Covers Part A (12 Pleks-RP purposes) and Part B (25 Operator purposes).
+ * Notes:  Covers Part A (12 Pleks-RP purposes) and Part B (25 Operator purposes).
  */
 import type { Metadata } from "next"
 import { LegalPageLayout } from "@/components/legal/LegalPageLayout"
+import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 
 export const metadata: Metadata = {
   title: "Processing Register — Pleks",
@@ -28,20 +28,20 @@ const SECTIONS = [
 export default function ProcessingRegisterPage() {
   return (
     <LegalPageLayout
-      eyebrowParts={["POPIA · S17 · S18", "processing register", "v2026.9"]}
+      eyebrowParts={["POPIA · S17 · S18", "processing register", LEGAL_VERSIONS.popiaRegister]}
       titleBefore="Processing"
       titleHighlight="register"
       subtitle="Pleks's POPIA processing-purpose register — all 12 platform purposes and 25 operator purposes, with lawful bases, data categories, retention periods, and the full operators directory."
       kicker={[
         { label: "Last reviewed", value: "2026 · 05 · 05", mono: true },
         { label: "In force from",  value: "2026 · 05 · 01", mono: true },
-        { label: "Version",        value: "v2026.9",         mono: true },
+        { label: "Version",        value: LEGAL_VERSIONS.popiaRegister, mono: true },
         { label: "Standard",       value: "POPIA s17 · s18"              },
       ]}
       sections={SECTIONS}
       hasSummary
-      showDocLinks={false}
-      endLabel="END · PROCESSING REGISTER · v2026.9"
+      showDocLinks
+      endLabel={`END · PROCESSING REGISTER · ${LEGAL_VERSIONS.popiaRegister}`}
     >
       {/* Summary */}
       <div className="summary-card" id="summary">

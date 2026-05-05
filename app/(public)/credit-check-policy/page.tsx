@@ -7,6 +7,7 @@
  */
 import type { Metadata } from "next"
 import { LegalPageLayout } from "@/components/legal/LegalPageLayout"
+import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 
 export const metadata: Metadata = {
   title: "Credit Check Policy — Pleks",
@@ -26,7 +27,7 @@ const SECTIONS = [
 export default function CreditCheckPolicyPage() {
   return (
     <LegalPageLayout
-      eyebrowParts={["POPIA · S11(1)(A) · CONSENT", "applicants", "v1.4"]}
+      eyebrowParts={["POPIA · S11(1)(A) · CONSENT", "applicants", LEGAL_VERSIONS.creditCheckPolicy]}
       titleBefore="Credit check"
       titleHighlight="policy"
       subtitle="How credit and background checks work on Pleks, what the application fee covers, and the rights you hold as a data subject under POPIA and the National Credit Act."
@@ -38,7 +39,7 @@ export default function CreditCheckPolicyPage() {
       ]}
       sections={SECTIONS}
       hasSummary
-      endLabel="END · CREDIT CHECK POLICY · v1.4"
+      endLabel={`END · CREDIT CHECK POLICY · ${LEGAL_VERSIONS.creditCheckPolicy}`}
     >
       {/* Plain-language summary */}
       <div className="summary-card" id="summary">

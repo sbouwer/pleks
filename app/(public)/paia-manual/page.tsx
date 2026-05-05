@@ -10,6 +10,7 @@ import type { Metadata } from "next"
 import Link from "next/link"
 import { LegalPageLayout } from "@/components/legal/LegalPageLayout"
 import { PrintButton } from "@/components/legal/PrintButton"
+import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 
 export const metadata: Metadata = {
   title: "PAIA Manual — Pleks",
@@ -33,7 +34,7 @@ const SECTIONS = [
 export default function PAIAManualPage() {
   return (
     <LegalPageLayout
-      eyebrowParts={["PAIA · S51", "private body", "v1.1"]}
+      eyebrowParts={["PAIA · S51", "private body", LEGAL_VERSIONS.paiaManual]}
       titleBefore="PAIA"
       titleHighlight="manual"
       subtitle="Pleks (Pty) Ltd's manual compiled in accordance with section 51 of the Promotion of Access to Information Act 2 of 2000 — record categories, access request procedure, and contact details."
@@ -45,7 +46,7 @@ export default function PAIAManualPage() {
       ]}
       sections={SECTIONS}
       hasSummary
-      endLabel="END · PAIA MANUAL · v1.1"
+      endLabel={`END · PAIA MANUAL · ${LEGAL_VERSIONS.paiaManual}`}
     >
       {/* Plain-language summary */}
       <div className="summary-card" id="summary">

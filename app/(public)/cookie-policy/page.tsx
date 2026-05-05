@@ -6,6 +6,7 @@
  */
 import type { Metadata } from "next"
 import { LegalPageLayout } from "@/components/legal/LegalPageLayout"
+import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 
 export const metadata: Metadata = {
   title: "Cookie Policy — Pleks",
@@ -24,7 +25,7 @@ const SECTIONS = [
 export default function CookiePolicyPage() {
   return (
     <LegalPageLayout
-      eyebrowParts={["COOKIES · TRACKING", "browser storage", "v1.2"]}
+      eyebrowParts={["COOKIES · TRACKING", "browser storage", LEGAL_VERSIONS.cookiePolicy]}
       titleBefore="Cookie"
       titleHighlight="policy"
       subtitle="How Pleks uses cookies and similar browser storage technologies to keep you signed in, measure performance, and improve the platform."
@@ -36,7 +37,7 @@ export default function CookiePolicyPage() {
       ]}
       sections={SECTIONS}
       hasSummary
-      endLabel="END · COOKIE POLICY · v1.2"
+      endLabel={`END · COOKIE POLICY · ${LEGAL_VERSIONS.cookiePolicy}`}
     >
       {/* Plain-language summary */}
       <div className="summary-card" id="summary">

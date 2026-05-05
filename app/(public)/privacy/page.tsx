@@ -6,6 +6,7 @@
  */
 import type { Metadata } from "next"
 import { LegalPageLayout } from "@/components/legal/LegalPageLayout"
+import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 
 export const metadata: Metadata = {
   title: "Privacy Policy — Pleks",
@@ -31,7 +32,7 @@ const SECTIONS = [
 export default function PrivacyPolicyPage() {
   return (
     <LegalPageLayout
-      eyebrowParts={["POPIA · S22 · NOTICE", "plain language", "v4.1"]}
+      eyebrowParts={["POPIA · S22 · NOTICE", "plain language", LEGAL_VERSIONS.privacy]}
       titleBefore="Privacy"
       titleHighlight="policy"
       subtitle="How Pleks (Pty) Ltd collects, uses, stores and shares personal information — as Responsible Party for platform operations and as Operator for agency-managed rental data."
@@ -43,7 +44,7 @@ export default function PrivacyPolicyPage() {
       ]}
       sections={SECTIONS}
       hasSummary
-      endLabel="END · PRIVACY POLICY · v4.1"
+      endLabel={`END · PRIVACY POLICY · ${LEGAL_VERSIONS.privacy}`}
     >
       {/* Plain-language summary */}
       <div className="summary-card" id="summary">

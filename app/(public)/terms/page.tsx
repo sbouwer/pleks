@@ -6,6 +6,7 @@
  */
 import type { Metadata } from "next"
 import { LegalPageLayout } from "@/components/legal/LegalPageLayout"
+import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 
 export const metadata: Metadata = {
   title: "Terms of Service — Pleks",
@@ -28,7 +29,7 @@ const SECTIONS = [
 export default function TermsOfServicePage() {
   return (
     <LegalPageLayout
-      eyebrowParts={["SaaS · TERMS", "binding agreement", "v3.2"]}
+      eyebrowParts={["SaaS · TERMS", "binding agreement", LEGAL_VERSIONS.terms]}
       titleBefore="Terms of"
       titleHighlight="service"
       subtitle="The agreement that governs your use of the Pleks property management platform. By using Pleks you confirm that you have read and accepted these terms."
@@ -40,7 +41,7 @@ export default function TermsOfServicePage() {
       ]}
       sections={SECTIONS}
       hasSummary
-      endLabel="END · TERMS OF SERVICE · v3.2"
+      endLabel={`END · TERMS OF SERVICE · ${LEGAL_VERSIONS.terms}`}
     >
       {/* Plain-language summary */}
       <div className="summary-card" id="summary">
