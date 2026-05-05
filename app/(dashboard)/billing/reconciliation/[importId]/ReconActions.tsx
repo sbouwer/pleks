@@ -1,17 +1,16 @@
 "use client"
 
 /**
- * app/(dashboard)/billing/reconciliation/[importId]/ReconActions.tsx — FILL: one-line purpose
+ * app/(dashboard)/billing/reconciliation/[importId]/ReconActions.tsx — Auto-match and sign-off actions for a bank reconciliation import.
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /billing/reconciliation/[importId]
+ * Auth:   requireAdminAuth
+ * Data:   reconciled and unmatched props from parent server component; mutations via recon server actions
+ * Notes:  Sign-off is disabled while unmatched transactions remain; auto-match only shown when unmatched > 0
  */
 
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { signOffReconciliation, runAutoMatch } from "@/lib/actions/recon"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -62,14 +61,13 @@ export function ReconActions({ importId, reconciled, unmatched }: ReconActionsPr
   return (
     <div className="flex gap-2">
       {unmatched > 0 && (
-        <Button size="sm" variant="outline" onClick={handleAutoMatch} disabled={matching}>
-          <Wand2 className="h-4 w-4 mr-1" />
+        <ActionButton tone="secondary" icon={<Wand2 className="h-4 w-4" />} onClick={handleAutoMatch} disabled={matching}>
           {matching ? "Matching…" : "Auto-match"}
-        </Button>
+        </ActionButton>
       )}
-      <Button size="sm" onClick={handleSignOff} disabled={unmatched > 0}>
+      <ActionButton tone="primary" onClick={handleSignOff} disabled={unmatched > 0}>
         {unmatched > 0 ? `${unmatched} unmatched` : "Sign Off Reconciliation"}
-      </Button>
+      </ActionButton>
     </div>
   )
 }

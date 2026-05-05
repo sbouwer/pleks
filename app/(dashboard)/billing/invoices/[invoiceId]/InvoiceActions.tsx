@@ -1,16 +1,15 @@
 "use client"
 
 /**
- * app/(dashboard)/billing/invoices/[invoiceId]/InvoiceActions.tsx — FILL: one-line purpose
+ * app/(dashboard)/billing/invoices/[invoiceId]/InvoiceActions.tsx — Approve, reject, or mark-as-paid actions for a supplier invoice.
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /billing/invoices/[invoiceId]
+ * Auth:   requireAdminAuth
+ * Data:   status prop from parent server component; mutations via invoices server actions
+ * Notes:  Approve/Reject only shown for submitted or under_review; Mark as Paid only shown once approved
  */
 
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { approveInvoice, markInvoicePaid, rejectInvoice } from "@/lib/actions/invoices"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -45,12 +44,12 @@ export function InvoiceActions({ invoiceId, status }: InvoiceActionsProps) {
     <div className="flex flex-wrap gap-2">
       {["submitted", "under_review"].includes(status) && (
         <>
-          <Button size="sm" onClick={handleApprove}>Approve</Button>
-          <Button size="sm" variant="outline" onClick={handleReject}>Reject</Button>
+          <ActionButton tone="primary" onClick={handleApprove}>Approve</ActionButton>
+          <ActionButton tone="destructive" onClick={handleReject}>Reject</ActionButton>
         </>
       )}
       {status === "approved" && (
-        <Button size="sm" onClick={handlePay}>Mark as Paid</Button>
+        <ActionButton tone="primary" onClick={handlePay}>Mark as Paid</ActionButton>
       )}
     </div>
   )

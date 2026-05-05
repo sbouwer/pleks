@@ -1,16 +1,15 @@
 "use client"
 
 /**
- * app/(dashboard)/billing/arrears/[caseId]/ArrearsActions.tsx — FILL: one-line purpose
+ * app/(dashboard)/billing/arrears/[caseId]/ArrearsActions.tsx — Status-transition action buttons for an arrears case.
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /billing/arrears/[caseId]
+ * Auth:   requireAdminAuth
+ * Data:   status prop from parent server component; mutations via updateArrearsStatus server action
+ * Notes:  Renders nothing once the case reaches a terminal state (resolved / written_off)
  */
 
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { updateArrearsStatus } from "@/lib/actions/arrears"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -35,21 +34,21 @@ export function ArrearsActions({ caseId, status }: ArrearsActionsProps) {
     <div className="flex flex-wrap gap-2">
       {status === "open" && (
         <>
-          <Button size="sm" onClick={() => handleStatus("payment_arrangement")}>Record Arrangement</Button>
-          <Button size="sm" variant="outline" onClick={() => handleStatus("legal")}>Refer to Attorney</Button>
-          <Button size="sm" variant="outline" onClick={() => handleStatus("resolved")}>Mark Resolved</Button>
+          <ActionButton tone="primary" onClick={() => handleStatus("payment_arrangement")}>Record Arrangement</ActionButton>
+          <ActionButton tone="secondary" onClick={() => handleStatus("legal")}>Refer to Attorney</ActionButton>
+          <ActionButton tone="secondary" onClick={() => handleStatus("resolved")}>Mark Resolved</ActionButton>
         </>
       )}
       {status === "payment_arrangement" && (
         <>
-          <Button size="sm" onClick={() => handleStatus("resolved")}>Mark Resolved</Button>
-          <Button size="sm" variant="outline" onClick={() => handleStatus("open")}>Resume Sequence</Button>
+          <ActionButton tone="primary" onClick={() => handleStatus("resolved")}>Mark Resolved</ActionButton>
+          <ActionButton tone="secondary" onClick={() => handleStatus("open")}>Resume Sequence</ActionButton>
         </>
       )}
       {status === "legal" && (
         <>
-          <Button size="sm" onClick={() => handleStatus("resolved")}>Mark Resolved</Button>
-          <Button size="sm" variant="outline" onClick={() => handleStatus("written_off")}>Write Off</Button>
+          <ActionButton tone="primary" onClick={() => handleStatus("resolved")}>Mark Resolved</ActionButton>
+          <ActionButton tone="destructive" onClick={() => handleStatus("written_off")}>Write Off</ActionButton>
         </>
       )}
     </div>

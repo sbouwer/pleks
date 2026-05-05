@@ -1,18 +1,17 @@
 "use client"
 
 /**
- * app/(dashboard)/billing/arrears/[caseId]/InterestSection.tsx — FILL: one-line purpose
+ * app/(dashboard)/billing/arrears/[caseId]/InterestSection.tsx — Displays accrued interest on an arrears case and allows waiving it via a confirmation dialog.
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /billing/arrears/[caseId]
+ * Auth:   requireAdminAuth
+ * Data:   props from parent server component; waive mutation via /api/arrears/[caseId]/waive-interest
+ * Notes:  Renders nothing when interest is not applicable or no interest has accrued
  */
 
 import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -121,10 +120,10 @@ export function InterestSection({
               />
             </div>
             <div className="flex gap-3 justify-end">
-              <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-              <Button onClick={handleWaive} disabled={loading}>
+              <ActionButton tone="secondary" onClick={() => setOpen(false)}>Cancel</ActionButton>
+              <ActionButton tone="primary" onClick={handleWaive} disabled={loading}>
                 {loading ? "Waiving..." : "Confirm waive"}
-              </Button>
+              </ActionButton>
             </div>
           </DialogContent>
         </Dialog>
