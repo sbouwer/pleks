@@ -11,7 +11,7 @@ import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useOrg } from "@/hooks/useOrg"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -122,10 +122,10 @@ function RoleSection({
             ))}
           </SelectContent>
         </Select>
-        <Button size="sm" onClick={onSave} disabled={saving}>
+        <ActionButton tone="primary" disabled={saving} onClick={onSave}>
           {saving && <Loader2 className="size-3.5 mr-1.5 animate-spin" />}
           Save
-        </Button>
+        </ActionButton>
       </CardContent>
     </Card>
   )
@@ -160,23 +160,22 @@ function PropertyTypesSection({
           {PROPERTY_TYPE_OPTIONS.map((opt) => {
             const active = selected.includes(opt.value)
             return (
-              <Button
+              <ActionButton
                 key={opt.value}
-                variant={active ? "default" : "outline"}
-                size="sm"
+                tone={active ? "primary" : "secondary"}
                 onClick={() => toggle(opt.value)}
                 type="button"
               >
                 {active && <Check className="size-3.5 mr-1.5" />}
                 {opt.label}
-              </Button>
+              </ActionButton>
             )
           })}
         </div>
-        <Button size="sm" onClick={onSave} disabled={saving}>
+        <ActionButton tone="primary" disabled={saving} onClick={onSave}>
           {saving && <Loader2 className="size-3.5 mr-1.5 animate-spin" />}
           Save
-        </Button>
+        </ActionButton>
       </CardContent>
     </Card>
   )
@@ -228,10 +227,10 @@ function PPRASection({
             />
           </div>
         )}
-        <Button size="sm" onClick={onSave} disabled={saving}>
+        <ActionButton tone="primary" disabled={saving} onClick={onSave}>
           {saving && <Loader2 className="size-3.5 mr-1.5 animate-spin" />}
           Save
-        </Button>
+        </ActionButton>
       </CardContent>
     </Card>
   )
@@ -321,12 +320,12 @@ function AddAccountForm({
       </div>
       {error && <p className="text-xs text-danger mb-1">{error}</p>}
       <DialogFooter>
-        <Button size="sm" onClick={handleSave} disabled={saving}>
+        <ActionButton tone="primary" disabled={saving} onClick={handleSave}>
           {saving && <Loader2 className="size-3.5 mr-1.5 animate-spin" />}
           Save account
-        </Button>
-        <DialogClose render={<Button variant="destructive" size="sm" />}>
-          Cancel
+        </ActionButton>
+        <DialogClose>
+          <ActionButton tone="secondary" type="button">Cancel</ActionButton>
         </DialogClose>
       </DialogFooter>
     </div>
@@ -370,9 +369,9 @@ function AccountSection({
         </div>
       )}
 
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+      <ActionButton tone="secondary" onClick={() => setOpen(true)}>
         {existing.length === 0 ? "Add account" : "Add another account"}
-      </Button>
+      </ActionButton>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>

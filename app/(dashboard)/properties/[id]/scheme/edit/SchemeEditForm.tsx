@@ -1,17 +1,15 @@
 "use client"
 
 /**
- * app/(dashboard)/properties/[id]/scheme/edit/SchemeEditForm.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/[id]/scheme/edit/SchemeEditForm.tsx — Edit or create the managing scheme linked to a property
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties/[id]/scheme/edit
+ * Auth:   gateway (dashboard layout)
+ * Data:   SchemeEditDefaults passed as props; saveManagingScheme / createManagingScheme / unlinkManagingScheme server actions
  */
 import { useActionState, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -163,29 +161,27 @@ export function SchemeEditForm({ propertyId, defaults }: Readonly<SchemeEditForm
       </div>
 
       <div className="flex items-center gap-3 pt-1">
-        <Button type="submit" disabled={pending}>
+        <ActionButton type="submit" tone="primary" disabled={pending}>
           {(() => {
             if (pending) return "Saving…"
             return isEditing ? "Save changes" : "Create scheme"
           })()}
-        </Button>
-        <Button type="button" variant="outline" onClick={() => router.push(backHref)} disabled={pending}>
+        </ActionButton>
+        <ActionButton type="button" tone="secondary" onClick={() => router.push(backHref)} disabled={pending}>
           Cancel
-        </Button>
+        </ActionButton>
       </div>
 
       {isEditing && (
         <div className="pt-4 border-t border-border">
-          <Button
+          <ActionButton
             type="button"
-            variant="outline"
-            size="sm"
-            className="text-danger border-danger/30 hover:bg-danger/5"
+            tone="destructive"
             onClick={handleUnlink}
             disabled={unlinking}
           >
             {unlinking ? "Removing…" : "Remove from property"}
-          </Button>
+          </ActionButton>
           <p className="text-xs text-muted-foreground mt-1.5">
             Removes the link between this property and the scheme. The scheme record is kept.
           </p>

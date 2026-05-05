@@ -1,18 +1,16 @@
 "use client"
 
 /**
- * app/(dashboard)/settings/configuration/ConfigurationForm.tsx — FILL: one-line purpose
+ * app/(dashboard)/settings/configuration/ConfigurationForm.tsx — Organisation communication preferences (tone, managed-by label, SMS fallback)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /settings/configuration
+ * Auth:   gateway (dashboard layout)
+ * Data:   initialSettings passed as props; saveOrgConfiguration server action
  */
 import { useRef, useState } from "react"
 import { toast } from "sonner"
 import { ChevronDown, ChevronUp, Loader2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { FormSelect } from "@/components/ui/FormSelect"
 import { saveOrgConfiguration } from "@/lib/actions/configuration"
 
@@ -202,7 +200,7 @@ export function ConfigurationForm({ initialSettings }: Readonly<Props>) {
         </div>
 
         <div className="pt-2">
-          <Button type="submit" disabled={saving}>
+          <ActionButton type="submit" tone="primary" disabled={saving}>
             {saving ? (
               <>
                 <Loader2 className="size-4 mr-1.5 animate-spin" />
@@ -211,7 +209,7 @@ export function ConfigurationForm({ initialSettings }: Readonly<Props>) {
             ) : (
               "Save"
             )}
-          </Button>
+          </ActionButton>
         </div>
       </form>
     </div>

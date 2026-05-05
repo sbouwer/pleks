@@ -1,17 +1,13 @@
 "use client"
 
 /**
- * app/(dashboard)/reports/ReportFilters.tsx — FILL: one-line purpose
+ * app/(dashboard)/reports/ReportFilters.tsx — Filter bar for report pages: period, property, landlord, agent, custom date range.
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Stateless relative to data — calls onApply with filter params for parent to fetch.
  */
 import { useState } from "react"
 import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
@@ -167,7 +163,7 @@ export function ReportFilters({ properties, landlords, agents, tier, onApply }: 
         <Label htmlFor="show-inactive" className="text-xs text-muted-foreground cursor-pointer">Show inactive</Label>
       </div>
 
-      <Button size="sm" onClick={handleApply}>Apply</Button>
+      <ActionButton tone="primary" onClick={handleApply}>Apply</ActionButton>
     </div>
   )
 }

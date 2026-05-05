@@ -1,18 +1,16 @@
 "use client"
 
 /**
- * app/(dashboard)/properties/[id]/units/[unitId]/InspectionProfileCard.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/[id]/units/[unitId]/InspectionProfileCard.tsx — Shows the inspection room checklist for a unit and lets the user generate it from template
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties/[id]/units/[unitId]
+ * Auth:   gateway (dashboard layout)
+ * Data:   initialRooms passed as props; setupProfileFromTemplate server action revalidates path
  */
 import { useTransition } from "react"
-import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Badge } from "@/components/ui/badge"
 import { ClipboardList, Sparkles, Plus } from "lucide-react"
 import { setupProfileFromTemplate } from "@/lib/actions/inspectionProfile"
@@ -35,6 +33,7 @@ interface Props {
 
 export function InspectionProfileCard({ unitId, propertyId, unitType, initialRooms }: Readonly<Props>) {
   const rooms = initialRooms
+  const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
   const hasProfile = rooms.length > 0
@@ -62,15 +61,14 @@ export function InspectionProfileCard({ unitId, propertyId, unitType, initialRoo
             Inspection checklist
           </CardTitle>
           {hasProfile && unitType && (
-            <Button
-              variant="outline"
-              size="sm"
+            <ActionButton
+              tone="secondary"
+              icon={<Sparkles className="size-3.5" />}
               onClick={handleSetupFromTemplate}
               disabled={isPending}
             >
-              <Sparkles className="size-3.5 mr-1.5" />
               Regenerate from template
-            </Button>
+            </ActionButton>
           )}
         </div>
       </CardHeader>
@@ -108,15 +106,13 @@ export function InspectionProfileCard({ unitId, propertyId, unitType, initialRoo
             </p>
             <div className="flex gap-2 justify-center flex-wrap">
               {unitType && (
-                <Button size="sm" onClick={handleSetupFromTemplate} disabled={isPending}>
-                  <Sparkles className="size-3.5 mr-1.5" />
+                <ActionButton tone="primary" icon={<Sparkles className="size-3.5" />} onClick={handleSetupFromTemplate} disabled={isPending}>
                   {isPending ? "Setting up…" : "Set up from template"}
-                </Button>
+                </ActionButton>
               )}
-              <Button variant="outline" size="sm" render={<Link href={inspectionNewUrl} />}>
-                <Plus className="size-3.5 mr-1.5" />
+              <ActionButton tone="secondary" icon={<Plus className="size-3.5" />} onClick={() => router.push(inspectionNewUrl)}>
                 Pre-listing inspection
-              </Button>
+              </ActionButton>
             </div>
           </div>
         )}

@@ -1,13 +1,12 @@
 "use client"
 
 /**
- * app/(dashboard)/properties/PropertyEditForm.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/PropertyEditForm.tsx — Full property edit form with address, body-corporate, rules
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties/[id]/edit
+ * Auth:   gateway (agent/owner tier)
+ * Data:   defaultValues passed from page server component; action = updateProperty server action
+ * Notes:  Rules section lives inside the <form> DOM but saves independently via its own actions
  */
 import { useActionState, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
@@ -16,7 +15,7 @@ import Link from "next/link"
 import { toast } from "sonner"
 import { PORTFOLIO_QUERY_KEYS } from "@/lib/queries/portfolio"
 import { ChevronDown, ChevronRight } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -300,12 +299,12 @@ export function PropertyEditForm({
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <Button type="button" variant="outline" onClick={() => router.push(backHref)}>
+            <ActionButton tone="secondary" type="button" onClick={() => router.push(backHref)}>
               Cancel
-            </Button>
-            <Button type="submit" disabled={pending}>
+            </ActionButton>
+            <ActionButton tone="primary" type="submit" disabled={pending}>
               {pending ? "Saving..." : "Save changes"}
-            </Button>
+            </ActionButton>
           </div>
         </div>
 

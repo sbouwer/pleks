@@ -1,17 +1,15 @@
 "use client"
 
 /**
- * app/(dashboard)/settings/hours/HoursForm.tsx — FILL: one-line purpose
+ * app/(dashboard)/settings/hours/HoursForm.tsx — Office opening hours and after-hours emergency contact form
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /settings/hours
+ * Auth:   gateway (dashboard layout)
+ * Data:   initialData passed as props; PATCH /api/org/details
  */
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
@@ -206,7 +204,7 @@ export function HoursForm({ initialData }: Readonly<{ initialData: HoursData }>)
       </Card>
 
       <div className="flex justify-end pt-2">
-        <Button onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "Save changes"}</Button>
+        <ActionButton tone="primary" onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "Save changes"}</ActionButton>
       </div>
     </div>
   )

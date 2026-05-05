@@ -1,16 +1,14 @@
 "use client"
 
 /**
- * app/(dashboard)/tenants/[tenantId]/edit/TenantEditForm.tsx — FILL: one-line purpose
+ * app/(dashboard)/tenants/[tenantId]/edit/TenantEditForm.tsx — Edit form for tenant contact and employment details.
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /tenants/[tenantId]/edit
+ * Auth:   Dashboard layout gateway
+ * Data:   tenant record passed from server component; action is updateTenant server action
  */
 import { useActionState } from "react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -92,9 +90,9 @@ export function TenantEditForm({ tenant, action }: TenantEditFormProps) {
         <Label>Internal Notes</Label>
         <Textarea name="notes" defaultValue={(tenant.notes as string) || ""} rows={3} />
       </div>
-      <Button type="submit" className="w-full" disabled={pending}>
+      <ActionButton type="submit" tone="primary" className="w-full" disabled={pending}>
         {pending ? "Saving..." : "Save Changes"}
-      </Button>
+      </ActionButton>
     </form>
   )
 }

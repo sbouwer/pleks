@@ -9,9 +9,8 @@
  */
 
 import { useEffect, useRef, useState } from "react"
-import { InlineLink } from "@/components/ui/actions"
+import { ActionButton, InlineLink } from "@/components/ui/actions"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
@@ -210,13 +209,13 @@ export default function BrandingPage() {
                   )}
                   <div className="flex flex-col gap-2">
                     <input ref={fileInputRef} type="file" accept="image/png,image/jpeg" className="hidden" onChange={handleLogoSelect} />
-                    <Button variant="outline" size="sm" disabled={uploadingLogo} onClick={() => fileInputRef.current?.click()}>
+                    <ActionButton tone="secondary" disabled={uploadingLogo} onClick={() => fileInputRef.current?.click()}>
                       {uploadingLogo ? "Uploading..." : "Upload logo"}
-                    </Button>
+                    </ActionButton>
                     {logoPatch && (
-                      <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={handleRemoveLogo}>
+                      <ActionButton tone="destructive" onClick={handleRemoveLogo}>
                         Remove
-                      </Button>
+                      </ActionButton>
                     )}
                   </div>
                 </div>
@@ -248,9 +247,9 @@ export default function BrandingPage() {
                       if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) setAccentColor(e.target.value)
                     }}
                   />
-                  <Button variant="outline" size="sm" onClick={handleSaveColor} disabled={savingColor}>
+                  <ActionButton tone="secondary" onClick={handleSaveColor} disabled={savingColor}>
                     {savingColor ? "Saving..." : "Save"}
-                  </Button>
+                  </ActionButton>
                 </div>
                 <p className="text-xs text-muted-foreground">Used for dividers, headings, and accents across all documents.</p>
               </CardContent>

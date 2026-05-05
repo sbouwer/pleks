@@ -1,18 +1,16 @@
 "use client"
 
 /**
- * app/(dashboard)/properties/new/steps/StepUnits.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/new/steps/StepUnits.tsx — Wizard step: configure skeleton units before creation
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties/new (step 3 — units)
+ * Auth:   gateway
+ * Data:   wizard state via WizardContext; no server calls — data saved on wizard completion
  */
 
 import { useEffect, useState } from "react"
 import { Plus, Trash2, Copy } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { buildSkeletonUnits, type SkeletonUnit } from "@/lib/properties/skeletonUnits"
 import { getScenario } from "@/lib/properties/scenarios"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -264,16 +262,15 @@ export function StepUnits() {
           <p className="flex-1 text-xs text-muted-foreground">
             All units have the same layout? Fill remaining units from the first row.
           </p>
-          <Button
-            variant="outline"
-            size="sm"
+          <ActionButton
+            tone="secondary"
+            icon={<Copy className="w-3 h-3" />}
             onClick={fillAllFromFirst}
-            className="gap-1.5 shrink-0 text-xs"
+            className="shrink-0"
             disabled={fillDone}
           >
-            <Copy className="w-3 h-3" />
             {fillDone ? "Applied" : "Fill all from first"}
-          </Button>
+          </ActionButton>
         </div>
       )}
 
@@ -302,10 +299,9 @@ export function StepUnits() {
       </div>
 
       {isCounted && (
-        <Button variant="outline" size="sm" onClick={addUnit} className="gap-1.5">
-          <Plus className="w-4 h-4" />
+        <ActionButton tone="secondary" icon={<Plus className="w-4 h-4" />} onClick={addUnit}>
           Add unit
-        </Button>
+        </ActionButton>
       )}
     </div>
   )

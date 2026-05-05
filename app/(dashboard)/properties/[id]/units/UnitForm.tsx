@@ -1,16 +1,15 @@
 "use client"
 
 /**
- * app/(dashboard)/properties/[id]/units/UnitForm.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/[id]/units/UnitForm.tsx — Create/edit unit form (details, features, rental tabs)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties/[id]/units/new and /properties/[id]/units/[unitId]/edit
+ * Auth:   gateway
+ * Data:   defaultValues + members passed from page server component; action = createUnit/updateUnit
+ * Notes:  Room list auto-generates from unit type/bed/bath; furnishing inventory serialised as JSON to formData
  */
 import { useActionState, useState, useRef } from "react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -629,9 +628,9 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
                 placeholder="Add custom feature..."
                 className="text-sm"
               />
-              <Button type="button" variant="outline" size="sm" onClick={addCustomFeature}>
+              <ActionButton tone="secondary" type="button" onClick={addCustomFeature}>
                 Add
-              </Button>
+              </ActionButton>
             </div>
           </div>
 
@@ -727,9 +726,9 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
                         placeholder={`Add item to ${FURNISHING_CATEGORY_LABELS[cat].toLowerCase()}...`}
                         className="text-xs"
                       />
-                      <Button type="button" variant="outline" size="sm" onClick={() => addCustomItem(cat)}>
+                      <ActionButton tone="secondary" type="button" onClick={() => addCustomItem(cat)}>
                         Add
-                      </Button>
+                      </ActionButton>
                     </div>
                   </div>
                 )
@@ -805,9 +804,9 @@ export function UnitForm({ action, members, defaultValues }: UnitFormProps) {
       {/* ── Save button — only visible when dirty or creating ────────── */}
       {(isDirty || isCreate) && (
         <div className="mt-8 pt-6 border-t">
-          <Button type="submit" disabled={pending}>
+          <ActionButton tone="primary" type="submit" disabled={pending}>
             {pending ? "Saving..." : saveLabel(isCreate)}
-          </Button>
+          </ActionButton>
         </div>
       )}
     </form>

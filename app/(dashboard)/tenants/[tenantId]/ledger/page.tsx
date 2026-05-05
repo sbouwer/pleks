@@ -1,11 +1,9 @@
 /**
- * app/(dashboard)/tenants/[tenantId]/ledger/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/tenants/[tenantId]/ledger/page.tsx — Full financial ledger for a tenant: rent invoices, payments, deposits with running balances.
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /tenants/[tenantId]/ledger
+ * Auth:   createClient user check (redirects to /login); service client for cross-org data read
+ * Data:   rent_invoices, payments, deposit_transactions via service client; tenant_view for identity
  */
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect, notFound } from "next/navigation"
@@ -13,7 +11,7 @@ import Link from "next/link"
 import { formatZAR } from "@/lib/constants"
 import { ArrowLeft, Download } from "lucide-react"
 import { PrintButton } from "./PrintButton"
-import { Button } from "@/components/ui/button"
+import { InlineLink } from "@/components/ui/actions"
 
 type LedgerEntry = {
   id: string
@@ -202,9 +200,9 @@ export default async function TenantLedgerPage({
           <p className="text-muted-foreground text-sm">{displayName}{tenant.email ? " · " + tenant.email : ""}</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" render={<Link href={`/api/tenants/${tenantId}/statement`} target="_blank" />}>
+          <InlineLink href={`/api/tenants/${tenantId}/statement`} external withArrow={false}>
             <Download className="h-3.5 w-3.5 mr-1.5" /> Statement
-          </Button>
+          </InlineLink>
           <PrintButton />
         </div>
       </div>

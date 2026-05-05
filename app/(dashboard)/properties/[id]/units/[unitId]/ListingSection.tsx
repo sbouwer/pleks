@@ -8,7 +8,7 @@
 import { useState } from "react"
 import { ListingCreateDialog } from "@/components/applications/ListingCreateDialog"
 import { ListingCard } from "@/components/applications/ListingCard"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Plus } from "lucide-react"
 
 interface Listing {
@@ -46,10 +46,9 @@ export function ListingSection({ unit, property, orgId, activeListing }: Props) 
             <p className="text-sm font-medium">No active listing</p>
             <p className="text-xs text-muted-foreground mt-0.5">Create a listing to start receiving applications.</p>
           </div>
-          <Button size="sm" onClick={() => setDialogOpen(true)}>
-            <Plus className="size-4 mr-1.5" />
+          <ActionButton tone="primary" icon={<Plus className="size-4" />} onClick={() => setDialogOpen(true)}>
             Create listing
-          </Button>
+          </ActionButton>
         </div>
       )}
 

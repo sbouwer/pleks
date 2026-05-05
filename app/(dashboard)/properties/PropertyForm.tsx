@@ -1,16 +1,14 @@
 "use client"
 
 /**
- * app/(dashboard)/properties/PropertyForm.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/PropertyForm.tsx — Create/edit property form (address, type, body corporate)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties/new (and reused in edit flows)
+ * Auth:   gateway
+ * Data:   defaultValues optional; action = createProperty or updateProperty server action
  */
 import { useActionState, useState } from "react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -250,9 +248,9 @@ export function PropertyForm({ action, defaultValues }: PropertyFormProps) {
         <Textarea id="notes" name="notes" defaultValue={defaultValues?.notes} rows={3} placeholder="Not visible to tenants" />
       </div>
 
-      <Button type="submit" disabled={pending} className="w-full">
+      <ActionButton tone="primary" type="submit" disabled={pending} className="w-full">
         {pending ? "Saving..." : "Save Property"}
-      </Button>
+      </ActionButton>
     </form>
   )
 }

@@ -1,23 +1,20 @@
 "use client"
 
 /**
- * app/(dashboard)/hoa/new/NewHOAForm.tsx — FILL: one-line purpose
+ * app/(dashboard)/hoa/new/NewHOAForm.tsx — Form to register a new HOA / body corporate entity.
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /hoa/new
+ * Auth:   Dashboard layout gateway; org must have hasHOA capability and firm tier
+ * Data:   POSTs to /api/hoa; properties list passed as prop from server component
  */
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { FormSelect } from "@/components/ui/FormSelect"
 import { toast } from "sonner"
-import { ArrowLeft, Loader2 } from "lucide-react"
+import { Loader2 } from "lucide-react"
 
 interface Property {
   id: string
@@ -95,10 +92,9 @@ export function NewHOAForm({ properties }: Readonly<{ properties: Property[] }>)
   return (
     <div className="max-w-2xl space-y-6">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" render={<Link href="/hoa" />}>
-          <ArrowLeft className="size-4 mr-1.5" />
+        <ActionButton tone="secondary" onClick={() => router.push("/hoa")}>
           Back
-        </Button>
+        </ActionButton>
         <div>
           <h1 className="font-heading text-2xl">New HOA / Body Corporate</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
@@ -206,10 +202,10 @@ export function NewHOAForm({ properties }: Readonly<{ properties: Property[] }>)
         </Card>
 
         <div className="flex gap-3">
-          <Button type="submit" disabled={saving}>
-            {saving ? <><Loader2 className="size-4 mr-1.5 animate-spin" />Creating…</> : "Create entity"}
-          </Button>
-          <Button type="button" variant="ghost" render={<Link href="/hoa" />}>Cancel</Button>
+          <ActionButton type="submit" tone="primary" disabled={saving} icon={saving ? <Loader2 className="size-4 animate-spin" /> : undefined}>
+            {saving ? "Creating…" : "Create entity"}
+          </ActionButton>
+          <ActionButton type="button" tone="secondary" onClick={() => router.push("/hoa")}>Cancel</ActionButton>
         </div>
       </form>
     </div>

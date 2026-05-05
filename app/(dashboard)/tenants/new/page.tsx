@@ -1,16 +1,15 @@
 "use client"
 
 /**
- * app/(dashboard)/tenants/new/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/tenants/new/page.tsx — Multi-step wizard to create a new tenant (individual or company) with POPIA consent.
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /tenants/new
+ * Auth:   Dashboard layout gateway
+ * Data:   createTenant server action; no data fetched on load
+ * Notes:  4-step flow: type → details → POPIA consent → additional. Company tenants require mandated signatory FICA.
  */
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -589,8 +588,8 @@ export default function NewTenantPage() {
           )}
 
           <div className="flex gap-3">
-            <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
-            <Button className="flex-1" onClick={() => { if (validateStep2()) setStep(3) }}>Continue</Button>
+            <ActionButton tone="secondary" onClick={() => setStep(1)}>Back</ActionButton>
+            <ActionButton tone="primary" className="flex-1" onClick={() => { if (validateStep2()) setStep(3) }}>Continue</ActionButton>
           </div>
         </div>
       </div>
@@ -623,10 +622,10 @@ export default function NewTenantPage() {
           </span>
         </label>
         <div className="flex gap-3">
-          <Button variant="outline" onClick={() => setStep(2)}>Back</Button>
-          <Button className="flex-1" onClick={() => setStep(4)} disabled={!popiaConsent}>
+          <ActionButton tone="secondary" onClick={() => setStep(2)}>Back</ActionButton>
+          <ActionButton tone="primary" className="flex-1" onClick={() => setStep(4)} disabled={!popiaConsent}>
             Continue
-          </Button>
+          </ActionButton>
         </div>
       </div>
     )
@@ -653,10 +652,10 @@ export default function NewTenantPage() {
           <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Not visible to tenant" />
         </div>
         <div className="flex gap-3">
-          <Button variant="outline" onClick={() => setStep(3)}>Back</Button>
-          <Button className="flex-1" onClick={handleSubmit} disabled={loading}>
+          <ActionButton tone="secondary" onClick={() => setStep(3)}>Back</ActionButton>
+          <ActionButton tone="primary" className="flex-1" onClick={handleSubmit} disabled={loading}>
             {loading ? "Saving..." : "Save Tenant"}
-          </Button>
+          </ActionButton>
         </div>
       </div>
     </div>

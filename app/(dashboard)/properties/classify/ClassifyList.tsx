@@ -1,20 +1,17 @@
 "use client"
 
 /**
- * app/(dashboard)/properties/classify/ClassifyList.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/classify/ClassifyList.tsx — Bulk-classify unclassified properties by scenario type
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties/classify
+ * Auth:   gateway (admin/agent)
+ * Data:   properties list passed from page server component; reclassifyProperty server action
  */
 import { useState, useTransition } from "react"
 import { Check, SkipForward } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { cn } from "@/lib/utils"
 import { SCENARIOS, type ScenarioType, type ScenarioSegment } from "@/lib/properties/scenarios"
 import { reclassifyProperty } from "@/lib/actions/reclassifyProperty"
 
@@ -105,14 +102,12 @@ function PropertyClassifyRow({
           {error && <p className="text-xs text-destructive">{error}</p>}
 
           <div className="flex gap-2">
-            <Button size="sm" onClick={confirm} disabled={pending} className={cn("gap-1", pending && "opacity-50")}>
-              <Check className="w-3.5 h-3.5" />
+            <ActionButton tone="primary" icon={<Check className="w-3.5 h-3.5" />} onClick={confirm} disabled={pending}>
               {pending ? "Saving…" : "Confirm"}
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => onSkip(row.id)} disabled={pending} className="gap-1">
-              <SkipForward className="w-3.5 h-3.5" />
+            </ActionButton>
+            <ActionButton tone="secondary" icon={<SkipForward className="w-3.5 h-3.5" />} onClick={() => onSkip(row.id)} disabled={pending}>
               Skip
-            </Button>
+            </ActionButton>
           </div>
         </div>
       </CardContent>

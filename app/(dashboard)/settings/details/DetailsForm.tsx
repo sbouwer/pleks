@@ -1,18 +1,16 @@
 "use client"
 
 /**
- * app/(dashboard)/settings/details/DetailsForm.tsx — FILL: one-line purpose
+ * app/(dashboard)/settings/details/DetailsForm.tsx — Organisation/personal details form (name, contact, address, operating hours)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /settings/details
+ * Auth:   gateway (dashboard layout)
+ * Data:   initialData (OrgDetails) passed as props; PATCH /api/org/details
  */
 
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { Label } from "@/components/ui/label"
@@ -488,20 +486,18 @@ export function DetailsForm({ initialData }: Readonly<{ initialData: OrgDetails 
               {form.first_name ?? "The primary contact"} doesn&apos;t need a Pleks account — their details still appear on leases and documents.
             </p>
             <div className="flex gap-2 mt-2">
-              <Button size="sm" variant="outline" className="h-7 text-xs"
-                onClick={() => dismissContactPrompt(true)}>
+              <ActionButton tone="secondary" onClick={() => dismissContactPrompt(true)}>
                 They&apos;ll use the system
-              </Button>
-              <Button size="sm" variant="ghost" className="h-7 text-xs"
-                onClick={() => dismissContactPrompt(false)}>
+              </ActionButton>
+              <ActionButton tone="secondary" onClick={() => dismissContactPrompt(false)}>
                 They won&apos;t be using the system
-              </Button>
+              </ActionButton>
             </div>
           </div>
         </div>
       )}
       <div className="flex justify-end">
-        <Button onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "Save changes"}</Button>
+        <ActionButton tone="primary" onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "Save changes"}</ActionButton>
       </div>
     </div>
   )

@@ -1,17 +1,16 @@
 "use client"
 
 /**
- * app/(dashboard)/properties/[id]/PropertyDocumentsTab.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/[id]/PropertyDocumentsTab.tsx — Upload, view, and delete property documents
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties/[id]/documents
+ * Auth:   gateway
+ * Data:   initialDocuments from page server component; upload/delete via server actions
+ * Notes:  Signed URLs generated on demand; documents stored in Bunny/Supabase storage
  */
 import { useState, useTransition, useRef } from "react"
 import { uploadPropertyDocument, deletePropertyDocument, getDocumentSignedUrl } from "@/lib/actions/documents"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { FileText, FileWarning, ShieldCheck, Home, FolderOpen, Upload, Trash2, ExternalLink, Loader2 } from "lucide-react"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { FormSelect } from "@/components/ui/FormSelect"
@@ -198,10 +197,9 @@ export function PropertyDocumentsTab({ propertyId, initialDocuments }: PropertyD
     <div className="space-y-4">
       {/* Action bar */}
       <div className="flex items-center gap-2">
-        <Button size="sm" onClick={() => setShowForm((v) => !v)}>
-          <Upload className="h-3.5 w-3.5 mr-1.5" />
+        <ActionButton tone="primary" icon={<Upload className="h-3.5 w-3.5" />} onClick={() => setShowForm((v) => !v)}>
           Upload document
-        </Button>
+        </ActionButton>
       </div>
 
       {/* Upload form */}
@@ -252,13 +250,12 @@ export function PropertyDocumentsTab({ propertyId, initialDocuments }: PropertyD
               </div>
             </div>
             <div className="flex gap-2">
-              <Button type="submit" size="sm" disabled={uploading}>
-                {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+              <ActionButton tone="primary" type="submit" icon={uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : undefined} disabled={uploading}>
                 {uploading ? "Uploading…" : "Upload"}
-              </Button>
-              <Button type="button" size="sm" variant="ghost" onClick={() => setShowForm(false)}>
+              </ActionButton>
+              <button type="button" className="pa-link" onClick={() => setShowForm(false)}>
                 Cancel
-              </Button>
+              </button>
             </div>
           </form>
         </div>

@@ -1,19 +1,16 @@
 /**
- * app/(dashboard)/finance/deposits/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/finance/deposits/page.tsx — Deposit management: active leases, pending reconciliations, completed this month.
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /finance/deposits
+ * Auth:   getServerOrgMembership (redirects to /login)
+ * Data:   leases, deposit_reconciliations, deposit_timers via Supabase server client
  */
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { getServerOrgMembership } from "@/lib/auth/server"
-import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { InlineLink } from "@/components/ui/actions"
 import { formatZAR } from "@/lib/constants"
 import { BackLink } from "@/components/ui/BackLink"
 
@@ -139,9 +136,9 @@ export default async function DepositsPage() {
                         </Badge>
                       </td>
                       <td className="text-right py-2">
-                        <Button variant="ghost" size="sm" render={<Link href={`/leases/${r.lease_id}/deposit`} />}>
+                        <InlineLink href={`/leases/${r.lease_id}/deposit`} withArrow={false}>
                           View
-                        </Button>
+                        </InlineLink>
                       </td>
                     </tr>
                   )

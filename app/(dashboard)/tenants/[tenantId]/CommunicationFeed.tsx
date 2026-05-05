@@ -1,16 +1,12 @@
 "use client"
 
 /**
- * app/(dashboard)/tenants/[tenantId]/CommunicationFeed.tsx — FILL: one-line purpose
+ * app/(dashboard)/tenants/[tenantId]/CommunicationFeed.tsx — Communication log for a tenant: displays history and allows adding internal notes.
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   initialComms passed from server; logCommunication server action appends new entries
  */
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Textarea } from "@/components/ui/textarea"
 import { logCommunication } from "@/lib/actions/tenants"
 import { toast } from "sonner"
@@ -70,9 +66,9 @@ export function CommunicationFeed({
   return (
     <div>
       <div className="flex gap-2 mb-4">
-        <Button size="sm" variant="outline" onClick={() => setShowAddNote(!showAddNote)}>
-          <Plus className="h-3 w-3 mr-1" /> Add Note
-        </Button>
+        <ActionButton tone="secondary" icon={<Plus className="h-3 w-3" />} onClick={() => setShowAddNote(!showAddNote)}>
+          Add Note
+        </ActionButton>
       </div>
 
       {showAddNote && (
@@ -84,10 +80,10 @@ export function CommunicationFeed({
             rows={3}
           />
           <div className="flex gap-2">
-            <Button size="sm" onClick={handleAddNote} disabled={saving}>
+            <ActionButton tone="primary" onClick={handleAddNote} disabled={saving}>
               {saving ? "Saving..." : "Save Note"}
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setShowAddNote(false)}>Cancel</Button>
+            </ActionButton>
+            <ActionButton tone="secondary" onClick={() => setShowAddNote(false)}>Cancel</ActionButton>
           </div>
         </div>
       )}

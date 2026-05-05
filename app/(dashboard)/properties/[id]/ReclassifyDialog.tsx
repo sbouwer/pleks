@@ -1,16 +1,15 @@
 "use client"
 
 /**
- * app/(dashboard)/properties/[id]/ReclassifyDialog.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/[id]/ReclassifyDialog.tsx — Dialog to change a property's scenario classification
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties/[id] (settings/overview)
+ * Auth:   gateway (admin/agent)
+ * Data:   currentScenario passed as prop; reclassifyProperty server action
+ * Notes:  Re-derives default clauses and inspection profiles; keeps existing units/leases intact
  */
 import { useState, useTransition } from "react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tag } from "lucide-react"
@@ -79,10 +78,9 @@ export function ReclassifyDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setOpen(true)}>
-        <Tag className="w-3.5 h-3.5" />
+      <ActionButton tone="secondary" icon={<Tag className="w-3.5 h-3.5" />} onClick={() => setOpen(true)}>
         Reclassify
-      </Button>
+      </ActionButton>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Reclassify property</DialogTitle>
@@ -129,13 +127,14 @@ export function ReclassifyDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)} disabled={pending}>Cancel</Button>
-          <Button
+          <ActionButton tone="secondary" onClick={() => setOpen(false)} disabled={pending}>Cancel</ActionButton>
+          <ActionButton
+            tone="primary"
             onClick={handleConfirm}
             disabled={!target || target === currentScenario || pending}
           >
             {pending ? "Reclassifying…" : "Reclassify"}
-          </Button>
+          </ActionButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>

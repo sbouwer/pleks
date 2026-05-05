@@ -1,18 +1,17 @@
 "use client"
 
 /**
- * app/(dashboard)/properties/[id]/LandlordPicker.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/[id]/LandlordPicker.tsx — Inline picker to assign/change/remove a property's landlord
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties/[id] (overview sidebar)
+ * Auth:   gateway (agent/admin)
+ * Data:   landlords list + current landlord passed as props; assignLandlord server action
+ * Notes:  Supports inline add-new landlord form; owner-tier shortcut pre-fills from profile
  */
 import { useState, useTransition, useRef, useEffect } from "react"
 import Link from "next/link"
 import { Search, X, Plus, ChevronDown } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
@@ -157,27 +156,27 @@ export function LandlordPicker({ propertyId, orgId, landlords, current }: Readon
         <div className="flex gap-2 flex-wrap mb-3">
           {current.phone && (
             <a href={`tel:${current.phone}`} className="flex-1 sm:flex-none">
-              <Button size="sm" variant="outline" className="w-full">Call</Button>
+              <ActionButton tone="secondary" className="w-full">Call</ActionButton>
             </a>
           )}
           {current.email && (
             <a href={`mailto:${current.email}`} className="flex-1 sm:flex-none">
-              <Button size="sm" variant="outline" className="w-full">Email</Button>
+              <ActionButton tone="secondary" className="w-full">Email</ActionButton>
             </a>
           )}
           {current.phone && waNumber && (
             <a href={`https://wa.me/${waNumber}`} target="_blank" rel="noopener noreferrer" className="flex-1 sm:flex-none">
-              <Button size="sm" variant="outline" className="w-full">WhatsApp</Button>
+              <ActionButton tone="secondary" className="w-full">WhatsApp</ActionButton>
             </a>
           )}
         </div>
         <div className="flex gap-2">
-          <Button size="sm" variant="ghost" className="text-xs h-7 px-2" onClick={() => setOpen(true)}>
+          <button type="button" className="pa-link" onClick={() => setOpen(true)}>
             Change
-          </Button>
-          <Button size="sm" variant="ghost" className="text-xs h-7 px-2 text-danger hover:text-danger" onClick={handleRemove} disabled={isPending}>
+          </button>
+          <button type="button" className="pa-link" onClick={handleRemove} disabled={isPending}>
             Remove
-          </Button>
+          </button>
         </div>
       </div>
     )
@@ -223,13 +222,13 @@ export function LandlordPicker({ propertyId, orgId, landlords, current }: Readon
               <Input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" placeholder="082 000 0000" />
             </div>
           </div>
-          <Button
-            size="sm"
+          <ActionButton
+            tone="primary"
             onClick={handleAddAndAssign}
             disabled={isPending || (!firstName.trim() && !lastName.trim())}
           >
             {isPending ? "Adding..." : "Add & assign"}
-          </Button>
+          </ActionButton>
         </div>
       ) : (
         <>

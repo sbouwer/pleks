@@ -1,17 +1,14 @@
 /**
- * app/(dashboard)/hoa/[hoaId]/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/hoa/[hoaId]/page.tsx — HOA / body corporate detail: stats, tabs for owners, levies, AGM, financials, settings.
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /hoa/[hoaId]
+ * Auth:   Dashboard layout gateway; org must have firm tier
+ * Data:   hoa_entities, hoa_unit_owners, levy_invoices, reserve_fund_entries, agm_records via Supabase server client
  */
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { InlineLink } from "@/components/ui/actions"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatZAR } from "@/lib/constants"
@@ -133,15 +130,15 @@ export default async function HOADetailPage({
             <Card>
               <CardHeader><CardTitle className="text-sm">Quick Actions</CardTitle></CardHeader>
               <CardContent className="space-y-2">
-                <Button variant="outline" className="w-full justify-start" render={<Link href={`/hoa/${hoaId}/levies`} />}>
+                <InlineLink href={`/hoa/${hoaId}/levies`} withArrow={false} className="block">
                   Manage levy schedules
-                </Button>
-                <Button variant="outline" className="w-full justify-start" render={<Link href={`/hoa/${hoaId}/agm`} />}>
+                </InlineLink>
+                <InlineLink href={`/hoa/${hoaId}/agm`} withArrow={false} className="block">
                   Schedule AGM
-                </Button>
-                <Button variant="outline" className="w-full justify-start" render={<Link href={`/hoa/${hoaId}/owners`} />}>
+                </InlineLink>
+                <InlineLink href={`/hoa/${hoaId}/owners`} withArrow={false} className="block">
                   View owners
-                </Button>
+                </InlineLink>
               </CardContent>
             </Card>
             <Card>

@@ -1,16 +1,12 @@
 "use client"
 
 /**
- * app/(dashboard)/reports/tabs/ReportShell.tsx — FILL: one-line purpose
+ * app/(dashboard)/reports/tabs/ReportShell.tsx — Shared shell for report tab content: loading/error states, title bar, CSV/PDF export buttons.
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Pure layout wrapper — no data fetching. Accepts onExportCSV/onExportPDF callbacks from parent tab.
  */
 import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Download } from "lucide-react"
 
 interface ReportShellProps {
@@ -22,7 +18,7 @@ interface ReportShellProps {
   children: React.ReactNode
 }
 
-export function ReportShell({ title, loading, error, onExportCSV, onExportPDF, children }: ReportShellProps) {
+export function ReportShell({ title, loading, error, onExportCSV, onExportPDF, children }: Readonly<ReportShellProps>) {
   if (loading) {
     return (
       <Card className="mt-4">
@@ -52,16 +48,14 @@ export function ReportShell({ title, loading, error, onExportCSV, onExportPDF, c
         <h2 className="font-heading text-lg">{title}</h2>
         <div className="flex gap-2">
           {onExportCSV && (
-            <Button variant="outline" size="sm" onClick={onExportCSV}>
-              <Download className="h-3.5 w-3.5 mr-1.5" />
+            <ActionButton tone="secondary" icon={<Download className="h-3.5 w-3.5" />} onClick={onExportCSV}>
               CSV
-            </Button>
+            </ActionButton>
           )}
           {onExportPDF && (
-            <Button variant="outline" size="sm" onClick={onExportPDF}>
-              <Download className="h-3.5 w-3.5 mr-1.5" />
+            <ActionButton tone="secondary" icon={<Download className="h-3.5 w-3.5" />} onClick={onExportPDF}>
               PDF
-            </Button>
+            </ActionButton>
           )}
         </div>
       </div>
@@ -77,7 +71,7 @@ interface MetricCardProps {
   variant?: "default" | "success" | "warning" | "danger"
 }
 
-export function MetricCard({ label, value, sub, variant = "default" }: MetricCardProps) {
+export function MetricCard({ label, value, sub, variant = "default" }: Readonly<MetricCardProps>) {
   const colorClass = {
     default: "",
     success: "text-emerald-600",

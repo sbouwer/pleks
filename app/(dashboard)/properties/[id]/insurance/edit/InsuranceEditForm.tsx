@@ -9,7 +9,7 @@
  */
 import { useActionState, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
+import { ActionButton, InlineLink } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -19,7 +19,6 @@ import {
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { saveInsurancePolicy, saveBroker } from "@/lib/actions/insurance"
 import { toast } from "sonner"
-import { InlineLink } from "@/components/ui/actions"
 
 const POLICY_TYPES = [
   { value: "standard_buildings",  label: "Standard buildings" },
@@ -196,12 +195,12 @@ export function InsuranceEditForm({
           </div>
 
           <div className="flex items-center gap-3 pt-1">
-            <Button type="submit" disabled={policyPending}>
+            <ActionButton type="submit" tone="primary" disabled={policyPending}>
               {policyPending ? "Saving…" : "Save policy"}
-            </Button>
-            <Button type="button" variant="outline" onClick={() => router.push(backHref)} disabled={policyPending}>
+            </ActionButton>
+            <ActionButton type="button" tone="secondary" onClick={() => router.push(backHref)} disabled={policyPending}>
               Cancel
-            </Button>
+            </ActionButton>
           </div>
         </form>
       </section>
@@ -271,12 +270,12 @@ export function InsuranceEditForm({
           </div>
 
           <div className="flex items-center gap-3 pt-1">
-            <Button type="submit" disabled={brokerPending}>
+            <ActionButton type="submit" tone="primary" disabled={brokerPending}>
               {brokerPending ? "Saving…" : "Save broker"}
-            </Button>
-            <Button type="button" variant="outline" onClick={() => router.push(backHref)} disabled={brokerPending}>
+            </ActionButton>
+            <ActionButton type="button" tone="secondary" onClick={() => router.push(backHref)} disabled={brokerPending}>
               Cancel
-            </Button>
+            </ActionButton>
           </div>
         </form>
       </section>

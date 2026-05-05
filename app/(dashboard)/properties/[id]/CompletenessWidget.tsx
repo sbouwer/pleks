@@ -1,17 +1,15 @@
 "use client"
 
 /**
- * app/(dashboard)/properties/[id]/CompletenessWidget.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/[id]/CompletenessWidget.tsx — Setup-progress card listing outstanding property info items
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties/[id] (overview tab)
+ * Auth:   gateway
+ * Data:   completeness items computed server-side and passed as props; actions via server actions
  */
 import { useState, useTransition } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { CheckCircle2, Circle, Mail, Edit3, X, Send } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { CompletenessItem, CompletenessTopic } from "@/lib/properties/computeCompleteness"
@@ -138,28 +136,24 @@ function ItemRow({ propertyId, item, ownerEmail, onActionDone }: ItemRowProps) {
           {!item.done && (
             <div className="flex flex-wrap gap-2 mt-2">
               {hasOpenRequest && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 px-2 text-xs gap-1"
+                <ActionButton
+                  tone="secondary"
+                  icon={<Send className="w-3 h-3" />}
                   onClick={sendReminder}
                   disabled={pending}
                 >
-                  <Send className="w-3 h-3" />
                   Send reminder
-                </Button>
+                </ActionButton>
               )}
               {!hasOpenRequest && canRequest && ownerEmail && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 px-2 text-xs gap-1"
+                <ActionButton
+                  tone="secondary"
+                  icon={<Mail className="w-3 h-3" />}
                   onClick={sendOwnerEmail}
                   disabled={pending}
                 >
-                  <Mail className="w-3 h-3" />
                   Send owner email
-                </Button>
+                </ActionButton>
               )}
               {deepLinkFn && (
                 <a

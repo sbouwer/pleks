@@ -1,15 +1,13 @@
 "use client"
 
 /**
- * app/(dashboard)/properties/[id]/units/[unitId]/UnitStatusActions.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/[id]/units/[unitId]/UnitStatusActions.tsx — Unit status transition buttons (vacant/maintenance/archived)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties/[id]/units/[unitId]
+ * Auth:   gateway
+ * Data:   currentStatus passed as prop; updateUnitStatus server action; router.refresh() on success
  */
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { updateUnitStatus } from "@/lib/actions/units"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -37,33 +35,33 @@ export function UnitStatusActions({ unitId, propertyId, currentStatus }: UnitSta
     <div className="flex flex-wrap gap-2">
       {currentStatus === "vacant" && (
         <>
-          <Button size="sm" onClick={() => handleStatusChange("maintenance", "Marked for maintenance")}>
+          <ActionButton tone="primary" onClick={() => handleStatusChange("maintenance", "Marked for maintenance")}>
             Mark Under Maintenance
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => handleStatusChange("archived", "Archived by user")}>
+          </ActionButton>
+          <ActionButton tone="secondary" onClick={() => handleStatusChange("archived", "Archived by user")}>
             Archive Unit
-          </Button>
+          </ActionButton>
         </>
       )}
       {currentStatus === "occupied" && (
-        <Button size="sm" variant="outline" disabled>
+        <ActionButton tone="secondary" disabled>
           Active Lease — Manage via Leases
-        </Button>
+        </ActionButton>
       )}
       {currentStatus === "notice" && (
-        <Button size="sm" variant="outline" disabled>
+        <ActionButton tone="secondary" disabled>
           Notice Period — View Lease
-        </Button>
+        </ActionButton>
       )}
       {currentStatus === "maintenance" && (
-        <Button size="sm" onClick={() => handleStatusChange("vacant", "Maintenance complete")}>
+        <ActionButton tone="primary" onClick={() => handleStatusChange("vacant", "Maintenance complete")}>
           Mark Available
-        </Button>
+        </ActionButton>
       )}
       {currentStatus === "archived" && (
-        <Button size="sm" onClick={() => handleStatusChange("vacant", "Unarchived by user")}>
+        <ActionButton tone="primary" onClick={() => handleStatusChange("vacant", "Unarchived by user")}>
           Unarchive Unit
-        </Button>
+        </ActionButton>
       )}
     </div>
   )

@@ -1,16 +1,14 @@
 "use client"
 
 /**
- * app/(dashboard)/landlords/AddLandlordForm.tsx — FILL: one-line purpose
+ * app/(dashboard)/landlords/AddLandlordForm.tsx — Inline form to add a new landlord, with post-creation welcome-pack prompt.
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /landlords (embedded)
+ * Auth:   Dashboard layout gateway
+ * Data:   POSTs to /api/landlords; invalidates portfolio query cache on success
  */
 import { useState, useTransition } from "react"
-import { Button } from "@/components/ui/button"
+import { ActionButton, IconButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
@@ -74,9 +72,9 @@ export function AddLandlordForm({ orgId }: Readonly<AddLandlordFormProps>) {
 
   if (!open) {
     return (
-      <Button size="sm" onClick={() => setOpen(true)}>
-        <Plus className="size-4 mr-1" /> Add Landlord
-      </Button>
+      <ActionButton tone="primary" icon={<Plus className="size-4" />} onClick={() => setOpen(true)}>
+        Add Landlord
+      </ActionButton>
     )
   }
 
@@ -94,12 +92,12 @@ export function AddLandlordForm({ orgId }: Readonly<AddLandlordFormProps>) {
             calendar — branded with your agency details.
           </p>
           <div className="flex gap-2">
-            <Button size="sm" onClick={() => window.open(packUrl, "_blank")}>
-              <FileText className="size-4 mr-1" /> Generate Welcome Pack
-            </Button>
-            <Button size="sm" variant="ghost" onClick={handleDismiss}>
+            <ActionButton tone="primary" icon={<FileText className="size-4" />} onClick={() => globalThis.open(packUrl, "_blank")}>
+              Generate Welcome Pack
+            </ActionButton>
+            <ActionButton tone="secondary" onClick={handleDismiss}>
               Skip for now
-            </Button>
+            </ActionButton>
           </div>
         </CardContent>
       </Card>
@@ -111,9 +109,7 @@ export function AddLandlordForm({ orgId }: Readonly<AddLandlordFormProps>) {
       <CardContent className="pt-4 space-y-3">
         <div className="flex items-center justify-between">
           <p className="text-sm font-medium">Add landlord</p>
-          <Button variant="ghost" size="icon" className="size-7" onClick={() => setOpen(false)}>
-            <X className="size-4" />
-          </Button>
+          <IconButton icon={<X className="size-4" />} label="Close" onClick={() => setOpen(false)} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
@@ -137,9 +133,9 @@ export function AddLandlordForm({ orgId }: Readonly<AddLandlordFormProps>) {
             <Input value={idNumber} onChange={(e) => setIdNumber(e.target.value)} placeholder="Optional — SA ID or passport" />
           </div>
         </div>
-        <Button size="sm" onClick={handleSubmit} disabled={isPending || (!firstName.trim() && !lastName.trim())}>
+        <ActionButton tone="primary" onClick={handleSubmit} disabled={isPending || (!firstName.trim() && !lastName.trim())}>
           {isPending ? "Adding..." : "Add landlord"}
-        </Button>
+        </ActionButton>
       </CardContent>
     </Card>
   )
