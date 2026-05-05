@@ -30,7 +30,7 @@ interface Props {
 }
 
 const LEGAL_DOCS = [
-  { href: "/cookie-policy",       label: "Cookie policy",       version: "v1.1" },
+  { href: "/cookie-policy",       label: "Cookie policy",       version: "v1.2" },
   { href: "/credit-check-policy", label: "Credit check policy", version: "v1.3" },
   { href: "/paia-manual",         label: "PAIA manual",         version: "v1.1" },
   { href: "/popia-register",      label: "POPIA register",      version: "v2026.9" },

@@ -24,7 +24,7 @@ const SECTIONS = [
 export default function CookiePolicyPage() {
   return (
     <LegalPageLayout
-      eyebrowParts={["COOKIES · TRACKING", "browser storage", "v1.1"]}
+      eyebrowParts={["COOKIES · TRACKING", "browser storage", "v1.2"]}
       titleBefore="Cookie"
       titleHighlight="policy"
       subtitle="How Pleks uses cookies and similar browser storage technologies to keep you signed in, measure performance, and improve the platform."
@@ -36,7 +36,7 @@ export default function CookiePolicyPage() {
       ]}
       sections={SECTIONS}
       hasSummary
-      endLabel="END · COOKIE POLICY · v1.1"
+      endLabel="END · COOKIE POLICY · v1.2"
     >
       {/* Plain-language summary */}
       <div className="summary-card" id="summary">
@@ -45,7 +45,7 @@ export default function CookiePolicyPage() {
         <ul className="summary-list">
           <li><span className="b" /><span>Pleks uses essential cookies to keep you signed in and to protect your session. These cannot be disabled without breaking the platform.</span></li>
           <li><span className="b" /><span>We use Vercel Analytics for performance measurement. IP addresses and user agents are converted to a daily-rotating one-way hash by Vercel; raw values are not retained. We treat this as effectively anonymous measurement.</span></li>
-          <li><span className="b" /><span>We do not use advertising cookies, tracking pixels, or third-party behavioural profiling.</span></li>
+          <li><span className="b" /><span>We do not use advertising cookies, tracking pixels, or any cross-site behavioural profiling. Vercel Analytics measures aggregate site performance and does not profile individual visitors.</span></li>
           <li><span className="b" /><span>You can clear or block cookies in your browser settings at any time. Essential cookies will be re-set on next sign-in.</span></li>
           <li><span className="b" /><span>The public marketing site (pleks.co.za) uses fewer cookies than the authenticated dashboard — see section 02 for the full list.</span></li>
           <li><span className="b" /><span>Pleks does not show a cookie consent banner because we do not set any cookies that require POPIA s11(1)(a) consent. If that ever changes, a banner will appear and this policy will be updated.</span></li>
@@ -70,9 +70,7 @@ export default function CookiePolicyPage() {
           and to rely on a valid lawful basis — consent (<span className="act-pill">POPIA · S11(1)(a)</span>), contract
           (<span className="act-pill">POPIA · S11(1)(b)</span>), or legitimate interest (<span className="act-pill">POPIA · S11(1)(f)</span>)
           — before processing. SA law does not have a direct equivalent of the EU ePrivacy Directive&rsquo;s cookie rule; our requirements
-          are set by POPIA s11 (lawful basis) and, for direct-marketing cookies, POPIA s69.{" "}
-          <span className="act-pill">ECT Act · S14</span> governs the integrity and originality of electronic records held by Pleks and
-          is not a cookie-specific provision.
+          are set by POPIA s11 (lawful basis) and, for direct-marketing cookies, POPIA s69.
         </p>
         <p>
           This policy should be read together with our <a href="/privacy">Privacy Policy</a> and{" "}
@@ -109,12 +107,12 @@ export default function CookiePolicyPage() {
               <td>7 days from issue; refreshed on each authenticated request; cleared on sign-out</td>
             </tr>
             <tr>
-              <td className="who">sb-[projectId]-auth-token-code-verifier<span className="sub">Supabase</span></td>
+              <td className="who">sb-[projectId]-auth-token-code-verifier<span className="sub">Supabase · sessionStorage</span></td>
               <td>PKCE code verifier used during the OAuth authentication flow. Cleared immediately after sign-in completes.</td>
               <td>Session</td>
             </tr>
             <tr>
-              <td className="who">pub-theme<span className="sub">Pleks</span></td>
+              <td className="who">pub-theme<span className="sub">Pleks · localStorage</span></td>
               <td>Stores your light/dark mode preference on the marketing site.</td>
               <td>1 year</td>
             </tr>
@@ -127,7 +125,8 @@ export default function CookiePolicyPage() {
           of whether data is stored in a cookie or in localStorage.
         </p>
         <p>
-          Session state is held by our database and storage provider (US-based — see the operators directory in the{" "}
+          Session tokens are held in <strong>localStorage</strong> on your device. Session validation and the underlying user record
+          are stored at our database and storage provider&rsquo;s US infrastructure (see the operators directory in the{" "}
           <a href="/popia-register">POPIA processing register</a>) under Standard Contractual Clauses per{" "}
           <span className="act-pill">POPIA · S72(1)(a)</span>.
         </p>
@@ -172,7 +171,7 @@ export default function CookiePolicyPage() {
           <tbody>
             <tr>
               <td className="who">PayFast<span className="sub">payment processor</span></td>
-              <td>Cookies are set by PayFast upon redirection to their secure payment gateway — this occurs when completing a subscription payment or setting up a recurring debit mandate. Pleks does not control or access these cookies.</td>
+              <td>Cookies are set by PayFast upon redirection to their secure payment gateway — this occurs when completing a subscription payment or setting up a recurring debit mandate. These typically include session and fraud-prevention cookies on the PayFast domain. Pleks does not control or access them; the PayFast cookie policy is the authoritative description.</td>
               <td>payfast.io/privacy</td>
             </tr>
           </tbody>
@@ -217,9 +216,11 @@ export default function CookiePolicyPage() {
         <p className="sec-num"><span className="bar" /><span>06 · Changes</span></p>
         <h2 className="sec-h">Changes to this <span className="hl">policy</span></h2>
         <p>
-          We may update this cookie policy from time to time as the platform evolves or as legal requirements change. When we make
-          material changes, we will update the &ldquo;Last reviewed&rdquo; date at the top of this page and, where appropriate,
-          notify you by email.
+          We may update this cookie policy from time to time as the platform evolves or as legal requirements change. Material
+          changes include adding a new cookie or storage item, changing a cookie&rsquo;s purpose, adding a third-party recipient, or
+          changing the lawful basis. Non-material changes (typographical corrections, link updates) take effect on publication. When
+          we make material changes, we will update the &ldquo;Last reviewed&rdquo; date at the top of this page and, where
+          appropriate, notify you by email.
         </p>
         <p>
           For any questions about how Pleks uses cookies, contact our Information Officer.
