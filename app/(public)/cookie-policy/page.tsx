@@ -24,19 +24,19 @@ const SECTIONS = [
 export default function CookiePolicyPage() {
   return (
     <LegalPageLayout
-      eyebrowParts={["COOKIES · TRACKING", "browser storage", "v1.0"]}
+      eyebrowParts={["COOKIES · TRACKING", "browser storage", "v1.1"]}
       titleBefore="Cookie"
       titleHighlight="policy"
       subtitle="How Pleks uses cookies and similar browser storage technologies to keep you signed in, measure performance, and improve the platform."
       kicker={[
-        { label: "Last reviewed", value: "2026 · 04 · 01", mono: true },
+        { label: "Last reviewed", value: "2026 · 05 · 05", mono: true },
         { label: "In force from",  value: "2026 · 05 · 05", mono: true },
         { label: "Jurisdiction",   value: "Republic of South Africa" },
-        { label: "Framework",      value: "POPIA · ECT Act" },
+        { label: "Framework",      value: "POPIA s11 · s69" },
       ]}
       sections={SECTIONS}
       hasSummary
-      endLabel="END · COOKIE POLICY · v1.0"
+      endLabel="END · COOKIE POLICY · v1.1"
     >
       {/* Plain-language summary */}
       <div className="summary-card" id="summary">
@@ -44,10 +44,11 @@ export default function CookiePolicyPage() {
         <h2 className="sc-h">What you need to know about cookies on Pleks</h2>
         <ul className="summary-list">
           <li><span className="b" /><span>Pleks uses essential cookies to keep you signed in and to protect your session. These cannot be disabled without breaking the platform.</span></li>
-          <li><span className="b" /><span>We use Vercel Analytics for anonymous performance measurement. No personal data is sent to Vercel — only aggregated metrics.</span></li>
+          <li><span className="b" /><span>We use Vercel Analytics for performance measurement. IP addresses and user agents are converted to a daily-rotating one-way hash by Vercel; raw values are not retained. We treat this as effectively anonymous measurement.</span></li>
           <li><span className="b" /><span>We do not use advertising cookies, tracking pixels, or third-party behavioural profiling.</span></li>
           <li><span className="b" /><span>You can clear or block cookies in your browser settings at any time. Essential cookies will be re-set on next sign-in.</span></li>
           <li><span className="b" /><span>The public marketing site (pleks.co.za) uses fewer cookies than the authenticated dashboard — see section 02 for the full list.</span></li>
+          <li><span className="b" /><span>Pleks does not show a cookie consent banner because we do not set any cookies that require POPIA s11(1)(a) consent. If that ever changes, a banner will appear and this policy will be updated.</span></li>
         </ul>
       </div>
 
@@ -65,13 +66,22 @@ export default function CookiePolicyPage() {
           these technologies as to cookies under this policy.
         </p>
         <p>
-          Under the Electronic Communications and Transactions Act <span className="act-pill">ECT Act · S43</span> and the Protection
-          of Personal Information Act <span className="act-pill">POPIA</span>, we are required to inform you about cookies that process
-          personal information and to obtain your consent for non-essential cookies.
+          Under <span className="act-pill">POPIA</span>, we are required to inform you about cookies that process personal information
+          and to rely on a valid lawful basis — consent (<span className="act-pill">POPIA · S11(1)(a)</span>), contract
+          (<span className="act-pill">POPIA · S11(1)(b)</span>), or legitimate interest (<span className="act-pill">POPIA · S11(1)(f)</span>)
+          — before processing. SA law does not have a direct equivalent of the EU ePrivacy Directive&rsquo;s cookie rule; our requirements
+          are set by POPIA s11 (lawful basis) and, for direct-marketing cookies, POPIA s69.{" "}
+          <span className="act-pill">ECT Act · S14</span> governs the integrity and originality of electronic records held by Pleks and
+          is not a cookie-specific provision.
         </p>
         <p>
           This policy should be read together with our <a href="/privacy">Privacy Policy</a> and{" "}
           <a href="/terms">Terms of Service</a>, which describe how we handle personal information more broadly.
+        </p>
+        <p>
+          Pleks operates under South African law. If you access Pleks from outside South Africa, additional local cookie or e-privacy
+          laws may apply; this policy describes our compliance with SA law and is not a determination of compliance with any other
+          jurisdiction&rsquo;s regime.
         </p>
       </section>
 
@@ -81,31 +91,26 @@ export default function CookiePolicyPage() {
         <h2 className="sec-h">Essential <span className="hl">cookies</span></h2>
         <p>
           These cookies are strictly necessary for Pleks to function. They cannot be disabled without preventing you from signing in
-          or using the platform. No consent is required for these cookies under <span className="act-pill">POPIA · S11(1)(c)</span> —
-          they are necessary for the performance of a contract you have entered into with us.
+          or using the platform. No consent is required for these cookies under <span className="act-pill">POPIA · S11(1)(b)</span> —
+          they are necessary for the performance of the contract (the Pleks Terms of Service) you have entered into with us.
         </p>
         <table className="share-table">
           <thead>
             <tr>
-              <th style={{ width: "35%" }}>Cookie</th>
+              <th style={{ width: "35%" }}>Storage item</th>
               <th>Purpose</th>
               <th style={{ width: "20%" }}>Duration</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td className="who">sb-[projectId]-auth-token<span className="sub">Supabase</span></td>
+              <td className="who">sb-[projectId]-auth-token<span className="sub">Supabase · localStorage</span></td>
               <td>Stores your authenticated session after sign-in. Required to access the dashboard. <em>[projectId] is the unique identifier of the Pleks Supabase project.</em></td>
-              <td>Session / 7 days</td>
+              <td>7 days from issue; refreshed on each authenticated request; cleared on sign-out</td>
             </tr>
             <tr>
               <td className="who">sb-[projectId]-auth-token-code-verifier<span className="sub">Supabase</span></td>
               <td>PKCE code verifier used during the OAuth authentication flow. Cleared immediately after sign-in completes.</td>
-              <td>Session</td>
-            </tr>
-            <tr>
-              <td className="who">__Secure-next-auth.*<span className="sub">Next.js</span></td>
-              <td>CSRF protection token for server actions and form submissions.</td>
               <td>Session</td>
             </tr>
             <tr>
@@ -121,6 +126,11 @@ export default function CookiePolicyPage() {
           server request. They are cleared when you sign out or clear your browser data. The same POPIA obligations apply regardless
           of whether data is stored in a cookie or in localStorage.
         </p>
+        <p>
+          Session state is held by our database and storage provider (US-based — see the operators directory in the{" "}
+          <a href="/popia-register">POPIA processing register</a>) under Standard Contractual Clauses per{" "}
+          <span className="act-pill">POPIA · S72(1)(a)</span>.
+        </p>
       </section>
 
       {/* 03 */}
@@ -129,13 +139,13 @@ export default function CookiePolicyPage() {
         <h2 className="sec-h">Analytics <span className="hl">cookies</span></h2>
         <p>
           Pleks uses <strong>Vercel Analytics</strong> to measure page performance and visitor counts on the marketing site. Vercel
-          Analytics is privacy-focused by design: it does not use cookies, does not collect IP addresses, and does not build individual
-          user profiles. The metrics we receive are aggregated and anonymous.
+          Analytics does not set cookies. IP addresses and user agents are converted to a daily-rotating one-way hash by Vercel; raw
+          values are not retained and no individual user profiles are built.
         </p>
         <p>
-          Because Vercel Analytics does not process personal information as defined by <span className="act-pill">POPIA</span>, no
-          consent banner is required for this measurement. If you block JavaScript or use a content blocker, analytics data is simply
-          not collected — the platform continues to function normally.
+          Pleks treats this as effectively anonymous measurement and does not consider it to require POPIA s11(1)(a) consent. If you
+          disagree, you can block analytics via your browser&rsquo;s developer tools or a content blocker — the platform continues to
+          function normally.
         </p>
         <p>
           We do not use Google Analytics, Meta Pixel, or any other third-party analytics that sets cookies or tracks individuals
@@ -165,13 +175,14 @@ export default function CookiePolicyPage() {
               <td>Cookies are set by PayFast upon redirection to their secure payment gateway — this occurs when completing a subscription payment or setting up a recurring debit mandate. Pleks does not control or access these cookies.</td>
               <td>payfast.io/privacy</td>
             </tr>
-            <tr>
-              <td className="who">DocuSeal<span className="sub">e-signature</span></td>
-              <td>Cookies are set by DocuSeal when you are redirected to or interact with the DocuSeal signing interface to sign or review a lease document. Pleks does not control or access these cookies.</td>
-              <td>docuseal.com/privacy</td>
-            </tr>
           </tbody>
         </table>
+        <p>
+          The e-signature workflow (DocuSeal) is self-hosted on Pleks&rsquo;s own infrastructure — no data is transferred to a
+          third-party DocuSeal service, and any storage items set during document signing are first-party Pleks items governed by this
+          policy. This is consistent with the Operator Agreement classification in the{" "}
+          <a href="/popia-register">POPIA processing register</a>.
+        </p>
         <p>
           Pleks does not embed social media plugins, advertising networks, or any third-party scripts that would track you across
           websites for marketing purposes.
@@ -217,7 +228,7 @@ export default function CookiePolicyPage() {
           <span className="l">Information<br />officer</span>
           <span className="v">
             Stéan Bouwer
-            <span className="sub"><a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a></span>
+            <br /><span className="sub"><a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a></span>
           </span>
         </div>
       </section>

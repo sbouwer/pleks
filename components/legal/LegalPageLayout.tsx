@@ -33,7 +33,7 @@ const LEGAL_DOCS = [
   { href: "/cookie-policy",       label: "Cookie policy",       version: "v1.0" },
   { href: "/credit-check-policy", label: "Credit check policy", version: "v1.2" },
   { href: "/paia-manual",         label: "PAIA manual",         version: "v1.0" },
-  { href: "/popia-register",      label: "POPIA register",      version: "v2026.1" },
+  { href: "/popia-register",      label: "POPIA register",      version: "v2026.6" },
   { href: "/privacy",             label: "Privacy policy",      version: "v3.3" },
   { href: "/terms",               label: "Terms of service",    version: "v2.9" },
 ]
