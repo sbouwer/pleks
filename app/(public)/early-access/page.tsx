@@ -1,18 +1,15 @@
 "use client"
 
 /**
- * app/(public)/early-access/page.tsx — FILL: one-line purpose
+ * app/(public)/early-access/page.tsx — waitlist opt-in for founding agent cohort
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /early-access
+ * Auth:   public
+ * Data:   POST /api/waitlist — stores email + role in the waitlist table
+ * Notes:  POPIA-compliant opt-in; explicit consent copy required above submit.
  */
 import { useState } from "react"
-import Image from "next/image"
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -22,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { AccentBracket } from "@/components/ui/AccentBracket"
 import { ArrowRight, CheckCircle2 } from "lucide-react"
 
 export default function EarlyAccessPage() {
@@ -60,13 +58,9 @@ export default function EarlyAccessPage() {
     <div className="min-h-[80vh] flex items-center justify-center px-4 py-16 md:py-24">
       <div className="w-full max-w-md">
         <div className="text-center mb-10">
-          <Image
-            src="/logo-mark.svg"
-            alt="Pleks"
-            width={64}
-            height={64}
-            className="h-auto mx-auto mb-6"
-          />
+          <Link href="/" className="pub-wordmark" aria-label="Pleks" style={{ justifyContent: "center", marginBottom: 24 }}>
+            <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
+          </Link>
           <h1 className="font-heading text-3xl md:text-4xl mb-3">
             Pleks is launching in Paarl.
           </h1>
@@ -78,7 +72,7 @@ export default function EarlyAccessPage() {
 
         {success ? (
           <div className="rounded-lg bg-surface border border-brand/30 p-6 text-center space-y-3">
-            <CheckCircle2 className="size-10 text-brand mx-auto" />
+            <CheckCircle2 className="size-10 mx-auto" style={{ color: "var(--amber-ink)" }} />
             <p className="font-heading text-xl">You&apos;re on the list.</p>
             <p className="text-sm text-muted-foreground">
               We&apos;ll be in touch with founding agent details soon.
@@ -127,14 +121,14 @@ export default function EarlyAccessPage() {
               <p className="text-sm text-destructive">{error}</p>
             )}
 
-            <Button
+            <button
               type="submit"
-              className="w-full text-base h-11"
+              className="btn-pleks w-full justify-center text-base"
               disabled={submitting}
             >
               {submitting ? "Joining..." : "Join the waitlist"}
-              {!submitting && <ArrowRight className="ml-2 size-4" />}
-            </Button>
+              {!submitting && <ArrowRight className="size-4" />}
+            </button>
 
             <p className="text-xs text-muted-foreground text-center leading-relaxed">
               By joining, you agree to our{" "}

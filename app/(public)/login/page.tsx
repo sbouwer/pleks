@@ -329,7 +329,7 @@ function LoginContent() {
             <button
               type="button"
               onClick={() => setMagicLinkMode(!magicLinkMode)}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             >
               {magicLinkMode ? "Sign in with password instead" : "Email me a login link instead"}
             </button>

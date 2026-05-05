@@ -1,13 +1,11 @@
 "use client"
 
 /**
- * app/(public)/PublicNav.tsx — FILL: one-line purpose
+ * app/(public)/PublicNav.tsx — sticky top nav for the public marketing site
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   public; reads auth session to show profile or sign-in icon
+ * Notes:  Hash links have no active indicator — only /contact highlights when on that path.
+ *         Nav hides on scroll-down on mobile (scroll-up reveals it).
  */
 
 import { useState, useEffect, useRef } from "react"
@@ -44,7 +42,6 @@ export function PublicNav() {
   // undefined = checking; null = logged out; object = logged in
   const [user, setUser]                 = useState<{ email?: string } | null | undefined>(undefined)
   const [scrollHidden, setScrollHidden] = useState(false)
-  const [activeSection, setActiveSection] = useState("")
   const lastScrollRef                   = useRef(0)
   const { theme, toggle }               = usePublicTheme()
   const pathname                        = usePathname()
@@ -54,26 +51,6 @@ export function PublicNav() {
     supabase.auth.getUser()
       .then(({ data }) => setUser(data.user ? { email: data.user.email ?? undefined } : null))
       .catch(() => setUser(null))
-  }, [])
-
-  // Scrollspy — activate nav link matching the section in the upper viewport
-  useEffect(() => {
-    const ids = NAV_LINKS.filter(l => l.href.startsWith("/#")).map(l => l.href.replace("/#", ""))
-    const els = ids.map(id => document.getElementById(id)).filter((el): el is HTMLElement => el !== null)
-    const io = new IntersectionObserver(
-      entries => {
-        entries.forEach(e => {
-          // Only mark active once the user has scrolled past the hero
-          if (e.isIntersecting && globalThis.scrollY > 80) setActiveSection(e.target.id)
-        })
-      },
-      { rootMargin: "-20% 0px -60% 0px", threshold: 0 },
-    )
-    els.forEach(el => io.observe(el))
-    // Clear active state when scrolled back to the top
-    const onScroll = () => { if (globalThis.scrollY < 80) setActiveSection("") }
-    globalThis.addEventListener("scroll", onScroll, { passive: true })
-    return () => { io.disconnect(); globalThis.removeEventListener("scroll", onScroll) }
   }, [])
 
   // Hide nav on scroll-down on mobile only
@@ -111,8 +88,7 @@ export function PublicNav() {
         {/* Centre nav — desktop only */}
         <nav aria-label="Site sections" className="hidden md:flex" style={{ flex: 1, justifyContent: "center", gap: 2, alignItems: "center" }}>
           {NAV_LINKS.map(link => {
-            const id = link.href.replace("/#", "")
-            const isActive = link.href.startsWith("/#") ? activeSection === id : pathname === link.href
+            const isActive = link.href.startsWith("/#") ? false : pathname === link.href
             return (
               <Link
                 key={link.href}

@@ -1,13 +1,10 @@
 "use client"
 
 /**
- * components/marketing/FooterColumns.tsx — FILL: one-line purpose
+ * components/marketing/FooterColumns.tsx — three-column footer link grid
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Collapsible on mobile (accordion); always visible on desktop.
+ *         Product column links match NAV_LINKS in PublicNav.tsx — keep in sync.
  */
 import { useState } from "react"
 import Link from "next/link"
@@ -85,10 +82,11 @@ export function FooterColumns() {
       <FooterSection
         title="Product"
         items={[
-          { label: "Pricing", href: "/pricing" },
-          { label: "For Agents", href: "/for-agents" },
-          { label: "For Landlords", href: "/for-landlords" },
-          { label: "Switch to Pleks", href: "/migrate" },
+          { label: "Why Pleks", href: "/#why" },
+          { label: "The work", href: "/#artefact" },
+          { label: "Charter", href: "/#charter" },
+          { label: "Pricing", href: "/#pricing" },
+          { label: "Founding agents", href: "/#founding" },
           { label: "Early access", href: "/early-access" },
         ]}
       />
