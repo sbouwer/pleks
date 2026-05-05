@@ -108,7 +108,7 @@ async function fetchMonitorHistory(monitorId: string, days: number): Promise<Dai
   )
 
   const byDate = new Map<string, number>()
-  if (json?.data) {
+  if (Array.isArray(json?.data)) {
     for (const d of json.data) {
       const dt = d.attributes.from?.split("T")[0]
       if (dt && d.attributes.availability != null) byDate.set(dt, d.attributes.availability)
@@ -127,7 +127,7 @@ async function fetchMonitorHistory(monitorId: string, days: number): Promise<Dai
 
 export async function fetchMonitors(days = 90): Promise<Monitor[]> {
   const json = await bsFetch<{ data?: RawMonitor[] }>("/monitors?per_page=50")
-  if (!json?.data) return []
+  if (!Array.isArray(json?.data)) return []
 
   const monitors = json.data.map(m => ({
     id:             m.id,
@@ -146,7 +146,7 @@ export async function fetchMonitors(days = 90): Promise<Monitor[]> {
 
 export async function fetchIncidents(days = 7, limit = 10): Promise<BsIncident[]> {
   const json = await bsFetch<{ data?: RawIncident[] }>("/incidents?per_page=25")
-  if (!json?.data) return []
+  if (!Array.isArray(json?.data)) return []
   const cutoff = Date.now() - days * 24 * 60 * 60 * 1000
   return json.data
     .filter(i => {
