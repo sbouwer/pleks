@@ -34,6 +34,7 @@ const LEGAL_DOCS = [
   { href: "/terms",               label: "Terms of service",    version: "v2.9" },
   { href: "/cookie-policy",       label: "Cookie policy",       version: "v1.0" },
   { href: "/credit-check-policy", label: "Credit check policy", version: "v1.2" },
+  { href: "/paia-manual",        label: "PAIA manual",         version: "v1.0" },
 ]
 
 export function LegalPageLayout({

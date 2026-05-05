@@ -97,6 +97,7 @@ export function FooterColumns() {
           { label: "Terms of Service", href: "/terms" },
           { label: "Cookie Policy", href: "/cookie-policy" },
           { label: "Credit Check Policy", href: "/credit-check-policy" },
+          { label: "PAIA Manual", href: "/paia-manual" },
         ]}
       />
       <FooterSection
