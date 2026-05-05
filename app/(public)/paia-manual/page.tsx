@@ -74,7 +74,7 @@ export default function PAIAManualPage() {
         </p>
         <p>
           This manual is available free of charge on our website at{" "}
-          <a href="/paia-manual">pleks.co.za/paia-manual</a>, and a copy may be requested from our Information Officer at the
+          <Link href="/paia-manual" className="act-pill">pleks.co.za/paia-manual</Link>, and a copy may be requested from our Information Officer at the
           contact details set out in section 02 below.
         </p>
       </section>
@@ -569,7 +569,7 @@ export default function PAIAManualPage() {
         <p>
           Pleks will review this manual at least once every two years, or whenever there is a material change in our records,
           processing activities, or the applicable law. The current version of this manual is always available at{" "}
-          <a href="/paia-manual">pleks.co.za/paia-manual</a>.
+          <Link href="/paia-manual" className="act-pill">pleks.co.za/paia-manual</Link>.
         </p>
         <p>
           The version number and effective date on the cover of this document indicate when it was last updated. Requesters are
