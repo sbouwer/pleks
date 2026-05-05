@@ -58,14 +58,14 @@ export default function PrivacyPolicyPage() {
         <p className="sec-num"><span className="bar" /><span>01 · Identification</span></p>
         <h2 className="sec-h">Who <span className="hl">we are</span></h2>
         <p>
-          Pleks is operated by <strong>Bouwer Property Group (Pty) Ltd</strong>, a company registered in the Republic of South Africa.
+          Pleks is operated by <strong>Pleks (Pty) Ltd</strong>, a company registered in the Republic of South Africa.
           For the purposes of the Protection of Personal Information Act 4 of 2013 <span className="act-pill">POPIA</span>, Bouwer Property Group
           is the <strong>Responsible Party</strong>. Agencies using Pleks to manage their clients&rsquo; data act as <strong>Operators</strong> on behalf of those clients.
         </p>
         <div className="officer-card">
           <span className="l">Information<br />officer</span>
           <span className="v">
-            Heinrich Bouwer
+            Stéan Bouwer
             <span className="sub"><a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a></span>
           </span>
         </div>
@@ -227,7 +227,7 @@ export default function PrivacyPolicyPage() {
         <div className="officer-card">
           <span className="l">Information<br />officer</span>
           <span className="v">
-            Heinrich Bouwer
+            Stéan Bouwer
             <span className="sub"><a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a></span>
           </span>
         </div>

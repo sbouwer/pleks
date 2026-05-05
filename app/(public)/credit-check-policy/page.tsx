@@ -167,7 +167,7 @@ export default function CreditCheckPolicyPage() {
         <div className="officer-card">
           <span className="l">Information<br />officer</span>
           <span className="v">
-            Heinrich Bouwer
+            Stéan Bouwer
             <span className="sub"><a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a></span>
           </span>
         </div>

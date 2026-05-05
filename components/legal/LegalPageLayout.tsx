@@ -134,7 +134,7 @@ export function LegalPageLayout({
           </div>
 
           <div className="sidenav-foot">
-            <span style={{ color: "var(--ink-faint)" }}>Bouwer Property Group (Pty) Ltd · ZA</span>
+            <span style={{ color: "var(--ink-faint)" }}>Pleks (Pty) Ltd · ZA</span>
           </div>
         </aside>
 

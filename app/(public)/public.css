@@ -1039,9 +1039,16 @@
   background: linear-gradient(to right, var(--amber-wash), transparent 80%);
 }
 .sidenav-list a.is-active {
-  color: var(--ink); border-left-color: var(--amber);
-  background: linear-gradient(to right, var(--amber-wash), transparent 60%);
+  color: var(--ink); border-left: 0;
+  background: var(--amber-wash);
   font-weight: 500;
+  position: relative;
+}
+.sidenav-list a.is-active::before {
+  content: ""; position: absolute;
+  top: 7px; left: 6px;
+  width: 3px; height: 14px;
+  background: var(--amber); border-radius: 1px; flex-shrink: 0;
 }
 .sidenav-list a.is-active .num { color: var(--amber-ink); }
 

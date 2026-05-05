@@ -44,7 +44,7 @@ export default function TermsOfServicePage() {
         <p className="sc-eyebrow">Plain-language summary</p>
         <h2 className="sc-h">What you&rsquo;re agreeing to</h2>
         <ul className="summary-list">
-          <li><span className="b" /><span>By using Pleks you accept these terms — they form a legally binding agreement with Bouwer Property Group (Pty) Ltd.</span></li>
+          <li><span className="b" /><span>By using Pleks you accept these terms — they form a legally binding agreement with Pleks (Pty) Ltd.</span></li>
           <li><span className="b" /><span>Subscription fees are billed monthly or annually via PayFast, in ZAR inclusive of VAT where applicable.</span></li>
           <li><span className="b" /><span>Cancel at any time from your account settings; access continues until your billing period ends.</span></li>
           <li><span className="b" /><span>After cancellation you have 90 days of read-only access before your data is permanently deleted.</span></li>
@@ -59,7 +59,7 @@ export default function TermsOfServicePage() {
         <p>
           By accessing or using Pleks you agree to be bound by these Terms of Service and our{" "}
           <a href="/privacy">Privacy Policy</a>. If you do not agree, you may not use the platform.
-          These terms constitute a legally binding agreement between you and <strong>Bouwer Property Group (Pty) Ltd</strong>,
+          These terms constitute a legally binding agreement between you and <strong>Pleks (Pty) Ltd</strong>,
           a company registered in the Republic of South Africa.
         </p>
         <p>
@@ -140,7 +140,7 @@ export default function TermsOfServicePage() {
         <p className="sec-num"><span className="bar" /><span>06 · Limitation of liability</span></p>
         <h2 className="sec-h">Limitation of <span className="hl">liability</span></h2>
         <p>
-          To the maximum extent permitted by South African law, Bouwer Property Group (Pty) Ltd shall not be liable for any indirect,
+          To the maximum extent permitted by South African law, Pleks (Pty) Ltd shall not be liable for any indirect,
           incidental, special, consequential or punitive damages arising out of or related to your use of the platform — including loss
           of data, loss of revenue, or loss of goodwill.
         </p>
@@ -171,7 +171,7 @@ export default function TermsOfServicePage() {
         <div className="officer-card">
           <span className="l">Legal<br />contact</span>
           <span className="v">
-            Bouwer Property Group (Pty) Ltd
+            Pleks (Pty) Ltd
             <span className="sub"><a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a></span>
           </span>
         </div>
