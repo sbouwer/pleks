@@ -76,7 +76,10 @@ export default function ProcessingRegisterPage() {
         <p>
           <strong>If you are a data subject</strong> (tenant, applicant, landlord, supplier): this document tells you what the platform
           does and who the actors are. For Part B data, your rights under POPIA are exercised against the agency — the Responsible Party
-          for that data. For Part A data (your Pleks account), your rights are exercised against Pleks directly.
+          for that data. For Part A data (your Pleks account), your rights are exercised against Pleks directly. Under{" "}
+          <span className="act-pill">PAIA</span>, requests for access to records held by Pleks on behalf of a client agency must be
+          directed to that agency&rsquo;s Information Officer, not to Pleks. Pleks will route any misdirected request to the correct
+          party within 10 business days.
         </p>
         <p>
           Purposes prefixed <strong>A</strong> are Pleks as Responsible Party. Purposes prefixed <strong>B</strong> are Pleks as
@@ -102,7 +105,10 @@ export default function ProcessingRegisterPage() {
           inspections, maintenance, communications, trust transactions, deposits, applications, credit checks, owner statements, and every
           other artefact of property management. The agency is the Responsible Party; Pleks processes this data on the agency&rsquo;s
           behalf under the Pleks Operator Agreement, which incorporates the mandatory written-contract terms required by{" "}
-          <span className="act-pill">POPIA · S20</span> and <span className="act-pill">POPIA · S21</span>.
+          <span className="act-pill">POPIA · S20</span> and <span className="act-pill">POPIA · S21</span>. Consistent with{" "}
+          <span className="act-pill">POPIA · S21</span>, Pleks will notify the agency without undue delay — and in any event within
+          72 hours of becoming aware — of any personal information breach that may affect data for which the agency is the Responsible
+          Party. The breach-notification obligation is given contractual force in the Pleks Terms of Service.
         </p>
         <p>
           <strong>Sovereign-trust invariant.</strong> Pleks holds no client funds. Client funds reside in the agency&rsquo;s own
@@ -146,6 +152,10 @@ export default function ProcessingRegisterPage() {
         <p>
           Every data subject has the unconditional right to complain to the Information Regulator independently of Pleks or the
           agency&rsquo;s response. The Regulator&rsquo;s contact details are surfaced on every data-subject-rights interface in the platform.
+          Formal information-access requests to Pleks under <span className="act-pill">PAIA</span> must be submitted on Form 2 (Request
+          for Access to Record of Public/Private Body), available from the Information Regulator. Pleks will respond using Form 3
+          (Outcome of Request and Notice of Fees) within the statutory 30-day window. The Pleks PAIA manual is available on request
+          from our Information Officer.
         </p>
       </section>
 
@@ -443,7 +453,7 @@ export default function ProcessingRegisterPage() {
             <span>Credit checking (Searchworx)</span>
             <code className="purpose-slug">credit_check_searchworx</code>
           </div>
-          <p className="purpose-desc">Obtain a credit bureau report on an applicant for the purpose of assessing tenancy suitability. Searchworx acts as the aggregator across TransUnion, Experian, Compuscan, and XDS. A DPIA has been flagged for this purpose. No credit check is performed without dual consent under POPIA s11(1)(a) and NCA s69.</p>
+          <p className="purpose-desc">Obtain a credit bureau report on an applicant for the purpose of assessing tenancy suitability. Searchworx acts as the aggregator across TransUnion, Experian, Compuscan, and XDS. A DPIA (Data Protection Impact Assessment) is in progress for this purpose and will be completed before the feature ships to production — credit data is among the highest-sensitivity personal information categories. No credit check is performed without dual consent under POPIA s11(1)(a) and NCA s69.</p>
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(a) — explicit consent (applicant consents to the specific purpose of a credit check before it is run; consent may be withdrawn for future checks but not to unwind a check already performed)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Applicant ID number, full name, DOB, residential addresses (current and historical), employment history, credit history, default records, civil judgments, credit score, affordability result</span></div>
@@ -731,10 +741,10 @@ export default function ProcessingRegisterPage() {
             <span>AI-assisted processing</span>
             <code className="purpose-slug">ai_assisted_processing</code>
           </div>
-          <p className="purpose-desc">Bounded, assistive AI processing across multiple workflows — income extraction from bank statements, FitScore rationale, maintenance triage, deposit deduction justification, lease clause conflict checking, arrears letter drafting, wear-and-tear assessment, municipal bill extraction, AGM notice drafting, and trust audit narrative. AI processing is assistive only: Pleks does not make automated decisions about tenants or applicants. All decisions remain with the agency or landlord. Prompts and responses are not retained — Anthropic operates under a zero-retention Enterprise DPA.</p>
+          <p className="purpose-desc">Bounded, assistive AI processing across multiple workflows — income extraction from bank statements, FitScore rationale, maintenance triage, deposit deduction justification, lease clause conflict checking, arrears letter drafting, wear-and-tear assessment, municipal bill extraction, AGM notice drafting, and trust audit narrative. AI processing is assistive only: Pleks does not make automated decisions about tenants or applicants. All decisions remain with the agency or landlord. Prompts and responses are not retained — Anthropic operates under a zero-retention Enterprise DPA. PII minimisation is applied before cross-border transfer: prompts contain structured context values (amounts, dates, categories) and do not include direct identifiers (name, ID number, contact details) where the task does not require them — reducing the transfer classification from &ldquo;personal information&rdquo; to &ldquo;anonymised or pseudonymised data&rdquo; for the majority of sub-purposes.</p>
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">Multiple — follows the lawful basis of the sub-purpose (e.g., B4 consent for FitScore, B7 contract for lease clause checking)</span></div>
-            <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Structured context specific to the sub-purpose only — no full PII profiles passed. No prompt text or response text retained by Pleks or Anthropic.</span></div>
+            <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Structured context specific to the sub-purpose only. Direct identifiers (name, ID number, contact details) are stripped where not required by the task. No prompt text or response text retained by Pleks or Anthropic.</span></div>
             <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Anthropic — see Appendix A2 (zero-retention Enterprise DPA + SCCs)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">No retention — zero-retention DPA with Anthropic; derivative outputs follow the source purpose&rsquo;s retention period</span></div>
             <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — Anthropic is US-based. SCCs (s72(1)(a)) + zero-retention Enterprise DPA</span></div>
