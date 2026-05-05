@@ -132,7 +132,7 @@ export async function fetchMonitors(days = 90): Promise<Monitor[]> {
   const monitors = json.data.map(m => ({
     id:             m.id,
     name:           cleanName(m.attributes.pronounceable_name ?? m.attributes.url ?? m.id),
-    url:            m.attributes.url ?? "",
+    url:            cleanName(m.attributes.url ?? ""),
     status:         m.attributes.status ?? "pending" as MonitorStatus,
     availability:   m.attributes.availability ?? 100,
     checkFrequency: m.attributes.check_frequency ?? 60,

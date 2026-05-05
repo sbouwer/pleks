@@ -5,11 +5,12 @@
  * Auth:   public
  * Data:   Better Stack Uptime API — monitors + incidents + 90-day SLA history
  * Notes:  ISR at 60s. Falls back gracefully when BETTERSTACK_API_KEY is absent.
- *         Grey bars = days before monitor existed (unknown, not counted).
+ *         Grey bars = days before monitoring began (unknown, not counted in uptime).
  */
 import type { Metadata } from "next"
 import { fetchMonitors, fetchIncidents, overallStatus } from "@/lib/observability/betterstack"
 import type { Monitor, DailyUptime, BsIncident, MonitorStatus } from "@/lib/observability/betterstack"
+import "./status.css"
 
 export const revalidate = 60
 
@@ -20,147 +21,196 @@ export const metadata: Metadata = {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function statusColor(status: MonitorStatus) {
+function heroBarClass(v: number | null) {
+  if (v === null)  return "st-ubar--unknown"
+  if (v >= 100)    return ""
+  if (v >= 95)     return "st-ubar--incident"
+  return "st-ubar--outage"
+}
+
+function monitorBarClass(v: number | null) {
+  if (v === null)  return "st-mbar--unknown"
+  if (v >= 100)    return ""
+  if (v >= 95)     return "st-mbar--incident"
+  return "st-mbar--outage"
+}
+
+function pillClass(status: MonitorStatus) {
   const map: Record<MonitorStatus, string> = {
-    up:          "var(--green-600, #16a34a)",
-    down:        "var(--red-600, #dc2626)",
-    maintenance: "var(--amber-500, #f59e0b)",
-    paused:      "var(--ink-faint, #9ca3af)",
-    pending:     "var(--ink-faint, #9ca3af)",
-    validating:  "var(--amber-500, #f59e0b)",
+    up:          "st-pill--operational",
+    down:        "st-pill--outage",
+    maintenance: "st-pill--maintenance",
+    paused:      "st-pill--paused",
+    pending:     "st-pill--paused",
+    validating:  "st-pill--maintenance",
   }
-  return map[status] ?? "var(--ink-faint)"
+  return map[status] ?? "st-pill--paused"
 }
 
 function statusLabel(status: MonitorStatus) {
   const map: Record<MonitorStatus, string> = {
-    up:          "Operational",
-    down:        "Outage",
-    maintenance: "Maintenance",
-    paused:      "Paused",
-    pending:     "Pending",
-    validating:  "Validating",
+    up: "Operational", down: "Outage", maintenance: "Maintenance",
+    paused: "Paused", pending: "Pending", validating: "Validating",
   }
   return map[status] ?? status
 }
 
-function barColor(availability: number | null): string {
-  if (availability === null) return "#d1d5db"   // grey — unknown / no data
-  if (availability >= 100)   return "#16a34a"   // green — perfect
-  if (availability >= 95)    return "#f59e0b"   // amber — partial
-  return "#dc2626"                               // red — significant outage
+// Worst-case per day across all monitors (drives the hero uptime strip)
+function computeOverallHistory(monitors: Monitor[]): (number | null)[] {
+  return Array.from({ length: 90 }, (_, i) => {
+    const values = monitors
+      .map(m => m.history[i]?.availability)
+      .filter((v): v is number => v != null)
+    return values.length === 0 ? null : Math.min(...values)
+  })
 }
 
 function formatDuration(startedAt: string, resolvedAt: string | null): string {
-  const start = new Date(startedAt).getTime()
-  const end   = resolvedAt ? new Date(resolvedAt).getTime() : Date.now()
-  const mins  = Math.round((end - start) / 60000)
-  if (mins < 60) return `${mins}m`
-  return `${Math.floor(mins / 60)}h ${mins % 60}m`
+  const mins = Math.round((( resolvedAt ? new Date(resolvedAt).getTime() : Date.now()) - new Date(startedAt).getTime()) / 60000)
+  return mins < 60 ? `${mins}m` : `${Math.floor(mins / 60)}h ${mins % 60}m`
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString("en-ZA", {
-    day: "2-digit", month: "short", year: "numeric",
-    hour: "2-digit", minute: "2-digit", timeZone: "Africa/Johannesburg",
-  }) + " SAST"
+function formatCompactDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-ZA", {
+    day: "numeric", month: "short", year: "numeric",
+    timeZone: "Africa/Johannesburg",
+  })
 }
 
-// ── Components ────────────────────────────────────────────────────────────────
+// ── Sub-components ────────────────────────────────────────────────────────────
 
-function UptimeBar({ day }: { day: DailyUptime }) {
-  const title = day.availability !== null
-    ? `${day.availability.toFixed(2)}% — ${day.date}`
-    : `No data — ${day.date}`
+function HeroSvg() {
+  const ekgPoints = "0,200 120,200 160,200 180,140 196,220 210,60 224,220 238,160 260,200 400,200 440,200 460,155 472,210 482,80 494,210 504,168 520,200 660,200 700,200 720,160 732,210 742,95 754,210 764,170 780,200 920,200 960,200 980,152 992,212 1004,82 1016,212 1026,166 1040,200 1200,200 1240,200 1260,158 1272,212 1282,88 1294,212 1304,168 1320,200 1440,200"
   return (
-    <span
-      title={title}
-      style={{
-        flex: 1, minWidth: 0, height: 28,
-        background: barColor(day.availability),
-        borderRadius: 2, display: "block",
-      }}
-    />
+    <svg className="st-hero-svg" viewBox="0 0 1440 260" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs>
+        <pattern id="st-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1a1a18" strokeWidth="0.4" opacity="0.06"/>
+        </pattern>
+        <linearGradient id="st-sweepGrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%"   stopColor="#c9832a" stopOpacity="0"/>
+          <stop offset="40%"  stopColor="#c9832a" stopOpacity="0"/>
+          <stop offset="60%"  stopColor="#c9832a" stopOpacity="0.55"/>
+          <stop offset="75%"  stopColor="#c9832a" stopOpacity="0.9"/>
+          <stop offset="85%"  stopColor="#c9832a" stopOpacity="0.4"/>
+          <stop offset="100%" stopColor="#c9832a" stopOpacity="0"/>
+        </linearGradient>
+        <mask id="st-sweep">
+          <rect x="-1440" y="0" width="1440" height="260" fill="url(#st-sweepGrad)">
+            <animate attributeName="x" from="-1440" to="1440" dur="4s" repeatCount="indefinite"/>
+          </rect>
+        </mask>
+      </defs>
+
+      <rect width="1440" height="260" fill="url(#st-grid)"/>
+
+      {/* EKG baseline — dim */}
+      <polyline points={ekgPoints} fill="none" stroke="#c9832a" strokeWidth="1.5" opacity="0.22" strokeLinejoin="round" strokeLinecap="round"/>
+      {/* EKG with amber sweep */}
+      <polyline points={ekgPoints} fill="none" stroke="#c9832a" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" mask="url(#st-sweep)"/>
+
+      {/* Network nodes */}
+      <circle cx="180" cy="60" r="4" fill="#c9832a" opacity="0.5"/>
+      <circle cx="180" cy="60" r="10" fill="none" stroke="#c9832a" strokeWidth="1" opacity="0.18"/>
+      <line x1="180" y1="60" x2="240" y2="90" stroke="#1a1a18" strokeWidth="0.75" opacity="0.08"/>
+      <line x1="180" y1="60" x2="150" y2="95" stroke="#1a1a18" strokeWidth="0.75" opacity="0.08"/>
+      <circle cx="240" cy="90" r="3" fill="#1a1a18" opacity="0.12"/>
+      <circle cx="150" cy="95" r="2" fill="#1a1a18" opacity="0.12"/>
+
+      <circle cx="742" cy="95" r="4" fill="#c9832a" opacity="0.5"/>
+      <circle cx="742" cy="95" r="10" fill="none" stroke="#c9832a" strokeWidth="1" opacity="0.18"/>
+      <line x1="742" y1="95" x2="790" y2="75" stroke="#1a1a18" strokeWidth="0.75" opacity="0.08"/>
+      <line x1="742" y1="95" x2="700" y2="75" stroke="#1a1a18" strokeWidth="0.75" opacity="0.08"/>
+      <circle cx="790" cy="75" r="3" fill="#1a1a18" opacity="0.12"/>
+      <circle cx="700" cy="75" r="2.5" fill="#1a1a18" opacity="0.12"/>
+
+      <circle cx="1282" cy="88" r="4" fill="#c9832a" opacity="0.5"/>
+      <circle cx="1282" cy="88" r="10" fill="none" stroke="#c9832a" strokeWidth="1" opacity="0.18"/>
+      <line x1="1282" y1="88" x2="1340" y2="70" stroke="#1a1a18" strokeWidth="0.75" opacity="0.08"/>
+      <line x1="1282" y1="88" x2="1230" y2="72" stroke="#1a1a18" strokeWidth="0.75" opacity="0.08"/>
+      <circle cx="1340" cy="70" r="3" fill="#1a1a18" opacity="0.12"/>
+      <circle cx="1230" cy="72" r="2.5" fill="#1a1a18" opacity="0.12"/>
+
+      <line x1="180" y1="60" x2="742" y2="95" stroke="#1a1a18" strokeWidth="0.5" strokeDasharray="6 4" opacity="0.05"/>
+      <line x1="742" y1="95" x2="1282" y2="88" stroke="#1a1a18" strokeWidth="0.5" strokeDasharray="6 4" opacity="0.05"/>
+
+      {/* Decorative bar chart */}
+      <g opacity="0.1" transform="translate(1060, 80)">
+        <rect x="0"  y="60"  width="6" height="60"  fill="#2d7d52" rx="1"/>
+        <rect x="10" y="50"  width="6" height="70"  fill="#2d7d52" rx="1"/>
+        <rect x="20" y="55"  width="6" height="65"  fill="#2d7d52" rx="1"/>
+        <rect x="30" y="20"  width="6" height="100" fill="#2d7d52" rx="1"/>
+        <rect x="40" y="40"  width="6" height="80"  fill="#2d7d52" rx="1"/>
+        <rect x="50" y="55"  width="6" height="65"  fill="#2d7d52" rx="1"/>
+        <rect x="60" y="10"  width="6" height="110" fill="#c9832a" rx="1"/>
+        <rect x="70" y="50"  width="6" height="70"  fill="#2d7d52" rx="1"/>
+        <rect x="80" y="45"  width="6" height="75"  fill="#2d7d52" rx="1"/>
+        <rect x="90" y="55"  width="6" height="65"  fill="#2d7d52" rx="1"/>
+      </g>
+
+      {/* Response time curve */}
+      <path d="M 0,80 C 100,72 200,68 300,74 C 400,80 450,62 550,58 C 650,54 700,70 800,68 C 900,66 950,58 1050,62 C 1150,66 1250,60 1440,64" fill="none" stroke="#1a1a18" strokeWidth="1" opacity="0.05" strokeDasharray="4 3"/>
+
+      {/* Scan line */}
+      <line x1="0" y1="0" x2="0" y2="260" stroke="#c9832a" strokeWidth="1" opacity="0.12">
+        <animate attributeName="x1" from="0" to="1440" dur="8s" repeatCount="indefinite"/>
+        <animate attributeName="x2" from="0" to="1440" dur="8s" repeatCount="indefinite"/>
+      </line>
+    </svg>
   )
 }
 
-function MonitorRow({ monitor }: { monitor: Monitor }) {
-  const knownDays = monitor.history.filter(d => d.availability !== null)
-  const hasHistory = knownDays.length > 0
-  const daysLabel = knownDays.length < monitor.history.length
-    ? `${knownDays.length} days`
-    : "90 days"
-
+function MonitorRow({ monitor }: Readonly<{ monitor: Monitor }>) {
+  const showUrl = monitor.url && monitor.url !== monitor.name
   return (
-    <div style={{ padding: "16px 0", borderBottom: "1px solid var(--border, #e5e7eb)" }}>
-      {/* Name + status row */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: hasHistory ? 10 : 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-          <span style={{
-            width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
-            background: statusColor(monitor.status),
-            boxShadow: monitor.status === "down"
-              ? `0 0 0 3px color-mix(in srgb, ${statusColor(monitor.status)} 20%, transparent)`
-              : "none",
-          }} />
-          <span style={{ fontSize: 14, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {monitor.name}
-          </span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0, marginLeft: 12 }}>
-          <span style={{ fontSize: 12, color: "var(--ink-mute, #6b7280)", fontFamily: "var(--pub-mono, monospace)" }}>
-            {monitor.availability.toFixed(2)}%
-          </span>
-          <span style={{ fontSize: 12, fontWeight: 600, color: statusColor(monitor.status) }}>
-            {statusLabel(monitor.status)}
-          </span>
-        </div>
+    <div className="st-monitor-row">
+      <div className="st-monitor-name">
+        <span className="st-monitor-label">{monitor.name}</span>
+        {showUrl && <span className="st-monitor-url">{monitor.url}</span>}
       </div>
 
-      {/* 90-day uptime bar chart */}
-      {monitor.history.length > 0 && (
-        <>
-          <div style={{ display: "flex", gap: 1.5 }}>
-            {monitor.history.map(d => <UptimeBar key={d.date} day={d} />)}
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-            <span style={{ fontSize: 11, color: "var(--ink-faint, #9ca3af)" }}>90 days ago</span>
-            <span style={{ fontSize: 11, color: "var(--ink-faint, #9ca3af)" }}>{daysLabel} of data · Today</span>
-          </div>
-        </>
-      )}
+      {/* 90-day bar chart */}
+      <div className="st-monitor-bars">
+        {monitor.history.map((d: DailyUptime) => (
+          <span
+            key={d.date}
+            className={`st-mbar ${monitorBarClass(d.availability)}`}
+            title={d.availability !== null ? `${d.availability.toFixed(2)}% — ${d.date}` : `No data — ${d.date}`}
+          />
+        ))}
+      </div>
+
+      <div className="st-monitor-status">
+        <span className="st-uptime-pct">{monitor.availability.toFixed(2)}%</span>
+        <span className={`st-pill ${pillClass(monitor.status)}`}>
+          <span className="st-pill-dot"/>
+          {statusLabel(monitor.status)}
+        </span>
+      </div>
     </div>
   )
 }
 
-function IncidentCard({ incident }: { incident: BsIncident }) {
+function IncidentCard({ incident }: Readonly<{ incident: BsIncident }>) {
   const resolved = !!incident.resolvedAt
+  const title    = incident.cause || incident.name
+  const monitor  = incident.cause ? incident.name : ""
   return (
-    <div style={{
-      border: "1px solid var(--border, #e5e7eb)",
-      borderRadius: 8,
-      padding: "14px 16px",
-      marginBottom: 10,
-      borderLeft: `3px solid ${resolved ? "var(--green-600, #16a34a)" : "var(--red-600, #dc2626)"}`,
-    }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 4 }}>
-        <span style={{ fontWeight: 600, fontSize: 13 }}>{incident.name}</span>
-        <span style={{
-          fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 99, flexShrink: 0,
-          background: resolved ? "color-mix(in srgb, #16a34a 12%, transparent)" : "color-mix(in srgb, #dc2626 12%, transparent)",
-          color: resolved ? "#15803d" : "#b91c1c",
-          whiteSpace: "nowrap",
-        }}>
-          {resolved ? "Resolved" : "Active"}
-        </span>
-      </div>
-      {incident.cause && (
-        <p style={{ fontSize: 12, color: "var(--ink-mute, #6b7280)", margin: "0 0 6px" }}>{incident.cause}</p>
-      )}
-      <div style={{ fontSize: 11, color: "var(--ink-faint, #9ca3af)", display: "flex", gap: 12, flexWrap: "wrap" }}>
-        <span>Started: {formatDate(incident.startedAt)}</span>
-        {incident.resolvedAt && <span>Resolved: {formatDate(incident.resolvedAt)}</span>}
-        <span>Duration: {formatDuration(incident.startedAt, incident.resolvedAt)}</span>
+    <div className="st-incident-card">
+      <div className="st-incident-inner">
+        <div className={`st-inc-dot ${resolved ? "st-inc-dot--resolved" : "st-inc-dot--active"}`}/>
+        <div className="st-inc-title-group">
+          <div className="st-inc-title">{title}</div>
+          {monitor && <div className="st-inc-monitor">{monitor}</div>}
+        </div>
+        <div className="st-inc-meta">
+          <span className={`st-inc-badge ${resolved ? "st-inc-badge--resolved" : "st-inc-badge--active"}`}>
+            {resolved ? "Resolved" : "Active"}
+          </span>
+          <span className="st-inc-time">
+            {formatCompactDate(incident.startedAt)} · {formatDuration(incident.startedAt, incident.resolvedAt)}
+          </span>
+        </div>
       </div>
     </div>
   )
@@ -174,71 +224,120 @@ export default async function StatusPage() {
     fetchIncidents(30, 10),
   ])
 
-  const overall = overallStatus(monitors)
-  const now     = new Date()
-
-  const overallColor = { operational: "#16a34a", degraded: "#f59e0b", outage: "#dc2626" }[overall]
+  const overall      = overallStatus(monitors)
   const overallLabel = { operational: "All systems operational", degraded: "Partial degradation", outage: "Service outage" }[overall]
+  const dotClass     = overall === "operational" ? "st-dot" : `st-dot ${overall}`
+
+  const overallHistory = computeOverallHistory(monitors)
+  const knownValues    = overallHistory.filter((v): v is number => v !== null)
+  const overallUptime  = knownValues.length > 0 ? knownValues.reduce((s, v) => s + v, 0) / knownValues.length : 100
+
+  const now           = new Date()
+  const timeStr       = now.toLocaleString("en-ZA", { timeZone: "Africa/Johannesburg", hour: "2-digit", minute: "2-digit" })
+  const knownDays     = overallHistory.filter(v => v !== null).length
+
+  let uptimeColor = "var(--positive,#2d7d52)"
+  if (overall === "outage")   uptimeColor = "var(--critical,#b93a3a)"
+  if (overall === "degraded") uptimeColor = "#c97c2a"
+
+  const activeIncidents   = incidents.filter(i => !i.resolvedAt)
+  const resolvedIncidents = incidents.filter(i => i.resolvedAt)
 
   return (
-    <div className="pub-wrap" style={{ paddingTop: 64, paddingBottom: 96, maxWidth: 760 }}>
+    <>
+      {/* ── Hero ── */}
+      <div className="st-hero">
+        <HeroSvg />
+        <div className="st-hero-inner">
+          <div className="st-eyebrow">System status</div>
 
-      {/* Header */}
-      <div style={{ marginBottom: 48 }}>
-        <p style={{ fontSize: 12, color: "var(--ink-faint)", fontFamily: "var(--pub-mono)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 12 }}>
-          PLEKS · SYSTEM STATUS
-        </p>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-          <span style={{
-            width: 14, height: 14, borderRadius: "50%", background: overallColor, flexShrink: 0,
-            boxShadow: `0 0 0 4px color-mix(in srgb, ${overallColor} 18%, transparent)`,
-          }} />
-          <h1 style={{ fontSize: 28, fontWeight: 700, margin: 0 }}>{overallLabel}</h1>
+          <div className="st-headline">
+            <div className={dotClass}/>
+            <h1>{overallLabel}</h1>
+          </div>
+
+          <div className="st-meta">
+            <div className="st-meta-item">
+              <span>Updated</span>
+              <strong>{timeStr} SAST</strong>
+            </div>
+            <div className="st-meta-divider"/>
+            <div className="st-meta-item">
+              <span>Refreshes every</span>
+              <strong>60s</strong>
+            </div>
+            <div className="st-meta-divider"/>
+            <div className="st-meta-item">
+              <span>{knownDays}-day uptime</span>
+              <strong style={{ color: uptimeColor }}>
+                {overallUptime.toFixed(2)}%
+              </strong>
+            </div>
+          </div>
+
+          {/* 90-day uptime strip */}
+          <div className="st-uptime-strip">
+            {overallHistory.map((v, i) => (
+              <div
+                key={i}
+                className={`st-ubar ${heroBarClass(v)}`}
+                title={v !== null ? `${v.toFixed(2)}%` : "No data"}
+              />
+            ))}
+          </div>
         </div>
-        <p style={{ fontSize: 13, color: "var(--ink-mute)", margin: 0 }}>
-          Last updated {now.toLocaleString("en-ZA", { timeZone: "Africa/Johannesburg", hour: "2-digit", minute: "2-digit" })} SAST
-          {" · "}refreshes every 60 seconds
-        </p>
       </div>
 
-      {/* Monitors */}
-      <section style={{ marginBottom: 48 }}>
-        <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--ink-faint)", marginBottom: 4 }}>
-          Components
-        </p>
-        <div style={{ borderTop: "1px solid var(--border, #e5e7eb)" }}>
+      {/* ── Body ── */}
+      <div className="st-body">
+
+        {/* Monitors */}
+        <div className="st-monitors">
+          <div className="st-section-label">Components</div>
           {monitors.length === 0 ? (
-            <p style={{ fontSize: 14, color: "var(--ink-mute)", padding: "16px 0" }}>No monitor data available.</p>
+            <p style={{ fontSize: 14, color: "var(--ink-faint)", padding: "16px 0" }}>No monitor data available.</p>
           ) : (
-            monitors.map(m => <MonitorRow key={m.id} monitor={m} />)
+            monitors.map(m => <MonitorRow key={m.id} monitor={m}/>)
           )}
         </div>
-      </section>
 
-      {/* Incidents */}
-      <section>
-        <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--ink-faint)", marginBottom: 16 }}>
-          Incidents — last 30 days
+        {/* Incidents */}
+        <div className="st-incidents">
+          <div className="st-section-label">Incidents — last 30 days</div>
+
+          {incidents.length === 0 ? (
+            <div className="st-incident-card">
+              <div className="st-incident-inner">
+                <div className="st-inc-dot st-inc-dot--resolved"/>
+                <div className="st-inc-title-group">
+                  <div className="st-inc-title">No incidents in the last 30 days</div>
+                </div>
+                <div className="st-inc-meta">
+                  <span className="st-inc-badge st-inc-badge--resolved">All clear</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              {activeIncidents.map(i => <IncidentCard key={i.id} incident={i}/>)}
+              {resolvedIncidents.length > 0 && (
+                <>
+                  {activeIncidents.length > 0 && (
+                    <div className="st-resolved-header">RESOLVED</div>
+                  )}
+                  {resolvedIncidents.map(i => <IncidentCard key={i.id} incident={i}/>)}
+                </>
+              )}
+            </>
+          )}
+        </div>
+
+        <p className="st-footer-note">
+          Uptime data powered by{" "}
+          <a href="https://betterstack.com" target="_blank" rel="noopener noreferrer" style={{ color: "var(--ink-mute)" }}>Better Stack</a>.
+          {" "}Grey bars indicate days before monitoring began.
         </p>
-        {incidents.length === 0 ? (
-          <div style={{
-            padding: "24px 20px", border: "1px solid var(--border, #e5e7eb)",
-            borderRadius: 8, textAlign: "center", borderLeft: "3px solid #16a34a",
-          }}>
-            <p style={{ fontSize: 14, color: "var(--ink-mute)", margin: 0 }}>No incidents in the last 30 days.</p>
-          </div>
-        ) : (
-          incidents.map(i => <IncidentCard key={i.id} incident={i} />)
-        )}
-      </section>
-
-      {/* Footer */}
-      <p style={{ marginTop: 48, fontSize: 12, color: "var(--ink-faint)", borderTop: "1px solid var(--border)", paddingTop: 24 }}>
-        Uptime data powered by{" "}
-        <a href="https://betterstack.com" target="_blank" rel="noopener noreferrer" style={{ color: "var(--ink-mute)" }}>Better Stack</a>.
-        {" "}Refreshes every 60 seconds. Grey bars indicate days before monitoring began.
-      </p>
-
-    </div>
+      </div>
+    </>
   )
 }
