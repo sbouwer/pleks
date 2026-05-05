@@ -379,7 +379,7 @@ export default async function HomePage() {
                 <span>·</span>
                 <span className="hash">hash 0x7a2f…c4e1</span>
               </div>
-              <a href="/privacy/processing-purposes" className="pub-charter-cta">Read the register →</a>
+              <a href="/popia-register" className="pub-charter-cta">Read the register →</a>
             </div>
           </aside>
         </div>

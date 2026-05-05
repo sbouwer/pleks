@@ -16,25 +16,26 @@ export interface LegalSection { id: string; num: string; label: string }
 export interface KickerCell   { label: string; value: string; mono?: boolean }
 
 interface Props {
-  eyebrowParts: string[]
-  titleBefore: string
-  titleHighlight: string
-  titleAfter?: string
-  subtitle: string
-  kicker: KickerCell[]
-  sections: LegalSection[]
-  hasSummary?: boolean
-  showDocLinks?: boolean
-  endLabel: string
-  children: React.ReactNode
+  readonly eyebrowParts: string[]
+  readonly titleBefore: string
+  readonly titleHighlight: string
+  readonly titleAfter?: string
+  readonly subtitle: string
+  readonly kicker: KickerCell[]
+  readonly sections: LegalSection[]
+  readonly hasSummary?: boolean
+  readonly showDocLinks?: boolean
+  readonly endLabel: string
+  readonly children: React.ReactNode
 }
 
 const LEGAL_DOCS = [
-  { href: "/privacy",             label: "Privacy policy",      version: "v3.3" },
-  { href: "/terms",               label: "Terms of service",    version: "v2.9" },
   { href: "/cookie-policy",       label: "Cookie policy",       version: "v1.0" },
   { href: "/credit-check-policy", label: "Credit check policy", version: "v1.2" },
-  { href: "/paia-manual",        label: "PAIA manual",         version: "v1.0" },
+  { href: "/paia-manual",         label: "PAIA manual",         version: "v1.0" },
+  { href: "/popia-register",      label: "POPIA register",      version: "v2026.1" },
+  { href: "/privacy",             label: "Privacy policy",      version: "v3.3" },
+  { href: "/terms",               label: "Terms of service",    version: "v2.9" },
 ]
 
 export function LegalPageLayout({

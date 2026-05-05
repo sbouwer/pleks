@@ -27,7 +27,8 @@ const WEBHOOK_PREFIXES = ["/api/webhooks", "/api/cron", "/api/waitlist", "/api/h
 const APEX_PREFIXES = [
   "/pricing", "/for-agents", "/for-landlords", "/early-access", "/migrate",
   "/privacy", "/terms", "/credit-check-policy", "/cookie-policy", "/paia-manual",
-  "/features", "/contact", "/demo", "/marketing",
+  "/popia-register", "/features", "/contact", "/demo", "/marketing",
+  "/api/paia-manual-pdf",
   // /status intentionally excluded — only served via status.pleks.co.za (proxy rewrite below)
 ]
 
@@ -279,6 +280,17 @@ async function handleProtectedRoute(
 // ── Subdomain split (production only) ────────────────────────────────────────
 // Skipped in dev and Vercel preview — all traffic comes from a single origin
 // and resolveHostContext already returns "app" in those environments.
+function handleStatusSubdomain(pathname: string, request: NextRequest): NextResponse {
+  if (pathname === "/") {
+    const dest = request.nextUrl.clone(); dest.pathname = "/status"
+    return NextResponse.rewrite(dest)
+  }
+  // Nav links from the status subdomain — send to the right home
+  const dest = request.nextUrl.clone()
+  dest.host = isApexPath(pathname) ? MARKETING_HOSTNAME : APP_HOSTNAME
+  return NextResponse.redirect(dest, 308)
+}
+
 async function handleSubdomainSplit(
   hostCtx: ReturnType<typeof resolveHostContext>,
   pathname: string,
@@ -300,10 +312,7 @@ async function handleSubdomainSplit(
     const dest = request.nextUrl.clone(); dest.host = APP_HOSTNAME
     return NextResponse.redirect(dest, 308)
   }
-  if (hostCtx === "status") {
-    const dest = request.nextUrl.clone(); dest.pathname = "/status"
-    return NextResponse.rewrite(dest)
-  }
+  if (hostCtx === "status") return handleStatusSubdomain(pathname, request)
   if (pathname === "/status" || pathname.startsWith("/status/")) {
     const dest = request.nextUrl.clone(); dest.host = STATUS_HOSTNAME; dest.pathname = "/"
     return NextResponse.redirect(dest, 308)

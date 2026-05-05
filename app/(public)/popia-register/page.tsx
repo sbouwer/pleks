@@ -1,7 +1,7 @@
 /**
- * app/(public)/privacy/processing-purposes/page.tsx — POPIA processing-purpose register
+ * app/(public)/popia-register/page.tsx — POPIA processing-purpose register
  *
- * Route:  /privacy/processing-purposes
+ * Route:  /popia-register
  * Auth:   public
  * Notes:  Standalone register — no doc-switcher links shown in sidenav.
  *         Covers Part A (12 Pleks-RP purposes) and Part B (25 Operator purposes).

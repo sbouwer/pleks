@@ -73,11 +73,10 @@ export default function PAIAManualPage() {
           Pleks (Pty) Ltd is a private body as defined in PAIA. This manual describes the categories of records held by Pleks,
           explains the procedure for requesting access to those records, and provides the contact details of our Information Officer.
         </p>
-        <div className="officer-card">
+        <div className="officer-card" style={{ alignItems: "center" }}>
           <span className="l">Download<br />this manual</span>
-          <span className="v">
+          <span className="v" style={{ display: "flex", alignItems: "center" }}>
             <PrintButton label="PAIA manual" />
-            <span className="sub">Free · saves as PDF via your browser</span>
           </span>
         </div>
       </section>
@@ -150,7 +149,7 @@ export default function PAIAManualPage() {
         <ul className="legal-list">
           <li><a href="/privacy">Privacy Policy</a></li>
           <li><a href="/terms">Terms of Service</a></li>
-          <li><a href="/privacy/processing-purposes">POPIA Processing Register</a></li>
+          <li><a href="/popia-register">POPIA Processing Register</a></li>
           <li><a href="/credit-check-policy">Credit Check Policy</a></li>
           <li><a href="/cookie-policy">Cookie Policy</a></li>
           <li><a href="/paia-manual">This PAIA Manual</a></li>

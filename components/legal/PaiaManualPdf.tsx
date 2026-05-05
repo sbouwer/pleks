@@ -154,7 +154,7 @@ export function PaiaManualPdf() {
         <Li>Terms of Service (pleks.co.za/terms)</Li>
         <Li>Cookie Policy (pleks.co.za/cookie-policy)</Li>
         <Li>Credit Check Policy (pleks.co.za/credit-check-policy)</Li>
-        <Li>POPIA Processing Register (pleks.co.za/privacy/processing-purposes)</Li>
+        <Li>POPIA Processing Register (pleks.co.za/popia-register)</Li>
         <Li>This PAIA Manual (pleks.co.za/paia-manual)</Li>
         <P><Text style={s.bold}>4.2 General product information</Text></P>
         <Li>Product feature descriptions and pricing (pleks.co.za/#pricing)</Li>
