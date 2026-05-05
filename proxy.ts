@@ -35,8 +35,13 @@ function isApexPath(pathname: string): boolean {
   return APEX_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"))
 }
 
-const APP_HOSTNAME      = "app.pleks.co.za"
+const APP_HOSTNAME       = "app.pleks.co.za"
 const MARKETING_HOSTNAME = "pleks.co.za"
+const ADMIN_HOSTNAME     = "admin.pleks.co.za"
+
+function isAdminPath(pathname: string): boolean {
+  return pathname === "/admin" || pathname.startsWith("/admin/")
+}
 
 // ── Manifest lookup — longest prefix wins ────────────────────────────────────
 function matchManifest(pathname: string) {
@@ -292,6 +297,20 @@ export async function proxy(request: NextRequest) {
   if (hostCtx === "app" && isApexPath(pathname)) {
     const dest = request.nextUrl.clone()
     dest.host = MARKETING_HOSTNAME
+    return NextResponse.redirect(dest, 308)
+  }
+
+  // app.pleks.co.za or pleks.co.za + admin path → admin.pleks.co.za
+  if ((hostCtx === "app" || hostCtx === "marketing") && isAdminPath(pathname)) {
+    const dest = request.nextUrl.clone()
+    dest.host = ADMIN_HOSTNAME
+    return NextResponse.redirect(dest, 308)
+  }
+
+  // admin.pleks.co.za + non-admin path → app.pleks.co.za
+  if (hostCtx === "admin" && !isAdminPath(pathname)) {
+    const dest = request.nextUrl.clone()
+    dest.host = APP_HOSTNAME
     return NextResponse.redirect(dest, 308)
   }
 

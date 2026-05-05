@@ -1,13 +1,11 @@
 /**
- * lib/routing/hostname.ts — FILL: one-line purpose
+ * lib/routing/hostname.ts — resolves which subdomain context a request is on
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:  none — pure utility
+ * Notes: status.pleks.co.za is external (Better Stack) — never reaches this app.
+ *        In dev/preview all requests resolve to "app" to avoid needing local DNS.
  */
-export type HostContext = "marketing" | "app"
+export type HostContext = "marketing" | "app" | "admin"
 
 export function resolveHostContext(host: string | null): HostContext {
   // Dev: always resolve to app context — no subdomain simulation needed locally.
@@ -18,6 +16,7 @@ export function resolveHostContext(host: string | null): HostContext {
   if (process.env.VERCEL_ENV === "preview") return "app"
 
   // Production: hostname-based split.
-  if (host?.startsWith("app.")) return "app"
+  if (host?.startsWith("admin.")) return "admin"
+  if (host?.startsWith("app."))   return "app"
   return "marketing"
 }
