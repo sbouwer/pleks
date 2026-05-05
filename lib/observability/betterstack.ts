@@ -86,6 +86,14 @@ function dateStr(d: Date): string {
   return d.toISOString().split("T")[0]
 }
 
+// Friendly display names for known Pleks monitors, keyed by cleaned URL.
+// Overrides the pronounceable_name / URL fallback from Better Stack.
+const MONITOR_NAMES: Record<string, string> = {
+  "pleks.co.za":                        "Marketing site",
+  "app.pleks.co.za/api/health":         "Application API",
+  "app.pleks.co.za/api/health/deep":    "Deep health check",
+}
+
 // Strip query params from monitor names to prevent token leakage in the UI.
 // Better Stack uses the monitored URL as the default name when no pronounceable
 // name is set, which can expose secrets like the health probe token.
@@ -98,20 +106,40 @@ function cleanName(raw: string): string {
   }
 }
 
+function friendlyName(raw: string): string {
+  const cleaned = cleanName(raw)
+  return MONITOR_NAMES[cleaned] ?? cleaned
+}
+
+interface RawSlaResponse {
+  data?: RawSlaDay[] | { attributes?: { availability?: number } }
+}
+
 async function fetchMonitorHistory(monitorId: string, days: number): Promise<DailyUptime[]> {
   const to   = new Date()
   const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000)
 
-  const json = await bsFetch<{ data?: RawSlaDay[] }>(
-    `/monitors/${monitorId}/sla?from=${dateStr(from)}&to=${dateStr(to)}&group_by=day`,
-    3600,
+  // Use full ISO timestamps — Better Stack requires datetime not just date strings
+  const json = await bsFetch<RawSlaResponse>(
+    `/monitors/${monitorId}/sla?from=${from.toISOString()}&to=${to.toISOString()}&group_by=day`,
+    300,
   )
 
   const byDate = new Map<string, number>()
+
   if (Array.isArray(json?.data)) {
+    // Grouped daily response
     for (const d of json.data) {
       const dt = d.attributes.from?.split("T")[0]
       if (dt && d.attributes.availability != null) byDate.set(dt, d.attributes.availability)
+    }
+  } else if (json?.data && typeof json.data === "object" && "attributes" in json.data) {
+    // Single-record fallback: API returned one availability for the whole period
+    const avail = (json.data as { attributes?: { availability?: number } }).attributes?.availability
+    if (avail != null) {
+      for (let i = days - 1; i >= 0; i--) {
+        byDate.set(dateStr(new Date(to.getTime() - i * 24 * 60 * 60 * 1000)), avail)
+      }
     }
   }
 
@@ -131,7 +159,7 @@ export async function fetchMonitors(days = 90): Promise<Monitor[]> {
 
   const monitors = json.data.map(m => ({
     id:             m.id,
-    name:           cleanName(m.attributes.pronounceable_name ?? m.attributes.url ?? m.id),
+    name:           friendlyName(m.attributes.pronounceable_name ?? m.attributes.url ?? m.id),
     url:            cleanName(m.attributes.url ?? ""),
     status:         m.attributes.status ?? "pending" as MonitorStatus,
     availability:   m.attributes.availability ?? 100,

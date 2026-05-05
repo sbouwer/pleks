@@ -10,6 +10,7 @@
 import type { Metadata } from "next"
 import { fetchMonitors, fetchIncidents, overallStatus } from "@/lib/observability/betterstack"
 import type { Monitor, DailyUptime, BsIncident, MonitorStatus } from "@/lib/observability/betterstack"
+import { StatusClock } from "./StatusClock"
 import "./status.css"
 
 export const revalidate = 60
@@ -232,8 +233,6 @@ export default async function StatusPage() {
   const knownValues    = overallHistory.filter((v): v is number => v !== null)
   const overallUptime  = knownValues.length > 0 ? knownValues.reduce((s, v) => s + v, 0) / knownValues.length : 100
 
-  const now           = new Date()
-  const timeStr       = now.toLocaleString("en-ZA", { timeZone: "Africa/Johannesburg", hour: "2-digit", minute: "2-digit" })
   const knownDays     = overallHistory.filter(v => v !== null).length
 
   let uptimeColor = "var(--positive,#2d7d52)"
@@ -259,7 +258,7 @@ export default async function StatusPage() {
           <div className="st-meta">
             <div className="st-meta-item">
               <span>Updated</span>
-              <strong>{timeStr} SAST</strong>
+              <StatusClock />
             </div>
             <div className="st-meta-divider"/>
             <div className="st-meta-item">
