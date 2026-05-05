@@ -276,6 +276,46 @@ async function handleProtectedRoute(
   return supabaseResponse
 }
 
+// ── Subdomain split (production only) ────────────────────────────────────────
+// Skipped in dev and Vercel preview — all traffic comes from a single origin
+// and resolveHostContext already returns "app" in those environments.
+async function handleSubdomainSplit(
+  hostCtx: ReturnType<typeof resolveHostContext>,
+  pathname: string,
+  request: NextRequest,
+): Promise<NextResponse | null> {
+  if (hostCtx === "marketing" && !isApexPath(pathname)) {
+    const dest = request.nextUrl.clone(); dest.host = APP_HOSTNAME
+    return NextResponse.redirect(dest, 308)
+  }
+  if (hostCtx === "app" && isApexPath(pathname)) {
+    const dest = request.nextUrl.clone(); dest.host = MARKETING_HOSTNAME
+    return NextResponse.redirect(dest, 308)
+  }
+  if ((hostCtx === "app" || hostCtx === "marketing") && isAdminPath(pathname)) {
+    const dest = request.nextUrl.clone(); dest.host = ADMIN_HOSTNAME
+    return NextResponse.redirect(dest, 308)
+  }
+  if (hostCtx === "admin" && !isAdminPath(pathname)) {
+    const dest = request.nextUrl.clone(); dest.host = APP_HOSTNAME
+    return NextResponse.redirect(dest, 308)
+  }
+  if (hostCtx === "status") {
+    const dest = request.nextUrl.clone(); dest.pathname = "/status"
+    return NextResponse.rewrite(dest)
+  }
+  if (pathname === "/status" || pathname.startsWith("/status/")) {
+    const dest = request.nextUrl.clone(); dest.host = STATUS_HOSTNAME; dest.pathname = "/"
+    return NextResponse.redirect(dest, 308)
+  }
+  if (hostCtx === "admin") {
+    const adminResponse = await checkAdminAuth(pathname, request)
+    if (adminResponse) return adminResponse
+    return NextResponse.next()
+  }
+  return null
+}
+
 // ── Main proxy ────────────────────────────────────────────────────────────────
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -287,60 +327,13 @@ export async function proxy(request: NextRequest) {
   const adminApiResponse = await checkAdminApiAuth(pathname, request)
   if (adminApiResponse) return adminApiResponse
 
-  // Production subdomain split
   const host = request.headers.get("host") ?? ""
   const hostCtx = resolveHostContext(host)
+  const isProdLive = process.env.NODE_ENV === "production" && process.env.VERCEL_ENV === "production"
 
-  // pleks.co.za + app path → app.pleks.co.za
-  if (hostCtx === "marketing" && !isApexPath(pathname)) {
-    const dest = request.nextUrl.clone()
-    dest.host = APP_HOSTNAME
-    return NextResponse.redirect(dest, 308)
-  }
-
-  // app.pleks.co.za + marketing path → pleks.co.za
-  if (hostCtx === "app" && isApexPath(pathname)) {
-    const dest = request.nextUrl.clone()
-    dest.host = MARKETING_HOSTNAME
-    return NextResponse.redirect(dest, 308)
-  }
-
-  // app.pleks.co.za or pleks.co.za + admin path → admin.pleks.co.za
-  if ((hostCtx === "app" || hostCtx === "marketing") && isAdminPath(pathname)) {
-    const dest = request.nextUrl.clone()
-    dest.host = ADMIN_HOSTNAME
-    return NextResponse.redirect(dest, 308)
-  }
-
-  // admin.pleks.co.za + non-admin path → app.pleks.co.za
-  if (hostCtx === "admin" && !isAdminPath(pathname)) {
-    const dest = request.nextUrl.clone()
-    dest.host = APP_HOSTNAME
-    return NextResponse.redirect(dest, 308)
-  }
-
-  // status.pleks.co.za → rewrite internally to /status (URL stays clean)
-  if (hostCtx === "status") {
-    const dest = request.nextUrl.clone()
-    dest.pathname = "/status"
-    return NextResponse.rewrite(dest)
-  }
-
-  // Any other subdomain hitting /status directly → status.pleks.co.za
-  if (pathname === "/status" || pathname.startsWith("/status/")) {
-    const dest = request.nextUrl.clone()
-    dest.host     = STATUS_HOSTNAME
-    dest.pathname = "/"
-    return NextResponse.redirect(dest, 308)
-  }
-
-  // Admin subdomain: enforce HMAC token gate, then pass through without touching
-  // Supabase at all. Admin and app sessions are completely separate concerns —
-  // admin.pleks.co.za never reads or writes Supabase auth cookies.
-  if (hostCtx === "admin") {
-    const adminResponse = await checkAdminAuth(pathname, request)
-    if (adminResponse) return adminResponse
-    return NextResponse.next()
+  if (isProdLive) {
+    const splitResponse = await handleSubdomainSplit(hostCtx, pathname, request)
+    if (splitResponse) return splitResponse
   }
 
   // Manifest lookup (app / marketing subdomain only from here)
