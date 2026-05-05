@@ -73,11 +73,14 @@ export default function PAIAManualPage() {
           Pleks (Pty) Ltd is a private body as defined in PAIA. This manual describes the categories of records held by Pleks,
           explains the procedure for requesting access to those records, and provides the contact details of our Information Officer.
         </p>
-        <p>
-          This manual is available free of charge on our website at{" "}
-          <Link href="/paia-manual" className="act-pill">pleks.co.za/paia-manual</Link>.{" "}
-          To download a copy: <PrintButton label="PAIA manual" />
-        </p>
+        <div className="officer-card">
+          <span className="l">Download<br />this manual</span>
+          <span className="v">
+            Available free of charge at{" "}
+            <Link href="/paia-manual" className="act-pill">pleks.co.za/paia-manual</Link>
+            <span className="sub"><PrintButton label="PAIA manual" /></span>
+          </span>
+        </div>
       </section>
 
       {/* 02 */}
