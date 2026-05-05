@@ -176,8 +176,8 @@ function DocsBackground() {
         <text x="1400" y="36" textAnchor="end">FOL. 0117 · POPIA · CPA · NCA</text>
         <line x1="40" y1="46" x2="1400" y2="46" stroke="currentColor" strokeOpacity="0.22" strokeDasharray="2 4" />
       </g>
-      {/* Document card 1: top right */}
-      <g transform="translate(1080,80)" stroke="currentColor" strokeOpacity="0.22" fill="none">
+      {/* FORM card: top left, behind eyebrow/title area */}
+      <g transform="translate(80,50)" stroke="currentColor" strokeOpacity="0.22" fill="none">
         <rect x="0" y="0" width="220" height="140" rx="3" fill="currentColor" fillOpacity="0.025" />
         <line x1="0" y1="22" x2="220" y2="22" />
         <text x="12" y="16" fontFamily="JetBrains Mono, monospace" fontSize="8" fill="currentColor" fillOpacity="0.7" stroke="none">FORM · POPIA-S22</text>
@@ -188,8 +188,8 @@ function DocsBackground() {
         <rect x="14" y="100" width="64" height="22" rx="2" fill="currentColor" fillOpacity="0.08" />
         <text x="46" y="115" textAnchor="middle" fontFamily="JetBrains Mono, monospace" fontSize="8" fill="currentColor" fillOpacity="0.85" stroke="none">CONSENT</text>
       </g>
-      {/* Clause ledger card: left */}
-      <g transform="translate(40,300)" stroke="currentColor" strokeOpacity="0.22" fill="none">
+      {/* Clause ledger card: top right */}
+      <g transform="translate(1060,70)" stroke="currentColor" strokeOpacity="0.22" fill="none">
         <rect x="0" y="0" width="280" height="160" rx="3" fill="currentColor" fillOpacity="0.025" />
         <text x="14" y="20" fontFamily="JetBrains Mono, monospace" fontSize="8" fill="currentColor" fillOpacity="0.7" stroke="none">CLAUSE LEDGER · S04</text>
         <line x1="0" y1="28" x2="280" y2="28" />
