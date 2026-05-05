@@ -1,13 +1,12 @@
 "use client"
 
 /**
- * app/(admin)/admin/login/page.tsx — FILL: one-line purpose
+ * app/(admin)/admin/login/page.tsx — Admin login form
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /admin/login  (served only on admin.pleks.co.za)
+ * Auth:   none — this IS the login page; proxy exempts it from the HMAC gate
+ * Notes:  POSTs to /api/admin/auth which sets pleks_admin_token (host-scoped to
+ *         admin.pleks.co.za, HttpOnly, SameSite=Strict). No Supabase involved.
  */
 import { useState } from "react"
 import Image from "next/image"

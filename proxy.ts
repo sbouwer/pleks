@@ -42,7 +42,10 @@ const ADMIN_HOSTNAME     = "admin.pleks.co.za"
 const STATUS_HOSTNAME    = "status.pleks.co.za"
 
 function isAdminPath(pathname: string): boolean {
-  return pathname === "/admin" || pathname.startsWith("/admin/")
+  // Covers both the UI (/admin/*) and the API (/api/admin/*) so that both stay
+  // on admin.pleks.co.za and the login POST sets its cookie on the correct hostname.
+  return pathname === "/admin"     || pathname.startsWith("/admin/") ||
+         pathname === "/api/admin" || pathname.startsWith("/api/admin/")
 }
 
 // ── Manifest lookup — longest prefix wins ────────────────────────────────────
@@ -331,11 +334,16 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(dest, 308)
   }
 
-  // Admin UI gate (only reached on app subdomain in production)
-  const adminResponse = await checkAdminAuth(pathname, request)
-  if (adminResponse) return adminResponse
+  // Admin subdomain: enforce HMAC token gate, then pass through without touching
+  // Supabase at all. Admin and app sessions are completely separate concerns —
+  // admin.pleks.co.za never reads or writes Supabase auth cookies.
+  if (hostCtx === "admin") {
+    const adminResponse = await checkAdminAuth(pathname, request)
+    if (adminResponse) return adminResponse
+    return NextResponse.next()
+  }
 
-  // Manifest lookup
+  // Manifest lookup (app / marketing subdomain only from here)
   const rule = matchManifest(pathname)
 
   // No manifest entry (API self-auth or unknown path) or public route — refresh session + pass through
