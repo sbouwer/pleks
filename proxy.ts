@@ -26,8 +26,8 @@ const WEBHOOK_PREFIXES = ["/api/webhooks", "/api/cron", "/api/waitlist", "/api/h
 // Paths served on the apex; all others redirect to the app subdomain.
 const APEX_PREFIXES = [
   "/pricing", "/for-agents", "/for-landlords", "/early-access", "/migrate",
-  "/privacy", "/terms", "/credit-check-policy", "/contact",
-  "/demo", "/marketing",
+  "/privacy", "/terms", "/credit-check-policy", "/cookie-policy", "/paia-manual",
+  "/features", "/contact", "/demo", "/marketing",
 ]
 
 function isApexPath(pathname: string): boolean {
@@ -35,7 +35,8 @@ function isApexPath(pathname: string): boolean {
   return APEX_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"))
 }
 
-const APP_HOSTNAME = "app.pleks.co.za"
+const APP_HOSTNAME      = "app.pleks.co.za"
+const MARKETING_HOSTNAME = "pleks.co.za"
 
 // ── Manifest lookup — longest prefix wins ────────────────────────────────────
 function matchManifest(pathname: string) {
@@ -276,11 +277,21 @@ export async function proxy(request: NextRequest) {
   const adminApiResponse = await checkAdminApiAuth(pathname, request)
   if (adminApiResponse) return adminApiResponse
 
-  // Production subdomain split: non-marketing paths on the apex redirect to app.pleks.co.za
+  // Production subdomain split
   const host = request.headers.get("host") ?? ""
-  if (resolveHostContext(host) === "marketing" && !isApexPath(pathname)) {
+  const hostCtx = resolveHostContext(host)
+
+  // pleks.co.za + app path → app.pleks.co.za
+  if (hostCtx === "marketing" && !isApexPath(pathname)) {
     const dest = request.nextUrl.clone()
     dest.host = APP_HOSTNAME
+    return NextResponse.redirect(dest, 308)
+  }
+
+  // app.pleks.co.za + marketing path → pleks.co.za
+  if (hostCtx === "app" && isApexPath(pathname)) {
+    const dest = request.nextUrl.clone()
+    dest.host = MARKETING_HOSTNAME
     return NextResponse.redirect(dest, 308)
   }
 
