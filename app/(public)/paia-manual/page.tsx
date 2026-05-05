@@ -198,7 +198,7 @@ export default function PAIAManualPage() {
                 Customer &amp; subscription records
                 <span className="sub">Agency clients (estate agencies, property managers)</span>
               </td>
-              <td>Organisation registration details, subscription agreements, billing records, PayFast transaction logs, tier and usage data, audit logs, communication preferences</td>
+              <td>Organisation registration details, subscription agreements, billing records, payment processor transaction logs (see §08 sub-processors directory), tier and usage data, audit logs (see Compliance records row — 7-year retention governs), communication preferences</td>
               <td>5 years after subscription end</td>
             </tr>
             <tr>
@@ -223,7 +223,7 @@ export default function PAIAManualPage() {
                 <span className="sub">Current and former tenants</span>
               </td>
               <td>Contact details, identity document number, lease agreements, payment records, arrears history, maintenance requests, inspection records, deposit records, communications log, portal access records</td>
-              <td>5 years after lease end (PPRA and RHA requirements)</td>
+              <td>5 years after lease end (PPA Regulation 33 and RHA evidentiary practice)</td>
             </tr>
             <tr>
               <td className="who">
@@ -263,7 +263,7 @@ export default function PAIAManualPage() {
                 Bank statement imports, payment allocations, interest calculations (deposit interest, arrears interest), trust account reconciliation records, invoice and receipt records, financial reports.{" "}
                 Pleks provides tools for trust account visibility and reconciliation — it is not a bank or a registered credit provider.
               </td>
-              <td>5 years after the relevant financial period (PPRA trust audit requirement)</td>
+              <td>5 years after the relevant financial period (PPA Regulation 33 trust audit requirement)</td>
             </tr>
             <tr>
               <td className="who">
@@ -463,7 +463,7 @@ export default function PAIAManualPage() {
             </tr>
             <tr>
               <td className="who">Searchworx<span className="sub">credit &amp; identity</span></td>
-              <td>Credit bureau and identity verification — South Africa. Consent-gated: checks only run when explicit written consent has been recorded.</td>
+              <td>Credit bureau aggregator across TransUnion, Experian, Compuscan, XDS, TPN, plus identity verification via Home Affairs (DHA) — South Africa. Consent-gated: checks only run when explicit written consent has been recorded.</td>
               <td>South Africa (domestic)</td>
             </tr>
             <tr>
