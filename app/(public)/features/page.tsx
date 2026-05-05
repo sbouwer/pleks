@@ -115,7 +115,7 @@ export default function FeaturesPage() {
             <Button render={<Link href="/register" />} size="lg">
               Start free — 1 unit
             </Button>
-            <Button render={<Link href="/pricing" />} variant="outline" size="lg">
+            <Button render={<Link href="/#pricing" />} variant="outline" size="lg">
               See pricing
             </Button>
           </div>
@@ -168,7 +168,7 @@ export default function FeaturesPage() {
             <Button render={<Link href="/register" />}>
               Create free account
             </Button>
-            <Button render={<Link href="/pricing" />} variant="outline">
+            <Button render={<Link href="/#pricing" />} variant="outline">
               Compare plans
             </Button>
           </div>

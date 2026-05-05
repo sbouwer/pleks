@@ -7,6 +7,7 @@
  *         held by Pleks and the procedure for requesting access.
  */
 import type { Metadata } from "next"
+import Link from "next/link"
 import { LegalPageLayout } from "@/components/legal/LegalPageLayout"
 
 export const metadata: Metadata = {
@@ -153,7 +154,7 @@ export default function PAIAManualPage() {
         </ul>
         <p><strong>4.2 General product information</strong></p>
         <ul className="legal-list">
-          <li>Product feature descriptions and pricing (<a href="/pricing">pleks.co.za/pricing</a>)</li>
+          <li>Product feature descriptions and pricing (<Link href="/#pricing">pleks.co.za/#pricing</Link>)</li>
           <li>Sub-processor list (published within the Privacy Policy and section 08 of this manual)</li>
         </ul>
         <p>No request or fee is required to access any of the documents listed above.</p>
