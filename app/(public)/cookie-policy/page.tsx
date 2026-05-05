@@ -201,8 +201,7 @@ export default function CookiePolicyPage() {
           notify you by email.
         </p>
         <p>
-          For any questions about how Pleks uses cookies, contact our Information Officer at{" "}
-          <a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a>.
+          For any questions about how Pleks uses cookies, contact our Information Officer.
         </p>
         <div className="officer-card">
           <span className="l">Information<br />officer</span>

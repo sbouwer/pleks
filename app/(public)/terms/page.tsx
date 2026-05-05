@@ -173,8 +173,7 @@ export default function TermsOfServicePage() {
           Court of South Africa.
         </p>
         <p>
-          We prefer to resolve disputes amicably before going to court. If you have a complaint, please contact us first at{" "}
-          <a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a> — we will respond within 10 business days.
+          We prefer to resolve disputes amicably before going to court. If you have a complaint, please contact us first — we will respond within 10 business days.
         </p>
         <div className="officer-card">
           <span className="l">Legal<br />contact</span>

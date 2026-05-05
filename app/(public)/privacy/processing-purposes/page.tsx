@@ -129,7 +129,7 @@ export default function ProcessingRegisterPage() {
           <span className="l">Information<br />officer<br />(Part A)</span>
           <span className="v">
             Stéan Bouwer · Pleks (Pty) Ltd
-            <span className="sub"><a href="mailto:privacy@pleks.co.za">privacy@pleks.co.za</a></span>
+            <span className="sub"><a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a></span>
           </span>
         </div>
         <div className="officer-card">
@@ -903,15 +903,8 @@ export default function ProcessingRegisterPage() {
         </p>
         <p>
           For questions about this register, to exercise your rights as a data subject, or to request a copy of the Pleks Operator
-          Agreement, contact our Information Officer at <a href="mailto:privacy@pleks.co.za">privacy@pleks.co.za</a>.
+          Agreement, contact our Information Officer — see §02 above.
         </p>
-        <div className="officer-card">
-          <span className="l">Information<br />officer</span>
-          <span className="v">
-            Stéan Bouwer · Pleks (Pty) Ltd
-            <span className="sub"><a href="mailto:privacy@pleks.co.za">privacy@pleks.co.za</a></span>
-          </span>
-        </div>
       </section>
     </LegalPageLayout>
   )

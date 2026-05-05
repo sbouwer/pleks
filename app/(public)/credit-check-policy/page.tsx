@@ -163,7 +163,7 @@ export default function CreditCheckPolicyPage() {
         <h2 className="sec-h">Your <span className="hl">rights</span></h2>
         <p>As the subject of a credit check, you have the following rights under South African law:</p>
         <ul className="legal-list">
-          <li>You may request a <strong>free copy</strong> of the credit report generated as part of your application — contact us at <a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a>.</li>
+          <li>You may request a <strong>free copy</strong> of the credit report generated as part of your application — contact our Information Officer below.</li>
           <li>If you believe information in the report is inaccurate, you may lodge a dispute directly with the relevant bureau (TransUnion, XDS, or TPN). Bureaus are required to investigate and respond within 20 business days under the <span className="act-pill">NCA · S72</span>.</li>
           <li>You may contact our Information Officer for assistance with the dispute process, or to escalate a complaint.</li>
           <li>You may lodge a complaint about data handling with the <a href="https://inforeg.org.za" target="_blank" rel="noopener noreferrer">Information Regulator</a> at any time.</li>
