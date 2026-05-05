@@ -59,8 +59,13 @@ export default function PrivacyPolicyPage() {
         <h2 className="sec-h">Who <span className="hl">we are</span></h2>
         <p>
           Pleks is operated by <strong>Pleks (Pty) Ltd</strong>, a company registered in the Republic of South Africa.
-          For the purposes of the Protection of Personal Information Act 4 of 2013 <span className="act-pill">POPIA</span>, Bouwer Property Group
-          is the <strong>Responsible Party</strong>. Agencies using Pleks to manage their clients&rsquo; data act as <strong>Operators</strong> on behalf of those clients.
+          For the purposes of the Protection of Personal Information Act 4 of 2013 <span className="act-pill">POPIA</span>, Pleks acts as an <strong>Operator</strong> in respect of personal information processed on behalf of agencies using the platform.
+        </p>
+        <p>
+          Agencies, landlords, and property managers using Pleks act as independent <strong>Responsible Parties</strong> in determining the purpose and means of processing tenant and applicant data.
+        </p>
+        <p>
+          In limited circumstances where Pleks determines the purpose of processing — such as platform security, billing, and compliance — Pleks acts as a <strong>Responsible Party</strong>.
         </p>
         <div className="officer-card">
           <span className="l">Information<br />officer</span>

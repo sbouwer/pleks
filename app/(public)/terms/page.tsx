@@ -13,19 +13,20 @@ export const metadata: Metadata = {
 }
 
 const SECTIONS = [
-  { id: "acceptance",   num: "01", label: "Acceptance"            },
-  { id: "description",  num: "02", label: "Description of service"},
-  { id: "subscription", num: "03", label: "Subscription & payment"},
-  { id: "cancellation", num: "04", label: "Cancellation"          },
-  { id: "prohibited",   num: "05", label: "Prohibited uses"       },
-  { id: "liability",    num: "06", label: "Limitation of liability"},
-  { id: "governing",    num: "07", label: "Governing law"         },
+  { id: "acceptance",    num: "01", label: "Acceptance"            },
+  { id: "description",   num: "02", label: "Description of service"},
+  { id: "subscription",  num: "03", label: "Subscription & payment"},
+  { id: "cancellation",  num: "04", label: "Cancellation"          },
+  { id: "prohibited",    num: "05", label: "Prohibited uses"       },
+  { id: "liability",     num: "06", label: "Limitation of liability"},
+  { id: "governing",     num: "07", label: "Governing law"         },
+  { id: "availability",  num: "08", label: "Service availability"  },
 ]
 
 export default function TermsOfServicePage() {
   return (
     <LegalPageLayout
-      eyebrowParts={["SaaS · TERMS", "binding agreement", "v2.7"]}
+      eyebrowParts={["SaaS · TERMS", "binding agreement", "v2.8"]}
       titleBefore="Terms of"
       titleHighlight="service"
       subtitle="The agreement that governs your use of the Pleks property management platform. By using Pleks you confirm that you have read and accepted these terms."
@@ -37,7 +38,7 @@ export default function TermsOfServicePage() {
       ]}
       sections={SECTIONS}
       hasSummary
-      endLabel="END · TERMS OF SERVICE · v2.7"
+      endLabel="END · TERMS OF SERVICE · v2.8"
     >
       {/* Plain-language summary */}
       <div className="summary-card" id="summary">
@@ -130,6 +131,13 @@ export default function TermsOfServicePage() {
           <li>Use automated tools to scrape, crawl, or extract data from the platform at scale.</li>
         </ul>
         <p>
+          You warrant that any personal information submitted to or processed through Pleks has been collected lawfully
+          and is processed in compliance with applicable data protection legislation, including the Protection of Personal
+          Information Act <span className="act-pill">POPIA</span>. You indemnify Pleks (Pty) Ltd against any claim,
+          penalty, or loss arising from unlawful collection, processing, or sharing of personal information through your
+          use of the platform.
+        </p>
+        <p>
           Breach of these conditions may result in immediate suspension or termination of your account without refund,
           and may expose you to civil or criminal liability.
         </p>
@@ -175,6 +183,26 @@ export default function TermsOfServicePage() {
             <span className="sub"><a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a></span>
           </span>
         </div>
+      </section>
+      {/* 08 */}
+      <section id="availability">
+        <p className="sec-num"><span className="bar" /><span>08 · Service availability</span></p>
+        <h2 className="sec-h">Service <span className="hl">availability</span></h2>
+        <p>
+          We do not guarantee uninterrupted or error-free operation of the platform. Pleks may be temporarily
+          unavailable due to scheduled maintenance, infrastructure updates, or circumstances beyond our control.
+          We will endeavour to carry out scheduled maintenance during off-peak hours and to provide reasonable
+          notice where possible.
+        </p>
+        <p>
+          Real-time platform status, including any active incidents and historical uptime, is published at{" "}
+          <a href="https://status.pleks.co.za" target="_blank" rel="noopener noreferrer">status.pleks.co.za</a>.
+          You can check this page at any time to confirm whether a service disruption has been reported.
+        </p>
+        <p>
+          Planned or unplanned downtime does not entitle you to a refund of subscription fees unless the
+          disruption causes Pleks to fall materially below any service level expressly agreed in writing.
+        </p>
       </section>
     </LegalPageLayout>
   )

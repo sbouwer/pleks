@@ -24,19 +24,21 @@ interface Props {
   kicker: KickerCell[]
   sections: LegalSection[]
   hasSummary?: boolean
+  showDocLinks?: boolean
   endLabel: string
   children: React.ReactNode
 }
 
 const LEGAL_DOCS = [
   { href: "/privacy",             label: "Privacy policy",      version: "v3.2" },
-  { href: "/terms",               label: "Terms of service",    version: "v2.7" },
+  { href: "/terms",               label: "Terms of service",    version: "v2.8" },
+  { href: "/cookie-policy",       label: "Cookie policy",       version: "v1.0" },
   { href: "/credit-check-policy", label: "Credit check policy", version: "v1.1" },
 ]
 
 export function LegalPageLayout({
   eyebrowParts, titleBefore, titleHighlight, titleAfter = "",
-  subtitle, kicker, sections, hasSummary = false, endLabel, children,
+  subtitle, kicker, sections, hasSummary = false, showDocLinks = true, endLabel, children,
 }: Props) {
   const pathname = usePathname()
   const [activeId, setActiveId] = useState<string>("")
@@ -116,22 +118,24 @@ export function LegalPageLayout({
             ))}
           </ul>
 
-          <div className="sidenav-section">
-            <div className="sidenav-eyebrow">
-              <span>Legal docs</span><span className="rule" />
+          {showDocLinks && (
+            <div className="sidenav-section">
+              <div className="sidenav-eyebrow">
+                <span>Legal docs</span><span className="rule" />
+              </div>
+              <ul className="docswitch">
+                {LEGAL_DOCS.map(doc => (
+                  <li key={doc.href}>
+                    <Link href={doc.href} className={pathname === doc.href ? "is-current" : ""}>
+                      <span className="glyph">§</span>
+                      <span>{doc.label}</span>
+                      <span className="stamp">{doc.version}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <ul className="docswitch">
-              {LEGAL_DOCS.map(doc => (
-                <li key={doc.href}>
-                  <Link href={doc.href} className={pathname === doc.href ? "is-current" : ""}>
-                    <span className="glyph">§</span>
-                    <span>{doc.label}</span>
-                    <span className="stamp">{doc.version}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
+          )}
 
           <div className="sidenav-foot">
             <span style={{ color: "var(--ink-faint)" }}>Pleks (Pty) Ltd · ZA</span>

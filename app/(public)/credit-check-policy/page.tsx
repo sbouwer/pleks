@@ -90,7 +90,8 @@ export default function CreditCheckPolicyPage() {
         <p>
           The results of these checks form part of your <strong>FitScore</strong> — a weighted applicant rating that the agency uses
           to evaluate your suitability for the property. FitScore combines bureau data with income affordability and employment
-          verification. No single factor is automatically disqualifying.
+          verification. No single factor is automatically disqualifying. FitScore is an assistive tool and does not constitute an
+          automated decision. Final decisions are made solely by the agency or landlord using Pleks.
         </p>
       </section>
 
@@ -102,6 +103,8 @@ export default function CreditCheckPolicyPage() {
           All credit and background checks are conducted by <strong>Searchworx (Pty) Ltd</strong>, a registered credit bureau
           intermediary operating under the National Credit Act 34 of 2005 <span className="act-pill">NCA · S69</span>. Pleks does
           not access credit bureau data directly — all bureau queries, data handling and reporting are performed by Searchworx.
+          Credit check results are made available to the agency or landlord managing the property for the sole purpose of
+          evaluating your application.
         </p>
         <div className="officer-card">
           <span className="l">Service<br />provider</span>
@@ -127,7 +130,7 @@ export default function CreditCheckPolicyPage() {
           The current fee is displayed on the application screen before you are asked to pay.
         </p>
         <ul className="legal-list">
-          <li>The fee is non-refundable once the credit check has been initiated, as bureau queries are processed immediately.</li>
+          <li>The fee is non-refundable once the credit check process has been initiated, as third-party bureau queries are executed immediately and cannot be reversed.</li>
           <li>The fee is paid directly by the applicant — the agency using Pleks does not pay for your check.</li>
           <li>Joint applications (two applicants on one lease) are charged a higher bundled fee, also shown before payment.</li>
           <li>If your application is withdrawn before Stage 2, no fee is charged — credit checks are only triggered when you choose to proceed.</li>
