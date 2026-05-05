@@ -10,6 +10,7 @@
  *         withTimeout accepts PromiseLike<T> so it works with Supabase's thenable builders.
  */
 import { createServiceClient } from "@/lib/supabase/server"
+import type { SupabaseClient } from "@supabase/supabase-js"
 import { Resend } from "resend"
 
 export type ComponentStatus = "ok" | "degraded" | "down"
@@ -47,10 +48,9 @@ function withTimeout<T>(p: PromiseLike<T>, ms: number): Promise<T> {
   ])
 }
 
-async function checkDb(): Promise<HealthReport["components"]["db"]> {
+async function checkDb(supabase: SupabaseClient): Promise<HealthReport["components"]["db"]> {
   const start = Date.now()
   try {
-    const supabase = await createServiceClient()
     const { error } = await withTimeout(
       supabase.from("prime_rates").select("effective_date").limit(1),
       COMPONENT_TIMEOUT_MS
@@ -79,9 +79,8 @@ async function checkEmail(): Promise<HealthReport["components"]["email"]> {
   }
 }
 
-async function checkStorage(): Promise<HealthReport["components"]["storage"]> {
+async function checkStorage(supabase: SupabaseClient): Promise<HealthReport["components"]["storage"]> {
   try {
-    const supabase = await createServiceClient()
     const { error } = await withTimeout(
       supabase.storage.listBuckets(),
       COMPONENT_TIMEOUT_MS
@@ -97,9 +96,8 @@ async function checkStorage(): Promise<HealthReport["components"]["storage"]> {
 // "daily" is written by the orchestrator itself; others write their own entries.
 const TRACKED_DAILY_JOBS = ["daily", "insurance-renewals", "expire-info-requests", "cost-snapshots"]
 
-async function checkCrons(): Promise<HealthReport["components"]["crons"]> {
+async function checkCrons(supabase: SupabaseClient): Promise<HealthReport["components"]["crons"]> {
   try {
-    const supabase = await createServiceClient()
     const { data, error } = await withTimeout(
       supabase
         .from("cron_runs")
@@ -135,8 +133,9 @@ async function checkCrons(): Promise<HealthReport["components"]["crons"]> {
 }
 
 export async function checkHealth(): Promise<HealthReport> {
+  const supabase = await createServiceClient()
   const [db, email, storage, crons] = await Promise.all([
-    checkDb(), checkEmail(), checkStorage(), checkCrons(),
+    checkDb(supabase), checkEmail(), checkStorage(supabase), checkCrons(supabase),
   ])
 
   let aggregate: ComponentStatus = "ok"
