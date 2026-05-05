@@ -73,7 +73,7 @@ const nextConfig: NextConfig = {
       // /settings/profile NOT redirected — URL is repurposed (new user-profile stub), not retired.
 
       // ── Retired pages ──
-      { source: "/status", destination: "https://status.pleks.co.za", permanent: true },
+      // /status is handled by the proxy: any domain → 308 to status.pleks.co.za
     ]
   },
 

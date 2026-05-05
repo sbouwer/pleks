@@ -28,6 +28,7 @@ const APEX_PREFIXES = [
   "/pricing", "/for-agents", "/for-landlords", "/early-access", "/migrate",
   "/privacy", "/terms", "/credit-check-policy", "/cookie-policy", "/paia-manual",
   "/features", "/contact", "/demo", "/marketing",
+  // /status intentionally excluded — only served via status.pleks.co.za (proxy rewrite below)
 ]
 
 function isApexPath(pathname: string): boolean {
@@ -38,6 +39,7 @@ function isApexPath(pathname: string): boolean {
 const APP_HOSTNAME       = "app.pleks.co.za"
 const MARKETING_HOSTNAME = "pleks.co.za"
 const ADMIN_HOSTNAME     = "admin.pleks.co.za"
+const STATUS_HOSTNAME    = "status.pleks.co.za"
 
 function isAdminPath(pathname: string): boolean {
   return pathname === "/admin" || pathname.startsWith("/admin/")
@@ -311,6 +313,21 @@ export async function proxy(request: NextRequest) {
   if (hostCtx === "admin" && !isAdminPath(pathname)) {
     const dest = request.nextUrl.clone()
     dest.host = APP_HOSTNAME
+    return NextResponse.redirect(dest, 308)
+  }
+
+  // status.pleks.co.za → rewrite internally to /status (URL stays clean)
+  if (hostCtx === "status") {
+    const dest = request.nextUrl.clone()
+    dest.pathname = "/status"
+    return NextResponse.rewrite(dest)
+  }
+
+  // Any other subdomain hitting /status directly → status.pleks.co.za
+  if (pathname === "/status" || pathname.startsWith("/status/")) {
+    const dest = request.nextUrl.clone()
+    dest.host     = STATUS_HOSTNAME
+    dest.pathname = "/"
     return NextResponse.redirect(dest, 308)
   }
 
