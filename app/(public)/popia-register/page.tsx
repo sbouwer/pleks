@@ -18,8 +18,9 @@ const SECTIONS = [
   { id: "about",       num: "00", label: "About this register" },
   { id: "controllers", num: "01", label: "Controllers"         },
   { id: "officer",     num: "02", label: "Information officer" },
-  { id: "security",    num: "03", label: "Security safeguards" },
-  { id: "part-a",      num: "A·", label: "Platform purposes"  },
+  { id: "security",       num: "03", label: "Security safeguards" },
+  { id: "subject-rights", num: "04", label: "Data-subject rights" },
+  { id: "part-a",         num: "A·", label: "Platform purposes"  },
   { id: "part-b",      num: "B·", label: "Operator purposes"  },
   { id: "operators",   num: "C·", label: "Operators directory" },
 ]
@@ -27,20 +28,20 @@ const SECTIONS = [
 export default function ProcessingRegisterPage() {
   return (
     <LegalPageLayout
-      eyebrowParts={["POPIA · S17 · S18", "processing register", "v2026.2"]}
+      eyebrowParts={["POPIA · S17 · S18", "processing register", "v2026.4"]}
       titleBefore="Processing"
       titleHighlight="register"
       subtitle="Pleks's POPIA processing-purpose register — all 12 platform purposes and 25 operator purposes, with lawful bases, data categories, retention periods, and the full operators directory."
       kicker={[
         { label: "Last reviewed", value: "2026 · 05 · 05", mono: true },
         { label: "In force from",  value: "2026 · 05 · 01", mono: true },
-        { label: "Version",        value: "v2026.2",         mono: true },
+        { label: "Version",        value: "v2026.4",         mono: true },
         { label: "Standard",       value: "POPIA s17 · s18"              },
       ]}
       sections={SECTIONS}
       hasSummary
       showDocLinks={false}
-      endLabel="END · PROCESSING REGISTER · v2026.2"
+      endLabel="END · PROCESSING REGISTER · v2026.4"
     >
       {/* Summary */}
       <div className="summary-card" id="summary">
@@ -61,7 +62,8 @@ export default function ProcessingRegisterPage() {
         <h2 className="sec-h">About this <span className="hl">register</span></h2>
         <p>
           This document is Pleks&rsquo;s processing-purpose register under <span className="act-pill">POPIA · S17</span> (accountability
-          principle — Responsible Party must have measures in place to ensure compliance) and <span className="act-pill">POPIA · S18</span>
+          principle — Responsible Party must have measures in place to ensure compliance) and{" "}
+          <span className="act-pill">POPIA · S18</span>{" "}
           (notification to data subjects of processing purposes). It is published publicly because public accountability is stronger than
           private accountability, and because agencies evaluating Pleks for procurement have a legitimate need to review exactly what the
           platform does with personal information before they commit.
@@ -78,8 +80,9 @@ export default function ProcessingRegisterPage() {
           does and who the actors are. For Part B data, your rights under POPIA are exercised against the agency — the Responsible Party
           for that data. For Part A data (your Pleks account), your rights are exercised against Pleks directly. Under{" "}
           <span className="act-pill">PAIA</span>, requests for access to records held by Pleks on behalf of a client agency must be
-          directed to that agency&rsquo;s Information Officer, not to Pleks. Pleks will route any misdirected request to the correct
-          party within 10 business days.
+          directed to that agency&rsquo;s Information Officer, not to Pleks. Pleks will acknowledge any misdirected request within
+          2 business days and route it to the correct Responsible Party within 5 business days — so the agency&rsquo;s statutory
+          30-business-day response clock under s23(1) is not materially eroded.
         </p>
         <p>
           Purposes prefixed <strong>A</strong> are Pleks as Responsible Party. Purposes prefixed <strong>B</strong> are Pleks as
@@ -105,10 +108,14 @@ export default function ProcessingRegisterPage() {
           inspections, maintenance, communications, trust transactions, deposits, applications, credit checks, owner statements, and every
           other artefact of property management. The agency is the Responsible Party; Pleks processes this data on the agency&rsquo;s
           behalf under the Pleks Operator Agreement, which incorporates the mandatory written-contract terms required by{" "}
-          <span className="act-pill">POPIA · S20</span> and <span className="act-pill">POPIA · S21</span>. Consistent with{" "}
-          <span className="act-pill">POPIA · S21</span>, Pleks will notify the agency without undue delay — and in any event within
-          72 hours of becoming aware — of any personal information breach that may affect data for which the agency is the Responsible
-          Party. The breach-notification obligation is given contractual force in the Pleks Terms of Service.
+          <span className="act-pill">POPIA · S20</span> and <span className="act-pill">POPIA · S21</span>. Under{" "}
+          <span className="act-pill">POPIA · S21</span> (Operator-to-RP notification), Pleks will notify the agency without undue
+          delay — and as a contractual commitment exceeding POPIA&rsquo;s s21 baseline, within 72 hours of becoming aware — of any
+          personal information breach affecting data for which the agency is the Responsible Party. The 72-hour window is a Pleks
+          contractual obligation, not a POPIA statutory requirement; POPIA s21 requires notification &ldquo;without undue delay.&rdquo;
+          The agency must then assess whether its own{" "}
+          <span className="act-pill">POPIA · S22</span> obligations to notify the Information Regulator and affected data subjects
+          are triggered. The breach-notification obligation is given contractual force in the Pleks Terms of Service.
         </p>
         <p>
           <strong>Sovereign-trust invariant.</strong> Pleks holds no client funds. Client funds reside in the agency&rsquo;s own
@@ -134,14 +141,22 @@ export default function ProcessingRegisterPage() {
         <div className="officer-card">
           <span className="l">Information<br />officer<br />(Part A)</span>
           <span className="v">
-            Stéan Bouwer · Pleks (Pty) Ltd
+            Stéan Bouwer · Pleks (Pty) Ltd<br />
             <span className="sub"><a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a></span>
+          </span>
+        </div>
+        <div className="officer-card">
+          <span className="l">Deputy IO /<br />succession</span>
+          <span className="v">
+            Role vacant — to be appointed under <span className="act-pill">POPIA · S56</span> as the organisation grows.
+            In the interim, any IO incapacity is covered by the board director of Pleks (Pty) Ltd.<br />
+            <span className="sub">Pleks is registered with the Information Regulator under POPIA s55. Registration number on file with the IO.</span>
           </span>
         </div>
         <div className="officer-card">
           <span className="l">Information<br />Regulator</span>
           <span className="v">
-            Information Regulator of South Africa
+            Information Regulator of South Africa<br />
             <span className="sub">
               JD House, 27 Stiemens Street, Braamfontein, 2001 ·{" "}
               <a href="https://inforeg.org.za" target="_blank" rel="noopener noreferrer">inforeg.org.za</a>
@@ -169,7 +184,7 @@ export default function ProcessingRegisterPage() {
         </p>
         <ul className="legal-list">
           <li><strong>Encryption in transit:</strong> TLS 1.2+ for all connections; HSTS enforced; no plaintext fallback.</li>
-          <li><strong>Encryption at rest:</strong> AES-256 at the database layer via Supabase; sensitive fields (bank account numbers, TOTP secrets, passkey credentials) additionally encrypted at the column level.</li>
+          <li><strong>Encryption at rest:</strong> AES-256 at the database layer via the database and storage provider (see §C); sensitive fields (bank account numbers, TOTP secrets, passkey credentials) additionally encrypted at the column level.</li>
           <li><strong>Row-Level Security:</strong> Postgres RLS enforced on every table carrying personal information; service-role access restricted to server-side only with org-scoped gateway helper; no broad-access admin views.</li>
           <li><strong>Authentication:</strong> magic-link auth for tenant/landlord/supplier roles; password + mandatory MFA for agent roles; MFA step-up required for fiduciary-class actions.</li>
           <li><strong>Immutable audit logging:</strong> every state-changing operation recorded in <code>audit_log</code> with actor, target, event type, timestamp, and change payload; no UPDATE or DELETE policies on the log.</li>
@@ -183,6 +198,86 @@ export default function ProcessingRegisterPage() {
           statutory retention (Tax Administration Act s29 — 5 years; PPRA trust records; FIC Act s23 — 5 years; Companies Act), active
           legal holds, subject-request restrictions, ongoing disputes, or subpoenas.
         </p>
+        <p>
+          <strong>Special personal information (<span className="act-pill">POPIA · S26</span>–<span className="act-pill">S27</span>).</strong>{" "}
+          Pleks does not solicit special personal information as defined in POPIA s26 (religious/political beliefs, race/ethnicity, trade-union
+          membership, health/sex life, criminal behaviour, biometric information). However, special PI may appear incidentally in free-text
+          fields or photos: a maintenance request may reference a tenant&rsquo;s medical condition; an inspection photo may incidentally capture
+          religious symbols or other s26 attributes. Where this occurs, the agency as Responsible Party must hold a valid s27 ground for
+          processing (typically s27(1)(a) explicit consent or s27(1)(d) law-compliance necessity). Pleks&rsquo;s UI includes contextual nudges
+          discouraging agents from entering special PI in free-text fields that are not structured for it. Agencies should configure their
+          own data-minimisation policies for their teams. Pleks will flag any pattern of systematic special-PI collection identified through
+          its Operator oversight function.
+        </p>
+        <p>
+          <strong>DPIA programme.</strong> Pleks conducts a Data Protection Impact Assessment before deploying or materially changing
+          any processing purpose that involves: (a) credit data or financial scores about natural persons (currently B4, B5);
+          (b) special personal information (s26); (c) AI-derived assessments of natural persons (B22); (d) persistent or precise location
+          data, including EXIF GPS metadata in inspection photography (B14); or (e) systematic processing of children&rsquo;s personal
+          information (B3). A completed DPIA is a deployment prerequisite — no such purpose ships without one. DPIA records are retained
+          for the life of the purpose.
+        </p>
+        <p>
+          <strong>Sub-processor authorisation and change notification.</strong> Pleks uses general written authorisation from agencies
+          for the sub-processors listed in Section C of this register (consistent with POPIA s21(2) and industry practice). When Pleks
+          changes a sub-processor in a way that materially affects agencies&rsquo; data, Pleks will notify agencies by email to their
+          registered Information Officer address at least 30 days before the change takes effect, giving agencies a reasonable right to
+          object. Changes that do not materially affect data processing (e.g., infrastructure migration within the same legal entity or
+          jurisdiction) are recorded in the register&rsquo;s version history without the 30-day window. The current sub-processor list
+          is maintained in Section C of this register and is updated on every version increment.
+        </p>
+      </section>
+
+      {/* 04 — Data-subject rights */}
+      <section id="subject-rights">
+        <p className="sec-num"><span className="bar" /><span>04 · Rights</span></p>
+        <h2 className="sec-h">Data-subject <span className="hl">rights</span></h2>
+        <p>
+          POPIA confers the following rights on every data subject whose personal information Pleks processes (as Responsible Party —
+          Part A) or processes on behalf of an agency (as Operator — Part B). For Part B rights, exercise them against the agency
+          (the Responsible Party); Pleks will support the agency&rsquo;s response. The channel for each right is shown below.
+        </p>
+        <ul className="legal-list">
+          <li>
+            <strong>Right of access (s23).</strong> Request a copy of the personal information Pleks holds about you, the categories
+            of recipients, the source, and the purpose. <em>Channel:</em> submit Form 2 to our Information Officer
+            at <a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a> or via the in-platform subject-rights dashboard.
+            Response within 30 business days.
+          </li>
+          <li>
+            <strong>Right to correction (s24).</strong> Request correction or deletion of inaccurate, misleading, outdated, incomplete,
+            or unlawfully obtained personal information, and notification to third parties to whom it was disclosed.{" "}
+            <em>Channel:</em> in-platform settings (immediate self-serve for profile data) or Information Officer for other records.
+          </li>
+          <li>
+            <strong>Right to deletion / restriction (s25).</strong> Request destruction or deletion of personal information Pleks is
+            no longer authorised to retain. Note: statutory retention obligations (s29 Tax Administration Act, PPRA, audit logs) may
+            prevent deletion during the applicable retention window; Pleks will explain the basis for any retention that continues
+            after a deletion request. <em>Channel:</em> Information Officer.
+          </li>
+          <li>
+            <strong>Right to object (s11(3)).</strong> Where Pleks&rsquo;s lawful basis is legitimate interest
+            (<span className="act-pill">POPIA · S11(1)(f)</span>) — purposes A3, A5, A6, A10, A12, B11, B16 — you have the right to
+            object to processing on reasonable grounds relating to your particular situation. Pleks will cease processing unless it can
+            demonstrate compelling legitimate grounds that override your interests, or processing is necessary for the exercise or
+            defence of legal claims. <em>Channel:</em> Information Officer or the in-platform subject-rights dashboard.
+          </li>
+          <li>
+            <strong>Automated-decision rights (s71).</strong> Pleks does not make automated decisions about data subjects that produce
+            legal or similarly significant effects. FitScore (B5) is assistive only — final tenancy decisions remain with the agency.
+            If this changes, affected data subjects will have the right to request human review, to express their point of view, and
+            to receive an explanation of the decision. <em>Channel:</em> Information Officer.
+          </li>
+          <li>
+            <strong>Direct-marketing opt-out (s69 / s11(3)).</strong> Where Pleks sends any direct marketing (A7 waitlist communications,
+            any future B25 agency marketing), you may opt out at any time via the unsubscribe link in every message or by contacting the
+            Information Officer. Opt-outs are honoured within 5 business days. <em>Channel:</em> unsubscribe link or Information Officer.
+          </li>
+          <li>
+            <strong>Right to complain (POPIA s74).</strong> You may lodge a complaint with the Information Regulator at any time,
+            independently of Pleks&rsquo;s or the agency&rsquo;s response. See §02 for the Regulator&rsquo;s contact details.
+          </li>
+        </ul>
       </section>
 
       {/* Part A */}
@@ -206,7 +301,7 @@ export default function ProcessingRegisterPage() {
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(b) — performance of contract (Terms of Service)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">email address, password hash (bcrypt), session tokens, IP address, user agent, authentication event timestamps</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase (auth backend), Resend (magic-link and new-device notification emails)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider, transactional email provider (magic-link and new-device notifications)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">Sessions: 30 days after expiry · Auth events: 7 years · Account records: purged 30 days after account closure</span></div>
             <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — SCCs (s72(1)(a))</span></div>
           </div>
@@ -222,7 +317,7 @@ export default function ProcessingRegisterPage() {
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(b) — contract + s11(1)(c) — compliance with law (POPIA s19 security safeguards)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">TOTP secret (encrypted), passkey credential ID, passkey public key, credential counter, device name, enrolment timestamps, IP at enrolment</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase (storage), Resend (enrolment/unenrolment notifications)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider, transactional email provider (enrolment/unenrolment notifications)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">7 years alongside auth events · revoked passkey records purged after 30 days</span></div>
             <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — SCCs (s72(1)(a))</span></div>
           </div>
@@ -234,12 +329,12 @@ export default function ProcessingRegisterPage() {
             <span>Error monitoring and exception tracking</span>
             <code className="purpose-slug">error_monitoring</code>
           </div>
-          <p className="purpose-desc">Capture unhandled exceptions and server/client-side errors to detect and fix defects. Every event routed through a POPIA-safe scrubber that removes request bodies from sensitive routes and strips known PII patterns from all payloads before transmission to Sentry.</p>
+          <p className="purpose-desc">Capture unhandled exceptions and server/client-side errors to detect and fix defects. Every event routed through a POPIA-safe scrubber that removes request bodies from sensitive routes and strips known PII patterns from all payloads before transmission to the error monitoring provider (see §C).</p>
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(f) — legitimate interest (detection and remediation of platform defects is necessary for a reliable service)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">User ID (UUID), organisation ID, role, release version, error type, stack trace, route path (query parameters stripped). No email, name, phone, IP, request body, or session cookie.</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Sentry (US-based — see Appendix A3)</span></div>
-            <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">90 days at Sentry (Sentry default) · Pleks does not retain error events independently</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">error monitoring provider (see §C)</span></div>
+            <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">90 days at the error monitoring provider (provider default) · Pleks does not retain error events independently</span></div>
             <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — SCCs (s72(1)(a)) + PII scrubber removes personal information at source</span></div>
           </div>
         </div>
@@ -254,8 +349,8 @@ export default function ProcessingRegisterPage() {
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(a) — consent (user explicitly initiates submission) + s11(1)(b) — contract (responding to user queries)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">User ID, organisation ID, role, feedback category, free-text body (may contain PII the user chooses to include), submission URL, user agent, release version</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase (storage), Resend (reply delivery)</span></div>
-            <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">Indefinite for non-deleted submissions · free-text redacted to [deleted] on explicit deletion request</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider, transactional email provider (reply delivery)</span></div>
+            <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">5 years from submission date, then anonymised to category + sentiment only (POPIA s14 — no longer than necessary) · free-text redacted to [deleted] on earlier deletion request</span></div>
             <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — SCCs (s72(1)(a))</span></div>
           </div>
         </div>
@@ -270,8 +365,8 @@ export default function ProcessingRegisterPage() {
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(f) — legitimate interest (platform availability monitoring is necessary for service reliability)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">None — probe traffic is system-to-system and contains only component health status text</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Better Stack (uptime monitoring), Slack (alert delivery)</span></div>
-            <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">30 days rolling at Better Stack</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">uptime monitoring provider (see §C), Slack (alert delivery)</span></div>
+            <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">30 days rolling at the uptime monitoring provider</span></div>
             <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — SCCs (s72(1)(a)) · no personal information transmitted in probe traffic</span></div>
           </div>
         </div>
@@ -282,11 +377,11 @@ export default function ProcessingRegisterPage() {
             <span>Cost and usage observability</span>
             <code className="purpose-slug">cost_usage_observability</code>
           </div>
-          <p className="purpose-desc">Track per-organisation resource consumption (emails, WhatsApp/SMS, AI calls, Vercel invocations, Supabase compute) for unit-economics understanding, customer-facing usage counters, and overage billing where applicable.</p>
+          <p className="purpose-desc">Track per-organisation resource consumption (emails, WhatsApp/SMS, AI calls, application hosting provider invocations, database provider compute) for unit-economics understanding, customer-facing usage counters, and overage billing where applicable.</p>
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(b) — contract (subscription and usage tracking) + s11(1)(f) — legitimate interest (platform economics)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Organisation ID, AI purpose codes, model, token counts, cost in cents, latency, success/error codes. No prompt text, no response text, no PII in metadata.</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase (storage), Vercel (function invocation counts via management API)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider, application hosting provider (function invocation counts via management API)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">AI usage rows: 2 years · cost snapshots: 36 months · messaging usage and subscription charges: 5 years (Tax Administration Act)</span></div>
             <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — SCCs (s72(1)(a))</span></div>
           </div>
@@ -302,7 +397,7 @@ export default function ProcessingRegisterPage() {
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(a) — consent (user explicitly submits the waitlist form)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Email address, self-declared role, consent timestamp, IP address, user agent</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase (storage in waitlist table), Resend (confirmation and launch emails)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider, transactional email provider (confirmation and launch emails)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">Until account creation (waitlist linked to user via matching email), or 12 months from submission if no account created</span></div>
             <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — SCCs (s72(1)(a)) and s72(1)(b) consent basis</span></div>
           </div>
@@ -314,13 +409,13 @@ export default function ProcessingRegisterPage() {
             <span>Platform-level billing and subscriptions</span>
             <code className="purpose-slug">platform_billing</code>
           </div>
-          <p className="purpose-desc">Manage Pleks&rsquo;s own subscription billing to agencies — tier selection, per-lease premium charges, overage billing, invoicing, and payment processing via PayFast.</p>
+          <p className="purpose-desc">Manage Pleks&rsquo;s own subscription billing to agencies — tier selection, per-lease premium charges, overage billing, invoicing, and payment processing via the payment gateway (see §C).</p>
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(b) — contract (Terms of Service) + s11(1)(c) — compliance with law (Tax Administration Act, VAT Act)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Organisation billing contact name, email, phone, billing address, VAT number, invoice history, charge history, tier and feature selection, subscription state</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase (storage), Resend (invoice emails), PayFast (payment processing)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider, transactional email provider (invoices), payment gateway (payment processing)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">5 years from the date of the most recent charge (Tax Administration Act s29)</span></div>
-            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — SCCs (s72(1)(a)) + s72(1)(c) necessity for performance of contract · PayFast is SA-domiciled (domestic)</span></div>
+            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — SCCs (s72(1)(a)) + s72(1)(c) necessity for performance of contract · payment gateway is SA-domiciled (domestic)</span></div>
           </div>
         </div>
 
@@ -334,7 +429,7 @@ export default function ProcessingRegisterPage() {
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(b) — contract (support is implicit in the Terms of Service) + s11(1)(f) — legitimate interest</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Email address, name, message body (may contain arbitrary PII), attachment content, correspondence thread</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Resend (inbound/outbound email handling), Supabase (storage if archived in-platform)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">transactional email provider (inbound/outbound email handling), database and storage provider (if archived in-platform)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">3 years from the date of the most recent correspondence, or indefinitely for threads that are part of an ongoing legal matter</span></div>
             <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — SCCs (s72(1)(a))</span></div>
           </div>
@@ -350,7 +445,7 @@ export default function ProcessingRegisterPage() {
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(c) — compliance with law (POPIA s17 accountability; ECT Act record requirements) + s11(1)(f) — legitimate interest (security monitoring and fraud prevention)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Actor user ID, actor IP address, target entity identifiers, event type, before-and-after values of changed fields (may incidentally include PII), timestamp</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase (storage)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">7 years (SA business records retention and PPRA audit timelines) · subject-initiated erasure never removes audit_log rows</span></div>
             <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — SCCs (s72(1)(a))</span></div>
           </div>
@@ -382,8 +477,8 @@ export default function ProcessingRegisterPage() {
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(f) — legitimate interest (understanding platform health is necessary to serve customers reliably; no agency personal data exposed in aggregate form)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Organisation ID, name, agency FFC number and expiry, last-user-login timestamp, aggregated activity signals, cost attribution</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase (storage), Resend (customer-success outreach emails)</span></div>
-            <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">Active organisations: indefinite for operational signals · account closure: purged after billing-record retention window expires (5 years)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider, transactional email provider (customer-success outreach)</span></div>
+            <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">Operational signals: 5 years from last activity (POPIA s14 — no longer than necessary) · account closure: purged after billing-record retention window expires (5 years)</span></div>
             <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — SCCs (s72(1)(a))</span></div>
           </div>
         </div>
@@ -410,9 +505,9 @@ export default function ProcessingRegisterPage() {
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(b) — contract (mandate agreement with landlord) + s11(1)(f) — legitimate interest (portfolio management is necessary for core business)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Property address, landlord relationship, broker identity, managing scheme contact details, insurance broker and policy contact, emergency contact</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase (storage), the AI model provider (AI-assisted property setup when used — see B22)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider, the AI model provider (AI-assisted property setup when used — see B22)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">Duration of agency mandate + 5 years post-termination</span></div>
-            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — AI processing via Anthropic (SCCs)</span></div>
+            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — AI processing via the AI model provider (SCCs)</span></div>
           </div>
         </div>
 
@@ -426,7 +521,7 @@ export default function ProcessingRegisterPage() {
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(b) — contract (mandate agreement with landlord) + s11(1)(c) — compliance with law (PPRA disclosure and tax obligations)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Name, ID number, date of birth, contact phone, contact email, addresses, bank account details (masked at rest, encrypted for operational use), marital status where relevant</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase (storage), Resend (landlord communications), Africa&rsquo;s Talking (SMS and WhatsApp)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider, transactional email provider (landlord communications), SMS and WhatsApp aggregator</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">Duration of mandate + 5 years post-termination (PPRA trust record retention)</span></div>
             <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — SCCs (s72(1)(a))</span></div>
           </div>
@@ -439,11 +534,12 @@ export default function ProcessingRegisterPage() {
             <code className="purpose-slug">tenant_application</code>
           </div>
           <p className="purpose-desc">Accept rental applications from prospective tenants via the public /apply/[slug] portal. Capture form data, supporting documents (ID, proof of income, bank statements, employer letter), and consent records. Support the agency&rsquo;s shortlist-and-screen workflow. Also processes personal information of third parties named in the application: references, employer contacts, household members, emergency contacts.</p>
+          <p className="purpose-desc"><strong>Reference contacts as data subjects (<span className="act-pill">POPIA · S12</span> / <span className="act-pill">S18</span>).</strong> References named by an applicant are data subjects in their own right. Under s12 (collection directly from the data subject) and s18 (notification), references must be informed that their personal information has been collected and for what purpose. The Pleks Operator Agreement contractually requires the agency to send a s18 notice to each reference at the point of first contact — stating that they have been named as a reference for a rental application, what information will be requested from them, how long it will be retained, and how to exercise their rights. Pleks provides a template s18 notice that agencies may use. Compliance with this obligation is auditable via the communication log.</p>
           <p className="purpose-desc"><strong>Children&rsquo;s personal information (POPIA s34–s35).</strong> Applications routinely include dependent details and household members who are minors. Under POPIA s34, processing a child&rsquo;s personal information requires consent from a competent person (parent or legal guardian). By submitting an application that includes dependent or household-member details for a person under 18, the applicant represents that they are the competent person within the meaning of s34 and are providing consent on behalf of that minor. Processing of minors&rsquo; information is limited strictly to housing-suitability necessity — establishing occupancy count and dependent-support obligations relevant to affordability. No credit check, identity verification, or marketing processing is performed against minor household members.</p>
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(a) — consent (applicant submits the form and consents to processing for the specific application) + s11(1)(b) — pre-contractual steps at the data subject&rsquo;s request</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Full name, ID number, DOB, contact phone/email, employment details, salary, dependent details, previous rental history, landlord/employer/character references, supporting documents</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase (storage), the payment gateway (application fee — B9), the credit bureau aggregator (credit check — B4), the AI model provider (income extraction — B22), DocuSeal (if application leads to lease signing)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider, the payment gateway (application fee — B9), the credit bureau aggregator (credit check — B4), the AI model provider (income extraction — B22), e-signature provider (if application leads to lease signing)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">Rejected/withdrawn applications: 12 months from rejection · Approved applications: absorbed into lease retention (5 years post-termination)</span></div>
             <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — SCCs (s72(1)(a)) for AI and hosting</span></div>
           </div>
@@ -452,16 +548,16 @@ export default function ProcessingRegisterPage() {
         <div className="purpose-entry">
           <div className="purpose-hdr">
             <span className="purpose-id">B4</span>
-            <span>Credit checking (Searchworx)</span>
+            <span>Credit checking (credit bureau aggregator)</span>
             <code className="purpose-slug">credit_check_searchworx</code>
           </div>
-          <p className="purpose-desc">Obtain a credit bureau report on an applicant for the purpose of assessing tenancy suitability. Searchworx acts as the aggregator across TransUnion, Experian, Compuscan, and XDS. A DPIA (Data Protection Impact Assessment) is in progress for this purpose and will be completed before the feature ships to production — credit data is among the highest-sensitivity personal information categories. No credit check is performed without explicit written consent under POPIA s11(1)(a), in compliance with the Credit Bureau Code of Conduct (issued under POPIA, October 2020) and the Searchworx user agreement. The NCA s69 register of credit agreements does not provide the consent basis for bureau enquiries — that basis is POPIA s11(1)(a) alone.</p>
+          <p className="purpose-desc">Obtain a credit bureau report on an applicant for the purpose of assessing tenancy suitability. The credit bureau aggregator (see §C) consolidates TransUnion, Experian, Compuscan, and XDS. A DPIA (Data Protection Impact Assessment) is in progress for this purpose and will be completed before the feature ships to production — credit data is among the highest-sensitivity personal information categories. No credit check is performed without explicit written consent under POPIA s11(1)(a), in compliance with the Credit Bureau Code of Conduct (issued under POPIA, October 2020) and the credit bureau aggregator&rsquo;s user agreement (see §C). The NCA s69 register of credit agreements does not provide the consent basis for bureau enquiries — that basis is POPIA s11(1)(a) alone.</p>
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(a) — explicit consent (applicant consents to the specific purpose of a credit check before it is run; consent may be withdrawn for future checks but not to unwind a check already performed)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Applicant ID number, full name, DOB, residential addresses (current and historical), employment history, credit history, default records, civil judgments, credit score, affordability result</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Searchworx — SA-domiciled, domestic processing (see Appendix A11); underlying bureaus via Searchworx; Supabase (result storage); AI model provider (FitScore generation — B5)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">credit bureau aggregator — SA-domiciled, domestic processing (see §C); underlying bureaus via credit bureau aggregator; database and storage provider; AI model provider (FitScore generation — B5)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">12 months from the pull date or lease termination date, whichever is later · consent log entry retained 10 years (POPIA s19 accountability)</span></div>
-            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">No for the credit check itself (Searchworx and SA credit bureaus are domestic) · Yes for derivative AI processing (FitScore via Anthropic — SCCs)</span></div>
+            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">No for the credit check itself (credit bureau aggregator and SA credit bureaus are domestic) · Yes for derivative AI processing (FitScore via the AI model provider — SCCs)</span></div>
           </div>
         </div>
 
@@ -475,9 +571,9 @@ export default function ProcessingRegisterPage() {
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">Follows Purpose B4 — s11(1)(a) explicit consent (applicant consented to the credit check knowing results would inform a suitability assessment)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Derivative of B4 (credit result) + declared income, verified income, rental history, employment information</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">The AI model provider (FitScore rationale narrative generation — B22), Supabase (storage)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">The AI model provider (FitScore rationale narrative generation — B22), database and storage provider</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">Follows Purpose B4 (12 months or lease termination, whichever later)</span></div>
-            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — AI processing via Anthropic (SCCs + s72(1)(b) consent basis)</span></div>
+            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — AI processing via the AI model provider (SCCs + s72(1)(b) consent basis)</span></div>
           </div>
         </div>
 
@@ -487,11 +583,11 @@ export default function ProcessingRegisterPage() {
             <span>Lease generation, signing, and document management</span>
             <code className="purpose-slug">lease_generation_signing</code>
           </div>
-          <p className="purpose-desc">Generate a lease document from the agency&rsquo;s configured template + clause profile + unit-level overrides; render to PDF; route through DocuSeal for digital signing; store signed lease PDF and signatures. Covers lease creation, amendment, renewal, and termination document flows.</p>
+          <p className="purpose-desc">Generate a lease document from the agency&rsquo;s configured template + clause profile + unit-level overrides; render to PDF; route through the e-signature provider (see §C) for digital signing; store signed lease PDF and signatures. Covers lease creation, amendment, renewal, and termination document flows.</p>
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(b) — contract (the lease is the contract) + s11(1)(c) — compliance with law (RHA s5 written lease requirements, CPA s14, ECT Act signature requirements)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Full names, ID numbers, DOBs, contact details, employment details, signatures, co-tenant and landlord signatures, sureties if any</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase Storage (signed lease PDF), DocuSeal (signing — self-hosted, same infrastructure as Pleks), Resend (signing invitation emails), AI model provider (clause conflict checking — B22)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider, e-signature provider (self-hosted, same infrastructure as Pleks), transactional email provider (signing invitations), AI model provider (clause conflict checking — B22)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">5 years post-termination (Prescription Act + PPRA mandate practice)</span></div>
             <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — SCCs (s72(1)(a)) and s72(1)(c) necessity for performance of contract</span></div>
           </div>
@@ -507,7 +603,7 @@ export default function ProcessingRegisterPage() {
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(b) — contract + s11(1)(c) — compliance with law (RHA and CPA specific notice obligations)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Tenant contact details, lease state, notice history</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase (storage), Resend / Africa&rsquo;s Talking (notice delivery)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider, transactional email provider and SMS and WhatsApp aggregator (notice delivery)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">Follows Purpose B6 — 5 years post-termination</span></div>
             <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — SCCs (s72(1)(a))</span></div>
           </div>
@@ -523,9 +619,9 @@ export default function ProcessingRegisterPage() {
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(b) — contract (the lease establishes the rent obligation) + s11(1)(c) — compliance with law (PPRA record-keeping, Tax Administration Act)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Tenant name, lease identifier, rent amount, invoice history, payment receipt history. No tenant bank account numbers are stored by Pleks.</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase (storage)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">5 years post-lease-termination (PPRA record retention + Tax Administration Act s29)</span></div>
-            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — Supabase storage (SCCs)</span></div>
+            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — database and storage provider (SCCs)</span></div>
           </div>
         </div>
 
@@ -535,13 +631,13 @@ export default function ProcessingRegisterPage() {
             <span>Application fee processing (payment gateway)</span>
             <code className="purpose-slug">application_fee_processing</code>
           </div>
-          <p className="purpose-desc">Accept the applicant&rsquo;s rental application fee directly via PayFast. The fee is a Pleks-to-applicant service charge covering the cost of the underlying credit bureau report and Pleks&rsquo;s cost of operating the application-processing service. The agency receives no portion of this fee under any tier or commercial arrangement.</p>
+          <p className="purpose-desc">Accept the applicant&rsquo;s rental application fee directly via the payment gateway (see §C). The fee is a Pleks-to-applicant service charge covering the cost of the underlying credit bureau report and Pleks&rsquo;s cost of operating the application-processing service. The agency receives no portion of this fee under any tier or commercial arrangement.</p>
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(a) — consent (applicant initiates payment knowing the purpose) + s11(1)(b) — contract</span></div>
-            <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Applicant name, email, payment amount, transaction reference, payment method indicator (not full card number — PayFast is the PCI boundary)</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">PayFast — SA-domiciled (see Appendix A6)</span></div>
+            <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Applicant name, email, payment amount, transaction reference, payment method indicator (not full card number — payment gateway is the PCI boundary)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">payment gateway — SA-domiciled (see §C)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">5 years (Tax Administration Act s29)</span></div>
-            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">No — PayFast is SA-domiciled (domestic processing)</span></div>
+            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">No — payment gateway is SA-domiciled (domestic processing)</span></div>
           </div>
         </div>
 
@@ -555,7 +651,7 @@ export default function ProcessingRegisterPage() {
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(b) — contract (mandate requires financial reporting) + s11(1)(c) — compliance with law (PPRA statement-of-account requirements)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Landlord name, contact details, property portfolio breakdown, financial transaction data</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase (storage), Resend (email delivery), AI model provider (welcome pack narrative — B22)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider, transactional email provider (email delivery), AI model provider (welcome pack narrative — B22)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">5 years from statement date (Tax Administration Act s29)</span></div>
             <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — SCCs (s72(1)(a))</span></div>
           </div>
@@ -571,7 +667,7 @@ export default function ProcessingRegisterPage() {
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(b) — contract + s11(1)(c) — compliance with law (formal demand requirements, RHA s4B) + s11(1)(f) — legitimate interest (protecting landlord&rsquo;s income)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Tenant contact details, payment history, arrears amount, communications sent, arrears case state</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase (storage), Resend / Africa&rsquo;s Talking (communication delivery), AI model provider (LOD text generation — B22)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider, transactional email provider and SMS and WhatsApp aggregator (communication delivery), AI model provider (LOD text generation — B22)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">5 years post-termination (Prescription Act + PPRA + Tribunal evidentiary practice)</span></div>
             <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — SCCs (s72(1)(a))</span></div>
           </div>
@@ -587,9 +683,9 @@ export default function ProcessingRegisterPage() {
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(c) — compliance with law (Property Practitioners Act s54, PPA Regulation 33 — 5 years from the end of the financial year, PPRA audit requirements, Tax Administration Act s29)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Tenant names on trust transactions, landlord and supplier names on disbursements, transaction amounts, payment references, dates, bank statement narrative text, masked bank account numbers (encrypted at rest)</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase (storage), AI model provider (variance explanation narrative — B22)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider, AI model provider (variance explanation narrative — B22)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">5 years (PPRA trust record retention + Tax Administration Act s29)</span></div>
-            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — AI processing via Anthropic (SCCs) · bank data import is local file upload (no cross-border transfer component)</span></div>
+            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — AI processing via the AI model provider (SCCs) · bank data import is local file upload (no cross-border transfer component)</span></div>
           </div>
         </div>
 
@@ -603,9 +699,9 @@ export default function ProcessingRegisterPage() {
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(b) — contract + s11(1)(c) — compliance with law (Rental Housing Act s5 deposit rules, PPRA trust account rules)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Tenant name, deposit amount, interest accrued, deduction history with per-item details, photos of damage claimed, wear-and-tear assessments</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase (storage including photo storage), Resend (statement delivery), AI model provider (deduction justification narrative — B22)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider (including photo storage), transactional email provider (statement delivery), AI model provider (deduction justification narrative — B22)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">5 years post-termination (PPRA trust record retention)</span></div>
-            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — AI processing via Anthropic (SCCs)</span></div>
+            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — AI processing via the AI model provider (SCCs)</span></div>
           </div>
         </div>
 
@@ -619,9 +715,9 @@ export default function ProcessingRegisterPage() {
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(b) — contract + s11(1)(c) — compliance with law (Rental Housing Act inspection requirements)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Tenant name and signature, agent name and signature, property address, photos of the property interior and exterior (EXIF GPS and timestamp preserved; may incidentally include tenant belongings or persons)</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase Storage (photos and PDFs), AI model provider (wear-and-tear assessment — B22)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider, AI model provider (wear-and-tear assessment — B22)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">3 years post-termination · 5 years if a Tribunal dispute arises within the retention window</span></div>
-            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — AI processing via Anthropic (SCCs)</span></div>
+            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — AI processing via the AI model provider (SCCs)</span></div>
           </div>
         </div>
 
@@ -635,7 +731,7 @@ export default function ProcessingRegisterPage() {
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(b) — contract + s11(1)(c) — compliance with law (RHA s4B habitability duty)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Tenant name and contact details, description of the issue, photos of the issue, contractor assignment, cost allocation</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase (storage), Africa&rsquo;s Talking (WhatsApp/SMS for contractor notifications), AI model provider (maintenance triage — B22), Resend (email notifications)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider, SMS and WhatsApp aggregator (contractor notifications), AI model provider (maintenance triage — B22), transactional email provider (email notifications)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">3 years post-completion (Tribunal evidentiary practice)</span></div>
             <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — SCCs (s72(1)(a)) for AI and email · SMS/WhatsApp is domestic via Africa&rsquo;s Talking</span></div>
           </div>
@@ -651,7 +747,7 @@ export default function ProcessingRegisterPage() {
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(c) — compliance with law (habitability duty; insurer disclosure obligations) + s11(1)(e) — legitimate interest of a third party (insurance claim preparation) + s11(1)(f) — Responsible Party&rsquo;s legitimate interest</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">As B15 plus insurance broker and policy contact details, owner notification preferences, scheme notification preferences</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase (storage), Resend (broker and scheme notifications), Africa&rsquo;s Talking (urgent contractor dispatch)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider, transactional email provider (broker and scheme notifications), SMS and WhatsApp aggregator (urgent contractor dispatch)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">5 years (insurance claim evidence + Tribunal evidentiary practice)</span></div>
             <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — SCCs (s72(1)(a))</span></div>
           </div>
@@ -667,9 +763,9 @@ export default function ProcessingRegisterPage() {
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(b) — contract + s11(1)(c) — compliance with law (RHA and CPA mandatory notice obligations; mandatory comms bypass tenant opt-out preferences)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Tenant name, contact phone, contact email, message body, delivery status, WhatsApp template variant used, communication preferences for non-mandatory comms</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Africa&rsquo;s Talking (WhatsApp via Meta Business, SMS), Resend (email), Meta (WhatsApp Business Platform), Supabase (storage with full-body retention for Tribunal evidence)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">SMS and WhatsApp aggregator (WhatsApp via WhatsApp Business Platform provider, SMS), transactional email provider, database and storage provider (full-body retention for Tribunal evidence)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">5 years post-termination (aligned with trust records; Tax Administration Act support)</span></div>
-            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — Meta WhatsApp Business is US/IE; Resend is US. SCCs (s72(1)(a))</span></div>
+            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — WhatsApp Business Platform provider is US/IE; transactional email provider is US. SCCs (s72(1)(a))</span></div>
           </div>
         </div>
 
@@ -683,7 +779,7 @@ export default function ProcessingRegisterPage() {
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(b) — contract (contractor mandate for specific jobs) + s11(1)(c) — compliance with law (agency duty to verify contractor legitimacy)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Contractor name, contact details, trade, rates, FFC number if applicable, bank details for payment (encrypted), job history, invoice submissions</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase (storage), Resend / Africa&rsquo;s Talking (communications)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider, transactional email provider and SMS and WhatsApp aggregator (communications)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">5 years from last engagement (Tax Administration Act s29)</span></div>
             <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — SCCs (s72(1)(a))</span></div>
           </div>
@@ -699,9 +795,9 @@ export default function ProcessingRegisterPage() {
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(b) — contract (mandate to manage property expenses) + s11(1)(c) — compliance with law (PPRA property-management record keeping)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Property address, account holder (usually the landlord), municipal account number, consumption and charge data</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase (storage), AI model provider (bill extraction — B22)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider, AI model provider (bill extraction — B22)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">5 years (Tax Administration Act s29)</span></div>
-            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — AI processing via Anthropic (SCCs)</span></div>
+            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — AI processing via the AI model provider (SCCs)</span></div>
           </div>
         </div>
 
@@ -715,9 +811,9 @@ export default function ProcessingRegisterPage() {
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(b) — contract + s11(1)(c) — compliance with law (Sectional Titles Schemes Management Act)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Scheme contact details, levy payment history per owner, AGM attendance and voting records where relevant</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase (storage), Resend (AGM and levy communications), AI model provider (AGM notice drafting — B22)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider, transactional email provider (AGM and levy communications), AI model provider (AGM notice drafting — B22)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">5 years (STSMA and tax retention) · AGM records per scheme bylaws (indefinite in most cases)</span></div>
-            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — AI processing via Anthropic (SCCs)</span></div>
+            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — AI processing via the AI model provider (SCCs)</span></div>
           </div>
         </div>
 
@@ -731,7 +827,7 @@ export default function ProcessingRegisterPage() {
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(b) — contract + s11(1)(c) — compliance with law (varies by document type; follows the source purpose)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Names, contact details, financial data, and other personal information drawn from source purposes; AI-generated narrative text</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase Storage (document storage), Resend (document delivery), AI model provider (narrative generation — B22)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider, transactional email provider (document delivery), AI model provider (narrative generation — B22)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">Follows the source data (typically 5 years post-termination for lease records)</span></div>
             <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — SCCs (s72(1)(a))</span></div>
           </div>
@@ -743,13 +839,13 @@ export default function ProcessingRegisterPage() {
             <span>AI-assisted processing</span>
             <code className="purpose-slug">ai_assisted_processing</code>
           </div>
-          <p className="purpose-desc">Bounded, assistive AI processing across multiple workflows — income extraction from bank statements, FitScore rationale, maintenance triage, deposit deduction justification, lease clause conflict checking, arrears letter drafting, wear-and-tear assessment, municipal bill extraction, AGM notice drafting, and trust audit narrative. AI processing is assistive only: Pleks does not make automated decisions about tenants or applicants. All decisions remain with the agency or landlord. Prompts and responses are not retained — Anthropic operates under a zero-retention Enterprise DPA. PII minimisation is applied before cross-border transfer: prompts contain structured context values (amounts, dates, categories) and exclude direct identifiers (name, ID number, contact details) where the task does not require them. This minimisation reduces but does not eliminate identifiability — structured context (property address, exact rent, exact arrears, dates) may remain reasonably linkable to an individual and constitutes pseudonymised, not anonymised, personal information under POPIA s1. All cross-border AI transfers therefore remain personal information transfers and are governed by SCCs under POPIA s72(1)(a).</p>
+          <p className="purpose-desc">Bounded, assistive AI processing across multiple workflows — income extraction from bank statements, FitScore rationale, maintenance triage, deposit deduction justification, lease clause conflict checking, arrears letter drafting, wear-and-tear assessment, municipal bill extraction, AGM notice drafting, and trust audit narrative. AI processing is assistive only: Pleks does not make automated decisions about tenants or applicants. All decisions remain with the agency or landlord. Prompts and responses are not retained — the AI model provider (see §C) operates under a zero-retention Enterprise DPA. PII minimisation is applied before cross-border transfer: prompts contain structured context values (amounts, dates, categories) and exclude direct identifiers (name, ID number, contact details) where the task does not require them. This minimisation reduces but does not eliminate identifiability — structured context (property address, exact rent, exact arrears, dates) may remain reasonably linkable to an individual and constitutes pseudonymised, not anonymised, personal information under POPIA s1. All cross-border AI transfers therefore remain personal information transfers and are governed by SCCs under POPIA s72(1)(a).</p>
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">Multiple — follows the lawful basis of the sub-purpose (e.g., B4 consent for FitScore, B7 contract for lease clause checking)</span></div>
-            <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Structured context specific to the sub-purpose only. Direct identifiers (name, ID number, contact details) are stripped where not required by the task. No prompt text or response text retained by Pleks or Anthropic.</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Anthropic — see Appendix A2 (zero-retention Enterprise DPA + SCCs)</span></div>
-            <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">No retention — zero-retention DPA with Anthropic; derivative outputs follow the source purpose&rsquo;s retention period</span></div>
-            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — Anthropic is US-based. SCCs (s72(1)(a)) + zero-retention Enterprise DPA</span></div>
+            <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Structured context specific to the sub-purpose only. Direct identifiers (name, ID number, contact details) are stripped where not required by the task. No prompt text or response text retained by Pleks or the AI model provider.</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">AI model provider — see §C (zero-retention Enterprise DPA + SCCs)</span></div>
+            <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">No retention — zero-retention DPA with the AI model provider (see §C); derivative outputs follow the source purpose&rsquo;s retention period</span></div>
+            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — AI model provider (see §C) is US-based. SCCs (s72(1)(a)) + zero-retention Enterprise DPA</span></div>
           </div>
         </div>
 
@@ -763,9 +859,9 @@ export default function ProcessingRegisterPage() {
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(c) — compliance with law (POPIA Chapter 5 and Chapter 10 obligations)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Data subject identity, request type, correspondence, resolution decision, consent log entries, audit trail of request processing</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase (storage), Resend (response communications)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider, transactional email provider (response communications)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">10 years (POPIA accountability obligations; audit trail of rights exercises)</span></div>
-            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — Supabase storage (SCCs)</span></div>
+            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — database and storage provider (SCCs)</span></div>
           </div>
         </div>
 
@@ -778,10 +874,10 @@ export default function ProcessingRegisterPage() {
           <p className="purpose-desc">Store FICA / KYC documentation for agencies that are Accountable Institutions under the Financial Intelligence Centre Act — copies of founding documents, director ID documents, proof of address, tax numbers. Supports the agency&rsquo;s own FICA compliance obligations.</p>
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(c) — compliance with law (Financial Intelligence Centre Act s22/s23 record-keeping obligations for Accountable Institutions)</span></div>
-            <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Name, ID number, proof of address, banking details, SARS tax number — all stored encrypted at rest in Supabase Storage</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Supabase (encrypted storage)</span></div>
+            <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Name, ID number, proof of address, banking details, SARS tax number — all stored encrypted at rest via the database and storage provider (see §C)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider (encrypted)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">5 years post-termination of business relationship (FICA s23 record-keeping obligation)</span></div>
-            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — Supabase storage (SCCs)</span></div>
+            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — database and storage provider (SCCs)</span></div>
           </div>
         </div>
 
