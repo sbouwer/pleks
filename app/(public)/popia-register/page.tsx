@@ -28,20 +28,20 @@ const SECTIONS = [
 export default function ProcessingRegisterPage() {
   return (
     <LegalPageLayout
-      eyebrowParts={["POPIA · S17 · S18", "processing register", "v2026.8"]}
+      eyebrowParts={["POPIA · S17 · S18", "processing register", "v2026.9"]}
       titleBefore="Processing"
       titleHighlight="register"
       subtitle="Pleks's POPIA processing-purpose register — all 12 platform purposes and 25 operator purposes, with lawful bases, data categories, retention periods, and the full operators directory."
       kicker={[
         { label: "Last reviewed", value: "2026 · 05 · 05", mono: true },
         { label: "In force from",  value: "2026 · 05 · 01", mono: true },
-        { label: "Version",        value: "v2026.8",         mono: true },
+        { label: "Version",        value: "v2026.9",         mono: true },
         { label: "Standard",       value: "POPIA s17 · s18"              },
       ]}
       sections={SECTIONS}
       hasSummary
       showDocLinks={false}
-      endLabel="END · PROCESSING REGISTER · v2026.8"
+      endLabel="END · PROCESSING REGISTER · v2026.9"
     >
       {/* Summary */}
       <div className="summary-card" id="summary">
@@ -192,7 +192,7 @@ export default function ProcessingRegisterPage() {
           Pleks implements appropriate technical and organisational measures consistent with <span className="act-pill">POPIA · S19</span>:
         </p>
         <ul className="legal-list">
-          <li><strong>Encryption in transit:</strong> TLS 1.2+ for all connections; HSTS enforced; no plaintext fallback.</li>
+          <li><strong>Encryption in transit:</strong> TLS 1.3 for all connections; HSTS enforced; no plaintext fallback.</li>
           <li><strong>Encryption at rest:</strong> AES-256 at the database layer via the database and storage provider (see §C); sensitive fields (bank account numbers, TOTP secrets, passkey credentials) additionally encrypted at the column level.</li>
           <li><strong>Row-Level Security:</strong> Postgres RLS enforced on every table carrying personal information; service-role access restricted to server-side only with org-scoped gateway helper; no broad-access admin views.</li>
           <li><strong>Authentication:</strong> magic-link auth for tenant/landlord/supplier roles; password + mandatory MFA for agent roles; MFA step-up required for fiduciary-class actions.</li>
@@ -565,7 +565,7 @@ export default function ProcessingRegisterPage() {
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(a) — consent (applicant submits the form and consents to processing for the specific application) + s11(1)(b) — pre-contractual steps at the data subject&rsquo;s request</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Full name, ID number, DOB, contact phone/email, employment details, salary, dependent details, previous rental history, landlord/employer/character references, supporting documents</span></div>
             <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">database and storage provider, the payment gateway (application fee — B9), the credit bureau aggregator (credit check — B4), the AI model provider (income extraction — B22), e-signature provider (if application leads to lease signing)</span></div>
-            <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">Rejected/withdrawn applications: 12 months from rejection · Approved applications: absorbed into lease retention (5 years post-termination)</span></div>
+            <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">Rejected/withdrawn applications: 90 days from rejection (automatic purge — all associated records including documents) · Approved applications: absorbed into lease retention (5 years post-termination)</span></div>
             <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Yes — SCCs (s72(1)(a)) for AI and hosting</span></div>
           </div>
         </div>
@@ -986,8 +986,8 @@ export default function ProcessingRegisterPage() {
             </tr>
             <tr>
               <td className="op-name">DocuSeal<span className="sub">e-signature · self-hosted</span></td>
-              <td>Digital signature and document-signing workflow. Self-hosted on infrastructure Pleks controls — same privacy boundary as Pleks itself.</td>
-              <td>Self-hosted (same as Supabase/Vercel infrastructure)</td>
+              <td>Digital signature and document-signing workflow. Self-hosted on Hetzner SA (South African infrastructure) — no cross-border transfer.</td>
+              <td>South Africa — Hetzner SA (domestic; no SCCs required)</td>
               <td>DocuSeal open-source licence. No third-party DPA required — no data leaves Pleks&rsquo;s infrastructure.</td>
               <td>B6</td>
             </tr>

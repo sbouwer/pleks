@@ -33,19 +33,19 @@ const SECTIONS = [
 export default function PAIAManualPage() {
   return (
     <LegalPageLayout
-      eyebrowParts={["PAIA · S51", "private body", "v1.0"]}
+      eyebrowParts={["PAIA · S51", "private body", "v1.1"]}
       titleBefore="PAIA"
       titleHighlight="manual"
       subtitle="Pleks (Pty) Ltd's manual compiled in accordance with section 51 of the Promotion of Access to Information Act 2 of 2000 — record categories, access request procedure, and contact details."
       kicker={[
-        { label: "Last reviewed",  value: "2026 · 05",       mono: true },
+        { label: "Last reviewed",  value: "2026 · 05 · 05",  mono: true },
         { label: "Effective date", value: "2025 · 06 · 01",  mono: true },
         { label: "Compiled by",    value: "Pleks (Pty) Ltd"             },
         { label: "Act",            value: "PAIA · s51"                  },
       ]}
       sections={SECTIONS}
       hasSummary
-      endLabel="END · PAIA MANUAL · v1.0"
+      endLabel="END · PAIA MANUAL · v1.1"
     >
       {/* Plain-language summary */}
       <div className="summary-card" id="summary">
@@ -73,6 +73,11 @@ export default function PAIAManualPage() {
           Pleks (Pty) Ltd is a private body as defined in PAIA. This manual describes the categories of records held by Pleks,
           explains the procedure for requesting access to those records, and provides the contact details of our Information Officer.
         </p>
+        <p>
+          In accordance with <span className="act-pill">PAIA · S52(2)</span>, a copy of this manual has been submitted to the South
+          African Human Rights Commission (SAHRC). The current version is always available at{" "}
+          <a href="/paia-manual">pleks.co.za/paia-manual</a>.
+        </p>
         <div className="officer-card" style={{ alignItems: "center" }}>
           <span className="l">Download<br />this manual</span>
           <span className="v" style={{ display: "flex", alignItems: "center" }}>
@@ -90,13 +95,14 @@ export default function PAIAManualPage() {
         </p>
         <p>
           Every private body is required by <span className="act-pill">POPIA · S55</span> to designate an Information Officer.
-          Pleks has registered its Information Officer with the Information Regulator of South Africa.
+          Pleks has registered its Information Officer with the Information Regulator of South Africa. For the purposes of
+          PAIA s51(1)(a), the head of Pleks (Pty) Ltd is Stéan Bouwer, who also serves as Information Officer.
         </p>
         <div className="officer-card">
-          <span className="l">Information<br />officer</span>
+          <span className="l">Head &amp; Information<br />officer</span>
           <span className="v">
             Stéan Bouwer · Pleks (Pty) Ltd
-            <span className="sub"><a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a> · Western Cape, South Africa</span>
+            <br /><span className="sub"><a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a> · Western Cape, South Africa</span>
           </span>
         </div>
         <p>
@@ -110,8 +116,8 @@ export default function PAIAManualPage() {
           <span className="l">Information<br />Regulator</span>
           <span className="v">
             Information Regulator of South Africa
-            <span className="sub">
-              JD House, 27 Stiemens Street, Braamfontein, Johannesburg, 2001 ·{" "}
+            <br /><span className="sub">
+              JD House, 27 Stiemens Street, Braamfontein, Johannesburg, 2001 · 010 023 5207 ·{" "}
               <a href="https://inforeg.org.za" target="_blank" rel="noopener noreferrer">inforeg.org.za</a>
               {" "}· <a href="mailto:inforeg@justice.gov.za">inforeg@justice.gov.za</a>
             </span>
@@ -237,7 +243,7 @@ export default function PAIAManualPage() {
                 Property records
                 <span className="sub">Residential and commercial properties managed via Pleks</span>
               </td>
-              <td>Property address, erf and unit details, Deeds Office data (where obtained via Searchworx), municipal account information, HOA records, property photos</td>
+              <td>Property address, erf and unit details, municipal account information, HOA records, property photos</td>
               <td>Retained while active; 5 years after removal</td>
             </tr>
             <tr>
@@ -246,7 +252,7 @@ export default function PAIAManualPage() {
                 <span className="sub">Properties under active or previous management</span>
               </td>
               <td>Ingoing and outgoing inspection reports, room-by-room condition ratings, inspection photographs (compressed, JPEG), GPS coordinates and timestamps extracted from original photographs, voice notes, wear and tear assessments, AI-generated condition summaries</td>
-              <td>5 years after lease end (Tribunal evidence preservation)</td>
+              <td>3 years post-termination; extended to 5 years if a Tribunal dispute arises within the retention window</td>
             </tr>
             <tr>
               <td className="who">
@@ -265,7 +271,7 @@ export default function PAIAManualPage() {
                 <span className="sub">Properties, tenants, and maintenance contractors</span>
               </td>
               <td>Maintenance requests, job assignments, contractor details, progress updates, completion records, invoices, photographs, voice notes, delay records</td>
-              <td>5 years after job completion</td>
+              <td>3 years after job completion (Tribunal evidentiary practice)</td>
             </tr>
             <tr>
               <td className="who">
@@ -273,7 +279,7 @@ export default function PAIAManualPage() {
                 <span className="sub">All data subjects interacting with Pleks</span>
               </td>
               <td>Consent log (timestamp, IP address, consent version, purpose), audit log of all state changes on the platform, authentication events, credit check consent records, data subject request records</td>
-              <td>7 years (POPIA security and breach investigation requirement)</td>
+              <td>7 years (POPIA s17 — Documentation / accountability)</td>
             </tr>
             <tr>
               <td className="who">
@@ -281,7 +287,7 @@ export default function PAIAManualPage() {
                 <span className="sub">Tenants, landlords, agents, applicants</span>
               </td>
               <td>Transactional emails (rent receipts, arrears notices, inspection reminders), SMS and WhatsApp messages sent via Africa&rsquo;s Talking, in-app notifications, delivery status records</td>
-              <td>5 years for legally required notices; 12 months for operational communications</td>
+              <td>5 years post-termination (full body retained for Tribunal evidence — no distinction between mandatory and operational)</td>
             </tr>
           </tbody>
         </table>
@@ -320,7 +326,8 @@ export default function PAIAManualPage() {
         </ul>
         <p>
           Even where grounds for refusal exist, Pleks will consider whether the public interest in disclosure outweighs the grounds
-          for refusal, as required by <span className="act-pill">PAIA · S46</span>.
+          for refusal, as provided by <span className="act-pill">PAIA · S70</span> (the public-interest override for private bodies).
+          Note: PAIA s46 applies to public bodies only; for private bodies the equivalent provision is s70.
         </p>
       </section>
 
@@ -363,8 +370,9 @@ export default function PAIAManualPage() {
           <li><strong>Access fee:</strong> Calculated based on the form and volume of records, per the PAIA regulations</li>
         </ul>
         <p>
-          Pleks may waive fees where the request relates to a data subject&rsquo;s own personal information and the request is
-          submitted via the platform&rsquo;s self-service Data &amp; Privacy tools.
+          No request fee is charged where a data subject requests access to their own personal information, in accordance with
+          regulation 7 of the 2021 PAIA Regulations. Self-service data access via Settings &rarr; Data &amp; Privacy within the
+          platform is always free.
         </p>
         <p><strong>7.4 Response timeframe</strong></p>
         <p>
@@ -385,12 +393,12 @@ export default function PAIAManualPage() {
           Data subjects have the following rights under POPIA which may be exercised directly, without a formal PAIA request:
         </p>
         <ul className="legal-list">
-          <li><strong>Access</strong> — request a copy of personal information held</li>
-          <li><strong>Correction</strong> — request correction of inaccurate information</li>
-          <li><strong>Deletion</strong> — request erasure, subject to retention obligations</li>
-          <li><strong>Objection</strong> — object to processing based on legitimate interests</li>
-          <li><strong>Portability</strong> — receive data in a structured, machine-readable format</li>
-          <li><strong>Withdraw consent</strong> — withdraw where consent is the lawful basis</li>
+          <li><strong>Access (s23)</strong> — request a copy of personal information held, including the right to receive it in a usable form. The platform&rsquo;s bulk-export feature provides a structured archive as a voluntary product commitment.</li>
+          <li><strong>Correction (s24)</strong> — request correction or deletion of inaccurate, misleading, outdated, incomplete, or unlawfully obtained personal information</li>
+          <li><strong>Deletion / restriction (s25)</strong> — request destruction or deletion of personal information no longer authorised to be retained, subject to statutory retention obligations</li>
+          <li><strong>Objection (s11(3))</strong> — object to processing based on legitimate interests on grounds relating to your particular situation</li>
+          <li><strong>Automated-decision reconsideration (s71)</strong> — Pleks does not make automated decisions about applicants; if you believe an automated decision was nonetheless made, you may request reconsideration and the underlying logic of the decision</li>
+          <li><strong>Withdraw consent</strong> — withdraw consent where it is the lawful basis; withdrawal does not affect lawfulness of prior processing</li>
         </ul>
         <p>
           Registered Pleks users may exercise most of these rights directly in Settings &rarr; Data &amp; Privacy within the
@@ -439,9 +447,14 @@ export default function PAIAManualPage() {
               <td>Standard Contractual Clauses</td>
             </tr>
             <tr>
-              <td className="who">Africa&rsquo;s Talking<span className="sub">SMS &amp; WhatsApp</span></td>
-              <td>SMS and WhatsApp message delivery — Kenya</td>
-              <td>Kenya Data Protection Act 2019</td>
+              <td className="who">Africa&rsquo;s Talking<span className="sub">SMS &amp; WhatsApp aggregator</span></td>
+              <td>SMS and WhatsApp message delivery — Kenya (Nairobi)</td>
+              <td>Kenya Data Protection Act 2019 + Standard Contractual Clauses</td>
+            </tr>
+            <tr>
+              <td className="who">Meta<span className="sub">WhatsApp Business Platform</span></td>
+              <td>Upstream WhatsApp Business Platform — United States (California) / Ireland (EU), reached via Africa&rsquo;s Talking. Transactional templates only.</td>
+              <td>Standard Contractual Clauses (via Africa&rsquo;s Talking relationship)</td>
             </tr>
             <tr>
               <td className="who">Anthropic<span className="sub">AI processing</span></td>
@@ -450,13 +463,18 @@ export default function PAIAManualPage() {
             </tr>
             <tr>
               <td className="who">Searchworx<span className="sub">credit &amp; identity</span></td>
-              <td>Credit bureau, identity verification, Deeds Office — South Africa. Consent-gated: checks only run when explicit written consent has been recorded.</td>
+              <td>Credit bureau and identity verification — South Africa. Consent-gated: checks only run when explicit written consent has been recorded.</td>
               <td>South Africa (domestic)</td>
             </tr>
             <tr>
               <td className="who">DocuSeal<span className="sub">e-signature</span></td>
-              <td>Digital document signing — self-hosted on South African infrastructure</td>
-              <td>South Africa (domestic)</td>
+              <td>Digital document signing — self-hosted on Hetzner SA (South African infrastructure). No data leaves Pleks&rsquo;s infrastructure.</td>
+              <td>South Africa — Hetzner SA (domestic; no SCCs required)</td>
+            </tr>
+            <tr>
+              <td className="who">Sentry<span className="sub">error monitoring</span></td>
+              <td>Application error tracking and performance monitoring — United States. PII scrubbing configured; error events contain stack traces and route paths, with query parameters stripped.</td>
+              <td>Standard Contractual Clauses</td>
             </tr>
             <tr>
               <td className="who">Better Stack<span className="sub">uptime monitoring</span></td>
@@ -499,8 +517,8 @@ export default function PAIAManualPage() {
           In the event of a data breach, Pleks will:
         </p>
         <ul className="legal-list">
-          <li>Notify the Information Regulator within 72 hours of becoming aware of the breach, as required by <span className="act-pill">POPIA · S22</span></li>
-          <li>Notify affected data subjects as soon as reasonably practicable</li>
+          <li>Notify the Information Regulator as soon as reasonably possible (<span className="act-pill">POPIA · S22</span> — this is the statutory standard; POPIA s22 does not specify a 72-hour window) and in any event within 72 hours as a self-imposed standard for Pleks&rsquo;s Part A processing. This obligation applies to Pleks as Responsible Party for Part A data. For Part B (agency-managed) data, the Pleks-to-agency notification commitment (within 72 hours, per ToS §09.4) is an Operator-to-RP obligation under POPIA s21; the agency then independently assesses its s22 obligation to notify the Regulator and affected data subjects.</li>
+          <li>Notify affected data subjects of Part A breaches as soon as reasonably practicable</li>
           <li>Maintain a written record of the breach and the steps taken in response</li>
         </ul>
         <p><strong>9.2 Retention schedule</strong></p>
@@ -508,57 +526,65 @@ export default function PAIAManualPage() {
           <div className="ret-row">
             <span className="what">
               Lease &amp; financial records
-              <span style={{ display: "block", fontSize: "12.5px", color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>after lease end</span>
+              <br /><span style={{ display: "block", fontSize: "12.5px", color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>after lease end</span>
             </span>
-            <span className="basis">PPRA · RHA · S5(7)</span>
+            <span className="basis">Prescription Act · PPA s54 + Reg 33 · TAA s29</span>
             <span className="span">5 years</span>
           </div>
           <div className="ret-row">
             <span className="what">
               Inspection records &amp; photos
-              <span style={{ display: "block", fontSize: "12.5px", color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>Tribunal evidence preservation</span>
+              <br /><span style={{ display: "block", fontSize: "12.5px", color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>Tribunal evidence preservation</span>
             </span>
-            <span className="basis">PPRA · practice</span>
-            <span className="span">5 years</span>
+            <span className="basis">RHA evidentiary practice</span>
+            <span className="span">3 years (5 if Tribunal dispute)</span>
           </div>
           <div className="ret-row">
             <span className="what">
               Authentication &amp; audit logs
-              <span style={{ display: "block", fontSize: "12.5px", color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>POPIA security &amp; breach investigation</span>
+              <br /><span style={{ display: "block", fontSize: "12.5px", color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>POPIA accountability &amp; breach investigation</span>
             </span>
-            <span className="basis">POPIA · S19</span>
+            <span className="basis">POPIA · s17</span>
             <span className="span">7 years</span>
           </div>
           <div className="ret-row">
             <span className="what">
               Credit check records
-              <span style={{ display: "block", fontSize: "12.5px", color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>or until consent withdrawn</span>
+              <br /><span style={{ display: "block", fontSize: "12.5px", color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>declined / withdrawn applications</span>
             </span>
-            <span className="basis">NCA · POPIA</span>
+            <span className="basis">POPIA · s14 · Credit Bureau Code</span>
+            <span className="span">90 days</span>
+          </div>
+          <div className="ret-row">
+            <span className="what">
+              Credit check records
+              <br /><span style={{ display: "block", fontSize: "12.5px", color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>active lease records</span>
+            </span>
+            <span className="basis">Prescription Act · PPA s54</span>
             <span className="span">5 years</span>
           </div>
           <div className="ret-row">
             <span className="what">
               Legal notice communications
-              <span style={{ display: "block", fontSize: "12.5px", color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>arrears, Section 4, deposit deductions</span>
+              <br /><span style={{ display: "block", fontSize: "12.5px", color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>arrears, Section 4, deposit deductions</span>
             </span>
-            <span className="basis">RHA · S4B</span>
+            <span className="basis">RHA · s4B</span>
             <span className="span">5 years</span>
           </div>
           <div className="ret-row">
             <span className="what">
-              Operational communications
-              <span style={{ display: "block", fontSize: "12.5px", color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>non-mandatory notifications</span>
+              All tenant communications
+              <br /><span style={{ display: "block", fontSize: "12.5px", color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>mandatory + operational</span>
             </span>
-            <span className="basis">POPIA · principle 8</span>
-            <span className="span">12 months</span>
+            <span className="basis">POPIA · s14 · TAA s29</span>
+            <span className="span">5 years post-termination</span>
           </div>
           <div className="ret-row">
             <span className="what">
               Rejected applicant data
-              <span style={{ display: "block", fontSize: "12.5px", color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>automatic purge — all associated records</span>
+              <br /><span style={{ display: "block", fontSize: "12.5px", color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>automatic purge — all associated records</span>
             </span>
-            <span className="basis">POPIA · principle 8</span>
+            <span className="basis">POPIA · s14</span>
             <span className="span">90 days</span>
           </div>
         </div>
@@ -585,13 +611,13 @@ export default function PAIAManualPage() {
         <h2 className="sec-h"><span className="hl">Certification</span></h2>
         <p>
           This PAIA manual has been compiled in accordance with the requirements of section 51 of the Promotion of Access to
-          Information Act 2 of 2000 and has been approved by the Information Officer of Pleks (Pty) Ltd.
+          Information Act 2 of 2000 and approved this 5th day of May 2026 by the Information Officer of Pleks (Pty) Ltd.
         </p>
         <div className="officer-card">
           <span className="l">Information<br />officer</span>
           <span className="v">
             Stéan Bouwer
-            <span className="sub">Information Officer · Pleks (Pty) Ltd · May 2026</span>
+            <br /><span className="sub">Information Officer · Pleks (Pty) Ltd · 5 May 2026</span>
           </span>
         </div>
       </section>

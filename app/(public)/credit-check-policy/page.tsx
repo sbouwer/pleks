@@ -247,7 +247,7 @@ export default function CreditCheckPolicyPage() {
               <br /><span style={{ display: "block", fontSize: "12.5px", color: "var(--ink-mute)", fontFamily: "var(--pub-mono)" }}>declined or withdrawn applications</span>
             </span>
             <span className="basis">POPIA · s14</span>
-            <span className="span">12 months</span>
+            <span className="span">90 days</span>
           </div>
           <div className="ret-row">
             <span className="what">
