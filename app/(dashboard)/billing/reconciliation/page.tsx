@@ -11,7 +11,7 @@
 import React, { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useOrg } from "@/hooks/useOrg"
-import { Button } from "@/components/ui/button"
+import { ActionButton, InlineLink } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
@@ -20,7 +20,7 @@ import { Upload, Check, AlertTriangle, RefreshCw } from "lucide-react"
 import { createBankImport } from "@/lib/actions/recon"
 import { toast } from "sonner"
 import Link from "next/link"
-import { InlineLink } from "@/components/ui/actions"
+import { useRouter } from "next/navigation"
 import { DesktopOnlyCard } from "@/components/mobile/DesktopOnlyCard"
 
 interface ImportRecord {
@@ -58,6 +58,7 @@ const SOURCE_LABELS: Record<string, string> = {
 
 export default function ReconciliationPage() {
   const { orgId, org } = useOrg()
+  const router = useRouter()
   const [imports, setImports] = useState<ImportRecord[]>([])
   const [feedConnections, setFeedConnections] = useState<BankFeedConnection[]>([])
   const [uploading, setUploading] = useState(false)
@@ -167,12 +168,12 @@ export default function ReconciliationPage() {
                   )}
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => handleFeedSync(conn.id)}>
-                    <RefreshCw className="size-3.5 mr-1" /> Sync now
-                  </Button>
-                  <Button size="sm" variant="outline" render={<Link href="/settings/deposits" />}>
+                  <ActionButton tone="secondary" icon={<RefreshCw className="size-3.5" />} onClick={() => handleFeedSync(conn.id)}>
+                    Sync now
+                  </ActionButton>
+                  <ActionButton tone="secondary" onClick={() => router.push("/settings/deposits")}>
                     Manage
-                  </Button>
+                  </ActionButton>
                 </div>
               </div>
             ))}
@@ -192,10 +193,9 @@ export default function ReconciliationPage() {
                 OFX/CSV imports auto-match immediately.
               </p>
             </div>
-            <Button type="submit" disabled={uploading}>
-              <Upload className="h-4 w-4 mr-1" />
+            <ActionButton tone="primary" type="submit" disabled={uploading} icon={<Upload className="h-4 w-4" />}>
               {uploading ? "Uploading..." : "Upload"}
-            </Button>
+            </ActionButton>
           </form>
           {(tier === "steward" || tier === "firm" || tier === "portfolio") && feedConnections.length === 0 && (
             <p className="text-xs text-muted-foreground mt-3">
@@ -257,9 +257,9 @@ export default function ReconciliationPage() {
             <p className="text-sm text-muted-foreground">
               Upgrade to Steward for automatic daily bank feed sync (R250/account/month).
             </p>
-            <Button size="sm" className="mt-3" variant="outline" render={<Link href="/settings/subscription" />}>
+            <ActionButton tone="secondary" className="mt-3" onClick={() => router.push("/settings/subscription")}>
               View plans
-            </Button>
+            </ActionButton>
           </CardContent>
         </Card>
       )}

@@ -1,19 +1,17 @@
 "use client"
 
 /**
- * app/(dashboard)/settings/documents/templates/TemplatesClient.tsx — FILL: one-line purpose
+ * app/(dashboard)/settings/documents/templates/TemplatesClient.tsx — Communication template library: letters, emails, leases, WhatsApp
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /settings/documents/templates
+ * Auth:   gateway (dashboard layout)
+ * Data:   templates + favouriteIds fetched server-side and passed as props; mutations via server actions
  */
 
 import { useState, useTransition, useMemo } from "react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
@@ -552,12 +550,12 @@ function TemplateModal({
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={onClose} disabled={isPending}>
+            <ActionButton tone="secondary" onClick={onClose} disabled={isPending}>
               Cancel
-            </Button>
-            <Button onClick={handleSubmit} disabled={isPending || !name || !category}>
+            </ActionButton>
+            <ActionButton tone="primary" onClick={handleSubmit} disabled={isPending || !name || !category}>
               {isPending ? "Saving…" : "Save template"}
-            </Button>
+            </ActionButton>
           </div>
         </div>
       </DialogContent>
@@ -635,14 +633,13 @@ function LeaseTab({
                     {lease.description}
                   </p>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
+                <ActionButton
+                  tone="secondary"
                   className="shrink-0"
                   onClick={handlePreview}
                 >
                   Preview
-                </Button>
+                </ActionButton>
               </CardContent>
             </Card>
           ))}
@@ -659,9 +656,9 @@ function LeaseTab({
               <p className="text-xs text-muted-foreground mt-1">
                 Custom lease uploads are available on the Premium plan.
               </p>
-              <Button variant="outline" size="sm" className="mt-3">
+              <ActionButton tone="secondary" className="mt-3">
                 View upgrade options
-              </Button>
+              </ActionButton>
             </CardContent>
           </Card>
         )}
@@ -684,13 +681,12 @@ function LeaseTab({
                 )}
               </div>
               <div className="flex gap-2 shrink-0">
-                <Button
-                  variant="outline"
-                  size="sm"
+                <ActionButton
+                  tone="secondary"
                   onClick={handlePreview}
                 >
                   Preview
-                </Button>
+                </ActionButton>
                 <label className="cursor-pointer inline-flex h-7 items-center gap-1 rounded-[min(var(--radius-md),12px)] border border-border bg-background px-2.5 text-[0.8rem] font-medium transition-all hover:bg-muted">
                   Replace
                   <input
@@ -729,13 +725,12 @@ function LeaseTab({
                     disabled={isPending}
                   />
                 </label>
-                <Button
-                  variant="ghost"
-                  size="sm"
+                <ActionButton
+                  tone="secondary"
                   onClick={handleRequestPersonalisation}
                 >
                   Request Pleks personalisation
-                </Button>
+                </ActionButton>
               </div>
             </CardContent>
           </Card>
@@ -984,16 +979,16 @@ export function TemplatesClient({
         <TabsContent value="letters">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-sm">Letter templates</h2>
-            <Button
-              size="sm"
+            <ActionButton
+              tone="primary"
+              icon={<Plus className="size-4" />}
               onClick={() => {
                 setNewModalType("letter")
                 setShowNewModal(true)
               }}
             >
-              <Plus className="size-4 mr-1.5" />
               New template
-            </Button>
+            </ActionButton>
           </div>
           <TemplateList
             templates={letterTemplates}
@@ -1018,16 +1013,16 @@ export function TemplatesClient({
         <TabsContent value="emails">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-sm">Email templates</h2>
-            <Button
-              size="sm"
+            <ActionButton
+              tone="primary"
+              icon={<Plus className="size-4" />}
               onClick={() => {
                 setNewModalType("email")
                 setShowNewModal(true)
               }}
             >
-              <Plus className="size-4 mr-1.5" />
               New template
-            </Button>
+            </ActionButton>
           </div>
           <TemplateList
             templates={emailTemplates}

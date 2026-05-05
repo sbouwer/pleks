@@ -1,19 +1,19 @@
 "use client"
 
 /**
- * app/(dashboard)/billing/bulk-import/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/billing/bulk-import/page.tsx — Multi-step bulk payment import wizard: paste CSV, review matches, confirm payments
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /billing/bulk-import
+ * Auth:   gateway (dashboard layout)
+ * Data:   matchCsvRows + confirmBulkPayments server actions; CSV parsed client-side
+ * Notes:  Three-step flow: input → review → done; row matching uses exact/amount/none confidence levels
  */
 
 import { useState, useTransition } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { ArrowLeft, CheckCircle2, XCircle, AlertCircle, Loader2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { toast } from "sonner"
 import { matchCsvRows, confirmBulkPayments } from "./actions"
 import type { ParsedRow, MatchedRow, ConfirmedPayment } from "./actions"
@@ -112,6 +112,7 @@ function ConfidenceBadge({ confidence }: { confidence: MatchedRow["confidence"] 
 }
 
 export default function BulkImportPage() {
+  const router = useRouter()
   const [step, setStep] = useState<Step>("input")
   const [csvText, setCsvText] = useState("")
   const [matchedRows, setMatchedRows] = useState<MatchedRow[]>([])
@@ -195,12 +196,12 @@ export default function BulkImportPage() {
             <h1 className="font-heading text-2xl">{createdCount} payment{createdCount === 1 ? "" : "s"} recorded</h1>
             <p className="text-muted-foreground">All confirmed matches have been recorded and invoices updated.</p>
             <div className="flex gap-3 justify-center mt-6">
-              <Button onClick={() => { setStep("input"); setCsvText(""); setMatchedRows([]); setSelectedRows(new Set()) }}>
+              <ActionButton tone="primary" onClick={() => { setStep("input"); setCsvText(""); setMatchedRows([]); setSelectedRows(new Set()) }}>
                 Import more
-              </Button>
-              <Link href="/billing">
-                <Button variant="outline">View payments</Button>
-              </Link>
+              </ActionButton>
+              <ActionButton tone="secondary" onClick={() => router.push("/billing")}>
+                View payments
+              </ActionButton>
             </div>
           </div>
         </div>
@@ -230,10 +231,9 @@ export default function BulkImportPage() {
             <h1 className="font-heading text-2xl">Review matches</h1>
             <p className="text-muted-foreground text-sm">{matchedCount} of {matchedRows.length} rows matched · {selectedCount} selected</p>
           </div>
-          <Button onClick={handleConfirm} disabled={confirming || selectedCount === 0}>
-            {confirming && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+          <ActionButton tone="primary" onClick={handleConfirm} disabled={confirming || selectedCount === 0} icon={confirming ? <Loader2 className="h-4 w-4 animate-spin" /> : undefined}>
             {confirming ? "Recording…" : confirmLabel(selectedCount)}
-          </Button>
+          </ActionButton>
         </div>
 
         <div className="rounded-xl border bg-card overflow-hidden">
@@ -347,10 +347,9 @@ export default function BulkImportPage() {
               </p>
             </div>
 
-            <Button onClick={handleParse} disabled={matching || parseRows(csvText).length === 0} className="w-full">
-              {matching ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            <ActionButton tone="primary" onClick={handleParse} disabled={matching || parseRows(csvText).length === 0} className="w-full" icon={matching ? <Loader2 className="h-4 w-4 animate-spin" /> : undefined}>
               {matching ? "Matching…" : "Match rows →"}
-            </Button>
+            </ActionButton>
           </div>
         </div>
       </div>

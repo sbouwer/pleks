@@ -1,17 +1,15 @@
 "use client"
 
 /**
- * app/(dashboard)/settings/import/_components/Step1Detected.tsx — FILL: one-line purpose
+ * app/(dashboard)/settings/import/_components/Step1Detected.tsx — Display detected entity types and columns from the uploaded CSV
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /settings/import (step 1 of tenant/lease import wizard)
+ * Auth:   gateway (dashboard layout)
+ * Data:   AnalysisResult from client-side CSV analysis passed as prop
  */
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Users, Building2, FileText, ArrowLeft, ArrowRight, Info, Wrench, UserCheck } from "lucide-react"
 import type { AnalysisResult } from "../page"
 
@@ -137,12 +135,12 @@ export function Step1Detected({ analysis, onBack, onContinue }: Readonly<Step1De
       )}
 
       <div className="flex gap-3">
-        <Button variant="outline" onClick={onBack}>
-          <ArrowLeft className="size-4 mr-1" /> Upload different file
-        </Button>
-        <Button onClick={onContinue} className="flex-1">
-          Map columns <ArrowRight className="size-4 ml-1" />
-        </Button>
+        <ActionButton tone="secondary" icon={<ArrowLeft className="size-4" />} onClick={onBack}>
+          Upload different file
+        </ActionButton>
+        <ActionButton tone="primary" icon={<ArrowRight className="size-4" />} onClick={onContinue} className="flex-1">
+          Map columns
+        </ActionButton>
       </div>
     </div>
   )

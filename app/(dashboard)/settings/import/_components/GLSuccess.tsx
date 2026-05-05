@@ -1,19 +1,17 @@
 "use client"
 
 /**
- * app/(dashboard)/settings/import/_components/GLSuccess.tsx — FILL: one-line purpose
+ * app/(dashboard)/settings/import/_components/GLSuccess.tsx — Success screen after GL history import completes
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /settings/import (final step of GL import wizard)
+ * Auth:   gateway (dashboard layout)
+ * Data:   GLImportResultData passed as prop from GLReview after successful POST
  */
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Card, CardContent } from "@/components/ui/card"
 import { CheckCircle2, AlertTriangle, ChevronDown, ChevronUp } from "lucide-react"
-import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { formatZAR } from "@/lib/constants"
 import type { GLImportResultData } from "./GLReview"
 
@@ -23,6 +21,7 @@ interface GLSuccessProps {
 }
 
 export function GLSuccess({ result, onReset }: Readonly<GLSuccessProps>) {
+  const router = useRouter()
   const [showErrors, setShowErrors] = useState(false)
   const hasRecords = result.transactionsCreated > 0 || result.depositsCreated > 0
 
@@ -88,8 +87,8 @@ export function GLSuccess({ result, onReset }: Readonly<GLSuccessProps>) {
       )}
 
       <div className="flex flex-col gap-3">
-        <Button render={<Link href="/dashboard" />}>View dashboard</Button>
-        <Button variant="outline" onClick={onReset}>Import another file</Button>
+        <ActionButton tone="primary" onClick={() => router.push("/dashboard")}>View dashboard</ActionButton>
+        <ActionButton tone="secondary" onClick={onReset}>Import another file</ActionButton>
       </div>
     </div>
   )

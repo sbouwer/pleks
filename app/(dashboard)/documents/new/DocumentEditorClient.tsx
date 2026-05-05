@@ -1,18 +1,17 @@
 "use client"
 
 /**
- * app/(dashboard)/documents/new/DocumentEditorClient.tsx — FILL: one-line purpose
+ * app/(dashboard)/documents/new/DocumentEditorClient.tsx — Split-pane document editor: template picker, rich text body, merge fields, live preview, and send/download actions
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /documents/new
+ * Auth:   dashboard layout (gateway)
+ * Data:   allTemplates and optional leaseContext from server page; CS window fetched client-side via getActiveCsWindow
+ * Notes:  merge fields are inserted at cursor via RichTextEditorHandle ref; PDF generation opens a print-ready tab that auto-triggers window.print()
  */
 
 import { useState, useEffect, useTransition, useRef } from "react"
 import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Send, FileDown, Save, AlertTriangle } from "lucide-react"
@@ -112,9 +111,9 @@ function resolvePreview(body: string, values: Record<string, string>): string {
 
 function LegalFlagBanner({
   flag,
-}: {
+}: Readonly<{
   flag: "wet_ink_only" | "aes_recommended" | null
-}) {
+}>) {
   if (!flag) return null
 
   if (flag === "wet_ink_only") {
@@ -158,7 +157,7 @@ function PreviewPane({
   signatureUrl,
   leaseContext,
   legalFlag,
-}: PreviewPaneProps) {
+}: Readonly<PreviewPaneProps>) {
   const previewValues = buildPreviewValues(leaseContext, agentName)
   const resolvedHtml = resolvePreview(bodyHtml, previewValues)
 
@@ -243,7 +242,7 @@ export function DocumentEditorClient({
   signatureContext,
   orgName,
   agentName,
-}: DocumentEditorClientProps) {
+}: Readonly<DocumentEditorClientProps>) {
   const [activeTemplate, setActiveTemplate] = useState<DocumentTemplate | null>(
     initialTemplate
   )
@@ -450,48 +449,45 @@ export function DocumentEditorClient({
       {/* ── Action bar ── */}
       <div className="shrink-0 flex items-center justify-between gap-3 py-3 px-1 border-t border-border mt-3">
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
+          <ActionButton
+            tone="secondary"
+            icon={<Save className="size-4" />}
             onClick={handleSaveDraft}
             disabled={isPending}
           >
-            <Save className="size-4 mr-1.5" />
             Save draft
-          </Button>
+          </ActionButton>
         </div>
         <div className="flex items-center gap-2">
           {csWindow.isActive && csWindow.expiresAt && (
             <>
-              <Button
-                variant="outline"
-                size="sm"
+              <ActionButton
+                tone="secondary"
                 onClick={() => toast.info("Free-text WhatsApp available — coming soon")}
               >
                 Send via WhatsApp
-              </Button>
+              </ActionButton>
               <span className="text-xs text-muted-foreground">
                 Free window: {formatTimeRemaining(csWindow.expiresAt)}
               </span>
             </>
           )}
-          <Button
-            variant="outline"
-            size="sm"
+          <ActionButton
+            tone="secondary"
+            icon={<FileDown className="size-4" />}
             onClick={handleDownloadPdf}
             disabled={isPending}
           >
-            <FileDown className="size-4 mr-1.5" />
             Download PDF
-          </Button>
-          <Button
-            size="sm"
+          </ActionButton>
+          <ActionButton
+            tone="primary"
+            icon={<Send className="size-4" />}
             onClick={handleSaveAndEmail}
             disabled={isPending || !recipientEmail}
           >
-            <Send className="size-4 mr-1.5" />
             {isPending ? "Sending…" : "Save & email"}
-          </Button>
+          </ActionButton>
         </div>
       </div>
     </div>

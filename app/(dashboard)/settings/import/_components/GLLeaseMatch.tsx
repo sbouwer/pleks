@@ -1,17 +1,15 @@
 "use client"
 
 /**
- * app/(dashboard)/settings/import/_components/GLLeaseMatch.tsx — FILL: one-line purpose
+ * app/(dashboard)/settings/import/_components/GLLeaseMatch.tsx — Match GL property blocks to existing Pleks leases
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /settings/import (step within GL import wizard)
+ * Auth:   gateway (dashboard layout)
+ * Data:   leases fetched from /api/leases/list-for-match; GL blocks passed as props
  */
 import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react"
 import type { GLPropertyBlock } from "@/lib/import/parseGLReport"
@@ -156,12 +154,12 @@ export function GLLeaseMatch({ blocks, onBack, onConfirm }: Readonly<GLLeaseMatc
       )}
 
       <div className="flex gap-3">
-        <Button variant="outline" onClick={onBack}>
-          <ArrowLeft className="size-4 mr-1" /> Back
-        </Button>
-        <Button onClick={() => onConfirm(leaseMatches, propertyMatches)} className="flex-1" disabled={leases.length === 0}>
-          Review transactions <ArrowRight className="size-4 ml-1" />
-        </Button>
+        <ActionButton tone="secondary" icon={<ArrowLeft className="size-4" />} onClick={onBack}>
+          Back
+        </ActionButton>
+        <ActionButton tone="primary" icon={<ArrowRight className="size-4" />} onClick={() => onConfirm(leaseMatches, propertyMatches)} className="flex-1" disabled={leases.length === 0}>
+          Review transactions
+        </ActionButton>
       </div>
     </div>
   )

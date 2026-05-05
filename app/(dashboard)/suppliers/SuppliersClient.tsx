@@ -10,8 +10,7 @@
 
 import { useState } from "react"
 import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { EditButton, IconButton } from "@/components/ui/actions"
+import { ActionButton, EditButton, IconButton } from "@/components/ui/actions"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
@@ -395,9 +394,9 @@ export function AddContractorButton({ orgId, supplierType = "contractor" }: Read
 
   if (!open) {
     return (
-      <Button size="sm" onClick={() => setOpen(true)}>
-        <Plus className="size-4 mr-1" /> Add {label}
-      </Button>
+      <ActionButton tone="primary" icon={<Plus className="size-4" />} onClick={() => setOpen(true)}>
+        Add {label}
+      </ActionButton>
     )
   }
 
@@ -406,9 +405,7 @@ export function AddContractorButton({ orgId, supplierType = "contractor" }: Read
       <CardContent className="pt-4 space-y-3">
         <div className="flex items-center justify-between">
           <p className="text-sm font-medium">Add {label.toLowerCase()}</p>
-          <Button variant="ghost" size="icon" className="size-7" onClick={() => setOpen(false)}>
-            <X className="size-4" />
-          </Button>
+          <IconButton icon={<X className="size-4" />} label="Close" onClick={() => setOpen(false)} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
@@ -436,9 +433,9 @@ export function AddContractorButton({ orgId, supplierType = "contractor" }: Read
           <Label className="text-xs">Specialities</Label>
           <SpecialityPicker value={specialities} onChange={setSpecialities} />
         </div>
-        <Button size="sm" onClick={handleSubmit} disabled={saving || (!firstName.trim() && !companyName.trim())}>
+        <ActionButton tone="primary" onClick={handleSubmit} disabled={saving || (!firstName.trim() && !companyName.trim())}>
           {saving ? "Adding…" : `Add ${label.toLowerCase()}`}
-        </Button>
+        </ActionButton>
       </CardContent>
     </Card>
   )

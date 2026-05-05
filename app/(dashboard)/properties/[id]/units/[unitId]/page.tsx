@@ -1,16 +1,14 @@
 /**
- * app/(dashboard)/properties/[id]/units/[unitId]/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/[id]/units/[unitId]/page.tsx — Unit detail page: edit fields, manage listing, inspection profile, clause overrides, and status history
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties/[id]/units/[unitId]
+ * Auth:   dashboard layout (gateway); redirects to /login if no user, /onboarding if no org
+ * Data:   unit + property from supabase; team members, listing, prime rate, furnishings, active lease, inspection profile via parallel fetches
+ * Notes:  updateUnit server action is bound to (unitId, propertyId) so UnitForm posts to the correct record
  */
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { Calendar, Wrench, FileText } from "lucide-react"
@@ -200,19 +198,19 @@ export default async function UnitDetailPage({
 
       {/* Quick actions */}
       <div className="flex flex-wrap gap-2 mt-4 mb-6">
-        <Button variant="outline" size="sm" render={<Link href={`/inspections/new?unitId=${unitId}`} />}>
-          <Calendar className="h-3.5 w-3.5 mr-1.5" />
+        <Link href={`/inspections/new?unitId=${unitId}`} className="pa-secondary">
+          <Calendar className="h-3.5 w-3.5" />
           Schedule inspection
-        </Button>
-        <Button variant="outline" size="sm" render={<Link href={`/maintenance/new?unitId=${unitId}`} />}>
-          <Wrench className="h-3.5 w-3.5 mr-1.5" />
+        </Link>
+        <Link href={`/maintenance/new?unitId=${unitId}`} className="pa-secondary">
+          <Wrench className="h-3.5 w-3.5" />
           Log maintenance
-        </Button>
+        </Link>
         {leaseId && (
-          <Button variant="outline" size="sm" render={<Link href={`/leases/${leaseId}`} />}>
-            <FileText className="h-3.5 w-3.5 mr-1.5" />
+          <Link href={`/leases/${leaseId}`} className="pa-secondary">
+            <FileText className="h-3.5 w-3.5" />
             View lease
-          </Button>
+          </Link>
         )}
       </div>
 

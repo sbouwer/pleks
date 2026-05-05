@@ -1,15 +1,14 @@
 "use client"
 
 /**
- * app/(dashboard)/inspections/[inspectionId]/InspectionActions.tsx — FILL: one-line purpose
+ * app/(dashboard)/inspections/[inspectionId]/InspectionActions.tsx — Status-transition action buttons for an inspection (start, complete, finalise)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /inspections/[inspectionId]
+ * Auth:   gateway (dashboard layout)
+ * Data:   updateInspectionStatus server action
+ * Notes:  Available actions depend on current status and lease type (residential opens dispute window on complete)
  */
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { updateInspectionStatus } from "@/lib/actions/inspections"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -36,24 +35,24 @@ export function InspectionActions({ inspectionId, status, leaseType }: Inspectio
   return (
     <div className="flex flex-wrap gap-2">
       {status === "scheduled" && (
-        <Button size="sm" onClick={() => handleStatusChange("in_progress")}>
+        <ActionButton tone="primary" onClick={() => handleStatusChange("in_progress")}>
           Start Inspection
-        </Button>
+        </ActionButton>
       )}
       {status === "in_progress" && (
-        <Button size="sm" onClick={() => handleStatusChange("completed")}>
+        <ActionButton tone="primary" onClick={() => handleStatusChange("completed")}>
           {leaseType === "residential" ? "Complete & Open Dispute Window" : "Mark Complete"}
-        </Button>
+        </ActionButton>
       )}
       {(status === "awaiting_tenant_review" || status === "dispute_resolved") && (
-        <Button size="sm" onClick={() => handleStatusChange("finalised")}>
+        <ActionButton tone="primary" onClick={() => handleStatusChange("finalised")}>
           Finalise Inspection
-        </Button>
+        </ActionButton>
       )}
       {status === "completed" && leaseType === "commercial" && (
-        <Button size="sm" onClick={() => handleStatusChange("finalised")}>
+        <ActionButton tone="primary" onClick={() => handleStatusChange("finalised")}>
           Finalise
-        </Button>
+        </ActionButton>
       )}
     </div>
   )

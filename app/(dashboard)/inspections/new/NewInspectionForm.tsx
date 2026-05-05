@@ -10,7 +10,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
@@ -556,9 +556,9 @@ export function NewInspectionForm({
       {error && <p className="text-sm text-danger">{error}</p>}
 
       <div className="flex justify-end pt-2">
-        <Button onClick={handleSubmit} disabled={loading || profileExists === false} size="lg">
+        <ActionButton tone="primary" onClick={handleSubmit} disabled={loading || profileExists === false}>
           {loading ? "Creating…" : "Schedule inspection"}
-        </Button>
+        </ActionButton>
       </div>
     </div>
   )

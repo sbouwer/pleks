@@ -1,13 +1,12 @@
 "use client"
 
 /**
- * app/(dashboard)/properties/[id]/UnitsTab.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/[id]/UnitsTab.tsx — Units tab for a property detail page; lists, groups, and archives units
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties/[id] (tab component)
+ * Auth:   dashboard layout (gateway)
+ * Data:   units/archivedUnits/buildings props from server page; tenantByUnit and maintenanceByUnit lookup maps
+ * Notes:  tier="owner" hides add-unit and add-building actions; multi-building grouping activates at ≥2 visible buildings
  */
 import { useState } from "react"
 import Link from "next/link"
@@ -15,7 +14,7 @@ import { useRouter } from "next/navigation"
 import { ChevronDown, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatZAR } from "@/lib/constants"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { getUnitDescription } from "@/lib/units/typeAwareFields"
 import { AddUnitDialog } from "@/components/properties/AddUnitDialog"
 import { EnableMultiBuildingDialog } from "@/components/properties/EnableMultiBuildingDialog"
@@ -223,14 +222,14 @@ export function UnitsTab({
             propertyId={propertyId}
             propertyType={propertyType}
             buildings={visibleBuildings}
-            trigger={<Button size="sm">+ Add unit</Button>}
+            trigger={<ActionButton tone="primary">+ Add unit</ActionButton>}
             onSuccess={() => router.refresh()}
             onRequestMultiBuilding={multiBuildingEnabled ? undefined : () => setEnableMultiOpen(true)}
           />
           {multiBuildingEnabled && (
-            <Button size="sm" variant="outline" render={<Link href={`/properties/${propertyId}/buildings/new`} />}>
+            <ActionButton tone="secondary" onClick={() => router.push(`/properties/${propertyId}/buildings/new`)}>
               + Add building
-            </Button>
+            </ActionButton>
           )}
         </div>
       )}

@@ -1,16 +1,15 @@
 "use client"
 
 /**
- * app/(dashboard)/inspections/[inspectionId]/RescheduleRequestsPanel.tsx — FILL: one-line purpose
+ * app/(dashboard)/inspections/[inspectionId]/RescheduleRequestsPanel.tsx — Panel displaying tenant reschedule requests with approve/decline/counter response flow
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /inspections/[inspectionId]
+ * Auth:   gateway (dashboard layout)
+ * Data:   respondToRescheduleRequest server action; requests passed as props from parent page
+ * Notes:  Pending requests shown first; resolved requests shown in a separate section below
  */
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
@@ -155,21 +154,21 @@ function RequestCard({ req, inspectionId }: Readonly<{ req: RescheduleRequest; i
             </div>
 
             <div className="flex gap-2">
-              <Button
-                size="sm"
+              <ActionButton
+                tone="primary"
                 onClick={handleSubmit}
                 disabled={!action || (action === "countered" && !counterDate) || saving}
+                icon={saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : undefined}
               >
-                {saving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
                 Confirm
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setResponding(false)}>Cancel</Button>
+              </ActionButton>
+              <ActionButton tone="secondary" onClick={() => setResponding(false)}>Cancel</ActionButton>
             </div>
           </div>
         ) : (
-          <Button size="sm" variant="outline" onClick={() => setResponding(true)}>
+          <ActionButton tone="secondary" onClick={() => setResponding(true)}>
             Respond
-          </Button>
+          </ActionButton>
         )
       )}
     </div>

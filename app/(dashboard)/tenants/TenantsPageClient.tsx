@@ -1,18 +1,17 @@
 "use client"
 
 /**
- * app/(dashboard)/tenants/TenantsPageClient.tsx — FILL: one-line purpose
+ * app/(dashboard)/tenants/TenantsPageClient.tsx — Tenants page shell: fetches tenant list via React Query and renders the searchable TenantsClient table or an empty state
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /tenants
+ * Auth:   dashboard layout (gateway)
+ * Data:   tenant list from fetchTenantsAction (server action); cached under PORTFOLIO_QUERY_KEYS.tenants(orgId)
+ * Notes:  loading state renders nothing (body = null) to avoid flash; TenantsClient receives the stable query result
  */
 import React from "react"
 import { useQuery } from "@tanstack/react-query"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
+import { useRouter } from "next/navigation"
+import { ActionButton } from "@/components/ui/actions"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { Users, Plus } from "lucide-react"
 import { TenantsClient } from "./TenantsClient"
@@ -21,7 +20,8 @@ import { fetchTenantsAction } from "@/lib/queries/portfolioActions"
 
 interface Props { orgId: string }
 
-export function TenantsPageClient({ orgId }: Props) {
+export function TenantsPageClient({ orgId }: Readonly<Props>) {
+  const router = useRouter()
   const { data: tenants = [], isLoading } = useQuery({
     queryKey: PORTFOLIO_QUERY_KEYS.tenants(orgId),
     queryFn: () => fetchTenantsAction(orgId),
@@ -50,9 +50,9 @@ export function TenantsPageClient({ orgId }: Props) {
           <h1 className="font-heading text-3xl">Tenants</h1>
           <p className="text-sm text-muted-foreground">{tenants.length} tenants</p>
         </div>
-        <Button render={<Link href="/tenants/new" />}>
-          <Plus className="h-4 w-4 mr-1" /> Add Tenant
-        </Button>
+        <ActionButton tone="primary" icon={<Plus className="h-4 w-4" />} onClick={() => router.push("/tenants/new")}>
+          Add Tenant
+        </ActionButton>
       </div>
       {body}
     </div>

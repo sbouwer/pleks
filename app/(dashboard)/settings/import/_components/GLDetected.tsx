@@ -1,17 +1,15 @@
 "use client"
 
 /**
- * app/(dashboard)/settings/import/_components/GLDetected.tsx — FILL: one-line purpose
+ * app/(dashboard)/settings/import/_components/GLDetected.tsx — Summary of parsed TPN GL blocks before proceeding to lease matching
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /settings/import (step within GL import wizard)
+ * Auth:   gateway (dashboard layout)
+ * Data:   GLPropertyBlock[] parsed client-side from uploaded file
  */
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { ArrowLeft, ArrowRight, AlertTriangle } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import type { GLPropertyBlock } from "@/lib/import/parseGLReport"
@@ -86,12 +84,12 @@ export function GLDetected({ blocks, filename, onBack, onContinue }: Readonly<GL
       )}
 
       <div className="flex gap-3">
-        <Button variant="outline" onClick={onBack}>
-          <ArrowLeft className="size-4 mr-1" /> Upload different file
-        </Button>
-        <Button onClick={onContinue} className="flex-1">
-          Match to leases <ArrowRight className="size-4 ml-1" />
-        </Button>
+        <ActionButton tone="secondary" icon={<ArrowLeft className="size-4" />} onClick={onBack}>
+          Upload different file
+        </ActionButton>
+        <ActionButton tone="primary" icon={<ArrowRight className="size-4" />} onClick={onContinue} className="flex-1">
+          Match to leases
+        </ActionButton>
       </div>
     </div>
   )

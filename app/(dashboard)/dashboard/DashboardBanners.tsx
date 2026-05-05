@@ -1,17 +1,15 @@
 "use client"
 
 /**
- * app/(dashboard)/dashboard/DashboardBanners.tsx — FILL: one-line purpose
+ * app/(dashboard)/dashboard/DashboardBanners.tsx — Trial expiry and trust-account setup banners rendered at the top of the dashboard
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /dashboard (banner component)
+ * Auth:   dashboard layout (gateway)
+ * Data:   props from server page: trial status, days remaining, tier, founding-agent flag
+ * Notes:  trial card colour shifts red at ≤2 days remaining; upgrade CTA tone matches urgency
  */
 
 import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { AlertTriangle, Clock, Sparkles } from "lucide-react"
 import Link from "next/link"
 
@@ -97,13 +95,12 @@ export function DashboardBanners({ showTrustBanner, isTrialing, trialDaysLeft, t
                 foundingPriceCents={foundingPriceCents}
               />
             </div>
-            <Button
-              size="sm"
-              variant={trialDaysLeft <= 2 ? "destructive" : "default"}
-              render={<Link href="/settings/subscription" />}
+            <Link
+              href="/settings/subscription"
+              className={trialDaysLeft <= 2 ? "pa-destructive" : "pa-primary"}
             >
               {trialDaysLeft <= 7 ? "Upgrade now" : "Upgrade"}
-            </Button>
+            </Link>
           </CardContent>
         </Card>
       )}
@@ -119,9 +116,9 @@ export function DashboardBanners({ showTrustBanner, isTrialing, trialDaysLeft, t
                 Add your trust account to unlock full deposit management.
               </p>
             </div>
-            <Button size="sm" variant="outline" render={<Link href="/settings/compliance" />}>
+            <Link href="/settings/compliance" className="pa-secondary">
               Add Account
-            </Button>
+            </Link>
           </CardContent>
         </Card>
       )}

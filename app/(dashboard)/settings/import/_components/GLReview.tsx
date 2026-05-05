@@ -1,17 +1,15 @@
 "use client"
 
 /**
- * app/(dashboard)/settings/import/_components/GLReview.tsx — FILL: one-line purpose
+ * app/(dashboard)/settings/import/_components/GLReview.tsx — Review matched GL transactions and execute the import
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /settings/import (step within GL import wizard)
+ * Auth:   gateway (dashboard layout)
+ * Data:   GL blocks + lease/property match maps passed as props; POSTs to /api/import/gl-execute
  */
 import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, Loader2 } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
@@ -159,16 +157,12 @@ export function GLReview({ blocks, leaseMatches, propertyMatches, onBack, onImpo
       )}
 
       <div className="flex gap-3">
-        <Button variant="outline" onClick={onBack} disabled={loading}>
-          <ArrowLeft className="size-4 mr-1" /> Back
-        </Button>
-        <Button onClick={handleImport} className="flex-1" disabled={loading}>
-          {loading ? (
-            <><Loader2 className="size-4 mr-2 animate-spin" /> Importing...</>
-          ) : (
-            "Import GL history"
-          )}
-        </Button>
+        <ActionButton tone="secondary" icon={<ArrowLeft className="size-4" />} onClick={onBack} disabled={loading}>
+          Back
+        </ActionButton>
+        <ActionButton tone="primary" icon={loading ? <Loader2 className="size-4 animate-spin" /> : undefined} onClick={handleImport} className="flex-1" disabled={loading}>
+          {loading ? "Importing..." : "Import GL history"}
+        </ActionButton>
       </div>
     </div>
   )

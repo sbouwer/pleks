@@ -1,13 +1,11 @@
 "use client"
 
 /**
- * app/(dashboard)/settings/subscription/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/settings/subscription/page.tsx — Billing and subscription management: plan, usage, founding agent pricing
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /settings/subscription
+ * Auth:   gateway (dashboard layout)
+ * Data:   tier/status from useTier hook; founding agent fields from Supabase organisations table; usage from billing actions
  */
 
 import { useEffect, useState } from "react"
@@ -16,7 +14,7 @@ import { useOrg } from "@/hooks/useOrg"
 import { TIER_PRICING, TIER_LIMITS, formatZAR } from "@/lib/constants"
 import { TIER_FEATURES } from "@/lib/tier/gates"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Check, Sparkles, Award } from "lucide-react"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { createClient } from "@/lib/supabase/client"
@@ -217,9 +215,9 @@ export default function BillingPage() {
               </ul>
             </div>
 
-            <Button className="w-full">
+            <ActionButton tone="primary" className="w-full">
               Upgrade to {trialTier ?? "Steward"} — {formatZAR(monthlyPrice)}/month
-            </Button>
+            </ActionButton>
             <p className="text-xs text-muted-foreground text-center">
               No credit card required until you upgrade.
             </p>
@@ -296,9 +294,9 @@ export default function BillingPage() {
               </ul>
             </div>
 
-            {tier !== "firm" && <Button className="w-full">Upgrade Plan</Button>}
+            {tier !== "firm" && <ActionButton tone="primary" className="w-full">Upgrade Plan</ActionButton>}
             {tier !== "owner" && (
-              <Button variant="outline" className="w-full">Cancel Subscription</Button>
+              <ActionButton tone="secondary" className="w-full">Cancel Subscription</ActionButton>
             )}
           </CardContent>
         </Card>

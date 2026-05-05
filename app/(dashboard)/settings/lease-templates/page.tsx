@@ -11,7 +11,6 @@ import { useState, useEffect, useCallback } from "react"
 import { LeaseDisclaimerGate } from "@/components/leases/LeaseDisclaimerGate"
 import { LeaseTemplateIntro } from "@/components/leases/LeaseTemplateIntro"
 import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -19,8 +18,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ClauseConfigurator } from "@/components/leases/ClauseConfigurator"
 import { LeaseBrandingSection } from "@/components/leases/LeaseBrandingSection"
 import { LeasePreview } from "@/components/leases/LeasePreview"
-import Link from "next/link"
-import { InlineLink } from "@/components/ui/actions"
+import { ActionButton, InlineLink } from "@/components/ui/actions"
+import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Eye, ExternalLink } from "lucide-react"
 import { useIsMobile } from "@/hooks/useIsMobile"
@@ -35,6 +34,7 @@ interface OrgInfo {
 }
 
 export default function LeaseTemplatesPage() {
+  const router = useRouter()
   const isMobile = useIsMobile()
   const [leaseType, setLeaseType] = useState("residential")
   const [orgInfo, setOrgInfo] = useState<OrgInfo | null>(null)
@@ -150,9 +150,9 @@ export default function LeaseTemplatesPage() {
               day: "numeric", month: "long", year: "numeric",
             })}
           </span>
-          <Button variant="ghost" size="sm" className="text-xs h-auto py-0" onClick={() => setShowConfirmRecord(true)}>
+          <ActionButton tone="secondary" onClick={() => setShowConfirmRecord(true)}>
             View record
-          </Button>
+          </ActionButton>
         </div>
       )}
 
@@ -169,9 +169,9 @@ export default function LeaseTemplatesPage() {
               <TabsTrigger value="commercial">Commercial</TabsTrigger>
             </TabsList>
           </Tabs>
-          <Button variant="outline" size="sm" onClick={() => setShowPreview(true)}>
-            <Eye className="size-4 mr-1.5" /> Preview lease
-          </Button>
+          <ActionButton tone="secondary" icon={<Eye className="size-4" />} onClick={() => setShowPreview(true)}>
+            Preview lease
+          </ActionButton>
         </div>
 
         {/* Sub-tabs */}
@@ -221,10 +221,9 @@ export default function LeaseTemplatesPage() {
                         <p className="text-sm font-medium">{a.title}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">{a.desc}</p>
                         {a.link && (
-                          <Button variant="link" size="sm" className="h-auto p-0 text-xs text-brand mt-1"
-                            render={<Link href={a.link.href} />}>
-                            {a.link.text} <ExternalLink className="size-3 ml-1" />
-                          </Button>
+                          <ActionButton tone="secondary" icon={<ExternalLink className="size-3" />} onClick={() => router.push(a.link.href)} className="mt-1">
+                            {a.link.text}
+                          </ActionButton>
                         )}
                       </div>
                     </div>
@@ -242,10 +241,10 @@ export default function LeaseTemplatesPage() {
                     <div className="w-2 h-2 rounded-full bg-green-500" />
                     <p className="text-sm font-medium">Custom lease template active</p>
                   </div>
-                  <Button variant="outline" size="sm"
+                  <ActionButton tone="secondary"
                     onClick={() => window.open("mailto:support@pleks.co.za?subject=Custom lease update request", "_blank")}>
                     Request update
-                  </Button>
+                  </ActionButton>
                 </CardContent>
               </Card>
             ) : (
@@ -262,9 +261,9 @@ export default function LeaseTemplatesPage() {
                       <p className="text-xs text-brand mt-2 font-medium">Once-off configuration fee: R 1,000 excl. VAT</p>
                     </div>
                     {!showRequestForm && (
-                      <Button variant="outline" size="sm" className="shrink-0" onClick={() => setShowRequestForm(true)}>
+                      <ActionButton tone="secondary" className="shrink-0" onClick={() => setShowRequestForm(true)}>
                         Request configuration
-                      </Button>
+                      </ActionButton>
                     )}
                   </div>
 
@@ -302,10 +301,10 @@ export default function LeaseTemplatesPage() {
                         3 business days of payment.
                       </p>
                       <div className="flex gap-3">
-                        <Button variant="outline" onClick={() => setShowRequestForm(false)}>Cancel</Button>
-                        <Button disabled={!templateConfirmed || !file || loading} onClick={handleSubmitRequest}>
+                        <ActionButton tone="secondary" onClick={() => setShowRequestForm(false)}>Cancel</ActionButton>
+                        <ActionButton tone="primary" disabled={!templateConfirmed || !file || loading} onClick={handleSubmitRequest}>
                           {loading ? "Submitting..." : "Submit request"}
-                        </Button>
+                        </ActionButton>
                       </div>
                     </div>
                   )}

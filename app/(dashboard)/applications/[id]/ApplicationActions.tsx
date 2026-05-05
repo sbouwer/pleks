@@ -1,15 +1,14 @@
 "use client"
 
 /**
- * app/(dashboard)/applications/[id]/ApplicationActions.tsx — FILL: one-line purpose
+ * app/(dashboard)/applications/[id]/ApplicationActions.tsx — Approve, decline, and shortlist actions for a rental application
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /applications/[id]
+ * Auth:   gateway (dashboard layout)
+ * Data:   applicationActions server actions; createTenantFromApplication; sendShortlistInvitation; Supabase client for immigration confirmation
+ * Notes:  Foreign national applications require immigration compliance confirmed before shortlisting
  */
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { sendShortlistInvitation } from "@/lib/screening/sendShortlistInvitation"
 import { declineStage1Action, approveAction, declineStage2Action } from "@/lib/applications/applicationActions"
 import { createTenantFromApplication } from "@/lib/applications/createTenantFromApplication"
@@ -108,20 +107,20 @@ export function ApplicationActions({
   return (
     <div className="flex flex-wrap gap-2">
       {isForeignNational && !immigrationConfirmed && (
-        <Button size="sm" variant="outline" onClick={handleConfirmImmigration}>
+        <ActionButton tone="secondary" onClick={handleConfirmImmigration}>
           Confirm Immigration Docs
-        </Button>
+        </ActionButton>
       )}
       {stage1Status === "pre_screen_complete" && !stage2Status && (
         <>
-          <Button size="sm" onClick={handleShortlist}>Invite to Credit Check</Button>
-          <Button size="sm" variant="outline" onClick={handleDecline}>Decline</Button>
+          <ActionButton tone="primary" onClick={handleShortlist}>Invite to Credit Check</ActionButton>
+          <ActionButton tone="secondary" onClick={handleDecline}>Decline</ActionButton>
         </>
       )}
       {stage2Status === "screening_complete" && (
         <>
-          <Button size="sm" onClick={handleApprove}>Approve</Button>
-          <Button size="sm" variant="outline" onClick={handleDeclineStage2}>Decline</Button>
+          <ActionButton tone="primary" onClick={handleApprove}>Approve</ActionButton>
+          <ActionButton tone="destructive" onClick={handleDeclineStage2}>Decline</ActionButton>
         </>
       )}
     </div>

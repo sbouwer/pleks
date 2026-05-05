@@ -1,16 +1,14 @@
 "use client"
 
 /**
- * app/(dashboard)/settings/import/_components/Step3ExpiredLeases.tsx — FILL: one-line purpose
+ * app/(dashboard)/settings/import/_components/Step3ExpiredLeases.tsx — Handle expired leases found in import CSV: skip or import as expired
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /settings/import (step 3 of tenant/lease import wizard; auto-skipped if no expired leases)
+ * Auth:   gateway (dashboard layout)
+ * Data:   CSV rows + column mapping passed as props; expired rows filtered client-side by lease_end date
  */
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, ArrowRight, AlertTriangle } from "lucide-react"
@@ -124,12 +122,12 @@ export function Step3ExpiredLeases({ rows, mapping, onBack, onConfirm }: Readonl
       </Card>
 
       <div className="flex gap-3">
-        <Button variant="outline" onClick={onBack}>
-          <ArrowLeft className="size-4 mr-1" /> Back
-        </Button>
-        <Button onClick={() => onConfirm(action, overrides)} className="flex-1">
-          Continue <ArrowRight className="size-4 ml-1" />
-        </Button>
+        <ActionButton tone="secondary" icon={<ArrowLeft className="size-4" />} onClick={onBack}>
+          Back
+        </ActionButton>
+        <ActionButton tone="primary" icon={<ArrowRight className="size-4" />} onClick={() => onConfirm(action, overrides)} className="flex-1">
+          Continue
+        </ActionButton>
       </div>
     </div>
   )

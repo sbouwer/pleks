@@ -1,17 +1,15 @@
 "use client"
 
 /**
- * app/(dashboard)/settings/import/_components/Step2Mapping.tsx — FILL: one-line purpose
+ * app/(dashboard)/settings/import/_components/Step2Mapping.tsx — Column-to-field mapping for tenant/lease CSV import
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /settings/import (step 2 of tenant/lease import wizard)
+ * Auth:   gateway (dashboard layout)
+ * Data:   CSV headers + sample rows + initial mapping suggestions passed as props from page analysis
  */
 
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -185,13 +183,12 @@ export function Step2Mapping({
               Imported bank details are marked as unverified until confirmed.
             </p>
             <div className="flex gap-3">
-              <Button size="sm" onClick={() => { setBankNoticeShown(true); setBankImportAccepted(true) }}>
+              <ActionButton tone="primary" onClick={() => { setBankNoticeShown(true); setBankImportAccepted(true) }}>
                 Import bank details securely
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => {
+              </ActionButton>
+              <ActionButton tone="secondary" onClick={() => {
                 setBankNoticeShown(true)
                 setBankImportAccepted(false)
-                // Set all bank columns to skip
                 const updated = { ...mapping }
                 for (const [col, m] of Object.entries(updated)) {
                   if (m.entity === "bank") delete updated[col]
@@ -199,7 +196,7 @@ export function Step2Mapping({
                 setMapping(updated)
               }}>
                 Skip bank columns
-              </Button>
+              </ActionButton>
             </div>
           </CardContent>
         </Card>
@@ -278,12 +275,12 @@ export function Step2Mapping({
       )}
 
       <div className="flex gap-3">
-        <Button variant="outline" onClick={onBack}>
-          <ArrowLeft className="size-4 mr-1" /> Back
-        </Button>
-        <Button onClick={handleConfirm} className="flex-1" disabled={missingRequired.length > 0}>
-          Continue <ArrowRight className="size-4 ml-1" />
-        </Button>
+        <ActionButton tone="secondary" icon={<ArrowLeft className="size-4" />} onClick={onBack}>
+          Back
+        </ActionButton>
+        <ActionButton tone="primary" icon={<ArrowRight className="size-4" />} onClick={handleConfirm} className="flex-1" disabled={missingRequired.length > 0}>
+          Continue
+        </ActionButton>
       </div>
     </div>
   )
