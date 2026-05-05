@@ -182,9 +182,10 @@ export default function PrivacyPolicyPage() {
         </ul>
         <p><strong>AI-assisted processing</strong></p>
         <p>
-          Pleks uses bounded, assistive AI (Anthropic Claude) across multiple workflows — income extraction from bank statements,
-          FitScore rationale, maintenance triage, deposit-deduction justification, lease-clause conflict checking, arrears-letter
-          drafting, wear-and-tear assessment, municipal bill extraction, AGM notice drafting, and trust audit narrative.
+          Pleks uses bounded, assistive AI across multiple workflows — income extraction from bank statements, FitScore rationale,
+          maintenance triage, deposit-deduction justification, lease-clause conflict checking, arrears-letter drafting,
+          wear-and-tear assessment, municipal bill extraction, AGM notice drafting, and trust audit narrative. The AI model
+          provider is listed in the <a href="/popia-register">Processing Register</a>.
         </p>
         <p>
           FitScore is a rules-based and data-weighted scoring tool that may incorporate AI-assisted analysis (for example, in
@@ -194,10 +195,10 @@ export default function PrivacyPolicyPage() {
         </p>
         <p>
           AI is assistive only. Pleks does not make automated decisions about tenants or applicants — all decisions remain with
-          the agency or landlord. Anthropic operates under a zero-retention Enterprise DPA: API inputs and outputs are not retained
-          for training or any other purpose beyond returning the immediate response. PII minimisation is applied before cross-border
-          transfer; structured context may remain reasonably linkable to an individual and constitutes pseudonymised, not anonymised,
-          personal information under POPIA s1, governed by Standard Contractual Clauses under POPIA s72.
+          the agency or landlord. The AI model provider operates under a zero-retention Enterprise DPA: API inputs and outputs are
+          not retained for training or any other purpose beyond returning the immediate response. PII minimisation is applied before
+          cross-border transfer; structured context may remain reasonably linkable to an individual and constitutes pseudonymised,
+          not anonymised, personal information under POPIA s1, governed by Standard Contractual Clauses under POPIA s72.
         </p>
       </section>
 
@@ -471,9 +472,14 @@ export default function PrivacyPolicyPage() {
               <td>POPIA s14 — no longer than necessary. Retention extended only for active legal hold, ongoing dispute, fraud investigation, or compliance purposes.</td>
             </tr>
             <tr>
-              <td className="who">Credit check results<span className="sub">credit reports, FitScore inputs</span></td>
-              <td>12 months from pull or lease termination, whichever later</td>
+              <td className="who">Credit check results<span className="sub">declined / withdrawn applications</span></td>
+              <td>90 days (purged with application package)</td>
               <td>POPIA s14 · Credit Bureau Code of Conduct</td>
+            </tr>
+            <tr>
+              <td className="who">Credit check results<span className="sub">active lease records</span></td>
+              <td>5 years post-termination</td>
+              <td>Prescription Act · PPA s54</td>
             </tr>
             <tr>
               <td className="who">Consent log<span className="sub">timestamp, IP, consent version, purpose</span></td>
