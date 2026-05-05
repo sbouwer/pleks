@@ -93,9 +93,10 @@ export async function notifyScheme(params: NotifySchemeParams): Promise<{ skippe
     subject:     `Critical incident: ${params.incidentTitle} — ${params.propertyName}`,
     emailElement: React.createElement(CriticalIncidentSchemeEmail, emailProps),
     bodyPreview: `Critical incident at ${params.propertyName}: ${params.incidentTitle}`,
-    entityType:  "maintenance_request",
-    entityId:    params.maintenanceRequestId,
-    triggeredBy: params.reportedByUserId,
+    entityType:       "maintenance_request",
+    entityId:         params.maintenanceRequestId,
+    triggeredBy:      params.reportedByUserId,
+    templateCategory: "maintenance",
   })
 
   await db.from("incident_notifications").insert({

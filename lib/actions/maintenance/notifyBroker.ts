@@ -124,9 +124,10 @@ export async function notifyBroker(params: NotifyBrokerParams): Promise<{ logId?
     subject:     `Critical incident: ${params.incidentTitle} — ${params.propertyName}`,
     emailElement: React.createElement(CriticalIncidentBrokerEmail, emailProps),
     bodyPreview: `Critical incident reported at ${params.propertyName}: ${params.incidentTitle}`,
-    entityType:  "maintenance_request",
-    entityId:    params.maintenanceRequestId,
-    triggeredBy: params.reportedByUserId,
+    entityType:       "maintenance_request",
+    entityId:         params.maintenanceRequestId,
+    triggeredBy:      params.reportedByUserId,
+    templateCategory: "maintenance",
   })
 
   // Log to incident_notifications

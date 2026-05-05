@@ -33,18 +33,23 @@ export interface OrgBranding {
   logoUrl?: string           // public Supabase Storage URL
   accentColor?: string       // hex, e.g. "#1a56db"
   unsubscribeUrl?: string    // /unsubscribe/{token}
+  emergencyPhone?: string
+  emergencyContactName?: string
 }
 
 interface EmailLayoutProps {
   preview: string            // preview text (shown in email clients before open)
   branding: OrgBranding
   children: React.ReactNode
+  templateCategory?: string  // 'maintenance' shows emergency contact line in footer
 }
 
 const DEFAULT_ACCENT = "#1a56db"
 
-export function EmailLayout({ preview, branding, children }: EmailLayoutProps) {
+export function EmailLayout({ preview, branding, children, templateCategory }: Readonly<EmailLayoutProps>) {
   const accent = branding.accentColor ?? DEFAULT_ACCENT
+  const showEmergency = templateCategory === "maintenance"
+    && !!(branding.emergencyContactName ?? branding.emergencyPhone)
 
   return (
     <Html lang="en">
@@ -85,6 +90,11 @@ export function EmailLayout({ preview, branding, children }: EmailLayoutProps) {
             )}
             {branding.orgAddress && (
               <Text style={styles.footerAddress}>{branding.orgAddress}</Text>
+            )}
+            {showEmergency && (
+              <Text style={styles.footerContact}>
+                Emergency: {[branding.emergencyContactName, branding.emergencyPhone].filter(Boolean).join(" · ")}
+              </Text>
             )}
             <Text style={styles.footerMeta}>
               Sent via Pleks property management

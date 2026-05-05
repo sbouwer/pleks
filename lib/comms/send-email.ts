@@ -62,6 +62,7 @@ export interface SendEmailParams {
   triggerEventId?: string    // UUID of the causing entity
   attemptNumber?: number     // retry chain position (default 1)
   firstAttemptLogId?: string // UUID of the first attempt's log row (retry chains)
+  templateCategory?: string  // drives conditional footer sections (e.g. 'maintenance')
 }
 
 export interface SendEmailResult {
@@ -79,25 +80,39 @@ interface OrgSettings {
   brand_accent_color?: string
   custom_from_address?: string   // verified custom domain from address
   reply_to_email?: string
+  emergency_phone?: string
+  emergency_contact_name?: string
 }
 
 export async function fetchOrgSettings(orgId: string): Promise<OrgSettings | null> {
   const service = await createServiceClient()
   const { data } = await service
     .from("organisations")
-    .select("name, email, phone, address_line1, city, brand_logo_url, brand_accent_color, custom_from_address, reply_to_email")
+    .select("name, email, phone, address_line1, city, brand_logo_path, brand_accent_color, custom_from_address, notification_settings, emergency_phone, emergency_contact_name")
     .eq("id", orgId)
     .single()
   if (!data) return null
+
+  const logoPath = data.brand_logo_path as string | null
+  let brand_logo_url: string | undefined
+  if (logoPath) {
+    const { data: { publicUrl } } = service.storage.from("org-assets").getPublicUrl(logoPath)
+    brand_logo_url = publicUrl
+  }
+
+  const notifSettings = data.notification_settings as Record<string, string> | null
+
   return {
     name: data.name as string,
     email: data.email as string | undefined,
     phone: data.phone as string | undefined,
     address: [data.address_line1, data.city].filter(Boolean).join(", ") || undefined,
-    brand_logo_url: data.brand_logo_url as string | undefined,
+    brand_logo_url,
     brand_accent_color: data.brand_accent_color as string | undefined,
     custom_from_address: data.custom_from_address as string | undefined,
-    reply_to_email: data.reply_to_email as string | undefined,
+    reply_to_email: notifSettings?.reply_to_email,
+    emergency_phone: data.emergency_phone as string | undefined,
+    emergency_contact_name: data.emergency_contact_name as string | undefined,
   }
 }
 
@@ -282,5 +297,7 @@ export function buildBranding(orgSettings: OrgSettings | null, unsubscribeToken?
     logoUrl: orgSettings?.brand_logo_url,
     accentColor: orgSettings?.brand_accent_color,
     unsubscribeUrl: unsubscribeToken ? `${process.env.NEXT_PUBLIC_APP_URL}/unsubscribe/${unsubscribeToken}` : undefined,
+    emergencyPhone: orgSettings?.emergency_phone,
+    emergencyContactName: orgSettings?.emergency_contact_name,
   }
 }

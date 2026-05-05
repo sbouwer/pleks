@@ -79,9 +79,10 @@ export async function notifyOwner(params: NotifyOwnerParams): Promise<{ logId?: 
     subject:     `Incident update: ${params.incidentTitle} — ${params.propertyName}`,
     emailElement: React.createElement(CriticalIncidentOwnerEmail, emailProps),
     bodyPreview: `Critical incident at ${params.propertyName}: ${params.incidentTitle}`,
-    entityType:  "maintenance_request",
-    entityId:    params.maintenanceRequestId,
-    triggeredBy: params.reportedByUserId,
+    entityType:       "maintenance_request",
+    entityId:         params.maintenanceRequestId,
+    triggeredBy:      params.reportedByUserId,
+    templateCategory: "maintenance",
   })
 
   await db.from("incident_notifications").insert({

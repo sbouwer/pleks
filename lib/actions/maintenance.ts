@@ -73,6 +73,7 @@ async function fireTenantCommsOnCreate(
       triggerEventType: "maintenance_state",
       triggerEventId: requestId,
       toneVariant: "n/a",
+      templateCategory: "maintenance",
     })
 
     if (severity === "critical") {
@@ -93,6 +94,7 @@ async function fireTenantCommsOnCreate(
         triggerEventType: "maintenance_state",
         triggerEventId: requestId,
         toneVariant: "n/a",
+        templateCategory: "maintenance",
       })
     }
   } catch {
@@ -315,6 +317,7 @@ async function sendWorkOrderEmail({ db, userId, requestId, req, contractor, cont
       }),
       entityType: "maintenance_request", entityId: requestId,
       triggeredBy: userId, triggerEventType: "manual", toneVariant: "professional",
+      templateCategory: "maintenance",
     })
   } catch { /* email failure is non-fatal */ }
 }
@@ -643,6 +646,7 @@ export async function addMaintenanceNote(
             triggeredBy: userId,
             triggerEventType: "manual",
             toneVariant: "professional",
+            templateCategory: "maintenance",
           })
         }
       }
@@ -752,6 +756,7 @@ async function notifyCancelledContractor({ orgId, userId, requestId, req }: { or
         propertyLabel, senderName: orgSettings?.name ?? "Pleks",
       }),
       entityType: "maintenance_request", entityId: requestId, triggeredBy: userId, triggerEventType: "manual", toneVariant: "professional",
+      templateCategory: "maintenance",
     })
   } catch { /* non-fatal */ }
 }
@@ -780,6 +785,7 @@ async function notifyCancelledTenant({ orgId, userId, requestId, req }: { orgId:
       }),
       entityType: "maintenance_request", entityId: requestId, triggeredBy: userId,
       triggerEventType: "maintenance_state", triggerEventId: requestId, toneVariant: "n/a",
+      templateCategory: "maintenance",
     })
   } catch { /* non-fatal */ }
 }
@@ -881,6 +887,7 @@ export async function changeContractor(
           triggeredBy: userId,
           triggerEventType: "manual",
           toneVariant: "professional",
+          templateCategory: "maintenance",
         })
       }
 
@@ -910,6 +917,7 @@ export async function changeContractor(
           triggeredBy: userId,
           triggerEventType: "manual",
           toneVariant: "professional",
+          templateCategory: "maintenance",
         })
       }
     } catch {

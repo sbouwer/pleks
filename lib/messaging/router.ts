@@ -51,6 +51,7 @@ export interface RouteAndSendParams {
   triggerEventId?: string
   attemptNumber?: number
   firstAttemptLogId?: string
+  templateCategory?: string
 }
 
 export interface RouteAndSendResult {
@@ -137,6 +138,7 @@ async function attemptEmail(
     triggerEventId: params.triggerEventId,
     attemptNumber: params.attemptNumber,
     firstAttemptLogId: params.firstAttemptLogId,
+    templateCategory: params.templateCategory,
   }
 
   return sendEmail(emailParams)
