@@ -2,31 +2,38 @@
  * lib/observability/betterstack.ts — Better Stack Uptime API client
  *
  * Auth:   server-only — uses BETTERSTACK_API_KEY
- * Data:   GET /api/v2/monitors, /api/v2/incidents
+ * Data:   GET /api/v2/monitors, /api/v2/incidents, /api/v2/monitors/{id}/sla
  * Notes:  All functions are safe to call from ISR pages (Next.js fetch caching).
  *         Returns empty arrays on missing key or network failure — never throws.
+ *         Monitor names are cleaned to strip query params (prevents token leakage).
  */
 
 const BASE = "https://uptime.betterstack.com/api/v2"
 
 export type MonitorStatus = "up" | "down" | "paused" | "pending" | "maintenance" | "validating"
 
+export interface DailyUptime {
+  date:         string        // YYYY-MM-DD
+  availability: number | null // null = unknown (before monitor existed / no data)
+}
+
 export interface Monitor {
-  id:               string
-  name:             string
-  url:              string
-  status:           MonitorStatus
-  availability:     number   // percentage 0–100
-  checkFrequency:   number   // seconds
-  lastCheckedAt:    string | null
+  id:             string
+  name:           string
+  url:            string
+  status:         MonitorStatus
+  availability:   number        // all-time percentage since monitor creation
+  checkFrequency: number        // seconds
+  lastCheckedAt:  string | null
+  history:        DailyUptime[] // 90-day daily breakdown, oldest→newest
 }
 
 export interface BsIncident {
-  id:          string
-  name:        string
-  startedAt:   string
-  resolvedAt:  string | null
-  cause:       string
+  id:         string
+  name:       string
+  startedAt:  string
+  resolvedAt: string | null
+  cause:      string
 }
 
 interface RawMonitor {
@@ -51,6 +58,15 @@ interface RawIncident {
   }
 }
 
+interface RawSlaDay {
+  id: string
+  attributes: {
+    from?:         string
+    to?:           string
+    availability?: number
+  }
+}
+
 async function bsFetch<T>(path: string, revalidate = 60): Promise<T | null> {
   const key = process.env.BETTERSTACK_API_KEY
   if (!key) return null
@@ -66,22 +82,70 @@ async function bsFetch<T>(path: string, revalidate = 60): Promise<T | null> {
   }
 }
 
-export async function fetchMonitors(): Promise<Monitor[]> {
+function dateStr(d: Date): string {
+  return d.toISOString().split("T")[0]
+}
+
+// Strip query params from monitor names to prevent token leakage in the UI.
+// Better Stack uses the monitored URL as the default name when no pronounceable
+// name is set, which can expose secrets like the health probe token.
+function cleanName(raw: string): string {
+  try {
+    const url = raw.startsWith("http") ? new URL(raw) : new URL("https://" + raw)
+    return url.hostname + (url.pathname === "/" ? "" : url.pathname)
+  } catch {
+    return raw
+  }
+}
+
+async function fetchMonitorHistory(monitorId: string, days: number): Promise<DailyUptime[]> {
+  const to   = new Date()
+  const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000)
+
+  const json = await bsFetch<{ data?: RawSlaDay[] }>(
+    `/monitors/${monitorId}/sla?from=${dateStr(from)}&to=${dateStr(to)}&group_by=day`,
+    3600,
+  )
+
+  const byDate = new Map<string, number>()
+  if (json?.data) {
+    for (const d of json.data) {
+      const dt = d.attributes.from?.split("T")[0]
+      if (dt && d.attributes.availability != null) byDate.set(dt, d.attributes.availability)
+    }
+  }
+
+  // Generate every day in the window oldest→newest; null for days with no data
+  const result: DailyUptime[] = []
+  for (let i = days - 1; i >= 0; i--) {
+    const d  = new Date(to.getTime() - i * 24 * 60 * 60 * 1000)
+    const dt = dateStr(d)
+    result.push({ date: dt, availability: byDate.get(dt) ?? null })
+  }
+  return result
+}
+
+export async function fetchMonitors(days = 90): Promise<Monitor[]> {
   const json = await bsFetch<{ data?: RawMonitor[] }>("/monitors?per_page=50")
   if (!json?.data) return []
-  return json.data.map(m => ({
+
+  const monitors = json.data.map(m => ({
     id:             m.id,
-    name:           m.attributes.pronounceable_name ?? m.attributes.url ?? m.id,
+    name:           cleanName(m.attributes.pronounceable_name ?? m.attributes.url ?? m.id),
     url:            m.attributes.url ?? "",
-    status:         m.attributes.status ?? "pending",
+    status:         m.attributes.status ?? "pending" as MonitorStatus,
     availability:   m.attributes.availability ?? 100,
     checkFrequency: m.attributes.check_frequency ?? 60,
     lastCheckedAt:  m.attributes.last_checked_at ?? null,
+    history:        [] as DailyUptime[],
   }))
+
+  const histories = await Promise.all(monitors.map(m => fetchMonitorHistory(m.id, days)))
+  return monitors.map((m, i) => ({ ...m, history: histories[i] }))
 }
 
-export async function fetchIncidents(days = 7): Promise<BsIncident[]> {
-  const json = await bsFetch<{ data?: RawIncident[] }>("/incidents?per_page=20")
+export async function fetchIncidents(days = 7, limit = 10): Promise<BsIncident[]> {
+  const json = await bsFetch<{ data?: RawIncident[] }>("/incidents?per_page=25")
   if (!json?.data) return []
   const cutoff = Date.now() - days * 24 * 60 * 60 * 1000
   return json.data
@@ -89,9 +153,10 @@ export async function fetchIncidents(days = 7): Promise<BsIncident[]> {
       const d = i.attributes.started_at
       return d ? new Date(d).getTime() > cutoff : false
     })
+    .slice(0, limit)
     .map(i => ({
       id:         i.id,
-      name:       i.attributes.name ?? "Incident",
+      name:       cleanName(i.attributes.name ?? "Incident"),
       startedAt:  i.attributes.started_at ?? "",
       resolvedAt: i.attributes.resolved_at ?? null,
       cause:      i.attributes.cause ?? "",
