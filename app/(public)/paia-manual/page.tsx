@@ -76,7 +76,7 @@ export default function PAIAManualPage() {
         <p>
           This manual is available free of charge on our website at{" "}
           <Link href="/paia-manual" className="act-pill">pleks.co.za/paia-manual</Link>.{" "}
-          <PrintButton label="Save as PDF" /> to keep a copy for your records.
+          To download a copy: <PrintButton label="PAIA manual" />
         </p>
       </section>
 
