@@ -76,9 +76,8 @@ export default function PAIAManualPage() {
         <div className="officer-card">
           <span className="l">Download<br />this manual</span>
           <span className="v">
-            Available free of charge at{" "}
-            <Link href="/paia-manual" className="act-pill">pleks.co.za/paia-manual</Link>
-            <span className="sub"><PrintButton label="PAIA manual" /></span>
+            <PrintButton label="PAIA manual" />
+            <span className="sub">Free · saves as PDF via your browser</span>
           </span>
         </div>
       </section>

@@ -1,11 +1,9 @@
 /**
- * app/(public)/layout.tsx — FILL: one-line purpose
+ * app/(public)/layout.tsx — shell for all public marketing and legal pages
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:  none — fully public
+ * Notes: Imports both public.css and action-language.css so ActionButton
+ *        (pa-primary / pa-secondary) works on public pages.
  */
 import Link from "next/link"
 import { PublicNav } from "./PublicNav"
@@ -13,6 +11,7 @@ import { PublicThemeProvider } from "./PublicThemeProvider"
 import { FooterColumns } from "@/components/marketing/FooterColumns"
 import { AccentBracket } from "@/components/ui/AccentBracket"
 import "./public.css"
+import "@/components/ui/actions/action-language.css"
 
 export default function PublicLayout({
   children,
