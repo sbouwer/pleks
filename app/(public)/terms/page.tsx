@@ -95,7 +95,7 @@ export default function TermsOfServicePage() {
         <ul className="legal-list">
           <li>Prices are quoted in South African Rand (ZAR) and are inclusive of VAT where applicable.</li>
           <li>We reserve the right to change pricing with 30 days&rsquo; written notice to your registered email address.</li>
-          <li>Applicant credit check fees (R399 per check) are paid directly by the applicant — not by your agency subscription.</li>
+          <li>Applicant credit check fees are paid directly by the applicant at the time of their application — not by your agency subscription.</li>
           <li>Failed payments may result in temporary suspension of your account until the balance is settled.</li>
         </ul>
       </section>

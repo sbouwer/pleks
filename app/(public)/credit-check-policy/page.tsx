@@ -29,7 +29,7 @@ export default function CreditCheckPolicyPage() {
       eyebrowParts={["NCA · S69 · CONSENT", "applicants", "v1.1"]}
       titleBefore="Credit check"
       titleHighlight="policy"
-      subtitle="How Searchworx credit and background checks work, what your R399 fee covers, and the rights you hold as a data subject under POPIA and the National Credit Act."
+      subtitle="How Searchworx credit and background checks work, what the application fee covers, and the rights you hold as a data subject under POPIA and the National Credit Act."
       kicker={[
         { label: "Last reviewed", value: "2026 · 04 · 01", mono: true },
         { label: "In force from",  value: "2026 · 05 · 05", mono: true },
@@ -46,7 +46,7 @@ export default function CreditCheckPolicyPage() {
         <h2 className="sc-h">What this means for you as an applicant</h2>
         <ul className="summary-list">
           <li><span className="b" /><span>No credit check will ever be run without your explicit written consent — this is a legal requirement under the NCA.</span></li>
-          <li><span className="b" /><span>The R399 fee is paid by you (the applicant) — the agency using Pleks does not pay for your check.</span></li>
+          <li><span className="b" /><span>The application fee is paid by you (the applicant) — the agency using Pleks does not pay for your check.</span></li>
           <li><span className="b" /><span>Checks are run by Searchworx, a registered bureau intermediary. Pleks never accesses bureau data directly.</span></li>
           <li><span className="b" /><span>You have the right to receive a free copy of the credit report generated for your application.</span></li>
           <li><span className="b" /><span>Check results are retained for 12 months, then permanently deleted unless tied to an active lease.</span></li>
@@ -120,15 +120,16 @@ export default function CreditCheckPolicyPage() {
       {/* 03 */}
       <section id="fee">
         <p className="sec-num"><span className="bar" /><span>03 · Application fee</span></p>
-        <h2 className="sec-h">The <span className="hl">R399 fee</span></h2>
+        <h2 className="sec-h">The <span className="hl">application fee</span></h2>
         <p>
-          A once-off fee of <strong>R399</strong> is charged per credit check bundle. This fee covers all bureau queries listed in
+          A once-off application fee is charged per credit check bundle. This fee covers all bureau queries listed in
           section 01 and is paid by the applicant at the time of progressing to Stage 2 of the application.
+          The current fee is displayed on the application screen before you are asked to pay.
         </p>
         <ul className="legal-list">
           <li>The fee is non-refundable once the credit check has been initiated, as bureau queries are processed immediately.</li>
           <li>The fee is paid directly by the applicant — the agency using Pleks does not pay for your check.</li>
-          <li>Joint applications (two applicants on one lease) are charged R749 for the combined bundle.</li>
+          <li>Joint applications (two applicants on one lease) are charged a higher bundled fee, also shown before payment.</li>
           <li>If your application is withdrawn before Stage 2, no fee is charged — credit checks are only triggered when you choose to proceed.</li>
         </ul>
       </section>
