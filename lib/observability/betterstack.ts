@@ -112,7 +112,7 @@ function friendlyName(raw: string): string {
 }
 
 interface RawSlaResponse {
-  data?: RawSlaDay[] | { attributes?: { availability?: number } }
+  data?: RawSlaDay[]
 }
 
 async function fetchMonitorHistory(monitorId: string, days: number): Promise<DailyUptime[]> {
@@ -128,20 +128,15 @@ async function fetchMonitorHistory(monitorId: string, days: number): Promise<Dai
   const byDate = new Map<string, number>()
 
   if (Array.isArray(json?.data)) {
-    // Grouped daily response
+    // Grouped daily response — only source of per-day truth
     for (const d of json.data) {
       const dt = d.attributes.from?.split("T")[0]
       if (dt && d.attributes.availability != null) byDate.set(dt, d.attributes.availability)
     }
-  } else if (json?.data && typeof json.data === "object" && "attributes" in json.data) {
-    // Single-record fallback: API returned one availability for the whole period
-    const avail = (json.data as { attributes?: { availability?: number } }).attributes?.availability
-    if (avail != null) {
-      for (let i = days - 1; i >= 0; i--) {
-        byDate.set(dateStr(new Date(to.getTime() - i * 24 * 60 * 60 * 1000)), avail)
-      }
-    }
   }
+  // Single-record fallback intentionally removed: if BetterStack returns one aggregate
+  // for the whole period we cannot attribute it to specific days — leave them as null
+  // (grey "no data" bars) rather than painting every day the same orange.
 
   // Generate every day in the window oldest→newest; null for days with no data
   const result: DailyUptime[] = []
@@ -157,6 +152,9 @@ export async function fetchMonitors(days = 90): Promise<Monitor[]> {
   const json = await bsFetch<{ data?: RawMonitor[] }>("/monitors?per_page=50")
   if (!Array.isArray(json?.data)) return []
 
+  // Preserve BetterStack's own all-time availability as fallback for monitors with no daily data
+  const rawAvailability = new Map(json.data.map(m => [m.id, m.attributes.availability ?? 100]))
+
   const monitors = json.data.map(m => ({
     id:             m.id,
     name:           friendlyName(m.attributes.pronounceable_name ?? m.attributes.url ?? m.id),
@@ -169,7 +167,14 @@ export async function fetchMonitors(days = 90): Promise<Monitor[]> {
   }))
 
   const histories = await Promise.all(monitors.map(m => fetchMonitorHistory(m.id, days)))
-  return monitors.map((m, i) => ({ ...m, history: histories[i] }))
+  return monitors.map((m, i) => {
+    const history  = histories[i]
+    const known    = history.filter(d => d.availability !== null)
+    const computed = known.length > 0
+      ? known.reduce((s, d) => s + (d.availability ?? 0), 0) / known.length
+      : (rawAvailability.get(m.id) ?? 100)  // fallback to BetterStack's own figure
+    return { ...m, history, availability: computed }
+  })
 }
 
 export async function fetchIncidents(days = 7, limit = 10): Promise<BsIncident[]> {

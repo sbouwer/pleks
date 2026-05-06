@@ -56,13 +56,14 @@ function statusLabel(status: MonitorStatus) {
   return map[status] ?? status
 }
 
-// Worst-case per day across all monitors (drives the hero uptime strip)
+// Average uptime per day across all monitors (drives the hero uptime strip)
 function computeOverallHistory(monitors: Monitor[]): (number | null)[] {
   return Array.from({ length: 90 }, (_, i) => {
     const values = monitors
       .map(m => m.history[i]?.availability)
       .filter((v): v is number => v != null)
-    return values.length === 0 ? null : Math.min(...values)
+    if (values.length === 0) return null
+    return values.reduce((s, v) => s + v, 0) / values.length
   })
 }
 
@@ -230,10 +231,12 @@ export default async function StatusPage() {
   const dotClass     = overall === "operational" ? "st-dot" : `st-dot ${overall}`
 
   const overallHistory = computeOverallHistory(monitors)
-  const knownValues    = overallHistory.filter((v): v is number => v !== null)
-  const overallUptime  = knownValues.length > 0 ? knownValues.reduce((s, v) => s + v, 0) / knownValues.length : 100
+  const knownDays      = overallHistory.filter(v => v !== null).length
 
-  const knownDays     = overallHistory.filter(v => v !== null).length
+  // Average of all monitor availabilities (each computed from their daily SLA history)
+  const overallUptime  = monitors.length > 0
+    ? monitors.reduce((s, m) => s + m.availability, 0) / monitors.length
+    : 100
 
   let uptimeColor = "var(--positive,#2d7d52)"
   if (overall === "outage")   uptimeColor = "var(--critical,#b93a3a)"
