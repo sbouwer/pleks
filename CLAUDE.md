@@ -688,6 +688,62 @@ Supabase key name: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
 
 ---
 
+## DOMAIN ARCHITECTURE
+
+The app is a single Next.js deployment on Vercel. Four subdomains, each with a
+distinct purpose and routing behaviour enforced by `proxy.ts`:
+
+| Domain | Purpose | Route group |
+|--------|---------|-------------|
+| `pleks.co.za` | Marketing / public pages | `app/(public)/` |
+| `app.pleks.co.za` | Main product (agent dashboard, portals) | `app/(dashboard)/`, `app/(tenant)/`, etc. |
+| `admin.pleks.co.za` | Internal admin portal (HMAC-token gated) | `app/(admin)/` |
+| `status.pleks.co.za` | Public status page (minimal layout, no auth) | `app/(status)/` |
+
+**Routing rules** (production only — skipped in dev/preview):
+- `pleks.co.za` only serves `APEX_PREFIXES` paths (pricing, privacy, terms, etc.) — anything else 308s to `app.pleks.co.za`
+- `app.pleks.co.za` 308s apex paths to `pleks.co.za` and admin paths to `admin.pleks.co.za`
+- `admin.pleks.co.za` only serves `/admin/*` and `/api/admin/*` — anything else 308s to `app.pleks.co.za`
+- `status.pleks.co.za` rewrites `/` → `/status` internally; other paths 308 to the right home
+- Visiting `/status` on any non-status domain 308s to `status.pleks.co.za`
+
+**Why separate subdomains instead of paths?**
+Cookie isolation (admin token only on `admin.pleks.co.za`), CSP scoping, and brand clarity.
+Status page needed its own layout without inheriting the dark dashboard shell — route group
+`(status)` achieves that without a separate deployment.
+
+**In development:** All traffic comes from `localhost:3000`. `resolveHostContext` returns `"app"`
+for any unrecognised host, so subdomain splitting is skipped entirely. All routes are reachable
+at their path directly (e.g. `/admin`, `/status`, `/pricing`).
+
+---
+
+## PROXY.TS — Next.js 16 Middleware Rename
+
+In Next.js 16, `middleware.ts` was deprecated and renamed to `proxy.ts` to better
+reflect its role as a network boundary for rewriting, redirecting, and header
+manipulation rather than general server-side logic. The default export also changed
+from `middleware` to `proxy`.
+
+**`proxy.ts` at the project root IS the Next.js middleware.** Do NOT create a new
+`middleware.ts` file — it is deprecated in Next.js 16 and will not be picked up.
+
+`proxy.ts` handles (in order):
+1. Webhook/cron bypass — `WEBHOOK_PREFIXES` skip all gates; handlers validate their own secrets
+2. Admin API gate — `/api/admin/*` checked for HMAC token before reaching the handler
+3. Subdomain split (production only) — hostname-based 308 redirects and rewrites
+4. Manifest lookup — `ROUTE_MANIFEST` drives auth requirements per route prefix
+5. Supabase session refresh — `updateSession()` on all authenticated routes
+6. AAL2 enforcement — MFA check on agent workspace routes
+7. Portal role gate — `pleks_active_role` cookie check for tenant/landlord/supplier portals
+8. Org cookie hydration — `pleks_org` + `pleks_has_org` cookies set/refreshed per request
+
+When any spec references "middleware" or "the proxy layer" — the implementation lives in
+`proxy.ts`. When ADDENDUM_62A references signal points in `proxy.ts`, that means the
+middleware layer. Never split this into a separate `middleware.ts`.
+
+---
+
 ## CRON ARCHITECTURE — SPLIT BETWEEN VERCEL AND CPANEL
 
 **Not all cron jobs run from `vercel.json`.** The Vercel Hobby plan allows only 1 cron
