@@ -45,14 +45,16 @@ export function StatusWidget() {
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: 7,
-        color: "var(--ink-soft)",
+        gap: 9,
+        color: "var(--ink-muted)",
         textDecoration: "none",
+        fontSize: 13,
+        letterSpacing: "0.01em",
       }}
     >
       <span style={{
-        width: 7,
-        height: 7,
+        width: 9,
+        height: 9,
         borderRadius: "50%",
         background: dot[status],
         flexShrink: 0,

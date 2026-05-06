@@ -35,7 +35,7 @@ export default function PublicLayout({
             marginBottom: 40,
           }}>
             {/* Brand — wordmark matches nav */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16, justifyContent: "space-between" }}>
               <Link href="/" className="pub-wordmark" aria-label="Pleks" style={{ alignSelf: "flex-start" }}>
                 <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
               </Link>
