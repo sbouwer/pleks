@@ -234,6 +234,16 @@ export default async function StatusPage() {
   const dotClass     = overall === "operational" ? "st-dot" : `st-dot ${overall}`
 
   const overallHistory = computeOverallHistory(monitors)
+  console.log('Sample bars:', {
+    day0:  overallHistory[0],
+    day80: overallHistory[80],
+    day88: overallHistory[88],
+    day89: overallHistory[89],
+  })
+  console.log('Monitor 0 history sample:', {
+    day0:  monitors[0]?.history[0],
+    day88: monitors[0]?.history[88],
+  })
   const knownDays      = overallHistory.filter(v => v !== null).length
 
   // Average of all monitor availabilities (each computed from their daily SLA history)

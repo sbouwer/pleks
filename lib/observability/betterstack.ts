@@ -150,7 +150,7 @@ async function fetchMonitorHistory(
       const from     = dateStr(dayStart)
       const toDate   = dateStr(dayEnd)
       return bsFetch<RawSlaResponse>(
-        `/monitors/${monitorId}/sla?from=${from}&to=${toDate}`,
+        `/monitors/${monitorId}/sla?from=${from}&to=${toDate}&_v=2`,
         86_400,  // 24h — historical day data is immutable
       ).then(json => ({ date: from, availability: extractAggregate(json) }))
     })
