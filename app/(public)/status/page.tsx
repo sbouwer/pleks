@@ -23,17 +23,17 @@ export const metadata: Metadata = {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function heroBarClass(v: number | null) {
-  if (v === null)  return "st-ubar--unknown"
-  if (v >= 100)    return ""
-  if (v >= 95)     return "st-ubar--incident"
-  return "st-ubar--outage"
+  if (v === null) return "st-ubar--unknown"
+  if (v >= 99)    return ""                  // green — within 99% SLA
+  if (v >= 95)    return "st-ubar--incident" // orange
+  return "st-ubar--outage"                   // red
 }
 
 function monitorBarClass(v: number | null) {
-  if (v === null)  return "st-mbar--unknown"
-  if (v >= 100)    return ""
-  if (v >= 95)     return "st-mbar--incident"
-  return "st-mbar--outage"
+  if (v === null) return "st-mbar--unknown"
+  if (v >= 99)    return ""                  // green — within 99% SLA
+  if (v >= 95)    return "st-mbar--incident" // orange
+  return "st-mbar--outage"                   // red
 }
 
 function pillClass(status: MonitorStatus) {
