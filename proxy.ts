@@ -19,6 +19,7 @@ import type { User } from "@supabase/supabase-js"
 
 // ── Bypass lists (checked before manifest) ───────────────────────────────────
 // /api/admin is NOT in this list — it gets its own middleware gate below.
+// /api/status is a fully-public, no-user-data health JSON endpoint (ISR-cached 60s) — safe to bypass.
 const WEBHOOK_PREFIXES = ["/api/webhooks", "/api/cron", "/api/waitlist", "/api/health", "/api/status"]
 
 // ── Subdomain split ───────────────────────────────────────────────────────────
@@ -61,6 +62,11 @@ function matchManifest(pathname: string) {
 }
 
 // ── Admin page gate (/admin/* UI routes) ─────────────────────────────────────
+// KNOWN GAP: checkAdminAuth only fires inside handleSubdomainSplit, which is
+// wrapped in isProdLive. On Vercel preview deployments the HMAC gate is skipped —
+// /admin/* UI routes fall through to manifest auth (Supabase session only).
+// Vercel Deployment Protection mitigates this in practice. The API layer
+// (checkAdminApiAuth) runs before isProdLive and is always protected. ✓
 async function checkAdminAuth(pathname: string, request: NextRequest): Promise<NextResponse | null> {
   if (!pathname.startsWith("/admin")) return null
   if (pathname === "/admin/login") return NextResponse.next()
@@ -297,7 +303,13 @@ async function handleSubdomainSplit(
   request: NextRequest,
 ): Promise<NextResponse | null> {
   if (hostCtx === "marketing" && !isApexPath(pathname)) {
-    const dest = request.nextUrl.clone(); dest.host = APP_HOSTNAME
+    const dest = request.nextUrl.clone()
+    // /status on apex goes directly to status subdomain — avoids a double 308 via app subdomain
+    if (pathname === "/status" || pathname.startsWith("/status/")) {
+      dest.host = STATUS_HOSTNAME; dest.pathname = "/"
+      return NextResponse.redirect(dest, 308)
+    }
+    dest.host = APP_HOSTNAME
     return NextResponse.redirect(dest, 308)
   }
   if (hostCtx === "app" && isApexPath(pathname)) {
