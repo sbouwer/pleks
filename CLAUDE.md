@@ -688,6 +688,37 @@ Supabase key name: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
 
 ---
 
+## CRON ARCHITECTURE — SPLIT BETWEEN VERCEL AND CPANEL
+
+**Not all cron jobs run from `vercel.json`.** The Vercel Hobby plan allows only 1 cron
+entry, so high-frequency jobs are triggered externally via cPanel curl crons on the
+Yoros hosting account (`yoroscoz` user).
+
+### vercel.json (once daily, 05:00 UTC)
+Single entry: `/api/cron/daily` — orchestrates all truly-daily jobs sequentially.
+
+### cPanel external crons (yoroscoz hosting)
+These jobs were moved out of the daily orchestrator to run at higher frequency:
+
+| Job | Endpoint | Cadence | HTTP method |
+|-----|----------|---------|-------------|
+| mandatory-retry | `/api/cron/tenant-comms/mandatory-retry` | Every 1h | POST |
+| bank-feed-sync | `/api/cron/bank-feed-sync` | Every 4h | GET |
+| arrears-sequence | `/api/cron/arrears-sequence` | Every 4h | GET |
+| maintenance-delay-check | `/api/cron/maintenance-delay-check` | Every 4h | GET |
+| check-links | `/api/cron/check-links` | Every 4h | GET |
+
+All use the same `x-cron-secret` header auth as Vercel-triggered jobs.
+
+**When adding a new cron job**, decide:
+- Once daily is fine → add to `app/api/cron/daily/route.ts` orchestrator
+- Needs higher frequency → add a cPanel curl entry AND document it in this table
+- Monthly → add to the `dayOfMonth === N` gate in `daily/route.ts`
+
+**Do not add a second entry to `vercel.json`** — Hobby plan only supports 1.
+
+---
+
 ## AI MODEL ROUTING (unchanged)
 
 Haiku 4.5:  triage, classification, SMS copy
