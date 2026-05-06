@@ -9,6 +9,7 @@ import Link from "next/link"
 import { PublicNav } from "./PublicNav"
 import { PublicThemeProvider } from "./PublicThemeProvider"
 import { FooterColumns } from "@/components/marketing/FooterColumns"
+import { StatusWidget } from "@/components/marketing/StatusWidget"
 import { AccentBracket } from "@/components/ui/AccentBracket"
 import "./public.css"
 import "@/components/ui/actions/action-language.css"
@@ -42,13 +43,7 @@ export default function PublicLayout({
                 Built from the inside out.<br />
                 <span style={{ color: "var(--ink-soft)" }}>Every feature earned in the field.</span>
               </p>
-              <Link
-                href="/early-access"
-                className="pub-small"
-                style={{ color: "var(--amber-ink)", fontWeight: 500 }}
-              >
-                Get early access →
-              </Link>
+              <StatusWidget />
             </div>
 
             <FooterColumns />

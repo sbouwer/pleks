@@ -1183,6 +1183,12 @@
   border-color: oklch(0.68 0.14 65 / 0.35); text-decoration: none;
 }
 
+/* Status widget pulse — green dot in footer when all systems operational */
+@keyframes status-pulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(45,125,82,0.4); }
+  50%      { box-shadow: 0 0 0 5px rgba(45,125,82,0); }
+}
+
 .share-table {
   width: 100%; border-collapse: collapse; margin: 8px 0 16px;
   border: 1px solid var(--rule); border-radius: var(--r-md);

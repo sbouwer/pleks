@@ -1,13 +1,11 @@
 "use client"
 
 /**
- * app/(admin)/admin/site-content/SiteContentEditor.tsx — FILL: one-line purpose
+ * app/(admin)/admin/site-content/SiteContentEditor.tsx — Inline editor for site_content rows
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /admin/site-content
+ * Auth:   rendered only inside requireAdminAuth() page
+ * Data:   rows passed from server page; saves via saveContentRow action
  */
 
 import { useState, useTransition } from "react"
@@ -21,7 +19,7 @@ interface Row {
   value: string
 }
 
-export function SiteContentEditor({ rows }: { rows: Row[] }) {
+export function SiteContentEditor({ rows }: Readonly<{ rows: Row[] }>) {
   return (
     <div className="space-y-3">
       {rows.map(row => <ContentRow key={row.key} row={row} />)}
@@ -29,7 +27,7 @@ export function SiteContentEditor({ rows }: { rows: Row[] }) {
   )
 }
 
-function ContentRow({ row }: { row: Row }) {
+function ContentRow({ row }: Readonly<{ row: Row }>) {
   const [value, setValue] = useState(row.value)
   const [saved, setSaved]  = useState(false)
   const [err, setErr]      = useState<string | null>(null)

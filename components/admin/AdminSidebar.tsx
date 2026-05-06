@@ -211,8 +211,9 @@ export async function AdminSidebar() {
         <div style={{ marginTop: 14 }}>
           <p style={GROUP_TITLE_STYLE}>Content</p>
           <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-            <NavItem href="/admin/site-content" label="Site content" pathname={pathname} />
-            <NavItem href="/admin/prime-rate"   label="Prime rate"   pathname={pathname} />
+            <NavItem href="/admin/site-content"    label="Site content"    pathname={pathname} />
+            <NavItem href="/admin/external-links" label="External links"  pathname={pathname} />
+            <NavItem href="/admin/prime-rate"     label="Prime rate"      pathname={pathname} />
           </ul>
         </div>
 
