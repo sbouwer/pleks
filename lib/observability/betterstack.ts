@@ -25,6 +25,7 @@ export interface Monitor {
   availability:   number        // all-time percentage since monitor creation
   checkFrequency: number        // seconds
   lastCheckedAt:  string | null
+  createdAt:      string        // ISO — used to cap SLA requests to monitor age
   history:        DailyUptime[] // 90-day daily breakdown, oldest→newest
 }
 
@@ -45,6 +46,7 @@ interface RawMonitor {
     availability?:       number
     check_frequency?:    number
     last_checked_at?:    string | null
+    created_at?:         string
   }
 }
 
@@ -126,27 +128,37 @@ function extractAggregate(json: RawSlaResponse | null): number | null {
   return (json.data as { attributes?: { availability?: number } }).attributes?.availability ?? null
 }
 
-async function fetchMonitorHistory(monitorId: string, days: number): Promise<MonitorHistoryResult> {
+async function fetchMonitorHistory(
+  monitorId: string,
+  days: number,
+  createdAt: string,
+): Promise<MonitorHistoryResult> {
   const to = new Date()
 
+  // Only request days the monitor actually existed — avoids wasteful API calls
+  // for days before the monitor was created (which always return null anyway).
+  const monitorAge    = Math.ceil((to.getTime() - new Date(createdAt).getTime()) / 86_400_000)
+  const effectiveDays = Math.min(days, monitorAge)
+
   // BetterStack v2 SLA endpoint always returns a single aggregate — grouped_by=day is not
-  // supported. Fetch each day individually so Next.js caches 90 separate 300s entries.
+  // supported. Fetch each day individually. Historical days use 24h TTL since past data
+  // never changes; Next.js data cache persists across builds so subsequent builds are free.
   const dayEntries = await Promise.all(
-    Array.from({ length: days }, (_, i) => {
-      const dayEnd   = new Date(to.getTime() - i         * 86_400_000)
-      const dayStart = new Date(to.getTime() - (i + 1)   * 86_400_000)
+    Array.from({ length: effectiveDays }, (_, i) => {
+      const dayEnd   = new Date(to.getTime() - i       * 86_400_000)
+      const dayStart = new Date(to.getTime() - (i + 1) * 86_400_000)
       const from     = dateStr(dayStart)
       const toDate   = dateStr(dayEnd)
       return bsFetch<RawSlaResponse>(
         `/monitors/${monitorId}/sla?from=${from}&to=${toDate}`,
-        300,
+        86_400,  // 24h — historical day data is immutable
       ).then(json => ({ date: from, availability: extractAggregate(json) }))
     })
   )
 
   const byDate = new Map(dayEntries.map(e => [e.date, e.availability]))
 
-  // Separate full-period request for the uptime % figure.
+  // Full-period aggregate for the uptime % figure — short TTL since it updates live.
   const fullFrom = dateStr(new Date(to.getTime() - days * 86_400_000))
   const fullTo   = dateStr(to)
   const fullJson = await bsFetch<RawSlaResponse>(
@@ -155,6 +167,8 @@ async function fetchMonitorHistory(monitorId: string, days: number): Promise<Mon
   )
   const slaAggregate = extractAggregate(fullJson)
 
+  // Always return `days` entries so the UI always renders the full bar strip.
+  // Days before the monitor existed stay null (grey bars).
   const perDay: DailyUptime[] = Array.from({ length: days }, (_, i) => {
     const d  = new Date(to.getTime() - (days - 1 - i) * 86_400_000)
     const dt = dateStr(d)
@@ -185,10 +199,11 @@ export async function fetchMonitors(days = 90): Promise<Monitor[]> {
     availability:   m.attributes.availability ?? 100,
     checkFrequency: m.attributes.check_frequency ?? 60,
     lastCheckedAt:  m.attributes.last_checked_at ?? null,
+    createdAt:      m.attributes.created_at ?? new Date().toISOString(),
     history:        [] as DailyUptime[],
   }))
 
-  const historyResults = await Promise.all(monitors.map(m => fetchMonitorHistory(m.id, days)))
+  const historyResults = await Promise.all(monitors.map(m => fetchMonitorHistory(m.id, days, m.createdAt)))
   return monitors.map((m, i) => {
     const { perDay, slaAggregate } = historyResults[i]
     const known    = perDay.filter(d => d.availability !== null)
