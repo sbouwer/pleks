@@ -1165,6 +1165,24 @@
   white-space: nowrap; vertical-align: 2px;
 }
 
+/* External link pill — third-party URLs in legal content */
+.ext-link {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-family: var(--pub-mono); font-size: 11px; letter-spacing: 0.05em;
+  padding: 2px 7px 2px 8px; border-radius: 999px;
+  background: var(--paper-sunk); border: 1px solid var(--rule-strong);
+  white-space: nowrap; vertical-align: 2px;
+  text-decoration: none; transition: background .12s, color .12s, border-color .12s;
+}
+.ext-link::after { content: "↗"; font-size: 9px; opacity: 0.5; line-height: 1; }
+/* Override .legal-content a specificity */
+.legal-content .ext-link { color: var(--ink-soft); text-decoration: none; }
+.legal-content .ext-link:hover,
+.ext-link:hover {
+  background: var(--amber-wash); color: var(--amber-ink);
+  border-color: oklch(0.68 0.14 65 / 0.35); text-decoration: none;
+}
+
 .share-table {
   width: 100%; border-collapse: collapse; margin: 8px 0 16px;
   border: 1px solid var(--rule); border-radius: var(--r-md);

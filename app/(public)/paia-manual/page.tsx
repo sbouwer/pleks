@@ -11,6 +11,8 @@ import Link from "next/link"
 import { LegalPageLayout } from "@/components/legal/LegalPageLayout"
 import { PrintButton } from "@/components/legal/PrintButton"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
+import { EXTERNAL_LINKS } from "@/lib/external-links"
+import { ExtLink } from "@/components/legal/ExtLink"
 
 export const metadata: Metadata = {
   title: "PAIA Manual — Pleks",
@@ -119,7 +121,7 @@ export default function PAIAManualPage() {
             Information Regulator of South Africa
             <br /><span className="sub">
               JD House, 27 Stiemens Street, Braamfontein, Johannesburg, 2001 · 010 023 5207 ·{" "}
-              <a href="https://inforeg.org.za" target="_blank" rel="noopener noreferrer">inforeg.org.za</a>
+              <ExtLink href={EXTERNAL_LINKS.informationRegulator}>inforegulator.org.za</ExtLink>
               {" "}· <a href="mailto:inforeg@justice.gov.za">inforeg@justice.gov.za</a>
             </span>
           </span>
@@ -135,7 +137,7 @@ export default function PAIAManualPage() {
           available in all official languages and can be obtained from:
         </p>
         <ul className="legal-list">
-          <li>The SAHRC website at <a href="https://www.sahrc.org.za" target="_blank" rel="noopener noreferrer">sahrc.org.za</a></li>
+          <li>The SAHRC website at <ExtLink href={EXTERNAL_LINKS.sahrc}>sahrc.org.za</ExtLink></li>
           <li>Telephonically from the SAHRC</li>
           <li>The SAHRC office: 29 Princess of Wales Terrace, Parktown, Johannesburg</li>
         </ul>
@@ -346,7 +348,7 @@ export default function PAIAManualPage() {
           PAIA requests must be submitted using Form C (Form 2), prescribed under the 2021 PAIA Regulations. This form is available from:
         </p>
         <ul className="legal-list">
-          <li>The Information Regulator website at <a href="https://inforeg.org.za" target="_blank" rel="noopener noreferrer">inforeg.org.za</a></li>
+          <li>The Information Regulator website at <ExtLink href={EXTERNAL_LINKS.informationRegulator}>inforegulator.org.za</ExtLink></li>
           <li>Our Information Officer at <a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a> — who will provide the form on request</li>
           <li>The Data &amp; Privacy section within the Pleks platform (for registered users)</li>
         </ul>

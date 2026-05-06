@@ -8,6 +8,8 @@
 import type { Metadata } from "next"
 import { LegalPageLayout } from "@/components/legal/LegalPageLayout"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
+import { EXTERNAL_LINKS } from "@/lib/external-links"
+import { ExtLink } from "@/components/legal/ExtLink"
 
 export const metadata: Metadata = {
   title: "Processing Register — Pleks",
@@ -168,7 +170,7 @@ export default function ProcessingRegisterPage() {
             Information Regulator of South Africa<br />
             <span className="sub">
               JD House, 27 Stiemens Street, Braamfontein, 2001 ·{" "}
-              <a href="https://inforeg.org.za" target="_blank" rel="noopener noreferrer">inforeg.org.za</a>
+              <ExtLink href={EXTERNAL_LINKS.informationRegulator}>inforegulator.org.za</ExtLink>
               {" "}· 010 023 5207
             </span>
           </span>

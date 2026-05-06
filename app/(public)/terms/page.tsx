@@ -7,6 +7,8 @@
 import type { Metadata } from "next"
 import { LegalPageLayout } from "@/components/legal/LegalPageLayout"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
+import { EXTERNAL_LINKS } from "@/lib/external-links"
+import { ExtLink } from "@/components/legal/ExtLink"
 
 export const metadata: Metadata = {
   title: "Terms of Service — Pleks",
@@ -267,7 +269,7 @@ export default function TermsOfServicePage() {
           Service Level Agreement (SLA) and does not create an entitlement to compensation or credit unless a separate SLA
           has been agreed in writing. Real-time platform status, including any active incidents and historical uptime, is
           published at{" "}
-          <a href="https://status.pleks.co.za" target="_blank" rel="noopener noreferrer">status.pleks.co.za</a>.
+          <ExtLink href={EXTERNAL_LINKS.statusPage}>status.pleks.co.za</ExtLink>.
           You can check this page at any time to confirm whether a service disruption has been reported.
         </p>
         <p>

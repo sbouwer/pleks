@@ -7,6 +7,8 @@
 import type { Metadata } from "next"
 import { LegalPageLayout } from "@/components/legal/LegalPageLayout"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
+import { EXTERNAL_LINKS } from "@/lib/external-links"
+import { ExtLink } from "@/components/legal/ExtLink"
 
 export const metadata: Metadata = {
   title: "Privacy Policy — Pleks",
@@ -665,7 +667,7 @@ export default function PrivacyPolicyPage() {
             Information Regulator of South Africa
             <br /><span className="sub">
               JD House, 27 Stiemens Street, Braamfontein, Johannesburg, 2001 · 010 023 5207 ·{" "}
-              <a href="https://inforeg.org.za" target="_blank" rel="noopener noreferrer">inforeg.org.za</a>
+              <ExtLink href={EXTERNAL_LINKS.informationRegulator}>inforegulator.org.za</ExtLink>
               {" "}· <a href="mailto:inforeg@justice.gov.za">inforeg@justice.gov.za</a>
             </span>
           </span>

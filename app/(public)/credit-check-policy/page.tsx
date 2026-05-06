@@ -8,6 +8,8 @@
 import type { Metadata } from "next"
 import { LegalPageLayout } from "@/components/legal/LegalPageLayout"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
+import { EXTERNAL_LINKS } from "@/lib/external-links"
+import { ExtLink } from "@/components/legal/ExtLink"
 
 export const metadata: Metadata = {
   title: "Credit Check Policy — Pleks",
@@ -203,7 +205,7 @@ export default function CreditCheckPolicyPage() {
           <li><strong>Right to object (POPIA s11(3)).</strong> Where any processing relies on legitimate interest, you may object on grounds relating to your particular situation. Credit check processing relies on s11(1)(a) consent — so withdrawal of consent (§06) is the primary mechanism; objection under s11(3) applies to any downstream legitimate-interest processing such as the AI-assisted rationale narrative generated alongside FitScore.</li>
           <li><strong>Bureau dispute (NCA s72).</strong> If you believe information in the report is inaccurate, you may lodge a dispute directly with the relevant bureau. Bureaus are required to investigate and respond within 20 business days. Contact details: TransUnion 0861 482 482; Experian 0861 105 665; Compuscan 0861 514 131; XDS 0860 937 000; TPN 0861 876 000.</li>
           <li><strong>Automated-decision rights (POPIA s71(2)).</strong> Pleks does not make automated decisions about applicants (see §01). If you believe an automated decision was nonetheless taken, you may make representations to the agency and request the underlying logic of the decision. Contact our Information Officer to initiate this.</li>
-          <li><strong>Complaint to the Information Regulator.</strong> You may lodge a complaint about data handling with the <a href="https://inforeg.org.za" target="_blank" rel="noopener noreferrer">Information Regulator</a> under POPIA s74, or apply to court under s99, at any time — independently of any response from Pleks or the agency.</li>
+          <li><strong>Complaint to the Information Regulator.</strong> You may lodge a complaint about data handling with the <ExtLink href={EXTERNAL_LINKS.informationRegulator}>Information Regulator</ExtLink> under POPIA s74, or apply to court under s99, at any time — independently of any response from Pleks or the agency.</li>
         </ul>
         <div className="officer-card">
           <span className="l">Information<br />officer</span>

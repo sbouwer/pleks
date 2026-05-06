@@ -7,6 +7,8 @@
 import type { Metadata } from "next"
 import { LegalPageLayout } from "@/components/legal/LegalPageLayout"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
+import { EXTERNAL_LINKS } from "@/lib/external-links"
+import { ExtLink } from "@/components/legal/ExtLink"
 
 export const metadata: Metadata = {
   title: "Cookie Policy — Pleks",
@@ -173,7 +175,7 @@ export default function CookiePolicyPage() {
             <tr>
               <td className="who">PayFast<span className="sub">payment processor</span></td>
               <td>Cookies are set by PayFast upon redirection to their secure payment gateway — this occurs when completing a subscription payment or setting up a recurring debit mandate. These typically include session and fraud-prevention cookies on the PayFast domain. Pleks does not control or access them; the PayFast cookie policy is the authoritative description.</td>
-              <td>payfast.io/privacy</td>
+              <td><ExtLink href={EXTERNAL_LINKS.payfastPrivacy}>payfast.io/privacy-policy</ExtLink></td>
             </tr>
           </tbody>
         </table>
@@ -205,10 +207,11 @@ export default function CookiePolicyPage() {
           prevent the platform from working correctly. You will need to sign in again after clearing session cookies.
         </p>
         <p>
-          Browser-specific guides: <a href="https://support.google.com/chrome/answer/95647" target="_blank" rel="noopener noreferrer">Chrome</a>,{" "}
-          <a href="https://support.mozilla.org/kb/clear-cookies-and-site-data-firefox" target="_blank" rel="noopener noreferrer">Firefox</a>,{" "}
-          <a href="https://support.apple.com/guide/safari/manage-cookies-sfri11471" target="_blank" rel="noopener noreferrer">Safari</a>,{" "}
-          <a href="https://support.microsoft.com/windows/delete-and-manage-cookies" target="_blank" rel="noopener noreferrer">Edge</a>.
+          Browser-specific guides:{" "}
+          <ExtLink href={EXTERNAL_LINKS.chromeCookieHelp}>Chrome</ExtLink>{" "}
+          <ExtLink href={EXTERNAL_LINKS.firefoxCookieHelp}>Firefox</ExtLink>{" "}
+          <ExtLink href={EXTERNAL_LINKS.safariCookieHelp}>Safari</ExtLink>{" "}
+          <ExtLink href={EXTERNAL_LINKS.edgeCookieHelp}>Edge</ExtLink>
         </p>
       </section>
 
