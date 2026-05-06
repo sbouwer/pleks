@@ -52,6 +52,7 @@ interface RawIncident {
   id: string
   attributes: {
     name?:        string
+    url?:         string
     started_at?:  string
     resolved_at?: string | null
     cause?:       string
@@ -205,7 +206,10 @@ export async function fetchIncidents(days = 7, limit = 10): Promise<BsIncident[]
   return json.data
     .filter(i => {
       const d = i.attributes.started_at
-      return d ? new Date(d).getTime() > cutoff : false
+      if (!d || new Date(d).getTime() <= cutoff) return false
+      // Only surface incidents for public-facing monitors — heartbeats are internal
+      const url = i.attributes.url ?? i.attributes.name ?? ""
+      return Object.hasOwn(MONITOR_NAMES, cleanName(url))
     })
     .slice(0, limit)
     .map(i => ({
