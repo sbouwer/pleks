@@ -96,11 +96,12 @@ const serwistConfig = withSerwist({
 export default withSentryConfig(serwistConfig, {
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
-  // Tunnel Sentry requests through /monitoring to avoid ad-blocker interference
-  // and avoid adding sentry.io to the Content-Security-Policy connect-src.
   tunnelRoute: "/monitoring",
-  // Upload source maps to Sentry on production builds (requires SENTRY_AUTH_TOKEN)
   widenClientFileUpload: true,
   silent: !process.env.CI,
   telemetry: false,
+  // Skip source map upload on preview/branch builds where SENTRY_AUTH_TOKEN is absent
+  sourcemaps: {
+    disable: !process.env.SENTRY_AUTH_TOKEN,
+  },
 })

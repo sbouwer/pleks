@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "engines": {
-    "node": ">=22.14.0"
+    "node": "22.x"
   },
   "scripts": {
     "dev": "next dev",
@@ -14,8 +14,7 @@
     "check": "tsc --noEmit && eslint . --max-warnings 0 && node scripts/check-legal-localhost.mjs",
     "security": "node scripts/security/audit.mjs",
     "security:quick": "node scripts/security/audit.mjs --quick",
-    "security:ci": "node scripts/security/audit.mjs --ci",
-    "prebuild": "tsc --noEmit"
+    "security:ci": "node scripts/security/audit.mjs --ci"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.92.0",
