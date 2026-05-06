@@ -100,8 +100,8 @@ export default withSentryConfig(serwistConfig, {
   widenClientFileUpload: true,
   silent: !process.env.CI,
   telemetry: false,
-  // Skip source map upload on preview/branch builds where SENTRY_AUTH_TOKEN is absent
+  // Only upload source maps on production deployments — skip preview builds
   sourcemaps: {
-    disable: !process.env.SENTRY_AUTH_TOKEN,
+    disable: process.env.VERCEL_ENV !== "production",
   },
 })
