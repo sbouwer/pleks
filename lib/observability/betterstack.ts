@@ -120,37 +120,46 @@ interface MonitorHistoryResult {
   slaAggregate: number | null  // period aggregate from BetterStack when per-day isn't available
 }
 
-async function fetchMonitorHistory(monitorId: string, days: number): Promise<MonitorHistoryResult> {
-  const to   = new Date()
-  const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000)
+function extractAggregate(json: RawSlaResponse | null): number | null {
+  if (!json?.data || Array.isArray(json.data)) return null
+  return (json.data as { attributes?: { availability?: number } }).attributes?.availability ?? null
+}
 
-  const json = await bsFetch<RawSlaResponse>(
-    `/monitors/${monitorId}/sla?from=${from.toISOString().split('T')[0]}&to=${to.toISOString().split('T')[0]}&grouped_by=day`,
-    300,
+async function fetchMonitorHistory(monitorId: string, days: number): Promise<MonitorHistoryResult> {
+  const to = new Date()
+
+  // BetterStack v2 SLA endpoint always returns a single aggregate — grouped_by=day is not
+  // supported. Fetch each day individually so Next.js caches 90 separate 300s entries.
+  const dayEntries = await Promise.all(
+    Array.from({ length: days }, (_, i) => {
+      const dayEnd   = new Date(to.getTime() - i         * 86_400_000)
+      const dayStart = new Date(to.getTime() - (i + 1)   * 86_400_000)
+      const from     = dateStr(dayStart)
+      const toDate   = dateStr(dayEnd)
+      return bsFetch<RawSlaResponse>(
+        `/monitors/${monitorId}/sla?from=${from}&to=${toDate}`,
+        300,
+      ).then(json => ({ date: from, availability: extractAggregate(json) }))
+    })
   )
 
-  const byDate = new Map<string, number>()
-  let slaAggregate: number | null = null
+  const byDate = new Map(dayEntries.map(e => [e.date, e.availability]))
 
-  if (Array.isArray(json?.data)) {
-    // Per-day array — ideal path
-    for (const d of json.data) {
-      const dt = d.attributes.from?.split("T")[0]
-      if (dt && d.attributes.availability != null) byDate.set(dt, d.attributes.availability)
-    }
-  } else if (json?.data && typeof json.data === "object" && "attributes" in json.data) {
-    // BetterStack returned one aggregate for the whole period (common for new monitors).
-    // We can't attribute it to specific days, so bars stay grey — but capture it as the
-    // overall availability figure so the uptime % is meaningful.
-    slaAggregate = (json.data as { attributes?: { availability?: number } }).attributes?.availability ?? null
-  }
+  // Separate full-period request for the uptime % figure.
+  const fullFrom = dateStr(new Date(to.getTime() - days * 86_400_000))
+  const fullTo   = dateStr(to)
+  const fullJson = await bsFetch<RawSlaResponse>(
+    `/monitors/${monitorId}/sla?from=${fullFrom}&to=${fullTo}`,
+    300,
+  )
+  const slaAggregate = extractAggregate(fullJson)
 
-  const perDay: DailyUptime[] = []
-  for (let i = days - 1; i >= 0; i--) {
-    const d  = new Date(to.getTime() - i * 24 * 60 * 60 * 1000)
+  const perDay: DailyUptime[] = Array.from({ length: days }, (_, i) => {
+    const d  = new Date(to.getTime() - (days - 1 - i) * 86_400_000)
     const dt = dateStr(d)
-    perDay.push({ date: dt, availability: byDate.get(dt) ?? null })
-  }
+    return { date: dt, availability: byDate.get(dt) ?? null }
+  })
+
   return { perDay, slaAggregate }
 }
 
