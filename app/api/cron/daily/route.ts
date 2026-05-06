@@ -3,14 +3,16 @@
  *
  * Route:  GET /api/cron/daily
  * Auth:   x-cron-secret header (CRON_SECRET env var) — called by Vercel Cron at 05:00 UTC
- * Notes:  Vercel free tier allows 1 cron job; monthly jobs gated by day-of-month check
+ * Notes:  Vercel free tier allows 1 cron job; monthly jobs gated by day-of-month check.
+ *         High-frequency jobs run via cPanel curl crons and are NOT included here:
+ *         mandatory-retry (every 1h), bank-feed-sync, arrears-sequence,
+ *         maintenance-delay-check, check-links (all every 4h).
  */
 import { NextRequest } from "next/server"
 import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
 import { GET as invoiceGenerate } from "../invoice-generate/route"
 import { GET as leaseExpiryCheck } from "../lease-expiry-check/route"
-import { GET as arrearsSequence } from "../arrears-sequence/route"
 import { GET as scheduledReports } from "../scheduled-reports/route"
 import { GET as ownerStatementGen } from "../owner-statement-gen/route"
 import { GET as depositInterest } from "../deposit-interest/route"
@@ -20,15 +22,11 @@ import { GET as trialExpiry } from "../trial-expiry/route"
 import { GET as billingCascade } from "../billing-cascade/route"
 import { GET as purgeImportData } from "../purge-import-data/route"
 import { GET as primeRateSync } from "../prime-rate-sync/route"
-import { GET as maintenanceDelayCheck } from "../maintenance-delay-check/route"
-import { GET as bankFeedSync } from "../bank-feed-sync/route"
 import { GET as infoRequests } from "../info-requests/route"
 import { GET as insuranceRenewals } from "../insurance-renewals/route"
 import { GET as feedbackDigest } from "../feedback-digest/route"
 import { GET as costSnapshots } from "../cost-snapshots/route"
 import { GET as processAuditExports } from "../process-audit-exports/route"
-import { GET as checkLinks } from "../check-links/route"
-import { POST as mandatoryRetry } from "../tenant-comms/mandatory-retry/route"
 import { GET as preMoveoutInspection } from "../tenant-comms/pre-moveout-inspection/route"
 import { GET as depositInterestStatement } from "../tenant-comms/deposit-interest-statement/route"
 import { GET as inspectionReminder } from "../tenant-comms/inspection-reminder/route"
@@ -77,7 +75,6 @@ export async function GET(req: NextRequest) {
   // Daily jobs
   await runJob("invoice_generate", invoiceGenerate, cronReq, results)
   await runJob("lease_expiry_check", leaseExpiryCheck, cronReq, results)
-  await runJob("arrears_sequence", arrearsSequence, cronReq, results)
   await runJob("scheduled_reports", scheduledReports, cronReq, results)
   await runJob("deposit_interest", depositInterest, cronReq, results)
   await runJob("arrears_interest", arrearsInterest, cronReq, results)
@@ -85,15 +82,11 @@ export async function GET(req: NextRequest) {
   await runJob("billing_cascade", billingCascade, cronReq, results)
   await runJob("purge_import_data", purgeImportData, cronReq, results)
   await runJob("prime_rate_sync", primeRateSync, cronReq, results)
-  await runJob("maintenance_delay_check", maintenanceDelayCheck, cronReq, results)
-  await runJob("bank_feed_sync", bankFeedSync, cronReq, results)
   await runJob("info_requests", infoRequests, cronReq, results)
   await runJob("insurance_renewals", insuranceRenewals, cronReq, results)
   await runJob("feedback_digest", feedbackDigest, cronReq, results)
   await runJob("cost_snapshots", costSnapshots, cronReq, results)
   await runJob("process_audit_exports", processAuditExports, cronReq, results)
-  await runJob("check_links", checkLinks, cronReq, results)
-  await runJob("mandatory_retry", mandatoryRetry, cronReq, results)
   await runJob("pre_moveout_inspection", preMoveoutInspection, cronReq, results)
   await runJob("inspection_reminder", inspectionReminder, cronReq, results)
   await runJob("lease_lifecycle", leaseLifecycle, cronReq, results)
