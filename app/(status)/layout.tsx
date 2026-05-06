@@ -5,37 +5,29 @@
  * Notes:  Intentionally does NOT inherit the (public) layout. The status page
  *         is served at status.pleks.co.za — all nav links must be absolute so
  *         client-side routing does not trap users on the status subdomain.
- *         Imports public.css for CSS custom properties (--ink, --rule, etc.).
+ *         Uses PublicThemeProvider so the light theme and data-theme CSS vars
+ *         apply correctly (root layout hardcodes class="dark").
  */
+import { PublicThemeProvider } from "@/app/(public)/PublicThemeProvider"
+import { AccentBracket } from "@/components/ui/AccentBracket"
 import "@/app/(public)/public.css"
 
 export default function StatusLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <>
-      <header style={{
-        borderBottom: "1px solid var(--rule, #ddd9d0)",
+    <PublicThemeProvider>
+      <header className="pub-hairline-b" style={{
         padding: "0 40px",
-        height: 52,
+        height: 64,
         display: "flex",
         alignItems: "center",
       }}>
-        <a
-          href="https://pleks.co.za"
-          style={{
-            fontFamily: "var(--pub-heading, var(--font-plus-jakarta, sans-serif))",
-            fontWeight: 800,
-            fontSize: 17,
-            letterSpacing: "-0.5px",
-            color: "var(--ink, #1a1a18)",
-            textDecoration: "none",
-          }}
-        >
-          pleks
+        <a href="https://pleks.co.za" className="pub-wordmark" aria-label="Pleks">
+          <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
         </a>
       </header>
       <main>{children}</main>
-    </>
+    </PublicThemeProvider>
   )
 }
