@@ -35,7 +35,7 @@ export default function PublicLayout({
             marginBottom: 40,
           }}>
             {/* Brand — wordmark matches nav */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 16, justifyContent: "space-between" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <Link href="/" className="pub-wordmark" aria-label="Pleks" style={{ alignSelf: "flex-start" }}>
                 <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
               </Link>
@@ -43,7 +43,9 @@ export default function PublicLayout({
                 Built from the inside out.<br />
                 <span style={{ color: "var(--ink-soft)" }}>Every feature earned in the field.</span>
               </p>
+              <div style={{ flex: 1 }} />
               <StatusWidget />
+              <div style={{ flex: 1 }} />
             </div>
 
             <FooterColumns />
