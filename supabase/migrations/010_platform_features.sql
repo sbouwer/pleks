@@ -1274,3 +1274,47 @@ ALTER TABLE auth_events ADD CONSTRAINT auth_events_auth_method_check
   CHECK (auth_method IN (
     'password', 'magic_link', 'totp', 'passkey', 'recovery_code', 'oauth', 'admin', 'token_link'
   ));
+
+-- ══════════════════════════════════════════════════════════════════════════════
+-- §BUILD_LEGAL: External links registry — admin-editable, daily cron health check
+-- ══════════════════════════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS external_links (
+  key             text        PRIMARY KEY,
+  url             text        NOT NULL,
+  label           text        NOT NULL,
+  category        text        NOT NULL DEFAULT 'other'
+                    CHECK (category IN ('regulatory', 'browser_help', 'service_policy', 'infrastructure', 'other')),
+  is_healthy      boolean     NOT NULL DEFAULT true,
+  last_status     int,
+  last_checked_at timestamptz,
+  last_ok_at      timestamptz,
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  updated_at      timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE external_links ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "external_links_read" ON external_links;
+CREATE POLICY "external_links_read" ON external_links
+  FOR SELECT USING (true);
+
+DROP TRIGGER IF EXISTS trg_external_links_updated_at ON external_links;
+CREATE TRIGGER trg_external_links_updated_at
+  BEFORE UPDATE ON external_links
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+INSERT INTO external_links (key, url, label, category) VALUES
+  ('informationRegulator', 'https://inforegulator.org.za',        'Information Regulator of SA',  'regulatory'),
+  ('sahrc',                'https://www.sahrc.org.za',             'SA Human Rights Commission',   'regulatory'),
+  ('chromeCookieHelp',     'https://support.google.com/chrome/answer/95647',
+                           'Chrome — manage cookies',              'browser_help'),
+  ('firefoxCookieHelp',    'https://support.mozilla.org/kb/clear-cookies-and-site-data-firefox',
+                           'Firefox — manage cookies',             'browser_help'),
+  ('safariCookieHelp',     'https://support.apple.com/guide/safari/manage-cookies-sfri11471',
+                           'Safari — manage cookies',              'browser_help'),
+  ('edgeCookieHelp',       'https://support.microsoft.com/en-us/microsoft-edge/delete-cookies-in-microsoft-edge-63947406-40ac-c3b8-57b9-2a946a29ae09',
+                           'Edge — manage cookies',                'browser_help'),
+  ('payfastPrivacy',       'https://payfast.io/privacy-policy/',   'PayFast Privacy Policy',       'service_policy'),
+  ('statusPage',           'https://status.pleks.co.za',           'Pleks Status Page',            'infrastructure')
+ON CONFLICT (key) DO NOTHING;

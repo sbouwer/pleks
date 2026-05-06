@@ -3,16 +3,24 @@
  *
  * Route:  GET /api/cron/check-links
  * Auth:   x-cron-secret header (CRON_SECRET env var) — called from daily cron orchestrator
- * Notes:  HEAD-checks every URL in lib/external-links.ts. Falls back to GET on 405.
- *         Emails ADMIN_EMAIL when any URL is unreachable; fix = update external-links.ts.
+ * Data:   external_links table (source of truth — admin-editable via admin panel)
+ * Notes:  HEAD-checks every URL in the external_links table. Falls back to GET on 405.
+ *         Writes last_checked_at, last_status, is_healthy, last_ok_at back to DB.
+ *         Emails ADMIN_EMAIL when any URL is unhealthy; fix = update URL in admin panel
+ *         (or in lib/external-links.ts + re-seed the table).
  */
 import { NextRequest } from "next/server"
 import { Resend } from "resend"
-import { EXTERNAL_LINKS, type ExternalLinkKey } from "@/lib/external-links"
+import { createServiceClient } from "@/lib/supabase/server"
 
-type LinkResult = {
-  key:     ExternalLinkKey
-  url:     string
+type DbLink = {
+  key:      string
+  url:      string
+  label:    string
+  category: string
+}
+
+type LinkResult = DbLink & {
   ok:      boolean
   status?: number
   error?:  string
@@ -24,8 +32,34 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const results  = await checkLinks()
+  const service = await createServiceClient()
+
+  // Read URLs from DB — admin can update these without a code deployment
+  const { data: links, error: fetchError } = await service
+    .from("external_links")
+    .select("key, url, label, category")
+    .order("category")
+
+  if (fetchError || !links) {
+    console.error("check-links: failed to read external_links table", fetchError)
+    return Response.json({ ok: false, error: fetchError?.message }, { status: 500 })
+  }
+
+  const results = await checkLinks(links)
   const failures = results.filter(r => !r.ok)
+  const now = new Date().toISOString()
+
+  // Write health check results back to DB
+  await Promise.all(
+    results.map(r =>
+      service.from("external_links").update({
+        last_checked_at: now,
+        last_status:     r.status ?? null,
+        is_healthy:      r.ok,
+        ...(r.ok ? { last_ok_at: now } : {}),
+      }).eq("key", r.key)
+    )
+  )
 
   if (failures.length > 0) {
     await alertFailures(failures)
@@ -39,26 +73,24 @@ export async function GET(req: NextRequest) {
   })
 }
 
-async function checkLinks(): Promise<LinkResult[]> {
+async function checkLinks(links: DbLink[]): Promise<LinkResult[]> {
   return Promise.all(
-    (Object.entries(EXTERNAL_LINKS) as [ExternalLinkKey, string][]).map(
-      async ([key, url]): Promise<LinkResult> => {
-        try {
-          const res = await fetch(url, {
-            method:   "HEAD",
-            redirect: "follow",
-            signal:   AbortSignal.timeout(10_000),
-          })
-          if (res.status === 405) {
-            const get = await fetch(url, { method: "GET", redirect: "follow", signal: AbortSignal.timeout(10_000) })
-            return { key, url, ok: get.ok, status: get.status }
-          }
-          return { key, url, ok: res.ok, status: res.status }
-        } catch (err) {
-          return { key, url, ok: false, error: String(err) }
+    links.map(async (link): Promise<LinkResult> => {
+      try {
+        const res = await fetch(link.url, {
+          method:   "HEAD",
+          redirect: "follow",
+          signal:   AbortSignal.timeout(10_000),
+        })
+        if (res.status === 405) {
+          const get = await fetch(link.url, { method: "GET", redirect: "follow", signal: AbortSignal.timeout(10_000) })
+          return { ...link, ok: get.ok, status: get.status }
         }
+        return { ...link, ok: res.ok, status: res.status }
+      } catch (err) {
+        return { ...link, ok: false, error: String(err) }
       }
-    )
+    })
   )
 }
 
@@ -71,7 +103,10 @@ async function alertFailures(failures: LinkResult[]) {
   }
 
   const lines = failures
-    .map(f => `  • ${f.key}: ${f.url}\n    → ${f.status != null ? `HTTP ${f.status}` : f.error}`)
+    .map(f => {
+      const outcome = f.status == null ? (f.error ?? "unknown error") : `HTTP ${f.status}`
+      return `  • [${f.key}] ${f.label}\n    ${f.url}\n    → ${outcome}`
+    })
     .join("\n\n")
 
   const resend = new Resend(resendKey)
@@ -82,7 +117,8 @@ async function alertFailures(failures: LinkResult[]) {
     text:    [
       `The daily link check found ${failures.length} unreachable external link${failures.length === 1 ? "" : "s"}:\n`,
       lines,
-      "\nFix: update lib/external-links.ts — all pages that reference the key update automatically.",
+      "\nFix: update the URL in the admin panel (/admin/external-links) or directly in Supabase.",
+      "The next daily check will clear the alert once the URL is reachable again.",
     ].join("\n"),
   })
 
