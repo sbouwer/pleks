@@ -39,6 +39,20 @@ const nextConfig: NextConfig = {
   // Remove X-Powered-By: Next.js header
   poweredByHeader: false,
 
+  // Tree-shake large packages at the module graph level (saves bundle + compile time)
+  experimental: {
+    optimizePackageImports: [
+      "lucide-react",
+      "@react-email/components",
+      "@react-pdf/renderer",
+      "@fullcalendar/react",
+      "@fullcalendar/daygrid",
+      "@fullcalendar/timegrid",
+      "@fullcalendar/list",
+      "@fullcalendar/interaction",
+    ],
+  },
+
   // Silence the Turbopack/webpack mismatch warning from @serwist/next.
   // Serwist is disabled in development so webpack only runs in production builds.
   turbopack: {},

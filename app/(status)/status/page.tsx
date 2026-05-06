@@ -17,6 +17,9 @@ import { StatusClock } from "./StatusClock"
 import "./status.css"
 
 export const revalidate = 60
+// force-dynamic: status data changes every 60s — no value in pre-rendering at build time.
+// Removing build-time BetterStack API calls saves ~24 requests (~21 per-day + 3 aggregate).
+export const dynamic = "force-dynamic"
 
 export const metadata: Metadata = {
   title: "System Status — Pleks",
@@ -60,13 +63,16 @@ function statusLabel(status: MonitorStatus) {
 }
 
 // Average uptime per day across all monitors (drives the hero uptime strip)
-function computeOverallHistory(monitors: Monitor[]): (number | null)[] {
+function computeOverallHistory(monitors: Monitor[]): { date: string; value: number | null }[] {
+  const to = new Date()
   return Array.from({ length: 90 }, (_, i) => {
+    const d      = new Date(to.getTime() - (89 - i) * 86_400_000)
+    const date   = d.toISOString().split("T")[0]
     const values = monitors
       .map(m => m.history[i]?.availability)
       .filter((v): v is number => v != null)
-    if (values.length === 0) return null
-    return values.reduce((s, v) => s + v, 0) / values.length
+    const value  = values.length === 0 ? null : values.reduce((s, v) => s + v, 0) / values.length
+    return { date, value }
   })
 }
 
@@ -180,7 +186,7 @@ function MonitorRow({ monitor }: Readonly<{ monitor: Monitor }>) {
           <span
             key={d.date}
             className={`st-mbar ${monitorBarClass(d.availability)}`}
-            title={d.availability !== null ? `${d.availability.toFixed(2)}% — ${d.date}` : `No data — ${d.date}`}
+            title={d.availability === null ? `No data — ${d.date}` : `${d.availability.toFixed(2)}% — ${d.date}`}
           />
         ))}
       </div>
@@ -244,7 +250,7 @@ export default async function StatusPage() {
     day0:  monitors[0]?.history[0],
     day88: monitors[0]?.history[88],
   })
-  const knownDays      = overallHistory.filter(v => v !== null).length
+  const knownDays      = overallHistory.filter(h => h.value !== null).length
 
   // Average of all monitor availabilities (each computed from their daily SLA history)
   const overallUptime  = monitors.length > 0
@@ -292,11 +298,11 @@ export default async function StatusPage() {
 
           {/* 90-day uptime strip */}
           <div className="st-uptime-strip">
-            {overallHistory.map((v, i) => (
+            {overallHistory.map(({ date, value }) => (
               <div
-                key={i}
-                className={`st-ubar ${heroBarClass(v)}`}
-                title={v !== null ? `${v.toFixed(2)}%` : "No data"}
+                key={date}
+                className={`st-ubar ${heroBarClass(value)}`}
+                title={value === null ? "No data" : `${value.toFixed(2)}%`}
               />
             ))}
           </div>
