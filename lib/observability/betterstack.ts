@@ -125,7 +125,7 @@ async function fetchMonitorHistory(monitorId: string, days: number): Promise<Mon
   const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000)
 
   const json = await bsFetch<RawSlaResponse>(
-    `/monitors/${monitorId}/sla?from=${from.toISOString()}&to=${to.toISOString()}&group_by=day`,
+    `/monitors/${monitorId}/sla?from=${from.toISOString().split('T')[0]}&to=${to.toISOString().split('T')[0]}&grouped_by=day`,
     300,
   )
 
