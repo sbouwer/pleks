@@ -1,11 +1,14 @@
 /**
- * app/(public)/status/page.tsx — Pleks system status page
+ * app/(status)/status/page.tsx — Pleks system status page
  *
  * Route:  /status  (also served at status.pleks.co.za via proxy rewrite)
  * Auth:   public
  * Data:   Better Stack Uptime API — monitors + incidents + 90-day SLA history
  * Notes:  ISR at 60s. Falls back gracefully when BETTERSTACK_API_KEY is absent.
  *         Grey bars = days before monitoring began (unknown, not counted in uptime).
+ *         Lives in (status) route group — NOT (public) — so it gets a minimal layout
+ *         with absolute links only, preventing Next.js router from trapping
+ *         visitors on status.pleks.co.za when they navigate away.
  */
 import type { Metadata } from "next"
 import { fetchMonitors, fetchIncidents, overallStatus } from "@/lib/observability/betterstack"

@@ -1,5 +1,5 @@
 /**
- * app/(public)/status/StatusClock.tsx — Live SAST clock + ISR refresh trigger
+ * app/(status)/status/StatusClock.tsx — Live SAST clock + ISR refresh trigger
  *
  * Auth:   public
  * Notes:  Client component. Displays current time in Africa/Johannesburg and
