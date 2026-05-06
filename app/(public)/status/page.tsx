@@ -270,7 +270,7 @@ export default async function StatusPage() {
             </div>
             <div className="st-meta-divider"/>
             <div className="st-meta-item">
-              <span>{knownDays}-day uptime</span>
+              <span>{knownDays > 0 ? `${knownDays}-day` : "Current"} uptime</span>
               <strong style={{ color: uptimeColor }}>
                 {overallUptime.toFixed(2)}%
               </strong>

@@ -112,50 +112,62 @@ function friendlyName(raw: string): string {
 }
 
 interface RawSlaResponse {
-  data?: RawSlaDay[]
+  data?: RawSlaDay[] | { attributes?: { availability?: number } }
 }
 
-async function fetchMonitorHistory(monitorId: string, days: number): Promise<DailyUptime[]> {
+interface MonitorHistoryResult {
+  perDay:       DailyUptime[]
+  slaAggregate: number | null  // period aggregate from BetterStack when per-day isn't available
+}
+
+async function fetchMonitorHistory(monitorId: string, days: number): Promise<MonitorHistoryResult> {
   const to   = new Date()
   const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000)
 
-  // Use full ISO timestamps — Better Stack requires datetime not just date strings
   const json = await bsFetch<RawSlaResponse>(
     `/monitors/${monitorId}/sla?from=${from.toISOString()}&to=${to.toISOString()}&group_by=day`,
     300,
   )
 
   const byDate = new Map<string, number>()
+  let slaAggregate: number | null = null
 
   if (Array.isArray(json?.data)) {
-    // Grouped daily response — only source of per-day truth
+    // Per-day array — ideal path
     for (const d of json.data) {
       const dt = d.attributes.from?.split("T")[0]
       if (dt && d.attributes.availability != null) byDate.set(dt, d.attributes.availability)
     }
+  } else if (json?.data && typeof json.data === "object" && "attributes" in json.data) {
+    // BetterStack returned one aggregate for the whole period (common for new monitors).
+    // We can't attribute it to specific days, so bars stay grey — but capture it as the
+    // overall availability figure so the uptime % is meaningful.
+    slaAggregate = (json.data as { attributes?: { availability?: number } }).attributes?.availability ?? null
   }
-  // Single-record fallback intentionally removed: if BetterStack returns one aggregate
-  // for the whole period we cannot attribute it to specific days — leave them as null
-  // (grey "no data" bars) rather than painting every day the same orange.
 
-  // Generate every day in the window oldest→newest; null for days with no data
-  const result: DailyUptime[] = []
+  const perDay: DailyUptime[] = []
   for (let i = days - 1; i >= 0; i--) {
     const d  = new Date(to.getTime() - i * 24 * 60 * 60 * 1000)
     const dt = dateStr(d)
-    result.push({ date: dt, availability: byDate.get(dt) ?? null })
+    perDay.push({ date: dt, availability: byDate.get(dt) ?? null })
   }
-  return result
+  return { perDay, slaAggregate }
 }
 
 export async function fetchMonitors(days = 90): Promise<Monitor[]> {
   const json = await bsFetch<{ data?: RawMonitor[] }>("/monitors?per_page=50")
   if (!Array.isArray(json?.data)) return []
 
-  // Preserve BetterStack's own all-time availability as fallback for monitors with no daily data
-  const rawAvailability = new Map(json.data.map(m => [m.id, m.attributes.availability ?? 100]))
+  // Only surface monitors with known public-facing URLs — heartbeat monitors
+  // (cron jobs, internal checks) are internal-only and must not appear on the status page.
+  const publicMonitors = json.data.filter(m => {
+    const cleaned = cleanName(m.attributes.url ?? "")
+    return Object.hasOwn(MONITOR_NAMES, cleaned)
+  })
 
-  const monitors = json.data.map(m => ({
+  const rawAvailability = new Map(publicMonitors.map(m => [m.id, m.attributes.availability ?? 100]))
+
+  const monitors = publicMonitors.map(m => ({
     id:             m.id,
     name:           friendlyName(m.attributes.pronounceable_name ?? m.attributes.url ?? m.id),
     url:            cleanName(m.attributes.url ?? ""),
@@ -166,14 +178,14 @@ export async function fetchMonitors(days = 90): Promise<Monitor[]> {
     history:        [] as DailyUptime[],
   }))
 
-  const histories = await Promise.all(monitors.map(m => fetchMonitorHistory(m.id, days)))
+  const historyResults = await Promise.all(monitors.map(m => fetchMonitorHistory(m.id, days)))
   return monitors.map((m, i) => {
-    const history  = histories[i]
-    const known    = history.filter(d => d.availability !== null)
+    const { perDay, slaAggregate } = historyResults[i]
+    const known    = perDay.filter(d => d.availability !== null)
     const computed = known.length > 0
       ? known.reduce((s, d) => s + (d.availability ?? 0), 0) / known.length
-      : (rawAvailability.get(m.id) ?? 100)  // fallback to BetterStack's own figure
-    return { ...m, history, availability: computed }
+      : (slaAggregate ?? rawAvailability.get(m.id) ?? 100)
+    return { ...m, history: perDay, availability: computed }
   })
 }
 
