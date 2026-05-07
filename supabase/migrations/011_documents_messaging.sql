@@ -872,3 +872,34 @@ CREATE POLICY "tenant_comms_read" ON communication_log
         AND deleted_at IS NULL
     )
   );
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §15  BUILD_63 Phase 8: delivery_notice_tokens — anonymous notice viewing
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Tokens issued when the mandatory-retry delivery-alert fires for tenants with
+-- no portal account. Each token maps to a communication_log row and allows
+-- anonymous read-only viewing at /public/notice/{token}. Views are tracked as
+-- page_view events in communication_delivery_events.
+-- Expiry is set to the mandatory deadline date (or 30 days default).
+
+CREATE TABLE IF NOT EXISTS delivery_notice_tokens (
+  id                   uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  token                text        UNIQUE NOT NULL DEFAULT encode(gen_random_bytes(32), 'base64url'),
+  org_id               uuid        NOT NULL REFERENCES organisations(id),
+  communication_log_id uuid        NOT NULL REFERENCES communication_log(id),
+  tenant_id            uuid        REFERENCES tenants(id),
+  expires_at           timestamptz NOT NULL,
+  acknowledged_at      timestamptz,
+  created_at           timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_delivery_notice_tokens_token
+  ON delivery_notice_tokens(token)
+  WHERE acknowledged_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_delivery_notice_tokens_log
+  ON delivery_notice_tokens(communication_log_id);
+
+ALTER TABLE delivery_notice_tokens ENABLE ROW LEVEL SECURITY;
+-- All access via service-role client (route handlers); no user-facing policy needed.

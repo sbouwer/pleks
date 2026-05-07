@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { routeAndSend } from "@/lib/messaging/router"
+import { createDeliveryNoticeToken } from "@/lib/comms/delivery-notice-tokens"
 
 const CRON_SECRET = process.env.CRON_SECRET
 const MAX_ATTEMPTS = 4
@@ -61,16 +62,30 @@ async function fetchOriginalBody(
   }
 }
 
-async function sendFallbackAlert(retry: RetryRow): Promise<void> {
+async function sendFallbackAlert(service: ServiceClient, retry: RetryRow): Promise<void> {
   const snap = retry.recipient_snapshot
   if (!(snap.email ?? snap.phone)) return
+
+  const noticeUrl = retry.communication_log_id
+    ? await createDeliveryNoticeToken(service, {
+        orgId:              retry.org_id,
+        communicationLogId: retry.communication_log_id,
+        tenantId:           snap.tenant_id ?? null,
+        templateKey:        retry.template_key,
+      })
+    : null
+
+  const smsBody = noticeUrl
+    ? `Pleks: We tried to deliver an important notice to you. View it here: ${noticeUrl}`
+    : "Pleks: We tried to send you an important notice. Please check your email or contact your agent."
+
   await routeAndSend({
     orgId:             retry.org_id,
     templateKey:       "notice.delivery_fallback",
     tenantId:          snap.tenant_id,
     to: { email: snap.email ?? undefined, phone: snap.phone ?? undefined, name: "Tenant" },
     subject:           "Important notice — we tried to reach you",
-    smsBody:           "Pleks: We tried to send you an important notice. Please check your email or contact your agent. pleks.co.za",
+    smsBody,
     triggerEventType:  "mandatory_retry",
     triggerEventId:    retry.communication_log_id ?? undefined,
     firstAttemptLogId: retry.communication_log_id ?? undefined,
@@ -130,7 +145,7 @@ export async function POST(req: NextRequest) {
 
     // Delivery-alert side channel fires at attempt 3 (the penultimate attempt)
     if (retry.attempt_count === 3) {
-      await sendFallbackAlert(retry)
+      await sendFallbackAlert(service, retry)
     }
 
     // Fetch stored body_full for replay — stored precisely for this purpose (BUILD_63 §8)
