@@ -6,7 +6,8 @@
  * Route:  /leases/[leaseId]/deposit
  * Auth:   Agent session (gateway)
  * Data:   disburseDeposit, sendDepositSchedule, calculateDepositReturn server actions
- * Notes:  "Send to Tenant" transitions status to sent_to_tenant and fires deposit.return_schedule
+ * Notes:  ADDENDUM_63B: hasUnconfirmedCharges added to disburse gate alongside hasUnconfirmedItems.
+ *         "Send to Tenant" transitions status to sent_to_tenant and fires deposit.return_schedule
  *         mandatory comm (BUILD_63 Phase 3).
  */
 import { useState } from "react"
@@ -22,12 +23,15 @@ interface DepositActionsProps {
   readonly leaseId: string
   readonly reconStatus: string
   readonly hasUnconfirmedItems: boolean
+  readonly hasUnconfirmedCharges: boolean
 }
 
-export function DepositActions({ leaseId, reconStatus, hasUnconfirmedItems }: DepositActionsProps) {
+export function DepositActions({ leaseId, reconStatus, hasUnconfirmedItems, hasUnconfirmedCharges }: DepositActionsProps) {
   const { user } = useUser()
   const router = useRouter()
   const [processing, setProcessing] = useState(false)
+
+  const blockDisburse = hasUnconfirmedItems || hasUnconfirmedCharges
 
   async function handleRecalculate() {
     setProcessing(true)
@@ -50,11 +54,12 @@ export function DepositActions({ leaseId, reconStatus, hasUnconfirmedItems }: De
 
   async function handleDisburse() {
     if (!user) return
-    if (hasUnconfirmedItems) {
-      toast.error("All deduction items must be confirmed before disbursement")
+    if (blockDisburse) {
+      if (hasUnconfirmedItems) toast.error("All deduction items must be confirmed before disbursement")
+      else toast.error("All non-damage charges must be confirmed before disbursement")
       return
     }
-    if (!confirm("This will disburse the deposit. Continue?")) return
+    if (!confirm("This will disburse the deposit and settle all charges. Continue?")) return
 
     setProcessing(true)
     const result = await disburseDeposit(leaseId, user.id)
@@ -88,7 +93,7 @@ export function DepositActions({ leaseId, reconStatus, hasUnconfirmedItems }: De
         <ActionButton
           tone="secondary"
           onClick={handleSendToTenant}
-          disabled={processing || hasUnconfirmedItems}
+          disabled={processing || blockDisburse}
         >
           {processing ? "Sending..." : "Send to Tenant"}
         </ActionButton>
@@ -97,7 +102,7 @@ export function DepositActions({ leaseId, reconStatus, hasUnconfirmedItems }: De
         <ActionButton
           tone="primary"
           onClick={handleDisburse}
-          disabled={processing || hasUnconfirmedItems}
+          disabled={processing || blockDisburse}
         >
           {processing ? "Processing..." : "Disburse Deposit"}
         </ActionButton>

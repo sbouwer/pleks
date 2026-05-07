@@ -1,15 +1,18 @@
 /**
- * lib/comms/templates/tenant/deposits/deposit-return-schedule.tsx — itemised deduction schedule
+ * lib/comms/templates/tenant/deposits/deposit-return-schedule.tsx — itemised deduction schedule email
  *
- * Data:   tenant name, deposit figures, deduction items, deadline, org branding
+ * Data:   tenant name, deposit figures, deduction items, deposit charges, deadline, org branding
  * Notes:  Mandatory legal template — RHA s5(7). Fixed formal voice. Single variant.
  *         Must be stored in body_full for Tribunal evidence trail.
  *         Fired when agent transitions deposit_reconciliations.status to sent_to_tenant.
+ *         ADDENDUM_63B: chargeItems added alongside deductionItems for non-damage deductions.
  */
 
 import * as React from "react"
 import { Section, Text, Hr } from "@react-email/components"
 import { EmailLayout, type OrgBranding } from "../../layout"
+import { DepositDamageSection } from "./DepositDamageSection"
+import { DepositChargesSection } from "./DepositChargesSection"
 
 export interface DeductionItem {
   id: string
@@ -20,52 +23,39 @@ export interface DeductionItem {
   ai_justification: string | null
 }
 
+export interface DepositChargeItem {
+  id: string
+  charge_type: string
+  description: string
+  deduction_amount_cents: number
+  notes: string | null
+}
+
 export interface DepositReturnScheduleEmailProps {
   branding: OrgBranding
   tenantName: string
   propertyLabel: string
   leaseStartDate: string
   leaseEndDate: string
-  depositHeldDisplay: string       // e.g. "R 9 000.00"
-  interestAccruedDisplay: string   // e.g. "R 540.00"
-  totalAvailableDisplay: string    // total held + interest
+  depositHeldDisplay: string
+  interestAccruedDisplay: string
+  totalAvailableDisplay: string
   totalDeductionsDisplay: string
   refundToTenantDisplay: string
   deductionItems: DeductionItem[]
-  deadlineDate: string             // e.g. "21 June 2026"
-  returnDays: number               // statutory return period (usually 14 or 21)
-  referenceNumber: string          // first 8 chars of reconciliation id
+  chargeItems: DepositChargeItem[]
+  deadlineDate: string
+  returnDays: number
+  referenceNumber: string
 }
 
 // Canonical classifications from deposit_deduction_items.classification CHECK constraint.
 // Exported for reuse in PDF renders and future tooling.
-// All positive-amount items are shown regardless of classification — an agent claiming
-// wear_and_tear as a deduction is a process error, but the tenant must still see it.
 export const CLASSIFICATION_LABELS: Record<string, string> = {
   tenant_damage: "Deductions — Tenant Damage",
   wear_and_tear: "Deductions — Wear & Tear",
   pre_existing:  "Deductions — Pre-existing Condition",
   disputed:      "Deductions — Disputed",
-}
-
-function classificationLabel(c: string): string {
-  if (CLASSIFICATION_LABELS[c]) return CLASSIFICATION_LABELS[c]
-  return "Deductions — " + c.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ")
-}
-
-function formatCents(cents: number): string {
-  return "R " + (cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
-}
-
-function groupByClassification(items: DeductionItem[]): Record<string, DeductionItem[]> {
-  const groups: Record<string, DeductionItem[]> = {}
-  for (const item of items) {
-    if (item.deduction_amount_cents <= 0) continue
-    const key = item.classification ?? "other"
-    if (!groups[key]) groups[key] = []
-    groups[key].push(item)
-  }
-  return groups
 }
 
 export function DepositReturnScheduleEmail({
@@ -80,14 +70,15 @@ export function DepositReturnScheduleEmail({
   totalDeductionsDisplay,
   refundToTenantDisplay,
   deductionItems,
+  chargeItems,
   deadlineDate,
   returnDays,
   referenceNumber,
 }: Readonly<DepositReturnScheduleEmailProps>) {
   const preview = `Deposit return schedule — ${propertyLabel} — Ref ${referenceNumber}`
-  const groups = groupByClassification(deductionItems)
-  const hasAnyDeductions = deductionItems.some((i) => i.deduction_amount_cents > 0)
-  const groupKeys = Object.keys(groups).sort((a, b) => a.localeCompare(b))
+  const hasAnyDeductions =
+    deductionItems.some((i) => i.deduction_amount_cents > 0) ||
+    chargeItems.some((c) => c.deduction_amount_cents > 0)
 
   return (
     <EmailLayout preview={preview} branding={branding}>
@@ -102,7 +93,6 @@ export function DepositReturnScheduleEmail({
         from the date of vacation to dispute any deductions listed herein.
       </Text>
 
-      {/* Lease summary */}
       <Section style={box}>
         <Text style={sectionHead}>Lease Details</Text>
         <Text style={boxRow}><strong>Property:</strong> {propertyLabel}</Text>
@@ -110,7 +100,6 @@ export function DepositReturnScheduleEmail({
         <Text style={boxRow}><strong>Lease ended:</strong> {leaseEndDate}</Text>
       </Section>
 
-      {/* Financial summary */}
       <Section style={box}>
         <Text style={sectionHead}>Deposit Summary</Text>
         <Text style={boxRow}><strong>Deposit held:</strong> {depositHeldDisplay}</Text>
@@ -123,23 +112,11 @@ export function DepositReturnScheduleEmail({
         </Text>
       </Section>
 
-      {/* Deduction items — all positive-amount items, every classification shown (RHA s5(7)) */}
-      {groupKeys.map((key) => (
-        <Section key={key} style={box}>
-          <Text style={sectionHead}>{classificationLabel(key)}</Text>
-          {groups[key].map((item) => (
-            <Section key={item.id} style={itemRow}>
-              <Text style={itemDesc}>
-                {item.room ? `${item.room}: ` : ""}{item.item_description}
-              </Text>
-              <Text style={itemAmount}>{formatCents(item.deduction_amount_cents)}</Text>
-              {item.ai_justification && (
-                <Text style={itemJustification}>{item.ai_justification}</Text>
-              )}
-            </Section>
-          ))}
-        </Section>
-      ))}
+      {/* Inspection-derived damage deductions (grouped by classification) */}
+      <DepositDamageSection deductionItems={deductionItems} />
+
+      {/* Non-damage charges: arrears, utilities, penalties (grouped by charge_type) */}
+      <DepositChargesSection chargeItems={chargeItems} />
 
       {!hasAnyDeductions && (
         <Text style={para}>
@@ -148,7 +125,6 @@ export function DepositReturnScheduleEmail({
         </Text>
       )}
 
-      {/* Dispute window */}
       <Section style={{ ...box, borderLeft: "3px solid #ef4444" }}>
         <Text style={sectionHead}>Your Right to Dispute — {returnDays}-Day Window</Text>
         <Text style={boxRow}>
@@ -177,15 +153,11 @@ export function DepositReturnScheduleEmail({
   )
 }
 
-const greet:           React.CSSProperties = { fontSize: 14, color: "#3f3f46", margin: "0 0 8px" }
-const h1:              React.CSSProperties = { fontSize: 20, fontWeight: 700, color: "#18181b", margin: "0 0 4px" }
-const refLine:         React.CSSProperties = { fontSize: 12, color: "#71717a", margin: "0 0 20px" }
-const para:            React.CSSProperties = { fontSize: 14, color: "#3f3f46", lineHeight: "1.6", margin: "0 0 16px" }
-const box:             React.CSSProperties = { background: "#f4f4f5", borderRadius: 6, padding: "12px 16px", margin: "0 0 16px" }
-const sectionHead:     React.CSSProperties = { fontSize: 12, fontWeight: 700, color: "#71717a", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 8px" }
-const boxRow:          React.CSSProperties = { fontSize: 13, color: "#3f3f46", margin: "2px 0" }
-const itemRow:         React.CSSProperties = { borderBottom: "1px solid #e4e4e7", padding: "6px 0" }
-const itemDesc:        React.CSSProperties = { fontSize: 13, color: "#3f3f46", margin: "0 0 2px", fontWeight: 600 }
-const itemAmount:      React.CSSProperties = { fontSize: 13, color: "#ef4444", margin: "0 0 2px", fontWeight: 700 }
-const itemJustification: React.CSSProperties = { fontSize: 12, color: "#71717a", margin: 0, fontStyle: "italic" }
-const small:           React.CSSProperties = { fontSize: 12, color: "#71717a", margin: 0 }
+const greet:       React.CSSProperties = { fontSize: 14, color: "#3f3f46", margin: "0 0 8px" }
+const h1:          React.CSSProperties = { fontSize: 20, fontWeight: 700, color: "#18181b", margin: "0 0 4px" }
+const refLine:     React.CSSProperties = { fontSize: 12, color: "#71717a", margin: "0 0 20px" }
+const para:        React.CSSProperties = { fontSize: 14, color: "#3f3f46", lineHeight: "1.6", margin: "0 0 16px" }
+const box:         React.CSSProperties = { background: "#f4f4f5", borderRadius: 6, padding: "12px 16px", margin: "0 0 16px" }
+const sectionHead: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: "#71717a", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 8px" }
+const boxRow:      React.CSSProperties = { fontSize: 13, color: "#3f3f46", margin: "2px 0" }
+const small:       React.CSSProperties = { fontSize: 12, color: "#71717a", margin: 0 }

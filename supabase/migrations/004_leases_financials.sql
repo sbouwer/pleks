@@ -1263,3 +1263,114 @@ COMMENT ON COLUMN leases.expiry_reminder_sent_at IS
   'Set after L9 expiry-reminder sent (T-30). NULL = reminder not yet sent.';
 COMMENT ON COLUMN leases.escalation_notice_sent_at IS
   'Set after L7 escalation-notice sent (T-30 before escalation_review_date). NULL = not yet sent.';
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §X  ADDENDUM_63B: NON-DAMAGE DEPOSIT CHARGES (2026-05-07)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Sibling table to deposit_deduction_items for non-inspection-derived deductions:
+-- rent arrears, unpaid utilities, cleaning, contractual penalties, etc.
+-- RHA s5(3)(c): "any other amount for which the tenant is liable under the lease".
+-- Required for a Tribunal-grade itemised schedule (RHA s5(7)).
+
+CREATE TABLE IF NOT EXISTS deposit_charges (
+  id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id                uuid NOT NULL REFERENCES organisations(id),
+  lease_id              uuid NOT NULL REFERENCES leases(id),
+  reconciliation_id     uuid REFERENCES deposit_reconciliations(id),
+
+  charge_type           text NOT NULL CHECK (charge_type IN (
+                          'rent_arrears',
+                          'unpaid_utilities',
+                          'cleaning',
+                          'contractual_penalty',
+                          'lock_replacement',
+                          'key_replacement',
+                          'admin_fee',
+                          'dilapidation',
+                          'fittings_removal',
+                          'early_termination_fee',
+                          'other'
+                        )),
+  description           text NOT NULL,
+  deduction_amount_cents integer NOT NULL CHECK (deduction_amount_cents > 0),
+
+  -- Source references — plain uuid for cross-file FK targets (supplier_invoices,
+  -- municipal_bills are in 005); rest carry real FKs.
+  source_invoice_id          uuid REFERENCES rent_invoices(id),
+  source_arrears_case_id     uuid REFERENCES arrears_cases(id),
+  source_supplier_invoice_id uuid,   -- FK to supplier_invoices (005) — plain uuid
+  source_municipal_bill_id   uuid,   -- FK to municipal_bills (005) — plain uuid
+  source_lease_charge_id     uuid REFERENCES lease_charges(id),
+
+  -- Set after disburse — links the settlement record back to the charge
+  settling_payment_id        uuid REFERENCES payments(id),
+  settling_deposit_txn_id    uuid REFERENCES deposit_transactions(id),
+
+  supporting_doc_path text,
+  notes               text,
+
+  agent_confirmed  boolean NOT NULL DEFAULT false,
+  confirmed_by     uuid REFERENCES auth.users(id),
+  confirmed_at     timestamptz,
+  tenant_disputed  boolean NOT NULL DEFAULT false,
+  dispute_notes    text,
+  dispute_resolved boolean NOT NULL DEFAULT false,
+  dispute_resolution text,
+
+  created_by  uuid REFERENCES auth.users(id),
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_deposit_charges_lease
+  ON deposit_charges(lease_id);
+CREATE INDEX IF NOT EXISTS idx_deposit_charges_recon
+  ON deposit_charges(reconciliation_id);
+CREATE INDEX IF NOT EXISTS idx_deposit_charges_arrears
+  ON deposit_charges(source_arrears_case_id)
+  WHERE source_arrears_case_id IS NOT NULL;
+
+ALTER TABLE deposit_charges ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "org_deposit_charges" ON deposit_charges;
+CREATE POLICY "org_deposit_charges" ON deposit_charges
+  FOR ALL
+  USING (org_id IN (
+    SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL
+  ))
+  WITH CHECK (org_id IN (
+    SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL
+  ));
+
+DROP TRIGGER IF EXISTS update_deposit_charges_updated_at ON deposit_charges;
+CREATE TRIGGER update_deposit_charges_updated_at
+  BEFORE UPDATE ON deposit_charges
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Extend deposit_transactions.transaction_type to cover non-damage charge patterns
+ALTER TABLE deposit_transactions DROP CONSTRAINT IF EXISTS deposit_transactions_transaction_type_check;
+ALTER TABLE deposit_transactions ADD CONSTRAINT deposit_transactions_transaction_type_check
+  CHECK (transaction_type IN (
+    'deposit_received',
+    'interest_accrued',
+    'deduction_applied',         -- physical damage from inspection
+    'charge_applied',            -- non-damage charge (arrears, utilities, ad-hoc)
+    'deduction_reversed',
+    'charge_reversed',
+    'deposit_returned_to_tenant',
+    'deduction_paid_to_landlord',
+    'arrears_offset_to_invoice', -- deposit-side leg of a tenant-debt settlement
+    'forfeited'
+  ));
+
+-- FK back to the deposit_charges row for the new transaction types
+ALTER TABLE deposit_transactions
+  ADD COLUMN IF NOT EXISTS charge_id uuid REFERENCES deposit_charges(id);
+
+-- Extend payments.payment_method to support deposit-funded settlements
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_payment_method_check;
+ALTER TABLE payments ADD CONSTRAINT payments_payment_method_check
+  CHECK (payment_method IN (
+    'eft', 'cash', 'card', 'bank_recon_matched',
+    'deposit_offset'   -- source of funds is the tenant's own deposit
+  ));

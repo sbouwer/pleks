@@ -4,11 +4,11 @@
  * lib/actions/deposits.ts — deposit lifecycle server actions
  *
  * Auth:   gateway (agent session required)
- * Data:   deposit_reconciliations, deposit_deduction_items, deposit_timers,
+ * Data:   deposit_reconciliations, deposit_deduction_items, deposit_charges, deposit_timers,
  *         tenant_view, leases, units, properties via gateway
  * Notes:  sendDepositSchedule transitions recon status → sent_to_tenant and fires
  *         deposit.return_schedule (mandatory, RHA s5(7)) via the comms router.
- *         BUILD_63 Phase 3.
+ *         ADDENDUM_63B: chargeItems included in the schedule and CRUD actions added.
  */
 
 import * as React from "react"
@@ -20,6 +20,7 @@ import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import {
   DepositReturnScheduleEmail,
   type DeductionItem,
+  type DepositChargeItem,
 } from "@/lib/comms/templates/tenant/deposits/deposit-return-schedule"
 
 function formatZARLocal(cents: number): string {
@@ -35,7 +36,6 @@ export async function sendDepositSchedule(leaseId: string): Promise<{ success?: 
   if (!gw) redirect("/login")
   const { db, orgId } = gw
 
-  // Fetch reconciliation
   const { data: recon, error: reconErr } = await db
     .from("deposit_reconciliations")
     .select("id, org_id, lease_id, tenant_id, status, deposit_held_cents, interest_accrued_cents, total_available_cents, total_deductions_cents, refund_to_tenant_cents")
@@ -48,7 +48,6 @@ export async function sendDepositSchedule(leaseId: string): Promise<{ success?: 
     return { error: "Schedule has already been sent to the tenant" }
   }
 
-  // Fetch tenant contact
   const { data: tenant, error: tenantErr } = await db
     .from("tenant_view")
     .select("first_name, last_name, email, phone")
@@ -57,7 +56,6 @@ export async function sendDepositSchedule(leaseId: string): Promise<{ success?: 
 
   if (tenantErr || !tenant?.email) return { error: "Tenant email not found" }
 
-  // Fetch deduction items
   const { data: items, error: itemsErr } = await db
     .from("deposit_deduction_items")
     .select("id, room, item_description, deduction_amount_cents, classification, ai_justification")
@@ -66,7 +64,16 @@ export async function sendDepositSchedule(leaseId: string): Promise<{ success?: 
 
   if (itemsErr) return { error: itemsErr.message }
 
-  // Fetch timer for deadline — fail-fast if deadline not set (broken legal notice otherwise)
+  const { data: charges, error: chargesErr } = await db
+    .from("deposit_charges")
+    .select("id, charge_type, description, deduction_amount_cents, notes")
+    .eq("lease_id", leaseId)
+    .eq("org_id", orgId)
+    .eq("agent_confirmed", true)
+    .order("created_at")
+
+  if (chargesErr) return { error: chargesErr.message }
+
   const { data: timer } = await db
     .from("deposit_timers")
     .select("deadline, return_days")
@@ -79,7 +86,6 @@ export async function sendDepositSchedule(leaseId: string): Promise<{ success?: 
     return { error: "Deposit timer not configured. The deposit deadline must be set up before the return schedule can be sent. Please configure the deposit timer first." }
   }
 
-  // Fetch lease + property info
   const { data: lease } = await db
     .from("leases")
     .select("start_date, end_date, units(unit_number, properties(address_line1, suburb, city))")
@@ -96,26 +102,33 @@ export async function sendDepositSchedule(leaseId: string): Promise<{ success?: 
     ? [propData.address_line1, `Unit ${unitData?.unit_number}`, propData.suburb ?? propData.city].filter(Boolean).join(", ")
     : leaseId
 
-  // Build org branding
   const orgSettings = await fetchOrgSettings(orgId)
   const branding = buildBranding(orgSettings)
 
-  const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
-  const refNum = recon.id.slice(0, 8).toUpperCase()
-  const deadline = formatDateLocal(timer.deadline as string)
+  const tenantName  = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
+  const refNum      = recon.id.slice(0, 8).toUpperCase()
+  const deadline    = formatDateLocal(timer.deadline as string)
   const hasDeductions = (items ?? []).some((i) => (i.deduction_amount_cents as number) > 0)
-  const returnDays = (timer.return_days as number | null) ?? (hasDeductions ? 21 : 14)
+    || (charges ?? []).length > 0
+  const returnDays  = (timer.return_days as number | null) ?? (hasDeductions ? 21 : 14)
 
   const deductionItems: DeductionItem[] = (items ?? []).map((i) => ({
-    id: i.id as string,
-    room: i.room as string | null,
-    item_description: i.item_description as string,
+    id:                     i.id as string,
+    room:                   i.room as string | null,
+    item_description:       i.item_description as string,
     deduction_amount_cents: i.deduction_amount_cents as number,
-    classification: i.classification as string,
-    ai_justification: i.ai_justification as string | null,
+    classification:         i.classification as string,
+    ai_justification:       i.ai_justification as string | null,
   }))
 
-  // Transition status before firing comm (idempotent guard above already checked)
+  const chargeItems: DepositChargeItem[] = (charges ?? []).map((c) => ({
+    id:                     c.id as string,
+    charge_type:            c.charge_type as string,
+    description:            c.description as string,
+    deduction_amount_cents: c.deduction_amount_cents as number,
+    notes:                  c.notes as string | null,
+  }))
+
   const { error: updateErr } = await db
     .from("deposit_reconciliations")
     .update({ status: "sent_to_tenant", schedule_sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
@@ -123,7 +136,6 @@ export async function sendDepositSchedule(leaseId: string): Promise<{ success?: 
 
   if (updateErr) return { error: updateErr.message }
 
-  // Fire deposit.return_schedule (mandatory — queued for retry if it fails)
   await routeAndSend({
     orgId,
     tenantId:       recon.tenant_id as string,
@@ -142,6 +154,7 @@ export async function sendDepositSchedule(leaseId: string): Promise<{ success?: 
       totalDeductionsDisplay: formatZARLocal(recon.total_deductions_cents as number),
       refundToTenantDisplay:  formatZARLocal(recon.refund_to_tenant_cents as number),
       deductionItems,
+      chargeItems,
       deadlineDate:           deadline,
       returnDays,
       referenceNumber:        refNum,
@@ -153,6 +166,106 @@ export async function sendDepositSchedule(leaseId: string): Promise<{ success?: 
     toneVariant:      "n/a",
   })
 
+  revalidatePath(`/leases/${leaseId}/deposit`)
+  return { success: true }
+}
+
+// ─── CRUD actions for deposit_charges (ADDENDUM_63B) ─────────────────────────
+
+interface CreateDepositChargeInput {
+  charge_type: string
+  description: string
+  deduction_amount_cents: number
+  reconciliation_id?: string
+  source_invoice_id?: string
+  source_arrears_case_id?: string
+  source_supplier_invoice_id?: string
+  source_municipal_bill_id?: string
+  source_lease_charge_id?: string
+  supporting_doc_path?: string
+  notes?: string
+}
+
+export async function createDepositCharge(
+  leaseId: string,
+  input: CreateDepositChargeInput
+): Promise<{ id?: string; error?: string }> {
+  const gw = await gateway()
+  if (!gw) redirect("/login")
+  const { db, orgId, userId } = gw
+
+  const { data, error } = await db.from("deposit_charges").insert({
+    org_id:   orgId,
+    lease_id: leaseId,
+    created_by: userId,
+    ...input,
+  }).select("id").single()
+
+  if (error) return { error: error.message }
+  revalidatePath(`/leases/${leaseId}/deposit`)
+  return { id: data.id as string }
+}
+
+export async function updateDepositCharge(
+  chargeId: string,
+  leaseId: string,
+  input: Partial<CreateDepositChargeInput>
+): Promise<{ success?: boolean; error?: string }> {
+  const gw = await gateway()
+  if (!gw) redirect("/login")
+  const { db, orgId } = gw
+
+  const { error } = await db
+    .from("deposit_charges")
+    .update(input)
+    .eq("id", chargeId)
+    .eq("org_id", orgId)
+    .eq("agent_confirmed", false)
+
+  if (error) return { error: error.message }
+  revalidatePath(`/leases/${leaseId}/deposit`)
+  return { success: true }
+}
+
+export async function confirmDepositCharge(
+  chargeId: string,
+  leaseId: string
+): Promise<{ success?: boolean; error?: string }> {
+  const gw = await gateway()
+  if (!gw) redirect("/login")
+  const { db, orgId, userId } = gw
+
+  const { error } = await db
+    .from("deposit_charges")
+    .update({
+      agent_confirmed: true,
+      confirmed_by:    userId,
+      confirmed_at:    new Date().toISOString(),
+    })
+    .eq("id", chargeId)
+    .eq("org_id", orgId)
+
+  if (error) return { error: error.message }
+  revalidatePath(`/leases/${leaseId}/deposit`)
+  return { success: true }
+}
+
+export async function deleteDepositCharge(
+  chargeId: string,
+  leaseId: string
+): Promise<{ success?: boolean; error?: string }> {
+  const gw = await gateway()
+  if (!gw) redirect("/login")
+  const { db, orgId } = gw
+
+  const { error } = await db
+    .from("deposit_charges")
+    .delete()
+    .eq("id", chargeId)
+    .eq("org_id", orgId)
+    .eq("agent_confirmed", false)
+
+  if (error) return { error: error.message }
   revalidatePath(`/leases/${leaseId}/deposit`)
   return { success: true }
 }

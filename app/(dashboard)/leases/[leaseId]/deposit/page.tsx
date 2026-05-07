@@ -1,11 +1,12 @@
 /**
- * app/(dashboard)/leases/[leaseId]/deposit/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/leases/[leaseId]/deposit/page.tsx — deposit reconciliation detail page
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /leases/[leaseId]/deposit
+ * Auth:   Supabase session (createClient auth check)
+ * Data:   deposit_reconciliations, deposit_deduction_items, deposit_charges, deposit_timers,
+ *         deposit_transactions (interest), leases, arrears_cases, rent_invoices via createClient
+ * Notes:  ADDENDUM_63B: fetches deposit_charges and suggestion data (open arrears cases,
+ *         unpaid invoices) to populate DepositChargesEditor.
  */
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
@@ -14,6 +15,8 @@ import { Badge } from "@/components/ui/badge"
 import { formatZAR } from "@/lib/constants"
 import { formatDateShort } from "@/lib/reports/periods"
 import { DepositActions } from "./DepositActions"
+import { DepositChargesEditor } from "./DepositChargesEditor"
+import type { DepositCharge, ArrearssuggestionItem, InvoiceSuggestionItem } from "./DepositChargesEditor"
 import { BackLink } from "@/components/ui/BackLink"
 
 export default async function DepositReconPage({
@@ -26,47 +29,27 @@ export default async function DepositReconPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  // Get reconciliation
-  const { data: recon } = await supabase
-    .from("deposit_reconciliations")
-    .select("*")
-    .eq("lease_id", leaseId)
-    .single()
-
-  // Get deduction items
-  const { data: items } = await supabase
-    .from("deposit_deduction_items")
-    .select("*")
-    .eq("lease_id", leaseId)
-    .order("created_at")
-
-  // Get timer
-  const { data: timer } = await supabase
-    .from("deposit_timers")
-    .select("deadline, status, return_days")
-    .eq("lease_id", leaseId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .single()
-
-  // Get lease + tenant info
-  const { data: lease } = await supabase
-    .from("leases")
-    .select(`
-      start_date, end_date, lease_type,
-      units(unit_number, properties(name)),
-      tenant_view(first_name, last_name)
-    `)
-    .eq("id", leaseId)
-    .single()
-
-  // Interest accrual history — RHA s5(3)(d) per-deposit statement
-  const { data: interestTxns } = await supabase
-    .from("deposit_transactions")
-    .select("id, transaction_date, amount_cents, effective_rate_percent, description, statement_month")
-    .eq("lease_id", leaseId)
-    .eq("transaction_type", "interest_accrued")
-    .order("transaction_date", { ascending: true })
+  const [
+    { data: recon },
+    { data: items },
+    { data: charges },
+    { data: timer },
+    { data: lease },
+    { data: interestTxns },
+    { data: arrearsCases },
+    { data: openInvoices },
+  ] = await Promise.all([
+    supabase.from("deposit_reconciliations").select("*").eq("lease_id", leaseId).single(),
+    supabase.from("deposit_deduction_items").select("*").eq("lease_id", leaseId).order("created_at"),
+    supabase.from("deposit_charges").select("id, charge_type, description, deduction_amount_cents, agent_confirmed, source_arrears_case_id, source_invoice_id, source_supplier_invoice_id, source_municipal_bill_id, source_lease_charge_id, notes").eq("lease_id", leaseId).order("created_at"),
+    supabase.from("deposit_timers").select("deadline, status, return_days").eq("lease_id", leaseId).order("created_at", { ascending: false }).limit(1).single(),
+    supabase.from("leases").select("start_date, end_date, lease_type, units(unit_number, properties(name)), tenant_view(first_name, last_name)").eq("id", leaseId).single(),
+    supabase.from("deposit_transactions").select("id, transaction_date, amount_cents, effective_rate_percent, description, statement_month").eq("lease_id", leaseId).eq("transaction_type", "interest_accrued").order("transaction_date", { ascending: true }),
+    // Suggestions: open arrears cases for this lease
+    supabase.from("arrears_cases").select("id, total_arrears_cents, case_reference").eq("lease_id", leaseId).neq("status", "resolved").gt("total_arrears_cents", 0),
+    // Suggestions: open/partial/overdue rent invoices not yet fully paid
+    supabase.from("rent_invoices").select("id, invoice_number, balance_cents, due_date").eq("lease_id", leaseId).in("status", ["open", "partial", "overdue"]).gt("balance_cents", 0),
+  ])
 
   const unit = lease?.units as unknown as { unit_number: string; properties: { name: string } | null } | null
   const tenant = lease?.tenant_view as unknown as { first_name: string; last_name: string } | null
@@ -74,11 +57,47 @@ export default async function DepositReconPage({
   const propertyName = `${unit?.unit_number ?? ""}, ${unit?.properties?.name ?? ""}`
 
   const allItems = items ?? []
-  const damageItems = allItems.filter((i) => i.classification === "tenant_damage")
-  const wearItems = allItems.filter((i) => i.classification === "wear_and_tear" || i.classification === "pre_existing")
-  const disputedItems = allItems.filter((i) => i.tenant_disputed)
+  const damageItems    = allItems.filter((i) => i.classification === "tenant_damage")
+  const wearItems      = allItems.filter((i) => i.classification === "wear_and_tear" || i.classification === "pre_existing")
+  const disputedItems  = allItems.filter((i) => i.tenant_disputed)
 
-  // Timer info
+  const chargeList: DepositCharge[] = (charges ?? []).map((c) => ({
+    id:                        c.id as string,
+    charge_type:               c.charge_type as string,
+    description:               c.description as string,
+    deduction_amount_cents:    c.deduction_amount_cents as number,
+    agent_confirmed:           c.agent_confirmed as boolean,
+    source_arrears_case_id:    c.source_arrears_case_id as string | null,
+    source_invoice_id:         c.source_invoice_id as string | null,
+    source_supplier_invoice_id: c.source_supplier_invoice_id as string | null,
+    source_municipal_bill_id:  c.source_municipal_bill_id as string | null,
+    source_lease_charge_id:    c.source_lease_charge_id as string | null,
+    notes:                     c.notes as string | null,
+  }))
+
+  // Build discovery suggestions — exclude arrears cases already linked to a charge
+  const linkedArrearsCaseIds = new Set(chargeList.map((c) => c.source_arrears_case_id).filter(Boolean))
+  const linkedInvoiceIds     = new Set(chargeList.map((c) => c.source_invoice_id).filter(Boolean))
+
+  const arrearsSuggestions: ArrearssuggestionItem[] = (arrearsCases ?? [])
+    .filter((ac) => !linkedArrearsCaseIds.has(ac.id))
+    .map((ac) => ({
+      arrears_case_id: ac.id as string,
+      label:           (ac.case_reference as string | null) ?? ac.id.slice(0, 8).toUpperCase(),
+      amount_cents:    ac.total_arrears_cents as number,
+    }))
+
+  const invoiceSuggestions: InvoiceSuggestionItem[] = (openInvoices ?? [])
+    .filter((inv) => !linkedInvoiceIds.has(inv.id))
+    .map((inv) => ({
+      invoice_id:   inv.id as string,
+      label:        `${inv.invoice_number} (due ${formatDateShort(new Date(inv.due_date as string))})`,
+      amount_cents: inv.balance_cents as number,
+    }))
+
+  const hasUnconfirmedItems   = damageItems.some((i) => !i.agent_confirmed)
+  const hasUnconfirmedCharges = chargeList.some((c) => !c.agent_confirmed)
+
   const now = new Date()
   const deadline = timer?.deadline ? new Date(timer.deadline) : null
   const daysRemaining = deadline ? Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null
@@ -86,13 +105,13 @@ export default async function DepositReconPage({
   const timerBadgeVariant: "destructive" | "secondary" = (isOverdue || (daysRemaining !== null && daysRemaining <= 3)) ? "destructive" : "secondary"
 
   const statusColors: Record<string, string> = {
-    draft: "bg-gray-100 text-gray-700",
+    draft:          "bg-gray-100 text-gray-700",
     pending_review: "bg-yellow-100 text-yellow-700",
     sent_to_tenant: "bg-blue-100 text-blue-700",
-    disputed: "bg-red-100 text-red-700",
-    finalised: "bg-green-100 text-green-700",
-    refunded: "bg-emerald-100 text-emerald-700",
-    overdue: "bg-red-100 text-red-700",
+    disputed:       "bg-red-100 text-red-700",
+    finalised:      "bg-green-100 text-green-700",
+    refunded:       "bg-emerald-100 text-emerald-700",
+    overdue:        "bg-red-100 text-red-700",
   }
 
   if (!recon) {
@@ -162,7 +181,7 @@ export default async function DepositReconPage({
         </Card>
       </div>
 
-      {/* Deduction items */}
+      {/* Tenant damage items */}
       {damageItems.length > 0 && (
         <Card>
           <CardHeader>
@@ -249,6 +268,15 @@ export default async function DepositReconPage({
         </Card>
       )}
 
+      {/* Non-damage charges (ADDENDUM_63B) */}
+      <DepositChargesEditor
+        leaseId={leaseId}
+        charges={chargeList}
+        arrearsSuggestions={arrearsSuggestions}
+        invoiceSuggestions={invoiceSuggestions}
+        reconStatus={recon.status as string}
+      />
+
       {/* Interest accrual history — RHA s5(3)(d) */}
       {(interestTxns ?? []).length > 0 && (
         <Card>
@@ -325,8 +353,9 @@ export default async function DepositReconPage({
       {/* Actions */}
       <DepositActions
         leaseId={leaseId}
-        reconStatus={recon.status}
-        hasUnconfirmedItems={damageItems.some((i) => !i.agent_confirmed)}
+        reconStatus={recon.status as string}
+        hasUnconfirmedItems={hasUnconfirmedItems}
+        hasUnconfirmedCharges={hasUnconfirmedCharges}
       />
     </div>
   )
