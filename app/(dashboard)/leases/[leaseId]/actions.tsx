@@ -1,31 +1,26 @@
 "use server"
 
 /**
- * app/(dashboard)/leases/[leaseId]/actions.tsx — FILL: one-line purpose
+ * app/(dashboard)/leases/[leaseId]/actions.tsx — landlord portal invite and email-lease-to-tenant
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   requireAgentWriteAccess (subscription-gated)
+ * Data:   leases, tenant_view, units, properties; sends email via sendEmail
  */
 
 import * as React from "react"
-import { gateway } from "@/lib/supabase/gateway"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { sendEmail, buildBranding, fetchOrgSettings, type SendEmailResult } from "@/lib/comms/send-email"
 import { EmailLayout, EmailButton, EmailDetail, EmailSectionHeading } from "@/lib/comms/templates/layout"
 import { formatZAR } from "@/lib/constants"
 import { inviteLandlord } from "@/lib/portal/inviteLandlord"
 
 export async function inviteLandlordPortal(landlordId: string): Promise<{ success?: boolean; error?: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("invite_user")
   return inviteLandlord(landlordId, gw.userId)
 }
 
 export async function emailLeaseToTenant(leaseId: string): Promise<SendEmailResult & { error?: string }> {
-  const gw = await gateway()
-  if (!gw) return { success: false, error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("send_manual_comm")
   const { db, userId, orgId } = gw
 
   const { data: lease, error: leaseError } = await db

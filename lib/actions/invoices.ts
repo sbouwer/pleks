@@ -10,14 +10,12 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 
-import { gateway } from "@/lib/supabase/gateway"
-import { redirect } from "next/navigation"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { revalidatePath } from "next/cache"
 import { calculateVAT } from "@/lib/finance/vatCalculation"
 
 export async function createSupplierInvoice(formData: FormData) {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("accept_quote")
   const { db, userId, orgId } = gw
 
   const contractorId = formData.get("contractor_id") as string || null
@@ -70,8 +68,7 @@ export async function createSupplierInvoice(formData: FormData) {
 }
 
 export async function approveInvoice(invoiceId: string) {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("accept_quote")
   const { db, userId } = gw
 
   const { error } = await db
@@ -90,8 +87,7 @@ export async function approveInvoice(invoiceId: string) {
 }
 
 export async function markInvoicePaid(invoiceId: string, reference?: string) {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("accept_quote")
   const { db, userId } = gw
 
   const { data: invoice } = await db
@@ -130,8 +126,7 @@ export async function markInvoicePaid(invoiceId: string, reference?: string) {
 }
 
 export async function rejectInvoice(invoiceId: string, reason: string) {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("accept_quote")
   const { db, userId } = gw
 
   const { error } = await db

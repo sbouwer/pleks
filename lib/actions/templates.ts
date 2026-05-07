@@ -10,14 +10,13 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 
-import { gateway } from "@/lib/supabase/gateway"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { revalidatePath } from "next/cache"
 
 export async function createDocumentTemplate(
   formData: FormData
 ): Promise<{ error?: string; id?: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("send_manual_comm")
   const { db, orgId } = gw
 
   const name = formData.get("name") as string
@@ -54,8 +53,7 @@ export async function updateDocumentTemplate(
   id: string,
   formData: FormData
 ): Promise<{ error?: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("send_manual_comm")
   const { db, orgId } = gw
 
   const name = formData.get("name") as string
@@ -80,8 +78,7 @@ export async function updateDocumentTemplate(
 export async function deleteDocumentTemplate(
   id: string
 ): Promise<{ error?: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("send_manual_comm")
   const { db, orgId, isAdmin } = gw
   if (!isAdmin) return { error: "Admin access required" }
 
@@ -102,8 +99,7 @@ export async function deleteDocumentTemplate(
 export async function duplicateTemplateToOrg(
   templateId: string
 ): Promise<{ error?: string; id?: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("send_manual_comm")
   const { db, orgId } = gw
 
   const { data: source, error: fetchError } = await db
@@ -143,8 +139,7 @@ export async function duplicateTemplateToOrg(
 export async function toggleFavourite(
   templateId: string
 ): Promise<{ error?: string; favourited: boolean }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated", favourited: false }
+  const gw = await requireAgentWriteAccess("send_manual_comm")
   const { db, userId } = gw
 
   const { data: existing } = await db
@@ -175,8 +170,7 @@ export async function setWhatsAppOptIn(
   templateId: string,
   optedIn: boolean
 ): Promise<{ error?: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("send_manual_comm")
   const { db, orgId } = gw
 
   const { error } = await db
@@ -194,8 +188,7 @@ export async function setWhatsAppTone(
   templateId: string,
   tone: string
 ): Promise<{ error?: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("send_manual_comm")
   const { db, orgId } = gw
 
   const { error } = await db
@@ -212,8 +205,7 @@ export async function setWhatsAppTone(
 export async function uploadCustomLease(
   formData: FormData
 ): Promise<{ error?: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("create_lease")
   const { db, orgId } = gw
 
   const file = formData.get("file") as File | null

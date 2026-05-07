@@ -3,22 +3,21 @@
 /**
  * lib/portal/inviteTenant.ts — manual tenant portal invite actions
  *
- * Auth:   gateway() — agent session required
+ * Auth:   requireAgentWriteAccess (subscription-gated)
  * Data:   tenant_view, tenants, audit_log, tenant_portal_tokens
  * Notes:  inviteUserByEmail sends Supabase's generic email — for branded email use
  *         stepSendPortalInvite in activateLeaseCascade (P1, auto-fires on activation).
  */
 
 import { createServiceClient } from "@/lib/supabase/server"
-import { gateway } from "@/lib/supabase/gateway"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 
 /**
  * Send a magic-link invite to the tenant's primary email.
  * Sets `tenants.portal_invite_sent_at` and logs to audit_log.
  */
 export async function inviteTenantPortal(tenantId: string, _leaseId: string) {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("invite_user")
 
   const { db, userId, orgId } = gw
 
@@ -76,8 +75,7 @@ export async function inviteTenantPortal(tenantId: string, _leaseId: string) {
  * Returns the full URL to share via WhatsApp.
  */
 export async function generateTenantPortalLink(tenantId: string, _leaseId: string) {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("invite_user")
 
   const { db, userId, orgId } = gw
 
@@ -121,9 +119,8 @@ export async function generateTenantPortalLink(tenantId: string, _leaseId: strin
 /**
  * Revoke all portal access for a tenant (magic link + tokens).
  */
-export async function revokeTenantPortalAccess(tenantId: string) {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+export async function revokeTenantPortalAccess(tenantId: string): Promise<{ success: true; error?: never } | { success?: never; error: string }> {
+  const gw = await requireAgentWriteAccess("invite_user")
 
   const { db, userId, orgId } = gw
 

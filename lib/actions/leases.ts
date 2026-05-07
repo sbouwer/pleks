@@ -3,12 +3,13 @@
 /**
  * lib/actions/leases.ts — server actions for lease lifecycle (create, sign, activate, notice, terminate)
  *
- * Auth:   gateway() — org-scoped, session-required
+ * Auth:   requireAgentWriteAccess (subscription-gated)
  * Data:   leases, tenants, units, properties, lease_charges, audit_log, communication_log
  * Notes:  BUILD_63 Phase 5: L1 fires in sendForSigning, L10 fires in giveNotice (tenant-only),
  *         L4+P1 fire in activateLeaseCascade. L11 fires from lease-expiry-check cron.
  */
-import { gateway } from "@/lib/supabase/gateway"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
+import type { GatewayContext } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import * as React from "react"
@@ -95,7 +96,7 @@ function parseLeaseFormData(formData: FormData): LeaseFormFields {
   }
 }
 
-type DbClient = Awaited<ReturnType<typeof gateway>> extends null ? never : Awaited<ReturnType<typeof gateway>> extends infer T ? T extends { db: infer D } ? D : never : never
+type DbClient = GatewayContext["db"]
 
 async function insertLeaseCharges(db: DbClient, formData: FormData, leaseId: string, orgId: string, userId: string) {
   const chargesJsonRaw = formData.get("charges_json") as string | null
@@ -174,8 +175,7 @@ async function logAcknowledgedConflicts(db: DbClient, formData: FormData, leaseI
 }
 
 export async function createLease(formData: FormData) {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("create_lease")
   const { db, userId, orgId } = gw
 
   const f = parseLeaseFormData(formData)
@@ -253,8 +253,7 @@ export async function createLease(formData: FormData) {
 }
 
 export async function createUploadedLease(formData: FormData): Promise<{ error: string } | { leaseId: string }> {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("create_lease")
   const { db, userId, orgId } = gw
 
   const unitId = formData.get("unit_id") as string
@@ -377,8 +376,7 @@ export async function markAsSigned(leaseId: string) {
   const { canActivateLease } = await import("@/lib/tier/canActivateLease")
   const { determineCpaApplicability } = await import("@/lib/leases/cpaApplicability")
 
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("activate_lease")
   const { db, userId, orgId } = gw
 
   // Tier gate (BUILD_60): Owner tier = 1 active lease, Steward = 20, Firm = ∞.
@@ -458,8 +456,7 @@ export async function markAsSigned(leaseId: string) {
 }
 
 export async function sendForSigning(leaseId: string) {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("create_lease")
   const { db, userId, orgId } = gw
 
   const { data: lease } = await db
@@ -530,8 +527,7 @@ export async function sendForSigning(leaseId: string) {
 }
 
 export async function giveNotice(leaseId: string, givenBy: "tenant" | "landlord", reason?: string) {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("terminate_lease")
   const { db, userId } = gw
 
   const { data: lease } = await db.from("leases").select("*").eq("id", leaseId).single()
@@ -616,8 +612,7 @@ export async function giveNotice(leaseId: string, givenBy: "tenant" | "landlord"
 }
 
 export async function addLeaseCoTenant(leaseId: string, tenantId: string): Promise<{ error: string } | { success: true }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("edit_lease")
   const { db, orgId } = gw
 
   const { data: lease } = await db.from("leases").select("org_id").eq("id", leaseId).single()
@@ -631,8 +626,7 @@ export async function addLeaseCoTenant(leaseId: string, tenantId: string): Promi
 }
 
 export async function removeLeaseCoTenant(leaseId: string, tenantId: string): Promise<{ error: string } | { success: true }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("edit_lease")
   const { db, orgId } = gw
 
   const { data: lease } = await db.from("leases").select("org_id").eq("id", leaseId).single()

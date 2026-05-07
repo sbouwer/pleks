@@ -1,16 +1,13 @@
 "use server"
 
 /**
- * app/(dashboard)/billing/actions.ts — FILL: one-line purpose
+ * app/(dashboard)/billing/actions.ts — bulk rent reminder SMS dispatch
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   requireAgentWriteAccess (subscription-gated)
+ * Data:   rent_invoices, leases, tenant_view; sends SMS via sendSMS
  */
 
-import { gateway } from "@/lib/supabase/gateway"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { sendSMS } from "@/lib/sms/sendSMS"
 
 function normalizeSAPhone(phone: string): string {
@@ -25,8 +22,7 @@ export async function sendBulkRentReminders(): Promise<{
   skipped: number
   error?: string
 }> {
-  const gw = await gateway()
-  if (!gw) return { sent: 0, skipped: 0, error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("send_manual_comm")
 
   const { db, orgId } = gw
 

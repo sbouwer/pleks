@@ -10,13 +10,12 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 import { headers } from "next/headers"
-import { gateway } from "@/lib/supabase/gateway"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { DISCLAIMER_VERSION } from "@/lib/leases/disclaimer"
 
 export async function recordLeaseDisclaimerAcceptance() {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("create_lease")
   const { db, userId, orgId } = gw
 
   const headersList = await headers()

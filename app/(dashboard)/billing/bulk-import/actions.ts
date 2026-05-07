@@ -1,15 +1,13 @@
 "use server"
 
 /**
- * app/(dashboard)/billing/bulk-import/actions.ts — FILL: one-line purpose
+ * app/(dashboard)/billing/bulk-import/actions.ts — CSV bulk payment import: row matching and confirmation
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   requireAgentWriteAccess for confirmBulkPayments (write); gateway for matchCsvRows (read — no lockdown gate needed)
+ * Data:   rent_invoices, payments, trust_transactions, audit_log; allocates via paymentAllocation
  */
 
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { gateway } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
@@ -115,6 +113,7 @@ function matchByAmount(
   }
 }
 
+// read-only — no lockdown gate needed
 export async function matchCsvRows(rows: ParsedRow[]): Promise<{ matched: MatchedRow[]; error?: string }> {
   const gw = await gateway()
   if (!gw) redirect("/login")
@@ -224,8 +223,7 @@ async function processOnePayment(db: SupabaseClient, p: ConfirmedPayment, receip
 }
 
 export async function confirmBulkPayments(payments: ConfirmedPayment[]): Promise<{ created: number; error?: string }> {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("record_payment")
   const { db, userId, orgId } = gw
 
   let created = 0

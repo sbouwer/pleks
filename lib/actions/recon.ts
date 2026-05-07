@@ -10,8 +10,7 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 
-import { gateway } from "@/lib/supabase/gateway"
-import { redirect } from "next/navigation"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { revalidatePath } from "next/cache"
 import { runMatchingPipeline } from "@/lib/recon/matchingEngine"
 import { parseOFX } from "@/lib/recon/ofxParser"
@@ -134,8 +133,7 @@ export async function createBankImport(formData: FormData): Promise<{
   total?: number
   source?: ImportSource
 }> {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("create_bank_import")
   const { db, userId, orgId } = gw
 
   const bankAccountId = formData.get("bank_account_id") as string
@@ -257,8 +255,7 @@ export async function resolveStatementLine(
   action: "match_manual" | "ignore",
   matchData?: { invoiceId?: string; supplierInvoiceId?: string; reason?: string }
 ) {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("sign_off_recon")
   const { db, userId } = gw
 
   const updates: Record<string, unknown> = {
@@ -283,9 +280,8 @@ export async function resolveStatementLine(
   return { success: true }
 }
 
-export async function runAutoMatch(importId: string) {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+export async function runAutoMatch(importId: string): Promise<{ matched: number } | { error: string }> {
+  const gw = await requireAgentWriteAccess("sign_off_recon")
   const { db, orgId } = gw
 
   const matched = await autoMatchLines(db, orgId, importId)
@@ -294,8 +290,7 @@ export async function runAutoMatch(importId: string) {
 }
 
 export async function signOffReconciliation(importId: string) {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("sign_off_recon")
   const { db, userId } = gw
 
   const { data: unmatched } = await db

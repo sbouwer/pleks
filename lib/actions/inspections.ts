@@ -14,7 +14,7 @@
 
 import * as React from "react"
 import { SupabaseClient } from "@supabase/supabase-js"
-import { gateway } from "@/lib/supabase/gateway"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { routeAndSend } from "@/lib/messaging/router"
@@ -126,8 +126,7 @@ async function fireStatusComm(
 }
 
 export async function createInspection(formData: FormData) {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("sign_off_inspection")
   const { db, userId, orgId } = gw
 
   const unitId = formData.get("unit_id") as string
@@ -254,8 +253,7 @@ export async function createInspection(formData: FormData) {
 }
 
 export async function updateInspectionStatus(inspectionId: string, newStatus: string) {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("sign_off_inspection")
   const { db, userId } = gw
 
   const { data: inspection } = await db
@@ -344,15 +342,16 @@ export async function updateItemCondition(
   inspectionId: string,
   condition: string,
   notes?: string
-) {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+): Promise<{ success: true; error?: never } | { success?: never; error: string }> {
+  const gw = await requireAgentWriteAccess("sign_off_inspection")
   const { db } = gw
 
-  await db.from("inspection_items").update({
+  const { error } = await db.from("inspection_items").update({
     condition,
     condition_notes: notes || null,
   }).eq("id", itemId)
+
+  if (error) return { error: error.message }
 
   revalidatePath(`/inspections/${inspectionId}`)
   return { success: true }
@@ -363,8 +362,7 @@ export async function rescheduleInspection(
   newDate: string,
   rescheduleReason?: string | null,
 ): Promise<{ success?: boolean; error?: string }> {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("sign_off_inspection")
   const { db, userId, orgId } = gw
 
   const { data: inspection } = await db

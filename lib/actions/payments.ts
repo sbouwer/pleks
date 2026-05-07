@@ -10,8 +10,7 @@
  */
 
 import * as React from "react"
-import { gateway } from "@/lib/supabase/gateway"
-import { redirect } from "next/navigation"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { revalidatePath } from "next/cache"
 import { allocatePayment } from "@/lib/finance/paymentAllocation"
 import { routeAndSend } from "@/lib/messaging/router"
@@ -19,8 +18,7 @@ import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { PaymentReceivedEmail } from "@/lib/comms/templates/tenant/rent/payment-received"
 
 export async function recordPayment(formData: FormData) {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("record_payment")
   const { db, userId, orgId } = gw
 
   const invoiceId = formData.get("invoice_id") as string

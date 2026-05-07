@@ -10,7 +10,7 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 import { randomBytes } from "node:crypto"
-import { gateway } from "@/lib/supabase/gateway"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { sendInfoRequestEmail } from "@/lib/info-requests/sendInfoRequestEmail"
@@ -60,8 +60,7 @@ export async function createPropertyInfoRequest(
   // user could call it with another org's IDs and trigger emails on their behalf.
   // The wizard save action calls us in the same request; cookies/session carry
   // through nested server-action calls in Next 14, so gateway() resolves here too.
-  const gw = await gateway()
-  if (!gw)                            return { ok: false, error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("send_manual_comm")
   if (gw.orgId !== params.orgId)      return { ok: false, error: "Org mismatch" }
   if (gw.userId !== params.requestedBy) return { ok: false, error: "Requester mismatch" }
 
@@ -171,8 +170,7 @@ export interface UiCreateInfoRequestParams {
 export async function createInfoRequestFromWidget(
   params: UiCreateInfoRequestParams,
 ): Promise<InfoRequestResult> {
-  const gw = await gateway()
-  if (!gw) return { ok: false, error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("send_manual_comm")
   const { userId, orgId } = gw
 
   const expiresAt = new Date()
@@ -193,8 +191,7 @@ export async function createInfoRequestFromWidget(
 // ── Send a reminder ──────────────────────────────────────────────────────────
 
 export async function sendInfoRequestReminder(requestId: string): Promise<InfoRequestResult> {
-  const gw = await gateway()
-  if (!gw) return { ok: false, error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("send_manual_comm")
   const { userId, orgId } = gw
 
   const service = await createServiceClient()
@@ -256,8 +253,7 @@ export async function sendInfoRequestReminder(requestId: string): Promise<InfoRe
 // ── Dismiss a request (mark as not-needed) ────────────────────────────────────
 
 export async function dismissInfoRequest(requestId: string): Promise<InfoRequestResult> {
-  const gw = await gateway()
-  if (!gw) return { ok: false, error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("edit_property")
   const { userId, orgId } = gw
 
   const service = await createServiceClient()

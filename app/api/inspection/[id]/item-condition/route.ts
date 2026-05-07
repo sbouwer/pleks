@@ -1,14 +1,12 @@
 /**
- * app/api/inspection/[id]/item-condition/route.ts — FILL: one-line purpose
+ * app/api/inspection/[id]/item-condition/route.ts — PATCH endpoint for offline inspection item writes
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   requireAgentWriteAccess (subscription-gated); returns 403 on SubscriptionLockdownError
+ * Data:   inspections, inspection_items; idempotent UPDATE used by syncEngine.flushPendingWrites()
  */
 import { NextRequest, NextResponse } from "next/server"
-import { gateway } from "@/lib/supabase/gateway"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { SubscriptionLockdownError } from "@/lib/subscriptions/state"
 
 interface Body {
   itemId: string
@@ -27,40 +25,46 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id: inspectionId } = await params
-  const gw = await gateway()
-  if (!gw) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  const { db, orgId } = gw
+  try {
+    const { id: inspectionId } = await params
+    const gw = await requireAgentWriteAccess("sign_off_inspection")
+    const { db, orgId } = gw
 
-  const body = await request.json() as Body
-  const { itemId, condition, notes } = body
-  if (!itemId || !condition) {
-    return NextResponse.json({ error: "itemId and condition are required" }, { status: 400 })
+    const body = await request.json() as Body
+    const { itemId, condition, notes } = body
+    if (!itemId || !condition) {
+      return NextResponse.json({ error: "itemId and condition are required" }, { status: 400 })
+    }
+
+    // Verify the inspection belongs to this org
+    const { data: insp, error: inspError } = await db
+      .from("inspections")
+      .select("id")
+      .eq("id", inspectionId)
+      .eq("org_id", orgId)
+      .single()
+
+    if (inspError || !insp) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 })
+    }
+
+    // Update the item — restrict to this inspection for security
+    const { error } = await db
+      .from("inspection_items")
+      .update({ condition, condition_notes: notes || null })
+      .eq("id", itemId)
+      .eq("inspection_id", inspectionId)
+
+    if (error) {
+      console.error("item-condition PATCH failed:", error.message)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ ok: true })
+  } catch (err) {
+    if (err instanceof SubscriptionLockdownError) {
+      return NextResponse.json({ error: err.message }, { status: 403 })
+    }
+    throw err
   }
-
-  // Verify the inspection belongs to this org
-  const { data: insp, error: inspError } = await db
-    .from("inspections")
-    .select("id")
-    .eq("id", inspectionId)
-    .eq("org_id", orgId)
-    .single()
-
-  if (inspError || !insp) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 })
-  }
-
-  // Update the item — restrict to this inspection for security
-  const { error } = await db
-    .from("inspection_items")
-    .update({ condition, condition_notes: notes || null })
-    .eq("id", itemId)
-    .eq("inspection_id", inspectionId)
-
-  if (error) {
-    console.error("item-condition PATCH failed:", error.message)
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-
-  return NextResponse.json({ ok: true })
 }

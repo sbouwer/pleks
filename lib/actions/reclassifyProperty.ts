@@ -10,7 +10,7 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 
-import { gateway } from "@/lib/supabase/gateway"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { revalidatePath } from "next/cache"
 import { buildProfile, type UniversalAnswers } from "@/lib/properties/buildProfile"
 import type { ScenarioType } from "@/lib/properties/scenarios"
@@ -32,8 +32,7 @@ export async function reclassifyProperty(
   propertyId: string,
   newScenarioType: ScenarioType,
 ): Promise<ReclassifyResult> {
-  const gw = await gateway()
-  if (!gw) return { ok: false, error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db, userId, orgId, isAdmin } = gw
 
   if (!isAdmin) return { ok: false, error: "Admin access required" }

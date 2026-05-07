@@ -9,7 +9,7 @@
  * Data:   where data comes from, any non-obvious access pattern
  * Notes:  gotchas, invariants, why-not-X decisions
  */
-import { gateway } from "@/lib/supabase/gateway"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { revalidatePath } from "next/cache"
 
 export interface DismissResult {
@@ -18,8 +18,7 @@ export interface DismissResult {
 }
 
 export async function dismissCompletenessWidget(propertyId: string): Promise<DismissResult> {
-  const gw = await gateway()
-  if (!gw) return { ok: false, error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db, orgId } = gw
 
   const { error } = await db

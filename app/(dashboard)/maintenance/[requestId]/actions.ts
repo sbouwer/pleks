@@ -1,15 +1,12 @@
 "use server"
 
 /**
- * app/(dashboard)/maintenance/[requestId]/actions.ts — FILL: one-line purpose
+ * app/(dashboard)/maintenance/[requestId]/actions.ts — records maintenance delay events
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   requireAgentWriteAccess (subscription-gated)
+ * Data:   maintenance_requests, maintenance_delay_events
  */
-import { gateway } from "@/lib/supabase/gateway"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 
 interface RecordDelayPayload {
   requestId: string
@@ -37,8 +34,7 @@ const ATTRIBUTION: Record<string, string> = {
 }
 
 export async function recordMaintenanceDelay(payload: RecordDelayPayload) {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("assign_maintenance")
 
   const { db, orgId, userId } = gw
 

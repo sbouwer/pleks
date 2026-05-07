@@ -10,7 +10,7 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 import { SupabaseClient } from "@supabase/supabase-js"
-import { gateway } from "@/lib/supabase/gateway"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { syncUnitClauseProfile } from "@/lib/leases/syncUnitClauseProfile"
@@ -154,8 +154,7 @@ async function upsertInspectionProfile(
 // ── Actions ───────────────────────────────────────────────────────────────────
 
 export async function createUnit(propertyId: string, formData: FormData) {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("create_property")
   const { db, userId, orgId } = gw
 
   const fields = parseUnitFields(formData)
@@ -206,8 +205,7 @@ export async function createUnit(propertyId: string, formData: FormData) {
 }
 
 export async function updateUnit(unitId: string, propertyId: string, formData: FormData) {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db, orgId } = gw
 
   const fields = parseUnitFields(formData)
@@ -230,8 +228,7 @@ export async function updateUnit(unitId: string, propertyId: string, formData: F
 }
 
 export async function updateAskingRent(unitId: string, rentCents: number): Promise<{ error?: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db } = gw
 
   const { error } = await db
@@ -251,8 +248,7 @@ export async function updateUnitStatus(
   newStatus: string,
   reason?: string
 ) {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db, userId } = gw
 
   const { data: unit } = await db
@@ -297,8 +293,7 @@ export async function updateUnitStatus(
 
 // createUnitData — like createUnit but returns { unitId } or { error } instead of redirecting
 export async function createUnitData(propertyId: string, formData: FormData): Promise<{ unitId?: string; error?: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Unauthorised" }
+  const gw = await requireAgentWriteAccess("create_property")
   const { db, userId, orgId } = gw
 
   const fields = parseUnitFields(formData)
@@ -345,8 +340,7 @@ export async function createUnitData(propertyId: string, formData: FormData): Pr
 
 // updateUnitFeatures — PATCH just the features array on a unit
 export async function updateUnitFeatures(unitId: string, propertyId: string, features: string[]): Promise<{ error?: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Unauthorised" }
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db } = gw
 
   const { data: unit } = await db.from("units").select("org_id").eq("id", unitId).single()
@@ -363,8 +357,7 @@ export async function setProspectiveTenants(
   tenantId: string | null,
   coTenantIds: string[],
 ): Promise<{ error?: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Unauthorised" }
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db } = gw
 
   const { error } = await db

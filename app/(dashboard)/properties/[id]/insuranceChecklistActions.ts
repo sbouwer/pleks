@@ -1,17 +1,14 @@
 "use server"
 
 /**
- * app/(dashboard)/properties/[id]/insuranceChecklistActions.ts — FILL: one-line purpose
+ * app/(dashboard)/properties/[id]/insuranceChecklistActions.ts — inline agent actions for the insurance checklist
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   requireAgentWriteAccess (subscription-gated)
+ * Data:   property_insurance_checklists, property_insurance_checklist_events
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js"
-import { gateway } from "@/lib/supabase/gateway"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { revalidatePath } from "next/cache"
 
 interface ActionResult {
@@ -36,8 +33,7 @@ export async function confirmChecklistItem(
   propertyId: string,
   notes?: string
 ): Promise<ActionResult> {
-  const gw = await gateway()
-  if (!gw) return { ok: false, error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db, userId, orgId } = gw
 
   const row = await resolveRow(db, orgId, checklistRowId)
@@ -83,8 +79,7 @@ export async function unconfirmChecklistItem(
   checklistRowId: string,
   propertyId: string
 ): Promise<ActionResult> {
-  const gw = await gateway()
-  if (!gw) return { ok: false, error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db, userId, orgId } = gw
 
   const row = await resolveRow(db, orgId, checklistRowId)
@@ -128,8 +123,7 @@ export async function markItemNotApplicable(
   propertyId: string,
   reason: string
 ): Promise<ActionResult> {
-  const gw = await gateway()
-  if (!gw) return { ok: false, error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db, userId, orgId } = gw
 
   const row = await resolveRow(db, orgId, checklistRowId)
@@ -174,8 +168,7 @@ export async function unmarkItemNotApplicable(
   checklistRowId: string,
   propertyId: string
 ): Promise<ActionResult> {
-  const gw = await gateway()
-  if (!gw) return { ok: false, error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db, userId, orgId } = gw
 
   const row = await resolveRow(db, orgId, checklistRowId)
@@ -217,8 +210,7 @@ export async function bulkConfirmRenewalItems(
   itemIds: string[],
 ): Promise<ActionResult> {
   if (itemIds.length === 0) return { ok: true }
-  const gw = await gateway()
-  if (!gw) return { ok: false, error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db, userId, orgId } = gw
 
   const now = new Date().toISOString()
@@ -261,8 +253,7 @@ export async function addChecklistItemNote(
   propertyId: string,
   notes: string
 ): Promise<ActionResult> {
-  const gw = await gateway()
-  if (!gw) return { ok: false, error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db, userId, orgId } = gw
 
   const row = await resolveRow(db, orgId, checklistRowId)

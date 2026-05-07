@@ -1,15 +1,12 @@
 "use server"
 
 /**
- * lib/actions/maintenance/insuranceDecision.ts — FILL: one-line purpose
+ * lib/actions/maintenance/insuranceDecision.ts — records insurance decision for critical maintenance incidents
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   requireAgentWriteAccess (subscription-gated)
+ * Data:   maintenance_requests, audit_log, incident_notifications; fires broker/owner/scheme notify emails
  */
-import { gateway } from "@/lib/supabase/gateway"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { notifyBroker } from "./notifyBroker"
 import { notifyOwner } from "./notifyOwner"
 import { notifyScheme } from "./notifyScheme"
@@ -25,8 +22,7 @@ export interface RecordInsuranceDecisionParams {
 export async function recordInsuranceDecision(
   params: RecordInsuranceDecisionParams,
 ): Promise<{ error?: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("assign_maintenance")
   const { db, userId, orgId } = gw
 
   // Fetch the maintenance request + property context

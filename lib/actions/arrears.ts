@@ -10,7 +10,7 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 
-import { gateway } from "@/lib/supabase/gateway"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { revalidatePath } from "next/cache"
 
 export async function updateArrearsStatus(
@@ -18,8 +18,7 @@ export async function updateArrearsStatus(
   newStatus: string,
   notes?: string
 ) {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("update_arrears_status")
   const { db, userId } = gw
 
   const updates: Record<string, unknown> = { status: newStatus }
@@ -73,8 +72,7 @@ export async function recordPaymentArrangement(
   caseId: string,
   formData: FormData
 ) {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("record_payment_arrangement")
   const { db } = gw
 
   const amountCents = Math.round(parseFloat(formData.get("amount") as string) * 100)

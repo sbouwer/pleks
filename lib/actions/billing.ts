@@ -1,13 +1,10 @@
 "use server"
 
 /**
- * lib/actions/billing.ts — FILL: one-line purpose
+ * lib/actions/billing.ts — read-only server actions for billing usage meters (messaging and AI)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   gateway (read-only — no lockdown gate needed)
+ * Data:   messaging_usage, ai_usage; org-scoped current-month aggregates
  */
 
 import { gateway } from "@/lib/supabase/gateway"

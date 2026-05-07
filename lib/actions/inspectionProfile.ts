@@ -9,7 +9,7 @@
  * Data:   where data comes from, any non-obvious access pattern
  * Notes:  gotchas, invariants, why-not-X decisions
  */
-import { gateway } from "@/lib/supabase/gateway"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { revalidatePath } from "next/cache"
 import { getRoomSuggestions, type UnitContext } from "@/lib/inspections/templateEngine"
 
@@ -24,8 +24,7 @@ export async function setupProfileFromTemplate(
   unitId: string,
   propertyId: string,
 ): Promise<{ error?: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db, orgId } = gw
 
   // Verify ownership + fetch unit context in one query

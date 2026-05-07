@@ -3,13 +3,14 @@
 /**
  * lib/actions/maintenance.ts — server actions for maintenance request lifecycle
  *
- * Auth:   gateway() — org-scoped, session-required
+ * Auth:   requireAgentWriteAccess (writes); gateway (reads — no lockdown gate needed)
  * Data:   maintenance_requests, contractor_updates, audit_log, communication_log
  * Notes:  updateMaintenanceStatus("work_order_sent") validates contractor, sets
  *         work_order_sent_at, generates work_order_token if absent, and emails contractor.
  *         M1 fires on insert when tenant_id is set. M5 fires additionally on severity=critical.
  *         BUILD_63 Phase 6.
  */
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { gateway } from "@/lib/supabase/gateway"
 import { createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
@@ -103,8 +104,7 @@ async function fireTenantCommsOnCreate(
 }
 
 export async function createMaintenanceRequest(formData: FormData) {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("assign_maintenance")
   const { db, userId, orgId } = gw
 
   const title = formData.get("title") as string
@@ -327,8 +327,7 @@ export async function updateMaintenanceStatus(
   newStatus: string,
   notes?: string
 ): Promise<{ success: true; toast?: string } | { error: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("assign_maintenance")
   const { db, userId } = gw
 
   const updates: Record<string, unknown> = { status: newStatus }
@@ -389,6 +388,7 @@ export async function updateMaintenanceStatus(
 
 // ── Data-fetching server actions for the maintenance form ──────────
 
+// read-only — no lockdown gate needed
 export async function fetchUnitsForProperty(propertyId: string) {
   const gw = await gateway()
   if (!gw) return []
@@ -404,6 +404,7 @@ export async function fetchUnitsForProperty(propertyId: string) {
   return (data ?? []) as Array<{ id: string; unit_number: string; access_instructions: string | null; prospective_tenant_id: string | null }>
 }
 
+// read-only — no lockdown gate needed
 export async function fetchTenantForUnit(
   unitId: string,
   prospectiveTenantId: string | null
@@ -450,6 +451,7 @@ export async function fetchTenantForUnit(
   return { tenant: null, leaseId: null }
 }
 
+// read-only — no lockdown gate needed
 export async function fetchPropertyContactsAction(propertyId: string) {
   const gw = await gateway()
   if (!gw) return []
@@ -521,8 +523,7 @@ export async function updateMaintenanceRequest(
   requestId: string,
   updates: EditableFields,
 ): Promise<{ success: true } | { error: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("assign_maintenance")
   const { db, userId } = gw
 
   const { data: existing, error: fetchErr } = await db
@@ -571,8 +572,7 @@ export async function addMaintenanceNote(
   note: string,
   notifyLandlord = false,
 ): Promise<{ success: true } | { error: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("assign_maintenance")
   const { db, userId, orgId } = gw
 
   const trimmed = note.trim()
@@ -670,8 +670,7 @@ export async function cancelMaintenanceRequest(
   reason: string,
   category: string,
 ): Promise<{ success: true } | { error: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("assign_maintenance")
   const { db, userId, orgId } = gw
 
   const trimmedReason = reason.trim()
@@ -795,8 +794,7 @@ export async function changeContractor(
   newContractorId: string,
   reason: string,
 ): Promise<{ success: true } | { error: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("assign_maintenance")
   const { db, userId, orgId } = gw
 
   const trimmedReason = reason.trim()
@@ -933,8 +931,7 @@ export async function revertStatus(
   requestId: string,
   targetStatus: string,
 ): Promise<{ success: true } | { error: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("assign_maintenance")
   const { db, userId, orgId } = gw
 
   if (targetStatus !== "pending_review") {
@@ -986,8 +983,7 @@ export async function togglePhotoVisibilityToTenant(
   photoId: string,
   visible: boolean,
 ): Promise<{ success: true } | { error: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("assign_maintenance")
   const { db, userId, orgId } = gw
 
   const { data: photo, error: fetchErr } = await db

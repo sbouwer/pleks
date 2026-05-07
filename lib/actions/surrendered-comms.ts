@@ -9,14 +9,13 @@
  *         stamps mandatory_comm_retries.manually_dispatched_at. BUILD_63 Phase 8.
  */
 
-import { gateway } from "@/lib/supabase/gateway"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 
 export async function markManuallyDispatched(
   retryId: string,
   notes: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated", success: false }
+  const gw = await requireAgentWriteAccess("send_manual_comm")
   const { db, userId, orgId } = gw
 
   // Fetch the retry row to verify ownership and get the original log ID

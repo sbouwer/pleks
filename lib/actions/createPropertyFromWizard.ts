@@ -10,7 +10,8 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 
-import { gateway } from "@/lib/supabase/gateway"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
+import type { GatewayContext } from "@/lib/supabase/gateway"
 import { revalidatePath } from "next/cache"
 import { buildProfile, type UniversalAnswers } from "@/lib/properties/buildProfile"
 import { buildSkeletonUnits, type SkeletonUnit } from "@/lib/properties/skeletonUnits"
@@ -21,9 +22,7 @@ import { reEvaluatePolicyHeader } from "@/lib/insurance-checklist/reEvaluatePoli
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type Db = Awaited<ReturnType<typeof gateway>> extends infer G
-  ? G extends { db: infer D } ? D : never
-  : never
+type Db = GatewayContext["db"]
 
 export interface WizardSavePayload {
   scenarioType:    ScenarioType
@@ -450,8 +449,7 @@ function validatePayload(payload: WizardSavePayload): string | null {
 // ── Main action ───────────────────────────────────────────────────────────────
 
 export async function createPropertyFromWizard(formData: FormData): Promise<WizardSaveResult> {
-  const gw = await gateway()
-  if (!gw) return { ok: false, error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("create_property")
   const { db, userId, orgId } = gw
 
   const payloadRaw = formData.get("payload") as string | null

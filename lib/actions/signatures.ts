@@ -1,14 +1,12 @@
 "use server"
 
 /**
- * lib/actions/signatures.ts — FILL: one-line purpose
+ * lib/actions/signatures.ts — server actions for agent signature capture and QR phone-upload flow
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   requireAgentWriteAccess (writes); gateway (checkTokenConsumed read — no lockdown gate needed)
+ * Data:   user_signatures, signature_sign_tokens (Supabase Storage: signatures bucket)
  */
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { gateway } from "@/lib/supabase/gateway"
 import { createServiceClient } from "@/lib/supabase/server"
 import { randomUUID } from "node:crypto"
@@ -17,8 +15,7 @@ export async function saveSignatureDataUrl(
   dataUrl: string,
   source: "mouse_desktop" | "typed_name",
 ): Promise<{ error?: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("save_signature")
   const { db, userId, orgId } = gw
 
   // Convert base64 data URL to Buffer
@@ -67,8 +64,7 @@ export async function saveSignatureDataUrl(
 }
 
 export async function saveSignatureFile(formData: FormData): Promise<{ error?: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("save_signature")
   const { db, userId, orgId } = gw
 
   const file = formData.get("file") as File | null
@@ -119,8 +115,7 @@ export async function saveSignatureFile(formData: FormData): Promise<{ error?: s
 }
 
 export async function removeSignature(): Promise<{ error?: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("save_signature")
   const { db, userId } = gw
 
   const { error } = await db
@@ -143,8 +138,7 @@ export async function removeSignature(): Promise<{ error?: string }> {
  * validates this token before showing the signature pad.
  */
 export async function createSignatureToken(): Promise<{ error?: string; token?: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("save_signature")
   const { db, userId, orgId } = gw
 
   const token = randomUUID()
@@ -168,6 +162,7 @@ export async function createSignatureToken(): Promise<{ error?: string; token?: 
 /**
  * Checks whether the one-time sign token has been consumed (phone capture complete).
  * Used by the QR polling loop in SignatureSettings.
+ * read-only — no lockdown gate needed
  */
 export async function checkTokenConsumed(token: string): Promise<{ consumed: boolean }> {
   const gw = await gateway()

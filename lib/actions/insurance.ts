@@ -10,14 +10,13 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 
-import { gateway } from "@/lib/supabase/gateway"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { createPropertyInfoRequest } from "@/lib/actions/propertyInfoRequests"
 
 export async function saveInsurancePolicy(propertyId: string, formData: FormData) {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db, orgId, userId } = gw
 
   const replacementRaw = formData.get("insurance_replacement_value") as string | null
@@ -68,8 +67,7 @@ export interface CreateChecklistOwnerRequestParams {
 export async function createInsuranceChecklistOwnerRequest(
   params: CreateChecklistOwnerRequestParams,
 ): Promise<{ ok: boolean; requestId?: string; error?: string }> {
-  const gw = await gateway()
-  if (!gw) return { ok: false, error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db, orgId, userId } = gw
 
   if (params.itemCodes.length === 0) return { ok: false, error: "No items selected" }
@@ -153,8 +151,7 @@ export async function createInsuranceChecklistOwnerRequest(
 }
 
 export async function saveBroker(propertyId: string, formData: FormData) {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db, orgId } = gw
 
   const brokerContactId = (formData.get("broker_contact_id") as string) || null

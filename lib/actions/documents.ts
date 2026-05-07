@@ -1,22 +1,18 @@
 "use server"
 
 /**
- * lib/actions/documents.ts — FILL: one-line purpose
+ * lib/actions/documents.ts — server actions for property documents, document editor, and WhatsApp CS window
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   requireAgentWriteAccess (writes); gateway (reads — no lockdown gate needed)
+ * Data:   property_documents, document_generation_jobs, communication_log, whatsapp_cs_windows
  */
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { gateway } from "@/lib/supabase/gateway"
-import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { Resend } from "resend"
 
 export async function uploadPropertyDocument(formData: FormData) {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db, userId } = gw
 
   const propertyId = formData.get("property_id") as string
@@ -68,8 +64,7 @@ export async function uploadPropertyDocument(formData: FormData) {
 }
 
 export async function deletePropertyDocument(documentId: string, propertyId: string) {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db, userId, isAdmin } = gw
   if (!isAdmin) return { error: "Admin access required" }
 
@@ -100,6 +95,7 @@ export async function deletePropertyDocument(documentId: string, propertyId: str
   return { success: true }
 }
 
+// read-only — no lockdown gate needed
 export async function getDocumentSignedUrl(storagePath: string) {
   const gw = await gateway()
   if (!gw) return null
@@ -131,8 +127,7 @@ function resolveMergeFields(
 export async function sendDocument(
   formData: FormData
 ): Promise<{ error?: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("send_manual_comm")
   const { db, orgId, userId, email: agentEmail } = gw
 
   const templateId = formData.get("template_id") as string | null
@@ -245,8 +240,7 @@ export async function sendDocument(
 export async function generateDocumentPdf(
   formData: FormData
 ): Promise<{ error?: string; printUrl?: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("send_manual_comm")
   const { db, orgId, userId } = gw
 
   const templateId = formData.get("template_id") as string | null
@@ -292,8 +286,7 @@ export async function generateDocumentPdf(
 export async function saveDraftDocument(
   formData: FormData
 ): Promise<{ error?: string; id?: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("send_manual_comm")
   const { db, orgId, userId } = gw
 
   const templateId = formData.get("template_id") as string | null
@@ -344,6 +337,7 @@ export async function saveDraftDocument(
 
 // ── WhatsApp CS window lookup ─────────────────────────────────────────────────
 
+// read-only — no lockdown gate needed
 export async function getActiveCsWindow(leaseId: string): Promise<{
   isActive: boolean
   expiresAt: string | null

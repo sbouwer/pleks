@@ -10,13 +10,11 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 
-import { gateway } from "@/lib/supabase/gateway"
-import { redirect } from "next/navigation"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { revalidatePath } from "next/cache"
 
 export async function createMunicipalAccount(formData: FormData) {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db } = gw
 
   const propertyId = formData.get("property_id") as string
@@ -46,8 +44,7 @@ export async function createMunicipalAccount(formData: FormData) {
 }
 
 export async function uploadMunicipalBill(formData: FormData) {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db, userId } = gw
 
   const propertyId = formData.get("property_id") as string
@@ -114,8 +111,7 @@ export async function uploadMunicipalBill(formData: FormData) {
 }
 
 export async function confirmMunicipalBill(billId: string) {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db, userId } = gw
 
   const { error } = await db.from("municipal_bills").update({
@@ -132,8 +128,7 @@ export async function confirmMunicipalBill(billId: string) {
 }
 
 export async function markMunicipalBillPaid(billId: string, reference?: string) {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db } = gw
 
   const { error } = await db.from("municipal_bills").update({

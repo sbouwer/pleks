@@ -9,12 +9,11 @@
  * Data:   where data comes from, any non-obvious access pattern
  * Notes:  gotchas, invariants, why-not-X decisions
  */
-import { gateway } from "@/lib/supabase/gateway"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { revalidatePath } from "next/cache"
 
 export async function saveManagingScheme(schemeId: string, propertyId: string, formData: FormData) {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db, orgId, userId } = gw
 
   const updates = {
@@ -48,8 +47,7 @@ export async function saveManagingScheme(schemeId: string, propertyId: string, f
 }
 
 export async function createManagingScheme(propertyId: string, formData: FormData) {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db, orgId, userId } = gw
 
   const { data: scheme, error: schemeErr } = await db
@@ -90,8 +88,7 @@ export async function createManagingScheme(propertyId: string, formData: FormDat
 }
 
 export async function unlinkManagingScheme(propertyId: string) {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db, orgId, userId } = gw
 
   const { error } = await db

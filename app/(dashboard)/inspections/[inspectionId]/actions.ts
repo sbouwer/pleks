@@ -1,15 +1,12 @@
 "use server"
 
 /**
- * app/(dashboard)/inspections/[inspectionId]/actions.ts — FILL: one-line purpose
+ * app/(dashboard)/inspections/[inspectionId]/actions.ts — agent response to tenant reschedule requests
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   requireAgentWriteAccess (subscription-gated)
+ * Data:   inspection_reschedule_requests, inspections, audit_log
  */
-import { gateway } from "@/lib/supabase/gateway"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 
 interface RescheduleResponsePayload {
   requestId: string
@@ -20,8 +17,7 @@ interface RescheduleResponsePayload {
 }
 
 export async function respondToRescheduleRequest(payload: RescheduleResponsePayload) {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("sign_off_inspection")
 
   const { db, orgId, userId } = gw
 

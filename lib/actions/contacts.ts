@@ -9,7 +9,7 @@
  * Data:   where data comes from, any non-obvious access pattern
  * Notes:  gotchas, invariants, why-not-X decisions
  */
-import { gateway } from "@/lib/supabase/gateway"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { revalidatePath } from "next/cache"
 
 export async function updateContactJuristicFields(params: {
@@ -18,8 +18,7 @@ export async function updateContactJuristicFields(params: {
   turnoverUnder2m: boolean | null
   assetValueUnder2m: boolean | null
 }) {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("edit_tenant")
   const { db, orgId } = gw
 
   // Verify the contact belongs to this org (via tenant or landlord)

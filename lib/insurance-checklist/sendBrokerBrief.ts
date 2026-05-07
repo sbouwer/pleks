@@ -1,17 +1,14 @@
 "use server"
 
 /**
- * lib/insurance-checklist/sendBrokerBrief.ts — FILL: one-line purpose
+ * lib/insurance-checklist/sendBrokerBrief.ts — sends the insurance coverage brief to the property broker
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   requireAgentWriteAccess (subscription-gated)
+ * Data:   properties, property_brokers, contacts, incident_notifications; sends Resend email with HTML attachment
  */
 
 import * as React from "react"
-import { gateway } from "@/lib/supabase/gateway"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { fetchBrokerBriefData, renderBrokerBriefHTML } from "./generateBrokerBriefHTML"
 import { ChecklistBriefEmail } from "@/lib/comms/templates/insurance/checklist-brief-email"
@@ -22,8 +19,7 @@ export interface SendBrokerBriefResult {
 }
 
 export async function sendBrokerBrief(propertyId: string): Promise<SendBrokerBriefResult> {
-  const gw = await gateway()
-  if (!gw) return { ok: false, error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("send_manual_comm")
   const { db, userId, orgId } = gw
 
   // Verify property belongs to org

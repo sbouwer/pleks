@@ -12,8 +12,7 @@
  */
 
 import * as React from "react"
-import { gateway } from "@/lib/supabase/gateway"
-import { redirect } from "next/navigation"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { revalidatePath } from "next/cache"
 import { routeAndSend } from "@/lib/messaging/router"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
@@ -32,8 +31,7 @@ function formatDateLocal(iso: string): string {
 }
 
 export async function sendDepositSchedule(leaseId: string): Promise<{ success?: boolean; error?: string }> {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("send_manual_comm")
   const { db, orgId } = gw
 
   const { data: recon, error: reconErr } = await db
@@ -190,8 +188,7 @@ export async function createDepositCharge(
   leaseId: string,
   input: CreateDepositChargeInput
 ): Promise<{ id?: string; error?: string }> {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("edit_lease")
   const { db, orgId, userId } = gw
 
   const { data, error } = await db.from("deposit_charges").insert({
@@ -211,8 +208,7 @@ export async function updateDepositCharge(
   leaseId: string,
   input: Partial<CreateDepositChargeInput>
 ): Promise<{ success?: boolean; error?: string }> {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("edit_lease")
   const { db, orgId } = gw
 
   const { error } = await db
@@ -231,8 +227,7 @@ export async function confirmDepositCharge(
   chargeId: string,
   leaseId: string
 ): Promise<{ success?: boolean; error?: string }> {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("edit_lease")
   const { db, orgId, userId } = gw
 
   const { error } = await db
@@ -254,8 +249,7 @@ export async function deleteDepositCharge(
   chargeId: string,
   leaseId: string
 ): Promise<{ success?: boolean; error?: string }> {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("edit_lease")
   const { db, orgId } = gw
 
   const { error } = await db

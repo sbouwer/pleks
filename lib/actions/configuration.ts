@@ -9,11 +9,10 @@
  * Data:   where data comes from, any non-obvious access pattern
  * Notes:  gotchas, invariants, why-not-X decisions
  */
-import { gateway } from "@/lib/supabase/gateway"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 
 export async function saveOrgConfiguration(formData: FormData): Promise<{ error?: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
+  const gw = await requireAgentWriteAccess("edit_org_settings")
   const { db, orgId } = gw
 
   // Fetch existing settings to merge — never clobber keys owned by other subsystems

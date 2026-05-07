@@ -9,15 +9,14 @@
  * Data:   where data comes from, any non-obvious access pattern
  * Notes:  gotchas, invariants, why-not-X decisions
  */
-import { gateway } from "@/lib/supabase/gateway"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { hashIdNumber } from "@/lib/crypto/idNumber"
 import { headers } from "next/headers"
 
 export async function createTenant(formData: FormData) {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("create_tenant")
   const { db, userId, orgId } = gw
 
   const tenantType = formData.get("tenant_type") as string || "individual"
@@ -172,8 +171,7 @@ export async function createTenant(formData: FormData) {
 }
 
 export async function updateTenant(tenantId: string, formData: FormData) {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("edit_tenant")
   const { db } = gw
 
   const tenantType = formData.get("tenant_type") as string
@@ -225,8 +223,7 @@ export async function updateTenant(tenantId: string, formData: FormData) {
 }
 
 export async function logCommunication(formData: FormData) {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("send_manual_comm")
   const { db, userId, orgId } = gw
 
   const { error } = await db.from("communication_log").insert({

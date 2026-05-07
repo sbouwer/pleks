@@ -1,14 +1,12 @@
 "use server"
 
 /**
- * lib/actions/buildings.ts — FILL: one-line purpose
+ * lib/actions/buildings.ts — server actions for building management within a property
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   requireAgentWriteAccess (writes); gateway (reads — no lockdown gate needed)
+ * Data:   buildings table; scoped to org_id + property_id
  */
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { gateway } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
@@ -51,8 +49,7 @@ function extractBuildingFields(formData: FormData) {
 }
 
 export async function createBuilding(formData: FormData) {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("create_property")
   const { db, userId, orgId } = gw
 
   const propertyId = formData.get("property_id") as string
@@ -77,8 +74,7 @@ export async function createBuilding(formData: FormData) {
 }
 
 export async function updateBuilding(formData: FormData) {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db, orgId } = gw
 
   const buildingId = formData.get("building_id") as string
@@ -104,8 +100,7 @@ export async function enableMultiBuilding(
   propertyId: string,
   primaryBuildingName: string,
 ): Promise<{ error?: string }> {
-  const gw = await gateway()
-  if (!gw) return { error: "Unauthorised" }
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db, orgId } = gw
 
   const { data: primary, error: fetchErr } = await db
@@ -133,6 +128,7 @@ export async function enableMultiBuilding(
   return {}
 }
 
+// read-only — no lockdown gate needed
 export async function fetchBuildingsForProperty(propertyId: string) {
   const gw = await gateway()
   if (!gw) return []

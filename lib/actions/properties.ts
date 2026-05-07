@@ -9,13 +9,12 @@
  * Data:   where data comes from, any non-obvious access pattern
  * Notes:  gotchas, invariants, why-not-X decisions
  */
-import { gateway } from "@/lib/supabase/gateway"
+import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 
 export async function createProperty(formData: FormData) {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("create_property")
   const { db, userId, orgId } = gw
 
   const { data: property, error } = await db
@@ -98,8 +97,7 @@ export async function createProperty(formData: FormData) {
 }
 
 export async function updateProperty(propertyId: string, formData: FormData) {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db, userId } = gw
 
   const isSectional = formData.get("is_sectional_title") === "true"
@@ -156,8 +154,7 @@ export async function updateProperty(propertyId: string, formData: FormData) {
 }
 
 export async function archiveProperty(propertyId: string): Promise<{ error?: string }> {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db, isAdmin } = gw
   if (!isAdmin) return { error: "Admin access required" }
 
@@ -185,8 +182,7 @@ export async function archiveProperty(propertyId: string): Promise<{ error?: str
 }
 
 export async function deleteProperty(propertyId: string) {
-  const gw = await gateway()
-  if (!gw) redirect("/login")
+  const gw = await requireAgentWriteAccess("edit_property")
   const { db, isAdmin } = gw
   if (!isAdmin) return { error: "Admin access required" }
 
