@@ -1,17 +1,16 @@
 "use client"
 
 /**
- * hooks/useOrg.ts — FILL: one-line purpose
+ * hooks/useOrg.ts — Client hook returning the current user's org record and subscription status
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   user_orgs + organisations(*) + subscriptions(status) via anon Supabase client
+ * Notes:  subscriptionStatus feeds useOrgCapabilities → isLockedDown (ADDENDUM_57G).
+ *         RLS: sub_members_select allows org members to read their own subscription row.
  */
 import { useQuery } from "@tanstack/react-query"
 import { createClient } from "@/lib/supabase/client"
 import { getOrgDisplayName, type OrgNameFields } from "@/lib/org/displayName"
+import type { SubscriptionStatus } from "@/lib/subscriptions/state"
 
 export function useOrg() {
   const supabase = createClient()
@@ -21,14 +20,21 @@ export function useOrg() {
     queryFn: async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.user) return null
-      const { data } = await supabase
+      const { data: orgData } = await supabase
         .from("user_orgs")
         .select("org_id, role, organisations(*)")
         .eq("user_id", session.user.id)
         .is("deleted_at", null)
         .limit(1)
         .single()
-      return data
+      if (!orgData) return null
+      const { data: subData } = await supabase
+        .from("subscriptions")
+        .select("status")
+        .eq("org_id", orgData.org_id)
+        .not("status", "eq", "purged")
+        .maybeSingle()
+      return { ...orgData, subscriptionStatus: (subData?.status ?? "active") as SubscriptionStatus }
     },
     staleTime: 5 * 60 * 1000,
   })
@@ -37,5 +43,12 @@ export function useOrg() {
   const role = data?.role ?? null
   const displayName = org ? getOrgDisplayName(org as unknown as OrgNameFields) : null
 
-  return { org, orgId: data?.org_id ?? null, role, displayName, loading: isLoading }
+  return {
+    org,
+    orgId: data?.org_id ?? null,
+    role,
+    displayName,
+    subscriptionStatus: data?.subscriptionStatus ?? "active" as SubscriptionStatus,
+    loading: isLoading,
+  }
 }

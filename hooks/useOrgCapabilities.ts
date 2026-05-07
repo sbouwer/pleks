@@ -12,9 +12,9 @@ import { getOrgCapabilities, type OrgCapabilities } from "@/lib/org/capabilities
 import type { OrgType } from "@/lib/constants"
 
 export function useOrgCapabilities(): OrgCapabilities | null {
-  const { org } = useOrg()
+  const { org, subscriptionStatus } = useOrg()
   if (!org) return null
   const orgType = (org.type as OrgType) ?? "agency"
   const orgName = (org.name as string) ?? ""
-  return getOrgCapabilities(orgType, orgName)
+  return getOrgCapabilities(orgType, orgName, subscriptionStatus)
 }

@@ -91,25 +91,28 @@ export const getCurrentOrgCapabilities = cache(async (): Promise<OrgCapabilities
   const membership = await getServerOrgMembership()
   if (!membership) return null
 
-  // Fast path: pleks_org cookie carries type+name once proxy.ts §6.4 ships.
+  // Fast path: pleks_org cookie carries type, name, sub_status (set by proxy.ts).
   const cookieStore = await cookies()
   const raw = cookieStore.get("pleks_org")?.value
   if (raw) {
     try {
-      const parsed = JSON.parse(raw) as { type?: string; name?: string }
+      const parsed = JSON.parse(raw) as { type?: string; name?: string; sub_status?: string | null }
       if (parsed.type && parsed.name) {
-        return getOrgCapabilities(parsed.type as OrgType, parsed.name)
+        return getOrgCapabilities(
+          parsed.type as OrgType,
+          parsed.name,
+          (parsed.sub_status ?? "active") as SubscriptionStatus,
+        )
       }
     } catch { /* fall through to DB */ }
   }
 
   // Slow path: DB query (cookie not yet populated — one round-trip, cached per render tree).
   const service = await createServiceClient()
-  const { data: org, error } = await service
-    .from("organisations")
-    .select("type, name")
-    .eq("id", membership.org_id)
-    .single()
+  const [{ data: org, error }, { data: sub }] = await Promise.all([
+    service.from("organisations").select("type, name").eq("id", membership.org_id).single(),
+    service.from("subscriptions").select("status").eq("org_id", membership.org_id).not("status", "eq", "purged").maybeSingle(),
+  ])
 
   if (error) {
     console.error("[getCurrentOrgCapabilities] query failed:", error.message)
@@ -117,7 +120,42 @@ export const getCurrentOrgCapabilities = cache(async (): Promise<OrgCapabilities
   }
   if (!org) return null
 
-  return getOrgCapabilities((org.type as OrgType) ?? "agency", org.name as string)
+  return getOrgCapabilities(
+    (org.type as OrgType) ?? "agency",
+    org.name as string,
+    (sub?.status as SubscriptionStatus | null) ?? "active",
+  )
+})
+
+/**
+ * Current subscription state — cached per render tree (ADDENDUM_57G).
+ * Reads sub_status from the pleks_org cookie (zero DB on cache hit).
+ * Falls back to a DB query on miss. Used by server components that need
+ * the full SubscriptionState (e.g. email footer variant, dunning cron).
+ */
+export const getCurrentSubscriptionState = cache(async (): Promise<SubscriptionState> => {
+  const fallback: SubscriptionState = {
+    status: "active", past_due_since: null, paused_at: null,
+    cancelled_at: null, purge_eligible_at: null,
+  }
+
+  const membership = await getServerOrgMembership()
+  if (!membership) return fallback
+
+  // Fast path: cookie carries sub_status written by proxy.ts
+  const cookieStore = await cookies()
+  const raw = cookieStore.get("pleks_org")?.value
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as { sub_status?: string | null }
+      if (parsed.sub_status) {
+        return { ...fallback, status: parsed.sub_status as SubscriptionStatus }
+      }
+    } catch { /* fall through */ }
+  }
+
+  // Slow path: full lifecycle columns from DB
+  return getSubscriptionState(membership.org_id)
 })
 
 // ── ADDENDUM_57G — agent write gate ───────────────────────────────────────────

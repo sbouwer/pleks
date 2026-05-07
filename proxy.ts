@@ -120,13 +120,14 @@ async function refreshOrgCookieParallel(
 ) {
   const [orgsRes, subRes, orgRes] = await Promise.all([
     service.from("user_orgs").select("role").eq("user_id", userId).eq("org_id", orgId).is("deleted_at", null).single(),
-    service.from("subscriptions").select("tier, status, trial_tier, trial_ends_at, trial_converted").eq("org_id", orgId).in("status", ["active", "trialing"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    service.from("subscriptions").select("tier, status, trial_tier, trial_ends_at, trial_converted").eq("org_id", orgId).not("status", "eq", "purged").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     service.from("organisations").select("type, name").eq("id", orgId).single(),
   ])
   if (orgsRes.data) {
     supabaseResponse.cookies.set("pleks_org", JSON.stringify({
       org_id: orgId, role: orgsRes.data.role, tier: deriveTierFromSub(subRes.data),
       type: orgRes.data?.type ?? "agency", name: orgRes.data?.name ?? "",
+      sub_status: subRes.data?.status ?? null,
       user_id: userId,
     }), { ...AUTH_COOKIE_OPTS, maxAge: 300 })
   }
@@ -144,7 +145,7 @@ async function setOrgCookiesFromDb(
   const orgId = orgs[0].org_id
   const [subData, orgData] = await Promise.all([
     service.from("subscriptions").select("tier, status, trial_tier, trial_ends_at, trial_converted")
-      .eq("org_id", orgId).in("status", ["active", "trialing"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      .eq("org_id", orgId).not("status", "eq", "purged").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     service.from("organisations").select("type, name").eq("id", orgId).single(),
   ])
 
@@ -152,6 +153,7 @@ async function setOrgCookiesFromDb(
   supabaseResponse.cookies.set("pleks_org", JSON.stringify({
     org_id: orgId, role: orgs[0].role, tier: deriveTierFromSub(subData.data),
     type: orgData.data?.type ?? "agency", name: orgData.data?.name ?? "",
+    sub_status: subData.data?.status ?? null,
     user_id: user.id,
   }), { ...AUTH_COOKIE_OPTS, maxAge: 300 })
   return false
