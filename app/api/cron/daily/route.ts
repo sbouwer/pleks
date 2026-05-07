@@ -31,6 +31,7 @@ import { GET as preMoveoutInspection } from "../tenant-comms/pre-moveout-inspect
 import { GET as depositInterestStatement } from "../tenant-comms/deposit-interest-statement/route"
 import { GET as inspectionReminder } from "../tenant-comms/inspection-reminder/route"
 import { GET as leaseLifecycle } from "../tenant-comms/lease-lifecycle/route"
+import { GET as monthlyStatement } from "../tenant-comms/monthly-statement/route"
 
 type CronHandler = (req: NextRequest) => Promise<Response>
 
@@ -90,6 +91,7 @@ export async function GET(req: NextRequest) {
   await runJob("pre_moveout_inspection", preMoveoutInspection, cronReq, results)
   await runJob("inspection_reminder", inspectionReminder, cronReq, results)
   await runJob("lease_lifecycle", leaseLifecycle, cronReq, results)
+  await runJob("monthly_statement", monthlyStatement, cronReq, results)
 
   // Monthly jobs
   if (dayOfMonth === 1) {

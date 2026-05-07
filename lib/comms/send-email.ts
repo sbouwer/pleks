@@ -23,6 +23,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { getTemplate } from "./template-registry"
 import { canSend, ensurePreferences } from "./preferences"
 import type { OrgBranding } from "./templates/layout"
+export type { OrgBranding } from "./templates/layout"
 import type { ReactElement } from "react"
 
 function getResend() {
@@ -56,6 +57,7 @@ export interface SendEmailParams {
     content: string | Buffer  // base64 string or Buffer
     contentType?: string
   }>
+  tenantId?: string              // stored in communication_log.tenant_id for portal queries
   // BUILD_63 audit fields
   toneVariant?: "friendly" | "professional" | "firm" | "n/a"
   triggerEventType?: string  // 'arrears_action' | 'invoice_issued' | 'lease_state' | 'cron:*' | 'manual'
@@ -121,6 +123,7 @@ async function logToDb(
   params: {
     orgId: string
     templateKey: string
+    tenantId?: string
     to: SendEmailParams["to"]
     subject: string
     bodyPreview?: string
@@ -146,7 +149,9 @@ async function logToDb(
     .from("communication_log")
     .insert({
       org_id: params.orgId,
+      direction: "outbound",
       channel: "email",
+      tenant_id: params.tenantId ?? null,
       contact_id: params.to.contactId ?? null,
       sent_to_email: params.to.email,
       recipient_name: params.to.name,

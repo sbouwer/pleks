@@ -1,13 +1,10 @@
 "use client"
 
 /**
- * components/layout/PortalSidebar.tsx — FILL: one-line purpose
+ * components/layout/PortalSidebar.tsx — tenant portal sidebar navigation
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   tenant portal session (rendered inside the tenant layout)
+ * Notes:  BUILD_63 Phase 8: Communications added to Main nav group.
  */
 
 import { useState } from "react"
@@ -19,6 +16,7 @@ import {
   FileText,
   Wrench,
   UserCircle,
+  MessageSquare,
 } from "lucide-react"
 
 const PORTAL_NAV_GROUPS: NavGroup[] = [
@@ -28,6 +26,7 @@ const PORTAL_NAV_GROUPS: NavGroup[] = [
       { href: "/tenant", label: "Dashboard", icon: LayoutDashboard },
       { href: "/tenant/payments", label: "Payments", icon: CreditCard },
       { href: "/tenant/lease", label: "My Lease", icon: FileText },
+      { href: "/tenant/communications", label: "Communications", icon: MessageSquare },
     ],
   },
   {

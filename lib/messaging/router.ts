@@ -121,6 +121,7 @@ async function attemptEmail(
   const emailParams: SendEmailParams = {
     orgId: params.orgId,
     templateKey: params.templateKey,
+    tenantId: params.tenantId,
     to: {
       email: params.to.email,
       name: params.to.name,

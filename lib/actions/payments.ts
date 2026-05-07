@@ -1,19 +1,22 @@
 "use server"
 
 /**
- * lib/actions/payments.ts — FILL: one-line purpose
+ * lib/actions/payments.ts — record a rent payment against an invoice
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   gateway (agent session)
+ * Data:   rent_invoices, payments, trust_transactions, audit_log via gateway db
+ * Notes:  allocatePayment() handles interest-first allocation (lease clause 6.6).
+ *         BUILD_63 Phase 7 (F2): fires rent.payment_received comm after allocation.
  */
 
+import * as React from "react"
 import { gateway } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { allocatePayment } from "@/lib/finance/paymentAllocation"
+import { routeAndSend } from "@/lib/messaging/router"
+import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
+import { PaymentReceivedEmail } from "@/lib/comms/templates/tenant/rent/payment-received"
 
 export async function recordPayment(formData: FormData) {
   const gw = await gateway()
@@ -108,6 +111,61 @@ export async function recordPayment(formData: FormData) {
   // Allocate payment: interest first, then rent (lease clause 6.6)
   if (invoice.lease_id) {
     await allocatePayment(payment.id, invoice.lease_id, amountCents)
+  }
+
+  // BUILD_63 Phase 7 (F2) — fire rent.payment_received comm if tenant has an email
+  if (invoice.tenant_id) {
+    try {
+      const { data: tenant } = await db
+        .from("tenant_view")
+        .select("first_name, last_name, email, phone")
+        .eq("id", invoice.tenant_id)
+        .single()
+
+      if (tenant?.email) {
+        const orgSettings = await fetchOrgSettings(orgId)
+        const branding = buildBranding(orgSettings)
+        const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
+        const { data: inv } = await db
+          .from("rent_invoices")
+          .select("invoice_number, balance_cents")
+          .eq("id", invoiceId)
+          .single()
+        const invoiceNumber = (inv?.invoice_number as string | null) ?? invoiceId.slice(0, 8).toUpperCase()
+        const outstandingBalance = (inv?.balance_cents as number | null) ?? Math.max(0, newBalance)
+
+        function fmt(cents: number) {
+          return "R " + (cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
+        }
+
+        await routeAndSend({
+          orgId,
+          tenantId:    invoice.tenant_id as string,
+          templateKey: "rent.payment_received",
+          to: { email: tenant.email as string, phone: (tenant.phone as string | null) ?? undefined, name: tenantName },
+          subject: `Payment received — ${receiptNumber}`,
+          emailElement: React.createElement(PaymentReceivedEmail, {
+            branding,
+            tenantName,
+            propertyLabel: "your property",
+            receiptNumber,
+            paymentDate:              new Date(paymentDate).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" }),
+            paymentMethod:            paymentMethod.toUpperCase(),
+            amountDisplay:            fmt(amountCents),
+            outstandingBalanceDisplay: fmt(outstandingBalance),
+            invoiceNumber,
+          }),
+          entityType:       "payment",
+          entityId:         payment.id,
+          triggerEventType: "payment_recorded",
+          triggerEventId:   payment.id,
+          triggeredBy:      userId,
+          toneVariant:      "n/a",
+        })
+      }
+    } catch (err) {
+      console.error("[recordPayment] comm failed for payment", payment.id, err)
+    }
   }
 
   // Audit

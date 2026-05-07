@@ -21,6 +21,7 @@ import { FinancialsPanel } from "./FinancialsPanel"
 import { LeaseExpiryTimeline } from "./LeaseExpiryTimeline"
 import { ActivityFeed } from "./ActivityFeed"
 import { PropertySetupCards } from "./PropertySetupCards"
+import { SurrenderedCommsWidget, type SurrenderedCommRow } from "./SurrenderedCommsWidget"
 import { formatZARAbbrev } from "@/lib/constants"
 import { getFeesDue } from "@/lib/dashboard/feesDue"
 import { getTrustBalance } from "@/lib/dashboard/trustBalance"
@@ -193,7 +194,7 @@ export default async function DashboardPage() {
   const supabase = await createClient()
 
   // Light wave — all independent, renders greeting + metrics immediately
-  const [orgRes, profileRes, subRes, propCountRes, unitRes, collectionRate, tenantsCountRes, leasesCountRes, inspectionsCountRes] = await Promise.all([
+  const [orgRes, profileRes, subRes, propCountRes, unitRes, collectionRate, tenantsCountRes, leasesCountRes, inspectionsCountRes, surrenderedCommsRes] = await Promise.all([
     supabase
       .from("organisations")
       .select("has_trust_account, has_deposit_account, management_scope, founding_agent, founding_agent_price_cents")
@@ -225,6 +226,14 @@ export default async function DashboardPage() {
     supabase.from("tenants").select("id", { count: "exact", head: true }).eq("org_id", orgId).is("deleted_at", null),
     supabase.from("leases").select("id", { count: "exact", head: true }).eq("org_id", orgId),
     supabase.from("inspections").select("id", { count: "exact", head: true }).eq("org_id", orgId),
+    // Surrendered mandatory comms requiring manual dispatch (BUILD_63 Phase 8)
+    getCachedServiceClient().then((c) =>
+      c.from("mandatory_comm_retries")
+        .select("id, template_key, surrender_reason, surrendered_at, attempt_count, recipient_snapshot")
+        .eq("org_id", orgId)
+        .not("surrendered_at", "is", null)
+        .limit(20)
+    ),
   ])
 
   const org = orgRes.data as unknown as Record<string, unknown> | null
@@ -254,6 +263,17 @@ export default async function DashboardPage() {
   const { isTrialing, trialEndsAt } = deriveTrialInfo(sub)
   const trialDaysLeft = computeTrialDaysLeft(trialEndsAt ?? null)
   const showTrustBanner = tier !== "owner" && org?.has_trust_account !== true
+
+  type RetryRow = { id: string; template_key: string; surrender_reason: string | null; surrendered_at: string; attempt_count: number; recipient_snapshot: { email?: string; phone?: string } | null }
+  const surrenderedCommItems: SurrenderedCommRow[] = ((surrenderedCommsRes.data ?? []) as RetryRow[]).map((r) => ({
+    id:               r.id,
+    template_key:     r.template_key,
+    surrender_reason: r.surrender_reason,
+    surrendered_at:   r.surrendered_at,
+    attempt_count:    r.attempt_count,
+    recipient_email:  r.recipient_snapshot?.email ?? null,
+    recipient_name:   null,
+  }))
 
   return (
     <>
@@ -287,6 +307,9 @@ export default async function DashboardPage() {
         isFoundingAgent={!!org?.founding_agent}
         foundingPriceCents={org?.founding_agent_price_cents as number | null}
       />
+
+      {/* Surrendered mandatory comms widget (BUILD_63 Phase 8) */}
+      <SurrenderedCommsWidget items={surrenderedCommItems} />
 
       {/* BUILD_60 property setup cards — first property / check imports */}
       <PropertySetupCards

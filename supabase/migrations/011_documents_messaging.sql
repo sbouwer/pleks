@@ -847,3 +847,28 @@ CREATE POLICY "property_documents_org_access"
       WHERE user_id = auth.uid() AND deleted_at IS NULL
     )
   );
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §14  BUILD_63 Phase 8: communication_log — direction default + tenant RLS
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- direction was NOT NULL without a DEFAULT, causing logToDb inserts to fail
+-- silently (Supabase JS client swallows the error). Adding DEFAULT 'outbound'
+-- so all email sends (which are always outbound) succeed without specifying it.
+--
+-- tenant_comms_read: allows magic-link authenticated tenants to SELECT their own
+-- comms directly. Portal pages use service client (bypasses RLS), so this policy
+-- is defence-in-depth and enables future direct-client queries from the portal.
+
+ALTER TABLE communication_log
+  ALTER COLUMN direction SET DEFAULT 'outbound';
+
+DROP POLICY IF EXISTS "tenant_comms_read" ON communication_log;
+CREATE POLICY "tenant_comms_read" ON communication_log
+  FOR SELECT USING (
+    tenant_id IN (
+      SELECT id FROM tenants
+      WHERE auth_user_id = auth.uid()
+        AND deleted_at IS NULL
+    )
+  );

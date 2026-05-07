@@ -14,8 +14,14 @@ import { formatZAR } from "@/lib/constants"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import {
   FileText, CreditCard, Wrench, ClipboardCheck,
-  AlertTriangle, CheckCircle2, Clock, Phone,
+  AlertTriangle, CheckCircle2, Clock, Phone, Bell,
 } from "lucide-react"
+import { getTemplate } from "@/lib/comms/template-registry"
+
+function isTemplateMandatory(key: string | null): boolean {
+  if (!key) return false
+  try { return getTemplate(key).is_mandatory ?? false } catch { return false }
+}
 
 function daysUntil(dateStr: string | null) {
   if (!dateStr) return null
@@ -49,7 +55,7 @@ export default async function PortalDashboard() {
   const { tenantId, leaseId, orgId, lease, unitId, tenantName } = session
 
   // Parallel data fetches
-  const [invoiceRes, , inspectionRes, maintenanceRes, unitRes, orgRes, subRes] = await Promise.all([
+  const [invoiceRes, , inspectionRes, maintenanceRes, unitRes, orgRes, subRes, unreadCommsRes] = await Promise.all([
     // Latest open invoice for balance + next payment
     service.from("rent_invoices")
       .select("id, invoice_date, due_date, total_amount_cents, balance_cents, payment_reference, status")
@@ -99,6 +105,11 @@ export default async function PortalDashboard() {
       .eq("org_id", orgId)
       .eq("status", "active")
       .single(),
+    // Unread mandatory comms — for banner (BUILD_63 Phase 8)
+    service.from("communication_log")
+      .select("id, template_key")
+      .eq("tenant_id", tenantId)
+      .eq("direction", "outbound"),
   ])
 
   const invoice = invoiceRes.data
@@ -108,6 +119,20 @@ export default async function PortalDashboard() {
   const property = unit?.properties as unknown as { name: string; address_line1: string | null; city: string | null; managing_agent_id: string | null } | null
 
   const daysUntilDue = invoice?.due_date ? daysUntil(invoice.due_date) : null
+
+  // Unread mandatory comms — filter those without a portal_view event
+  const allComms = (unreadCommsRes.data ?? []) as { id: string; template_key: string | null }[]
+  const mandatoryCommIds = allComms.filter((c) => isTemplateMandatory(c.template_key)).map((c) => c.id)
+  let unreadMandatoryCount = 0
+  if (mandatoryCommIds.length > 0) {
+    const { data: viewedIds } = await service
+      .from("communication_delivery_events")
+      .select("communication_log_id")
+      .in("communication_log_id", mandatoryCommIds)
+      .eq("event_type", "portal_view")
+    const viewed = new Set((viewedIds ?? []).map((r) => r.communication_log_id))
+    unreadMandatoryCount = mandatoryCommIds.filter((id) => !viewed.has(id)).length
+  }
 
   const orgData = orgRes.data as unknown as { phone: string | null; emergency_phone: string | null; emergency_contact_name: string | null } | null
   const subTier = (subRes.data as unknown as { tier: string } | null)?.tier ?? "owner"
@@ -141,6 +166,21 @@ export default async function PortalDashboard() {
           </p>
         )}
       </div>
+
+      {unreadMandatoryCount > 0 && (
+        <Link
+          href="/tenant/communications"
+          className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 mb-4 hover:bg-amber-100 transition-colors"
+        >
+          <Bell className="h-5 w-5 text-amber-600 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-amber-800">
+              You have {unreadMandatoryCount} unread notice{unreadMandatoryCount > 1 ? "s" : ""} that require your attention.
+            </p>
+            <p className="text-xs text-amber-700">Review now →</p>
+          </div>
+        </Link>
+      )}
 
       {emergencyPhone && (
         <a

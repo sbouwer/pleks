@@ -1318,3 +1318,19 @@ INSERT INTO external_links (key, url, label, category) VALUES
   ('payfastPrivacy',       'https://payfast.io/privacy-policy/',   'PayFast Privacy Policy',       'service_policy'),
   ('statusPage',           'https://status.pleks.co.za',           'Pleks Status Page',            'infrastructure')
 ON CONFLICT (key) DO NOTHING;
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §21  BUILD_63 Phase 8: mandatory_comm_retries — manual dispatch tracking
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Surrendered comms surface on the agent dashboard. The agent prints and
+-- dispatches physically; these columns record that action for audit continuity.
+
+ALTER TABLE mandatory_comm_retries
+  ADD COLUMN IF NOT EXISTS manually_dispatched_at  timestamptz,
+  ADD COLUMN IF NOT EXISTS dispatch_notes          text,
+  ADD COLUMN IF NOT EXISTS dispatched_by           uuid REFERENCES auth.users(id);
+
+CREATE INDEX IF NOT EXISTS idx_mandatory_retries_surrendered_undispatched
+  ON mandatory_comm_retries(org_id, surrendered_at)
+  WHERE surrendered_at IS NOT NULL AND manually_dispatched_at IS NULL;
