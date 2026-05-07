@@ -4,6 +4,7 @@
  * getServerUser()             — GoTrue-verified user (not cookie-spoofable; one round-trip per render tree)
  * getServerOrgMembership()    — org_id + role from pleks_org cookie (zero DB) or user_orgs DB fallback
  * getCurrentOrgCapabilities() — OrgCapabilities for the current org (ADDENDUM_61A — org-type-aware rendering)
+ * requireAgentWriteAccess()   — Single chokepoint for all agent-side mutations (ADDENDUM_57G)
  */
 import { cache } from "react"
 import { cookies } from "next/headers"
@@ -11,6 +12,14 @@ import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { setSentryUser } from "@/lib/observability/user-context"
 import { getOrgCapabilities, type OrgCapabilities } from "@/lib/org/capabilities"
 import type { OrgType } from "@/lib/constants"
+import { gateway, type GatewayContext } from "@/lib/supabase/gateway"
+import {
+  canPerformAgentAction,
+  SubscriptionLockdownError,
+  type AgentWriteAction,
+  type SubscriptionState,
+  type SubscriptionStatus,
+} from "@/lib/subscriptions/state"
 
 /**
  * Cached per-request server auth helpers.
@@ -110,3 +119,52 @@ export const getCurrentOrgCapabilities = cache(async (): Promise<OrgCapabilities
 
   return getOrgCapabilities((org.type as OrgType) ?? "agency", org.name as string)
 })
+
+// ── ADDENDUM_57G — agent write gate ───────────────────────────────────────────
+
+async function getSubscriptionState(orgId: string): Promise<SubscriptionState> {
+  const service = await createServiceClient()
+  const { data, error } = await service
+    .from("subscriptions")
+    .select("status, past_due_since, paused_at, cancelled_at, purge_eligible_at")
+    .eq("org_id", orgId)
+    .single()
+
+  if (error || !data) {
+    // No subscription row = owner-free tier; treat as active for write purposes.
+    return { status: "active", past_due_since: null, paused_at: null, cancelled_at: null, purge_eligible_at: null }
+  }
+
+  return {
+    status:            (data.status as SubscriptionStatus) ?? "active",
+    past_due_since:    data.past_due_since    ? new Date(data.past_due_since as string)    : null,
+    paused_at:         data.paused_at         ? new Date(data.paused_at as string)         : null,
+    cancelled_at:      data.cancelled_at      ? new Date(data.cancelled_at as string)      : null,
+    purge_eligible_at: data.purge_eligible_at ? new Date(data.purge_eligible_at as string) : null,
+  }
+}
+
+/**
+ * Single chokepoint for all agent-side mutations (ADDENDUM_57G D-57G-08).
+ * Call this instead of gateway() in any server action or route handler that writes.
+ *
+ * Throws SubscriptionLockdownError (HTTP 403) when the org is paused or cancelled.
+ * Throws a plain Error when the user is not authenticated.
+ *
+ * Usage:
+ *   const gw = await requireAgentWriteAccess("create_lease")
+ *   // proceed — org is active and user is authenticated
+ */
+export async function requireAgentWriteAccess(
+  action: AgentWriteAction,
+): Promise<GatewayContext> {
+  const gw = await gateway()
+  if (!gw) throw new Error("Not authenticated")
+  const sub = await getSubscriptionState(gw.orgId)
+  const result = canPerformAgentAction(sub, action)
+  if (!result.allowed) throw new SubscriptionLockdownError(result.reason, action)
+  return gw
+}
+
+export type { AgentWriteAction, SubscriptionState } from "@/lib/subscriptions/state"
+export type { GatewayContext } from "@/lib/supabase/gateway"
