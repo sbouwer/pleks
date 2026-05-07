@@ -12,6 +12,6 @@ export const LEGAL_VERSIONS = {
   creditCheckPolicy: "v1.4.0",
   paiaManual:        "v1.1.0",
   popiaRegister:     "v1.9.0",
-  privacy:           "v4.1.0",
-  terms:             "v3.2.0",
+  privacy:           "v4.2.0",
+  terms:             "v3.3.0",
 } as const

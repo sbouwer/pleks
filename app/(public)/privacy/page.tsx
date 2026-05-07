@@ -39,8 +39,8 @@ export default function PrivacyPolicyPage() {
       titleHighlight="policy"
       subtitle="How Pleks (Pty) Ltd collects, uses, stores and shares personal information — as Responsible Party for platform operations and as Operator for agency-managed rental data."
       kicker={[
-        { label: "Last reviewed",  value: "2026 · 05 · 05", mono: true },
-        { label: "Effective from", value: "2026 · 05 · 05", mono: true },
+        { label: "Last reviewed",  value: "2026 · 05 · 07", mono: true },
+        { label: "Effective from", value: "2026 · 05 · 07", mono: true },
         { label: "Jurisdiction",   value: "Republic of South Africa" },
         { label: "Standards",      value: "POPIA · PAIA · CPA · NCA · RHA · FICA · PPA · STSMA" },
       ]}
@@ -453,6 +453,11 @@ export default function PrivacyPolicyPage() {
               <td className="who">Platform billing records<span className="sub">subscription charges</span></td>
               <td>5 years from most recent charge</td>
               <td>Tax Administration Act s29</td>
+            </tr>
+            <tr>
+              <td className="who">Platform operational data<span className="sub">after cancellation — properties, leases, tenants, documents</span></td>
+              <td>12 months from cancellation date</td>
+              <td>Contractual — ToS §04</td>
             </tr>
             <tr>
               <td className="who">Support correspondence<span className="sub">emails, tickets</span></td>

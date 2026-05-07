@@ -36,8 +36,8 @@ export default function TermsOfServicePage() {
       titleHighlight="service"
       subtitle="The agreement that governs your use of the Pleks property management platform. By using Pleks you confirm that you have read and accepted these terms."
       kicker={[
-        { label: "Last reviewed", value: "2026 · 05 · 05", mono: true },
-        { label: "Effective",     value: "2026 · 05 · 05", mono: true },
+        { label: "Last reviewed", value: "2026 · 05 · 07", mono: true },
+        { label: "Effective",     value: "2026 · 05 · 07", mono: true },
         { label: "Jurisdiction",  value: "Republic of South Africa" },
         { label: "Framework",     value: "CPA · ECT Act · PPA · POPIA" },
       ]}
@@ -53,7 +53,7 @@ export default function TermsOfServicePage() {
           <li><span className="b" /><span>By using Pleks you accept these terms — they form a legally binding agreement with Pleks (Pty) Ltd concluded by data message under the ECT Act.</span></li>
           <li><span className="b" /><span>Subscription fees are billed monthly or annually via our payment processor, in ZAR inclusive of VAT where applicable.</span></li>
           <li><span className="b" /><span>Cancel at any time from your account settings; access continues until your billing period ends. Natural-person CPA subscribers may cancel on 20 business days&rsquo; notice at any time on a fixed-term plan.</span></li>
-          <li><span className="b" /><span>After cancellation you have 90 days of read-only access before operational data is deleted. Statutory obligations require some categories to be retained for longer — see §04 and the POPIA register.</span></li>
+          <li><span className="b" /><span>After cancellation you have 12 months of read-only access before operational data is deleted. Statutory obligations require some categories to be retained for longer — see §04 and the POPIA register.</span></li>
           <li><span className="b" /><span>§09 sets out the full data-processing terms governing Pleks&rsquo;s obligations as Operator under POPIA s20–s21, including the 72-hour breach-notification commitment.</span></li>
           <li><span className="b" /><span>Pleks does not hold client funds. Trust money is held in the agency&rsquo;s own Section 86 account.</span></li>
           <li><span className="b" /><span>Governing law: Republic of South Africa. CPA subscribers may also approach the National Consumer Tribunal or Magistrate&rsquo;s Court.</span></li>
@@ -145,15 +145,15 @@ export default function TermsOfServicePage() {
           juristic-entity subscribers on fixed-term agreements are subject to any notice and penalty terms agreed at sign-up.
         </p>
         <p>
-          After cancellation, you will retain <strong>read-only access</strong> to your data for 90 days. During this period you
+          After cancellation, you will retain <strong>read-only access</strong> to your data for 12 months. During this period you
           can use the bulk-export feature to download all leases, inspection reports, financial records, and tenant documents in a
-          single archive. After the 90-day grace period, operational data is permanently deleted unless retention is required for
+          single archive. After the 12-month grace period, operational data is permanently deleted unless retention is required for
           legal, regulatory, or dispute-related purposes as set out below. Pleks is not responsible for data loss that results from
           failure to export within the grace period.
         </p>
         <p>
           <strong>Statutory retention after cancellation.</strong> Certain data categories are subject to mandatory retention
-          obligations that continue after the 90-day grace period regardless of cancellation. These include trust records (Property
+          obligations that continue after the 12-month grace period regardless of cancellation. These include trust records (Property
           Practitioners Act s54 + Regulation 33 — 5 years from the end of the financial year), tax records (Tax Administration Act
           s29 — 5 years), FICA records (FICA s23 — 5 years), audit logs (7 years), and consent records (10 years). During the
           extended retention period, that data is held in a restricted-access archive, used only for the legal obligation that
@@ -348,7 +348,7 @@ export default function TermsOfServicePage() {
 
         <p><strong>09.6 — End-of-engagement data handling</strong></p>
         <p>
-          Upon termination of the Agency&rsquo;s subscription and expiry of the 90-day read-only grace period (§04), Pleks will
+          Upon termination of the Agency&rsquo;s subscription and expiry of the 12-month read-only grace period (§04), Pleks will
           delete or anonymise all Part B personal information not subject to a statutory retention obligation. Statutory retention
           categories are set out in §04 and the processing register. At the Agency&rsquo;s written request, Pleks will provide a
           summary of what data categories are retained post-deletion and the applicable retention windows.
