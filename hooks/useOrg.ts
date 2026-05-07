@@ -30,11 +30,15 @@ export function useOrg() {
       if (!orgData) return null
       const { data: subData } = await supabase
         .from("subscriptions")
-        .select("status")
+        .select("status, cancelled_at")
         .eq("org_id", orgData.org_id)
         .not("status", "eq", "purged")
         .maybeSingle()
-      return { ...orgData, subscriptionStatus: (subData?.status ?? "active") as SubscriptionStatus }
+      return {
+        ...orgData,
+        subscriptionStatus: (subData?.status ?? "active") as SubscriptionStatus,
+        cancelledAt: (subData?.cancelled_at as string | null) ?? null,
+      }
     },
     staleTime: 5 * 60 * 1000,
   })
@@ -49,6 +53,7 @@ export function useOrg() {
     role,
     displayName,
     subscriptionStatus: data?.subscriptionStatus ?? "active" as SubscriptionStatus,
+    cancelledAt: data?.cancelledAt ?? null,
     loading: isLoading,
   }
 }

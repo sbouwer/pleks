@@ -19,6 +19,7 @@ import { SyncEngineClient } from "@/components/layout/SyncEngineClient"
 import { PortalThemeProvider } from "@/components/layout/PortalThemeProvider"
 import { MfaGuard } from "@/components/auth/MfaGuard"
 import { FeedbackButton } from "@/components/feedback/FeedbackButton"
+import { SubscriptionStateBanner } from "@/components/layout/SubscriptionStateBanner"
 
 export default function DashboardLayout({
   children,
@@ -32,6 +33,7 @@ export default function DashboardLayout({
       <PortfolioPrefetcher />
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
+        <SubscriptionStateBanner />
         <Topbar />
         <main className="flex-1 overflow-y-auto bg-muted/30 p-6 pb-16 lg:pb-6">{children}</main>
         <MobileBottomBar />
