@@ -1334,3 +1334,37 @@ ALTER TABLE mandatory_comm_retries
 CREATE INDEX IF NOT EXISTS idx_mandatory_retries_surrendered_undispatched
   ON mandatory_comm_retries(org_id, surrendered_at)
   WHERE surrendered_at IS NOT NULL AND manually_dispatched_at IS NULL;
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §22  ADDENDUM_57G: Subscription Pause & Dormancy Policy
+--      State machine: trialing → active ↔ past_due → paused → cancelled → purged
+--      "Your Data, Always" doctrine: reads/exports/audit/crons always fire;
+--      net-new business creation is the only commercially-gated capability.
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- §X.1 — Status CHECK widening (adds paused + purged; removes legacy grace_period)
+ALTER TABLE subscriptions DROP CONSTRAINT IF EXISTS subscriptions_status_check;
+ALTER TABLE subscriptions
+  ADD CONSTRAINT subscriptions_status_check
+  CHECK (status IN ('trialing','active','past_due','paused','cancelled','purged'));
+
+-- §X.2 — Pause & cancellation lifecycle columns
+ALTER TABLE subscriptions
+  ADD COLUMN IF NOT EXISTS past_due_since        timestamptz,
+  ADD COLUMN IF NOT EXISTS paused_at             timestamptz,
+  ADD COLUMN IF NOT EXISTS pause_reason          text,
+  ADD COLUMN IF NOT EXISTS resumed_at            timestamptz,
+  ADD COLUMN IF NOT EXISTS cancelled_at          timestamptz,
+  ADD COLUMN IF NOT EXISTS purge_eligible_at     timestamptz,
+  ADD COLUMN IF NOT EXISTS purge_warning_sent_at timestamptz,
+  ADD COLUMN IF NOT EXISTS purged_at             timestamptz;
+
+CREATE INDEX IF NOT EXISTS idx_subscriptions_status_purge
+  ON subscriptions(status, purge_eligible_at)
+  WHERE status IN ('cancelled','paused');
+
+-- §X.3 — Owner-free dormancy tracking on organisations
+ALTER TABLE organisations
+  ADD COLUMN IF NOT EXISTS dormancy_warning_sent_at timestamptz,
+  ADD COLUMN IF NOT EXISTS dormancy_final_sent_at   timestamptz;

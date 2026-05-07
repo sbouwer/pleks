@@ -634,3 +634,18 @@ ON CONFLICT (code) DO UPDATE SET
   evidence_type        = EXCLUDED.evidence_type,
   is_active            = EXCLUDED.is_active,
   updated_at           = now();
+
+-- ─── ADDENDUM_57G §X.5 — Sentinel org for post-purge retention carry-over ────
+-- When an org is purged, rows from retention-protected tables (audit_log,
+-- trust_transactions, consent_log, auth_events, etc.) have their org_id
+-- repointed to this sentinel UUID rather than being deleted. Platform-admin
+-- path reads them; RLS blocks all org-scoped access to sentinel rows.
+INSERT INTO organisations (id, name, type, created_at, settings)
+VALUES (
+  '00000000-0000-0000-0000-000000000001',
+  '__purged__',
+  'agency',
+  '2026-01-01T00:00:00Z',
+  '{"is_sentinel": true, "purpose": "retention-only carry-over after org purge"}'::jsonb
+)
+ON CONFLICT (id) DO NOTHING;
