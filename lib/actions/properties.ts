@@ -1,13 +1,13 @@
 "use server"
 
 /**
- * lib/actions/properties.ts — FILL: one-line purpose
+ * lib/actions/properties.ts — CRUD server actions for properties
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   requireAgentWriteAccess (all paths are writes)
+ * Data:   properties, buildings, managing_schemes tables via gateway service client
+ * Notes:  createProperty auto-inserts a default building so single-building properties
+ *         are transparent; archiveProperty soft-deletes (status='archived'), deleteProperty
+ *         is a hard delete guarded by a zero-unit check.
  */
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { redirect } from "next/navigation"

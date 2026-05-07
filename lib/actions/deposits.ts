@@ -3,7 +3,7 @@
 /**
  * lib/actions/deposits.ts — deposit lifecycle server actions
  *
- * Auth:   gateway (agent session required)
+ * Auth:   requireAgentWriteAccess (all paths are writes)
  * Data:   deposit_reconciliations, deposit_deduction_items, deposit_charges, deposit_timers,
  *         tenant_view, leases, units, properties via gateway
  * Notes:  sendDepositSchedule transitions recon status → sent_to_tenant and fires

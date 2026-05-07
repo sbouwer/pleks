@@ -1,13 +1,14 @@
 "use server"
 
 /**
- * lib/actions/tenants.ts — FILL: one-line purpose
+ * lib/actions/tenants.ts — CRUD server actions for tenant contacts
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   requireAgentWriteAccess (all paths are writes)
+ * Data:   contacts + tenants tables via gateway service client
+ * Notes:  SA ID numbers are hashed (hashIdNumber) before storage; raw value stored
+ *         encrypted. consent_log written for any POPIA-sensitive capture. IP + UA
+ *         recorded on createTenant for POPIA s18 accountability. Company tenants
+ *         store director FICA fields on the same contact row.
  */
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { redirect } from "next/navigation"
