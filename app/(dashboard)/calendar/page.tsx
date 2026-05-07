@@ -11,7 +11,11 @@ import { redirect } from "next/navigation"
 import { CalendarDays } from "lucide-react"
 import { fetchCalendarEvents, fetchOverdueAlerts } from "@/lib/calendar/events"
 import { DeadlineAlert } from "@/components/calendar/DeadlineAlert"
-import { CalendarClient } from "./CalendarClient"
+import dynamic from "next/dynamic"
+const CalendarClient = dynamic(() =>
+  import("./CalendarClient").then(m => ({ default: m.CalendarClient })),
+  { ssr: false }
+)
 import { InlineLink } from "@/components/ui/actions"
 
 function getTier(membership: { tier?: string | null } | null): string {

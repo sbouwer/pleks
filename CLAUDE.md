@@ -423,219 +423,56 @@ All build specifications live in `brief/build/`. The master index is `brief/buil
 
 ---
 
-## CURRENT TASK QUEUE
+## KNOWN SCHEMA GOTCHAS
 
-Work through these in order. Do not skip ahead.
+These are real constraints that cause non-obvious bugs. Check before writing migrations or queries.
 
----
-
-### TASK 1 — TESTING FIXES (as bugs are found)
-
-When a bug is identified during manual testing, fix it immediately
-before moving to the next task. Common areas to watch:
-
-- Cron routes: ensure CRON_SECRET header check on every cron handler
-- PayFast ITN: validate signature before processing any webhook
-- RLS: if any data leaks between orgs, fix immediately — this is critical
-- Searchworx bundle: ensure foreign national bundle uses correct checks
-- FitScore: verify weighted total always sums correctly (0–100)
-- Encryption: decrypt before sending to Searchworx API, mask before UI display
+- `user_orgs.role` CHECK constraint only allows: `owner / property_manager / agent / accountant / maintenance_manager` — `admin` is not valid and will fail silently
+- `auth.users` has no unique constraint on email — `ON CONFLICT (email)` will fail. Use SELECT-first pattern to check existence before INSERT
+- `maintenance_delay_events.delay_type` CHECK does not include `parts_unavailable` — do not add it without a migration first
 
 ---
 
-### TASK 2 — UX POLISH
+## TIER MODEL (post-April 2026 — locked)
 
-Read: E:\OneDrive\Websites\pleks\brief\PLEKS_PROJECT_TIMELINE.md
-Section: "Phase 3 — UX Polish"
+| Tier | Price | Lease limit |
+|------|-------|-------------|
+| Owner | Free | 1 |
+| Steward | R699/mo | 15 |
+| Growth | R1,199/mo | 30 |
+| Portfolio | R2,599/mo | 75 |
+| Firm | R4,499/mo | 150 |
+| Bespoke | Custom | Custom |
 
-Work through in this order:
-
-A) Empty states
-   Every page that fetches a list needs a useful empty state with CTA.
-   Pages to check:
-     /properties — "Add your first property"
-     /tenants — "No tenants yet"
-     /leases — "No leases yet"
-     /applications — "Create a listing to start receiving applications"
-     /maintenance — "No maintenance requests"
-     /reports — "No data yet for this period"
-     /hoa — "No schemes set up"
-     /contractor (contractor portal) — "No jobs assigned yet"
-
-B) Loading states
-   Add skeleton loaders (use shadcn Skeleton component) to all
-   server-fetched pages. Priority:
-     Dashboard (most visited)
-     Applications list
-     FitScore detail
-   
-   Add progress indicators for async AI operations:
-     Bank statement extraction: "Processing your bank statement..."
-     Searchworx check: "Running credit check..."
-     DocuSeal generation: "Generating your lease..."
-
-C) Error handling
-   Wrap all Searchworx API calls in try/catch.
-   On failure: update application.searchworx_check_status = 'failed'
-   Create agent alert. Never show a blank screen.
-   
-   Wrap all Sonnet calls in try/catch.
-   On failure: log error, return null for optional AI fields,
-   continue flow without blocking.
-   
-   Add inline validation to:
-     SA ID number field: Luhn check before form submit
-     File upload: size check (>10MB = error before attempting upload)
-
-D) Mobile audit
-   Test these pages at 375px — fix any issues:
-     /apply/[listingId] (applicant listing view)
-     /apply/[listingId]/details (applicant details form)
-     /apply/[listingId]/documents (document upload)
-     /apply/[listingId]/status (pre-screen status)
-     /contractor/jobs (contractor job list)
-     /contractor/jobs/[id] (job detail)
-     /inspections (inspection list)
-
-E) Nav badges
-   Add unread/action-required counts to navigation:
-     Applications: count where stage1_status = 'pre_screen_complete'
-                   AND prescreened_by IS NULL (needs review)
-     Maintenance: count where status = 'pending_review'
-     Arrears: count where arrears_cases.status = 'open'
-   Show as small red badge on nav item.
-   Only show if count > 0.
+No per-user seat caps on any tier — lease count is the only gate.
+Annual pricing not yet live. Bespoke/white-label deferred until first enterprise customer.
 
 ---
 
-### TASK 3 — MARKETING WEBSITE
+## CURRENT WORK — WHERE TO LOOK
 
-All pages go under app/(public)/ — same Next.js app.
-No separate marketing site needed.
+Do not rely on this file for task status. It changes daily.
 
-Current state:
-  app/(public)/page.tsx — 854 byte placeholder
-  app/(public)/pricing/page.tsx — basic tier cards, needs upgrade
+**Before every session:**
+1. Read `brief/build/INDEX.md` — source of truth for build status, queue order, 
+   and all known open work
+2. Check the "Latest shipped" and "Queue" lines at the top of INDEX.md
+3. Check the "Known open work" section — items there are confirmed gaps that 
+   need addressing, not future ideas
+4. Read the actual spec file before implementing anything — never guess at intent
 
-Build these pages in order:
+**How builds and addendums work:**
+- Builds: `brief/build/BUILD_{NN}_{NAME}.md`
+- Addendums: `brief/build/_ADDENDUM/ADDENDUM_{NN}{letter}_{NAME}.md`
+- {NN} in an addendum references its parent build number
+- CD (Claude Desktop) authors specs; CC (Claude Code - you) implements them
+- After completing meaningful work, update INDEX.md: status emoji, 
+  "Last updated" line, and any new open work discovered during implementation
 
-A) Update app/(public)/page.tsx — Homepage
-   
-   Audience: SA property agents on TPN RentBook.
-   
-   Sections (in order):
-   
-   1. HERO
-      Headline: "SA Property Management, Built Right"
-      Sub: "Built by someone who's done it for 11 years.
-           Free applicant pre-screening. Automated DebiCheck collections.
-           Tribunal-ready documentation. Always."
-      CTAs: [Start free — 1 unit] [Book a demo]
-      No stock photos. Use the Pleks logo mark as a visual element.
-   
-   2. PAIN POINTS (3 cards)
-      "Tired of paying for credit checks that go nowhere?"
-        → Pleks: applicants pay R399 at Stage 2. You never pay for a check.
-      "Chasing rent manually every month?"
-        → Pleks: DebiCheck mandate created with the lease. Runs automatically.
-      "What happens at the Rental Housing Tribunal?"
-        → Pleks: every inspection, deposit, and arrears letter is logged
-          and exportable as a Tribunal bundle.
-   
-   3. HOW IT WORKS (3 steps)
-      1. List your property → applicants apply free
-      2. Shortlist → they pay for the credit check, you see the FitScore
-      3. Sign digitally → DebiCheck collects → statements auto-generate
-   
-   4. FEATURES STRIP
-      Simple grid of feature names + tier badges:
-      FitScore screening | DebiCheck | Inspection PWA | Owner statements |
-      Arrears automation | Municipal bills | Deposit reconciliation |
-      HOA / Body corporate | Contractor portal | Heritage building support
-   
-   5. PRICING TEASER
-      "Start free. 1 unit. No credit card."
-      Link to /pricing
-   
-   6. CTA FOOTER
-      "10 founding agent spots — R299/mo locked for life"
-      [Get early access] → /register or Calendly
-
-B) Upgrade app/(public)/pricing/page.tsx
-   
-   Keep existing tier cards but add:
-   - Feature comparison table below the cards
-   - Annual toggle (show monthly / annual prices)
-   - Annual saving shown: "Save 2 months"
-   - FAQ section (5 questions):
-     "What counts as a unit?"
-     "What happens if I go over my unit limit?"
-     "Is the application fee charged to me or the applicant?"
-     "Can I cancel anytime?"
-     "Do you support trust accounts?"
-
-C) Create app/(public)/for-agents/page.tsx
-   TPN RentBook replacement positioning.
-   Lead with what's different, not what's the same.
-   Key message: "Everything TPN does, plus what it should have done."
-   
-   Sections:
-   - Screening: applicants pay, you get FitScore (not raw credit report)
-   - Collections: DebiCheck built-in, no separate integration
-   - Compliance: POPIA, RHA, CPA handled — not your problem
-   - Financials: SARS-ready statements, one click
-   - Multi-building: heritage + new build on same erf
-
-D) Create app/(public)/privacy/page.tsx
-   POPIA privacy notice. Required before launch.
-   Reference this in the applicant consent flow.
-   
-   Include:
-   - What personal information we collect
-   - Why we collect it (purpose — rental application processing)
-   - Who we share it with (Searchworx for credit checks, named explicitly)
-   - How long we retain it
-   - Data subject rights (access, correction, deletion, objection)
-   - Information Officer contact details
-   - How to lodge a complaint with the Information Regulator
-
-E) Create app/(public)/terms/page.tsx
-   Terms of service. Keep simple for now.
-   Cover: user obligations, payment terms, cancellation, liability limits.
-
-F) Create app/(public)/credit-check-policy/page.tsx
-   Referenced from applicant consent screen in BUILD_14/16.
-   Explains: what Searchworx checks, why, consent rights, POPIA basis.
-
----
-
-### TASK 4 — OPT-IN LANDING PAGE
-
-Build before starting outreach. A clean, simple page for email capture.
-
-Create app/(public)/early-access/page.tsx
-
-Content:
-  "Pleks is launching soon"
-  "SA property management built from 11 years of doing it.
-   Join the waitlist for founding agent pricing."
-  
-  Form: Email + "I am a: [Agent ▼] [Landlord] [Property Manager]"
-  Submit button: "Get early access"
-  
-  Below form:
-  "By submitting, you consent to receive emails about Pleks.
-  Unsubscribe anytime. We respect your privacy." (link to /privacy)
-
-On submit:
-  The `waitlist` table already exists in `001_foundation.sql` — use it.
-  Do NOT create a new migration. Store email + role there.
-  (Alternative: Resend Audiences API to add them directly to a Resend list.)
-  Send a confirmation email: "You're on the list — we'll be in touch"
-  Show success message: "You're on the list!"
-
-NOTE: This is the only legally clean way to build a marketing email list
-under POPIA. Do not add emails without this explicit opt-in.
+**If a spec is ambiguous or conflicts with existing code:**
+- Do not guess or fill in the gaps yourself
+- Flag the ambiguity explicitly and stop — do not implement around it
+- CD resolves architecture questions; CC implements confirmed decisions
 
 ---
 
@@ -784,6 +621,64 @@ Opus 4.6:   Tribunal submissions, LODs, eviction notices (Firm tier only)
 
 ---
 
+## ABSOLUTE URL DISCIPLINE
+
+`NEXT_PUBLIC_APP_URL` is the single source of truth for all absolute URLs —
+emails, WhatsApp messages, PDFs, deep links, QR codes.
+
+- Production: `https://app.pleks.co.za`
+- Development: `http://localhost:3000`
+- Preview: Vercel preview URL (set automatically)
+
+Any hardcoded `https://app.pleks.co.za/...` in template or email code is a bug.
+Use `process.env.NEXT_PUBLIC_APP_URL` everywhere. Zero exceptions.
+
+---
+
+## "YOUR DATA, ALWAYS" DOCTRINE
+
+Subscription gating only applies to net-new value creation.
+
+**Always on, regardless of subscription state (including paused/cancelled):**
+- Reads of existing data
+- Exports (PDF, CSV, audit bundles)
+- Audit log access
+- Scheduled notifications for legally required events
+
+**Gated by active subscription:**
+- Creating new leases
+- Adding new properties/units beyond tier limit
+- Running new credit checks
+- Generating new AI outputs
+
+When building any feature that touches subscription state, apply this rule.
+A cancelled agency must always be able to access, export, and read their 
+historical data. They cannot create new business.
+
+---
+
+## INSPECTION PHOTO DISCIPLINE
+
+Photos must be compressed **client-side** before upload. Never server-side.
+
+- Canvas compression: 1920×1440 max, 70% JPEG quality, ~300KB target
+- EXIF extraction (GPS coordinates + timestamp) happens BEFORE compression
+- GPS and timestamp stored separately as tamper-evident metadata
+- The compressed photo is what goes to Supabase Storage
+- The original full-resolution photo is never uploaded
+
+This is non-negotiable for two reasons:
+1. Storage cost — modern phone images at full resolution make inspection 
+   storage untenable at scale
+2. Legal — GPS/timestamp extracted from original EXIF before compression 
+   are the evidence chain for Tribunal submissions. Post-compression 
+   metadata cannot be trusted.
+
+`sharp` (bundled via `next/image`) is a server-side safety net only — 
+it should never be the primary compression path.
+
+---
+
 ## DO NOT DO
 
 - Do not deploy without running `npm run security:quick` first
@@ -796,3 +691,4 @@ Opus 4.6:   Tribunal submissions, LODs, eviction notices (Firm tier only)
   package already covers the use case
 - Do not use ANON_KEY — the correct env var is
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
+- Do not build debit order or DebiCheck mandate features — Pleks reads bank statement matches only. Agencies hold mandates bank-side between themselves and their bank. Pleks is not in the payment flow.
