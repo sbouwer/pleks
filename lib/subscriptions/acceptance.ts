@@ -1,5 +1,5 @@
 /**
- * lib/subscriptions/acceptance.ts — recordTosAcceptance() helper (Gate 2 ToS archival)
+ * lib/subscriptions/acceptance.ts — ToS acceptance helpers (Gate 2 ToS archival)
  *
  * Auth:   service-role client only — never called from client-side code
  * Data:   tos_acceptances table (append-only, immutable trigger)
@@ -49,4 +49,41 @@ export async function recordTosAcceptance(
   })
 
   if (error) throw new Error(`recordTosAcceptance failed: ${error.message}`)
+}
+
+export interface TosAcceptanceRow {
+  id: string
+  org_id: string
+  user_id: string | null
+  user_email_snapshot: string
+  user_id_snapshot: string
+  terms_version: string
+  privacy_version: string
+  accepted_at: string
+  ip_address: string | null
+  user_agent: string | null
+  acceptance_hash: string
+  context: TosAcceptanceContext
+}
+
+/** Returns the most recent acceptance row for this org/user, or null if none exists. */
+export async function getLatestTosAcceptance(
+  supabase: SupabaseClient,
+  orgId: string,
+  userId: string,
+): Promise<TosAcceptanceRow | null> {
+  const { data, error } = await supabase
+    .from("tos_acceptances")
+    .select("*")
+    .eq("org_id", orgId)
+    .eq("user_id_snapshot", userId)
+    .order("accepted_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) {
+    console.error("getLatestTosAcceptance failed:", error.message)
+    return null
+  }
+  return data as TosAcceptanceRow | null
 }

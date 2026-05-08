@@ -156,6 +156,12 @@ export async function createAccountAndOrg(data: OnboardingData): Promise<{
       ...AUTH_COOKIE_OPTS,
       maxAge: 60 * 60 * 24 * 365,
     })
+    cookieStore.set("pleks_privacy_version", LEGAL_VERSIONS.privacy, {
+      sameSite: "lax",
+      path: "/",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 60 * 60 * 24 * 365,
+    })
   } catch (tosErr) {
     console.error("[onboarding] recordTosAcceptance failed:", tosErr)
     // Non-fatal — org is created; acceptance can be back-filled via accept-terms gate.

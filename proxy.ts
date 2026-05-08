@@ -21,7 +21,7 @@ import type { User } from "@supabase/supabase-js"
 // ── Bypass lists (checked before manifest) ───────────────────────────────────
 // /api/admin is NOT in this list — it gets its own middleware gate below.
 // /api/status is a fully-public, no-user-data health JSON endpoint (ISR-cached 60s) — safe to bypass.
-const WEBHOOK_PREFIXES = ["/api/webhooks", "/api/cron", "/api/waitlist", "/api/health", "/api/status"]
+const WEBHOOK_PREFIXES = ["/api/webhooks", "/api/cron", "/api/waitlist", "/api/health", "/api/status", "/api/legal"]
 
 // ── Subdomain split ───────────────────────────────────────────────────────────
 // In production: pleks.co.za = marketing apex, app.pleks.co.za = product.

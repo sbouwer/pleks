@@ -41,7 +41,14 @@ export async function acceptCurrentTerms(nextPath: string): Promise<never> {
     ...AUTH_COOKIE_OPTS,
     maxAge: 60 * 60 * 24 * 365,
   })
+  // Non-httpOnly so the privacy banner client component can read it from document.cookie
+  cookieStore.set("pleks_privacy_version", LEGAL_VERSIONS.privacy, {
+    sameSite: "lax",
+    path: "/",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 60 * 60 * 24 * 365,
+  })
 
-  const dest = nextPath && nextPath.startsWith("/") ? nextPath : "/dashboard"
+  const dest = nextPath?.startsWith("/") ? nextPath : "/dashboard"
   redirect(dest)
 }
