@@ -1547,6 +1547,14 @@ ALTER TABLE maintenance_photos ADD COLUMN IF NOT EXISTS uploader_name text;
 -- Denormalized actor display name on audit_log (set by the mutation that writes the log)
 ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS actor_name text;
 
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §BUILD_67  Rules engine: PAIA 90-day PII purge marker on applications
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Set by the rejected-applicant-purge rule when PII is removed.
+-- Prevents the rule from re-processing the same application on subsequent runs.
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS pii_purged_at timestamptz;
+CREATE INDEX IF NOT EXISTS idx_applications_pii_purged ON applications(pii_purged_at) WHERE pii_purged_at IS NULL;
+
 -- Denormalized actor display name on contractor_updates (set by the contractor portal)
 ALTER TABLE contractor_updates ADD COLUMN IF NOT EXISTS actor_name text;
 

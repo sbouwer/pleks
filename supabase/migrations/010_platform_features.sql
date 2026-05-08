@@ -1605,3 +1605,41 @@ CREATE TRIGGER trg_prevent_tos_acceptance_update
 ALTER TABLE tos_acceptances ENABLE ROW LEVEL SECURITY;
 -- No client-role policies: service role only (bypasses RLS).
 -- Admin portal reads via service client with compliance_access_log entry.
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §24  BUILD_67: Rules engine — per-rule per-org execution log
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- Stores every rule evaluation regardless of outcome — the observability layer
+-- for the autonomous intelligence engine. Retention: 90 days (operational, not
+-- a Compliance Record). Service role only — no agent-facing RLS policies.
+
+CREATE TABLE IF NOT EXISTS rule_runs (
+  id           uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  rule_id      text        NOT NULL,
+  org_id       uuid        REFERENCES organisations(id) ON DELETE SET NULL,
+  evaluated_at timestamptz NOT NULL DEFAULT now(),
+  condition    text        NOT NULL
+               CHECK (condition IN ('met', 'not_met', 'error')),
+  outcome      text        NOT NULL
+               CHECK (outcome IN (
+                 'actioned',
+                 'no_op',
+                 'cooldown',
+                 'tier_gated',
+                 'sub_gated',
+                 'error'
+               )),
+  payload      jsonb,
+  duration_ms  integer,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_rule_runs_rule_org
+  ON rule_runs (rule_id, org_id, evaluated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_rule_runs_recent
+  ON rule_runs (evaluated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_rule_runs_outcome
+  ON rule_runs (outcome, evaluated_at DESC);

@@ -36,6 +36,7 @@ import { GET as subscriptionDunning } from "../subscription-dunning/route"
 import { GET as subscriptionDormancy } from "../subscription-dormancy/route"
 import { GET as subscriptionPurgeWarnings } from "../subscription-purge-warnings/route"
 import { runLegalArchiveStep } from "@/lib/legal/archive"
+import { runRulesEngine, type EngineRuleSummary } from "@/lib/rules/engine"
 
 type CronHandler = (req: NextRequest) => Promise<Response>
 
@@ -111,6 +112,17 @@ export async function GET(req: NextRequest) {
     results.legal_archive = "error"
   }
 
+  // Rules engine — runs after all legacy jobs
+  let engineSummary: Record<string, EngineRuleSummary> = {}
+  try {
+    engineSummary = await runRulesEngine(service, "daily", today)
+    const anyErrors = Object.values(engineSummary).some(s => s.errors > 0)
+    results.rules_engine = anyErrors ? "partial" : "ok"
+  } catch (err) {
+    Sentry.captureException(err, { tags: { cron_job: "rules_engine" } })
+    results.rules_engine = "error"
+  }
+
   // Monthly jobs
   if (dayOfMonth === 1) {
     await runJob("levy_generate", levyGenerate, cronReq, results)
@@ -132,7 +144,7 @@ export async function GET(req: NextRequest) {
       finished_at:    new Date().toISOString(),
       status:         "completed",
       rows_processed: Object.keys(results).length,
-      metadata:       { legal_archive: legalArchive },
+      metadata:       { legal_archive: legalArchive, rules_engine: engineSummary },
     }).eq("id", cronRunId)
   }
 
