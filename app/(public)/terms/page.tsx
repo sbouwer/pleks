@@ -52,9 +52,9 @@ export default function TermsOfServicePage() {
         <ul className="summary-list">
           <li><span className="b" /><span>By using Pleks you accept these terms — they form a legally binding agreement with Pleks (Pty) Ltd concluded by data message under the ECT Act.</span></li>
           <li><span className="b" /><span>Subscription fees are billed monthly or annually via our payment processor, in ZAR inclusive of VAT where applicable.</span></li>
-          <li><span className="b" /><span>Cancel at any time from your account settings; access continues until your billing period ends. Natural-person CPA subscribers may cancel on 20 business days&rsquo; notice at any time on a fixed-term plan.</span></li>
+          <li><span className="b" /><span>Cancel at any time from your account settings; access continues until your billing period ends. Cancellation is confirmed by passkey, authenticator code, or email link — an unconfirmed request expires and your subscription continues. Natural-person CPA subscribers may cancel on 20 business days&rsquo; notice at any time on a fixed-term plan.</span></li>
           <li><span className="b" /><span>After cancellation you have 12 months of read-only access before operational data is deleted. Statutory obligations require some categories to be retained for longer — see §04 and the POPIA register.</span></li>
-          <li><span className="b" /><span>§09 sets out the full data-processing terms governing Pleks&rsquo;s obligations as Operator under POPIA s20–s21, including the 72-hour breach-notification commitment.</span></li>
+          <li><span className="b" /><span>§09 sets out the full data-processing terms governing Pleks&rsquo;s obligations as Operator under POPIA s20–s21, including a 72-hour breach-notification target as a self-imposed standard.</span></li>
           <li><span className="b" /><span>Pleks does not hold client funds. Trust money is held in the agency&rsquo;s own Section 86 account.</span></li>
           <li><span className="b" /><span>Governing law: Republic of South Africa. CPA subscribers may also approach the National Consumer Tribunal or Magistrate&rsquo;s Court.</span></li>
         </ul>
@@ -145,10 +145,14 @@ export default function TermsOfServicePage() {
           juristic-entity subscribers on fixed-term agreements are subject to any notice and penalty terms agreed at sign-up.
         </p>
         <p>
+          Cancellation is confirmed by passkey or authenticator code challenge. Where neither is enrolled, an email confirmation
+          link with 24-hour validity is sent instead. An unconfirmed cancellation request expires automatically and the subscription
+          continues uninterrupted. The 12-month read-only access period begins only upon confirmed cancellation.
+        </p>
+        <p>
           After cancellation, you will retain <strong>read-only access</strong> to your data for 12 months. During this period you
           can use the bulk-export feature to download all leases, inspection reports, financial records, and tenant documents in a
-          single archive. After the 12-month grace period, operational data is permanently deleted unless retention is required for
-          legal, regulatory, or dispute-related purposes as set out below. Pleks is not responsible for data loss that results from
+          single archive. After the 12-month grace period, operational data is permanently deleted unless continued retention is required by law, active legal hold, dispute preservation obligations, or another lawful basis. Pleks is not responsible for data loss that results from
           failure to export within the grace period.
         </p>
         <p>
@@ -321,8 +325,9 @@ export default function TermsOfServicePage() {
 
         <p><strong>09.4 — Breach notification</strong></p>
         <p>
-          Pleks will notify the Agency <strong>without undue delay</strong> — and as a contractual commitment exceeding the POPIA
-          s21 statutory baseline, <strong>within 72 hours</strong> of becoming aware — of any personal information breach affecting
+          Pleks will notify the Agency <strong>without undue delay</strong> — targeting notification within 72 hours where
+          reasonably practicable, subject to reasonable verification and containment activities, as a commitment exceeding
+          the POPIA s21 statutory baseline — of any personal information breach affecting
           Part B data. For the purposes of this clause, &ldquo;becoming aware&rdquo; means the moment Pleks&rsquo;s
           incident-response process formally classifies an event as a personal information breach, not the moment any individual
           first observes anomalous activity. If complete information is not available within 72 hours, Pleks may provide a
@@ -331,7 +336,7 @@ export default function TermsOfServicePage() {
           information affected; (b) an estimate of the number of data subjects likely to be affected; (c) the likely consequences
           of the breach; and (d) the measures Pleks has taken or proposes to take to address the breach. The Agency must then
           independently assess whether its own <span className="act-pill">POPIA · S22</span> obligations to notify the Information
-          Regulator and affected data subjects are triggered. The 72-hour window is a Pleks contractual obligation — POPIA s21
+          Regulator and affected data subjects are triggered. The 72-hour target is a Pleks self-imposed standard; POPIA s21
           requires only &ldquo;without undue delay.&rdquo;
         </p>
 

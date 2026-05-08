@@ -8,10 +8,11 @@
  */
 
 export const LEGAL_VERSIONS = {
-  cookiePolicy:      "v1.2.0",
+  definitions:       "v1.2.1",
+  cookiePolicy:      "v1.3.1",
   creditCheckPolicy: "v1.4.0",
   paiaManual:        "v1.1.0",
   popiaRegister:     "v1.9.0",
-  privacy:           "v4.2.0",
-  terms:             "v3.3.0",
+  privacy:           "v4.5.0",
+  terms:             "v3.4.0",
 } as const

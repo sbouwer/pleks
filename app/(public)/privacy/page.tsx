@@ -195,13 +195,14 @@ export default function PrivacyPolicyPage() {
           generating the human-readable rationale that accompanies the score), but the score itself is computed by a deterministic
           weighting of inputs — credit results, verified income, rental history, and employment stability. FitScore does not
           constitute automated decision-making within the meaning of <span className="act-pill">POPIA · S71</span>.
+          FitScore outputs are advisory signals only and may not be used as the sole basis for approval, rejection, or
+          adverse treatment of an applicant.
         </p>
         <p>
-          AI is assistive only. Pleks does not make automated decisions about tenants or applicants — all decisions remain with
-          the agency or landlord. The AI model provider operates under a zero-retention Enterprise DPA: API inputs and outputs are
-          not retained for training or any other purpose beyond returning the immediate response. PII minimisation is applied before
+          AI is assistive only. Pleks does not make solely automated decisions that produce legal effects or similarly significant effects about tenants or applicants without meaningful human review — all decisions remain with
+          the agency or landlord. The AI model provider operates under an Enterprise DPA configured for no model-training retention and minimal operational retention: Pleks does not intentionally retain prompts or responses beyond the workflow output required for the underlying purpose. PII minimisation is applied before
           cross-border transfer; structured context may remain reasonably linkable to an individual and constitutes pseudonymised,
-          not anonymised, personal information under POPIA s1, governed by Standard Contractual Clauses under POPIA s72.
+          not anonymised, personal information under POPIA s1, governed by Standard Contractual Clauses under POPIA s72. Re-identification remains reasonably possible when combined with additional organisational context held by Pleks or the agency.
         </p>
       </section>
 
@@ -211,7 +212,7 @@ export default function PrivacyPolicyPage() {
         <h2 className="sec-h">Lawful <span className="hl">basis</span></h2>
         <p>
           The lawful bases under which Pleks processes personal information vary by purpose. The full per-purpose mapping is in
-          the <a href="/popia-register">Processing Register</a>. The principal bases are:
+          the <a href="/popia-register">Processing Register</a>. Where multiple lawful bases are listed, Pleks and/or the agency rely primarily on the basis most directly connected to the processing activity, with additional bases applying only where independently necessary. The principal bases are:
         </p>
         <p><strong>For Part A (Pleks as Responsible Party):</strong></p>
         <ul className="legal-list">
@@ -264,8 +265,8 @@ export default function PrivacyPolicyPage() {
             </tr>
             <tr>
               <td className="who">Anthropic<span className="sub">AI model provider</span></td>
-              <td>AI-assisted processing (income extraction, FitScore rationale, lease drafting, arrears letters) · United States · Zero-retention Enterprise DPA</td>
-              <td>SCCs + Enterprise DPA · zero retention</td>
+              <td>AI-assisted processing (income extraction, FitScore rationale, lease drafting, arrears letters) · United States · Enterprise DPA with minimal operational retention</td>
+              <td>SCCs + Enterprise DPA · minimal operational retention</td>
             </tr>
             <tr>
               <td className="who">Sentry<span className="sub">error monitoring</span></td>
@@ -319,6 +320,14 @@ export default function PrivacyPolicyPage() {
           <span className="act-pill">POPIA · S72(1)(A)</span>. Operators domiciled in South Africa (PayFast, Searchworx, DocuSeal
           on Hetzner SA) are domestic processors and no cross-border transfer occurs.
         </p>
+        <p>
+          <strong>POPIA role distinction.</strong> Most parties in the table above act as Operators or sub-processors processing
+          personal information on Pleks&rsquo;s behalf. However, PayFast (as payment processor), Searchworx and the underlying
+          credit bureaus (as credit information providers), and Meta (as an independent platform operator) may in certain
+          contexts act as independent Responsible Parties for their own processing activities. Pleks does not control that
+          independent processing and each party&rsquo;s own privacy policy governs it. The Processing Register identifies
+          the applicable POPIA role for each party.
+        </p>
       </section>
 
       {/* 06 */}
@@ -327,12 +336,13 @@ export default function PrivacyPolicyPage() {
         <h2 className="sec-h">Cross-border <span className="hl">transfers</span></h2>
         <p>
           <span className="act-pill">POPIA · S72(1)(A)</span> permits cross-border transfers where the recipient is subject to a
-          binding agreement providing an adequate level of protection substantially similar to POPIA. Pleks relies on Standard
-          Contractual Clauses as the principal contractual mechanism for all transfers outside South Africa.
+          binding agreement providing an adequate level of protection substantially similar to POPIA. Pleks relies on appropriate
+          contractual safeguards, including SCC-style data-transfer provisions, as the principal mechanism for all transfers
+          outside South Africa.
         </p>
         <ul className="legal-list">
           <li><strong>Africa&rsquo;s Talking</strong> is also subject to the Kenya Data Protection Act 2019; SCCs are applied as the primary mechanism in addition to that local-law protection.</li>
-          <li><strong>Anthropic</strong> AI processing is governed by SCCs supplemented by a zero-retention Enterprise DPA — API inputs and outputs are not retained for training or any other purpose beyond returning the immediate response.</li>
+          <li><strong>Anthropic</strong> AI processing is governed by SCCs supplemented by a zero-retention Enterprise DPA — API inputs and outputs are not retained for model training or any other purpose beyond returning the immediate response; operational retention by the provider is minimised under the Enterprise DPA. Pleks does not intentionally retain prompts or responses beyond the workflow output required for the underlying purpose.</li>
           <li><strong>US-domiciled operators</strong> (Supabase, Vercel, Sentry, Resend, Better Stack, Meta) operate under Standard Contractual Clauses incorporated into their respective Data Processing Addenda.</li>
           <li><strong>Contract-necessity backstop.</strong> In limited cases, transfers may also occur where necessary for the performance of a contract with the data subject, as permitted by <span className="act-pill">POPIA · S72(1)(C)</span>. This is a backstop basis; SCCs remain Pleks&rsquo;s primary mechanism.</li>
         </ul>
@@ -406,7 +416,8 @@ export default function PrivacyPolicyPage() {
           Many rights — particularly access to account records, profile correction, marketing opt-out, and consent log inspection
           — can be exercised directly in Settings &rarr; Data &amp; Privacy within the platform. All other requests should be sent
           to the Information Officer at{" "}
-          <a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a>.
+          <a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a>. Formal PAIA requests may be refused where POPIA, privilege, confidentiality obligations,
+          or statutory exemptions apply; Pleks will state the basis for any refusal in writing.
         </p>
       </section>
 
@@ -418,7 +429,7 @@ export default function PrivacyPolicyPage() {
           We retain personal information only as long as necessary for the purpose for which it was collected, or as required by
           law. Where multiple retention periods apply to the same record, we enforce the longest applicable statutory, contractual,
           or evidentiary period. Subject-initiated erasure does not remove records subject to active legal hold or accountability
-          documentation under POPIA s17.
+          documentation under POPIA s17. Retention windows in this table reflect Pleks platform defaults and sector-standard compliance guidance for Part B categories; agencies remain responsible for determining whether different lawful retention periods apply to their own obligations.
         </p>
         <table className="share-table">
           <thead>
@@ -457,7 +468,7 @@ export default function PrivacyPolicyPage() {
             <tr>
               <td className="who">Platform operational data<span className="sub">after cancellation — properties, leases, tenants, documents</span></td>
               <td>12 months from cancellation date</td>
-              <td>Contractual — ToS §04</td>
+              <td>Contractual — ToS §04; POPIA s11(1)(b) (performance of contract — customer&rsquo;s right to reactivate during the grace period) plus s11(1)(f) (legitimate interest in customer recovery)</td>
             </tr>
             <tr>
               <td className="who">Support correspondence<span className="sub">emails, tickets</span></td>
@@ -511,7 +522,7 @@ export default function PrivacyPolicyPage() {
             </tr>
             <tr>
               <td className="who">Inspection records &amp; photos<span className="sub">Tribunal evidence preservation</span></td>
-              <td>3 years post-termination; extended to 5 years if Tribunal dispute arises</td>
+              <td>3 years post-termination; extended to 5 years from final resolution of the dispute, claim, or proceedings where a Tribunal dispute arises</td>
               <td>Tribunal evidentiary practice</td>
             </tr>
             <tr>
@@ -573,9 +584,9 @@ export default function PrivacyPolicyPage() {
         <ul className="legal-list">
           <li><strong>Encryption in transit:</strong> TLS 1.3 for all connections; HSTS enforced; no plaintext fallback.</li>
           <li><strong>Encryption at rest:</strong> AES-256 at the database layer; sensitive fields (bank account numbers, TOTP secrets, passkey credentials) additionally encrypted at the column level before INSERT, so raw values are never visible to infrastructure operators or in database dumps.</li>
-          <li><strong>Row-Level Security:</strong> Postgres RLS enforced on every table carrying personal information; service-role access restricted to server-side only with org-scoped gateway helper; no broad-access admin views.</li>
+          <li><strong>Row-Level Security:</strong> Row-level access controls are enforced across production application data stores containing personal information; service-role access restricted to server-side only with org-scoped gateway helper; administrative access is restricted by role separation and least-privilege principles.</li>
           <li><strong>Authentication:</strong> magic-link auth for tenant/landlord/supplier roles; password + mandatory MFA for agent roles; MFA step-up required for fiduciary-class actions.</li>
-          <li><strong>Immutable audit logging:</strong> every state-changing operation recorded with actor, target, event type, timestamp, IP address, and change payload. The audit log is designed to be immutable and protected against unauthorised modification or deletion.</li>
+          <li><strong>Immutable audit logging:</strong> every state-changing operation recorded with actor, target, event type, timestamp, IP address, and change payload. The audit log is designed to be append-only and operationally immutable within the application layer, and is protected against ordinary alteration or deletion.</li>
           <li><strong>PII scrubbing for observability:</strong> error monitoring and log aggregation tools receive PII-scrubbed events only; the scrubber runs pre-transmission and strips request bodies from sensitive routes and PII patterns from all payloads.</li>
           <li><strong>Signed URLs with TTL:</strong> all sensitive downloads use time-limited signed URLs; no public bucket access to customer data.</li>
           <li><strong>Operator contractual controls:</strong> every third-party operator operates under a Data Processing Addendum with Standard Contractual Clauses where cross-border, and documented retention and breach-notification terms.</li>
@@ -588,11 +599,9 @@ export default function PrivacyPolicyPage() {
         <h2 className="sec-h">Breach <span className="hl">notification</span></h2>
         <p>
           <strong>Pleks as Operator (Part B).</strong> Where Pleks becomes aware of a security compromise affecting agency data,
-          Pleks will notify the agency <strong>without undue delay</strong> — and as a contractual commitment exceeding POPIA&rsquo;s
-          s21 baseline, <strong>within 72 hours</strong> of becoming aware. The agency must then independently assess whether its
+          Pleks will notify the agency <strong>without undue delay</strong> — targeting notification within 72 hours where reasonably practicable, subject to reasonable verification and containment activities, as a commitment exceeding the POPIA s21 statutory baseline — of becoming aware of any personal information breach affecting Part B data. The agency must then independently assess whether its
           own <span className="act-pill">POPIA · S22</span> obligations to notify the Information Regulator and affected data subjects
-          are triggered. The 72-hour commitment is given contractual force in the Pleks{" "}
-          <a href="/terms">Terms of Service §09.4</a>.
+          are triggered. The 72-hour target is a Pleks self-imposed standard; POPIA s21 requires only &ldquo;without undue delay.&rdquo;
         </p>
         <p>
           <strong>Pleks as Responsible Party (Part A).</strong> Where a security compromise affects personal information for which
@@ -639,6 +648,10 @@ export default function PrivacyPolicyPage() {
         <p>
           Non-material changes (typographical corrections, structural clarifications, consistency corrections) are recorded in the
           version history but do not trigger re-consent.
+        </p>
+        <p>
+          If an inconsistency exists between this Privacy Policy and the Pleks Terms of Service, the Terms of Service
+          prevail unless mandatory law requires otherwise.
         </p>
         <p>
           The current version is always available at{" "}

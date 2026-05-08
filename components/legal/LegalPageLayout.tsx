@@ -31,6 +31,7 @@ interface Props {
 }
 
 const LEGAL_DOCS = [
+  { href: "/definitions",       label: "Definitions",          version: LEGAL_VERSIONS.definitions       },
   { href: "/cookie-policy",       label: "Cookie policy",       version: LEGAL_VERSIONS.cookiePolicy      },
   { href: "/credit-check-policy", label: "Credit check policy", version: LEGAL_VERSIONS.creditCheckPolicy },
   { href: "/paia-manual",         label: "PAIA manual",         version: LEGAL_VERSIONS.paiaManual        },

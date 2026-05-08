@@ -77,8 +77,8 @@ export default function PAIAManualPage() {
           explains the procedure for requesting access to those records, and provides the contact details of our Information Officer.
         </p>
         <p>
-          In accordance with <span className="act-pill">PAIA · S52(2)</span>, a copy of this manual has been submitted to the South
-          African Human Rights Commission (SAHRC). The current version is always available at{" "}
+          This manual is made available in accordance with section 51 of PAIA and the applicable PAIA Regulations.
+          The current version is always available at{" "}
           <a href="/paia-manual">pleks.co.za/paia-manual</a>.
         </p>
         <div className="officer-card" style={{ alignItems: "center" }}>
@@ -345,7 +345,7 @@ export default function PAIAManualPage() {
         </p>
         <p><strong>7.2 How to submit a request</strong></p>
         <p>
-          PAIA requests must be submitted using Form C (Form 2), prescribed under the 2021 PAIA Regulations. This form is available from:
+          PAIA requests must be submitted using Form 2, prescribed under the 2021 PAIA Regulations. This form is available from:
         </p>
         <ul className="legal-list">
           <li>The Information Regulator website at <ExtLink href={EXTERNAL_LINKS.informationRegulator}>inforegulator.org.za</ExtLink></li>
@@ -601,6 +601,10 @@ export default function PAIAManualPage() {
           Pleks will review this manual at least once every two years, or whenever there is a material change in our records,
           processing activities, or the applicable law. The current version of this manual is always available at{" "}
           <Link href="/paia-manual" className="act-pill">pleks.co.za/paia-manual</Link>.
+        </p>
+        <p>
+          If an inconsistency exists between this PAIA Manual and the Pleks Terms of Service, the Terms of Service
+          prevail unless mandatory law requires otherwise.
         </p>
         <p>
           The version number and effective date on the cover of this document indicate when it was last updated. Requesters are

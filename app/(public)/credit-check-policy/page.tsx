@@ -269,8 +269,12 @@ export default function CreditCheckPolicyPage() {
           </div>
         </div>
         <p>
-          After the applicable retention period, credit check data is permanently and irreversibly deleted from our systems.
+          After the applicable retention period, credit check data is deleted from production systems and excluded from backup retention thereafter.
           For the full retention schedule across all data categories, see our <a href="/privacy">Privacy Policy</a>.
+        </p>
+        <p>
+          If an inconsistency exists between this Credit Check Policy and the Pleks Terms of Service, the Terms of Service
+          prevail unless mandatory law requires otherwise.
         </p>
         <p>
           <strong>NCA intermediary records:</strong> The licensed credit bureau intermediary is subject to

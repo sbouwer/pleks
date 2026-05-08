@@ -47,7 +47,7 @@ export default function CookiePolicyPage() {
         <h2 className="sc-h">What you need to know about cookies on Pleks</h2>
         <ul className="summary-list">
           <li><span className="b" /><span>Pleks uses essential cookies to keep you signed in and to protect your session. These cannot be disabled without breaking the platform.</span></li>
-          <li><span className="b" /><span>We use Vercel Analytics for performance measurement. IP addresses and user agents are converted to a daily-rotating one-way hash by Vercel; raw values are not retained. We treat this as effectively anonymous measurement.</span></li>
+          <li><span className="b" /><span>We use Vercel Analytics for performance measurement. IP addresses and user agents are converted to a daily-rotating one-way hash by Vercel; raw values are not retained. We treat this as processed in a privacy-preserving aggregated form.</span></li>
           <li><span className="b" /><span>We do not use advertising cookies, tracking pixels, or any cross-site behavioural profiling. Vercel Analytics measures aggregate site performance and does not profile individual visitors.</span></li>
           <li><span className="b" /><span>You can clear or block cookies in your browser settings at any time. Essential cookies will be re-set on next sign-in.</span></li>
           <li><span className="b" /><span>The public marketing site (pleks.co.za) uses fewer cookies than the authenticated dashboard — see section 02 for the full list.</span></li>
@@ -145,7 +145,7 @@ export default function CookiePolicyPage() {
           values are not retained and no individual user profiles are built.
         </p>
         <p>
-          Pleks treats this as effectively anonymous measurement and does not consider it to require POPIA s11(1)(a) consent. If you
+          Pleks treats Vercel Analytics data as processed in a privacy-preserving aggregated form and does not consider it to require POPIA s11(1)(a) consent. If you
           disagree, you can block analytics via your browser&rsquo;s developer tools or a content blocker — the platform continues to
           function normally.
         </p>
@@ -225,6 +225,10 @@ export default function CookiePolicyPage() {
           changing the lawful basis. Non-material changes (typographical corrections, link updates) take effect on publication. When
           we make material changes, we will update the &ldquo;Last reviewed&rdquo; date at the top of this page and, where
           appropriate, notify you by email.
+        </p>
+        <p>
+          If an inconsistency exists between this Cookie Policy and the Pleks Terms of Service, the Terms of Service
+          prevail unless mandatory law requires otherwise.
         </p>
         <p>
           For any questions about how Pleks uses cookies, contact our Information Officer.
