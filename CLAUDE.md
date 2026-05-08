@@ -81,40 +81,49 @@ Common errors to watch for:
 
 ---
 
-## ⚠ MANDATORY: USE GATEWAY FOR ALL DB ACCESS
+## ⚠ MANDATORY: DB ACCESS AND AGENT WRITE GATE
 
 Never use `createClient()` for database queries in server actions or server components.
 The cookie-based client does NOT propagate auth to Postgres RLS — `auth.uid()` returns null,
 causing silent empty results.
 
-**Always use the gateway helper:**
+**Use the right helper for the right situation:**
 
 ```typescript
+// Agent WRITE (any mutation — create, update, delete, state transition, AI action)
+// Throws SubscriptionLockdownError (403) if org is paused or cancelled (ADDENDUM_57G)
+import { requireAgentWriteAccess } from "@/lib/auth/server"
+
+export async function createLease(formData: FormData) {
+  const gw = await requireAgentWriteAccess("create_lease")
+  const { db, userId, orgId } = gw
+  // proceed — org is active and user is authenticated
+}
+
+// Agent READ (queries, exports, reads — no lockdown gate)
 import { gateway } from "@/lib/supabase/gateway"     // server actions
 import { gatewaySSR } from "@/lib/supabase/gateway"  // server components
 
-// Server action:
-export async function myAction() {
+export async function getLeases() {
   const gw = await gateway()
-  if (!gw) return { error: "Not authenticated" }
-  const { db, userId, orgId } = gw
-
-  // ALWAYS filter by orgId — RLS is not protecting you
-  const { data } = await db.from("units").select("*").eq("org_id", orgId)
+  if (!gw) return []
+  const { db, orgId } = gw
+  // reads always work regardless of subscription state
 }
 
-// Server component:
 export default async function MyPage() {
   const gw = await gatewaySSR()
   if (!gw) redirect("/login")
   const { db, orgId } = gw
-  // ...
 }
 ```
 
 **Rules:**
-- `gateway()` for server actions (not cached — one-shot)
-- `gatewaySSR()` for server components (React.cache — deduplicates per render)
+- `requireAgentWriteAccess(action)` for ALL agent-side mutations — never bare `gateway()` on a write path
+- `gateway()` for server action reads (not cached — one-shot)
+- `gatewaySSR()` for server component reads (React.cache — deduplicates per render)
+- Cron and webhook handlers: do NOT use `requireAgentWriteAccess` — they fire regardless of subscription state
+- Tenant/landlord/supplier portal actions: use `getTenantSession()` — not subject to agent lockdown
 - Every query MUST include `.eq("org_id", orgId)` — the service client bypasses RLS
 - The only valid use of `createClient()` is for `auth.getUser()` — never for data queries
 - Always check `{ data, error }` from Supabase queries — never use `(data ?? [])` without logging `error` first
@@ -460,6 +469,9 @@ Do not rely on this file for task status. It changes daily.
 3. Check the "Known open work" section — items there are confirmed gaps that 
    need addressing, not future ideas
 4. Read the actual spec file before implementing anything — never guess at intent
+5. Read `brief/build/CURRENT.md` — session state. What step is active, 
+   what was just done, what the next action is, any mid-build decisions.
+   This is what INDEX.md cannot carry.
 
 **How builds and addendums work:**
 - Builds: `brief/build/BUILD_{NN}_{NAME}.md`
@@ -473,6 +485,22 @@ Do not rely on this file for task status. It changes daily.
 - Do not guess or fill in the gaps yourself
 - Flag the ambiguity explicitly and stop — do not implement around it
 - CD resolves architecture questions; CC implements confirmed decisions
+
+---
+
+## MAINTAINING CURRENT.md
+
+`brief/build/CURRENT.md` is your working memory. It survives compaction because it is written to disk.
+
+**Update it after every meaningful step — before committing:**
+- Set "Active work" to the current build + step
+- Move completed items into "Just completed" (one line each)
+- Set "Next action" to the exact thing CC should do next
+- Record any mid-build decisions not captured in the spec
+- Record any files that should not be touched
+- Record any bugs or issues discovered
+
+**On compaction or new session:** read CURRENT.md first. It tells you where you are. Do not ask Stéan to re-explain — the answer is in the file.
 
 ---
 
