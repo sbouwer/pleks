@@ -32,6 +32,9 @@ import { GET as depositInterestStatement } from "../tenant-comms/deposit-interes
 import { GET as inspectionReminder } from "../tenant-comms/inspection-reminder/route"
 import { GET as leaseLifecycle } from "../tenant-comms/lease-lifecycle/route"
 import { GET as monthlyStatement } from "../tenant-comms/monthly-statement/route"
+import { GET as subscriptionDunning } from "../subscription-dunning/route"
+import { GET as subscriptionDormancy } from "../subscription-dormancy/route"
+import { GET as subscriptionPurgeWarnings } from "../subscription-purge-warnings/route"
 
 type CronHandler = (req: NextRequest) => Promise<Response>
 
@@ -92,6 +95,9 @@ export async function GET(req: NextRequest) {
   await runJob("inspection_reminder", inspectionReminder, cronReq, results)
   await runJob("lease_lifecycle", leaseLifecycle, cronReq, results)
   await runJob("monthly_statement", monthlyStatement, cronReq, results)
+  await runJob("subscription_dunning", subscriptionDunning, cronReq, results)
+  await runJob("subscription_dormancy", subscriptionDormancy, cronReq, results)
+  await runJob("subscription_purge_warnings", subscriptionPurgeWarnings, cronReq, results)
 
   // Monthly jobs
   if (dayOfMonth === 1) {

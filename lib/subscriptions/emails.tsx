@@ -1,12 +1,30 @@
 /**
- * Subscription lifecycle emails — trial expiry, founding agent warning, activation,
- * and billing past-due / frozen cascade.
- * Called from cron routes and PayFast webhook.
+ * lib/subscriptions/emails.tsx — Subscription lifecycle transactional emails
+ *
+ * Data:   Called from cron routes and PayFast webhook; no DB access here.
+ * Notes:  Covers trial, dunning, dormancy, cancellation-tail, and purge warnings.
  */
 
 import { EmailLayout, EmailButton, EmailSectionHeading } from "@/lib/comms/templates/layout"
 import type { OrgBranding } from "@/lib/comms/templates/layout"
 import { sendEmail } from "@/lib/comms/send-email"
+import {
+  PurgeWarning30dEmail,   PURGE_WARNING_30D_SUBJECT,
+  PurgeWarningFinalEmail, PURGE_WARNING_FINAL_SUBJECT,
+  PurgedConfirmEmail,     PURGED_CONFIRM_SUBJECT,
+} from "@/lib/comms/templates/agent/subscriptions/cancellation"
+
+interface PurgeWarningData {
+  cancelledDate:   string
+  purgeEligibleAt: string
+  daysUntilPurge:  number
+  exportUrl:       string
+  settingsUrl:     string
+}
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
+}
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://pleks.co.za"
 
@@ -289,3 +307,235 @@ export async function sendAccountFrozen(
     bodyPreview: `Premium features on your Pleks account have been suspended due to an overdue payment of ${amountLabel}.`,
   })
 }
+
+// ── Dunning step emails (ADDENDUM_57G §11.1) ─────────────────────────────────
+
+export async function sendPastDueFirst(org: OrgContact) {
+  return sendEmail({
+    orgId: org.orgId,
+    templateKey: "subscription.past_due_first",
+    to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
+    subject: "Action required: your Pleks payment didn't go through",
+    emailElement: (
+      <EmailLayout
+        preview="Your last payment didn't go through — PayFast will retry over the next few days"
+        branding={org.branding}
+        footerVariant="past_due_warning"
+      >
+        <p style={S.body}>Hi {org.adminName ?? org.orgName},</p>
+        <p style={S.body}>
+          Your last Pleks subscription payment didn&apos;t go through. PayFast will retry
+          automatically over the next few days — no action is needed right now.
+        </p>
+        <p style={S.body}>
+          If payment is still outstanding after 14 days, your account will be paused.
+          Your data remains fully intact and accessible throughout.
+        </p>
+        <EmailButton href={`${APP_URL}/settings/subscription`} accentColor={org.branding.accentColor}>
+          Review payment details →
+        </EmailButton>
+      </EmailLayout>
+    ),
+    bodyPreview: "Your last Pleks subscription payment didn't go through. PayFast will retry automatically.",
+  })
+}
+
+export async function sendPastDueDay7(org: OrgContact) {
+  return sendEmail({
+    orgId: org.orgId,
+    templateKey: "subscription.past_due_day7",
+    to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
+    subject: "Reminder: Pleks payment still outstanding — 7 days",
+    emailElement: (
+      <EmailLayout
+        preview="Your Pleks payment is now 7 days overdue — account pauses in 7 days if unresolved"
+        branding={org.branding}
+        footerVariant="past_due_warning"
+      >
+        <p style={S.body}>Hi {org.adminName ?? org.orgName},</p>
+        <p style={S.body}>
+          Your Pleks subscription payment is now <strong style={S.strong}>7 days overdue</strong>.
+          If it isn&apos;t resolved in the next 7 days, your account will be paused automatically.
+        </p>
+        <p style={S.body}>
+          While paused, you can still read all existing data and export records — but creating
+          new leases, onboarding tenants, and running credit checks will be unavailable.
+        </p>
+        <EmailButton href={`${APP_URL}/settings/subscription`} accentColor={org.branding.accentColor}>
+          Update payment details →
+        </EmailButton>
+      </EmailLayout>
+    ),
+    bodyPreview: "Your Pleks payment is 7 days overdue. Account pauses in 7 days if unresolved.",
+  })
+}
+
+export async function sendPausedAuto(org: OrgContact) {
+  return sendEmail({
+    orgId: org.orgId,
+    templateKey: "subscription.paused_auto",
+    to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
+    subject: "Your Pleks account has been paused",
+    emailElement: (
+      <EmailLayout
+        preview="Your Pleks account is paused — existing data is safe, new onboarding is unavailable"
+        branding={org.branding}
+        footerVariant="paused_resume_cta"
+      >
+        <p style={S.body}>Hi {org.adminName ?? org.orgName},</p>
+        <p style={S.body}>
+          Your Pleks subscription payment has been outstanding for 14 days, so your account
+          has been <strong style={S.strong}>paused automatically</strong>.
+        </p>
+        <EmailSectionHeading>What this means</EmailSectionHeading>
+        <p style={S.body}>
+          Your data — all properties, leases, tenants, inspections, and financial records —
+          is fully intact. Your tenants and landlords will continue to receive their scheduled
+          notifications. You can read everything and export at any time.
+        </p>
+        <p style={S.body}>
+          Creating new leases, onboarding new tenants, and running credit checks are unavailable
+          until payment is resolved.
+        </p>
+        <EmailButton href={`${APP_URL}/settings/subscription`} accentColor={org.branding.accentColor}>
+          Resolve payment and resume →
+        </EmailButton>
+      </EmailLayout>
+    ),
+    bodyPreview: "Your Pleks account has been paused after 14 days of outstanding payment. All data is safe.",
+  })
+}
+
+// ── Dormancy step emails (ADDENDUM_57G §11.2) ─────────────────────────────────
+
+export async function sendDormancyWarning(org: OrgContact, purgeDateStr: string) {
+  return sendEmail({
+    orgId: org.orgId,
+    templateKey: "dormancy.warning",
+    to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
+    subject: "Your Pleks account is scheduled for deletion",
+    emailElement: (
+      <EmailLayout
+        preview={`Your inactive Pleks account is scheduled for deletion on ${purgeDateStr}`}
+        branding={org.branding}
+      >
+        <p style={S.body}>Hi {org.adminName ?? org.orgName},</p>
+        <p style={S.body}>
+          Your Pleks account has had no activity and no data for over 60 days. To keep our
+          systems clean, inactive empty accounts are scheduled for deletion after a 30-day notice period.
+        </p>
+        <p style={S.body}>
+          <strong style={S.strong}>Your account will be deleted on {purgeDateStr}</strong>{" "}
+          unless you log in before then.
+        </p>
+        <p style={S.body}>
+          If you&apos;d like to keep your account, simply log in — that&apos;s all it takes.
+        </p>
+        <EmailButton href={`${APP_URL}/login`} accentColor={org.branding.accentColor}>
+          Log in to keep your account →
+        </EmailButton>
+      </EmailLayout>
+    ),
+    bodyPreview: `Your inactive Pleks account is scheduled for deletion on ${purgeDateStr}. Log in to keep it.`,
+  })
+}
+
+export async function sendDormancyFinal(org: OrgContact, purgeDateStr: string) {
+  return sendEmail({
+    orgId: org.orgId,
+    templateKey: "dormancy.final",
+    to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
+    subject: "Final notice: your Pleks account is deleted tomorrow",
+    emailElement: (
+      <EmailLayout
+        preview={`Final notice: your Pleks account is deleted tomorrow (${purgeDateStr})`}
+        branding={org.branding}
+      >
+        <p style={S.body}>Hi {org.adminName ?? org.orgName},</p>
+        <p style={S.body}>
+          This is your final notice. Your inactive Pleks account will be{" "}
+          <strong style={S.strong}>permanently deleted tomorrow — {purgeDateStr}</strong>.
+        </p>
+        <p style={S.body}>
+          Log in today to keep your account. If you don&apos;t, the account will be closed
+          and cannot be recovered.
+        </p>
+        <EmailButton href={`${APP_URL}/login`} accentColor={org.branding.accentColor}>
+          Log in now →
+        </EmailButton>
+      </EmailLayout>
+    ),
+    bodyPreview: `Final notice: your inactive Pleks account is deleted tomorrow (${purgeDateStr}).`,
+  })
+}
+
+// ── Purge-warning step emails (ADDENDUM_57G §11.3) ────────────────────────────
+
+export async function sendPurgeWarning30d(org: OrgContact, data: PurgeWarningData) {
+  return sendEmail({
+    orgId: org.orgId,
+    templateKey: "subscription.purge_warning_30d",
+    to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
+    subject: PURGE_WARNING_30D_SUBJECT,
+    emailElement: (
+      <PurgeWarning30dEmail
+        branding={org.branding}
+        orgName={org.orgName}
+        recipientName={org.adminName ?? org.orgName}
+        appUrl={APP_URL}
+        cancelledDate={data.cancelledDate}
+        purgeEligibleAt={data.purgeEligibleAt}
+        daysUntilPurge={data.daysUntilPurge}
+      />
+    ),
+    bodyPreview: `Final month: your Operational data is scheduled for deletion on ${data.purgeEligibleAt}.`,
+  })
+}
+
+export async function sendPurgeWarningFinal(org: OrgContact, data: PurgeWarningData) {
+  return sendEmail({
+    orgId: org.orgId,
+    templateKey: "subscription.purge_warning_final",
+    to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
+    subject: PURGE_WARNING_FINAL_SUBJECT,
+    emailElement: (
+      <PurgeWarningFinalEmail
+        branding={org.branding}
+        orgName={org.orgName}
+        recipientName={org.adminName ?? org.orgName}
+        appUrl={APP_URL}
+        cancelledDate={data.cancelledDate}
+        purgeEligibleAt={data.purgeEligibleAt}
+        daysUntilPurge={data.daysUntilPurge}
+      />
+    ),
+    bodyPreview: `Final notice: Operational data deletion is tomorrow — ${data.purgeEligibleAt}.`,
+  })
+}
+
+export async function sendPurgedConfirm(
+  org: OrgContact & { recipientEmail: string },
+  data: { cancelledDate: string; purgedDate: string; finalInvoiceDate: string },
+) {
+  return sendEmail({
+    orgId: org.orgId,
+    templateKey: "subscription.purged_confirm",
+    to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
+    subject: PURGED_CONFIRM_SUBJECT,
+    emailElement: (
+      <PurgedConfirmEmail
+        branding={org.branding}
+        orgName={org.orgName}
+        recipientName={org.adminName ?? org.orgName}
+        recipientEmail={org.recipientEmail}
+        cancelledDate={data.cancelledDate}
+        purgedDate={data.purgedDate}
+        finalInvoiceDate={data.finalInvoiceDate}
+      />
+    ),
+    bodyPreview: `The ${org.orgName} account was closed on ${data.purgedDate}. Operational data has been deleted.`,
+  })
+}
+
+// formatDate used by purge step callers
+export { formatDate }
