@@ -649,3 +649,17 @@ VALUES (
   '{"is_sentinel": true, "purpose": "retention-only carry-over after org purge"}'::jsonb
 )
 ON CONFLICT (id) DO NOTHING;
+
+-- ─── ADDENDUM_57G §X.6 — compliance-archive Storage bucket ──────────────────
+-- Stores pre-purge compliance archives: POPIA data exports, TOS acceptance
+-- records, and other retention-required artefacts. Private; service-role only.
+-- Large file limit (50 MB) to accommodate full org data bundles.
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'compliance-archive',
+  'compliance-archive',
+  false,
+  52428800,
+  ARRAY['application/pdf','application/json','application/zip','application/octet-stream']
+)
+ON CONFLICT (id) DO NOTHING;
