@@ -14,7 +14,9 @@
     "check": "tsc --noEmit && eslint . --max-warnings 0 && node scripts/check-legal-localhost.mjs",
     "security": "node scripts/security/audit.mjs",
     "security:quick": "node scripts/security/audit.mjs --quick",
-    "security:ci": "node scripts/security/audit.mjs --ci"
+    "security:ci": "node scripts/security/audit.mjs --ci",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.92.0",
@@ -85,6 +87,7 @@
     "semantic-release": "^25.0.3",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
   }
 }
