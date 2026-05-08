@@ -19,6 +19,7 @@ import {
   sendPurgeWarning30d,
   sendPurgeWarningFinal,
 } from "@/lib/subscriptions/emails"
+import { purgeOrg } from "@/lib/subscriptions/purge"
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.pleks.co.za"
 const ELEVEN_MONTHS_MS = 11 * 30 * 24 * 60 * 60 * 1000
@@ -153,8 +154,7 @@ async function processFinalWarnSub(
 
 async function processPurgeDueSub(supabase: SupabaseClient, sub: { org_id: string }): Promise<boolean> {
   if (await hasActiveLeases(supabase, sub.org_id)) return false
-  // TODO(step-8): replace with: await purgeOrg(sub.org_id, "cancelled_tail")
-  console.log(`[purge-warnings] org ${sub.org_id} is purge-eligible — awaiting Step 8 purgeOrg()`)
+  await purgeOrg(sub.org_id, "cancelled_tail")
   return true
 }
 
@@ -213,6 +213,7 @@ async function runDormancyPurgeScan(supabase: SupabaseClient, now: Date): Promis
     .select("id, dormancy_warning_sent_at, dormancy_final_sent_at, last_login_at")
     .not("dormancy_final_sent_at", "is", null)
     .lt("dormancy_final_sent_at", now.toISOString())
+    .is("deleted_at", null)  // skip already-purged / claim-slot-reserved orgs
 
   if (dormErr) {
     console.error("subscription-purge-warnings: dormancy purge query failed:", dormErr.message)
@@ -221,8 +222,7 @@ async function runDormancyPurgeScan(supabase: SupabaseClient, now: Date): Promis
   let count = 0
   for (const org of dormancyPurgeDue ?? []) {
     if (dormancyPurgeIsBlocked(org)) continue
-    // TODO(step-8): replace with: await purgeOrg(org.id, "dormancy")
-    console.log(`[purge-warnings] dormant org ${org.id} is purge-eligible — awaiting Step 8 purgeOrg()`)
+    await purgeOrg(org.id, "dormancy")
     count++
   }
   return count

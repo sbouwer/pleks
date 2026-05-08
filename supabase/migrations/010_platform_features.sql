@@ -1368,3 +1368,159 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_status_purge
 ALTER TABLE organisations
   ADD COLUMN IF NOT EXISTS dormancy_warning_sent_at timestamptz,
   ADD COLUMN IF NOT EXISTS dormancy_final_sent_at   timestamptz;
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §23  ADDENDUM_57G Step 8: purgeOrg() primitive — claim slot + cascade delete
+-- ═══════════════════════════════════════════════════════════════════════════════
+--  purge_started_at tracks that a purge is in progress (claim slot).
+--  claim_purge_slot() atomically sets organisations.deleted_at to prevent
+--  concurrent double-purge; returns the org id on success, empty on conflict.
+--  purge_org_cascade() repoints retention-protected rows to the sentinel org,
+--  deletes everything else via a retry-on-FK loop (ordering-free), then
+--  marks subscriptions purged and anonymises the org row.
+--  Safety: sentinel (…0001) and decoy (…0003) orgs cannot be purged.
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- §X.4 — audit_log.changed_by: drop strict FK; re-add as ON DELETE SET NULL
+--         Every user deletion currently breaks the purge chain.
+--         Actor identity is denormalised in actor_name (ADDENDUM_45A), so
+--         audit semantics survive losing the FK pointer.
+ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS audit_log_changed_by_fkey;
+ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS changed_by uuid;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'public.audit_log'::regclass
+      AND contype  = 'f'
+      AND conname  = 'audit_log_changed_by_users_fk'
+  ) THEN
+    ALTER TABLE audit_log
+      ADD CONSTRAINT audit_log_changed_by_users_fk
+      FOREIGN KEY (changed_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+
+-- §X.5 — claim_purge_slot: atomically marks org as "purge reserved"
+--         Sets organisations.deleted_at = now(); returns org id on success or
+--         empty set if already claimed/purged (deleted_at IS NOT NULL).
+--         Downstream queries must filter WHERE deleted_at IS NULL to exclude
+--         reserved/purged orgs from future processing.
+CREATE OR REPLACE FUNCTION claim_purge_slot(p_org_id uuid)
+RETURNS TABLE (id uuid)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  RETURN QUERY
+    UPDATE organisations
+       SET deleted_at = now()
+     WHERE id          = p_org_id
+       AND deleted_at IS NULL
+    RETURNING id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION claim_purge_slot(uuid) TO service_role;
+
+-- §X.6 — purge_org_cascade: retention-aware transactional purge
+--         1. Repoints retention-protected tables to sentinel (…0001)
+--         2. Deletes all other org-scoped public tables via retry-on-FK loop
+--            (loop re-runs until all tables delete cleanly — handles FK order
+--            automatically without requiring a manually maintained cascade list)
+--         3. Marks subscription(s) purged
+--         4. Anonymises the org row (row is kept — subscriptions FK to it)
+--         5. Inserts a PURGE audit entry on the sentinel org
+CREATE OR REPLACE FUNCTION purge_org_cascade(p_org_id uuid, p_reason text)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_sentinel  uuid    := '00000000-0000-0000-0000-000000000001';
+  v_decoy     uuid    := '00000000-0000-0000-0000-000000000003';
+  v_tables    text[];
+  v_table     text;
+  v_errors    int;
+  v_prev      int     := -1;
+BEGIN
+  -- Safety: refuse to purge the sentinel or decoy orgs
+  IF p_org_id = v_sentinel OR p_org_id = v_decoy THEN
+    RAISE EXCEPTION 'purge_org_cascade: refusing to purge sentinel/decoy org %', p_org_id;
+  END IF;
+
+  -- Step 1: Repoint retention-protected rows to sentinel
+  UPDATE audit_log                    SET org_id = v_sentinel WHERE org_id = p_org_id;
+  UPDATE trust_transactions           SET org_id = v_sentinel WHERE org_id = p_org_id;
+  UPDATE trust_reconciliation_periods SET org_id = v_sentinel WHERE org_id = p_org_id;
+  UPDATE consent_log                  SET org_id = v_sentinel WHERE org_id = p_org_id;
+  UPDATE auth_events                  SET org_id = v_sentinel WHERE org_id = p_org_id;
+
+  -- Step 2: Auto-discover all remaining public tables with org_id
+  SELECT array_agg(c.table_name ORDER BY c.table_name)
+  INTO   v_tables
+  FROM   information_schema.columns c
+  WHERE  c.table_schema = 'public'
+    AND  c.column_name  = 'org_id'
+    AND  c.table_name  NOT IN (
+           'audit_log','trust_transactions','trust_reconciliation_periods',
+           'consent_log','auth_events',       -- retention-protected (step 1)
+           'organisations','subscriptions'    -- handled separately (steps 3+4)
+         );
+
+  -- Step 3: Retry-on-FK loop — naturally orders leaf-to-root over passes
+  LOOP
+    v_errors := 0;
+    FOREACH v_table IN ARRAY COALESCE(v_tables, '{}') LOOP
+      BEGIN
+        EXECUTE format('DELETE FROM public.%I WHERE org_id = $1', v_table)
+          USING p_org_id;
+      EXCEPTION WHEN foreign_key_violation OR restrict_violation THEN
+        v_errors := v_errors + 1;
+      END;
+    END LOOP;
+    EXIT WHEN v_errors = 0;
+    IF v_errors = v_prev THEN
+      RAISE EXCEPTION 'purge_org_cascade: FK cycle for org %, % tables unreachable',
+        p_org_id, v_errors;
+    END IF;
+    v_prev := v_errors;
+  END LOOP;
+
+  -- Step 4: Mark subscription(s) purged
+  UPDATE subscriptions
+     SET status    = 'purged',
+         purged_at = now()
+   WHERE org_id = p_org_id;
+
+  -- Step 5: Anonymise org row (keep it — subscriptions.org_id FKs to organisations.id)
+  UPDATE organisations
+     SET name               = '[purged]',
+         email              = NULL,
+         phone              = NULL,
+         address_line1      = NULL,
+         city               = NULL,
+         settings           = '{}'::jsonb,
+         brand_logo_url     = NULL,
+         brand_accent_color = NULL,
+         deleted_at         = now()   -- idempotent: claim_purge_slot may have set this already
+   WHERE id = p_org_id;
+
+  -- Step 6: Single audit entry on the sentinel org
+  INSERT INTO audit_log (org_id, table_name, record_id, action, new_values)
+  VALUES (
+    v_sentinel,
+    'organisations',
+    p_org_id::text,
+    'PURGE',
+    jsonb_build_object(
+      'original_org_id', p_org_id,
+      'reason',          p_reason,
+      'purged_at',       now()
+    )
+  );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION purge_org_cascade(uuid, text) TO service_role;
