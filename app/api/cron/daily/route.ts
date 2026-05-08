@@ -35,6 +35,7 @@ import { GET as monthlyStatement } from "../tenant-comms/monthly-statement/route
 import { GET as subscriptionDunning } from "../subscription-dunning/route"
 import { GET as subscriptionDormancy } from "../subscription-dormancy/route"
 import { GET as subscriptionPurgeWarnings } from "../subscription-purge-warnings/route"
+import { runLegalArchiveStep } from "@/lib/legal/archive"
 
 type CronHandler = (req: NextRequest) => Promise<Response>
 
@@ -99,6 +100,17 @@ export async function GET(req: NextRequest) {
   await runJob("subscription_dormancy", subscriptionDormancy, cronReq, results)
   await runJob("subscription_purge_warnings", subscriptionPurgeWarnings, cronReq, results)
 
+  // Legal archive — called directly (not via runJob) so structured result goes into cron_runs.metadata
+  let legalArchive: import("@/lib/legal/archive").LegalArchiveResult = {}
+  try {
+    legalArchive = await runLegalArchiveStep(service, { triggeredAt: today })
+    const anyFailed = Object.values(legalArchive).some(r => r.outcome === "fetch_failed" || r.outcome === "upload_failed")
+    results.legal_archive = anyFailed ? "failed" : "ok"
+  } catch (err) {
+    Sentry.captureException(err, { tags: { cron_job: "legal_archive" } })
+    results.legal_archive = "error"
+  }
+
   // Monthly jobs
   if (dayOfMonth === 1) {
     await runJob("levy_generate", levyGenerate, cronReq, results)
@@ -120,6 +132,7 @@ export async function GET(req: NextRequest) {
       finished_at:    new Date().toISOString(),
       status:         "completed",
       rows_processed: Object.keys(results).length,
+      metadata:       { legal_archive: legalArchive },
     }).eq("id", cronRunId)
   }
 
