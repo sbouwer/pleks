@@ -7,7 +7,8 @@
  */
 
 export type SubscriptionStatus =
-  | "trialing" | "active" | "past_due" | "paused" | "cancelled" | "purged"
+  | "trialing" | "active" | "past_due" | "paused"
+  | "pending_cancellation" | "cancelled" | "purged"
 
 export interface SubscriptionState {
   status:           SubscriptionStatus

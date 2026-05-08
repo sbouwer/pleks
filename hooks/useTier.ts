@@ -1,13 +1,11 @@
 "use client"
 
 /**
- * hooks/useTier.ts — FILL: one-line purpose
+ * hooks/useTier.ts — Client hook returning the active subscription tier and trial state
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   subscriptions table via anon Supabase client (active + trialing rows only)
+ * Notes:  For full subscription state (paused, cancelled, pending) use useFullSubState
+ *         in the subscription settings page — this hook is optimised for the common case.
  */
 import { useQuery } from "@tanstack/react-query"
 import { createClient } from "@/lib/supabase/client"

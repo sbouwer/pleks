@@ -537,5 +537,115 @@ export async function sendPurgedConfirm(
   })
 }
 
+// ── Step 9 emails: org-initiated pause / resume / cancel ─────────────────────
+
+export async function sendPausedManual(org: OrgContact, reason: string) {
+  return sendEmail({
+    orgId: org.orgId,
+    templateKey: "subscription.paused_manual",
+    to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
+    subject: "Your Pleks subscription has been paused",
+    emailElement: (
+      <EmailLayout
+        preview="Your Pleks subscription is paused — resume any time in settings"
+        branding={org.branding}
+        footerVariant="paused_resume_cta"
+      >
+        <p style={S.body}>Hi {org.adminName ?? org.orgName},</p>
+        <p style={S.body}>
+          Your Pleks subscription has been <strong style={S.strong}>paused</strong> at your request.
+        </p>
+        {reason && (
+          <p style={S.body}>
+            Reason recorded: <em>{reason}</em>
+          </p>
+        )}
+        <EmailSectionHeading>What this means</EmailSectionHeading>
+        <p style={S.body}>
+          All your data — properties, leases, tenants, and financial records — is fully intact.
+          Your tenants and landlords continue to receive their scheduled notifications as normal.
+          You can read everything and export at any time.
+        </p>
+        <p style={S.body}>
+          Creating new leases, onboarding new tenants, and running credit checks are paused
+          until you resume.
+        </p>
+        <EmailButton href={`${APP_URL}/settings/subscription`} accentColor={org.branding.accentColor}>
+          Resume subscription →
+        </EmailButton>
+      </EmailLayout>
+    ),
+    bodyPreview: "Your Pleks subscription has been paused at your request. All data is safe.",
+  })
+}
+
+export async function sendResumed(org: OrgContact) {
+  return sendEmail({
+    orgId: org.orgId,
+    templateKey: "subscription.resumed",
+    to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
+    subject: "Your Pleks subscription is active again",
+    emailElement: (
+      <EmailLayout
+        preview="Your Pleks subscription has been resumed — full access restored"
+        branding={org.branding}
+      >
+        <p style={S.body}>Hi {org.adminName ?? org.orgName},</p>
+        <p style={S.body}>
+          Your Pleks subscription has been <strong style={S.strong}>resumed</strong>.
+          Full access is restored.
+        </p>
+        <p style={S.body}>
+          You can now create new leases, onboard tenants, and use all features on your plan.
+        </p>
+        <EmailButton href={`${APP_URL}/dashboard`} accentColor={org.branding.accentColor}>
+          Go to dashboard →
+        </EmailButton>
+      </EmailLayout>
+    ),
+    bodyPreview: "Your Pleks subscription has been resumed. Full access is restored.",
+  })
+}
+
+export async function sendCancelledConfirm(
+  org: OrgContact,
+  data: { cancelledDate: string; purgeEligibleAt: string; exportUrl: string },
+) {
+  return sendEmail({
+    orgId: org.orgId,
+    templateKey: "subscription.cancelled_confirm",
+    to: { email: org.adminEmail, name: org.adminName ?? org.orgName },
+    subject: "Your Pleks subscription has been cancelled",
+    emailElement: (
+      <EmailLayout
+        preview={`Pleks subscription cancelled — your data is available until ${data.purgeEligibleAt}`}
+        branding={org.branding}
+        footerVariant="cancelled_purge_warning"
+      >
+        <p style={S.body}>Hi {org.adminName ?? org.orgName},</p>
+        <p style={S.body}>
+          Your Pleks subscription was cancelled on{" "}
+          <strong style={S.strong}>{data.cancelledDate}</strong>.
+        </p>
+        <EmailSectionHeading>What happens next</EmailSectionHeading>
+        <p style={S.body}>
+          Your data — all properties, leases, tenants, inspections, and financial records —
+          remains fully accessible and exportable until{" "}
+          <strong style={S.strong}>{data.purgeEligibleAt}</strong> (12 months from today).
+          After that date, operational data is deleted in line with our data retention policy.
+        </p>
+        <p style={S.body}>
+          You can reactivate your subscription any time before {data.purgeEligibleAt} and
+          everything will be exactly where you left it.
+        </p>
+        <EmailButton href={data.exportUrl} accentColor={org.branding.accentColor}>
+          Export your data now →
+        </EmailButton>
+      </EmailLayout>
+    ),
+    bodyPreview: `Subscription cancelled on ${data.cancelledDate}. Data available until ${data.purgeEligibleAt}.`,
+  })
+}
+
 // formatDate used by purge step callers
 export { formatDate }

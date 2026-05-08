@@ -1524,3 +1524,30 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION purge_org_cascade(uuid, text) TO service_role;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §X.7  ADDENDUM_57G Step 9: two-step cancellation + PENDING_CANCELLATION state
+-- ═══════════════════════════════════════════════════════════════════════════════
+--  Adds an intermediate state between active and cancelled. The 12-month purge
+--  clock starts only on confirmation, not on initial click.  Unconfirmed requests
+--  expire after 24 hours (daily cron reverts status → previous state).
+--  organisations.deleted_at is NOT touched here — it remains reserved for purge.
+--  subscriptions.cancelled_at is the confirmation timestamp.
+
+-- Widen status CHECK
+ALTER TABLE subscriptions
+  DROP CONSTRAINT IF EXISTS subscriptions_status_check;
+ALTER TABLE subscriptions
+  ADD CONSTRAINT subscriptions_status_check
+  CHECK (status IN ('trialing','active','past_due','paused','pending_cancellation','cancelled','purged'));
+
+-- pending_cancellation_since: set when user clicks Cancel; cleared on confirm or expiry
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS pending_cancellation_since timestamptz;
+
+-- cancellation_terms_version: snapshot of the governing ToS at confirmation time
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS cancellation_terms_version text;
+
+-- Index for the daily expiry sweep
+CREATE INDEX IF NOT EXISTS idx_subscriptions_pending_cancellation
+  ON subscriptions (pending_cancellation_since)
+  WHERE status = 'pending_cancellation';
