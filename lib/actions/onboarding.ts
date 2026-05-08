@@ -1,17 +1,19 @@
 "use server"
 
 /**
- * lib/actions/onboarding.ts — FILL: one-line purpose
+ * lib/actions/onboarding.ts — createAccountAndOrg() server action for new agency signup
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   public (called before any org exists); new user created via service client admin API
+ * Data:   organisations, user_orgs, subscriptions, user_profiles, bank_accounts, consent_log, tos_acceptances
+ * Notes:  isAlreadyAuthenticated path handles agents who log in first then complete onboarding.
+ *         recordTosAcceptance() is called after org row exists (FK constraint on tos_acceptances).
  */
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
-import { headers } from "next/headers"
+import { headers, cookies } from "next/headers"
+import { recordTosAcceptance } from "@/lib/subscriptions/acceptance"
+import { LEGAL_VERSIONS } from "@/lib/legal-versions"
+import { AUTH_COOKIE_OPTS } from "@/lib/auth/cookie-config"
 
 export interface OnboardingData {
   userType: "owner" | "agent" | "agency" | "family" | "exploring"
@@ -47,6 +49,7 @@ export async function createAccountAndOrg(data: OnboardingData): Promise<{
 }> {
   const headersList = await headers()
   const ip = headersList.get("x-forwarded-for") || "unknown"
+  const ua = headersList.get("user-agent") ?? null
   const service = await createServiceClient()
 
   const authResult = await resolveUserId(data, service)
@@ -143,6 +146,20 @@ export async function createAccountAndOrg(data: OnboardingData): Promise<{
       management_scope: data.managementScope,
     },
   })
+
+  // Record ToS acceptance — evidentiary obligation for cancellation clause enforceability.
+  // Also set the cookie so proxy.ts checkTosGate passes without a redirect on first login.
+  try {
+    await recordTosAcceptance(service, orgId, userId, data.email, ip, ua, "signup")
+    const cookieStore = await cookies()
+    cookieStore.set("pleks_tos_version", LEGAL_VERSIONS.terms, {
+      ...AUTH_COOKIE_OPTS,
+      maxAge: 60 * 60 * 24 * 365,
+    })
+  } catch (tosErr) {
+    console.error("[onboarding] recordTosAcceptance failed:", tosErr)
+    // Non-fatal — org is created; acceptance can be back-filled via accept-terms gate.
+  }
 
   revalidatePath("/dashboard")
   return { ok: true }

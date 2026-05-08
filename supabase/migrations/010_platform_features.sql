@@ -1456,6 +1456,7 @@ BEGIN
   UPDATE trust_reconciliation_periods SET org_id = v_sentinel WHERE org_id = p_org_id;
   UPDATE consent_log                  SET org_id = v_sentinel WHERE org_id = p_org_id;
   UPDATE auth_events                  SET org_id = v_sentinel WHERE org_id = p_org_id;
+  UPDATE tos_acceptances              SET org_id = v_sentinel WHERE org_id = p_org_id;
 
   -- Step 2: Auto-discover all remaining public tables with org_id
   SELECT array_agg(c.table_name ORDER BY c.table_name)
@@ -1465,8 +1466,8 @@ BEGIN
     AND  c.column_name  = 'org_id'
     AND  c.table_name  NOT IN (
            'audit_log','trust_transactions','trust_reconciliation_periods',
-           'consent_log','auth_events',       -- retention-protected (step 1)
-           'organisations','subscriptions'    -- handled separately (steps 3+4)
+           'consent_log','auth_events','tos_acceptances',  -- retention-protected (step 1)
+           'organisations','subscriptions'                 -- handled separately (steps 3+4)
          );
 
   -- Step 3: Retry-on-FK loop — naturally orders leaf-to-root over passes
@@ -1551,3 +1552,56 @@ ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS cancellation_terms_version te
 CREATE INDEX IF NOT EXISTS idx_subscriptions_pending_cancellation
   ON subscriptions (pending_cancellation_since)
   WHERE status = 'pending_cancellation';
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §X.8  Gate 2: ToS version archival — tos_acceptances table
+-- ═══════════════════════════════════════════════════════════════════════════════
+--  Records which ToS version each org accepted and when. Append-only (immutable
+--  trigger). org_id uses ON DELETE RESTRICT — purgeOrg() must repoint to sentinel
+--  before deleting the org row (enforced by purge_org_cascade step 1 above).
+--  Retention: 10 years (POPIA s17 accountability). Added to RETENTION_PROTECTED_TABLES.
+
+CREATE TABLE IF NOT EXISTS tos_acceptances (
+  id                   uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id               uuid        NOT NULL REFERENCES organisations(id) ON DELETE RESTRICT,
+  user_id              uuid        REFERENCES auth.users(id) ON DELETE SET NULL,
+  user_email_snapshot  text        NOT NULL,
+  user_id_snapshot     uuid        NOT NULL,
+  terms_version        text        NOT NULL,
+  privacy_version      text        NOT NULL,
+  accepted_at          timestamptz NOT NULL DEFAULT now(),
+  ip_address           inet,
+  user_agent           text,
+  acceptance_hash      text        NOT NULL,
+  context              text        NOT NULL DEFAULT 'signup'
+                                   CHECK (context IN (
+                                     'signup',
+                                     'version_update',
+                                     'reactivation',
+                                     'ownership_transfer'
+                                   ))
+);
+
+-- One signup acceptance per org/user/version combination
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_tos_signup
+  ON tos_acceptances (org_id, user_id_snapshot, terms_version)
+  WHERE context = 'signup';
+
+CREATE INDEX IF NOT EXISTS idx_tos_acc_org ON tos_acceptances(org_id, accepted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tos_acc_ver ON tos_acceptances(terms_version);
+
+-- Append-only: block UPDATE and DELETE
+CREATE OR REPLACE FUNCTION prevent_tos_acceptance_mutation()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'tos_acceptances rows are immutable';
+END; $$;
+
+DROP TRIGGER IF EXISTS trg_prevent_tos_acceptance_update ON tos_acceptances;
+CREATE TRIGGER trg_prevent_tos_acceptance_update
+  BEFORE UPDATE OR DELETE ON tos_acceptances
+  FOR EACH ROW EXECUTE FUNCTION prevent_tos_acceptance_mutation();
+
+ALTER TABLE tos_acceptances ENABLE ROW LEVEL SECURITY;
+-- No client-role policies: service role only (bypasses RLS).
+-- Admin portal reads via service client with compliance_access_log entry.

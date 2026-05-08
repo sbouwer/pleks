@@ -6,6 +6,7 @@
  * Notes:  Covers Part A (12 Pleks-RP purposes) and Part B (25 Operator purposes).
  */
 import type { Metadata } from "next"
+import Link from "next/link"
 import { LegalPageLayout } from "@/components/legal/LegalPageLayout"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import { EXTERNAL_LINKS } from "@/lib/external-links"
@@ -126,7 +127,7 @@ export default function ProcessingRegisterPage() {
           (b) provision of a completed security questionnaire or equivalent on written request (at no cost, once per 12 months); and
           (c) cooperation with reasonable compliance audits on 30 days&rsquo; written notice, subject to confidentiality obligations
           protecting other agencies&rsquo; data. The full audit-rights framework is set out in{" "}
-          <a href="/terms#dataprocessing">ToS §09.5</a>.
+          <Link href="/terms#dataprocessing">ToS §09.5</Link>.
         </p>
         <p>
           <strong>Sovereign-trust invariant.</strong> Pleks holds no client funds. Client funds reside in the agency&rsquo;s own
@@ -182,7 +183,7 @@ export default function ProcessingRegisterPage() {
           for Access to Record of Public/Private Body), available from the Information Regulator. Pleks will respond using Form 3
           (Outcome of Request and Notice of Fees) within the statutory 30-day window. In compliance with{" "}
           <span className="act-pill">PAIA · S51(3)</span> and the 2021 Regulations, the Pleks PAIA manual is published on this
-          website at <a href="/paia-manual">/paia-manual</a>.
+          website at <Link href="/paia-manual">/paia-manual</Link>.
         </p>
       </section>
 
@@ -1039,7 +1040,7 @@ export default function ProcessingRegisterPage() {
         <p>
           For questions about this register or to exercise your rights as a data subject, contact our Information Officer — see §02 above.
           The data-processing obligations that give this register contractual force for Part B purposes are set out in{" "}
-          <a href="/terms#dataprocessing">section 09 of the Pleks Terms of Service</a>. Agencies evaluating Pleks for procurement
+          <Link href="/terms#dataprocessing">section 09 of the Pleks Terms of Service</Link>. Agencies evaluating Pleks for procurement
           are encouraged to review ToS §09 alongside this register before contracting.
         </p>
       </section>

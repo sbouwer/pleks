@@ -47,6 +47,7 @@ export const ROUTE_MANIFEST: Record<string, RouteRule> = {
   "/reset-password":        { auth: false },
   "/register":              { auth: false },
   "/onboarding":            { auth: true,  skipOrgCheck: true },
+  "/accept-terms":          { auth: true,  skipOrgCheck: true },
   "/pricing":               { auth: false },
   "/privacy":               { auth: false },
   "/terms":                 { auth: false },

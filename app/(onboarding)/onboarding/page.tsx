@@ -1,13 +1,11 @@
 "use client"
 
 /**
- * app/(onboarding)/onboarding/page.tsx — FILL: one-line purpose
+ * app/(onboarding)/onboarding/page.tsx — Multi-step agency onboarding wizard
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /onboarding
+ * Auth:   authenticated (manifest: skipOrgCheck — org does not exist yet)
+ * Data:   createAccountAndOrg() server action; writes org, user_orgs, subscription, tos_acceptances
  */
 
 import { useState, useEffect, Suspense } from "react"

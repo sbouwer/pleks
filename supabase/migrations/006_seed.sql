@@ -663,3 +663,11 @@ VALUES (
   ARRAY['application/pdf','application/json','application/zip','application/octet-stream']
 )
 ON CONFLICT (id) DO NOTHING;
+
+-- ─── Gate 2 §X.8 — legal-archive Storage bucket ──────────────────────────────
+-- Stores HTML snapshots of each published ToS and Privacy Policy version.
+-- Path convention: terms/v3.4.0.html, privacy/v4.5.0.html
+-- No size limit — HTML snapshots are small. Private; service-role only.
+INSERT INTO storage.buckets (id, name, public, file_size_limit)
+VALUES ('legal-archive', 'legal-archive', false, null)
+ON CONFLICT (id) DO NOTHING;

@@ -19,6 +19,7 @@ export const SENTINEL_ORG_ID = "00000000-0000-0000-0000-000000000001" as const
  *   trust_reconciliation_periods — PPRA 5-year retention
  *   consent_log                  — POPIA proof-of-consent
  *   auth_events                  — 7-year auth-event retention (BUILD_62)
+ *   tos_acceptances              — 10-year ToS acceptance record (POPIA s17 accountability)
  *
  * BUILD_65 imports this array rather than defining its own.
  */
@@ -28,6 +29,7 @@ export const RETENTION_PROTECTED_TABLES = [
   "trust_reconciliation_periods",
   "consent_log",
   "auth_events",
+  "tos_acceptances",
 ] as const
 
 export type RetentionProtectedTable = (typeof RETENTION_PROTECTED_TABLES)[number]

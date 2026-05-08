@@ -5,6 +5,7 @@
  * Auth:   public
  */
 import type { Metadata } from "next"
+import Link from "next/link"
 import { LegalPageLayout } from "@/components/legal/LegalPageLayout"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import { EXTERNAL_LINKS } from "@/lib/external-links"
@@ -77,7 +78,7 @@ export default function CookiePolicyPage() {
         </p>
         <p>
           This policy should be read together with our <a href="/privacy">Privacy Policy</a> and{" "}
-          <a href="/terms">Terms of Service</a>, which describe how we handle personal information more broadly.
+          <Link href="/terms">Terms of Service</Link>, which describe how we handle personal information more broadly.
         </p>
         <p>
           Pleks operates under South African law. If you access Pleks from outside South Africa, additional local cookie or e-privacy

@@ -157,7 +157,7 @@ export default function PAIAManualPage() {
         <p><strong>4.1 Public legal documents</strong></p>
         <ul className="legal-list">
           <li><a href="/privacy">Privacy Policy</a></li>
-          <li><a href="/terms">Terms of Service</a></li>
+          <li><Link href="/terms">Terms of Service</Link></li>
           <li><a href="/popia-register">POPIA Processing Register</a></li>
           <li><a href="/credit-check-policy">Credit Check Policy</a></li>
           <li><a href="/cookie-policy">Cookie Policy</a></li>

@@ -6,6 +6,7 @@
  * Notes:  Referenced from the applicant consent screen during application flow.
  */
 import type { Metadata } from "next"
+import Link from "next/link"
 import { LegalPageLayout } from "@/components/legal/LegalPageLayout"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import { EXTERNAL_LINKS } from "@/lib/external-links"
@@ -129,7 +130,7 @@ export default function CreditCheckPolicyPage() {
           under POPIA (October 2020). Pleks initiates the credit check on instruction of the agency, receives the report from the
           service provider, stores it on its infrastructure, generates a derivative FitScore (B5 of the POPIA processing register), and
           makes the result available to the agency. Throughout, Pleks acts as an Operator on behalf of the agency under the data-processing
-          terms in the Pleks <a href="/terms">Terms of Service §09</a>; the agency is the Responsible Party for the application data.
+          terms in the Pleks <Link href="/terms">Terms of Service §09</Link>; the agency is the Responsible Party for the application data.
           Credit check results are made available to the agency for the sole purpose of evaluating your application. Where an agency
           manages the property, the agency is the Responsible Party and the landlord receives the result only on the agency&rsquo;s
           instruction. Where a landlord uses Pleks directly without an agency, the landlord is the Responsible Party for the

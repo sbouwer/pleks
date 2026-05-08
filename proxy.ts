@@ -15,6 +15,7 @@ import { ROUTE_MANIFEST, AGENT_ROLES, type SessionRole } from "@/lib/routing/man
 import { resolveHostContext } from "@/lib/routing/hostname"
 import { resolveUserRoles, defaultRoleForMemberships } from "@/lib/auth/roles"
 import { verifyAdminToken } from "@/lib/auth/admin-token"
+import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import type { User } from "@supabase/supabase-js"
 
 // ── Bypass lists (checked before manifest) ───────────────────────────────────
@@ -227,6 +228,30 @@ async function checkPortalRoleGate(
   return NextResponse.redirect(new URL("/select-role", request.url))
 }
 
+// ── ToS version gate ─────────────────────────────────────────────────────────
+// Cookie pleks_tos_version is set when the user accepts the current ToS. If the
+// cookie is missing or stale (version mismatch), the user is sent to /accept-terms
+// before entering the agent workspace. Gate applies to agent-only routes only —
+// not portal routes, not /accept-terms itself (infinite-loop guard), not settings
+// (so users can still manage their account without accepting first).
+function checkTosGate(
+  rule: NonNullable<ReturnType<typeof matchManifest>>,
+  pathname: string,
+  request: NextRequest,
+): NextResponse | null {
+  if (!rule.roles?.every(r => (AGENT_ROLES as readonly string[]).includes(r))) return null
+  if (pathname === "/accept-terms" || pathname.startsWith("/accept-terms/")) return null
+  if (pathname === "/settings" || pathname.startsWith("/settings/")) return null
+
+  const accepted = request.cookies.get("pleks_tos_version")?.value
+  if (accepted === LEGAL_VERSIONS.terms) return null
+
+  const dest = request.nextUrl.clone()
+  dest.pathname = "/accept-terms"
+  dest.searchParams.set("next", pathname)
+  return NextResponse.redirect(dest)
+}
+
 // ── Agent role gate ───────────────────────────────────────────────────────────
 // Only enforced when all allowed roles are agent roles.
 function checkAgentRoleGate(
@@ -270,6 +295,10 @@ async function handleProtectedRoute(
     url.searchParams.set("redirect", request.nextUrl.pathname)
     return NextResponse.redirect(url)
   }
+
+  // ToS version gate — must accept current terms before entering the agent workspace
+  const tosRedirect = checkTosGate(rule, request.nextUrl.pathname, request)
+  if (tosRedirect) return tosRedirect
 
   const portalRedirect = await checkPortalRoleGate(rule, user, request, supabaseResponse)
   if (portalRedirect) return portalRedirect

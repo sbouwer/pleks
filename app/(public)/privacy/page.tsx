@@ -5,6 +5,7 @@
  * Auth:   public
  */
 import type { Metadata } from "next"
+import Link from "next/link"
 import { LegalPageLayout } from "@/components/legal/LegalPageLayout"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import { EXTERNAL_LINKS } from "@/lib/external-links"
@@ -86,7 +87,7 @@ export default function PrivacyPolicyPage() {
           maintenance, critical incidents, tenant communications, supplier management, municipal bill processing, HOA/scheme management,
           document generation, AI-assisted processing, FICA/KYC documentation, and data-subject request handling. The agency is the
           Responsible Party for all this data; Pleks processes it on the agency&rsquo;s behalf under the data-processing terms set out
-          in the Pleks <a href="/terms">Terms of Service §09</a>, which incorporates the written-contract requirements of{" "}
+          in the Pleks <Link href="/terms">Terms of Service §09</Link>, which incorporates the written-contract requirements of{" "}
           <span className="act-pill">POPIA · S20</span>{" "}<span className="act-pill">POPIA · S21</span>.
         </p>
         <p>
@@ -157,7 +158,7 @@ export default function PrivacyPolicyPage() {
         <p><strong>Reference contacts</strong></p>
         <p>
           References named by an applicant — landlords, employers, character references — are data subjects in their own right.
-          The agency is contractually required under the Pleks <a href="/terms">Terms of Service §09</a> to send a{" "}
+          The agency is contractually required under the Pleks <Link href="/terms">Terms of Service §09</Link> to send a{" "}
           <span className="act-pill">POPIA · S18</span> notice to each reference at the point of first contact, explaining that they
           have been named, what information will be requested, how long it will be retained, and how to exercise their rights. Pleks
           provides a template notice and the platform&rsquo;s communication log makes compliance auditable. Pleks does not independently
