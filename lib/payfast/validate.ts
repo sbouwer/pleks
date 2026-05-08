@@ -1,11 +1,9 @@
 /**
- * lib/payfast/validate.ts — FILL: one-line purpose
+ * lib/payfast/validate.ts — PayFast ITN signature + server-side validation
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   PayFast ITN params; server-to-server validation against PayFast's validate endpoint
+ * Notes:  Does NOT check payment_status — callers decide which statuses to accept.
+ *         In sandbox mode, server-to-server validation failure is swallowed (endpoint unreliable).
  */
 import { generatePayFastSignature } from "./signature"
 import { PAYFAST_CONFIG } from "./config"
@@ -14,12 +12,7 @@ export async function validatePayFastITN(
   params: Record<string, string>,
   rawBody: string
 ): Promise<{ valid: boolean; error?: string }> {
-  // 1. Check payment status
-  if (params.payment_status !== "COMPLETE") {
-    return { valid: false, error: "Payment not complete" }
-  }
-
-  // 2. Verify signature
+  // 1. Verify signature
   const expectedSignature = generatePayFastSignature(params, PAYFAST_CONFIG.passphrase)
 
   if (expectedSignature !== params.signature) {
