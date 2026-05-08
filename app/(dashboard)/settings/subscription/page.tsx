@@ -9,9 +9,10 @@
  *         pause/resume/cancel via server actions (actions.ts)
  * Notes:  This page must remain reachable regardless of subscription lockdown state (§10.3).
  *         Cancel is two-step: initiateCancellation → AAL2 TOTP or email magic link.
+ *         BillingPageInner is wrapped in Suspense so useSearchParams() doesn't block prerender.
  */
 
-import { useEffect, useState, useTransition } from "react"
+import { useEffect, useState, useTransition, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useTier } from "@/hooks/useTier"
 import { useOrg } from "@/hooks/useOrg"
@@ -382,7 +383,7 @@ function useFullSubState(orgId: string | null) {
 
 // ── Main billing page ─────────────────────────────────────────────────────────
 
-export default function BillingPage() {
+function BillingPageInner() {
   const { tier, status, periodEnd, isTrialing, trialDaysLeft, trialTier } = useTier()
   const { orgId } = useOrg()
   const router = useRouter()
@@ -712,5 +713,13 @@ export default function BillingPage() {
         }}
       />
     </div>
+  )
+}
+
+export default function BillingPage() {
+  return (
+    <Suspense>
+      <BillingPageInner />
+    </Suspense>
   )
 }
