@@ -1,13 +1,10 @@
 "use client"
 
 /**
- * app/(admin)/admin/PrimeRateWidget.tsx — FILL: one-line purpose
+ * app/(admin)/admin/PrimeRateWidget.tsx — Inline widget to update SA prime rate
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   Rendered inside admin layout (requireAdminAuth cookie gate)
+ * Data:   POST /api/admin/prime-rate — inserts into prime_rates table
  */
 import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
