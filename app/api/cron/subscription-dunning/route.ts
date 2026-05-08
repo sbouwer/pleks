@@ -7,6 +7,7 @@
  * Notes:  Called from daily orchestrator. Idempotent — tracks state via
  *         subscriptions.past_due_since and status column.
  *         day 0: past_due_first · day 7: past_due_day7 · day ≥14: auto-pause.
+ *         Also expires unconfirmed PENDING_CANCELLATION requests older than 24h → active.
  */
 import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
@@ -111,5 +112,50 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return Response.json({ ok: true, past_due_first: pastDueFirst, past_due_day7: pastDueDay7, auto_paused: autoPaused })
+  const pendingExpired = await runPendingExpiryStep(supabase, now)
+
+  return Response.json({
+    ok: true,
+    past_due_first: pastDueFirst,
+    past_due_day7: pastDueDay7,
+    auto_paused: autoPaused,
+    pending_expired: pendingExpired,
+  })
+}
+
+type SupabaseClient = Awaited<ReturnType<typeof createServiceClient>>
+
+async function runPendingExpiryStep(supabase: SupabaseClient, now: Date): Promise<number> {
+  const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+  const { data: expiredPending, error: expiredErr } = await supabase
+    .from("subscriptions")
+    .select("id, org_id")
+    .eq("status", "pending_cancellation")
+    .lt("pending_cancellation_since", cutoff.toISOString())
+
+  if (expiredErr) {
+    console.error("subscription-dunning: pending expiry query failed:", expiredErr.message)
+    return 0
+  }
+
+  let count = 0
+  for (const sub of expiredPending ?? []) {
+    const { error: revertErr } = await supabase
+      .from("subscriptions")
+      .update({ status: "active", pending_cancellation_since: null })
+      .eq("id", sub.id)
+    if (revertErr) {
+      console.error("subscription-dunning: pending revert failed for", sub.org_id, revertErr.message)
+      continue
+    }
+    await supabase.from("audit_log").insert({
+      org_id: sub.org_id,
+      table_name: "subscriptions",
+      record_id: sub.org_id,
+      action: "UPDATE",
+      new_values: { action: "subscription_cancellation_expired" },
+    })
+    count++
+  }
+  return count
 }

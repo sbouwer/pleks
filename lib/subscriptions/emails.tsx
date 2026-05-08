@@ -609,7 +609,7 @@ export async function sendResumed(org: OrgContact) {
 
 export async function sendCancelledConfirm(
   org: OrgContact,
-  data: { cancelledDate: string; purgeEligibleAt: string; exportUrl: string },
+  data: { cancelledDate: string; exportUrl: string },
 ) {
   return sendEmail({
     orgId: org.orgId,
@@ -618,7 +618,7 @@ export async function sendCancelledConfirm(
     subject: "Your Pleks subscription has been cancelled",
     emailElement: (
       <EmailLayout
-        preview={`Pleks subscription cancelled — your data is available until ${data.purgeEligibleAt}`}
+        preview="Pleks subscription cancelled — your data remains accessible for up to 12 months"
         branding={org.branding}
         footerVariant="cancelled_purge_warning"
       >
@@ -630,12 +630,14 @@ export async function sendCancelledConfirm(
         <EmailSectionHeading>What happens next</EmailSectionHeading>
         <p style={S.body}>
           Your data — all properties, leases, tenants, inspections, and financial records —
-          remains fully accessible and exportable until{" "}
-          <strong style={S.strong}>{data.purgeEligibleAt}</strong> (12 months from today).
-          After that date, operational data is deleted in line with our data retention policy.
+          remains fully accessible and exportable for{" "}
+          <strong style={S.strong}>up to 12 months</strong> from the date of cancellation.
+          The exact deletion date depends on whether active leases remain at the time
+          of the scheduled cleanup. You will receive a 30-day warning email before any
+          data is removed.
         </p>
         <p style={S.body}>
-          You can reactivate your subscription any time before {data.purgeEligibleAt} and
+          You can reactivate your subscription at any time within those 12 months and
           everything will be exactly where you left it.
         </p>
         <EmailButton href={data.exportUrl} accentColor={org.branding.accentColor}>
@@ -643,7 +645,7 @@ export async function sendCancelledConfirm(
         </EmailButton>
       </EmailLayout>
     ),
-    bodyPreview: `Subscription cancelled on ${data.cancelledDate}. Data available until ${data.purgeEligibleAt}.`,
+    bodyPreview: `Subscription cancelled on ${data.cancelledDate}. Data accessible for up to 12 months.`,
   })
 }
 

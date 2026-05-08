@@ -300,13 +300,8 @@ async function confirmCancellationInner(
   const contact = await fetchOrgContact(service, orgId)
   if (contact) {
     const cancelledDate = now.toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
-    const purgeEligDate = new Date(now.getFullYear() + 1, now.getMonth(), now.getDate())
-    const purgeEligibleAt = purgeEligDate.toLocaleDateString("en-ZA", {
-      day: "numeric", month: "long", year: "numeric",
-    })
     void sendCancelledConfirm(contact, {
       cancelledDate,
-      purgeEligibleAt,
       exportUrl: `${APP_URL}/reports`,
     })
   }
