@@ -1,11 +1,10 @@
 /**
- * app/(admin)/admin/subscriptions/page.tsx — FILL: one-line purpose
+ * app/(admin)/admin/subscriptions/page.tsx — Subscription overview + QA state-flip fixture
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /admin/subscriptions
+ * Auth:   requireAdminAuth (pleks_admin_token cookie)
+ * Data:   subscriptions + organisations via service client
+ * Notes:  SetStateWidget allows forcing an org into any subscription state for QA.
  */
 import { requireAdminAuth } from "@/lib/admin/auth"
 import { createServiceClient } from "@/lib/supabase/server"
@@ -13,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { formatDateShort } from "@/lib/reports/periods"
 import { formatZAR } from "@/lib/constants"
+import { SetStateWidget } from "./SetStateWidget"
 
 export default async function AdminSubscriptionsPage() {
   await requireAdminAuth()
@@ -37,9 +37,22 @@ export default async function AdminSubscriptionsPage() {
 
   const expiringOrgIds = new Set((expiringTrials ?? []).map((t) => t.org_id))
 
+  const orgOptions = (subs ?? [])
+    .filter(s => {
+      const org = s.organisations as unknown as { name: string } | null
+      return !!org?.name
+    })
+    .map(s => ({
+      orgId: s.org_id,
+      orgName: (s.organisations as unknown as { name: string }).name,
+      currentStatus: s.status,
+    }))
+
   return (
     <div className="space-y-6">
       <h1 className="font-heading text-2xl">Subscriptions</h1>
+
+      <SetStateWidget orgs={orgOptions} />
 
       {/* Expiring trials warning */}
       {(expiringTrials ?? []).length > 0 && (
