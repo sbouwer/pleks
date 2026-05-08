@@ -14,7 +14,8 @@ import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.pleks.co.za"
+// Legal pages (/terms, /privacy) live on pleks.co.za (apex), not app.pleks.co.za
+const LEGAL_SITE_URL = process.env.LEGAL_SITE_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
 
 type SupabaseStorageClient = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -32,7 +33,7 @@ async function archiveDoc(
 
   let html: string
   try {
-    const res = await fetch(`${APP_URL}${path}`, {
+    const res = await fetch(`${LEGAL_SITE_URL}${path}`, {
       headers: { "User-Agent": "pleks-legal-archiver/1.0" },
       signal: AbortSignal.timeout(15_000),
     })
