@@ -15,6 +15,7 @@ import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { routeAndSend } from "@/lib/messaging/router"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
+import { resolveOrgTone } from "@/lib/comms/resolveOrgTone"
 import { LeaseSignReminderEmail } from "@/lib/comms/templates/tenant/leases/lease-sign-reminder"
 import { LeaseEscalationNoticeEmail } from "@/lib/comms/templates/tenant/leases/lease-escalation-notice"
 
@@ -26,13 +27,6 @@ type SignReminderLease = {
 type EscalationLease = {
   id: string; org_id: string; tenant_id: string; unit_id: string
   rent_amount_cents: number; escalation_percent: number | null; escalation_review_date: string
-}
-
-function resolveOrgTone(settings: unknown): "friendly" | "professional" | "firm" {
-  const s = (settings ?? {}) as Record<string, unknown>
-  const c = (s.communication ?? {}) as Record<string, unknown>
-  const t = c.tone_tenant as string | undefined
-  return t === "friendly" || t === "firm" ? t : "professional"
 }
 
 async function handleSignReminder(service: Service, lease: SignReminderLease, now: Date): Promise<boolean> {

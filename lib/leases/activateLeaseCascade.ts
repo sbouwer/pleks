@@ -16,6 +16,7 @@ import { getOrgCapabilities, type OrgCapabilities } from "@/lib/org/capabilities
 import type { OrgType } from "@/lib/constants"
 import { routeAndSend } from "@/lib/messaging/router"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
+import { resolveOrgTone } from "@/lib/comms/resolveOrgTone"
 import { DepositReceivedEmail } from "@/lib/comms/templates/tenant/deposits/deposit-received"
 import { LeaseActivatedEmail } from "@/lib/comms/templates/tenant/leases/lease-activated"
 import { LeaseSignedEmail } from "@/lib/comms/templates/tenant/leases/lease-signed"
@@ -369,10 +370,11 @@ async function stepSendPortalInvite(
       return { step: "Portal auto-invite (P1)", status: "skipped", detail: "Already invited" }
     }
 
-    const [tenantRes, unitRes, orgSettings] = await Promise.all([
+    const [tenantRes, unitRes, orgSettings, orgRow] = await Promise.all([
       supabase.from("tenant_view").select("first_name, last_name, company_name, email, phone").eq("id", lease.tenant_id).single(),
       supabase.from("units").select("unit_number, properties(name)").eq("id", lease.unit_id).single(),
       fetchOrgSettings(orgId),
+      supabase.from("organisations").select("settings").eq("id", orgId).single(),
     ])
     const tenant = tenantRes.data
     const unit = unitRes.data as unknown as { unit_number: string; properties: { name: string } } | null
@@ -384,6 +386,7 @@ async function stepSendPortalInvite(
       || "Tenant"
     const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
     const senderName = orgSettings?.name ?? "Pleks"
+    const toneVariant = resolveOrgTone(orgRow.data?.settings)
 
     // Generate a branded invite link rather than letting Supabase send its generic email
     const service = await createServiceClient()
@@ -413,7 +416,7 @@ async function stepSendPortalInvite(
       entityId: leaseId,
       triggerEventType: "lease_activation",
       triggerEventId: leaseId,
-      toneVariant: "n/a",
+      toneVariant,
     })
 
     await supabase
