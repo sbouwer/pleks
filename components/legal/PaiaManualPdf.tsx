@@ -5,14 +5,18 @@
  * Notes: Mirrors the content of app/(public)/paia-manual/page.tsx.
  *        Keep in sync when the manual content changes.
  */
+import path from "path"
 import { Document, Page, Text, View, StyleSheet, Font } from "@react-pdf/renderer"
+
+// Variable font on disk — avoids HTTP fetch; fontkit resolves wght axis per registration
+const interFont = path.join(process.cwd(), "public", "InterTight-VariableFont_wght.ttf")
 
 Font.register({
   family: "Inter",
   fonts: [
-    { src: "https://rsms.me/inter/font-files/Inter-Regular.woff2",  fontWeight: 400 },
-    { src: "https://rsms.me/inter/font-files/Inter-SemiBold.woff2", fontWeight: 600 },
-    { src: "https://rsms.me/inter/font-files/Inter-Bold.woff2",     fontWeight: 700 },
+    { src: interFont, fontWeight: 400 },
+    { src: interFont, fontWeight: 600 },
+    { src: interFont, fontWeight: 700 },
   ],
 })
 
