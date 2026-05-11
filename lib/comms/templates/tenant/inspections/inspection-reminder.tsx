@@ -29,6 +29,21 @@ export function buildInspectionReminderSms(
   return `${senderName}: Reminder - your ${inspectionTypeLabel} at ${propertyLabel} is scheduled for tomorrow, ${scheduledDate}. Please ensure the property is accessible.`
 }
 
+// WhatsApp template: inspection_reminder_v1
+// Body: "Hi {{1}}, reminder: your {{2}} at {{3}} is tomorrow, {{4}}. Please ensure access. - {{5}}"
+export function buildInspectionReminderWhatsApp(
+  firstName: string,
+  inspectionTypeLabel: string,
+  propertyLabel: string,
+  scheduledDate: string,
+  senderName: string,
+): { name: string; parameters: string[] } {
+  return {
+    name: "inspection_reminder_v1",
+    parameters: [firstName, inspectionTypeLabel, propertyLabel, scheduledDate, senderName],
+  }
+}
+
 export function InspectionReminderEmail({
   branding,
   tenantName,

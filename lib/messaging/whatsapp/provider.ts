@@ -1,11 +1,11 @@
 /**
- * lib/messaging/whatsapp/provider.ts — FILL: one-line purpose
+ * lib/messaging/whatsapp/provider.ts — Africa's Talking WhatsApp API client + webhook parser
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   internal — no direct web exposure; HMAC signature verified by webhook route
+ * Data:   Africa's Talking WhatsApp v1 API; env: WA_API_KEY (WA_API_KEY ?? AT_API_KEY),
+ *         WA_USERNAME, WA_BUSINESS_PHONE_ID, WA_SANDBOX, WA_WEBHOOK_SECRET
+ * Notes:  sendWhatsAppMessage sends pre-approved Meta template messages with positional params.
+ *         verifyWebhookSignature + parseWebhookEvent used by the webhook route handler.
  */
 import { createHmac, timingSafeEqual } from "node:crypto"
 

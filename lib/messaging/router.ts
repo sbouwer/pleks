@@ -1,28 +1,30 @@
 /**
  * lib/messaging/router.ts — channel router: single choke point for all tenant-facing comms
  *
- * Data:   sendEmail, sendSMS, mandatory_comm_retries (service client), frequency limiter
- * Notes:  WhatsApp routing is Phase 2 — router currently handles email + SMS only.
- *         Channel priority is driven by template tone_profile (transactional/relational/legal).
- *         Fails-open on frequency DB error; mandatory templates bypass frequency limits.
+ * Data:   sendEmail, sendSMS, sendWhatsApp, mandatory_comm_retries (service client), frequency limiter
+ * Notes:  Channel priority is driven by template allowed_channels (whitelist + priority order).
+ *         WhatsApp fires first when allowed_channels includes it and the template supplies
+ *         a whatsappTemplate param — falls through to SMS, then email on skip/failure.
+ *         Tier gates live inside each sender (sendSMS, sendWhatsApp); the router just cascades.
  */
 
 import { createServiceClient } from "@/lib/supabase/server"
 import { sendEmail, type SendEmailParams } from "@/lib/comms/send-email"
 import { sendSMS } from "@/lib/sms/sendSMS"
+import { sendWhatsApp, type WhatsAppTemplate } from "@/lib/whatsapp/sendWhatsApp"
 import { getTemplate } from "@/lib/comms/template-registry"
 import { checkFrequencyLimit } from "./frequency"
 import type { ReactElement } from "react"
 
-// ── Channel priority by tone_profile ─────────────────────────────────────────
-// Phase 1: email + SMS only. WhatsApp slots are reserved for Phase 3 of the router.
-// When a template has allowed_channels defined, that list IS the priority order —
-// implemented channels are used in the order they appear (e.g. ["whatsapp","sms","email"]
-// becomes ["sms","email"] once whatsapp slots in). Without allowed_channels, fall back to
-// tone_profile default below.
-const IMPLEMENTED_CHANNELS = new Set<string>(["email", "sms"])
+// ── Channel priority ──────────────────────────────────────────────────────────
+// When a template has allowed_channels, that list is both the whitelist AND the priority
+// order; implemented channels are tried in sequence (whatsapp → sms → email).
+// Without allowed_channels, fall back to tone_profile default below.
+const IMPLEMENTED_CHANNELS = new Set<string>(["email", "sms", "whatsapp"])
 
-const CHANNEL_PRIORITY_DEFAULT: Record<string, Array<"email" | "sms">> = {
+type ChannelName = "email" | "sms" | "whatsapp"
+
+const CHANNEL_PRIORITY_DEFAULT: Record<string, ChannelName[]> = {
   transactional: ["email"],
   relational:    ["email", "sms"],
   legal:         ["email"],
@@ -42,6 +44,7 @@ export interface RouteAndSendParams {
   emailElement?: ReactElement
   rawHtml?: string
   smsBody?: string
+  whatsappTemplate?: WhatsAppTemplate
   bodyPreview?: string
   entityType?: string
   entityId?: string
@@ -56,7 +59,7 @@ export interface RouteAndSendParams {
 
 export interface RouteAndSendResult {
   success: boolean
-  channel?: "email" | "sms"
+  channel?: ChannelName
   logId?: string
   queued?: boolean   // true if added to mandatory_comm_retries
   error?: string
@@ -74,31 +77,23 @@ export async function routeAndSend(params: RouteAndSendParams): Promise<RouteAnd
   }
 
   // Resolve channel list:
-  // - If template defines allowed_channels, that list is both the whitelist AND the priority
-  //   order; we just filter out unimplemented channels (WhatsApp → Phase 3).
-  // - Otherwise fall back to the tone_profile default priority.
+  // - If template defines allowed_channels, filter to implemented channels preserving order.
+  // - Otherwise fall back to tone_profile default priority.
   const toneProfile = template.tone_profile ?? "transactional"
   const allowed = template.allowed_channels
 
-  const channels: Array<"email" | "sms"> = allowed
-    ? (allowed as string[]).filter((c): c is "email" | "sms" => IMPLEMENTED_CHANNELS.has(c))
+  const channels: ChannelName[] = allowed
+    ? (allowed as string[]).filter((c): c is ChannelName => IMPLEMENTED_CHANNELS.has(c))
     : (CHANNEL_PRIORITY_DEFAULT[toneProfile] ?? ["email"])
 
   let lastError: string | undefined
   let lastLogId: string | undefined
 
   for (const channel of channels) {
-    if (channel === "email") {
-      const result = await attemptEmail(params, template.is_mandatory)
-      if (result.success) return { success: true, channel: "email", logId: result.logId }
-      lastError = result.error
-      lastLogId = result.logId
-    } else if (channel === "sms") {
-      const result = await attemptSms(params)
-      if (result.success) return { success: true, channel: "sms", logId: result.logId }
-      lastError = result.error
-      lastLogId = result.logId
-    }
+    const attempt = await dispatchChannel(channel, params, template.is_mandatory)
+    if (attempt.success) return { success: true, channel, logId: attempt.logId }
+    lastError = attempt.error
+    lastLogId = attempt.logId
   }
 
   // All channels failed — queue mandatory retry if applicable
@@ -111,6 +106,39 @@ export async function routeAndSend(params: RouteAndSendParams): Promise<RouteAnd
 }
 
 // ── Private helpers ───────────────────────────────────────────────────────────
+
+async function dispatchChannel(
+  channel: ChannelName,
+  params: RouteAndSendParams,
+  isMandatory: boolean,
+): Promise<{ success: boolean; logId?: string; error?: string }> {
+  if (channel === "whatsapp") return attemptWhatsApp(params)
+  if (channel === "sms") return attemptSms(params)
+  return attemptEmail(params, isMandatory)
+}
+
+async function attemptWhatsApp(
+  params: RouteAndSendParams,
+): Promise<{ success: boolean; logId?: string; error?: string }> {
+  if (!params.to.phone) return { success: false, error: "no_phone_number" }
+  if (!params.whatsappTemplate) return { success: false, error: "no_whatsapp_template" }
+
+  const result = await sendWhatsApp(params.orgId, params.to.phone, params.whatsappTemplate, {
+    templateKey:       params.templateKey,
+    contactId:         params.to.contactId,
+    recipientName:     params.to.name,
+    entityType:        params.entityType,
+    entityId:          params.entityId,
+    toneVariant:       params.toneVariant,
+    triggerEventType:  params.triggerEventType,
+    triggerEventId:    params.triggerEventId,
+    attemptNumber:     params.attemptNumber,
+    firstAttemptLogId: params.firstAttemptLogId,
+  })
+  if (result.sent) return { success: true, logId: result.logId }
+  if (result.skipped) return { success: false, error: `whatsapp_skipped:${result.reason}`, logId: result.logId }
+  return { success: false, error: result.reason ?? "whatsapp_failed", logId: result.logId }
+}
 
 async function attemptEmail(
   params: RouteAndSendParams,

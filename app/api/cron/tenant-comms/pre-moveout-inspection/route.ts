@@ -17,6 +17,7 @@ import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import {
   DepositPreMoveoutEmail,
   buildPreMoveoutSms,
+  buildPreMoveoutWhatsApp,
 } from "@/lib/comms/templates/tenant/deposits/deposit-pre-moveout"
 
 const DAYS_BEFORE = 15
@@ -83,6 +84,8 @@ export async function GET(req: NextRequest) {
       })
       const senderName = orgSettings?.name ?? branding.orgName
 
+      const firstName = (tenant.first_name as string | null) ?? "Tenant"
+
       const result = await routeAndSend({
         orgId:     lease.org_id as string,
         tenantId:  lease.tenant_id as string,
@@ -102,8 +105,13 @@ export async function GET(req: NextRequest) {
           senderName,
         }),
         smsBody: buildPreMoveoutSms(
-          (tenant.first_name as string | null) ?? "Tenant",
+          firstName,
           propertyLabel,
+          leaseEndDisplay,
+          senderName,
+        ),
+        whatsappTemplate: buildPreMoveoutWhatsApp(
+          firstName,
           leaseEndDisplay,
           senderName,
         ),

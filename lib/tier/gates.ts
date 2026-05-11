@@ -1,11 +1,10 @@
 /**
- * lib/tier/gates.ts — FILL: one-line purpose
+ * lib/tier/gates.ts — feature gate helpers for tier-based access control
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Data:   static — feature lists are compile-time constants, no DB reads
+ * Notes:  TIER_FEATURES is the source of truth for what each tier can do.
+ *         hasFeature() is the only call site check — use it everywhere, never
+ *         compare tier strings directly.
  */
 import { TIER_ORDER, type Tier } from "@/lib/constants"
 
@@ -27,7 +26,8 @@ const TIER_FEATURES_STEWARD = [
   "ai_maintenance_triage", // Haiku — auto category + urgency
   "ai_inspection", // Sonnet — wear & tear assessment
   "docuseal_signing", // DocuSeal API — embedded digital signing ($0.20/doc)
-  "sms_notifications", // Africa's Talking SMS (R0.20/SMS)
+  "sms_notifications",      // Africa's Talking SMS (R0.20/SMS)
+  "whatsapp_notifications", // Africa's Talking WhatsApp Business (Steward+; Owner uses email only)
   "fitscore_paypercheck",
 ] as const
 
