@@ -104,6 +104,24 @@ function resolveToneVariant(stepTone: string, orgTone: string): ToneVariant {
   return (o === "friendly" || o === "professional" || o === "firm") ? o : "professional"
 }
 
+/** WhatsApp template params for A1/A2 relational steps. */
+function buildWhatsAppTemplate(
+  templateKey: string,
+  tenantFirstName: string,
+  amountDisplay: string,
+  daysOverdue: number,
+  sender: string,
+): { name: string; parameters: string[] } | undefined {
+  const name = tenantFirstName || "Tenant"
+  if (templateKey === "arrears.reminder_step1") {
+    return { name: "arrears_step1_friendly_v1", parameters: [name, amountDisplay, String(daysOverdue), sender] }
+  }
+  if (templateKey === "arrears.reminder_step2") {
+    return { name: "arrears_step2_firm_v1", parameters: [name, amountDisplay, sender] }
+  }
+  return undefined
+}
+
 /** SMS body for A1/A2 per tone (≤160 chars GSM-7). */
 function buildSmsBody(
   templateKey: string,
@@ -331,9 +349,16 @@ async function advanceSequenceStep(
     ? ("n/a" as const)
     : resolveToneVariant(step.tone ?? "professional", orgTone)
 
+  const firstName = tenant?.first_name ?? "Tenant"
+
   // Build SMS body (for relational steps)
   const smsBody = (toneVariant !== "n/a" && tenant?.phone)
-    ? buildSmsBody(templateKey, tenant.first_name ?? "Tenant", amountDisplay, toneVariant, sender)
+    ? buildSmsBody(templateKey, firstName, amountDisplay, toneVariant, sender)
+    : undefined
+
+  // Build WhatsApp template params (for relational steps A1/A2)
+  const whatsappTemplate = (toneVariant !== "n/a" && tenant?.phone)
+    ? buildWhatsAppTemplate(templateKey, firstName, amountDisplay, daysOverdue, sender)
     : undefined
 
   // Build email element
@@ -384,6 +409,7 @@ async function advanceSequenceStep(
       subject,
       emailElement,
       smsBody,
+      whatsappTemplate,
       bodyPreview: `${amountDisplay} overdue — step ${nextStep}`,
       entityType:  "arrears_case",
       entityId:    arrearsCase.id,

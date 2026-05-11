@@ -86,7 +86,17 @@ export async function canSend(params: CanSendParams): Promise<CanSendResult> {
 export async function ensurePreferences(orgId: string, opts: { contactId?: string; email?: string }) {
   if (!opts.contactId && !opts.email) return
   const service = await createServiceClient()
-  const base = { org_id: orgId, ...opts.contactId ? { contact_id: opts.contactId } : { email: opts.email } }
-  // upsert — do nothing on conflict (preserve existing prefs)
-  await service.from("communication_preferences").upsert(base, { onConflict: opts.contactId ? "org_id,contact_id" : "org_id,email", ignoreDuplicates: true })
+  // Two separate branches: Supabase's generated types use RejectExcessProperties which rejects
+  // a union type — the two branches must be concrete to satisfy the type checker.
+  if (opts.contactId) {
+    await service.from("communication_preferences").upsert(
+      { org_id: orgId, contact_id: opts.contactId },
+      { onConflict: "org_id,contact_id", ignoreDuplicates: true },
+    )
+  } else if (opts.email) {
+    await service.from("communication_preferences").upsert(
+      { org_id: orgId, email: opts.email },
+      { onConflict: "org_id,email", ignoreDuplicates: true },
+    )
+  }
 }

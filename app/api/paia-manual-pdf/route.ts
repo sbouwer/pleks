@@ -13,7 +13,13 @@ import { PaiaManualPdf } from "@/components/legal/PaiaManualPdf"
 export const dynamic = "force-dynamic"
 
 export async function GET() {
-  const buffer = await renderToBuffer(createElement(PaiaManualPdf))
+  let buffer: Buffer
+  try {
+    buffer = await renderToBuffer(createElement(PaiaManualPdf))
+  } catch (err) {
+    console.error("[paia-manual-pdf] renderToBuffer failed:", err)
+    return new Response("PDF generation failed", { status: 500 })
+  }
 
   return new Response(buffer as unknown as BodyInit, {
     headers: {

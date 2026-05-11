@@ -16,6 +16,7 @@ import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import {
   InspectionReminderEmail,
   buildInspectionReminderSms,
+  buildInspectionReminderWhatsApp,
 } from "@/lib/comms/templates/tenant/inspections/inspection-reminder"
 
 const INSPECTION_TYPE_LABELS: Record<string, string> = {
@@ -92,6 +93,8 @@ export async function GET(req: NextRequest) {
         day: "numeric", month: "long", year: "numeric",
       })
 
+      const firstName = (tenant.first_name as string | null) ?? "Tenant"
+
       const result = await routeAndSend({
         orgId:       inspection.org_id as string,
         tenantId:    inspection.tenant_id as string,
@@ -111,7 +114,14 @@ export async function GET(req: NextRequest) {
           senderName,
         }),
         smsBody: buildInspectionReminderSms(
-          (tenant.first_name as string | null) ?? "Tenant",
+          firstName,
+          inspectionTypeLabel,
+          propertyLabel,
+          scheduledDateDisplay,
+          senderName,
+        ),
+        whatsappTemplate: buildInspectionReminderWhatsApp(
+          firstName,
           inspectionTypeLabel,
           propertyLabel,
           scheduledDateDisplay,

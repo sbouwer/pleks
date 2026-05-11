@@ -27,7 +27,7 @@ export function DepositPreMoveoutEmail({
   leaseEndDate,
   daysRemaining,
   senderName,
-}: DepositPreMoveoutEmailProps) {
+}: Readonly<DepositPreMoveoutEmailProps>) {
   const preview = `Move-out approaching — ${propertyLabel} — ${daysRemaining} days remaining`
 
   return (
@@ -79,6 +79,19 @@ export function buildPreMoveoutSms(
   senderName: string,
 ): string {
   return `Hi ${tenantFirstName}, your lease at ${propertyLabel} ends ${leaseEndDate}. Contact us to schedule a pre-moveout inspection. - ${senderName}`
+}
+
+// WhatsApp template: pre_moveout_inspection_v1
+// Body: "Hi {{1}}, your move-out inspection is scheduled for {{2}}. Reply if you need to reschedule. - {{3}}"
+export function buildPreMoveoutWhatsApp(
+  tenantFirstName: string,
+  leaseEndDate: string,
+  senderName: string,
+): { name: string; parameters: string[] } {
+  return {
+    name: "pre_moveout_inspection_v1",
+    parameters: [tenantFirstName, leaseEndDate, senderName],
+  }
 }
 
 const greet:       React.CSSProperties = { fontSize: 14, color: "#3f3f46", margin: "0 0 8px" }
