@@ -13,7 +13,7 @@ const mute  = "#6b6b60"
 const faint = "#d4d0c4"
 
 const s = StyleSheet.create({
-  page:       { fontFamily: "Inter", fontSize: 9, color: ink, paddingTop: 56, paddingBottom: 56, paddingHorizontal: 56, lineHeight: 1.6 },
+  page:       { fontFamily: "InterTight", fontSize: 9, color: ink, paddingTop: 56, paddingBottom: 56, paddingHorizontal: 56, lineHeight: 1.6 },
   /* cover */
   cover:      { flex: 1, justifyContent: "center" },
   coverTag:   { fontSize: 7, color: amber, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 24 },

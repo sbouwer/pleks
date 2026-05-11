@@ -19,15 +19,14 @@ const rawAppUrl = process.env.NEXT_PUBLIC_APP_URL ?? ""
 const fontBase = !rawAppUrl || rawAppUrl.startsWith("http://localhost")
   ? "https://app.pleks.co.za"
   : rawAppUrl
-const interFontUrl = `${fontBase}/fonts/InterTight-VariableFont_wght.ttf`
 
 // Font.register is idempotent; safe to call on every cold start.
 Font.register({
-  family: "Inter",
+  family: "InterTight",
   fonts: [
-    { src: interFontUrl, fontWeight: 400 },
-    { src: interFontUrl, fontWeight: 600 },
-    { src: interFontUrl, fontWeight: 700 },
+    { src: `${fontBase}/fonts/InterTight-Regular.ttf`,  fontWeight: 400 },
+    { src: `${fontBase}/fonts/InterTight-SemiBold.ttf`, fontWeight: 600 },
+    { src: `${fontBase}/fonts/InterTight-Bold.ttf`,     fontWeight: 700 },
   ],
 })
 
