@@ -75,10 +75,14 @@ export async function fetchLandlords(supabase: SupabaseClient, orgId: string) {
 }
 
 export async function fetchContractors(supabase: SupabaseClient, orgId: string) {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("contractor_view")
     .select("id, contact_id, first_name, last_name, company_name, email, phone, specialities, is_active, supplier_type")
     .eq("org_id", orgId)
+  if (error) {
+    console.error("fetchContractors failed:", error.message)
+    return []
+  }
   return data ?? []
 }
 

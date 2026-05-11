@@ -1566,3 +1566,46 @@ ALTER TABLE maintenance_requests ADD COLUMN IF NOT EXISTS in_progress_at timesta
 
 -- closed_at timestamp on maintenance_requests (set when status → closed)
 ALTER TABLE maintenance_requests ADD COLUMN IF NOT EXISTS closed_at timestamptz;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §CLEANUP_2026-05-11  Soft-delete for contractors (POPIA s14 purge support)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Enables soft-delete for contractor records so POPIA s14 purge can be
+-- implemented without FK cascades. DELETE handler now sets deleted_at instead
+-- of hard-deleting. contractor_view excludes soft-deleted rows.
+ALTER TABLE contractors ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+
+CREATE INDEX IF NOT EXISTS idx_contractors_active ON contractors(org_id)
+  WHERE deleted_at IS NULL;
+
+-- Recreate contractor_view to exclude soft-deleted rows
+CREATE OR REPLACE VIEW contractor_view AS
+SELECT
+  co.id,
+  co.org_id,
+  co.contact_id,
+  c.entity_type,
+  c.first_name,
+  c.last_name,
+  c.company_name,
+  c.trading_as,
+  c.registration_number,
+  c.vat_number,
+  c.contact_first_name,
+  c.contact_last_name,
+  c.primary_email       AS email,
+  c.primary_phone       AS phone,
+  c.notes,
+  co.specialities,
+  co.property_ids,
+  co.call_out_rate_cents,
+  co.hourly_rate_cents,
+  co.portal_access_enabled,
+  co.auth_user_id,
+  co.is_active,
+  co.supplier_type,
+  co.created_at,
+  co.updated_at
+FROM contractors co
+JOIN contacts c ON c.id = co.contact_id
+WHERE co.deleted_at IS NULL;
