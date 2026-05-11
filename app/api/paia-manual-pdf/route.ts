@@ -14,19 +14,25 @@ import { PaiaManualPdf } from "@/components/legal/PaiaManualPdf"
 export const dynamic = "force-dynamic"
 
 // public/ is not bundled in the Vercel lambda — fetch the TTF from the CDN via HTTP.
+// Always use the production URL; localhost is unreachable from the Vercel runtime.
+const rawAppUrl = process.env.NEXT_PUBLIC_APP_URL ?? ""
+const fontBase = !rawAppUrl || rawAppUrl.startsWith("http://localhost")
+  ? "https://app.pleks.co.za"
+  : rawAppUrl
+const interFontUrl = `${fontBase}/fonts/InterTight-VariableFont_wght.ttf`
+
 // Font.register is idempotent; safe to call on every cold start.
-const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
 Font.register({
   family: "Inter",
   fonts: [
-    { src: `${appUrl}/fonts/InterTight-VariableFont_wght.ttf`, fontWeight: 400 },
-    { src: `${appUrl}/fonts/InterTight-VariableFont_wght.ttf`, fontWeight: 600 },
-    { src: `${appUrl}/fonts/InterTight-VariableFont_wght.ttf`, fontWeight: 700 },
+    { src: interFontUrl, fontWeight: 400 },
+    { src: interFontUrl, fontWeight: 600 },
+    { src: interFontUrl, fontWeight: 700 },
   ],
 })
 
 export async function GET() {
-  console.log("[paia-manual-pdf] generating PDF, appUrl:", appUrl)
+  console.log("[paia-manual-pdf] generating PDF, fontBase:", fontBase)
   let buffer: Buffer
   try {
     buffer = await renderToBuffer(createElement(PaiaManualPdf))
