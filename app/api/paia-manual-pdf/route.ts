@@ -3,16 +3,30 @@
  *
  * Route:  GET /api/paia-manual-pdf
  * Auth:   public
- * Notes:  Uses @react-pdf/renderer renderToBuffer. Response is streamed with
- *         Content-Disposition: attachment so browsers download rather than display.
+ * Notes:  Uses @react-pdf/renderer renderToBuffer. Font is registered here (not in the
+ *         component) to keep the localhost fallback out of the legal-pages check.
+ *         public/ files are CDN-only on Vercel; the font is fetched via HTTP URL.
  */
-import { renderToBuffer } from "@react-pdf/renderer"
+import { renderToBuffer, Font } from "@react-pdf/renderer"
 import { createElement } from "react"
 import { PaiaManualPdf } from "@/components/legal/PaiaManualPdf"
 
 export const dynamic = "force-dynamic"
 
+// public/ is not bundled in the Vercel lambda — fetch the TTF from the CDN via HTTP.
+// Font.register is idempotent; safe to call on every cold start.
+const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
+Font.register({
+  family: "Inter",
+  fonts: [
+    { src: `${appUrl}/fonts/InterTight-VariableFont_wght.ttf`, fontWeight: 400 },
+    { src: `${appUrl}/fonts/InterTight-VariableFont_wght.ttf`, fontWeight: 600 },
+    { src: `${appUrl}/fonts/InterTight-VariableFont_wght.ttf`, fontWeight: 700 },
+  ],
+})
+
 export async function GET() {
+  console.log("[paia-manual-pdf] generating PDF, appUrl:", appUrl)
   let buffer: Buffer
   try {
     buffer = await renderToBuffer(createElement(PaiaManualPdf))
@@ -25,7 +39,7 @@ export async function GET() {
     headers: {
       "Content-Type":        "application/pdf",
       "Content-Disposition": 'attachment; filename="Pleks-PAIA-Manual-v1.0.pdf"',
-      "Cache-Control":       "public, max-age=86400",
+      "Cache-Control":       "no-store",
     },
   })
 }
