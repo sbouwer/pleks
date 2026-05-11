@@ -3,20 +3,33 @@
  *
  * Route:  GET /api/paia-manual-pdf
  * Auth:   public
- * Notes:  Uses @react-pdf/renderer renderToBuffer with the built-in Helvetica font.
- *         Inter Tight TTFs are incompatible with the fontkit version bundled in
- *         @react-pdf/renderer v4.5.1 (OpenType 1.9 features in Google Fonts v7 are
- *         not supported) — fontkit throws "Cannot read properties of undefined (reading 'S')"
- *         at glyph layout time regardless of how the font is loaded.
+ * Notes:  Uses @react-pdf/renderer renderToBuffer. Excluded from Turbopack bundling via
+ *         serverExternalPackages in next.config.ts — required so yoga-wasm-web initialises
+ *         correctly from node_modules. Font.register uses CDN URLs; fontkit fetches lazily
+ *         on first render. public/ files served via Vercel CDN, reachable by the lambda.
  */
-import { renderToBuffer } from "@react-pdf/renderer"
+import { renderToBuffer, Font } from "@react-pdf/renderer"
 import { createElement } from "react"
 import { PaiaManualPdf } from "@/components/legal/PaiaManualPdf"
 
 export const dynamic = "force-dynamic"
 
+const rawAppUrl = process.env.NEXT_PUBLIC_APP_URL ?? ""
+const fontBase = !rawAppUrl || rawAppUrl.startsWith("http://localhost")
+  ? "https://app.pleks.co.za"
+  : rawAppUrl
+
+Font.register({
+  family: "InterTight",
+  fonts: [
+    { src: `${fontBase}/fonts/InterTight-Regular.ttf`,  fontWeight: 400 },
+    { src: `${fontBase}/fonts/InterTight-SemiBold.ttf`, fontWeight: 600 },
+    { src: `${fontBase}/fonts/InterTight-Bold.ttf`,     fontWeight: 700 },
+  ],
+})
+
 export async function GET() {
-  console.log("[paia-manual-pdf] generating PDF")
+  console.log("[paia-manual-pdf] generating PDF, fontBase:", fontBase)
   let buffer: Buffer
   try {
     buffer = await renderToBuffer(createElement(PaiaManualPdf))

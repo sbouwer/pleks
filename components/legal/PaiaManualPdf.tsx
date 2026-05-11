@@ -13,16 +13,18 @@ const mute  = "#6b6b60"
 const faint = "#d4d0c4"
 
 const s = StyleSheet.create({
-  page:       { fontFamily: "Helvetica", fontSize: 9, color: ink, paddingTop: 56, paddingBottom: 56, paddingHorizontal: 56, lineHeight: 1.6 },
-  /* cover */
-  cover:      { flex: 1, justifyContent: "center" },
-  coverTag:   { fontSize: 7, color: amber, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 24 },
-  coverTitle: { fontSize: 28, fontWeight: 700, marginBottom: 8 },
-  coverSub:   { fontSize: 11, color: mute, marginBottom: 32, maxWidth: 320 },
-  kicker:     { flexDirection: "row", gap: 24, marginTop: 24 },
+  page:       { fontFamily: "InterTight", fontSize: 9, color: ink, paddingTop: 56, paddingBottom: 56, paddingHorizontal: 56, lineHeight: 1.6 },
+  /* cover — three-section layout: logo top, title middle, kicker footer */
+  logoWord:   { fontSize: 18, fontWeight: 700, color: ink, letterSpacing: -0.3 },
+  logoAccent: { color: amber },
+  coverMid:   { flex: 1, justifyContent: "center" },
+  coverTag:   { fontSize: 7, color: amber, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 0 },
+  coverTitle: { fontSize: 28, fontWeight: 700, marginBottom: 6, marginTop: 4 },
+  coverSub:   { fontSize: 11, color: mute, maxWidth: 340 },
+  kicker:     { flexDirection: "row", gap: 32 },
   kickerCell: { gap: 2 },
   kickerL:    { fontSize: 7, color: mute, letterSpacing: 0.8, textTransform: "uppercase" },
-  kickerV:    { fontSize: 9, fontWeight: 700 },
+  kickerV:    { fontSize: 9, fontWeight: 600 },
   rule:       { borderBottomWidth: 0.5, borderBottomColor: faint, marginVertical: 24 },
   /* sections */
   secNum:     { fontSize: 7, color: amber, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 6, marginTop: 28 },
@@ -97,11 +99,28 @@ export function PaiaManualPdf() {
     >
       {/* Cover page */}
       <Page size="A4" style={s.page}>
-        <View style={s.cover}>
+        {/* TOP: wordmark + stoep underline (ink 26% | amber 15% | ink 59%, starts 0.35em in) */}
+        <View>
+          <Text style={s.logoWord}>plek<Text style={s.logoAccent}>s</Text></Text>
+          <View style={{ flexDirection: "row", height: 2, marginTop: 7 }}>
+            <View style={{ width: 6 }} />
+            <View style={{ flex: 26, backgroundColor: ink }} />
+            <View style={{ flex: 15, backgroundColor: amber }} />
+            <View style={{ flex: 59, backgroundColor: ink }} />
+          </View>
+        </View>
+
+        {/* MIDDLE: tag + rule + title + subtitle — vertically centred in remaining space */}
+        <View style={s.coverMid}>
           <Text style={s.coverTag}>PAIA · s51 · Private body · v1.0</Text>
+          <View style={s.rule} />
           <Text style={s.coverTitle}>PAIA Manual</Text>
           <Text style={s.coverSub}>Pleks (Pty) Ltd — Promotion of Access to Information Act 2 of 2000</Text>
-          <View style={s.rule} />
+        </View>
+
+        {/* BOTTOM: metadata kicker */}
+        <View>
+          <View style={{ borderBottomWidth: 0.5, borderBottomColor: faint, marginBottom: 16 }} />
           <View style={s.kicker}>
             <View style={s.kickerCell}><Text style={s.kickerL}>Compiled by</Text><Text style={s.kickerV}>Pleks (Pty) Ltd</Text></View>
             <View style={s.kickerCell}><Text style={s.kickerL}>Last reviewed</Text><Text style={s.kickerV}>2026 · 05</Text></View>
@@ -109,6 +128,7 @@ export function PaiaManualPdf() {
             <View style={s.kickerCell}><Text style={s.kickerL}>Act</Text><Text style={s.kickerV}>PAIA · s51</Text></View>
           </View>
         </View>
+
         <Text style={s.pageNum} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} fixed />
       </Page>
 
