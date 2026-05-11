@@ -118,6 +118,7 @@ async function stepSendDepositReceived(
   lease: { deposit_amount_cents: number | null; tenant_id: string; start_date: string; unit_id: string },
   leaseId: string,
   orgId: string,
+  capabilities: OrgCapabilities,
 ): Promise<CascadeStep> {
   if (!lease.deposit_amount_cents || lease.deposit_amount_cents <= 0) {
     return { step: "Send deposit.received comm", status: "skipped", detail: "No deposit" }
@@ -167,7 +168,7 @@ async function stepSendDepositReceived(
         propertyLabel,
         depositAmountDisplay: depositDisplay,
         leaseStartDate: leaseStartDisplay,
-        senderName: orgSettings?.name ?? branding.orgName,
+        senderName: capabilities.copy.tenantWelcomeSender,
       }),
       entityType: "lease",
       entityId: leaseId,
@@ -261,6 +262,7 @@ async function stepSendLeaseSigned(
   lease: { tenant_id: string; unit_id: string },
   leaseId: string,
   orgId: string,
+  capabilities: OrgCapabilities,
 ): Promise<CascadeStep> {
   try {
     const [tenantRes, unitRes, orgSettings] = await Promise.all([
@@ -285,7 +287,8 @@ async function stepSendLeaseSigned(
         branding: buildBranding(orgSettings),
         tenantName,
         propertyLabel,
-        senderName: orgSettings?.name ?? "Pleks",
+        senderName: capabilities.copy.tenantWelcomeSender,
+        signatureAttribution: capabilities.copy.signatureAttribution,
       }),
       entityType: "lease",
       entityId: leaseId,
@@ -307,6 +310,7 @@ async function stepSendLeaseActivated(
   },
   leaseId: string,
   orgId: string,
+  capabilities: OrgCapabilities,
 ): Promise<CascadeStep> {
   try {
     const [tenantRes, unitRes, orgSettings] = await Promise.all([
@@ -338,7 +342,8 @@ async function stepSendLeaseActivated(
         leaseEndDate: lease.end_date ? fmt(lease.end_date) : undefined,
         isFixedTerm: lease.is_fixed_term,
         portalUrl: `${process.env.NEXT_PUBLIC_APP_URL}/tenant`,
-        senderName: orgSettings?.name ?? "Pleks",
+        senderName: capabilities.copy.tenantWelcomeSender,
+        signatureAttribution: capabilities.copy.signatureAttribution,
       }),
       entityType: "lease",
       entityId: leaseId,
@@ -357,6 +362,7 @@ async function stepSendPortalInvite(
   lease: { tenant_id: string; unit_id: string },
   leaseId: string,
   orgId: string,
+  capabilities: OrgCapabilities,
 ): Promise<CascadeStep> {
   try {
     // Check idempotency guard on tenants table (tenant_view doesn't expose portal_invite_sent_at)
@@ -385,7 +391,6 @@ async function stepSendPortalInvite(
       || [tenant.first_name, tenant.last_name].filter(Boolean).join(" ")
       || "Tenant"
     const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "your property"
-    const senderName = orgSettings?.name ?? "Pleks"
     const toneVariant = resolveOrgTone(orgRow.data?.settings)
 
     // Generate a branded invite link rather than letting Supabase send its generic email
@@ -410,7 +415,8 @@ async function stepSendPortalInvite(
         branding: buildBranding(orgSettings),
         tenantName,
         portalUrl: linkData.properties.action_link,
-        senderName,
+        senderName: capabilities.copy.tenantWelcomeSender,
+        signatureAttribution: capabilities.copy.signatureAttribution,
       }),
       entityType: "lease",
       entityId: leaseId,
@@ -505,15 +511,15 @@ export async function activateLeaseCascade(
     await stepUpdateUnit(supabase, lease, orgId, userId, triggeredBy),
     await stepCreateTenancy(supabase, lease, leaseId, orgId, coTenants ?? []),
     await stepRecordDeposit(supabase, lease, leaseId, orgId, userId),
-    await stepSendDepositReceived(supabase, lease, leaseId, orgId),
+    await stepSendDepositReceived(supabase, lease, leaseId, orgId, capabilities),
     await stepGenerateFirstInvoice(supabase, lease, leaseId, orgId),
     await stepScheduleMoveIn(supabase, lease, leaseId, orgId),
     await stepLogLifecycleEvents(supabase, leaseId, orgId, triggeredBy, userId),
     await stepAuditLog(supabase, leaseId, orgId, triggeredBy, userId),
     // BUILD_63 Phase 5: L3 + L4 + P1
-    await stepSendLeaseSigned(supabase, lease, leaseId, orgId),
-    await stepSendLeaseActivated(supabase, lease, leaseId, orgId),
-    await stepSendPortalInvite(supabase, lease, leaseId, orgId),
+    await stepSendLeaseSigned(supabase, lease, leaseId, orgId, capabilities),
+    await stepSendLeaseActivated(supabase, lease, leaseId, orgId, capabilities),
+    await stepSendPortalInvite(supabase, lease, leaseId, orgId, capabilities),
   ]
 
   return { leaseId, status: "active", steps, capabilities }

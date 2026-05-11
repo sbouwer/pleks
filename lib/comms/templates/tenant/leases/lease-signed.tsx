@@ -16,6 +16,7 @@ export interface LeaseSignedEmailProps {
   tenantName: string
   propertyLabel: string
   senderName: string
+  signatureAttribution?: string
 }
 
 export function LeaseSignedEmail({
@@ -23,6 +24,7 @@ export function LeaseSignedEmail({
   tenantName,
   propertyLabel,
   senderName,
+  signatureAttribution,
 }: Readonly<LeaseSignedEmailProps>) {
   const preview = `Your lease for ${propertyLabel} has been signed — confirmation enclosed`
 
@@ -45,11 +47,13 @@ export function LeaseSignedEmail({
 
       <Hr style={{ borderColor: "#e4e4e7", margin: "24px 0" }} />
       <Text style={sign}>Kind regards,<br />{senderName}</Text>
+      {signatureAttribution && <Text style={attribution}>{signatureAttribution}</Text>}
     </EmailLayout>
   )
 }
 
-const greet: React.CSSProperties = { fontSize: 14, color: "#3f3f46", margin: "0 0 8px" }
-const h1:    React.CSSProperties = { fontSize: 20, fontWeight: 700, color: "#18181b", margin: "0 0 16px" }
-const para:  React.CSSProperties = { fontSize: 14, color: "#3f3f46", lineHeight: "1.6", margin: "0 0 16px" }
-const sign:  React.CSSProperties = { fontSize: 14, color: "#3f3f46", margin: "0" }
+const greet:       React.CSSProperties = { fontSize: 14, color: "#3f3f46", margin: "0 0 8px" }
+const h1:          React.CSSProperties = { fontSize: 20, fontWeight: 700, color: "#18181b", margin: "0 0 16px" }
+const para:        React.CSSProperties = { fontSize: 14, color: "#3f3f46", lineHeight: "1.6", margin: "0 0 16px" }
+const sign:        React.CSSProperties = { fontSize: 14, color: "#3f3f46", margin: "0" }
+const attribution: React.CSSProperties = { fontSize: 10, color: "#94a3b8", fontStyle: "italic", margin: "4px 0 0", textAlign: "right" }

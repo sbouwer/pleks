@@ -20,6 +20,7 @@ export interface LeaseActivatedEmailProps {
   isFixedTerm: boolean
   portalUrl?: string
   senderName: string
+  signatureAttribution?: string
 }
 
 export function LeaseActivatedEmail({
@@ -32,6 +33,7 @@ export function LeaseActivatedEmail({
   isFixedTerm,
   portalUrl,
   senderName,
+  signatureAttribution,
 }: Readonly<LeaseActivatedEmailProps>) {
   const preview = `Your lease at ${propertyLabel} is now active — welcome!`
 
@@ -73,6 +75,7 @@ export function LeaseActivatedEmail({
 
       <Hr style={{ borderColor: "#e4e4e7", margin: "24px 0" }} />
       <Text style={sign}>Kind regards,<br />{senderName}</Text>
+      {signatureAttribution && <Text style={attribution}>{signatureAttribution}</Text>}
     </EmailLayout>
   )
 }
@@ -85,3 +88,4 @@ const sectionHead: React.CSSProperties = { fontSize: 12, fontWeight: 700, color:
 const boxRow:      React.CSSProperties = { fontSize: 13, color: "#3f3f46", margin: "4px 0" }
 const cta:         React.CSSProperties = { background: "#18181b", color: "#ffffff", fontSize: 14, fontWeight: 600, padding: "12px 28px", borderRadius: 6, textDecoration: "none", display: "inline-block" }
 const sign:        React.CSSProperties = { fontSize: 14, color: "#3f3f46", margin: "0" }
+const attribution: React.CSSProperties = { fontSize: 10, color: "#94a3b8", fontStyle: "italic", margin: "4px 0 0", textAlign: "right" }
