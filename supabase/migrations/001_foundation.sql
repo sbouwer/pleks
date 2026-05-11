@@ -142,7 +142,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
   table_name    text NOT NULL,
   record_id     uuid NOT NULL,
   action        text NOT NULL CHECK (action IN ('INSERT', 'UPDATE', 'DELETE')),
-  changed_by    uuid REFERENCES auth.users(id),
+  changed_by    uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   old_values    jsonb,
   new_values    jsonb,
   ip_address    inet,
@@ -732,3 +732,12 @@ ALTER TABLE audit_log ADD CONSTRAINT audit_log_action_check
     'INSERT', 'UPDATE', 'DELETE',
     'NOTE', 'SYNC', 'OWNERSHIP_TRANSFERRED', 'CONFLICT_ACKNOWLEDGED'
   ]));
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §2  audit_log.changed_by — relax FK to ON DELETE SET NULL
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- The default strict FK blocks user deletion when audit_log rows reference them.
+-- Audit semantics survive deletion because actor_name is denormalised (ADDENDUM_45A).
+ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS audit_log_changed_by_fkey;
+ALTER TABLE audit_log ADD CONSTRAINT audit_log_changed_by_fkey
+  FOREIGN KEY (changed_by) REFERENCES auth.users(id) ON DELETE SET NULL;
