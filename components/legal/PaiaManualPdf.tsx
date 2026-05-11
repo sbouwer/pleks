@@ -94,12 +94,20 @@ export function PaiaManualPdf() {
     >
       {/* Cover page */}
       <Page size="A4" style={s.page}>
-        {/* TOP: wordmark — two separate Text elements so amber "s" is reliable.
+        {/* TOP: wordmark — whole word is ink; accent bracket (⌝) floats top-right of "s".
             alignSelf: flex-start constrains the stoep line to wordmark width. */}
         <View style={{ alignSelf: "flex-start" }}>
           <View style={{ flexDirection: "row" }}>
             <Text style={s.logoWord}>plek</Text>
-            <Text style={[s.logoWord, { color: amber }]}>s</Text>
+            <View style={{ position: "relative" }}>
+              <Text style={s.logoWord}>s</Text>
+              <View style={{
+                position: "absolute", top: -1.5, right: -2,
+                width: 5, height: 5,
+                borderTopWidth: 1.5, borderRightWidth: 1.5,
+                borderTopColor: amber, borderRightColor: amber,
+              }} />
+            </View>
           </View>
           {/* Stoep underline: ink 26% | amber 15% | ink 59%, offset 6pt from left */}
           <View style={{ flexDirection: "row", height: 2, marginTop: 7 }}>
@@ -115,7 +123,7 @@ export function PaiaManualPdf() {
           <Text style={s.coverTag}>PAIA · s51 · Private body · v1.0</Text>
           <View style={s.rule} />
           <Text style={s.coverTitle}>PAIA Manual</Text>
-          <Text style={s.coverSub}>Pleks (Pty) Ltd — Promotion of Access to Information Act 2 of 2000</Text>
+          <Text style={[s.coverSub, { marginTop: 12 }]}>Pleks (Pty) Ltd — Promotion of Access to Information Act 2 of 2000</Text>
         </View>
 
         {/* BOTTOM: metadata kicker */}
