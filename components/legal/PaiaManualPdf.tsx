@@ -15,9 +15,8 @@ const faint = "#d4d0c4"
 const s = StyleSheet.create({
   page:       { fontFamily: "InterTight", fontSize: 9, color: ink, paddingTop: 56, paddingBottom: 56, paddingHorizontal: 56, lineHeight: 1.6 },
   /* cover — three-section layout: logo top, title middle, kicker footer */
-  logoWord:   { fontSize: 18, fontWeight: 700, color: ink, letterSpacing: -0.3 },
-  logoAccent: { color: amber },
   coverMid:   { flex: 1, justifyContent: "center" },
+  logoWord:   { fontSize: 18, fontWeight: 700, color: ink, letterSpacing: -0.3 },
   coverTag:   { fontSize: 7, color: amber, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 0 },
   coverTitle: { fontSize: 28, fontWeight: 700, marginBottom: 6, marginTop: 4 },
   coverSub:   { fontSize: 11, color: mute, maxWidth: 340 },
@@ -27,7 +26,7 @@ const s = StyleSheet.create({
   kickerV:    { fontSize: 9, fontWeight: 600 },
   rule:       { borderBottomWidth: 0.5, borderBottomColor: faint, marginVertical: 24 },
   /* sections */
-  secNum:     { fontSize: 7, color: amber, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 6, marginTop: 28 },
+  secNum:     { fontSize: 7, color: amber, letterSpacing: 1.2, textTransform: "uppercase" },
   secH:       { fontSize: 16, fontWeight: 700, marginBottom: 10 },
   p:          { marginBottom: 8, color: ink },
   bold:       { fontWeight: 700 },
@@ -42,11 +41,6 @@ const s = StyleSheet.create({
   th:         { padding: "5 7", fontSize: 7, fontWeight: 700, color: mute, letterSpacing: 0.6, textTransform: "uppercase" },
   td:         { padding: "5 7", fontSize: 8.5 },
   tdSub:      { fontSize: 7.5, color: mute },
-  /* retention */
-  retRow:     { flexDirection: "row", borderBottomWidth: 0.5, borderBottomColor: faint, padding: "6 0" },
-  retWhat:    { flex: 3 },
-  retBasis:   { flex: 2, color: amber, fontSize: 8 },
-  retSpan:    { flex: 1, fontWeight: 700 },
   /* end stamp */
   endstamp:   { marginTop: 48, paddingTop: 16, borderTopWidth: 0.5, borderTopColor: faint, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   endL:       { fontSize: 7, color: mute, letterSpacing: 0.8 },
@@ -54,11 +48,12 @@ const s = StyleSheet.create({
   pageNum:    { position: "absolute", bottom: 28, right: 56, fontSize: 7, color: mute },
 })
 
-function SectionHeader({ num, label }: { num: string; label: string }) {
+function SectionHeader({ num, label, title }: { num: string; label: string; title: string }) {
   return (
-    <View>
+    <View style={{ marginTop: 28 }}>
       <Text style={s.secNum}>{num} · {label}</Text>
-      <View style={s.rule} />
+      <View style={{ borderBottomWidth: 0.5, borderBottomColor: faint, marginTop: 6, marginBottom: 14 }} />
+      <Text style={s.secH}>{title}</Text>
     </View>
   )
 }
@@ -99,9 +94,14 @@ export function PaiaManualPdf() {
     >
       {/* Cover page */}
       <Page size="A4" style={s.page}>
-        {/* TOP: wordmark + stoep underline (ink 26% | amber 15% | ink 59%, starts 0.35em in) */}
-        <View>
-          <Text style={s.logoWord}>plek<Text style={s.logoAccent}>s</Text></Text>
+        {/* TOP: wordmark — two separate Text elements so amber "s" is reliable.
+            alignSelf: flex-start constrains the stoep line to wordmark width. */}
+        <View style={{ alignSelf: "flex-start" }}>
+          <View style={{ flexDirection: "row" }}>
+            <Text style={s.logoWord}>plek</Text>
+            <Text style={[s.logoWord, { color: amber }]}>s</Text>
+          </View>
+          {/* Stoep underline: ink 26% | amber 15% | ink 59%, offset 6pt from left */}
           <View style={{ flexDirection: "row", height: 2, marginTop: 7 }}>
             <View style={{ width: 6 }} />
             <View style={{ flex: 26, backgroundColor: ink }} />
@@ -134,21 +134,18 @@ export function PaiaManualPdf() {
 
       {/* §01 Introduction */}
       <Page size="A4" style={s.page}>
-        <SectionHeader num="01" label="Introduction" />
-        <Text style={s.secH}>Introduction</Text>
+        <SectionHeader num="01" label="Introduction" title="Introduction" />
         <P>Section 51 of the Promotion of Access to Information Act 2 of 2000 (PAIA) requires every private body to compile a manual containing the information prescribed in that section. This manual has been compiled in accordance with those requirements.</P>
         <P>Pleks (Pty) Ltd is a private body as defined in PAIA. This manual describes the categories of records held by Pleks, explains the procedure for requesting access to those records, and provides the contact details of our Information Officer.</P>
         <P>This manual is available free of charge on our website at pleks.co.za/paia-manual.</P>
 
-        <SectionHeader num="02" label="Contact details" />
-        <Text style={s.secH}>Contact details</Text>
+        <SectionHeader num="02" label="Contact details" title="Contact details" />
         <P><Text style={s.bold}>Information Officer:</Text> Stéan Bouwer</P>
         <P><Text style={s.bold}>Email:</Text> legal@pleks.co.za</P>
         <P><Text style={s.bold}>Company:</Text> Pleks (Pty) Ltd, Republic of South Africa</P>
         <P>All PAIA requests, queries, and complaints regarding access to information must be directed to the Information Officer at the contact details above. We respond within 30 days of receiving a complete request.</P>
 
-        <SectionHeader num="03" label="SAHRC guide" />
-        <Text style={s.secH}>SAHRC guide</Text>
+        <SectionHeader num="03" label="SAHRC guide" title="SAHRC guide" />
         <P>The South African Human Rights Commission (SAHRC) has compiled a guide on how to use PAIA. This guide is available on the SAHRC website at sahrc.org.za, and from the SAHRC directly. The guide describes in plain language the subjects and categories of records held by public and private bodies, and how to request access.</P>
         <P>Contact the SAHRC at info@sahrc.org.za or on 011 877 3600.</P>
 
@@ -157,8 +154,7 @@ export function PaiaManualPdf() {
 
       {/* §04 Available records */}
       <Page size="A4" style={s.page}>
-        <SectionHeader num="04" label="Available records" />
-        <Text style={s.secH}>Freely available records</Text>
+        <SectionHeader num="04" label="Available records" title="Freely available records" />
         <P>The following records are available on our website without a formal PAIA request:</P>
         <P><Text style={s.bold}>4.1 Legal documents</Text></P>
         <Li>Privacy Policy (pleks.co.za/privacy)</Li>
@@ -172,8 +168,7 @@ export function PaiaManualPdf() {
         <Li>Sub-processor list (within the Privacy Policy and section 08 of this manual)</Li>
         <P>No request or fee is required to access any of the documents listed above.</P>
 
-        <SectionHeader num="05" label="Records held" />
-        <Text style={s.secH}>Records held by Pleks</Text>
+        <SectionHeader num="05" label="Records held" title="Records held by Pleks" />
         <P>The following categories of records are held by Pleks in the course of operating its property management platform. These records are held in electronic form and stored on servers operated by Supabase (United States) under Standard Contractual Clauses.</P>
 
         <View style={s.table}>
@@ -209,8 +204,7 @@ export function PaiaManualPdf() {
 
       {/* §06 Grounds for refusal */}
       <Page size="A4" style={s.page}>
-        <SectionHeader num="06" label="Grounds for refusal" />
-        <Text style={s.secH}>Grounds for refusal</Text>
+        <SectionHeader num="06" label="Grounds for refusal" title="Grounds for refusal" />
         <P>Pleks may refuse a request for access to a record on the following grounds permitted by PAIA:</P>
         <Li><Text style={s.bold}>Protection of personal information (PAIA s63):</Text> Where disclosure would unreasonably disclose personal information about a third party who has not consented to disclosure, and that party&rsquo;s right to privacy outweighs the requester&rsquo;s right of access.</Li>
         <Li><Text style={s.bold}>Commercial information (PAIA s64):</Text> Where a record contains trade secrets, financial, commercial, scientific or technical information the disclosure of which would likely cause harm to the competitive position of Pleks or a third party.</Li>
@@ -219,8 +213,7 @@ export function PaiaManualPdf() {
         <Li><Text style={s.bold}>Research information (PAIA s69):</Text> Where disclosure of a record would reveal the identity of a person who provided information in confidence, and disclosure would be likely to prejudice future research of the same nature.</Li>
         <P>Where access is refused, the Information Officer will provide written reasons for the refusal on Form 3. The requester may apply for internal appeal or approach the Information Regulator.</P>
 
-        <SectionHeader num="07" label="How to request access" />
-        <Text style={s.secH}>How to request access</Text>
+        <SectionHeader num="07" label="How to request access" title="How to request access" />
         <P><Text style={s.bold}>7.1 Who may request</Text></P>
         <P>Any person — including a juristic person — may submit a request for access to a record held by Pleks. You need not provide reasons for your request; however, providing context may help us locate the correct record and assess whether any grounds for refusal apply.</P>
         <P><Text style={s.bold}>7.2 How to submit (PAIA Form 2)</Text></P>
@@ -253,8 +246,7 @@ export function PaiaManualPdf() {
 
       {/* §08 Sub-processors */}
       <Page size="A4" style={s.page}>
-        <SectionHeader num="08" label="Sub-processors" />
-        <Text style={s.secH}>Sub-processors and third-party operators</Text>
+        <SectionHeader num="08" label="Sub-processors" title="Sub-processors and third-party operators" />
         <P>Pleks uses the following third-party service providers (sub-processors) in the operation of the platform. Each sub-processor processes personal information only on Pleks&rsquo;s documented instructions and is bound by a data processing agreement.</P>
 
         <View style={s.table}>
@@ -284,8 +276,7 @@ export function PaiaManualPdf() {
 
         <P>For sub-processors operating outside South Africa, data processing agreements incorporating Standard Contractual Clauses (SCCs) under POPIA s72 are in place. Copies are held on file and available to the Information Regulator on request.</P>
 
-        <SectionHeader num="09" label="Security & protection" />
-        <Text style={s.secH}>Security and protection of records</Text>
+        <SectionHeader num="09" label="Security & protection" title="Security and protection of records" />
         <Li>All data is encrypted in transit using TLS 1.3 and at rest using AES-256 disk encryption via Supabase.</Li>
         <Li>Sensitive fields (ID numbers, banking details, credit reports) are additionally encrypted at the application level before being written to the database (encrypt-before-INSERT, decrypt-after-SELECT).</Li>
         <Li>Access is controlled by role-based permissions scoped to each organisation. No user can access another organisation&rsquo;s data.</Li>
@@ -320,14 +311,12 @@ export function PaiaManualPdf() {
 
       {/* §10–11 Amendments & Certification */}
       <Page size="A4" style={s.page}>
-        <SectionHeader num="10" label="Amendments" />
-        <Text style={s.secH}>Amendments to this manual</Text>
+        <SectionHeader num="10" label="Amendments" title="Amendments to this manual" />
         <P>Pleks will review this manual at least once every two years, or whenever there is a material change in our records, processing activities, or the applicable law. The current version of this manual is always available at pleks.co.za/paia-manual.</P>
         <P>The version number and effective date on the cover of this document indicate when it was last updated. Requesters are encouraged to check the website for the most current version before submitting a request.</P>
         <P>Where a material change is made to the categories of records held, the purposes for which they are processed, or the grounds on which access may be refused, we will update this manual and publish the updated version on our website within 30 days of the change taking effect.</P>
 
-        <SectionHeader num="11" label="Certification" />
-        <Text style={s.secH}>Certification</Text>
+        <SectionHeader num="11" label="Certification" title="Certification" />
         <P>I, the undersigned, being the Information Officer of Pleks (Pty) Ltd, certify that this manual has been compiled in accordance with the requirements of section 51 of the Promotion of Access to Information Act 2 of 2000, and that the information contained herein is, to the best of my knowledge, accurate and complete as at the date of compilation.</P>
 
         <View style={[s.table, { marginTop: 16 }]}>
