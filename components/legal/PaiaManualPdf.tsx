@@ -13,7 +13,7 @@ const mute  = "#6b6b60"
 const faint = "#d4d0c4"
 
 const s = StyleSheet.create({
-  page:       { fontFamily: "InterTight", fontSize: 9, color: ink, paddingTop: 56, paddingBottom: 56, paddingHorizontal: 56, lineHeight: 1.6 },
+  page:       { fontFamily: "Helvetica", fontSize: 9, color: ink, paddingTop: 56, paddingBottom: 56, paddingHorizontal: 56, lineHeight: 1.6 },
   /* cover */
   cover:      { flex: 1, justifyContent: "center" },
   coverTag:   { fontSize: 7, color: amber, letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 24 },
@@ -22,7 +22,7 @@ const s = StyleSheet.create({
   kicker:     { flexDirection: "row", gap: 24, marginTop: 24 },
   kickerCell: { gap: 2 },
   kickerL:    { fontSize: 7, color: mute, letterSpacing: 0.8, textTransform: "uppercase" },
-  kickerV:    { fontSize: 9, fontWeight: 600 },
+  kickerV:    { fontSize: 9, fontWeight: 700 },
   rule:       { borderBottomWidth: 0.5, borderBottomColor: faint, marginVertical: 24 },
   /* sections */
   secNum:     { fontSize: 7, color: amber, letterSpacing: 1.2, textTransform: "uppercase", marginBottom: 6, marginTop: 28 },
