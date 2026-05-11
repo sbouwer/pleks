@@ -38,6 +38,20 @@ const styles = StyleSheet.create({
   divider:       { borderBottomWidth: 1, borderBottomColor: "#e2e8f0", marginVertical: 10 },
 })
 
+// Helvetica uses WinAnsiEncoding (0x20-0xFF). Characters outside this range crash
+// fontkit's EmbeddedFont.embed with a RangeError. Replace known offenders then strip the rest.
+function sanitizePdfText(s: string | null | undefined): string {
+  if (!s) return ""
+  return s
+    .replaceAll("—", "-")                          // em dash
+    .replaceAll("–", "-")                          // en dash
+    .replaceAll("‘", "'").replaceAll("’", "'") // curly single quotes
+    .replaceAll("“", '"').replaceAll("”", '"') // curly double quotes
+    .replaceAll("…", "...")                         // ellipsis
+    .replaceAll(" ", " ")                          // non-breaking space
+    .replaceAll(/[^\x20-\xFF]/g, "")                    // strip anything outside WinAnsiEncoding
+}
+
 function stripHtml(html: string): string {
   let out = ""
   let inTag = false
@@ -139,16 +153,20 @@ export interface CommExportProps {
 export function CommExportPdf(props: CommExportProps) {
   const { orgName, tenantName, propertyLabel, leaseFrom, leaseTo, exportedAt, comms } = props
 
+  const safeOrgName      = sanitizePdfText(orgName)
+  const safeTenantName   = sanitizePdfText(tenantName)
+  const safePropertyLabel = sanitizePdfText(propertyLabel)
+
   return (
-    <Document title={`Communication Audit — ${tenantName}`} author={orgName}>
+    <Document title={`Communication Audit — ${safeTenantName}`} author={safeOrgName}>
       <Page size="A4" style={styles.page}>
         {/* Cover / header */}
         <View style={styles.header}>
-          <Text style={styles.orgName}>{orgName}</Text>
+          <Text style={styles.orgName}>{safeOrgName}</Text>
           <Text style={styles.reportTitle}>Communication Audit Report — Tribunal Ready</Text>
-          <View style={styles.metaRow}><Text style={styles.metaLabel}>Tenant:</Text><Text style={styles.metaValue}>{tenantName}</Text></View>
-          <View style={styles.metaRow}><Text style={styles.metaLabel}>Property:</Text><Text style={styles.metaValue}>{propertyLabel}</Text></View>
-          {leaseFrom && <View style={styles.metaRow}><Text style={styles.metaLabel}>Lease period:</Text><Text style={styles.metaValue}>{fmtDate(leaseFrom)}{leaseTo ? ` — ${fmtDate(leaseTo)}` : " (active)"}</Text></View>}
+          <View style={styles.metaRow}><Text style={styles.metaLabel}>Tenant:</Text><Text style={styles.metaValue}>{safeTenantName}</Text></View>
+          <View style={styles.metaRow}><Text style={styles.metaLabel}>Property:</Text><Text style={styles.metaValue}>{safePropertyLabel}</Text></View>
+          {leaseFrom && <View style={styles.metaRow}><Text style={styles.metaLabel}>Lease period:</Text><Text style={styles.metaValue}>{fmtDate(leaseFrom)}{leaseTo ? ` - ${fmtDate(leaseTo)}` : " (active)"}</Text></View>}
           <View style={styles.metaRow}><Text style={styles.metaLabel}>Total comms:</Text><Text style={styles.metaValue}>{comms.length}</Text></View>
           <View style={styles.metaRow}><Text style={styles.metaLabel}>Mandatory:</Text><Text style={styles.metaValue}>{comms.filter(c => MANDATORY_KEYS.has(c.template_key ?? "")).length}</Text></View>
           <View style={styles.metaRow}><Text style={styles.metaLabel}>Exported:</Text><Text style={styles.metaValue}>{fmtDateTime(exportedAt)}</Text></View>
@@ -159,7 +177,8 @@ export function CommExportPdf(props: CommExportProps) {
         {comms.map((comm) => {
           const label = CATEGORY_LABELS[comm.template_key ?? ""] ?? (comm.template_key ?? "Communication")
           const isMandatory = MANDATORY_KEYS.has(comm.template_key ?? "")
-          const plainBody = comm.body_full ? stripHtml(comm.body_full) : null
+          const plainBody = comm.body_full ? sanitizePdfText(stripHtml(comm.body_full)) : null
+          const safeSubject = sanitizePdfText(comm.subject)
 
           return (
             <View key={comm.id} style={styles.commCard} wrap={false}>
@@ -167,7 +186,7 @@ export function CommExportPdf(props: CommExportProps) {
                 <Text style={styles.commCategory}>{label}</Text>
                 <Text style={styles.commDate}>{fmtDateTime(comm.created_at)}</Text>
               </View>
-              {comm.subject && <Text style={styles.commSubject}>{comm.subject}</Text>}
+              {safeSubject && <Text style={styles.commSubject}>{safeSubject}</Text>}
               <View style={styles.commMeta}>
                 <Text style={[styles.badge, styles.badgeChannel]}>{comm.channel.toUpperCase()}</Text>
                 {comm.status && <Text style={[styles.badge, styles.badgeStatus]}>{comm.status}</Text>}
@@ -184,7 +203,7 @@ export function CommExportPdf(props: CommExportProps) {
                   {comm.delivery_events.map((evt, i) => (
                     <View key={i} style={styles.evtRow}>
                       <Text style={styles.evtTime}>{fmtDateTime(evt.occurred_at)}</Text>
-                      <Text style={styles.evtType}>{evt.event_type.replace(/_/g, " ")} via {evt.provider}</Text>
+                      <Text style={styles.evtType}>{evt.event_type.replaceAll("_", " ")} via {evt.provider}</Text>
                     </View>
                   ))}
                 </View>
@@ -200,7 +219,7 @@ export function CommExportPdf(props: CommExportProps) {
 
         {/* Appendix */}
         <View style={styles.divider} />
-        <Text style={styles.appendixTitle}>Appendix A — Portal Login Data</Text>
+        <Text style={styles.appendixTitle}>Appendix A - Portal Login Data</Text>
         <Text style={styles.appendixNote}>
           Portal login audit records are stored in the platform audit log under the tenant entity.
           This export was generated on {fmtDateTime(exportedAt)}.
