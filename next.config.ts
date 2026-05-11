@@ -39,12 +39,16 @@ const nextConfig: NextConfig = {
   // Remove X-Powered-By: Next.js header
   poweredByHeader: false,
 
+  // @react-pdf/renderer v4 uses yoga-wasm-web (WASM). Turbopack bundling breaks
+  // WASM initialisation — exclude from bundling so it loads from node_modules at runtime.
+  serverExternalPackages: ["@react-pdf/renderer"],
+
   // Tree-shake large packages at the module graph level (saves bundle + compile time)
+  // Note: @react-pdf/renderer is intentionally absent — see serverExternalPackages above.
   experimental: {
     optimizePackageImports: [
       "lucide-react",
       "@react-email/components",
-      "@react-pdf/renderer",
       "@fullcalendar/react",
       "@fullcalendar/daygrid",
       "@fullcalendar/timegrid",
