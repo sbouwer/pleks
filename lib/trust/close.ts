@@ -12,6 +12,7 @@ import { headers } from "next/headers"
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { requireStepUp } from "@/lib/auth/step-up"
 import { createServiceClient } from "@/lib/supabase/server"
+import { generateAuditExport } from "@/lib/trust/audit-export"
 
 export interface OutstandingItem {
   description: string
@@ -107,7 +108,10 @@ export async function closeTrustPeriod(
     // Non-fatal — period is already written; log and continue
   }
 
-  // Audit export generation is async — wired in Phase 3 (lib/trust/audit-export.ts)
+  // Generate audit export — non-fatal; can be regenerated from the audit page
+  generateAuditExport({ periodId: period.id, orgId, userId }).catch(err => {
+    console.error("[closeTrustPeriod] audit export generation failed:", (err as Error).message)
+  })
 
   return { ok: true, periodId: period.id }
 }
