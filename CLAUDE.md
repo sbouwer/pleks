@@ -707,6 +707,16 @@ it should never be the primary compression path.
 
 ---
 
+## TRUST ACCOUNT — REQUIRED READING
+
+**Before any trust-related work, read `brief/legal/TRUST_ACCOUNT_POSITIONING.md`.**
+
+This is non-negotiable. The document defines the load-bearing architectural invariant
+(D-TRUST-01: Pleks is not the trustee) enforced at schema, code, and ESLint levels.
+The new developer checklist is in §8 of that document.
+
+---
+
 ## DO NOT DO
 
 - Do not deploy without running `npm run security:quick` first
