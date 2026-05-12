@@ -11,7 +11,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 
 export type TrustOperationDirection = "inbound" | "outbound"
 export type TrustOperationSource = "agency_bank" | "tenant_initiated" | "pleks_controlled_account"
-export type TrustOperationInitiator = "agent" | "tenant" | "pleks_system" | "debicheck_peach"
+export type TrustOperationInitiator = "agent" | "tenant" | "pleks_system"
 
 export interface TrustOperation {
   orgId: string
@@ -56,15 +56,6 @@ export function assertPleksIsNotTrustee(op: TrustOperation): void {
     throw err
   }
 
-  // Rule 3: DebiCheck is inbound-only. Reversals go through the agency's bank.
-  if (op.initiatedBy === "debicheck_peach" && op.direction !== "inbound") {
-    const err = new SovereignTrustViolation(
-      "DebiCheck is inbound-only. Outbound reversals go through the agency's bank.",
-      op,
-    )
-    Sentry.captureException(err, { tags: { invariant: "trust_sovereignty" } })
-    throw err
-  }
 }
 
 export type TrustTransactionType =

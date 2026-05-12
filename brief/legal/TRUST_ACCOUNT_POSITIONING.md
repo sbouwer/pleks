@@ -92,11 +92,10 @@ COMMENT ON TABLE bank_accounts IS
 
 Every trust-related operation must call `assertPleksIsNotTrustee()`. The function throws
 `SovereignTrustViolation` (which also fires to Sentry with `tags: { invariant: 'trust_sovereignty' }`)
-if any of three rules are violated:
+if any of two rules are violated:
 
 - **Rule 1:** `source === 'pleks_controlled_account'` → VIOLATION (no such account exists)
 - **Rule 2:** `direction === 'outbound' && initiatedBy === 'pleks_system'` → VIOLATION
-- **Rule 3:** `initiatedBy === 'debicheck_peach' && direction !== 'inbound'` → VIOLATION
 
 Any `SovereignTrustViolation` in production is a critical bug. Sentry alert is set to page oncall immediately.
 
@@ -104,34 +103,15 @@ Any `SovereignTrustViolation` in production is a critical bug. Sentry alert is s
 
 `eslint.config.mjs` contains a rule that blocks any import of SA bank payment-initiation
 packages (`@stitch-money/*`, `ozow-sdk`, `snapscan*`, `@absa/banking-api`, `@standard-bank/payment-api`)
-from any file outside the DebiCheck allowlist. The rule message links to this document.
+from any file in the codebase. The rule message links to this document. There are no exceptions.
 
-If you genuinely need to add a payment-initiation integration, the process is:
+If you believe a payment-initiation integration is genuinely required, the process is:
 1. Write a spec addendum explaining the use case and why it does not violate D-TRUST-01
-2. Get the addendum reviewed and approved before opening a PR
-3. The PR must extend the ESLint allowlist with an explicit justification comment
+2. Get the addendum reviewed and approved by a director before opening a PR
 
 ---
 
-## 4. DebiCheck as the narrow exception
-
-DebiCheck (BUILD_10) collects rent *into* the agency's trust account via Peach Payments.
-
-This is not a violation because:
-- Direction: **inbound** (tenant → agency trust account). Never outbound.
-- Authorisation: Per mandate signed by the tenant at their bank. Not by Pleks.
-- Execution: By Peach Payments and the clearing banks. Pleks triggers the collection request
-  via Peach's API but does not hold or move funds.
-
-The invariant explicitly allows `direction: 'inbound'` operations. The ESLint rule excludes
-`lib/debicheck/**` from the payment-initiation package block.
-
-Future developers: DebiCheck is the **only** narrow exception. Adding a new inbound-only
-collection rail requires the same spec-addendum process described in §3.3.
-
----
-
-## 5. The monthly close as the trust accountability moment
+## 4. The monthly close as the trust accountability moment
 
 The trust reconciliation close is where the agency's professional liability crystallises.
 The agent (or their accountant) who clicks "Sign off and close":
@@ -150,7 +130,7 @@ change that accidentally allows writes to closed-period rows will be blocked by 
 
 ---
 
-## 6. The competitive moat explained
+## 5. The competitive moat explained
 
 The dominant SA competitor (unnamed per legal safety policy) operates a forced-trusteeship
 model: agencies use the competitor's trust account; the competitor is the legal trustee;
@@ -173,7 +153,7 @@ makes it visible internally for customer success operations.
 
 ---
 
-## 7. How to propose a future exception
+## 6. How to propose a future exception
 
 If a future product decision appears to require Pleks to hold funds, initiate payments, or
 become a trustee in any form:
@@ -193,7 +173,7 @@ There is no shortcut around this process. The moat is only as strong as the disc
 
 ---
 
-## 8. New developer checklist
+## 7. New developer checklist
 
 Before writing any trust-related code:
 
@@ -203,7 +183,7 @@ Before writing any trust-related code:
 - [ ] Understand `lib/trust/close.ts` — the period-close server action
 - [ ] Understand `lib/trust/audit-export.ts` — the audit bundle generator
 - [ ] Confirm your proposed operation passes `assertPleksIsNotTrustee()` before writing the code
-- [ ] If it doesn't pass: follow the exception process in §7, not the workaround
+- [ ] If it doesn't pass: follow the exception process in §6, not the workaround
 
 ---
 
