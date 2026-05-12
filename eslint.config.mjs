@@ -44,6 +44,10 @@ const eslintConfig = defineConfig([
   {
     // Direct @anthropic-ai/sdk usage is prohibited — all AI calls must go through
     // lib/ai/client.ts, which handles logging, cost attribution, and org tracking.
+    //
+    // Payment-initiation APIs are prohibited everywhere (D-TRUST-01: Pleks is not
+    // the trustee). If a genuine need arises, write a spec addendum first.
+    // See brief/legal/TRUST_ACCOUNT_POSITIONING.md.
     files: ["**/*.ts", "**/*.tsx"],
     ignores: ["lib/ai/client.ts"],
     rules: {
@@ -51,6 +55,19 @@ const eslintConfig = defineConfig([
         paths: [{
           name: "@anthropic-ai/sdk",
           message: "Direct Anthropic SDK usage is prohibited. Use `createMessage` from `@/lib/ai/client` instead. See ADDENDUM_00H §5.",
+        }],
+        patterns: [{
+          group: [
+            "@stitch-money/*",
+            "ozow-sdk",
+            "snapscan*",
+            "@absa/banking-api",
+            "@standard-bank/payment-api",
+          ],
+          message:
+            "Payment-initiation APIs violate the sovereign-trust-account invariant. " +
+            "See brief/legal/TRUST_ACCOUNT_POSITIONING.md. " +
+            "Write a spec addendum explaining why before opening a PR.",
         }],
       }],
     },
