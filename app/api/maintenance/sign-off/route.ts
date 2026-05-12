@@ -1,20 +1,23 @@
 /**
- * app/api/maintenance/sign-off/route.ts — agent sign-off: mark request completed and record cost allocations
+ * app/api/maintenance/sign-off/route.ts — agent sign-off: mark request completed, record cost allocations
  *
  * Route:  POST /api/maintenance/sign-off
  * Auth:   Supabase auth.getUser() + user_orgs membership check
  * Data:   maintenance_requests, maintenance_cost_allocations, trust_transactions, lease_charges,
- *         tenant_view, units, audit_log, communication_log
+ *         warranties, tenant_view, units, audit_log, communication_log
  * Notes:  Validates allocation sum matches actual_cost_cents. Tenant charges with next_invoice or
  *         separate_invoice create a lease_charge so they appear on the next rent run.
  *         M4 comm fires to tenant on completion (maintenance.completed). BUILD_63 Phase 6.
+ *         workmanshipGuaranteeMonths > 0 auto-creates a warranty row (ADDENDUM_60B Step 3).
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import * as React from "react"
+import { addMonths } from "date-fns"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { routeAndSend } from "@/lib/messaging/router"
 import { MaintenanceCompletedEmail } from "@/lib/comms/templates/tenant/maintenance/maintenance-completed"
+import { deriveWarrantySubject } from "@/lib/maintenance/warranty"
 
 type Service = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -126,6 +129,92 @@ async function fireCompletedComm(
   })
 }
 
+function validateAllocations(totalCents: number, allocations: AllocationInput[]): string | null {
+  if (totalCents > 0) {
+    const sumCents = allocations.reduce((s, a) => s + a.amountCents, 0)
+    if (sumCents !== totalCents) {
+      return `Allocation total (${sumCents}) does not match request cost (${totalCents})`
+    }
+  }
+  for (const a of allocations) {
+    if (a.type === "tenant_charge" && !a.collectionMethod) {
+      return "Tenant charges require a collection method"
+    }
+  }
+  return null
+}
+
+async function insertAllocations(
+  service: Service,
+  orgId: string,
+  requestId: string,
+  userId: string,
+  allocations: AllocationInput[],
+) {
+  const records = allocations.map((a) => ({
+    org_id: orgId,
+    request_id: requestId,
+    allocation_type: a.type,
+    amount_cents: a.amountCents,
+    description: a.description.trim(),
+    lease_clause_ref: a.clauseRef?.trim() || null,
+    collection_method: a.type === "tenant_charge" ? (a.collectionMethod ?? null) : null,
+    created_by: userId,
+  }))
+  return service
+    .from("maintenance_cost_allocations")
+    .insert(records)
+    .select("id, allocation_type, amount_cents, description")
+}
+
+async function createWorkmanshipWarranty(
+  service: Service,
+  orgId: string,
+  requestId: string,
+  userId: string,
+  request: {
+    property_id: string | null
+    unit_id: string | null
+    title: string | null
+    contractor_id: string | null
+  },
+  guaranteeMonths: number,
+  guaranteeTerms: string | null | undefined,
+): Promise<string | null> {
+  if (guaranteeMonths <= 0 || !request.property_id) return null
+
+  let contractorContactId: string | null = null
+  if (request.contractor_id) {
+    const { data: contractor } = await service
+      .from("contractors")
+      .select("contact_id")
+      .eq("id", request.contractor_id)
+      .single()
+    contractorContactId = contractor?.contact_id ?? null
+  }
+
+  const completedAt = new Date()
+  const { data: warranty } = await service
+    .from("warranties")
+    .insert({
+      org_id:                        orgId,
+      subject:                       deriveWarrantySubject({ title: request.title ?? "Maintenance" }),
+      warranty_type:                 "workmanship",
+      property_id:                   request.property_id,
+      unit_id:                       request.unit_id ?? null,
+      source_type:                   "maintenance_signoff",
+      source_maintenance_request_id: requestId,
+      contractor_id:                 contractorContactId,
+      starts_on:                     completedAt.toISOString().split("T")[0],
+      expires_on:                    addMonths(completedAt, guaranteeMonths).toISOString().split("T")[0],
+      claim_notes:                   guaranteeTerms ?? null,
+      created_by:                    userId,
+    })
+    .select("id")
+    .single()
+  return warranty?.id ?? null
+}
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -140,9 +229,11 @@ export async function POST(req: NextRequest) {
     .single()
   if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
 
-  const { requestId, allocations } = await req.json() as {
+  const { requestId, allocations, workmanshipGuaranteeMonths, workmanshipGuaranteeTerms } = await req.json() as {
     requestId: string
     allocations: AllocationInput[]
+    workmanshipGuaranteeMonths?: number
+    workmanshipGuaranteeTerms?: string | null
   }
 
   if (!requestId) return NextResponse.json({ error: "Missing requestId" }, { status: 400 })
@@ -151,7 +242,7 @@ export async function POST(req: NextRequest) {
   // Fetch the request
   const { data: request } = await service
     .from("maintenance_requests")
-    .select("id, org_id, unit_id, property_id, lease_id, actual_cost_cents, status, tenant_id, title")
+    .select("id, org_id, unit_id, property_id, lease_id, actual_cost_cents, status, tenant_id, title, contractor_id")
     .eq("id", requestId)
     .eq("org_id", membership.org_id)
     .single()
@@ -161,24 +252,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Request is not pending completion" }, { status: 400 })
   }
 
-  // Validate allocation sum matches actual cost (if a cost is recorded)
-  const totalCents = request.actual_cost_cents ?? 0
-  if (totalCents > 0) {
-    const sumCents = allocations.reduce((s, a) => s + a.amountCents, 0)
-    if (sumCents !== totalCents) {
-      return NextResponse.json(
-        { error: `Allocation total (${sumCents}) does not match request cost (${totalCents})` },
-        { status: 400 }
-      )
-    }
-  }
-
-  // Validate tenant charges have a collection method
-  for (const a of allocations) {
-    if (a.type === "tenant_charge" && !a.collectionMethod) {
-      return NextResponse.json({ error: "Tenant charges require a collection method" }, { status: 400 })
-    }
-  }
+  const validationError = validateAllocations(request.actual_cost_cents ?? 0, allocations)
+  if (validationError) return NextResponse.json({ error: validationError }, { status: 400 })
 
   // Mark completed
   const { error: statusError } = await service
@@ -193,26 +268,20 @@ export async function POST(req: NextRequest) {
 
   if (statusError) return NextResponse.json({ error: statusError.message }, { status: 500 })
 
-  // Insert allocations
-  const records = allocations.map((a) => ({
-    org_id: membership.org_id,
-    request_id: requestId,
-    allocation_type: a.type,
-    amount_cents: a.amountCents,
-    description: a.description.trim(),
-    lease_clause_ref: a.clauseRef?.trim() || null,
-    collection_method: a.type === "tenant_charge" ? (a.collectionMethod ?? null) : null,
-    created_by: user.id,
-  }))
-
-  const { data: created, error: allocError } = await service
-    .from("maintenance_cost_allocations")
-    .insert(records)
-    .select("id, allocation_type, amount_cents, description")
-
+  const { data: created, error: allocError } = await insertAllocations(
+    service, membership.org_id, requestId, user.id, allocations,
+  )
   if (allocError) return NextResponse.json({ error: allocError.message }, { status: 500 })
 
   await writeFinancialRecords(service, membership.org_id, requestId, user.id, request, allocations, created ?? [])
+
+  // Auto-create workmanship warranty (ADDENDUM_60B)
+  const warrantyId = await createWorkmanshipWarranty(
+    service, membership.org_id, requestId, user.id,
+    request as { property_id: string | null; unit_id: string | null; title: string | null; contractor_id: string | null },
+    workmanshipGuaranteeMonths ?? 0,
+    workmanshipGuaranteeTerms,
+  )
 
   // Audit
   await service.from("audit_log").insert({
@@ -221,7 +290,7 @@ export async function POST(req: NextRequest) {
     record_id: requestId,
     action: "UPDATE",
     changed_by: user.id,
-    new_values: { status: "completed", allocation_count: records.length },
+    new_values: { status: "completed", allocation_count: allocations.length, warranty_id: warrantyId },
   })
 
   // M4 — notify tenant that work is complete

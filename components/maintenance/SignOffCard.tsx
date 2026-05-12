@@ -1,13 +1,12 @@
 "use client"
 
 /**
- * components/maintenance/SignOffCard.tsx — FILL: one-line purpose
+ * components/maintenance/SignOffCard.tsx — Sign-off dialog for maintenance requests
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   Agent (dashboard layout) — rendered inside maintenance request detail
+ * Data:   POST /api/maintenance/sign-off
+ * Notes:  Optional workmanship guarantee section auto-creates a warranty row on submit
+ *         when workmanshipGuaranteeMonths > 0 (ADDENDUM_60B Step 3).
  */
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
@@ -61,6 +60,8 @@ export function SignOffCard({ requestId, actualCostCents }: Readonly<SignOffCard
   const [isPending, startTransition] = useTransition()
   const [mode, setMode] = useState<AllocationMode>("all_landlord")
   const [rows, setRows] = useState<AllocationRow[]>([newRow("landlord_expense"), newRow("tenant_charge")])
+  const [workmanshipMonths, setWorkmanshipMonths] = useState("")
+  const [workmanshipTerms, setWorkmanshipTerms] = useState("")
 
   const totalCents = actualCostCents ?? 0
   const totalFormatted = totalCents > 0 ? formatZAR(totalCents) : "unknown"
@@ -116,10 +117,16 @@ export function SignOffCard({ requestId, actualCostCents }: Readonly<SignOffCard
     }
     startTransition(async () => {
       try {
+        const months = Number.parseInt(workmanshipMonths, 10)
         const res = await fetch("/api/maintenance/sign-off", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ requestId, allocations: buildAllocations() }),
+          body: JSON.stringify({
+            requestId,
+            allocations: buildAllocations(),
+            workmanshipGuaranteeMonths: Number.isNaN(months) ? 0 : months,
+            workmanshipGuaranteeTerms: workmanshipTerms.trim() || null,
+          }),
         })
         if (!res.ok) {
           const data = await res.json().catch(() => ({}))
@@ -336,6 +343,42 @@ export function SignOffCard({ requestId, actualCostCents }: Readonly<SignOffCard
               </div>
             </div>
           )}
+
+          {/* Workmanship guarantee (optional) */}
+          <div className="rounded-lg border border-border p-3 space-y-2 bg-muted/20">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Workmanship guarantee (optional)</p>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs">Guarantee period (months)</Label>
+                <Input
+                  className="h-8 text-sm mt-0.5"
+                  type="number"
+                  min="0"
+                  max="120"
+                  placeholder="0"
+                  value={workmanshipMonths}
+                  onChange={(e) => setWorkmanshipMonths(e.target.value)}
+                />
+              </div>
+            </div>
+            {workmanshipMonths && Number.parseInt(workmanshipMonths, 10) > 0 && (
+              <div>
+                <Label className="text-xs">Terms / exclusions (optional)</Label>
+                <textarea
+                  className="w-full mt-0.5 text-sm rounded-md border border-input bg-background px-3 py-1.5 resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                  rows={2}
+                  placeholder="e.g. Excludes blockages caused by foreign objects"
+                  value={workmanshipTerms}
+                  onChange={(e) => setWorkmanshipTerms(e.target.value)}
+                />
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              {workmanshipMonths && Number.parseInt(workmanshipMonths, 10) > 0
+                ? "A warranty record will be created automatically on sign-off."
+                : "Leave blank if no workmanship guarantee applies."}
+            </p>
+          </div>
 
           {/* Actions */}
           <div className="flex gap-2 pt-2">
