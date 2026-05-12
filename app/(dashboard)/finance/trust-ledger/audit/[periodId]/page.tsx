@@ -48,7 +48,7 @@ export default async function TrustAuditPage({ params }: { params: Promise<{ per
       .eq("id", period.bank_account_id)
       .single(),
     db.from("trust_audit_exports")
-      .select("id, pdf_storage_path, csv_storage_path, manifest_hash, generated_at, generated_by, regeneration_reason")
+      .select("id, pdf_storage_path, xlsx_storage_path, manifest_hash, generated_at, generated_by, regeneration_reason")
       .eq("period_id", periodId)
       .eq("org_id", orgId)
       .order("generated_at", { ascending: false }),

@@ -223,7 +223,7 @@ export async function generateAuditExport(
       org_id:               params.orgId,
       period_id:            params.periodId,
       pdf_storage_path:     pdfPath,
-      csv_storage_path:     xlsxPath,
+      xlsx_storage_path:    xlsxPath,
       manifest_hash:        manifestHash,
       ffc_at_generation:    ffc ?? "",
       generated_by:         params.userId,

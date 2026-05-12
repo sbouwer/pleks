@@ -1479,10 +1479,10 @@ CREATE TABLE IF NOT EXISTS trust_audit_exports (
   period_id             uuid NOT NULL REFERENCES trust_reconciliation_periods(id),
 
   pdf_storage_path      text NOT NULL,
-  csv_storage_path      text NOT NULL,
+  xlsx_storage_path     text NOT NULL,
 
   -- Tamper-evidence (D-TRUST-07)
-  manifest_hash         text NOT NULL,  -- SHA-256 hex of (pdf_bytes || csv_bytes || ffc || signed_off_at)
+  manifest_hash         text NOT NULL,  -- SHA-256 hex of (pdf_bytes || xlsx_bytes || ffc || signed_off_at)
   ffc_at_generation     text NOT NULL,  -- snapshot of organisations.ppra_ffc_number
 
   generated_at          timestamptz NOT NULL DEFAULT now(),
@@ -1696,3 +1696,16 @@ CREATE POLICY "trust_exports_storage_select"
       WHERE user_id = auth.uid() AND deleted_at IS NULL
     )
   );
+
+-- ─── BUILD_64 fix: rename csv_storage_path → xlsx_storage_path ───────────────
+-- The column stores an XLSX file path but was originally named csv_storage_path.
+-- Idempotent: only renames if the old column name still exists.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'trust_audit_exports' AND column_name = 'csv_storage_path'
+  ) THEN
+    ALTER TABLE trust_audit_exports RENAME COLUMN csv_storage_path TO xlsx_storage_path;
+  END IF;
+END $$;

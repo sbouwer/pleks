@@ -23,7 +23,7 @@ export async function GET(
   const db = await createServiceClient()
   const { data: exportRow, error } = await db
     .from("trust_audit_exports")
-    .select("csv_storage_path, period_id")
+    .select("xlsx_storage_path, period_id")
     .eq("id", exportId)
     .eq("org_id", orgId)
     .single()
@@ -34,7 +34,7 @@ export async function GET(
 
   const { data: fileData, error: downloadErr } = await db.storage
     .from("trust-audit-exports")
-    .download(exportRow.csv_storage_path)
+    .download(exportRow.xlsx_storage_path)
 
   if (downloadErr || !fileData) {
     console.error("[audit-export/xlsx] storage download failed:", downloadErr?.message)
