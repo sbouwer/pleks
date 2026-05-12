@@ -1609,3 +1609,105 @@ SELECT
 FROM contractors co
 JOIN contacts c ON c.id = co.contact_id
 WHERE co.deleted_at IS NULL;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §ADDENDUM_60B  Warranty tracking
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Tracks active warranties on managed properties so agents are alerted when an
+-- incoming maintenance request may already be covered. Matches run via Haiku 4.5
+-- at the moment a new request is logged. Soft-archive only — no DELETE path.
+
+CREATE TABLE IF NOT EXISTS warranties (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id          uuid NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+
+  -- What the warranty covers
+  subject         text NOT NULL,
+  warranty_type   text NOT NULL CHECK (warranty_type IN (
+    'manufacturer',
+    'workmanship',
+    'building_defects',
+    'roof',
+    'waterproofing',
+    'other'
+  )),
+
+  -- Where it applies (property_id always required)
+  property_id     uuid NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+  unit_id         uuid REFERENCES units(id) ON DELETE CASCADE,
+  building_id     uuid REFERENCES buildings(id) ON DELETE CASCADE,
+
+  -- Where it came from
+  source_type     text NOT NULL CHECK (source_type IN (
+    'manual',
+    'maintenance_signoff',
+    'owner_questionnaire',
+    'nhbrc_auto',
+    'document_upload'
+  )),
+  source_maintenance_request_id   uuid REFERENCES maintenance_requests(id),
+  source_property_info_request_id uuid REFERENCES property_info_requests(id),
+  source_document_id              uuid REFERENCES property_documents(id),
+
+  -- Who handles the claim
+  contractor_id     uuid REFERENCES contacts(id),
+  manufacturer_name text,
+
+  -- Validity
+  starts_on  date NOT NULL,
+  expires_on date,
+
+  -- Claim details
+  claim_phone       text,
+  claim_email       text,
+  claim_url         text,
+  claim_notes       text,
+  terms_document_id uuid REFERENCES property_documents(id),
+
+  -- Internal
+  notes       text,
+  archived_at timestamptz,
+  created_by  uuid REFERENCES auth.users(id),
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_warranties_property
+  ON warranties (property_id) WHERE archived_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_warranties_unit
+  ON warranties (unit_id) WHERE unit_id IS NOT NULL AND archived_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_warranties_org_expiry
+  ON warranties (org_id, expires_on) WHERE archived_at IS NULL;
+
+ALTER TABLE warranties ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "warranties_select" ON warranties;
+CREATE POLICY "warranties_select" ON warranties FOR SELECT
+  USING (org_id IN (
+    SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL
+  ));
+
+DROP POLICY IF EXISTS "warranties_insert" ON warranties;
+CREATE POLICY "warranties_insert" ON warranties FOR INSERT
+  WITH CHECK (org_id IN (
+    SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL
+  ));
+
+DROP POLICY IF EXISTS "warranties_update" ON warranties;
+CREATE POLICY "warranties_update" ON warranties FOR UPDATE
+  USING (org_id IN (
+    SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL
+  ));
+
+-- No DELETE policy — soft-archive only (archived_at). D-60B-14.
+
+DROP TRIGGER IF EXISTS warranties_set_updated_at ON warranties;
+CREATE TRIGGER warranties_set_updated_at
+  BEFORE UPDATE ON warranties
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- maintenance_requests extensions for ADDENDUM_60B
+ALTER TABLE maintenance_requests
+  ADD COLUMN IF NOT EXISTS workmanship_guarantee_months int,
+  ADD COLUMN IF NOT EXISTS workmanship_guarantee_terms  text,
+  ADD COLUMN IF NOT EXISTS warranty_claim_id            uuid REFERENCES warranties(id);
