@@ -1374,3 +1374,325 @@ ALTER TABLE payments ADD CONSTRAINT payments_payment_method_check
     'eft', 'cash', 'card', 'bank_recon_matched',
     'deposit_offset'   -- source of funds is the tenant's own deposit
   ));
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §N  BUILD_64: TRUST RECONCILIATION CLOSE + AUDIT EXPORTS
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Monthly sign-off of trust account reconciliation. Produces immutable
+-- closed-period records and regeneratable EAAB/PPRA audit exports.
+--
+-- Load-bearing invariant (D-TRUST-01): Pleks is not the trustee. Tables here
+-- model the agency's view of their trust account, not Pleks's custody of funds.
+-- There is no Pleks-owned bank_account row; the schema makes this impossible.
+
+-- FFC expiry date for PPRA compliance dashboard (D-TRUST-16)
+ALTER TABLE organisations ADD COLUMN IF NOT EXISTS ppra_ffc_expiry_date date;
+
+-- ─── trust_reconciliation_periods ────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS trust_reconciliation_periods (
+  id                              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id                          uuid NOT NULL REFERENCES organisations(id),
+  bank_account_id                 uuid NOT NULL REFERENCES bank_accounts(id),
+
+  period_start                    date NOT NULL,
+  period_end                      date NOT NULL,
+
+  -- Three-balance comparison (D-TRUST-04)
+  bank_closing_balance_cents      bigint NOT NULL,
+  ledger_closing_balance_cents    bigint NOT NULL,
+  recon_computed_closing_cents    bigint NOT NULL,
+  variance_cents                  bigint NOT NULL DEFAULT 0,
+  variance_acknowledged           boolean NOT NULL DEFAULT false,
+
+  -- Outstanding items at sign-off (D-TRUST-12)
+  outstanding_items               jsonb NOT NULL DEFAULT '[]'::jsonb,
+  -- Shape: [{ description: text, amount_cents: bigint,
+  --           expected_clear_date: date, item_type:
+  --           'deposit_in_transit'|'pending_clearing'|'uncleared_eft'|'other' }]
+
+  -- Status (D-TRUST-05)
+  status                          text NOT NULL DEFAULT 'open'
+                                  CHECK (status IN ('open', 'reconciled', 'signed_off', 'superseded')),
+
+  -- Sign-off
+  signed_off_at                   timestamptz,
+  signed_off_by                   uuid REFERENCES auth.users(id),
+  signed_off_ip                   inet,
+  signed_off_notes                text,
+
+  -- Audit export linkage (D-TRUST-09)
+  audit_export_id                 uuid,  -- FK added after trust_audit_exports is created
+
+  created_at                      timestamptz NOT NULL DEFAULT now(),
+  updated_at                      timestamptz NOT NULL DEFAULT now(),
+
+  UNIQUE(org_id, bank_account_id, period_start, period_end)
+);
+
+CREATE INDEX IF NOT EXISTS idx_trp_org_period
+  ON trust_reconciliation_periods(org_id, period_end DESC);
+CREATE INDEX IF NOT EXISTS idx_trp_status
+  ON trust_reconciliation_periods(org_id, status)
+  WHERE status IN ('open', 'reconciled');
+
+ALTER TABLE trust_reconciliation_periods ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "org_trust_periods_select" ON trust_reconciliation_periods;
+CREATE POLICY "org_trust_periods_select" ON trust_reconciliation_periods
+  FOR SELECT USING (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+  );
+
+DROP POLICY IF EXISTS "org_trust_periods_insert" ON trust_reconciliation_periods;
+CREATE POLICY "org_trust_periods_insert" ON trust_reconciliation_periods
+  FOR INSERT WITH CHECK (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+  );
+
+-- Updates allowed ONLY while status != 'signed_off' (signed-off is immutable)
+DROP POLICY IF EXISTS "org_trust_periods_update_open" ON trust_reconciliation_periods;
+CREATE POLICY "org_trust_periods_update_open" ON trust_reconciliation_periods
+  FOR UPDATE USING (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    AND status != 'signed_off'
+  )
+  WITH CHECK (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    AND status != 'signed_off'
+  );
+
+-- No DELETE ever
+DROP POLICY IF EXISTS "trust_periods_no_delete" ON trust_reconciliation_periods;
+CREATE POLICY "trust_periods_no_delete" ON trust_reconciliation_periods
+  FOR DELETE USING (false);
+
+DROP TRIGGER IF EXISTS update_trust_reconciliation_periods_updated_at ON trust_reconciliation_periods;
+CREATE TRIGGER update_trust_reconciliation_periods_updated_at
+  BEFORE UPDATE ON trust_reconciliation_periods
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+
+-- ─── trust_audit_exports ─────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS trust_audit_exports (
+  id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id                uuid NOT NULL REFERENCES organisations(id),
+  period_id             uuid NOT NULL REFERENCES trust_reconciliation_periods(id),
+
+  pdf_storage_path      text NOT NULL,
+  csv_storage_path      text NOT NULL,
+
+  -- Tamper-evidence (D-TRUST-07)
+  manifest_hash         text NOT NULL,  -- SHA-256 hex of (pdf_bytes || csv_bytes || ffc || signed_off_at)
+  ffc_at_generation     text NOT NULL,  -- snapshot of organisations.ppra_ffc_number
+
+  generated_at          timestamptz NOT NULL DEFAULT now(),
+  generated_by          uuid NOT NULL REFERENCES auth.users(id),
+  regeneration_reason   text  -- null for first generation; populated on regenerate
+
+  -- NOTE: no UPDATE policy; exports are immutable records
+);
+
+CREATE INDEX IF NOT EXISTS idx_tae_period
+  ON trust_audit_exports(period_id, generated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tae_org_generated
+  ON trust_audit_exports(org_id, generated_at DESC);
+
+ALTER TABLE trust_audit_exports ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "org_trust_exports_select" ON trust_audit_exports;
+CREATE POLICY "org_trust_exports_select" ON trust_audit_exports
+  FOR SELECT USING (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+  );
+
+DROP POLICY IF EXISTS "org_trust_exports_insert" ON trust_audit_exports;
+CREATE POLICY "org_trust_exports_insert" ON trust_audit_exports
+  FOR INSERT WITH CHECK (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+  );
+
+-- No UPDATE, no DELETE
+DROP POLICY IF EXISTS "trust_exports_no_update" ON trust_audit_exports;
+CREATE POLICY "trust_exports_no_update" ON trust_audit_exports
+  FOR UPDATE USING (false) WITH CHECK (false);
+
+DROP POLICY IF EXISTS "trust_exports_no_delete" ON trust_audit_exports;
+CREATE POLICY "trust_exports_no_delete" ON trust_audit_exports
+  FOR DELETE USING (false);
+
+-- Back-link FK on trust_reconciliation_periods now that trust_audit_exports exists
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE table_schema = 'public' AND table_name = 'trust_reconciliation_periods'
+      AND constraint_name = 'trust_reconciliation_periods_audit_export_fkey'
+  ) THEN
+    ALTER TABLE trust_reconciliation_periods
+      ADD CONSTRAINT trust_reconciliation_periods_audit_export_fkey
+      FOREIGN KEY (audit_export_id) REFERENCES trust_audit_exports(id);
+  END IF;
+END $$;
+
+
+-- ─── bank_recon_sessions (formalises phantom reference — D-TRUST-10) ─────────
+-- The trust-ledger page already queries this table at
+-- app/(dashboard)/finance/trust-ledger/page.tsx:95 but the table was never
+-- created. Today the query silently returns empty. Formalising it now.
+
+CREATE TABLE IF NOT EXISTS bank_recon_sessions (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id            uuid NOT NULL REFERENCES organisations(id),
+  bank_account_id   uuid NOT NULL REFERENCES bank_accounts(id),
+
+  period_start      date NOT NULL,
+  period_end        date NOT NULL,
+
+  -- Progress state
+  total_lines               integer NOT NULL DEFAULT 0,
+  matched_lines             integer NOT NULL DEFAULT 0,
+  unmatched_lines           integer NOT NULL DEFAULT 0,
+
+  status            text NOT NULL DEFAULT 'in_progress'
+                    CHECK (status IN ('in_progress', 'ready_for_close', 'signed_off', 'superseded')),
+
+  signed_off_at     timestamptz,
+  signed_off_by     uuid REFERENCES auth.users(id),
+
+  -- Links to the close record (1:1 when signed-off)
+  period_id         uuid REFERENCES trust_reconciliation_periods(id),
+
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  updated_at        timestamptz NOT NULL DEFAULT now(),
+
+  UNIQUE(org_id, bank_account_id, period_start, period_end)
+);
+
+CREATE INDEX IF NOT EXISTS idx_brs_org_period
+  ON bank_recon_sessions(org_id, period_end DESC);
+
+ALTER TABLE bank_recon_sessions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "org_brs_select" ON bank_recon_sessions;
+CREATE POLICY "org_brs_select" ON bank_recon_sessions
+  FOR SELECT USING (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+  );
+
+DROP POLICY IF EXISTS "org_brs_insert" ON bank_recon_sessions;
+CREATE POLICY "org_brs_insert" ON bank_recon_sessions
+  FOR INSERT WITH CHECK (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+  );
+
+DROP POLICY IF EXISTS "org_brs_update_open" ON bank_recon_sessions;
+CREATE POLICY "org_brs_update_open" ON bank_recon_sessions
+  FOR UPDATE USING (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    AND status != 'signed_off'
+  )
+  WITH CHECK (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    AND status != 'signed_off'
+  );
+
+DROP TRIGGER IF EXISTS update_bank_recon_sessions_updated_at ON bank_recon_sessions;
+CREATE TRIGGER update_bank_recon_sessions_updated_at
+  BEFORE UPDATE ON bank_recon_sessions
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+
+-- ─── Trigger: block UPDATE/DELETE on trust_transactions in closed periods ────
+-- trust_transactions is already immutable (no UPDATE/DELETE policies) in the
+-- base schema. This adds an additional safeguard at trigger level that prevents
+-- any future policy change from accidentally allowing writes to closed-period rows.
+
+CREATE OR REPLACE FUNCTION check_trust_txn_period_open()
+RETURNS trigger AS $$
+DECLARE
+  is_in_closed_period boolean;
+BEGIN
+  SELECT EXISTS (
+    SELECT 1 FROM trust_reconciliation_periods trp
+    WHERE trp.org_id = COALESCE(NEW.org_id, OLD.org_id)
+      AND trp.status = 'signed_off'
+      AND COALESCE(NEW.statement_month, OLD.statement_month) BETWEEN trp.period_start AND trp.period_end
+  ) INTO is_in_closed_period;
+
+  IF is_in_closed_period THEN
+    RAISE EXCEPTION 'SOVEREIGN_TRUST_VIOLATION: trust_transaction in signed-off period is immutable. '
+                    'Create a correcting entry in the current open period instead. '
+                    'See brief/legal/TRUST_ACCOUNT_POSITIONING.md §4 for doctrine.'
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS tr_trust_txn_period_check ON trust_transactions;
+CREATE TRIGGER tr_trust_txn_period_check
+  BEFORE UPDATE OR DELETE ON trust_transactions
+  FOR EACH ROW EXECUTE FUNCTION check_trust_txn_period_open();
+
+-- Also check on INSERT that the statement_month isn't in a closed period
+-- (only applies when statement_month is set — null is fine, goes into current period)
+CREATE OR REPLACE FUNCTION check_trust_txn_insert_period_open()
+RETURNS trigger AS $$
+DECLARE
+  is_in_closed_period boolean;
+BEGIN
+  IF NEW.statement_month IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT EXISTS (
+    SELECT 1 FROM trust_reconciliation_periods trp
+    WHERE trp.org_id = NEW.org_id
+      AND trp.status = 'signed_off'
+      AND NEW.statement_month BETWEEN trp.period_start AND trp.period_end
+  ) INTO is_in_closed_period;
+
+  IF is_in_closed_period THEN
+    RAISE EXCEPTION 'SOVEREIGN_TRUST_VIOLATION: cannot insert trust_transaction into signed-off period. '
+                    'Use current open period instead.'
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS tr_trust_txn_insert_period_check ON trust_transactions;
+CREATE TRIGGER tr_trust_txn_insert_period_check
+  BEFORE INSERT ON trust_transactions
+  FOR EACH ROW EXECUTE FUNCTION check_trust_txn_insert_period_open();
+
+-- Enforce one opening-balance entry per org per statement month
+CREATE UNIQUE INDEX IF NOT EXISTS idx_trust_txn_one_opening_per_period
+  ON trust_transactions(org_id, statement_month)
+  WHERE is_opening_balance = true;
+
+-- ─── Storage bucket: trust-audit-exports ─────────────────────────────────────
+-- Path: {org_id}/{period_id}/export-v{n}.pdf and .xlsx
+-- INSERT via service-role only (bypasses RLS); SELECT restricted to org members.
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'trust-audit-exports',
+  'trust-audit-exports',
+  false,
+  52428800,  -- 50 MB — PDF + XLSX bundle; retained indefinitely (D-TRUST-13)
+  ARRAY['application/pdf', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']
+)
+ON CONFLICT (id) DO NOTHING;
+
+DROP POLICY IF EXISTS "trust_exports_storage_select" ON storage.objects;
+CREATE POLICY "trust_exports_storage_select"
+  ON storage.objects FOR SELECT
+  USING (
+    bucket_id = 'trust-audit-exports'
+    AND (storage.foldername(name))[1] IN (
+      SELECT org_id::text FROM user_orgs
+      WHERE user_id = auth.uid() AND deleted_at IS NULL
+    )
+  );

@@ -741,3 +741,19 @@ ALTER TABLE audit_log ADD CONSTRAINT audit_log_action_check
 ALTER TABLE audit_log DROP CONSTRAINT IF EXISTS audit_log_changed_by_fkey;
 ALTER TABLE audit_log ADD CONSTRAINT audit_log_changed_by_fkey
   FOREIGN KEY (changed_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §3  BUILD_64: Pleks-is-not-trustee invariant (schema-level)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Documents and structurally enforces D-TRUST-01. bank_accounts.type CHECK
+-- enum already excludes a 'pleks_trust' type; this comment is the explicit
+-- doctrine capture. Future type additions must preserve the invariant.
+
+COMMENT ON COLUMN bank_accounts.type IS
+  'Agency-owned bank account type. No pleks-controlled type exists or may be '
+  'added — Pleks is not the trustee. See brief/legal/TRUST_ACCOUNT_POSITIONING.md.';
+
+COMMENT ON TABLE bank_accounts IS
+  'Bank accounts owned and controlled by the agency (org_id). Pleks reads from '
+  'these via BUILD_50 substrate; Pleks never initiates payments from them. '
+  'No row in this table is Pleks-controlled. See brief/legal/TRUST_ACCOUNT_POSITIONING.md.';
