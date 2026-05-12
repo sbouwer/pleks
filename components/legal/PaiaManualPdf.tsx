@@ -140,6 +140,31 @@ export function PaiaManualPdf() {
         <Text style={s.pageNum} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} fixed />
       </Page>
 
+      {/* Index page */}
+      <Page size="A4" style={s.page}>
+        <Text style={[s.secNum, { marginBottom: 6 }]}>Contents</Text>
+        <View style={{ borderBottomWidth: 0.5, borderBottomColor: faint, marginBottom: 24 }} />
+        {[
+          ["01", "Introduction"],
+          ["02", "Contact details"],
+          ["03", "SAHRC guide"],
+          ["04", "Freely available records"],
+          ["05", "Records held by Pleks"],
+          ["06", "Grounds for refusal"],
+          ["07", "How to request access"],
+          ["08", "Sub-processors and third-party operators"],
+          ["09", "Security and protection of records"],
+          ["10", "Amendments to this manual"],
+          ["11", "Certification"],
+        ].map(([num, title]) => (
+          <View key={num} style={{ flexDirection: "row", alignItems: "baseline", marginBottom: 14 }}>
+            <Text style={{ fontSize: 7, color: amber, letterSpacing: 1.2, textTransform: "uppercase", width: 28 }}>{num}</Text>
+            <Text style={{ fontSize: 12, fontWeight: 700, color: ink }}>{title}</Text>
+          </View>
+        ))}
+        <Text style={s.pageNum} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} fixed />
+      </Page>
+
       {/* §01 Introduction */}
       <Page size="A4" style={s.page}>
         <SectionHeader num="01" label="Introduction" title="Introduction" />
