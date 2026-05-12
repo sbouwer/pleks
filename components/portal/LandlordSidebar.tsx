@@ -1,18 +1,12 @@
 "use client"
 
 /**
- * components/portal/LandlordSidebar.tsx — FILL: one-line purpose
- *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * components/portal/LandlordSidebar.tsx — Landlord portal sidebar nav and nav groups
  */
 import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { SidebarContent, type NavGroup } from "@/components/layout/SidebarContent"
-import { LayoutDashboard, Building2, Wrench, FileText, UserCircle } from "lucide-react"
+import { LayoutDashboard, Building2, Wrench, FileText, UserCircle, ShieldCheck } from "lucide-react"
 
 export const LANDLORD_NAV_GROUPS: NavGroup[] = [
   {
@@ -22,6 +16,7 @@ export const LANDLORD_NAV_GROUPS: NavGroup[] = [
       { href: "/landlord/properties", label: "Properties", icon: Building2 },
       { href: "/landlord/maintenance", label: "Maintenance", icon: Wrench },
       { href: "/landlord/statements", label: "Statements", icon: FileText },
+      { href: "/landlord/trust-summary", label: "Trust deposits", icon: ShieldCheck },
     ],
   },
   {
