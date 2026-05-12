@@ -1,11 +1,12 @@
 /**
- * app/(dashboard)/properties/[id]/OperationsTab.tsx — property operations: inspections, maintenance, compliance, audit log
+ * app/(dashboard)/properties/[id]/OperationsTab.tsx — property operations: inspections, maintenance, compliance, audit log, warranties
  *
  * Route:  /properties/[id] (operations tab)
  * Auth:   gateway-protected server wrapper
- * Data:   inspections, maintenance, complianceItems, auditItems passed from server page
+ * Data:   inspections, maintenance, complianceItems, auditItems passed from server page; warranties self-fetched by WarrantiesCard
  */
 import Link from "next/link"
+import { WarrantiesCard } from "@/components/properties/WarrantiesCard"
 import { ActionButton, InlineLink } from "@/components/ui/actions"
 import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
@@ -192,6 +193,9 @@ export function OperationsTab({
           )}
         </SectionCard>
       </div>
+
+      {/* Warranties */}
+      <WarrantiesCard propertyId={propertyId} />
 
       {/* Bottom row: Compliance + Audit */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">

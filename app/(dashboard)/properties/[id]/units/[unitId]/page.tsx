@@ -23,6 +23,7 @@ import { UnitForm } from "../UnitForm"
 import { updateUnit } from "@/lib/actions/units"
 import type { FurnishingItem } from "@/lib/units/furnishingTemplates"
 import { getUnitDescription } from "@/lib/units/typeAwareFields"
+import { WarrantiesCard } from "@/components/properties/WarrantiesCard"
 
 export default async function UnitDetailPage({
   params,
@@ -295,6 +296,11 @@ export default async function UnitDetailPage({
           propertyId={id}
           features={(unit.features as string[]) || []}
         />
+      </div>
+
+      {/* Warranties */}
+      <div className="mt-6">
+        <WarrantiesCard propertyId={id} unitId={unitId} />
       </div>
 
       {/* Status history */}
