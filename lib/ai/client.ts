@@ -28,6 +28,7 @@ export type AiPurpose =
   | "deposit_justification"
   | "recon_matching"
   | "document_detection"
+  | "warranty_match"
   | "other"
 
 export interface AiCallOptions {
