@@ -17,6 +17,7 @@ import { GET as scheduledReports } from "../scheduled-reports/route"
 import { GET as ownerStatementGen } from "../owner-statement-gen/route"
 import { GET as depositInterest } from "../deposit-interest/route"
 import { GET as levyGenerate } from "../levy-generate/route"
+import { GET as trustPeriodClose } from "../trust-period-close/route"
 import { GET as arrearsInterest } from "../arrears-interest/route"
 import { GET as trialExpiry } from "../trial-expiry/route"
 import { GET as billingCascade } from "../billing-cascade/route"
@@ -127,9 +128,11 @@ export async function GET(req: NextRequest) {
   if (dayOfMonth === 1) {
     await runJob("levy_generate", levyGenerate, cronReq, results)
     await runJob("deposit_interest_statement", depositInterestStatement, cronReq, results)
+    await runJob("trust_period_close", trustPeriodClose, cronReq, results)
   } else {
     results.levy_generate = "skipped (not 1st)"
     results.deposit_interest_statement = "skipped (not 1st)"
+    results.trust_period_close = "skipped (not 1st)"
   }
 
   if (dayOfMonth === 2) {
