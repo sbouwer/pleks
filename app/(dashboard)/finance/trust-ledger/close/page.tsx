@@ -10,7 +10,7 @@
  *         before sign-off (D-TRUST-06). Immutability enforced at DB trigger level.
  */
 
-import { useEffect, useState, useCallback, useMemo } from "react"
+import { useEffect, useState, useCallback, useMemo, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { useOrg } from "@/hooks/useOrg"
@@ -50,7 +50,7 @@ type SessionData = {
 }
 type BankAccountData = { bank_name: string; account_number: string | null }
 
-export default function TrustClosePage() {
+function TrustCloseContent() {
   const { orgId } = useOrg()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -437,5 +437,13 @@ export default function TrustClosePage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function TrustClosePage() {
+  return (
+    <Suspense>
+      <TrustCloseContent />
+    </Suspense>
   )
 }
