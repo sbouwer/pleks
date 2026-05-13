@@ -10,6 +10,7 @@
 
 import { requireAdminAuth } from "@/lib/admin/auth"
 import { createServiceClient } from "@/lib/supabase/server"
+import { SovereignBadge } from "@/components/trust/SovereignBadge"
 
 interface OrgRow {
   id: string
@@ -122,6 +123,8 @@ export default async function TrustHealthPage() {
           Cross-agency trust account adoption — {priorMonthLabel}. Read-only operational view.
         </p>
       </div>
+
+      <SovereignBadge variant="admin" />
 
       {/* Overdue closes */}
       <section>

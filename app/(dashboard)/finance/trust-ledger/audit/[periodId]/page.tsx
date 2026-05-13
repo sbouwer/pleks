@@ -13,6 +13,7 @@ import { formatZAR } from "@/lib/constants"
 import { InlineLink } from "@/components/ui/actions"
 import { CheckCircle2, FileText, AlertTriangle } from "lucide-react"
 import type { OutstandingItem } from "@/lib/trust/close"
+import { SovereignBadge } from "@/components/trust/SovereignBadge"
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
@@ -42,7 +43,7 @@ export default async function TrustAuditPage({ params }: { params: Promise<{ per
 
   if (periodErr || !period) redirect("/finance/trust-ledger")
 
-  const [bankAcctResult, exportsResult] = await Promise.all([
+  const [bankAcctResult, exportsResult, orgResult] = await Promise.all([
     db.from("bank_accounts")
       .select("bank_name, account_number")
       .eq("id", period.bank_account_id)
@@ -52,9 +53,14 @@ export default async function TrustAuditPage({ params }: { params: Promise<{ per
       .eq("period_id", periodId)
       .eq("org_id", orgId)
       .order("generated_at", { ascending: false }),
+    db.from("organisations")
+      .select("name, trading_as, ppra_ffc_number")
+      .eq("id", orgId)
+      .single(),
   ])
   const bankAccount = bankAcctResult.data
   const auditExports = exportsResult.data
+  const org = orgResult.data
 
   const periodLabel = formatPeriod(period.period_start, period.period_end)
   const outstandingItems = (period.outstanding_items ?? []) as OutstandingItem[]
@@ -86,6 +92,17 @@ export default async function TrustAuditPage({ params }: { params: Promise<{ per
           </span>
         </div>
       </div>
+
+      {/* Sovereign trust badge */}
+      {org && bankAccount && (
+        <SovereignBadge
+          variant="agent"
+          bankName={bankAccount.bank_name as string}
+          bankAccountLast4={(bankAccount.account_number as string | null)?.slice(-4) ?? ""}
+          agencyName={(org.trading_as as string | null)?.trim() || (org.name as string)}
+          ffcNumber={(org.ppra_ffc_number as string | null) ?? null}
+        />
+      )}
 
       {/* Three-balance summary */}
       <div className="rounded-xl border bg-card divide-y">

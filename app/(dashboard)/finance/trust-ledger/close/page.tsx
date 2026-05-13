@@ -18,6 +18,7 @@ import { formatZAR } from "@/lib/constants"
 import { ActionButton, InlineLink } from "@/components/ui/actions"
 import { closeTrustPeriod, type OutstandingItem } from "@/lib/trust/close"
 import { AlertTriangle, CheckCircle2, Plus, X } from "lucide-react"
+import { SovereignBadge, type SovereignBadgeProps } from "@/components/trust/SovereignBadge"
 
 const ITEM_TYPES: { value: OutstandingItem["item_type"]; label: string }[] = [
   { value: "deposit_in_transit", label: "Deposit in transit" },
@@ -49,6 +50,24 @@ type SessionData = {
   unmatched_lines: number
 }
 type BankAccountData = { bank_name: string; account_number: string | null }
+type SupabaseClient = ReturnType<typeof createClient>
+
+async function fetchBadgeProps(
+  db: SupabaseClient,
+  orgId: string,
+  ba: { bank_name: string; account_number: string | null } | null,
+): Promise<Extract<SovereignBadgeProps, { variant: "agent" }> | null> {
+  if (!ba) return null
+  const { data: org } = await db.from("organisations").select("name, trading_as, ppra_ffc_number").eq("id", orgId).single()
+  if (!org) return null
+  return {
+    variant: "agent",
+    bankName: ba.bank_name,
+    bankAccountLast4: ba.account_number ? ba.account_number.slice(-4) : "",
+    agencyName: (org.trading_as as string | null)?.trim() || (org.name as string),
+    ffcNumber: (org.ppra_ffc_number as string | null) ?? null,
+  }
+}
 
 function TrustCloseContent() {
   const { orgId } = useOrg()
@@ -58,6 +77,7 @@ function TrustCloseContent() {
 
   const [session, setSession] = useState<SessionData | null>(null)
   const [bankAcct, setBankAcct] = useState<BankAccountData | null>(null)
+  const [badgeProps, setBadgeProps] = useState<Extract<SovereignBadgeProps, { variant: "agent" }> | null>(null)
   const [ledgerCents, setLedgerCents] = useState(0)
   const [loading, setLoading] = useState(true)
   const [bankBalanceInput, setBankBalanceInput] = useState("")
@@ -97,7 +117,10 @@ function TrustCloseContent() {
       .select("bank_name, account_number")
       .eq("id", sess.bank_account_id)
       .single()
-    if (ba) setBankAcct({ bank_name: ba.bank_name as string, account_number: ba.account_number as string | null })
+    const baTyped = ba ? { bank_name: ba.bank_name as string, account_number: ba.account_number as string | null } : null
+    if (baTyped) setBankAcct(baTyped)
+    const badge = await fetchBadgeProps(db, orgId, baTyped)
+    if (badge) setBadgeProps(badge)
 
     const periodStart = new Date(sess.period_start)
     const periodEnd = new Date(sess.period_end)
@@ -229,6 +252,9 @@ function TrustCloseContent() {
           </div>
         )}
       </div>
+
+      {/* Sovereign trust badge */}
+      {badgeProps && <SovereignBadge {...badgeProps} />}
 
       {/* Three-balance card */}
       <div className="rounded-xl border bg-card divide-y">

@@ -18,6 +18,7 @@ import { ActionButton, InlineLink } from "@/components/ui/actions"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { FormSelect } from "@/components/ui/FormSelect"
 import { Download } from "lucide-react"
+import { SovereignBadge, type SovereignBadgeProps } from "@/components/trust/SovereignBadge"
 
 const TYPE_FILTER_OPTIONS = [
   { value: "", label: "All types" },
@@ -48,6 +49,7 @@ export default function TrustLedgerPage() {
   const [toDate, setToDate] = useState("")
   const [typeFilter, setTypeFilter] = useState("")
   const [summary, setSummary] = useState<{ total_in_trust_cents: number; last_recon_date: string | null } | null>(null)
+  const [badgeProps, setBadgeProps] = useState<Extract<SovereignBadgeProps, { variant: "agent" }> | null>(null)
 
   const loadEntries = useCallback(async () => {
     if (!orgId) return
@@ -94,9 +96,11 @@ export default function TrustLedgerPage() {
     if (!orgId) return
     const supabase = createClient()
     void (async () => {
-      const [txnRes, reconRes] = await Promise.all([
+      const [txnRes, reconRes, orgRes, bankRes] = await Promise.all([
         supabase.from("trust_transactions").select("direction, amount_cents").eq("org_id", orgId),
         supabase.from("bank_recon_sessions").select("period_end").eq("org_id", orgId).eq("status", "signed_off").order("period_end", { ascending: false }).limit(1),
+        supabase.from("organisations").select("name, trading_as, ppra_ffc_number").eq("id", orgId).single(),
+        supabase.from("bank_accounts").select("bank_name, account_number").eq("org_id", orgId).eq("type", "trust").eq("is_primary", true).maybeSingle(),
       ])
       let totalIn = 0
       let totalOut = 0
@@ -108,6 +112,16 @@ export default function TrustLedgerPage() {
         total_in_trust_cents: totalIn - totalOut,
         last_recon_date: reconRes.data?.[0]?.period_end ?? null,
       })
+      if (orgRes.data && bankRes.data) {
+        const acct = bankRes.data.account_number as string | null
+        setBadgeProps({
+          variant: "agent",
+          bankName: bankRes.data.bank_name as string,
+          bankAccountLast4: acct ? acct.slice(-4) : "",
+          agencyName: (orgRes.data.trading_as as string | null)?.trim() || (orgRes.data.name as string),
+          ffcNumber: (orgRes.data.ppra_ffc_number as string | null) ?? null,
+        })
+      }
     })()
   }, [orgId])
 
@@ -154,6 +168,9 @@ export default function TrustLedgerPage() {
           <InlineLink href="/billing/reconciliation" withArrow>Reconcile</InlineLink>
         </div>
       </div>
+
+      {/* Sovereign trust badge */}
+      {badgeProps && <SovereignBadge {...badgeProps} />}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-end">
