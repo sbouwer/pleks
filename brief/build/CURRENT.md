@@ -53,7 +53,15 @@ Phase 0 (schema) shipped:
 
 **BUILD_64 — ✅ FULLY COMPLETE (2026-05-12)**
 
+**BUILD_64 follow-up audit — ✅ DONE (2026-05-13)**
+- `chore(observability)`: monthly cron tracking in `health.ts` — TRACKED_MONTHLY_JOBS + 35-day staleness (035f88ad)
+- `feat(trust)`: SovereignBadge component (§3.3) wired on all 4 trust-ledger pages: index, close, audit, admin trust-health (7f52998a)
+- trust_transactions direct inserts: 9 files found bypassing `recordTrustTransaction()` — reported to CD, not changed (significant migration)
+- .gitignore: `.claude/` already covers worktrees — no change needed
+- RUNBOOK_TRUST_CLOSE.md: deferred to post-first-customer per CD decision
+
 **Next action: ADDENDUM_60B — Warranty tracking** (see queue in INDEX.md)
+**Active step: Steps 5–9 pending** (Step 4 done — WarrantiesCard shipped aab0a3de)
 
 Gate 2 — ✅ CLOSED (2026-05-08, f17d156d) — retained counsel package ready to send
 ADDENDUM_57G — ✅ ALL STEPS DONE (2026-05-09, d919b338 + d80b774c)
