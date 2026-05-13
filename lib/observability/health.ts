@@ -3,7 +3,7 @@
  *
  * Auth:   Server-only — called from /api/health/deep (token-gated) and /api/status (ISR-cached)
  * Data:   prime_rates (DB probe), Resend domains API (email probe), storage.listBuckets,
- *         cron_runs (jobs that write to it: daily orchestrator, insurance-renewals, info-requests)
+ *         cron_runs (daily jobs: 48h threshold; monthly jobs: 35-day threshold)
  * Notes:  Promise.all across all 4 checks; 5s per-component timeout; never throws.
  *         DB is the only critical dependency — email/storage/crons degrade, not down.
  *         Email check auto-skips when RESEND_API_KEY is absent (not yet configured).
@@ -95,6 +95,10 @@ async function checkStorage(supabase: SupabaseClient): Promise<HealthReport["com
 // Jobs that write to cron_runs — must match actual job_name values in handlers.
 // "daily" is written by the orchestrator itself; others write their own entries.
 const TRACKED_DAILY_JOBS = ["daily", "insurance-renewals", "expire-info-requests", "cost-snapshots"]
+const TRACKED_MONTHLY_JOBS = ["trust-period-close", "levy-generate", "deposit-interest-statement", "owner-statement-gen"]
+
+const DAILY_STALE_MS   = 48 * 60 * 60 * 1000
+const MONTHLY_STALE_MS = 35 * 24 * 60 * 60 * 1000
 
 async function checkCrons(supabase: SupabaseClient): Promise<HealthReport["components"]["crons"]> {
   try {
@@ -118,14 +122,19 @@ async function checkCrons(supabase: SupabaseClient): Promise<HealthReport["compo
     }
 
     const now = Date.now()
-    const stale = TRACKED_DAILY_JOBS.filter(name => {
+    const staleDaily = TRACKED_DAILY_JOBS.filter(name => {
       const last = lastSuccess.get(name)
-      if (!last) return true
-      return (now - last.getTime()) > 48 * 60 * 60 * 1000
+      return !last || (now - last.getTime()) > DAILY_STALE_MS
     })
+    const staleMonthly = TRACKED_MONTHLY_JOBS.filter(name => {
+      const last = lastSuccess.get(name)
+      return !last || (now - last.getTime()) > MONTHLY_STALE_MS
+    })
+    const stale = [...staleDaily, ...staleMonthly]
+    const totalTracked = TRACKED_DAILY_JOBS.length + TRACKED_MONTHLY_JOBS.length
 
     if (stale.length === 0) return { status: "ok" }
-    if (stale.length < TRACKED_DAILY_JOBS.length) return { status: "degraded", stale_jobs: stale }
+    if (stale.length < totalTracked) return { status: "degraded", stale_jobs: stale }
     return { status: "down", stale_jobs: stale }
   } catch (e) {
     return { status: "degraded", stale_jobs: [e instanceof Error ? e.message : "unknown"] }
