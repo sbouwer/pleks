@@ -3,7 +3,7 @@
  *
  * Route:  /popia-register
  * Auth:   public
- * Notes:  Covers Part A (12 Pleks-RP purposes) and Part B (26 Operator purposes).
+ * Notes:  Covers Part A (12 Pleks-RP purposes) and Part B (27 Operator purposes).
  */
 import type { Metadata } from "next"
 import Link from "next/link"
@@ -34,7 +34,7 @@ export default function ProcessingRegisterPage() {
       eyebrowParts={["POPIA · S17 · S18", "processing register", LEGAL_VERSIONS.popiaRegister]}
       titleBefore="Processing"
       titleHighlight="register"
-      subtitle="Pleks's POPIA processing-purpose register — all 12 platform purposes and 26 operator purposes, with lawful bases, data categories, retention periods, and the full operators directory."
+      subtitle="Pleks's POPIA processing-purpose register — all 12 platform purposes and 27 operator purposes, with lawful bases, data categories, retention periods, and the full operators directory."
       kicker={[
         { label: "Last reviewed", value: "2026 · 05 · 13", mono: true },
         { label: "In force from",  value: "2026 · 05 · 01", mono: true },
@@ -51,7 +51,7 @@ export default function ProcessingRegisterPage() {
         <p className="sc-eyebrow">Plain-language summary</p>
         <h2 className="sc-h">What this register covers</h2>
         <ul className="summary-list">
-          <li><span className="b" /><span>Pleks operates in two roles: as <strong>Responsible Party</strong> for 12 platform purposes (authentication, billing, support — Part A) and as <strong>Operator</strong> for 26 agency-side purposes (tenant data, leases, inspections, credit and criminal screening — Part B).</span></li>
+          <li><span className="b" /><span>Pleks operates in two roles: as <strong>Responsible Party</strong> for 12 platform purposes (authentication, billing, support — Part A) and as <strong>Operator</strong> for 27 agency-side purposes (tenant data, leases, inspections, credit and criminal screening, property-intelligence — Part B).</span></li>
           <li><span className="b" /><span>For Part B data, the <strong>agency is the Responsible Party</strong>. Data-subject requests about tenant or lease records must be directed to the agency, not to Pleks.</span></li>
           <li><span className="b" /><span>Credit checks (B4) require the applicant&rsquo;s <strong>explicit consent</strong> under <span className="act-pill">POPIA · S11(1)(a)</span> and the Credit Bureau Code of Conduct (issued under POPIA, October 2020) before any bureau query is submitted.</span></li>
           <li><span className="b" /><span>AI processing (B22) is <strong>assistive only</strong>. Pleks does not make automated decisions about tenants or applicants — all decisions remain with the agency or landlord.</span></li>
@@ -949,6 +949,26 @@ export default function ProcessingRegisterPage() {
             <div className="pm-row"><span className="pm-k">DPIA</span><span className="pm-v">Required before deployment — DPIA_CRIMINAL_CHECK (in progress; this purpose is not yet active in production)</span></div>
           </div>
         </div>
+
+        <div className="purpose-entry">
+          <div className="purpose-hdr">
+            <span className="purpose-id">B27</span>
+            <span>Property and landlord verification (property-intelligence)</span>
+            <code className="purpose-slug">property_intelligence</code>
+          </div>
+          <p className="purpose-desc">Pull public-register information about properties and landlords to verify mandate legitimacy and support property valuation decisions. Three product families: (1) <strong>Deeds Office searches</strong> — confirming the registered owner of a property matches the person presenting themselves as the landlord at mandate-taking; (2) <strong>Lightstone Erf Valuation Short</strong> — indicative property market value for owner pitches, FFC due diligence, and insurance value confirmation; (3) <strong>CIPC Company and Director lookups</strong> — verifying that juristic landlords exist, are in good standing, and that the natural persons claiming to act for them are listed as directors. CIPC Director pulls are limited to first-layer corporate ownership — directors of the named juristic landlord only. Beneficial-ownership chains beyond the first layer constitute a distinct processing purpose with their own balancing test and are out of scope here.</p>
+          <p className="purpose-desc"><strong>Lawful basis — nature of data matters.</strong> For Deeds Office and CIPC pulls (which surface personal information about landlords and directors): <span className="act-pill">POPIA · S11(1)(c)</span> compliance with law — including mandate-taking and due-diligence obligations under the Property Practitioners Act, its Regulations, and the PPRA Code of Conduct — stacked with <span className="act-pill">POPIA · S11(1)(f)</span> legitimate interest — agency-side mandate-fraud prevention and protection of the genuine landlord&rsquo;s interests against impersonators. The balancing test under s11(1)(f) favours processing: the data subjects&rsquo; privacy interests are minimally impacted because the Deeds Office and CIPC are statutorily public registers accessible to any member of the public. For Lightstone Erf Valuation Short in isolation: POPIA does not apply — the return values are property-domain only (no natural-person data subject). Where valuation data is stored alongside Deeds-pulled owner identity data, the combined record is personal information and falls under the Deeds Office analysis above — this prevents a &ldquo;no POPIA&rdquo; framing from being misread as a categorical exemption for the combined record.</p>
+          <p className="purpose-desc"><strong>Distinction from Purpose B4 (credit screening).</strong> B27 is structurally distinct from B4 despite both using Searchworx as aggregator. (1) <em>Lawful basis</em>: B4 is <span className="act-pill">POPIA · S11(1)(a)</span> explicit consent — the applicant actively consents to a credit check; B27 stacks s11(1)(c) compliance with law and s11(1)(f) legitimate interest because the data subjects are landlords and directors whose information is in public registers and the agency has a statutory mandate-due-diligence obligation — consent is neither required nor appropriate. (2) <em>Data classification</em>: B4 surfaces credit-bureau data (privacy-sensitive even where lawful); B27 surfaces public-register data (statutorily accessible). (3) <em>Retention</em>: B4 applies POPIA minimisation against credit data (12 months); B27 follows PPA s54 + Regulation 33 mandate-records retention (5 years from end of mandate, or longer where the record supports an audit trail). Conflating B27 with B4 produces incorrect retention enforcement and an incorrect consent posture.</p>
+          <p className="purpose-desc"><strong>Safeguards.</strong> ID numbers from Deeds Office and CIPC Director pulls are stored encrypted at the column level and masked in all display surfaces (last four digits by default; full disclosure gated behind an explicit action and audit-logged) — matching the §03 safeguards pattern applied to FICA records (B24) and credit-screening records (B4). <strong>Prior-owner data disposition:</strong> where prior-owner data appears incidentally in a deed-history response, it is retained in the raw vendor-response audit payload but not surfaced in the agency UI, not parsed into operational extracted fields, and not used for any operational purpose. <strong><span className="act-pill">POPIA · S18</span> notification posture:</strong> individual s18 notification is not provided to incidental data subjects (first-layer directors and prior owners surfaced in vendor responses). Reliance is placed on the s18(4) notification exceptions — the personal information is derived from a statutory public register; notification would prejudice a lawful fraud-prevention purpose; notification is not reasonably practicable given the manner and source of collection. Operationally engaged directors receive notification through the agency relationship itself per standard s18 practice.</p>
+          <div className="purpose-meta">
+            <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">Deeds Office + CIPC pulls: s11(1)(c) — compliance with law (Property Practitioners Act s54, PPA Regulations, PPRA Code of Conduct mandate-taking obligations) stacked with s11(1)(f) — legitimate interest (mandate-fraud prevention; protection of genuine landlord&rsquo;s interests) · Lightstone Erf Valuation Short in isolation: POPIA inapplicable (property-domain data only, no natural-person data subject); combined record with Deeds-pulled owner data falls under the s11(1)(c)/(f) analysis above</span></div>
+            <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Deeds Office: registered owner name, ID number, purchase date, purchase price, deed number, title deed reference, transfer date · CIPC Company: registered name, registration number, status, registered address, business start date · CIPC Director (first-layer only): director name, ID number, appointment date, status, position · Lightstone: estimated property value, value-band low/high, confidence indicator, last-sale date and price (no personal information in isolation)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">Searchworx (credit bureau aggregator — see §C; B27 accesses Deeds Office, CIPC, and Lightstone product families via the same Searchworx vendor relationship as B4); Lightstone (commercial property-data vendor; sub-Operator to Searchworx for the valuation product family — Lightstone POPIA compliance incorporated by reference into the Pleks/Searchworx commercial agreement per POPIA s21(2)); database and storage provider; payment gateway (per-pull transaction processing)</span></div>
+            <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">Deeds Office and CIPC pulls: 5 years from end of mandate (Property Practitioners Act s54 + Regulation 33; PPRA mandate-record practice) — where the pull supports an audit-trail record, the longer 7-year period applies (POPIA s17 + Companies Act s24) · Lightstone valuations: operational life of associated property record; where combined with Deeds-pulled owner data, follows the longer applicable retention period · Pulls are permanent operational records — re-pulls create new rows without overwriting prior ones (preserving the &ldquo;agency verified ownership at date X&rdquo; audit lineage)</span></div>
+            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">No for source data — Searchworx, Deeds Office of South Africa, CIPC, and Lightstone all operate domestically (domestic processing; no SCCs required for source pulls) · Yes for storage and hosting downstream (database and storage provider, application hosting — SCCs under s72(1)(a))</span></div>
+            <div className="pm-row"><span className="pm-k">DPIA</span><span className="pm-v">Not required (statutory) — established legitimate-interest processing of public-register data; no s26 special-information categories; no automated decision-making producing legal or similarly significant effects; narrow purpose; low data-subject impact · Informal DPIA planned before B27 reaches general availability across all tiers (or Q3 2026 at latest) to strengthen the s11(1)(f) balancing-test documentation — not a precondition for early-access availability</span></div>
+          </div>
+        </div>
       </section>
 
       {/* Appendix — Operators directory */}
@@ -975,7 +995,7 @@ export default function ProcessingRegisterPage() {
               <td>Backend-as-a-service — Postgres database, authentication, storage, realtime</td>
               <td>US (regional data residency configurable)</td>
               <td>Terms of Service + Data Processing Addendum with SCCs. Sub-processor: AWS.</td>
-              <td>A1–A12, B1–B26</td>
+              <td>A1–A12, B1–B27</td>
             </tr>
             <tr>
               <td className="op-name">Anthropic<span className="sub">AI model provider</span></td>
@@ -1010,7 +1030,7 @@ export default function ProcessingRegisterPage() {
               <td>Payment processing for application fees and Pleks subscription payments. PCI DSS Level 1 certified.</td>
               <td>South Africa (domestic)</td>
               <td>PayFast Merchant Agreement. Pleks never sees full card PAN — PayFast is the PCI boundary.</td>
-              <td>B9, A8 (limited)</td>
+              <td>B9, B27, A8 (limited)</td>
             </tr>
             <tr>
               <td className="op-name">DocuSeal<span className="sub">e-signature · self-hosted</span></td>
@@ -1038,14 +1058,14 @@ export default function ProcessingRegisterPage() {
               <td>Next.js hosting, edge-function invocation, CDN. Hosts the entire Pleks application.</td>
               <td>US (San Francisco), global edge</td>
               <td>Vercel Terms of Service + DPA with SCCs. Logs are POPIA-scrubbed consistent with observability policy.</td>
-              <td>A1–A12, B1–B26</td>
+              <td>A1–A12, B1–B27</td>
             </tr>
             <tr>
               <td className="op-name">Searchworx<span className="sub">credit bureau aggregator</span></td>
-              <td>Credit bureau intermediary — aggregates TransUnion, Experian, Compuscan, XDS, Home Affairs (DHA), TPN. Explicit applicant consent required per check.</td>
+              <td>Multi-product data intermediary — aggregates TransUnion, Experian, Compuscan, and XDS (credit products); Deeds Office of South Africa (property ownership); CIPC (company and director data); Lightstone (property valuations); Home Affairs (DHA); TPN. Explicit applicant consent required per credit check (B4, B26). Property-intelligence pulls (B27) operate under s11(1)(c)/(f) — no applicant consent required. Lightstone operates as a sub-Operator to Searchworx for the valuation product family.</td>
               <td>South Africa (Johannesburg — domestic)</td>
-              <td>Searchworx Services Agreement + POPIA-compliant DPA. Searchworx is itself bound by NCA, POPIA, and FICA regulatory obligations. Data residency: asserted as SA-domiciled; Pleks is seeking written confirmation from Searchworx that all credit data (including data transiting to underlying bureaus TransUnion, Experian, XDS, Compuscan) remains within SA infrastructure. This entry will be updated on receipt of confirmation.</td>
-              <td>B4, B26</td>
+              <td>Searchworx Services Agreement + POPIA-compliant DPA. Searchworx is itself bound by NCA, POPIA, and FICA regulatory obligations. Data residency: asserted as SA-domiciled; Pleks is seeking written confirmation from Searchworx that all credit data (including data transiting to underlying bureaus TransUnion, Experian, XDS, Compuscan) remains within SA infrastructure. This entry will be updated on receipt of confirmation. Lightstone POPIA compliance incorporated by reference per POPIA s21(2).</td>
+              <td>B4, B26, B27</td>
             </tr>
             <tr>
               <td className="op-name">Huru<span className="sub">enhanced credit reporting</span></td>
@@ -1053,6 +1073,13 @@ export default function ProcessingRegisterPage() {
               <td>South Africa (domestic)</td>
               <td>Huru Services Agreement via Searchworx operator chain. SA-domiciled; no cross-border transfer and no separate DPA required from Pleks — relationship is governed through Searchworx.</td>
               <td>B4 (Estate bundle only)</td>
+            </tr>
+            <tr>
+              <td className="op-name">Lightstone<span className="sub">property valuations</span></td>
+              <td>Commercial property-data vendor providing Erf Valuation Short — estimated market value, value-band, last-sale data. Accessed exclusively via the Searchworx operator chain; Lightstone does not receive or process Pleks customer personal information directly.</td>
+              <td>South Africa (domestic)</td>
+              <td>Lightstone data licence via Searchworx operator chain. Lightstone POPIA compliance posture incorporated by reference into the Pleks/Searchworx commercial agreement per POPIA s21(2). No direct Pleks–Lightstone DPA required — relationship governed through Searchworx.</td>
+              <td>B27 (property valuation sub-purpose only)</td>
             </tr>
             <tr>
               <td className="op-name">GitHub<span className="sub">source code hosting</span></td>
