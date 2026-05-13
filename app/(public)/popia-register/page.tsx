@@ -3,7 +3,7 @@
  *
  * Route:  /popia-register
  * Auth:   public
- * Notes:  Covers Part A (12 Pleks-RP purposes) and Part B (25 Operator purposes).
+ * Notes:  Covers Part A (12 Pleks-RP purposes) and Part B (26 Operator purposes).
  */
 import type { Metadata } from "next"
 import Link from "next/link"
@@ -34,9 +34,9 @@ export default function ProcessingRegisterPage() {
       eyebrowParts={["POPIA · S17 · S18", "processing register", LEGAL_VERSIONS.popiaRegister]}
       titleBefore="Processing"
       titleHighlight="register"
-      subtitle="Pleks's POPIA processing-purpose register — all 12 platform purposes and 25 operator purposes, with lawful bases, data categories, retention periods, and the full operators directory."
+      subtitle="Pleks's POPIA processing-purpose register — all 12 platform purposes and 26 operator purposes, with lawful bases, data categories, retention periods, and the full operators directory."
       kicker={[
-        { label: "Last reviewed", value: "2026 · 05 · 05", mono: true },
+        { label: "Last reviewed", value: "2026 · 05 · 13", mono: true },
         { label: "In force from",  value: "2026 · 05 · 01", mono: true },
         { label: "Version",        value: LEGAL_VERSIONS.popiaRegister, mono: true },
         { label: "Standard",       value: "POPIA s17 · s18"              },
@@ -51,7 +51,7 @@ export default function ProcessingRegisterPage() {
         <p className="sc-eyebrow">Plain-language summary</p>
         <h2 className="sc-h">What this register covers</h2>
         <ul className="summary-list">
-          <li><span className="b" /><span>Pleks operates in two roles: as <strong>Responsible Party</strong> for 12 platform purposes (authentication, billing, support — Part A) and as <strong>Operator</strong> for 25 agency-side purposes (tenant data, leases, inspections — Part B).</span></li>
+          <li><span className="b" /><span>Pleks operates in two roles: as <strong>Responsible Party</strong> for 12 platform purposes (authentication, billing, support — Part A) and as <strong>Operator</strong> for 26 agency-side purposes (tenant data, leases, inspections, credit and criminal screening — Part B).</span></li>
           <li><span className="b" /><span>For Part B data, the <strong>agency is the Responsible Party</strong>. Data-subject requests about tenant or lease records must be directed to the agency, not to Pleks.</span></li>
           <li><span className="b" /><span>Credit checks (B4) require the applicant&rsquo;s <strong>explicit consent</strong> under <span className="act-pill">POPIA · S11(1)(a)</span> and the Credit Bureau Code of Conduct (issued under POPIA, October 2020) before any bureau query is submitted.</span></li>
           <li><span className="b" /><span>AI processing (B22) is <strong>assistive only</strong>. Pleks does not make automated decisions about tenants or applicants — all decisions remain with the agency or landlord.</span></li>
@@ -580,10 +580,12 @@ export default function ProcessingRegisterPage() {
             <code className="purpose-slug">credit_check_searchworx</code>
           </div>
           <p className="purpose-desc">Obtain a credit bureau report on an applicant for the purpose of assessing tenancy suitability. The credit bureau aggregator (see §C) consolidates TransUnion, Experian, Compuscan, and XDS. A DPIA (Data Protection Impact Assessment) is in progress for this purpose and will be completed before the feature ships to production — credit data is among the highest-sensitivity personal information categories. No credit check is performed without explicit written consent under POPIA s11(1)(a), in compliance with the Credit Bureau Code of Conduct (issued under POPIA, October 2020) and the credit bureau aggregator&rsquo;s user agreement (see §C). The NCA s69 register of credit agreements does not provide the consent basis for bureau enquiries — that basis is POPIA s11(1)(a) alone.</p>
+          <p className="purpose-desc"><strong>Two-bundle architecture.</strong> Credit checks are offered in two bundles at the applicant&rsquo;s election: <strong>Standard (R250)</strong> — Searchworx standard report consolidating TransUnion, Experian, Compuscan, and XDS — and <strong>Estate (R650)</strong> — Searchworx standard report plus an enhanced Huru report (ITC Affordability Index and civil-judgement deep-dive) plus Compuscan. Huru operates as a sub-operator within the Searchworx operator chain for the Estate bundle (see §C). Commercial (juristic) applicants may elect modular pricing on a per-director basis — see B9 and B5.</p>
+          <p className="purpose-desc"><strong>Dual-output reports.</strong> Each check produces two outputs: a <strong>Consumer Report</strong> (PDF delivered to the applicant via a 7-day TTL signed URL under POPIA s18 transparency obligations — contains only the applicant&rsquo;s own credit data) and an <strong>Agent Report</strong> (structured credit result and FitScore inputs surfaced in the agent&rsquo;s applicant dashboard — not transmitted to the applicant). The Consumer Report is generated regardless of the check outcome.</p>
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(a) — explicit consent (applicant consents to the specific purpose of a credit check before it is run; consent may be withdrawn for future checks but not to unwind a check already performed)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Applicant ID number, full name, DOB, residential addresses (current and historical), employment history, credit history, default records, civil judgments, credit score, affordability result</span></div>
-            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">credit bureau aggregator — SA-domiciled, domestic processing (see §C); underlying bureaus via credit bureau aggregator; database and storage provider; AI model provider (FitScore generation — B5)</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">credit bureau aggregator — SA-domiciled, domestic processing (see §C); underlying bureaus via credit bureau aggregator; Huru (Estate bundle only — sub-operator via Searchworx, SA-domiciled); database and storage provider; AI model provider (FitScore generation — B5)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">Declined / withdrawn applicants: 90 days from pull date (automatic purge — matches B3 application retention) · Approved applicants: 5 years post-lease-termination · consent log entry retained 10 years (POPIA s17 — Documentation)</span></div>
             <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">No for the credit check itself (credit bureau aggregator and SA credit bureaus are domestic) · Yes for derivative AI processing (FitScore via the AI model provider — SCCs)</span></div>
           </div>
@@ -596,6 +598,7 @@ export default function ProcessingRegisterPage() {
             <code className="purpose-slug">fitscore</code>
           </div>
           <p className="purpose-desc">Generate a numeric affordability-and-suitability score for a rental applicant by combining credit check results (B4), verified income (B22 income extraction), rental history, and employment stability. Displayed to the agent alongside a human-readable rationale. FitScore is an assistive tool — it does not constitute an automated decision under POPIA s71. Final decisions are made solely by the agency or landlord.</p>
+          <p className="purpose-desc"><strong>Commercial composite FitScore.</strong> For juristic applicants (companies applying for commercial or semi-commercial tenancies), a commercial composite FitScore is generated by combining the company&rsquo;s credit result with individual FitScores for each named surety director. Each director generates a separate FitScore under their own individual B4 consent — the composite result reflects both entity-level creditworthiness and principal-level affordability. The number of surety directors is configurable per application.</p>
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">Follows Purpose B4 — s11(1)(a) explicit consent (applicant consented to the credit check knowing results would inform a suitability assessment)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Derivative of B4 (credit result) + declared income, verified income, rental history, employment information</span></div>
@@ -659,10 +662,12 @@ export default function ProcessingRegisterPage() {
             <span>Application fee processing (payment gateway)</span>
             <code className="purpose-slug">application_fee_processing</code>
           </div>
-          <p className="purpose-desc">Accept the applicant&rsquo;s rental application fee directly via the payment gateway (see §C). The fee is a Pleks-to-applicant service charge covering the cost of the underlying credit bureau report and Pleks&rsquo;s cost of operating the application-processing service. The agency receives no portion of this fee under any tier or commercial arrangement.</p>
+          <p className="purpose-desc">Accept the applicant&rsquo;s rental application fee directly via the payment gateway (see §C). The fee is a Pleks-to-applicant service charge covering the cost of the underlying credit bureau report and Pleks&rsquo;s cost of operating the application-processing service. The agency receives no portion of any application fee under any tier or commercial arrangement.</p>
+          <p className="purpose-desc"><strong>Two-bundle pricing.</strong> <strong>Standard bundle (R250)</strong> — covers the Standard credit check, Consumer Report PDF delivery, and bank-statement income analysis (B22). <strong>Estate bundle (R650)</strong> — covers the Standard check plus enhanced Huru report (ITC Affordability Index and civil-judgement deep-dive), Consumer Report PDF delivery, and bank-statement income analysis. A standalone criminal-background check (B26), where elected, is priced at R330 per applicant and is processed as a separate payment. <strong>Commercial / juristic applicants</strong> are billed per director on a modular basis — each director&rsquo;s FitScore attracts the applicable per-applicant bundle fee.</p>
+          <p className="purpose-desc"><strong>Refund mechanics.</strong> Standard and Estate bundle fees are non-refundable once the Searchworx API call has been made. The criminal-background check fee (R330) is refundable if the Searchworx criminal-check API call has not yet been submitted; a 24-hour goodwill refund window applies post-submission for exceptional circumstances. Refund requests are logged in the consent log and actioned via the payment gateway reversal mechanism.</p>
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s11(1)(a) — consent (applicant initiates payment knowing the purpose) + s11(1)(b) — contract</span></div>
-            <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Applicant name, email, payment amount, transaction reference, payment method indicator (not full card number — payment gateway is the PCI boundary)</span></div>
+            <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Applicant name, email, payment amount (R250 / R650 / R330 as applicable), transaction reference, bundle elected, payment method indicator (not full card number — payment gateway is the PCI boundary)</span></div>
             <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">payment gateway — SA-domiciled (see §C)</span></div>
             <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">5 years (Tax Administration Act s29)</span></div>
             <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">No — payment gateway is SA-domiciled (domestic processing)</span></div>
@@ -867,7 +872,8 @@ export default function ProcessingRegisterPage() {
             <span>AI-assisted processing</span>
             <code className="purpose-slug">ai_assisted_processing</code>
           </div>
-          <p className="purpose-desc">Bounded, assistive AI processing across multiple workflows — income extraction from bank statements, FitScore rationale, maintenance triage, deposit deduction justification, lease clause conflict checking, arrears letter drafting, wear-and-tear assessment, municipal bill extraction, AGM notice drafting, and trust audit narrative. AI processing is assistive only: Pleks does not make automated decisions about tenants or applicants. All decisions remain with the agency or landlord. Prompts and responses are not retained — the AI model provider (see §C) operates under a zero-retention Enterprise DPA. PII minimisation is applied before cross-border transfer: prompts contain structured context values (amounts, dates, categories) and exclude direct identifiers (name, ID number, contact details) where the task does not require them. This minimisation reduces but does not eliminate identifiability — structured context (property address, exact rent, exact arrears, dates) may remain reasonably linkable to an individual and constitutes pseudonymised, not anonymised, personal information under POPIA s1. All cross-border AI transfers therefore remain personal information transfers and are governed by SCCs under POPIA s72(1)(a). The agency remains solely responsible for ensuring deductions comply with the Rental Housing Act and applicable Tribunal standards. Agencies are expected to review AI-generated outputs for accuracy, fairness, and contextual appropriateness before relying on them operationally.</p>
+          <p className="purpose-desc">Bounded, assistive AI processing across multiple workflows — income extraction and classification from bank statements, FitScore rationale, maintenance triage, deposit deduction justification, lease clause conflict checking, arrears letter drafting, wear-and-tear assessment, municipal bill extraction, AGM notice drafting, trust audit narrative, and criminal-background check result summarisation (B26 sub-purpose). AI processing is assistive only: Pleks does not make automated decisions about tenants or applicants. All decisions remain with the agency or landlord. Prompts and responses are not retained — the AI model provider (see §C) operates under a zero-retention Enterprise DPA. PII minimisation is applied before cross-border transfer: prompts contain structured context values (amounts, dates, categories) and exclude direct identifiers (name, ID number, contact details) where the task does not require them. This minimisation reduces but does not eliminate identifiability — structured context (property address, exact rent, exact arrears, dates) may remain reasonably linkable to an individual and constitutes pseudonymised, not anonymised, personal information under POPIA s1. All cross-border AI transfers therefore remain personal information transfers and are governed by SCCs under POPIA s72(1)(a). The agency remains solely responsible for ensuring deductions comply with the Rental Housing Act and applicable Tribunal standards. Agencies are expected to review AI-generated outputs for accuracy, fairness, and contextual appropriateness before relying on them operationally.</p>
+          <p className="purpose-desc"><strong>Bank statement income and classification.</strong> A single Sonnet call performs six simultaneous analyses on each uploaded bank statement: (1) identity match — name on statement against applicant ID document; (2) statement-quality validation — detects missing months, unexplained gaps, account closures, and statement-period truncation; (3) 13-category recurring-debit classification — rent, vehicle finance, insurance, telco, streaming, gym, maintenance levies / HOA, school fees, medical aid, loan repayments, food / utilities, gambling / FICA-flag items, and other; (4) declared-rent fuzzy match — validates the amount the applicant claims to pay in rent against actual debit entries; (5) Pleks invoice-reference detection — identifies whether invoices from Pleks-managed properties appear as expected in the statement; (6) income-reasonableness check — flags implausible declared income against visible credits. The classified output feeds the B5 FitScore affordability model and is included in the B4 Agent Report. Under POPIA s71 this output is advisory — no automated decision is made on the basis of bank statement classification alone.</p>
           <div className="purpose-meta">
             <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">Multiple — follows the lawful basis of the sub-purpose (e.g., B4 consent for FitScore, B7 contract for lease clause checking)</span></div>
             <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Structured context specific to the sub-purpose only. Direct identifiers (name, ID number, contact details) are stripped where not required by the task. No prompt text or response text retained by Pleks or the AI model provider.</span></div>
@@ -924,6 +930,25 @@ export default function ProcessingRegisterPage() {
             <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">Not applicable</span></div>
           </div>
         </div>
+
+        <div className="purpose-entry">
+          <div className="purpose-hdr">
+            <span className="purpose-id">B26</span>
+            <span>Criminal-background screening</span>
+            <code className="purpose-slug">criminal_behaviour_screening</code>
+          </div>
+          <p className="purpose-desc">Obtain a criminal-background check on a rental applicant under <span className="act-pill">POPIA · S27(1)(a)</span> — special information processing is permissible where it is necessary for the establishment, exercise, or defence of a right or obligation in law, specifically the agency&rsquo;s duty of care to existing tenants, household members, and the community (Rental Housing Act s4(5) — general obligations of landlords; common-law neighbour liability). <strong>Lawful basis: s27(1)(a) only.</strong> The s27(2)(a) consent exception does not apply — it is reserved for processing mandated by specific legislation; a voluntary tenancy-screening check is not legislatively mandated. The s27(2)(c) public-interest exception does not apply — individual tenancy screening is not public-interest research in the POPIA s27(2)(c) sense. s27(1)(a) is the sole basis and applies only where the agency can document a genuine duty-of-care basis for the check. A DPIA (DPIA_CRIMINAL_CHECK) is required before this purpose is deployed to production.</p>
+          <p className="purpose-desc"><strong>Consent mechanics.</strong> Criminal-background checks require a separate, standalone consent — visually distinct from the standard credit-check consent (amber-bordered, clearly labelled as &ldquo;consent to criminal-background check under POPIA s27&rdquo;). The applicant must separately and affirmatively consent; consent cannot be bundled with the credit-check consent. An applicant who refuses this consent must not be refused tenancy on that ground alone — agencies are notified of this constraint in the workflow. Consent may be withdrawn before the Searchworx API call is made; once submitted, withdrawal does not unwind a completed check.</p>
+          <p className="purpose-desc"><strong>AI constraints under POPIA s71.</strong> The Sonnet model used to summarise criminal-check results (B22 sub-purpose) is constrained to factual output only: confirmed convictions, pending cases, and result classification. The model must not editorialise, draw inferences about character, or apply weightings beyond what the raw record states. Criminal-record information is processed in a dedicated prompt isolated from other applicant data — it must not be combined with income, credit, or rental-history context in the same call. Output is surfaced in the Agent Report only — not included in the Consumer Report delivered to the applicant.</p>
+          <div className="purpose-meta">
+            <div className="pm-row"><span className="pm-k">Lawful basis</span><span className="pm-v">s27(1)(a) — necessary for the establishment, exercise, or defence of a right or obligation in law (agency duty of care to existing tenants and household members)</span></div>
+            <div className="pm-row"><span className="pm-k">Data</span><span className="pm-v">Applicant full name, ID number, DOB; criminal record extract (convictions, pending cases, result classification); consent log entry</span></div>
+            <div className="pm-row"><span className="pm-k">Recipients</span><span className="pm-v">credit bureau aggregator (Searchworx — criminal check submission, SA-domiciled); database and storage provider (restricted storage — agent-read-only RLS, no tenant or applicant self-service access); AI model provider (result summarisation — B22 sub-purpose)</span></div>
+            <div className="pm-row"><span className="pm-k">Retention</span><span className="pm-v">7 days from date of check if applicant withdraws or application is rejected (automatic purge) · 30 days post-lease-activation if applicant is accepted · consent log entry retained 10 years (POPIA s17)</span></div>
+            <div className="pm-row"><span className="pm-k">Cross-border</span><span className="pm-v">No for the criminal check itself (Searchworx and underlying sources are SA-domiciled, domestic processing) · Yes for AI result summarisation (AI model provider — SCCs under s72(1)(a))</span></div>
+            <div className="pm-row"><span className="pm-k">DPIA</span><span className="pm-v">Required before deployment — DPIA_CRIMINAL_CHECK (in progress; this purpose is not yet active in production)</span></div>
+          </div>
+        </div>
       </section>
 
       {/* Appendix — Operators directory */}
@@ -950,7 +975,7 @@ export default function ProcessingRegisterPage() {
               <td>Backend-as-a-service — Postgres database, authentication, storage, realtime</td>
               <td>US (regional data residency configurable)</td>
               <td>Terms of Service + Data Processing Addendum with SCCs. Sub-processor: AWS.</td>
-              <td>A1–A12, B1–B25</td>
+              <td>A1–A12, B1–B26</td>
             </tr>
             <tr>
               <td className="op-name">Anthropic<span className="sub">AI model provider</span></td>
@@ -1013,14 +1038,21 @@ export default function ProcessingRegisterPage() {
               <td>Next.js hosting, edge-function invocation, CDN. Hosts the entire Pleks application.</td>
               <td>US (San Francisco), global edge</td>
               <td>Vercel Terms of Service + DPA with SCCs. Logs are POPIA-scrubbed consistent with observability policy.</td>
-              <td>A1–A12, B1–B25</td>
+              <td>A1–A12, B1–B26</td>
             </tr>
             <tr>
               <td className="op-name">Searchworx<span className="sub">credit bureau aggregator</span></td>
               <td>Credit bureau intermediary — aggregates TransUnion, Experian, Compuscan, XDS, Home Affairs (DHA), TPN. Explicit applicant consent required per check.</td>
               <td>South Africa (Johannesburg — domestic)</td>
               <td>Searchworx Services Agreement + POPIA-compliant DPA. Searchworx is itself bound by NCA, POPIA, and FICA regulatory obligations. Data residency: asserted as SA-domiciled; Pleks is seeking written confirmation from Searchworx that all credit data (including data transiting to underlying bureaus TransUnion, Experian, XDS, Compuscan) remains within SA infrastructure. This entry will be updated on receipt of confirmation.</td>
-              <td>B4 only</td>
+              <td>B4, B26</td>
+            </tr>
+            <tr>
+              <td className="op-name">Huru<span className="sub">enhanced credit reporting</span></td>
+              <td>Enhanced credit reporting for the Estate bundle — ITC Affordability Index and civil-judgement deep-dive consolidated bureau pull. Operates as a sub-operator within the Searchworx operator chain; Estate bundle applicants only.</td>
+              <td>South Africa (domestic)</td>
+              <td>Huru Services Agreement via Searchworx operator chain. SA-domiciled; no cross-border transfer and no separate DPA required from Pleks — relationship is governed through Searchworx.</td>
+              <td>B4 (Estate bundle only)</td>
             </tr>
             <tr>
               <td className="op-name">GitHub<span className="sub">source code hosting</span></td>
