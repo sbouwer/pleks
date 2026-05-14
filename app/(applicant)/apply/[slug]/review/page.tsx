@@ -34,16 +34,14 @@ interface AppData {
 }
 
 function getPrescreenLabel(score: number): string {
-  if (score >= 38) return "Strong"
-  if (score >= 30) return "Good"
-  if (score >= 22) return "Borderline"
-  return "Insufficient"
+  if (score >= 35) return "Strong"
+  if (score >= 20) return "Good"
+  return "Needs review"
 }
 
 function getPrescreenBarColor(score: number): string {
-  if (score >= 38) return "bg-green-500"
-  if (score >= 30) return "bg-blue-500"
-  if (score >= 22) return "bg-yellow-500"
+  if (score >= 35) return "bg-green-500"
+  if (score >= 20) return "bg-yellow-500"
   return "bg-red-500"
 }
 
@@ -183,12 +181,12 @@ export default function ReviewPage() {
           <CardHeader><CardTitle>Pre-screen indication</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between text-sm">
-              <span>{prescreenScore}/45 — {prescreenLabel}</span>
+              <span>{prescreenScore}/55 — {prescreenLabel}</span>
             </div>
             <div className="h-2 rounded-full bg-muted overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all ${prescreenBarColor}`}
-                style={{ width: `${(prescreenScore / 45) * 100}%` }}
+                style={{ width: `${(prescreenScore / 55) * 100}%` }}
               />
             </div>
             <p className="text-xs text-muted-foreground">
