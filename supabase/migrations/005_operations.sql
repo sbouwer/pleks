@@ -2130,3 +2130,72 @@ ALTER TABLE application_co_applicants
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- End §BUILD_14_v2
 -- ═══════════════════════════════════════════════════════════════════════════════
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §ADDENDUM_14F  2-step SMS consent verification infrastructure
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Per-verification-ceremony event log. One row per SMS/email send event.
+-- Codes stored as HMAC-SHA256 with per-row salt — never plaintext.
+-- Retention: verified rows retained with parent consent_log; expired/invalidated/
+-- abandoned rows purged after 30 days by cron.
+-- See ADDENDUM_14F_CONSENT_VERIFICATION.md §Audit Trail Layer 2.
+
+CREATE TABLE IF NOT EXISTS consent_verifications (
+  id                uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id            uuid        REFERENCES organisations(id) ON DELETE CASCADE,
+  application_id    uuid        REFERENCES applications(id) ON DELETE CASCADE,
+  director_token    text,
+  consent_log_id    uuid        REFERENCES consent_log(id),
+  consent_type      text        NOT NULL
+                    CHECK (consent_type IN (
+                      'standard_bundle',
+                      'estate_criminal',
+                      'director_standard',
+                      'director_estate_criminal'
+                    )),
+  verification_method text      NOT NULL
+                    CHECK (verification_method IN ('sms_code', 'email_link')),
+  target_phone_e164 text,
+  target_email      text,
+  code_hash         text        NOT NULL,
+  code_salt         text        NOT NULL,
+  code_sent_at      timestamptz NOT NULL DEFAULT now(),
+  code_expires_at   timestamptz NOT NULL,
+  code_verified_at  timestamptz,
+  attempts          integer     NOT NULL DEFAULT 0,
+  status            text        NOT NULL DEFAULT 'pending'
+                    CHECK (status IN (
+                      'pending', 'verified', 'expired', 'invalidated', 'abandoned'
+                    )),
+  client_ip         inet,
+  user_agent        text,
+  created_at        timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_consent_verif_application ON consent_verifications(application_id);
+CREATE INDEX IF NOT EXISTS idx_consent_verif_director    ON consent_verifications(director_token)
+  WHERE director_token IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_consent_verif_pending     ON consent_verifications(status, code_expires_at)
+  WHERE status = 'pending';
+
+ALTER TABLE consent_verifications ENABLE ROW LEVEL SECURITY;
+-- Service role only — no anon or agent-direct policy; all access via service client
+-- in API routes that validate tokens first.
+
+-- ── Rate-limit tracking per identifier (E.164 phone or canonical email) ──
+CREATE TABLE IF NOT EXISTS consent_verification_rate_limits (
+  identifier                  text        PRIMARY KEY,
+  sends_window_start          timestamptz NOT NULL,
+  sends_in_window             integer     NOT NULL DEFAULT 0,
+  consecutive_failed_codes    integer     NOT NULL DEFAULT 0,
+  soft_lockout_until          timestamptz,
+  hard_lockout_until          timestamptz,
+  soft_lockout_count_24h      integer     NOT NULL DEFAULT 0,
+  updated_at                  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_rate_limit_hard_lockout ON consent_verification_rate_limits(hard_lockout_until)
+  WHERE hard_lockout_until > now();
+
+ALTER TABLE consent_verification_rate_limits ENABLE ROW LEVEL SECURITY;
+-- Service role only — no client-facing policies.

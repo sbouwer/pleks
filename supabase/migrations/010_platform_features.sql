@@ -1643,3 +1643,29 @@ CREATE INDEX IF NOT EXISTS idx_rule_runs_recent
 
 CREATE INDEX IF NOT EXISTS idx_rule_runs_outcome
   ON rule_runs (outcome, evaluated_at DESC);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §25  ADDENDUM_14F: auth_events.event_type CHECK extension
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Adds consent verification + ADDENDUM_14E special-information event types.
+-- NOTE: auth_events.user_id is NOT NULL — these types are defined for future
+-- agent-authenticated consent flows. Token-based applicant/director consent
+-- events are written to audit_log (no user_id constraint) instead.
+
+ALTER TABLE auth_events DROP CONSTRAINT IF EXISTS auth_events_event_type_check;
+ALTER TABLE auth_events ADD CONSTRAINT auth_events_event_type_check
+  CHECK (event_type IN (
+    'login_success', 'login_failure', 'logout',
+    'password_changed', 'email_changed',
+    'totp_enrolled', 'totp_unenrolled', 'totp_verified', 'totp_failed',
+    'passkey_enrolled', 'passkey_unenrolled', 'passkey_verified', 'passkey_failed',
+    'step_up_challenged', 'step_up_verified', 'step_up_failed',
+    'session_revoked', 'new_device_detected', 'recovery_used',
+    'role_switched',
+    'tenant_portal_login', 'landlord_portal_login',
+    'supplier_portal_login', 'agent_portal_login',
+    'consent_code_sent', 'consent_code_verified',
+    'consent_verification_failed', 'consent_verification_locked_out',
+    'consent_email_link_sent', 'consent_email_link_verified',
+    'consent_special_information_given', 'consent_special_information_revoked'
+  ));

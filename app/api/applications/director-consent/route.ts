@@ -4,14 +4,19 @@
  * Route:  POST /api/applications/director-consent
  * Auth:   application_co_applicants.access_token (director's private token)
  * Data:   application_co_applicants — sets stage2_consent_given_at + consent_ip + consent_log_id
- * Notes:  D-14B-01: directors must consent individually. This endpoint is the point of record
- *         for POPIA s11(1)(a) explicit consent. IP captured for audit trail.
+ *         consent_verifications — links verified SMS round to consent_log row (ADDENDUM_14F)
+ * Notes:  D-14B-01: directors must consent individually. ADDENDUM_14F: verificationId is optional
+ *         (null when director has no phone). When present, verified status is re-checked server-side.
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 
 export async function POST(req: NextRequest) {
-  const { coApplicantId, token } = await req.json() as { coApplicantId?: string; token?: string }
+  const { coApplicantId, token, verificationId } = await req.json() as {
+    coApplicantId?: string
+    token?: string
+    verificationId?: string | null
+  }
 
   if (!coApplicantId || !token) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 })
@@ -43,18 +48,36 @@ export async function POST(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null
   const now = new Date().toISOString()
 
+  // Re-verify the SMS verification server-side if provided (ADDENDUM_14F)
+  let verificationMethod = "none"
+  if (verificationId) {
+    const { data: verif } = await service
+      .from("consent_verifications")
+      .select("status, consent_type, target_phone_e164, code_verified_at")
+      .eq("id", verificationId)
+      .single()
+
+    if (verif?.status !== "verified") {
+      return NextResponse.json({ error: "SMS verification not confirmed" }, { status: 403 })
+    }
+    verificationMethod = "sms_code"
+  }
+
   // Insert consent_log entry — POPIA s11(1)(a) hard audit requirement
   const { data: logEntry, error: logErr } = await service
     .from("consent_log")
     .insert({
-      org_id:          coApp.org_id,
-      subject_email:   coApp.applicant_email,
-      consent_type:    "credit_check",
-      consent_given:   true,
-      consent_version: "1.0",
-      ip_address:      ip,
-      user_agent:      req.headers.get("user-agent"),
-      metadata:        {
+      org_id:               coApp.org_id,
+      subject_email:        coApp.applicant_email,
+      consent_type:         "credit_check",
+      consent_given:        true,
+      consent_version:      "1.0",
+      ip_address:           ip,
+      user_agent:           req.headers.get("user-agent"),
+      verification_method:  verificationMethod,
+      verification_id:      verificationId ?? null,
+      verification_status:  verificationId ? "verified" : "not_required",
+      metadata:             {
         purpose:                     "credit_check_director_surety",
         application_co_applicant_id: coApplicantId,
         application_id:              coApp.primary_application_id,

@@ -1,0 +1,55 @@
+/**
+ * app/api/cron/consent-cleanup/route.ts — Purge stale consent verification rows
+ *
+ * Route:  GET /api/cron/consent-cleanup
+ * Auth:   x-cron-secret header
+ * Data:   consent_verifications (delete expired/invalidated/abandoned > 30 days)
+ *         consent_verification_rate_limits (delete stale entries)
+ * Notes:  ADDENDUM_14F. Verified rows are retained with their parent consent_log (POPIA
+ *         retention). Only non-completed rows (expired/invalidated/abandoned) are purged
+ *         after 30 days — they're failed attempts, not consent records.
+ *         Rate-limit rows with no active lockout and no recent activity are also cleaned.
+ *         Called from daily cron orchestrator.
+ */
+import { NextRequest, NextResponse } from "next/server"
+import { createServiceClient } from "@/lib/supabase/server"
+
+export async function GET(req: NextRequest) {
+  const secret = req.headers.get("x-cron-secret")
+  if (secret !== process.env.CRON_SECRET) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const service = await createServiceClient()
+  const cutoff30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+  const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+
+  // Purge non-verified verification rows older than 30 days
+  const { count: verifPurged, error: verifErr } = await service
+    .from("consent_verifications")
+    .delete({ count: "exact" })
+    .in("status", ["expired", "invalidated", "abandoned"])
+    .lt("created_at", cutoff30d)
+
+  if (verifErr) {
+    console.error("[consent-cleanup] verifications purge failed:", verifErr.message)
+  }
+
+  // Purge rate-limit rows with no active lockout and no recent sends
+  const { count: rlPurged, error: rlErr } = await service
+    .from("consent_verification_rate_limits")
+    .delete({ count: "exact" })
+    .lt("updated_at", cutoff24h)
+    .is("hard_lockout_until", null)
+    .is("soft_lockout_until", null)
+
+  if (rlErr) {
+    console.error("[consent-cleanup] rate-limits purge failed:", rlErr.message)
+  }
+
+  return NextResponse.json({
+    ok: true,
+    verifPurged: verifPurged ?? 0,
+    rlPurged:    rlPurged   ?? 0,
+  })
+}

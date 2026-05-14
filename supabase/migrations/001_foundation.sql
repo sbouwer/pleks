@@ -757,3 +757,35 @@ COMMENT ON TABLE bank_accounts IS
   'Bank accounts owned and controlled by the agency (org_id). Pleks reads from '
   'these via BUILD_50 substrate; Pleks never initiates payments from them. '
   'No row in this table is Pleks-controlled. See brief/legal/TRUST_ACCOUNT_POSITIONING.md.';
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §4  ADDENDUM_14F: consent_log — extend for 2-step SMS verification
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Extends consent_log with verification metadata for the 14F two-channel consent
+-- ceremony. verification_method='none' for all pre-14F rows (backwards-compatible).
+-- New consent_type values: 'criminal_record_check' for s27(1)(a) Estate bundle.
+-- See ADDENDUM_14F_CONSENT_VERIFICATION.md §Audit Trail Layer 1.
+
+-- Extend consent_type CHECK to add criminal_record_check (s27(1)(a) basis)
+ALTER TABLE consent_log DROP CONSTRAINT IF EXISTS consent_log_consent_type_check;
+ALTER TABLE consent_log ADD CONSTRAINT consent_log_consent_type_check
+  CHECK (consent_type IN (
+    'credit_check', 'data_processing', 'marketing',
+    'trust_account_notice', 'popia_application',
+    'lease_template_disclaimer',
+    'criminal_record_check'
+  ));
+
+-- Verification metadata columns (all nullable for backwards compat)
+ALTER TABLE consent_log ADD COLUMN IF NOT EXISTS verification_method         text
+  CHECK (verification_method IN ('sms_code', 'email_link', 'none'));
+ALTER TABLE consent_log ADD COLUMN IF NOT EXISTS verification_target_masked  text;
+ALTER TABLE consent_log ADD COLUMN IF NOT EXISTS code_sent_at               timestamptz;
+ALTER TABLE consent_log ADD COLUMN IF NOT EXISTS code_verified_at           timestamptz;
+ALTER TABLE consent_log ADD COLUMN IF NOT EXISTS code_attempts              integer DEFAULT 0;
+ALTER TABLE consent_log ADD COLUMN IF NOT EXISTS verification_status        text
+  CHECK (verification_status IN (
+    'not_required', 'pending', 'verified', 'expired', 'abandoned', 'failed_lockout'
+  ));
+ALTER TABLE consent_log ADD COLUMN IF NOT EXISTS verification_id            uuid;
+-- Soft FK to consent_verifications.id — no hard constraint (verifications can be purged)

@@ -315,6 +315,15 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
     key: "application.credit_report_delivered", channel: "email", category: "applications", is_mandatory: false,
     description: "Applicant receives their FitScore and screening summary",
   },
+  // ADDENDUM_14F — consent verification SMS (sent via sendConsentSMS, bypasses tier gate)
+  "consent.verification_standard": {
+    key: "consent.verification_standard", channel: "sms", category: "applications", is_mandatory: true,
+    description: "6-digit OTP for s11(1)(a) standard screening consent verification",
+  },
+  "consent.verification_special_info": {
+    key: "consent.verification_special_info", channel: "sms", category: "applications", is_mandatory: true,
+    description: "6-digit OTP for s27(1)(a) Estate criminal-check consent verification (distinct SMS round)",
+  },
 
   // ── Critical incident notifications (BUILD_59) ────────────────────
   "incident.critical_broker": {

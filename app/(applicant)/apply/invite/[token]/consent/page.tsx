@@ -1,20 +1,31 @@
 "use client"
 
 /**
- * app/(applicant)/apply/invite/[token]/consent/page.tsx — FILL: one-line purpose
+ * app/(applicant)/apply/invite/[token]/consent/page.tsx — Stage 2 POPIA credit-check consent
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /apply/invite/[token]/consent
+ * Auth:   application_tokens.token lookup (validated server-side by API routes)
+ * Data:   /api/consent/send-code → /api/consent/verify-code → /api/applications/invite-consent
+ * Notes:  ADDENDUM_14F: two-step flow — tick consent, then verify via SMS code.
+ *         ConsentCodeEntry component handles the code entry / resend / expiry UI.
+ *         Decline path keeps the existing anon Supabase write (stage2_status = withdrawn).
  */
 import { useState } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ShieldCheck } from "lucide-react"
+import { ConsentCodeEntry } from "@/components/consent/ConsentCodeEntry"
 import { createClient } from "@/lib/supabase/client"
+
+type Step = "consent" | "verify"
+
+interface SendCodeResponse {
+  verificationId: string
+  targetMasked: string
+  expiresAt: string
+  error?: string
+}
 
 export default function Stage2ConsentPage() {
   const router = useRouter()
@@ -22,7 +33,61 @@ export default function Stage2ConsentPage() {
   const token = params.token as string
 
   const [agreed, setAgreed] = useState(false)
+  const [step, setStep] = useState<Step>("consent")
   const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [verifData, setVerifData] = useState<{ verificationId: string; targetMasked: string; expiresAt: string } | null>(null)
+
+  async function sendCode(): Promise<SendCodeResponse> {
+    const res = await fetch("/api/consent/send-code", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, consent_type: "standard_bundle" }),
+    })
+    return res.json() as Promise<SendCodeResponse>
+  }
+
+  async function handleAgree() {
+    if (!agreed) return
+    setError(null)
+
+    const result = await sendCode()
+    if (result.error) {
+      // No phone on file — fall through to direct consent
+      if (result.error.includes("No phone")) {
+        await recordConsent(null)
+        return
+      }
+      setError(result.error)
+      return
+    }
+
+    setVerifData({ verificationId: result.verificationId, targetMasked: result.targetMasked, expiresAt: result.expiresAt })
+    setStep("verify")
+  }
+
+  async function handleResend() {
+    return sendCode()
+  }
+
+  async function recordConsent(verificationId: string | null) {
+    setSubmitting(true)
+    setError(null)
+
+    const res = await fetch("/api/applications/invite-consent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, verificationId }),
+    })
+
+    if (res.ok) {
+      router.push(`/apply/invite/${token}/payment`)
+    } else {
+      const body = await res.json().catch(() => ({})) as { error?: string }
+      setError(body.error ?? "Something went wrong. Please try again.")
+      setSubmitting(false)
+    }
+  }
 
   async function handleDecline() {
     if (!confirm("Are you sure you want to withdraw your application?")) return
@@ -43,59 +108,35 @@ export default function Stage2ConsentPage() {
     router.push(`/apply/invite/${token}`)
   }
 
-  async function handleAgree() {
-    if (!agreed) return
-    setSubmitting(true)
-
-    try {
-      const supabase = createClient()
-
-      // Look up application from token
-      const { data: tokenData } = await supabase
-        .from("application_tokens")
-        .select("application_id, applicant_email")
-        .eq("token", token)
-        .single()
-
-      if (!tokenData) {
-        alert("Invalid or expired token.")
-        setSubmitting(false)
-        return
-      }
-
-      // Get application org_id
-      const { data: app } = await supabase
-        .from("applications")
-        .select("org_id")
-        .eq("id", tokenData.application_id)
-        .single()
-
-      // Log Stage 2 consent
-      await supabase.from("consent_log").insert({
-        org_id: app?.org_id,
-        subject_email: tokenData.applicant_email,
-        consent_type: "credit_check",
-        consent_version: "1.0-searchworx-stage2",
-        metadata: {
-          application_id: tokenData.application_id,
-          bureau: "searchworx",
-          check_types: ["transunion", "xds", "csi_id", "csi_id_photo", "tpn_adverse"],
-          stage: 2,
-        },
-      })
-
-      // Update application with Stage 2 consent
-      await supabase.from("applications").update({
-        stage2_consent_given: true,
-        stage2_consent_given_at: new Date().toISOString(),
-        stage2_status: "pending_payment",
-      }).eq("id", tokenData.application_id)
-
-      router.push(`/apply/invite/${token}/payment`)
-    } catch {
-      alert("Something went wrong. Please try again.")
-      setSubmitting(false)
-    }
+  if (step === "verify" && verifData) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-xl font-semibold">Verify your consent</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Enter the code sent to your phone to confirm your consent.
+          </p>
+        </div>
+        <ConsentCodeEntry
+          verificationId={verifData.verificationId}
+          targetMasked={verifData.targetMasked}
+          expiresAt={verifData.expiresAt}
+          onVerified={(vid) => void recordConsent(vid)}
+          onResend={handleResend}
+          label="Credit check consent"
+        />
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={handleDecline}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Decline — withdraw my application
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -117,8 +158,8 @@ export default function Stage2ConsentPage() {
         </CardHeader>
         <CardContent className="space-y-4 text-sm text-muted-foreground">
           <p>
-            By consenting below, you authorise Pleks and its screening partner
-            <strong className="text-foreground"> Searchworx</strong> to perform
+            By consenting below, you authorise Pleks and its screening partner{" "}
+            <strong className="text-foreground">Searchworx</strong> to perform
             the following checks:
           </p>
 
@@ -160,7 +201,6 @@ export default function Stage2ConsentPage() {
         </CardContent>
       </Card>
 
-      {/* Consent checkbox */}
       <label className="flex items-start gap-3 cursor-pointer">
         <input
           type="checkbox"
@@ -173,21 +213,22 @@ export default function Stage2ConsentPage() {
         </span>
       </label>
 
-      {/* Actions */}
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
       <div className="flex flex-col gap-3">
         <Button
           className="w-full h-12 text-base font-semibold"
           size="lg"
           disabled={!agreed || submitting}
-          onClick={handleAgree}
+          onClick={() => void handleAgree()}
         >
-          {submitting ? "Processing..." : "Agree and pay"}
+          {submitting ? "Processing…" : "Agree and continue →"}
         </Button>
 
         <Button
           variant="ghost"
           className="w-full"
-          onClick={handleDecline}
+          onClick={() => void handleDecline()}
         >
           Decline — withdraw my application
         </Button>

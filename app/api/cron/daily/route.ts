@@ -37,6 +37,7 @@ import { GET as subscriptionDunning } from "../subscription-dunning/route"
 import { GET as subscriptionDormancy } from "../subscription-dormancy/route"
 import { GET as subscriptionPurgeWarnings } from "../subscription-purge-warnings/route"
 import { GET as screeningPortalReminders } from "../screening-portal-reminders/route"
+import { GET as consentCleanup } from "../consent-cleanup/route"
 import { runLegalArchiveStep } from "@/lib/legal/archive"
 import { runRulesEngine, type EngineRuleSummary } from "@/lib/rules/engine"
 
@@ -103,6 +104,7 @@ export async function GET(req: NextRequest) {
   await runJob("subscription_dormancy", subscriptionDormancy, cronReq, results)
   await runJob("subscription_purge_warnings", subscriptionPurgeWarnings, cronReq, results)
   await runJob("screening_portal_reminders", screeningPortalReminders, cronReq, results)
+  await runJob("consent_cleanup", consentCleanup, cronReq, results)
 
   // Legal archive — called directly (not via runJob) so structured result goes into cron_runs.metadata
   let legalArchive: import("@/lib/legal/archive").LegalArchiveResult = {}
