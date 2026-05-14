@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
   // Validate token matches co-applicant and is unexpired
   const { data: coApp, error } = await service
     .from("application_co_applicants")
-    .select("id, org_id, primary_application_id, stage2_consent_given_at, access_token_expires, declined_at")
+    .select("id, org_id, primary_application_id, applicant_email, stage2_consent_given_at, access_token_expires, declined_at")
     .eq("id", coApplicantId)
     .eq("access_token", token)
     .is("declined_at", null)
@@ -43,20 +43,30 @@ export async function POST(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null
   const now = new Date().toISOString()
 
-  // Insert consent_log entry
-  const { data: logEntry } = await service
+  // Insert consent_log entry — POPIA s11(1)(a) hard audit requirement
+  const { data: logEntry, error: logErr } = await service
     .from("consent_log")
     .insert({
-      org_id:      coApp.org_id,
-      action:      "consent_given",
-      purpose:     "credit_check_director_surety",
-      entity_type: "application_co_applicant",
-      entity_id:   coApplicantId,
-      ip_address:  ip,
-      captured_at: now,
+      org_id:          coApp.org_id,
+      subject_email:   coApp.applicant_email,
+      consent_type:    "credit_check",
+      consent_given:   true,
+      consent_version: "1.0",
+      ip_address:      ip,
+      user_agent:      req.headers.get("user-agent"),
+      metadata:        {
+        purpose:                     "credit_check_director_surety",
+        application_co_applicant_id: coApplicantId,
+        application_id:              coApp.primary_application_id,
+      },
     })
     .select("id")
     .single()
+
+  if (logErr) {
+    console.error("[director-consent] consent_log insert failed:", logErr.message)
+    return NextResponse.json({ error: "Failed to record consent" }, { status: 500 })
+  }
 
   const { error: updateErr } = await service
     .from("application_co_applicants")

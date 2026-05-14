@@ -6,7 +6,8 @@
  * Notes:  Runs every 15 minutes via cPanel curl cron (Vercel Hobby = 1 cron slot taken by /api/cron/daily).
  *         Queries v_application_screening_lines for 'ready_to_run' lines, marks each 'running',
  *         calls Searchworx (Phase 1: placeholder — Searchworx integration ships with BUILD_14 Phase 2 cutover),
- *         marks 'complete' or 'failed'. Idempotent: FOR UPDATE SKIP LOCKED prevents double-processing.
+ *         marks 'complete' or 'failed'. Idempotent: optimistic claim via UPDATE ... WHERE status IN (...)
+ *         RETURNING id — if 0 rows returned, another runner already owns the line and we skip.
  *         Max 50 lines per invocation to stay within 15-minute windows.
  */
 import { NextRequest, NextResponse } from "next/server"
@@ -77,20 +78,28 @@ async function processLine(
 ): Promise<void> {
   const now = new Date().toISOString()
 
-  // Mark as running (optimistic lock — if concurrent runner picks same line, second update is a no-op)
+  // Claim the line: UPDATE only if status is still unstarted, RETURNING id to detect races.
+  // If another runner already claimed it, 0 rows are returned and we skip.
+  let claimed: { id: string }[] | null = null
   if (line.subject_type === "company") {
-    await service
+    const { data } = await service
       .from("applications")
       .update({ searchworx_check_status: "running" })
       .eq("id", line.application_id)
       .in("searchworx_check_status", ["pending", "not_run"])
+      .select("id")
+    claimed = data
   } else {
-    await service
+    const { data } = await service
       .from("application_co_applicants")
       .update({ searchworx_check_status: "running" })
       .eq("id", line.subject_id)
       .in("searchworx_check_status", ["pending", "not_run"])
+      .select("id")
+    claimed = data
   }
+
+  if (!claimed || claimed.length === 0) return  // Another runner owns this line
 
   // Phase 1 placeholder — Searchworx integration ships in BUILD_14 Phase 2 cutover.
   // When Searchworx is live: call the appropriate bundle endpoints, persist results,
