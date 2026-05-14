@@ -74,7 +74,7 @@ export async function upsertClassificationsFromExtraction(
 
   const { error } = await supabase
     .from("application_bank_statement_classifications")
-    .upsert(rows, { onConflict: "application_id,payee_signature" })
+    .upsert(rows, { onConflict: "application_id,co_applicant_id,payee_signature" })
 
   if (error) {
     console.error("upsertClassificationsFromExtraction failed:", error.message)

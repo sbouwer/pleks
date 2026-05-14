@@ -141,7 +141,7 @@ export interface PrescreenResult {
   pleksPaymentQuality: string | null
 
   // Totals
-  totalScore: number              // 0-50 (45 base + 5 Pleks bonus)
+  totalScore: number              // 0-55 (25 affordability + 15 commitments + 5 identity + 5 documents + 5 Pleks bonus)
   flag: PrescreenFlag
 
   // Narratives (selected from templates in prescreenNarratives.ts)
@@ -277,6 +277,11 @@ export function calculatePrescreen(
   return { income, employment, references, total, affordability_flag: result.flag !== 'green', rent_to_income_pct }
 }
 
+/**
+ * v1-scale only — thresholds calibrated to 0-45. Do NOT pass v2 totalScore (0-55) here;
+ * use flagFromScore (above) or a future getPrescreenLevelV2 for v2 results.
+ * Kept for Phase 1 parallel-run callers. Remove after v2 cutover.
+ */
 export function getPrescreenLevel(total: number): 'strong' | 'good' | 'borderline' | 'insufficient' | 'pending' {
   if (total >= 38) return 'strong'
   if (total >= 30) return 'good'

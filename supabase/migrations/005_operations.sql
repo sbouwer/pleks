@@ -2089,6 +2089,36 @@ COMMENT ON VIEW v_application_screening_lines IS
    screening payments to derive per-line state. Drives the portal page UI
    and the screening-line-runner cron.';
 
+-- ── BUILD_14_v2 corrections (CD audit findings) ─────────────────────────────
+-- Finding 1: bsc upsert requires a matching UNIQUE constraint. Omitting
+-- co_applicant_id from the key would silently collide two co-applicants who
+-- share a payee (e.g., both pay DStv). NULLS NOT DISTINCT (Postgres 15+)
+-- makes the NULL co_applicant_id row for the primary applicant a single
+-- canonical slot — duplicate Sonnet runs for the same primary applicant
+-- and payee correctly conflict.
+ALTER TABLE application_bank_statement_classifications
+  DROP CONSTRAINT IF EXISTS bsc_unique_per_subject;
+ALTER TABLE application_bank_statement_classifications
+  ADD CONSTRAINT bsc_unique_per_subject
+  UNIQUE NULLS NOT DISTINCT (application_id, co_applicant_id, payee_signature);
+
+-- Finding 2: identity_score + pleks_bonus_score component columns missing from
+-- application_prescreens — the total_score was persisted but the breakdown
+-- wasn't reconstructible for Tribunal-grade audit. income_cents / capital_cents
+-- preserve the raw rand inputs that produced Ratio 1 (currently only the
+-- derived ratio is stored).
+ALTER TABLE application_prescreens ADD COLUMN IF NOT EXISTS identity_score    integer NOT NULL DEFAULT 0;
+ALTER TABLE application_prescreens ADD COLUMN IF NOT EXISTS pleks_bonus_score integer NOT NULL DEFAULT 0;
+ALTER TABLE application_prescreens ADD COLUMN IF NOT EXISTS income_cents      bigint;
+ALTER TABLE application_prescreens ADD COLUMN IF NOT EXISTS capital_cents     bigint;
+
+ALTER TABLE application_prescreens
+  DROP CONSTRAINT IF EXISTS prescreens_identity_score_check,
+  DROP CONSTRAINT IF EXISTS prescreens_pleks_bonus_score_check;
+ALTER TABLE application_prescreens
+  ADD CONSTRAINT prescreens_identity_score_check    CHECK (identity_score    >= 0 AND identity_score    <= 5),
+  ADD CONSTRAINT prescreens_pleks_bonus_score_check CHECK (pleks_bonus_score >= 0 AND pleks_bonus_score <= 5);
+
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- End §BUILD_14_v2
 -- ═══════════════════════════════════════════════════════════════════════════════
