@@ -25,7 +25,7 @@ interface StatusData {
 }
 
 const STEPS = [
-  { key: "docs",    label: "Documents received" },
+  { key: "docs",    label: "Portal access confirmed" },
   { key: "consent", label: "Consent recorded" },
   { key: "payment", label: "Payment confirmed" },
   { key: "checks",  label: "Screening checks running" },
