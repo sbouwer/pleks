@@ -6,6 +6,9 @@
  * Notes:  ADDENDUM_14F. Codes stored as HMAC-SHA256 with per-row salt (never
  *         plaintext). Rate limits: 3 sends/15min, 3 attempts/code, 1h soft / 24h hard.
  *         normalizePhoneZA normalises SA numbers to E.164 (+27XXXXXXXXX).
+ *         F1: getHmacSecret() throws in production if env var missing (fail-loud).
+ *         F3: recordSend resets consecutive_failed_codes; soft_lockout_count_24h
+ *             decays after 24h via last_soft_lockout_at column.
  */
 
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from "node:crypto"
@@ -39,7 +42,17 @@ export interface VerifyResult {
   error?: string
 }
 
-const HMAC_SECRET = process.env.CONSENT_HMAC_SECRET ?? "pleks-consent-hmac-dev"
+function getHmacSecret(): string {
+  const secret = process.env.CONSENT_HMAC_SECRET
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("CONSENT_HMAC_SECRET env var must be set in production")
+    }
+    return "pleks-consent-hmac-dev"
+  }
+  return secret
+}
+
 const MAX_SENDS_PER_WINDOW = 3
 const WINDOW_MS = 15 * 60 * 1000   // 15 min
 const MAX_ATTEMPTS = 3
@@ -52,7 +65,7 @@ export function generateCode(): string {
 }
 
 export function hashCode(code: string, salt: string): string {
-  return createHmac("sha256", HMAC_SECRET).update(`${salt}:${code}`).digest("hex")
+  return createHmac("sha256", getHmacSecret()).update(`${salt}:${code}`).digest("hex")
 }
 
 export function verifyCodeMatch(submitted: string, storedHash: string, salt: string): boolean {
@@ -142,9 +155,10 @@ export async function recordSend(identifier: string): Promise<void> {
 
   await service.from("consent_verification_rate_limits").upsert({
     identifier,
-    sends_window_start: inWindow ? existing.sends_window_start : now.toISOString(),
-    sends_in_window: inWindow ? (existing.sends_in_window as number) + 1 : 1,
-    updated_at: now.toISOString(),
+    sends_window_start:       inWindow ? existing.sends_window_start : now.toISOString(),
+    sends_in_window:          inWindow ? (existing.sends_in_window as number) + 1 : 1,
+    consecutive_failed_codes: 0,
+    updated_at:               now.toISOString(),
   }, { onConflict: "identifier" })
 }
 
@@ -170,13 +184,19 @@ export async function recordFailedAttempt(identifier: string): Promise<void> {
   }
 
   const consecutiveFailed = (existing.consecutive_failed_codes as number) + 1
-  let softLockoutUntil = existing.soft_lockout_until as string | null
-  let hardLockoutUntil = existing.hard_lockout_until as string | null
-  let softLockoutCount = existing.soft_lockout_count_24h as number
+  let softLockoutUntil     = existing.soft_lockout_until as string | null
+  let hardLockoutUntil     = existing.hard_lockout_until as string | null
+  let lastSoftLockoutAt    = existing.last_soft_lockout_at as string | null
+
+  // Decay soft_lockout_count_24h if the last soft lockout was > 24h ago
+  const rawCount = existing.soft_lockout_count_24h as number
+  const decayed  = lastSoftLockoutAt && now.getTime() - new Date(lastSoftLockoutAt).getTime() > HARD_LOCKOUT_MS
+  let softLockoutCount = decayed ? 0 : rawCount
 
   if (consecutiveFailed >= MAX_ATTEMPTS) {
     softLockoutCount++
-    softLockoutUntil = new Date(now.getTime() + SOFT_LOCKOUT_MS).toISOString()
+    softLockoutUntil  = new Date(now.getTime() + SOFT_LOCKOUT_MS).toISOString()
+    lastSoftLockoutAt = now.toISOString()
 
     if (softLockoutCount >= SOFT_LOCKOUT_THRESHOLD) {
       hardLockoutUntil = new Date(now.getTime() + HARD_LOCKOUT_MS).toISOString()
@@ -188,6 +208,7 @@ export async function recordFailedAttempt(identifier: string): Promise<void> {
     soft_lockout_until:       softLockoutUntil,
     hard_lockout_until:       hardLockoutUntil,
     soft_lockout_count_24h:   softLockoutCount,
+    last_soft_lockout_at:     lastSoftLockoutAt,
     updated_at:               now.toISOString(),
   }).eq("identifier", identifier)
 }

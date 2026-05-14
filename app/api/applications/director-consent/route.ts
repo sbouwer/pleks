@@ -106,5 +106,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Failed to record consent" }, { status: 500 })
   }
 
+  // F5: link verification row back to consent_log (mirrors invite-consent pattern)
+  if (verificationId && logEntry?.id) {
+    await service
+      .from("consent_verifications")
+      .update({ consent_log_id: logEntry.id })
+      .eq("id", verificationId)
+  }
+
   return NextResponse.json({ ok: true })
 }

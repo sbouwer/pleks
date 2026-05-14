@@ -3,10 +3,11 @@
  *
  * Route:  POST /api/consent/verify-code
  * Auth:   verification_id lookup (service client)
- * Data:   consent_verifications (update), consent_verification_rate_limits, audit_log
+ * Data:   consent_verifications (update), consent_verification_rate_limits, audit_log, auth_events
  * Notes:  ADDENDUM_14F. Constant-time HMAC comparison. Returns status: verified | invalid |
  *         locked | expired. Does NOT record consent_log row — caller does that after
  *         verification succeeds (keeping consent recording in the existing flow).
+ *         F2: writes auth_events for all three outcomes (verified/failed/locked_out).
  */
 import { NextResponse } from "next/server"
 import * as Sentry from "@sentry/nextjs"
@@ -62,17 +63,43 @@ export async function POST(req: Request) {
       verif.code_salt as string,
     )
 
+    const aeBase = {
+      org_id:    verif.org_id,
+      user_id:   null,
+      metadata:  {
+        verification_id: verificationId,
+        consent_type:    verif.consent_type,
+        application_id:  verif.application_id,
+        is_director:     !!verif.director_token,
+      },
+    }
+
     if (!match) {
       const identifier = verif.target_phone_e164 as string
       await recordFailedAttempt(identifier)
 
       if (attempts >= MAX_ATTEMPTS) {
         await service.from("consent_verifications").update({ status: "invalidated" }).eq("id", verificationId)
+        const { error: aeErr } = await service.from("auth_events").insert({
+          ...aeBase,
+          event_type: "consent_verification_locked_out",
+          success:    false,
+          metadata:   { ...aeBase.metadata, attempts },
+        })
+        if (aeErr) console.error("[verify-code] auth_events locked_out failed:", aeErr.message)
         return NextResponse.json({ status: "locked", message: "Code invalidated — request a new one" })
       }
 
+      const { error: aeErr } = await service.from("auth_events").insert({
+        ...aeBase,
+        event_type: "consent_verification_failed",
+        success:    false,
+        metadata:   { ...aeBase.metadata, attempts, attempts_remaining: MAX_ATTEMPTS - attempts },
+      })
+      if (aeErr) console.error("[verify-code] auth_events failed insert failed:", aeErr.message)
+
       return NextResponse.json({
-        status: "invalid",
+        status:            "invalid",
         attemptsRemaining: MAX_ATTEMPTS - attempts,
       })
     }
@@ -100,6 +127,13 @@ export async function POST(req: Request) {
         director_token:   !!verif.director_token,
       },
     })
+
+    const { error: aeErr } = await service.from("auth_events").insert({
+      ...aeBase,
+      event_type: "consent_code_verified",
+      success:    true,
+    })
+    if (aeErr) console.error("[verify-code] auth_events verified insert failed:", aeErr.message)
 
     return NextResponse.json({ status: "verified", verificationId })
   } catch (err) {

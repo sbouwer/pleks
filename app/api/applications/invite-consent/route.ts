@@ -23,10 +23,12 @@ export async function POST(req: NextRequest) {
 
   const service = await createServiceClient()
 
+  // F6: check expires_at (consistent with send-code applicant path)
   const { data: tokenRow } = await service
     .from("application_tokens")
     .select("application_id, applicant_email")
     .eq("token", token)
+    .gt("expires_at", new Date().toISOString())
     .maybeSingle()
 
   if (!tokenRow) {

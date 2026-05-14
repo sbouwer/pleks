@@ -2194,6 +2194,9 @@ CREATE TABLE IF NOT EXISTS consent_verification_rate_limits (
   updated_at                  timestamptz NOT NULL DEFAULT now()
 );
 
+-- F3: 24h decay for soft_lockout_count_24h — tracks when the last soft lockout occurred
+ALTER TABLE consent_verification_rate_limits ADD COLUMN IF NOT EXISTS last_soft_lockout_at timestamptz;
+
 CREATE INDEX IF NOT EXISTS idx_rate_limit_hard_lockout ON consent_verification_rate_limits(hard_lockout_until)
   WHERE hard_lockout_until IS NOT NULL;
 

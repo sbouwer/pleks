@@ -1648,9 +1648,9 @@ CREATE INDEX IF NOT EXISTS idx_rule_runs_outcome
 -- §25  ADDENDUM_14F: auth_events.event_type CHECK extension
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- Adds consent verification + ADDENDUM_14E special-information event types.
--- NOTE: auth_events.user_id is NOT NULL — these types are defined for future
--- agent-authenticated consent flows. Token-based applicant/director consent
--- events are written to audit_log (no user_id constraint) instead.
+-- NOTE: user_id is nullable since BUILD_63 §9.2 (ALTER COLUMN user_id DROP NOT NULL).
+-- Token-based applicant/director flows write to auth_events with user_id=NULL.
+-- These event types are written by /api/consent/send-code and /api/consent/verify-code.
 
 ALTER TABLE auth_events DROP CONSTRAINT IF EXISTS auth_events_event_type_check;
 ALTER TABLE auth_events ADD CONSTRAINT auth_events_event_type_check
