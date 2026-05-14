@@ -1,0 +1,206 @@
+/**
+ * app/(applicant)/apply/[slug]/director-portal/[token]/page.tsx — Director portal landing page
+ *
+ * Route:  /apply/[slug]/director-portal/[token]
+ * Auth:   application_co_applicants.access_token lookup — director's private token
+ * Data:   application_co_applicants, applications, application_screening_payments
+ * Notes:  Each director accesses only their own row — POPIA per-data-subject isolation.
+ *         Shows step state (documents / consent / payment) and deep-links to the relevant step.
+ *         Token is single-purpose per director; cannot see other directors' data.
+ */
+import { notFound } from "next/navigation"
+import { createServiceClient } from "@/lib/supabase/server"
+import { formatZAR } from "@/lib/constants"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import Link from "next/link"
+import { CheckCircle2, Clock, Circle } from "lucide-react"
+
+interface DirectorPortalData {
+  coApplicantId: string
+  firstName: string | null
+  applicationId: string
+  slug: string
+  propertyLabel: string
+  feeCents: number
+  docsSubmitted: string[]
+  consentGiven: boolean
+  paymentPaid: boolean
+  checksComplete: boolean
+  token: string
+}
+
+export default async function DirectorPortalPage({
+  params,
+}: {
+  params: Promise<{ slug: string; token: string }>
+}) {
+  const { slug, token } = await params
+  const service = await createServiceClient()
+
+  // Validate director token
+  const { data: coApp, error: coErr } = await service
+    .from("application_co_applicants")
+    .select("id, first_name, primary_application_id, individual_fee_cents, documents_submitted, stage2_consent_given_at, searchworx_check_status, access_token_expires, declined_at")
+    .eq("access_token", token)
+    .is("declined_at", null)
+    .single()
+
+  if (coErr || !coApp) notFound()
+
+  // Check token expiry
+  if (coApp.access_token_expires && new Date(coApp.access_token_expires) < new Date()) {
+    return (
+      <div className="space-y-4">
+        <Card>
+          <CardContent className="text-center py-8 space-y-3">
+            <Clock className="size-10 text-muted-foreground mx-auto" />
+            <h1 className="text-xl font-semibold">Your invite has expired</h1>
+            <p className="text-sm text-muted-foreground">
+              This director link has expired. Please ask the primary applicant to resend your invitation.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Fetch application + listing context
+  const { data: app } = await service
+    .from("applications")
+    .select("listings(public_slug, units(unit_number, properties(name)))")
+    .eq("id", coApp.primary_application_id)
+    .single()
+
+  const listing = app?.listings as unknown as {
+    public_slug: string
+    units: { unit_number: string; properties: { name: string } }
+  } | null
+
+  const propertyLabel = listing
+    ? [listing.units?.unit_number, listing.units?.properties?.name].filter(Boolean).join(" — ")
+    : "the property"
+
+  // Check payment status
+  const { data: payment } = await service
+    .from("application_screening_payments")
+    .select("paid_at")
+    .eq("application_id", coApp.primary_application_id)
+    .eq("subject_type", "co_applicant")
+    .eq("subject_id", coApp.id)
+    .maybeSingle()
+
+  const data: DirectorPortalData = {
+    coApplicantId: coApp.id,
+    firstName: coApp.first_name,
+    applicationId: coApp.primary_application_id,
+    slug,
+    propertyLabel,
+    feeCents: coApp.individual_fee_cents ?? 25000,
+    docsSubmitted: (coApp.documents_submitted as string[]) ?? [],
+    consentGiven: !!coApp.stage2_consent_given_at,
+    paymentPaid: !!payment?.paid_at,
+    checksComplete: coApp.searchworx_check_status === "complete",
+    token,
+  }
+
+  const docsOk = data.docsSubmitted.length > 0
+  const allDone = docsOk && data.consentGiven && data.paymentPaid
+
+  const base = `/apply/${slug}/director-portal/${token}`
+
+  const steps = [
+    {
+      label: "Upload your documents",
+      sublabel: "ID document and 3-month bank statement",
+      done: docsOk,
+      href: `${base}/documents`,
+    },
+    {
+      label: "Give your consent",
+      sublabel: "POPIA consent for your personal credit check",
+      done: data.consentGiven,
+      href: `${base}/consent`,
+    },
+    {
+      label: `Pay your fee — ${formatZAR(data.feeCents)}`,
+      sublabel: "Covers credit check, identity and income verification",
+      done: data.paymentPaid,
+      href: `${base}/payment`,
+    },
+  ]
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-xl font-semibold">
+          {data.firstName ? `Hi ${data.firstName} —` : ""} Complete your portion
+        </h1>
+        <p className="text-sm text-muted-foreground mt-1">{propertyLabel}</p>
+      </div>
+
+      {allDone && !data.checksComplete && (
+        <Card className="border-blue-500/20 bg-blue-500/5">
+          <CardContent className="pt-4 flex items-start gap-3">
+            <Clock className="size-5 text-blue-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-sm">Your checks are running</p>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                This usually takes a few minutes. You will receive your Consumer Report by email when complete.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {data.checksComplete && (
+        <Card className="border-green-500/20 bg-green-500/5">
+          <CardContent className="pt-4 flex items-start gap-3">
+            <CheckCircle2 className="size-5 text-green-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-sm">Your portion is complete</p>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Your Consumer Report has been sent to your email address.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Steps */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">What you need to do</CardTitle>
+        </CardHeader>
+        <CardContent className="divide-y divide-border">
+          {steps.map((step, i) => (
+            <div key={i} className="flex items-center justify-between py-4 gap-4">
+              <div className="flex items-start gap-3">
+                {step.done
+                  ? <CheckCircle2 className="size-5 text-green-500 shrink-0 mt-0.5" />
+                  : <Circle className="size-5 text-muted-foreground shrink-0 mt-0.5" />
+                }
+                <div>
+                  <p className="text-sm font-medium">{step.label}</p>
+                  <p className="text-xs text-muted-foreground">{step.sublabel}</p>
+                </div>
+              </div>
+              {!step.done && (
+                <Button size="sm" variant="outline" render={<Link href={step.href} />}>
+                  Start →
+                </Button>
+              )}
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      {/* POPIA notice */}
+      <p className="text-xs text-muted-foreground text-center">
+        Your information is processed under POPIA for tenancy screening purposes only.
+        You are a separate data subject — your results will not be shared with other applicants.
+      </p>
+    </div>
+  )
+}

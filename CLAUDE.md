@@ -624,6 +624,7 @@ These jobs were moved out of the daily orchestrator to run at higher frequency:
 | Job | Endpoint | Cadence | HTTP method |
 |-----|----------|---------|-------------|
 | mandatory-retry | `/api/cron/tenant-comms/mandatory-retry` | Every 1h | POST |
+| screening-line-runner | `/api/cron/screening-line-runner` | Every 15m | GET |
 | bank-feed-sync | `/api/cron/bank-feed-sync` | Every 4h | GET |
 | arrears-sequence | `/api/cron/arrears-sequence` | Every 4h | GET |
 | maintenance-delay-check | `/api/cron/maintenance-delay-check` | Every 4h | GET |

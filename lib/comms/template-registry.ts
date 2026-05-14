@@ -287,6 +287,30 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
     key: "application.co_applicant_invited", channel: "email", category: "applications", is_mandatory: false,
     description: "Co-applicant invited to complete joint application",
   },
+  "application.director_invited": {
+    key: "application.director_invited", channel: "email", category: "applications", is_mandatory: false,
+    description: "Surety director invited to complete their portion of a commercial application",
+  },
+  "application.director_reminder_t3": {
+    key: "application.director_reminder_t3", channel: "email", category: "applications", is_mandatory: false,
+    description: "Day-3 gentle reminder to director whose portion is still outstanding",
+  },
+  "application.director_reminder_t7": {
+    key: "application.director_reminder_t7", channel: "email", category: "applications", is_mandatory: false,
+    description: "Day-7 reminder to director (+ SMS) — portion outstanding",
+  },
+  "application.director_reminder_t10": {
+    key: "application.director_reminder_t10", channel: "email", category: "applications", is_mandatory: false,
+    description: "Day-10 final reminder to director before expiry",
+  },
+  "application.director_expired_refund": {
+    key: "application.director_expired_refund", channel: "email", category: "applications", is_mandatory: false,
+    description: "Director's portion expired; if paid, refund flagged for agency",
+  },
+  "application.primary_contact_director_pending": {
+    key: "application.primary_contact_director_pending", channel: "email", category: "applications", is_mandatory: false,
+    description: "Primary contact notified that one or more directors have not yet completed their portions",
+  },
   "application.credit_report_delivered": {
     key: "application.credit_report_delivered", channel: "email", category: "applications", is_mandatory: false,
     description: "Applicant receives their FitScore and screening summary",

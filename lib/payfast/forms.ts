@@ -82,3 +82,44 @@ export function buildApplicationFeeForm({
 
   return { url: PAYFAST_CONFIG.processUrl, data }
 }
+
+interface DirectorFeeFormData {
+  applicationId: string
+  coApplicantId: string
+  orgId: string
+  slug: string
+  feeCents: number
+  directorName: string
+  propertyLabel: string
+}
+
+export function buildDirectorFeeForm({
+  applicationId,
+  coApplicantId,
+  orgId,
+  slug,
+  feeCents,
+  directorName,
+  propertyLabel,
+}: DirectorFeeFormData) {
+  const amount = (feeCents / 100).toFixed(2)
+  const data: Record<string, string> = {
+    merchant_id: PAYFAST_CONFIG.merchantId,
+    merchant_key: PAYFAST_CONFIG.merchantKey,
+    return_url: `${process.env.NEXT_PUBLIC_APP_URL}/apply/${slug}/director-portal/status?coApplicantId=${coApplicantId}`,
+    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/apply/${slug}/director-portal/payment?coApplicantId=${coApplicantId}`,
+    notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/payfast/director`,
+    amount,
+    item_name: `Director Screening Fee — ${directorName}`,
+    item_description: `Personal surety screening for ${propertyLabel}`,
+    custom_str1: applicationId,
+    custom_str2: coApplicantId,
+    custom_str3: orgId,
+    custom_str4: String(feeCents),
+  }
+
+  const signature = generatePayFastSignature(data, PAYFAST_CONFIG.passphrase)
+  data.signature = signature
+
+  return { url: PAYFAST_CONFIG.processUrl, data }
+}
