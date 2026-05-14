@@ -12,7 +12,7 @@ import { NextRequest, NextResponse } from "next/server"
 import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
 import { sendEmail } from "@/lib/comms/send-email"
-import { buildDirectorReminderHtml } from "@/lib/applications/commercial"
+import { buildDirectorReminderHtml } from "@/lib/applications/commercial-html"
 
 export async function GET(req: NextRequest) {
   const secret = req.headers.get("x-cron-secret")
@@ -154,10 +154,7 @@ async function processDirectorLine(
   }
 
   // T+3 / T+7 / T+10 reminder
-  const templateKey = `application.director_reminder_${stage}` as
-    | "application.director_reminder_t3"
-    | "application.director_reminder_t7"
-    | "application.director_reminder_t10"
+  const templateKey = `application.director_reminder_${stage}`
 
   const daysRemaining = Math.max(0, 14 - daysElapsed)
   const paidByPrimary = !!line.paid_at
