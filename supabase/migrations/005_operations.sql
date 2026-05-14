@@ -2195,7 +2195,7 @@ CREATE TABLE IF NOT EXISTS consent_verification_rate_limits (
 );
 
 CREATE INDEX IF NOT EXISTS idx_rate_limit_hard_lockout ON consent_verification_rate_limits(hard_lockout_until)
-  WHERE hard_lockout_until > now();
+  WHERE hard_lockout_until IS NOT NULL;
 
 ALTER TABLE consent_verification_rate_limits ENABLE ROW LEVEL SECURITY;
 -- Service role only — no client-facing policies.
