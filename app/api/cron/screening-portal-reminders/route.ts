@@ -7,6 +7,8 @@
  *         for surety directors who have not yet completed their portal portions.
  *         T+14: director line cancelled, payment flagged for manual refund (14C), expiry email sent.
  *         Primary contact notified at T+7 and T+10 (informational only).
+ *         Milestone tracking: reminder_milestones_sent jsonb on application_co_applicants prevents
+ *         re-sending if the daily cron misses a run — each key (t3/t7/t10) is marked once sent.
  */
 import { NextRequest, NextResponse } from "next/server"
 import * as Sentry from "@sentry/nextjs"
@@ -67,13 +69,34 @@ type PendingLine = {
 
 type LineOutcome = "reminded" | "expired" | "skipped"
 
-async function processDirectorLine(
-  service: Awaited<ReturnType<typeof createServiceClient>>,
-  line: PendingLine,
-): Promise<LineOutcome> {
+type Svc = Awaited<ReturnType<typeof createServiceClient>>
+
+type CoAppRow = {
+  applicant_email: string
+  first_name: string | null
+  created_at: string
+  primary_application_id: string
+  access_token: string
+  reminder_milestones_sent: Record<string, boolean> | null
+}
+
+function resolvePropertyLabel(listings: unknown): { slug: string; propertyLabel: string } {
+  const listing = listings as {
+    public_slug: string
+    units: { unit_number: string; properties: { name: string } }
+  } | null
+  return {
+    slug: listing?.public_slug ?? "",
+    propertyLabel: listing
+      ? [listing.units?.unit_number, listing.units?.properties?.name].filter(Boolean).join(" — ")
+      : "the property",
+  }
+}
+
+async function processDirectorLine(service: Svc, line: PendingLine): Promise<LineOutcome> {
   const { data: coApp, error: coErr } = await service
     .from("application_co_applicants")
-    .select("applicant_email, first_name, created_at, primary_application_id, access_token")
+    .select("applicant_email, first_name, created_at, primary_application_id, access_token, reminder_milestones_sent")
     .eq("id", line.subject_id)
     .is("declined_at", null)
     .single()
@@ -82,14 +105,19 @@ async function processDirectorLine(
 
   const daysElapsed = Math.floor((Date.now() - new Date(coApp.created_at as string).getTime()) / 86_400_000)
 
-  let stage: "t3" | "t7" | "t10" | "expire" | null = null
-  if (daysElapsed >= 14) stage = "expire"
-  else if (daysElapsed === 10) stage = "t10"
-  else if (daysElapsed === 7) stage = "t7"
-  else if (daysElapsed === 3) stage = "t3"
+  if (daysElapsed >= 14) return expireDirectorLine(service, line, coApp as CoAppRow)
+
+  const sent = (coApp.reminder_milestones_sent ?? {}) as Record<string, boolean>
+  let stage: "t3" | "t7" | "t10" | null = null
+  if (daysElapsed >= 10 && !sent.t10) stage = "t10"
+  else if (daysElapsed >= 7  && !sent.t7)  stage = "t7"
+  else if (daysElapsed >= 3  && !sent.t3)  stage = "t3"
 
   if (!stage) return "skipped"
+  return sendMilestoneReminder(service, line, coApp as CoAppRow, stage, daysElapsed, sent)
+}
 
+async function expireDirectorLine(service: Svc, line: PendingLine, coApp: CoAppRow): Promise<LineOutcome> {
   const { data: app } = await service
     .from("applications")
     .select("first_name, last_name, applicant_email, listings(public_slug, units(unit_number, properties(name)))")
@@ -98,86 +126,94 @@ async function processDirectorLine(
 
   if (!app) return "skipped"
 
-  const listing = app.listings as unknown as {
-    public_slug: string
-    units: { unit_number: string; properties: { name: string } }
-  } | null
-
-  const slug = listing?.public_slug ?? line.application_id
-  const propertyLabel = listing
-    ? [listing.units?.unit_number, listing.units?.properties?.name].filter(Boolean).join(" — ")
-    : "the property"
+  const { propertyLabel } = resolvePropertyLabel(app.listings)
   const primaryContactName = [app.first_name, app.last_name].filter(Boolean).join(" ") || "the applicant"
-  const portalUrl = `${process.env.NEXT_PUBLIC_APP_URL}/apply/${slug}/director-portal/${coApp.access_token as string}`
+  const now = new Date().toISOString()
 
-  if (stage === "expire") {
-    await service
-      .from("application_co_applicants")
-      .update({ declined_at: new Date().toISOString(), decline_reason: "expired_no_completion" })
-      .eq("id", line.subject_id)
+  await service
+    .from("application_co_applicants")
+    .update({ declined_at: now, decline_reason: "expired_no_completion" })
+    .eq("id", line.subject_id)
 
-    if (line.paid_at) {
-      const { data: payment } = await service
+  await service.from("audit_log").insert({
+    org_id: line.org_id, table_name: "application_co_applicants", record_id: line.subject_id,
+    action: "UPDATE", new_values: { declined_at: now, decline_reason: "expired_no_completion" },
+  })
+
+  if (line.paid_at) {
+    const { data: payment } = await service
+      .from("application_screening_payments")
+      .select("id, fee_cents")
+      .eq("application_id", line.application_id)
+      .eq("subject_type", "co_applicant")
+      .eq("subject_id", line.subject_id)
+      .maybeSingle()
+
+    if (payment) {
+      await service
         .from("application_screening_payments")
-        .select("id, fee_cents")
-        .eq("application_id", line.application_id)
-        .eq("subject_type", "co_applicant")
-        .eq("subject_id", line.subject_id)
-        .maybeSingle()
+        .update({ expired_state: "paid_but_no_consent", refund_amount_cents: payment.fee_cents })
+        .eq("id", payment.id)
 
-      if (payment) {
-        await service
-          .from("application_screening_payments")
-          .update({ expired_state: "paid_but_no_consent", refund_amount_cents: payment.fee_cents })
-          .eq("id", payment.id)
-      }
+      await service.from("audit_log").insert({
+        org_id: line.org_id, table_name: "application_screening_payments", record_id: payment.id,
+        action: "UPDATE", new_values: { expired_state: "paid_but_no_consent", refund_amount_cents: payment.fee_cents },
+      })
     }
-
-    await sendEmail({
-      orgId: line.org_id,
-      templateKey: "application.director_expired_refund",
-      to: { email: coApp.applicant_email as string, name: (coApp.first_name as string | null) ?? "Director" },
-      subject: `Your application portion has expired — ${propertyLabel}`,
-      rawHtml: buildExpiryHtml({
-        directorFirstName: (coApp.first_name as string | null) ?? "Director",
-        propertyLabel,
-        primaryContactName,
-        paid: !!line.paid_at,
-      }),
-      entityType: "application_co_applicant",
-      entityId: line.subject_id,
-      triggerEventType: "cron:screening_portal_reminders",
-      triggerEventId: line.application_id,
-    })
-
-    return "expired"
   }
-
-  // T+3 / T+7 / T+10 reminder
-  const templateKey = `application.director_reminder_${stage}`
-
-  const daysRemaining = Math.max(0, 14 - daysElapsed)
-  const paidByPrimary = !!line.paid_at
 
   await sendEmail({
     orgId: line.org_id,
-    templateKey,
-    to: { email: coApp.applicant_email as string, name: (coApp.first_name as string | null) ?? "Director" },
+    templateKey: "application.director_expired_refund",
+    to: { email: coApp.applicant_email, name: coApp.first_name ?? "Director" },
+    subject: `Your application portion has expired — ${propertyLabel}`,
+    rawHtml: buildExpiryHtml({ directorFirstName: coApp.first_name ?? "Director", propertyLabel, primaryContactName, paid: !!line.paid_at }),
+    entityType: "application_co_applicant", entityId: line.subject_id,
+    triggerEventType: "cron:screening_portal_reminders", triggerEventId: line.application_id,
+  })
+
+  return "expired"
+}
+
+async function sendMilestoneReminder(
+  service: Svc,
+  line: PendingLine,
+  coApp: CoAppRow,
+  stage: "t3" | "t7" | "t10",
+  daysElapsed: number,
+  sent: Record<string, boolean>,
+): Promise<LineOutcome> {
+  const { data: app } = await service
+    .from("applications")
+    .select("first_name, last_name, applicant_email, listings(public_slug, units(unit_number, properties(name)))")
+    .eq("id", line.application_id)
+    .single()
+
+  if (!app) return "skipped"
+
+  const { slug, propertyLabel } = resolvePropertyLabel(app.listings)
+  const primaryContactName = [app.first_name, app.last_name].filter(Boolean).join(" ") || "the applicant"
+  const portalUrl = `${process.env.NEXT_PUBLIC_APP_URL}/apply/${slug || line.application_id}/director-portal/${coApp.access_token}`
+
+  await sendEmail({
+    orgId: line.org_id,
+    templateKey: `application.director_reminder_${stage}`,
+    to: { email: coApp.applicant_email, name: coApp.first_name ?? "Director" },
     subject: `Reminder: your portion is still outstanding — ${propertyLabel}`,
     rawHtml: buildDirectorReminderHtml({
-      directorFirstName: (coApp.first_name as string | null) ?? "Director",
-      primaryContactName,
-      propertyLabel,
-      portalUrl,
-      daysRemaining,
-      stage,
-      paidByPrimary,
+      directorFirstName: coApp.first_name ?? "Director",
+      primaryContactName, propertyLabel, portalUrl,
+      daysRemaining: Math.max(0, 14 - daysElapsed),
+      stage, paidByPrimary: !!line.paid_at,
     }),
-    entityType: "application_co_applicant",
-    entityId: line.subject_id,
-    triggerEventType: "cron:screening_portal_reminders",
-    triggerEventId: line.application_id,
+    entityType: "application_co_applicant", entityId: line.subject_id,
+    triggerEventType: "cron:screening_portal_reminders", triggerEventId: line.application_id,
   })
+
+  await service
+    .from("application_co_applicants")
+    .update({ reminder_milestones_sent: { ...sent, [stage]: true } })
+    .eq("id", line.subject_id)
 
   if (stage === "t7" || stage === "t10") {
     await notifyPrimaryContact(service, line, { primaryContactName, propertyLabel, directorName: line.subject_name, stage })

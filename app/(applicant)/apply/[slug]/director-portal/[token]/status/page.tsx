@@ -2,16 +2,17 @@
  * app/(applicant)/apply/[slug]/director-portal/[token]/status/page.tsx — Director screening status page
  *
  * Route:  /apply/[slug]/director-portal/[token]/status
- * Auth:   application_co_applicants.access_token lookup
- * Data:   application_co_applicants, application_screening_payments
- * Notes:  Shown after payment. Realtime updates via Supabase channel on co-applicant row.
- *         Does NOT show another director's results — POPIA boundary.
+ * Auth:   access_token validated server-side by /api/applications/director-status/[token]
+ * Data:   /api/applications/director-status/[token] — polled every 10s
+ * Notes:  Polling replaces a Supabase realtime subscription. application_co_applicants has no
+ *         anon SELECT policy (agents only), so direct client queries return nothing. The API
+ *         route validates the token server-side via the service client.
+ *         Polling stops automatically once checksComplete is true.
  */
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useParams } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { CheckCircle2, Clock, Circle } from "lucide-react"
 
@@ -31,63 +32,38 @@ const STEPS = [
   { key: "done",    label: "Consumer Report delivered" },
 ]
 
+const POLL_INTERVAL_MS = 10_000
+
 export default function DirectorStatusPage() {
   const params = useParams()
   const token = params.token as string
 
   const [data, setData] = useState<StatusData | null>(null)
   const [loading, setLoading] = useState(true)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
-    const supabase = createClient()
-    let coApplicantId: string | null = null
-
-    async function load() {
-      const { data: coApp } = await supabase
-        .from("application_co_applicants")
-        .select("id, first_name, stage2_consent_given_at, searchworx_check_status, primary_application_id")
-        .eq("access_token", token)
-        .is("declined_at", null)
-        .single()
-
-      if (!coApp) { setLoading(false); return }
-      coApplicantId = coApp.id
-
-      const { data: payment } = await supabase
-        .from("application_screening_payments")
-        .select("paid_at")
-        .eq("application_id", coApp.primary_application_id)
-        .eq("subject_type", "co_applicant")
-        .eq("subject_id", coApp.id)
-        .maybeSingle()
-
-      setData({
-        firstName:      coApp.first_name,
-        consentGiven:   !!coApp.stage2_consent_given_at,
-        paymentPaid:    !!payment?.paid_at,
-        checksComplete: coApp.searchworx_check_status === "complete",
-        checkStatus:    coApp.searchworx_check_status ?? "not_run",
-      })
+    async function fetchStatus() {
+      const res = await fetch(`/api/applications/director-status/${token}`)
+      if (!res.ok) { setLoading(false); return }
+      const json = await res.json() as StatusData
+      setData(json)
       setLoading(false)
+      if (json.checksComplete && intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
     }
 
-    void load()
+    void fetchStatus()
+    intervalRef.current = setInterval(() => { void fetchStatus() }, POLL_INTERVAL_MS)
 
-    // Realtime: update status when co-applicant row changes
-    const channel = supabase
-      .channel(`director-status-${token}`)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "application_co_applicants" }, (payload) => {
-        const u = payload.new as Record<string, unknown>
-        if (u.id !== coApplicantId) return
-        setData((prev) => prev ? {
-          ...prev,
-          checksComplete: u.searchworx_check_status === "complete",
-          checkStatus: u.searchworx_check_status as string ?? "not_run",
-        } : prev)
-      })
-      .subscribe()
-
-    return () => { void supabase.removeChannel(channel) }
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+    }
   }, [token])
 
   if (loading) return (

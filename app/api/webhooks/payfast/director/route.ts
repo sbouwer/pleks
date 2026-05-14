@@ -6,6 +6,7 @@
  * Data:   application_screening_payments (upsert paid_at), application_co_applicants (payfast_transaction_id)
  * Notes:  Director fees are per-line (co-applicant row). Multiple directors on one application
  *         each get their own screening payment row. custom_str2 = coApplicantId, custom_str4 = feeCents.
+ *         Idempotent: checks existing paid_at before upsert to prevent PayFast retry double-billing.
  */
 import { NextResponse } from "next/server"
 import * as Sentry from "@sentry/nextjs"
@@ -29,7 +30,7 @@ export async function POST(req: Request) {
   const applicationId  = params.custom_str1
   const coApplicantId  = params.custom_str2
   const orgId          = params.custom_str3
-  const feeCents       = parseInt(params.custom_str4 ?? "0", 10)
+  const feeCents       = Number.parseInt(params.custom_str4 ?? "0", 10)
   const transactionId  = params.pf_payment_id || params.m_payment_id || null
 
   if (!applicationId || !coApplicantId || !orgId) {
@@ -40,8 +41,21 @@ export async function POST(req: Request) {
     const service = await createServiceClient()
     const now = new Date().toISOString()
 
+    // Idempotency: if already paid, skip — PayFast retries the same ITN on timeout
+    const { data: existing } = await service
+      .from("application_screening_payments")
+      .select("id, paid_at")
+      .eq("application_id", applicationId)
+      .eq("subject_type", "co_applicant")
+      .eq("subject_id", coApplicantId)
+      .maybeSingle()
+
+    if (existing?.paid_at) {
+      return NextResponse.json({ ok: true })
+    }
+
     // Upsert screening payment row for this director line
-    const { error: paymentErr } = await service
+    const { data: payment, error: paymentErr } = await service
       .from("application_screening_payments")
       .upsert(
         {
@@ -55,17 +69,19 @@ export async function POST(req: Request) {
         },
         { onConflict: "application_id,subject_type,subject_id" },
       )
+      .select("id")
+      .single()
 
-    if (paymentErr) {
-      console.error("[payfast/director] payment upsert failed:", paymentErr.message)
+    if (paymentErr || !payment) {
+      console.error("[payfast/director] payment upsert failed:", paymentErr?.message)
       return NextResponse.json({ error: "Payment record failed" }, { status: 500 })
     }
 
-    // Audit log
+    // Audit log — record_id is the payment row, not the co-applicant
     await service.from("audit_log").insert({
       org_id:     orgId,
       table_name: "application_screening_payments",
-      record_id:  coApplicantId,
+      record_id:  payment.id,
       action:     "UPDATE",
       new_values: { paid_at: now, payfast_transaction_id: transactionId, fee_cents: feeCents },
     })

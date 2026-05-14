@@ -2119,6 +2119,14 @@ ALTER TABLE application_prescreens
   ADD CONSTRAINT prescreens_identity_score_check    CHECK (identity_score    >= 0 AND identity_score    <= 5),
   ADD CONSTRAINT prescreens_pleks_bonus_score_check CHECK (pleks_bonus_score >= 0 AND pleks_bonus_score <= 5);
 
+-- ── ADDENDUM_14B closing-pass audit fixes ────────────────────────────────────
+-- F4: reminder cron used strict day-equality; a missed cron run permanently
+-- skips that milestone. Shift to "any due milestone not yet sent" using a
+-- jsonb set on the co-applicant row. Each key (t3/t7/t10) is set to true
+-- when that reminder fires, so it never fires twice regardless of cron gaps.
+ALTER TABLE application_co_applicants
+  ADD COLUMN IF NOT EXISTS reminder_milestones_sent jsonb NOT NULL DEFAULT '{}'::jsonb;
+
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- End §BUILD_14_v2
 -- ═══════════════════════════════════════════════════════════════════════════════

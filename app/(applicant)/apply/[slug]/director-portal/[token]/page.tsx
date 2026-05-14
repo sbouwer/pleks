@@ -5,7 +5,8 @@
  * Auth:   application_co_applicants.access_token lookup — director's private token
  * Data:   application_co_applicants, applications, application_screening_payments
  * Notes:  Each director accesses only their own row — POPIA per-data-subject isolation.
- *         Shows step state (documents / consent / payment) and deep-links to the relevant step.
+ *         Director portal flow is Consent → Payment only. Searchworx handles document
+ *         collection post-consent; there is no in-portal document upload step.
  *         Token is single-purpose per director; cannot see other directors' data.
  */
 import { notFound } from "next/navigation"
@@ -17,31 +18,28 @@ import Link from "next/link"
 import { CheckCircle2, Clock, Circle } from "lucide-react"
 
 interface DirectorPortalData {
-  coApplicantId: string
   firstName: string | null
-  applicationId: string
-  slug: string
   propertyLabel: string
   feeCents: number
-  docsSubmitted: string[]
   consentGiven: boolean
   paymentPaid: boolean
   checksComplete: boolean
   token: string
+  slug: string
 }
 
 export default async function DirectorPortalPage({
   params,
-}: {
+}: Readonly<{
   params: Promise<{ slug: string; token: string }>
-}) {
+}>) {
   const { slug, token } = await params
   const service = await createServiceClient()
 
   // Validate director token
   const { data: coApp, error: coErr } = await service
     .from("application_co_applicants")
-    .select("id, first_name, primary_application_id, individual_fee_cents, documents_submitted, stage2_consent_given_at, searchworx_check_status, access_token_expires, declined_at")
+    .select("id, first_name, primary_application_id, individual_fee_cents, stage2_consent_given_at, searchworx_check_status, access_token_expires, declined_at")
     .eq("access_token", token)
     .is("declined_at", null)
     .single()
@@ -91,31 +89,20 @@ export default async function DirectorPortalPage({
     .maybeSingle()
 
   const data: DirectorPortalData = {
-    coApplicantId: coApp.id,
-    firstName: coApp.first_name,
-    applicationId: coApp.primary_application_id,
-    slug,
+    firstName:      coApp.first_name,
     propertyLabel,
-    feeCents: coApp.individual_fee_cents ?? 25000,
-    docsSubmitted: (coApp.documents_submitted as string[]) ?? [],
-    consentGiven: !!coApp.stage2_consent_given_at,
-    paymentPaid: !!payment?.paid_at,
+    feeCents:       coApp.individual_fee_cents ?? 25000,
+    consentGiven:   !!coApp.stage2_consent_given_at,
+    paymentPaid:    !!payment?.paid_at,
     checksComplete: coApp.searchworx_check_status === "complete",
     token,
+    slug,
   }
 
-  const docsOk = data.docsSubmitted.length > 0
-  const allDone = docsOk && data.consentGiven && data.paymentPaid
-
+  const allDone = data.consentGiven && data.paymentPaid
   const base = `/apply/${slug}/director-portal/${token}`
 
   const steps = [
-    {
-      label: "Upload your documents",
-      sublabel: "ID document and 3-month bank statement",
-      done: docsOk,
-      href: `${base}/documents`,
-    },
     {
       label: "Give your consent",
       sublabel: "POPIA consent for your personal credit check",
@@ -174,12 +161,12 @@ export default async function DirectorPortalPage({
           <CardTitle className="text-base">What you need to do</CardTitle>
         </CardHeader>
         <CardContent className="divide-y divide-border">
-          {steps.map((step, i) => (
-            <div key={i} className="flex items-center justify-between py-4 gap-4">
+          {steps.map((step) => (
+            <div key={step.href} className="flex items-center justify-between py-4 gap-4">
               <div className="flex items-start gap-3">
                 {step.done
-                  ? <CheckCircle2 className="size-5 text-green-500 shrink-0 mt-0.5" />
-                  : <Circle className="size-5 text-muted-foreground shrink-0 mt-0.5" />
+                ? <CheckCircle2 className="size-5 text-green-500 shrink-0 mt-0.5" />
+                : <Circle className="size-5 text-muted-foreground shrink-0 mt-0.5" />
                 }
                 <div>
                   <p className="text-sm font-medium">{step.label}</p>

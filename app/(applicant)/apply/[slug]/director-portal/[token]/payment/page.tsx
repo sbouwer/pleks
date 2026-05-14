@@ -16,9 +16,9 @@ import { PayFastForm } from "@/components/payfast/PayFastForm"
 
 export default async function DirectorPaymentPage({
   params,
-}: {
+}: Readonly<{
   params: Promise<{ slug: string; token: string }>
-}) {
+}>) {
   const { slug, token } = await params
   const service = await createServiceClient()
 
@@ -71,6 +71,7 @@ export default async function DirectorPaymentPage({
     coApplicantId:  coApp.id,
     orgId:          coApp.org_id as string,
     slug,
+    token,
     feeCents,
     directorName,
     propertyLabel,

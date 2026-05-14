@@ -1,11 +1,10 @@
 /**
- * lib/payfast/forms.ts — FILL: one-line purpose
+ * lib/payfast/forms.ts — PayFast hidden-form builders for subscription, application, and director fees
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   n/a — pure builders, no DB access; forms are rendered server-side and posted client-side
+ * Notes:  Each builder computes return_url/cancel_url/notify_url, signs with the org passphrase,
+ *         and returns { url, data } for use with <PayFastForm>. custom_str* fields carry context
+ *         that the ITN webhook uses to locate the relevant DB rows (no session available in ITN).
  */
 import { generatePayFastSignature } from "./signature"
 import { PAYFAST_CONFIG } from "./config"
@@ -88,6 +87,7 @@ interface DirectorFeeFormData {
   coApplicantId: string
   orgId: string
   slug: string
+  token: string
   feeCents: number
   directorName: string
   propertyLabel: string
@@ -98,6 +98,7 @@ export function buildDirectorFeeForm({
   coApplicantId,
   orgId,
   slug,
+  token,
   feeCents,
   directorName,
   propertyLabel,
@@ -106,8 +107,8 @@ export function buildDirectorFeeForm({
   const data: Record<string, string> = {
     merchant_id: PAYFAST_CONFIG.merchantId,
     merchant_key: PAYFAST_CONFIG.merchantKey,
-    return_url: `${process.env.NEXT_PUBLIC_APP_URL}/apply/${slug}/director-portal/status?coApplicantId=${coApplicantId}`,
-    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/apply/${slug}/director-portal/payment?coApplicantId=${coApplicantId}`,
+    return_url: `${process.env.NEXT_PUBLIC_APP_URL}/apply/${slug}/director-portal/${token}/status`,
+    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/apply/${slug}/director-portal/${token}/payment`,
     notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/payfast/director`,
     amount,
     item_name: `Director Screening Fee — ${directorName}`,
