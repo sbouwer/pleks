@@ -1711,3 +1711,384 @@ ALTER TABLE maintenance_requests
   ADD COLUMN IF NOT EXISTS workmanship_guarantee_months int,
   ADD COLUMN IF NOT EXISTS workmanship_guarantee_terms  text,
   ADD COLUMN IF NOT EXISTS warranty_claim_id            uuid REFERENCES warranties(id);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §BUILD_14_v2  Searchworx + FitScore unified screening flow
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Unifies applicant ↔ tenant via contacts, adds entity_type for juristic
+-- applicants, introduces two-bundle screening (standard/estate), per-line
+-- payment tracking for commercial multi-party portal, bank statement
+-- classification table, prescreen iterations, immutable screening artifacts.
+
+-- ── applications: contact link + entity type ─────────────────────────────────
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS contact_id uuid REFERENCES contacts(id);
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS entity_type text
+  DEFAULT 'individual' CHECK (entity_type IN ('individual', 'organisation'));
+
+CREATE INDEX IF NOT EXISTS idx_applications_contact_id ON applications(contact_id);
+CREATE INDEX IF NOT EXISTS idx_applications_entity_type  ON applications(entity_type);
+
+COMMENT ON COLUMN applications.contact_id IS
+  'Link to canonical contacts entity. Set at Step 1 submit via dedup-on-submit.
+   Identity fields on this table remain as snapshot/cache for Tribunal evidence.';
+COMMENT ON COLUMN applications.entity_type IS
+  'Mirrors contacts.entity_type. individual = consumer flow. organisation = commercial.';
+
+-- ── applications: current housing context ────────────────────────────────────
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS current_housing_status text
+  CHECK (current_housing_status IN (
+    'renting', 'home_owner', 'living_with_family',
+    'on_company_housing', 'transitional', 'other'
+  ));
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS current_rent_cents         integer;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS current_landlord_name      text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS current_lease_end_date     date;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS current_rent_paid_via      text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS current_lease_doc_path     text;
+
+-- ── applications: capital coverage path ──────────────────────────────────────
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS total_declared_capital_cents bigint;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS capital_coverage_months      integer;
+
+-- ── applications: identity match from bank statement ─────────────────────────
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS bank_statement_holder_match text
+  CHECK (bank_statement_holder_match IN (
+    'exact', 'variant', 'mismatch', 'unable_to_extract', 'not_checked'
+  ));
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS bank_statement_holder_confidence      numeric(3,2);
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS bank_statement_holder_name_extracted  text;
+
+-- ── applications: Estate bundle criminal check support ───────────────────────
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS criminal_check_consent_given_at         timestamptz;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS criminal_check_consent_ip               inet;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS criminal_check_consent_log_id           uuid;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS criminal_check_consent_withdrawn_at     timestamptz;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS criminal_check_consent_withdrawal_reason text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS huru_check_id        text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS huru_check_status    text
+  CHECK (huru_check_status IN ('not_run', 'pending', 'complete', 'failed', 'deleted_post_withdrawal'));
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS huru_check_completed_at timestamptz;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS huru_check_purged_at    timestamptz;
+
+-- ── applications: Pleks-internal tenant signal ───────────────────────────────
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS prior_pleks_tenant_signal jsonb;
+COMMENT ON COLUMN applications.prior_pleks_tenant_signal IS
+  'Cached lookup result. Populated by prescreen when applicant contact_id
+   resolves to prior Pleks-managed lease(s). Structure:
+   { is_prior_pleks_tenant: bool, payment_quality: text, on_time_count: int,
+     late_count: int, missed_count: int, last_lease_end_date: date,
+     source_lease_ids: uuid[], narrative: text }';
+
+-- ── listings: bundle selection ────────────────────────────────────────────────
+ALTER TABLE listings ADD COLUMN IF NOT EXISTS screening_bundle text
+  NOT NULL DEFAULT 'standard'
+  CHECK (screening_bundle IN ('standard', 'estate'));
+
+ALTER TABLE listings ALTER COLUMN application_fee_cents SET DEFAULT 25000;
+
+COMMENT ON COLUMN listings.screening_bundle IS
+  '"standard" = R250 fee, TU PP + Trace + VCCB Income + Default Listing (TPN).
+   "estate"   = R650 fee, adds Huru Criminal Standard. Requires POPIA s26
+   additional consent. See SEARCHWORX_RATE_CARD.md.';
+
+-- ── application_co_applicants: contact link + surety flag ────────────────────
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS contact_id         uuid REFERENCES contacts(id);
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS is_surety_director boolean NOT NULL DEFAULT false;
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS individual_fee_cents integer;
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS declined_at         timestamptz;
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS decline_reason      text;
+
+CREATE INDEX IF NOT EXISTS idx_co_applicants_contact_id ON application_co_applicants(contact_id);
+CREATE INDEX IF NOT EXISTS idx_co_applicants_surety     ON application_co_applicants(primary_application_id)
+  WHERE is_surety_director = true;
+
+COMMENT ON COLUMN application_co_applicants.is_surety_director IS
+  'TRUE = director of juristic applicant signing personal surety (commercial).
+   FALSE = joint residential co-applicant (spouse, partner).
+   Distinguishes the two flows that share the same table.';
+
+-- ── application_directors: full declared director list ───────────────────────
+CREATE TABLE IF NOT EXISTS application_directors (
+  id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id                uuid NOT NULL REFERENCES organisations(id),
+  application_id        uuid NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+  first_name            text NOT NULL,
+  last_name             text NOT NULL,
+  id_number             text,
+  id_number_hash        text,
+  email                 text,
+  phone                 text,
+  is_signing_surety     boolean NOT NULL DEFAULT false,
+  co_applicant_id       uuid REFERENCES application_co_applicants(id),
+  cipc_verified         boolean,
+  cipc_verified_at      timestamptz,
+  cipc_match_confidence numeric(3,2),
+  created_at            timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_app_directors_application ON application_directors(application_id);
+CREATE INDEX IF NOT EXISTS idx_app_directors_surety      ON application_directors(application_id)
+  WHERE is_signing_surety = true;
+
+ALTER TABLE application_directors ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_app_directors" ON application_directors;
+CREATE POLICY "org_app_directors" ON application_directors
+  FOR ALL USING (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+  );
+
+-- ── application_screening_payments: per-line payment tracking ────────────────
+CREATE TABLE IF NOT EXISTS application_screening_payments (
+  id                     uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id                 uuid NOT NULL REFERENCES organisations(id),
+  application_id         uuid NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+  subject_type           text NOT NULL CHECK (subject_type IN ('company', 'co_applicant', 'guarantor')),
+  subject_id             uuid NOT NULL,
+  fee_cents              integer NOT NULL,
+  paid_at                timestamptz,
+  paid_by_email          text,
+  paid_by_user_id        uuid REFERENCES auth.users(id),
+  payfast_transaction_id text,
+  refund_amount_cents    integer,
+  refunded_at            timestamptz,
+  refund_payfast_id      text,
+  expires_at             timestamptz NOT NULL DEFAULT now() + interval '14 days',
+  expired_state          text CHECK (expired_state IN (
+                           'paid_but_no_consent', 'consented_but_no_payment', 'neither', NULL
+                         )),
+  created_at             timestamptz NOT NULL DEFAULT now(),
+  updated_at             timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(application_id, subject_type, subject_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_screening_payments_app    ON application_screening_payments(application_id);
+CREATE INDEX IF NOT EXISTS idx_screening_payments_expiry ON application_screening_payments(expires_at)
+  WHERE paid_at IS NULL OR expired_state IS NULL;
+
+ALTER TABLE application_screening_payments ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_screening_payments" ON application_screening_payments;
+CREATE POLICY "org_screening_payments" ON application_screening_payments
+  FOR ALL USING (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+  );
+
+DROP TRIGGER IF EXISTS update_screening_payments_updated_at ON application_screening_payments;
+CREATE TRIGGER update_screening_payments_updated_at
+  BEFORE UPDATE ON application_screening_payments
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ── application_bank_statement_classifications ────────────────────────────────
+CREATE TABLE IF NOT EXISTS application_bank_statement_classifications (
+  id                          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id                      uuid NOT NULL REFERENCES organisations(id),
+  application_id              uuid NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+  co_applicant_id             uuid REFERENCES application_co_applicants(id) ON DELETE CASCADE,
+  bank_statement_doc_path     text NOT NULL,
+  payee_signature             text NOT NULL,
+  payee_description_example   text NOT NULL,
+  monthly_mean_cents          bigint NOT NULL,
+  monthly_min_cents           bigint NOT NULL,
+  monthly_max_cents           bigint NOT NULL,
+  monthly_variance_cents      bigint NOT NULL DEFAULT 0,
+  occurrence_count            integer NOT NULL,
+  sonnet_classification       text NOT NULL,
+  sonnet_confidence           numeric(3,2) NOT NULL,
+  applicant_classification    text,
+  applicant_classified_at     timestamptz,
+  final_classification        text NOT NULL,
+  is_counted_in_commitments   boolean NOT NULL DEFAULT false,
+  created_at                  timestamptz NOT NULL DEFAULT now(),
+  updated_at                  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_bsc_application  ON application_bank_statement_classifications(application_id);
+CREATE INDEX IF NOT EXISTS idx_bsc_co_applicant ON application_bank_statement_classifications(co_applicant_id);
+
+ALTER TABLE application_bank_statement_classifications ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_bank_classifications" ON application_bank_statement_classifications;
+CREATE POLICY "org_bank_classifications" ON application_bank_statement_classifications
+  FOR ALL USING (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+  );
+
+DROP TRIGGER IF EXISTS update_bank_classifications_updated_at ON application_bank_statement_classifications;
+CREATE TRIGGER update_bank_classifications_updated_at
+  BEFORE UPDATE ON application_bank_statement_classifications
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Named CHECK constraints (Postgres auto-names inline CHECK with truncated table name;
+-- we name them explicitly so drift checks stay clean on replay)
+ALTER TABLE application_bank_statement_classifications
+  DROP CONSTRAINT IF EXISTS bsc_sonnet_confidence_check,
+  DROP CONSTRAINT IF EXISTS bsc_final_classification_check,
+  DROP CONSTRAINT IF EXISTS application_bank_statement_classific_final_classification_check,
+  DROP CONSTRAINT IF EXISTS application_bank_statement_classificati_sonnet_confidence_check;
+
+ALTER TABLE application_bank_statement_classifications
+  ADD CONSTRAINT bsc_sonnet_confidence_check
+    CHECK (sonnet_confidence >= 0 AND sonnet_confidence <= 1);
+
+ALTER TABLE application_bank_statement_classifications
+  ADD CONSTRAINT bsc_final_classification_check
+    CHECK (final_classification IN (
+      'rent_or_housing', 'debt_repayment', 'subscription', 'utility',
+      'insurance', 'medical_aid', 'school_fees', 'transfer_to_business',
+      'family_support_or_personal', 'once_off_treated_as_such',
+      'dont_recognise_flag_for_agent', 'other', 'unclassified_skipped'
+    ));
+
+-- ── application_prescreens: iterative prescreen history ──────────────────────
+CREATE TABLE IF NOT EXISTS application_prescreens (
+  id                            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id                        uuid NOT NULL REFERENCES organisations(id),
+  application_id                uuid NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+  iteration_number              integer NOT NULL DEFAULT 1,
+  affordability_score           integer NOT NULL CHECK (affordability_score >= 0 AND affordability_score <= 25),
+  affordability_source          text NOT NULL CHECK (affordability_source IN ('income', 'capital', 'hybrid')),
+  income_to_rent_ratio          numeric(5,2),
+  capital_coverage_months       integer,
+  commitments_score             integer NOT NULL CHECK (commitments_score >= 0 AND commitments_score <= 15),
+  classified_commitments_cents  bigint NOT NULL DEFAULT 0,
+  current_rent_matched          boolean,
+  unclassified_debits_count     integer NOT NULL DEFAULT 0,
+  identity_match                text CHECK (identity_match IN (
+    'exact', 'variant', 'mismatch', 'unable_to_extract', 'not_checked'
+  )),
+  identity_requires_review      boolean NOT NULL DEFAULT false,
+  documents_score               integer NOT NULL CHECK (documents_score >= 0 AND documents_score <= 5),
+  missing_required_docs         text[],
+  is_prior_pleks_tenant         boolean NOT NULL DEFAULT false,
+  pleks_payment_quality         text,
+  total_score                   integer NOT NULL CHECK (total_score >= 0 AND total_score <= 55),
+  flag                          text NOT NULL CHECK (flag IN ('green', 'yellow', 'red')),
+  applicant_narrative           text NOT NULL,
+  agent_narrative               text NOT NULL,
+  input_snapshot                jsonb NOT NULL,
+  generated_at                  timestamptz NOT NULL DEFAULT now(),
+  UNIQUE(application_id, iteration_number)
+);
+
+CREATE INDEX IF NOT EXISTS idx_prescreens_application ON application_prescreens(application_id);
+CREATE INDEX IF NOT EXISTS idx_prescreens_latest      ON application_prescreens(application_id, iteration_number DESC);
+
+ALTER TABLE application_prescreens ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_prescreens" ON application_prescreens;
+CREATE POLICY "org_prescreens" ON application_prescreens
+  FOR ALL USING (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+  );
+
+-- ── screening_artifacts: immutable PDF records ───────────────────────────────
+CREATE TABLE IF NOT EXISTS screening_artifacts (
+  id                          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id                      uuid NOT NULL REFERENCES organisations(id),
+  application_id              uuid NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+  artifact_type               text NOT NULL CHECK (artifact_type IN (
+    'commercial_consumer_report', 'director_consumer_report',
+    'individual_consumer_report', 'agent_report'
+  )),
+  recipient_type              text NOT NULL CHECK (recipient_type IN (
+    'company_rep', 'director', 'applicant', 'agency'
+  )),
+  recipient_co_applicant_id   uuid REFERENCES application_co_applicants(id),
+  recipient_email             text,
+  storage_path                text NOT NULL,
+  signed_url_expires_at       timestamptz,
+  manifest_hash               text,
+  generated_at                timestamptz NOT NULL DEFAULT now(),
+  generated_by                uuid REFERENCES auth.users(id),
+  emailed_at                  timestamptz,
+  viewed_by_recipient_at      timestamptz,
+  download_count              integer NOT NULL DEFAULT 0,
+  supersedes_artifact_id      uuid REFERENCES screening_artifacts(id),
+  regeneration_reason         text,
+  created_at                  timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_screening_artifacts_app            ON screening_artifacts(application_id);
+CREATE INDEX IF NOT EXISTS idx_screening_artifacts_recipient_email ON screening_artifacts(recipient_email)
+  WHERE recipient_email IS NOT NULL;
+
+ALTER TABLE screening_artifacts ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_screening_artifacts" ON screening_artifacts;
+CREATE POLICY "org_screening_artifacts" ON screening_artifacts
+  FOR ALL USING (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+  );
+
+DROP POLICY IF EXISTS "screening_artifacts_no_update" ON screening_artifacts;
+CREATE POLICY "screening_artifacts_no_update" ON screening_artifacts
+  FOR UPDATE USING (false) WITH CHECK (false);
+
+DROP POLICY IF EXISTS "screening_artifacts_no_delete" ON screening_artifacts;
+CREATE POLICY "screening_artifacts_no_delete" ON screening_artifacts
+  FOR DELETE USING (false);
+
+-- ── v_application_screening_lines: orchestration view ────────────────────────
+CREATE OR REPLACE VIEW v_application_screening_lines AS
+SELECT
+  app.id AS application_id,
+  app.org_id,
+  'company'::text AS subject_type,
+  app.id AS subject_id,
+  COALESCE(ctc.company_name, ctc.trading_as, app.first_name || ' ' || app.last_name) AS subject_name,
+  asp.fee_cents,
+  asp.paid_at,
+  app.stage2_consent_given_at AS consented_at,
+  asp.expires_at,
+  CASE
+    WHEN asp.paid_at IS NOT NULL AND app.stage2_consent_given_at IS NOT NULL
+         AND app.searchworx_check_status = 'complete'                            THEN 'complete'
+    WHEN asp.paid_at IS NOT NULL AND app.stage2_consent_given_at IS NOT NULL
+         AND app.searchworx_check_status IN ('pending', 'not_run')               THEN 'ready_to_run'
+    WHEN asp.paid_at IS NOT NULL AND app.stage2_consent_given_at IS NULL         THEN 'paid_pending_consent'
+    WHEN asp.paid_at IS NULL    AND app.stage2_consent_given_at IS NOT NULL      THEN 'consented_pending_payment'
+    WHEN asp.expires_at < now()                                                  THEN 'expired_no_consent'
+    ELSE 'pending_both'
+  END AS state
+FROM applications app
+LEFT JOIN contacts ctc ON ctc.id = app.contact_id
+LEFT JOIN application_screening_payments asp
+  ON asp.application_id = app.id
+  AND asp.subject_type = 'company'
+  AND asp.subject_id   = app.id
+WHERE app.entity_type = 'organisation'
+
+UNION ALL
+
+SELECT
+  caa.primary_application_id AS application_id,
+  caa.org_id,
+  'co_applicant'::text AS subject_type,
+  caa.id AS subject_id,
+  COALESCE(c.first_name || ' ' || c.last_name, caa.first_name || ' ' || caa.last_name) AS subject_name,
+  asp.fee_cents,
+  asp.paid_at,
+  caa.stage2_consent_given_at AS consented_at,
+  asp.expires_at,
+  CASE
+    WHEN asp.paid_at IS NOT NULL AND caa.stage2_consent_given_at IS NOT NULL
+         AND caa.searchworx_check_status = 'complete'                            THEN 'complete'
+    WHEN asp.paid_at IS NOT NULL AND caa.stage2_consent_given_at IS NOT NULL
+         AND caa.searchworx_check_status IN ('pending', 'not_run')               THEN 'ready_to_run'
+    WHEN asp.paid_at IS NOT NULL AND caa.stage2_consent_given_at IS NULL         THEN 'paid_pending_consent'
+    WHEN asp.paid_at IS NULL    AND caa.stage2_consent_given_at IS NOT NULL      THEN 'consented_pending_payment'
+    WHEN asp.expires_at < now()                                                  THEN 'expired_no_consent'
+    ELSE 'pending_both'
+  END AS state
+FROM application_co_applicants caa
+LEFT JOIN contacts c ON c.id = caa.contact_id
+LEFT JOIN application_screening_payments asp
+  ON asp.application_id = caa.primary_application_id
+  AND asp.subject_type  = 'co_applicant'
+  AND asp.subject_id    = caa.id
+WHERE caa.declined_at IS NULL;
+
+COMMENT ON VIEW v_application_screening_lines IS
+  'Multi-party screening portal view. Joins applications + co-applicants +
+   screening payments to derive per-line state. Drives the portal page UI
+   and the screening-line-runner cron.';
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- End §BUILD_14_v2
+-- ═══════════════════════════════════════════════════════════════════════════════

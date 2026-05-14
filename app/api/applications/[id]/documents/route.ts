@@ -9,7 +9,7 @@
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { createMessage } from "@/lib/ai/client"
-import { INCOME_EXTRACTION_PROMPT } from "@/lib/screening/bankStatementExtraction"
+import { buildExtractionPrompt } from "@/lib/screening/bankStatementExtraction"
 import { calculatePreScreenScore, getPreScreenIndicator } from "@/lib/screening/preScreenScore"
 import { hasFeature } from "@/lib/tier/gates"
 import { getOrgTier } from "@/lib/tier/getOrgTier"
@@ -32,7 +32,7 @@ export async function POST(
   // Get application + listing
   const { data: application } = await supabase
     .from("applications")
-    .select("id, org_id, gross_monthly_income_cents, employment_type, listing_id")
+    .select("id, org_id, first_name, last_name, gross_monthly_income_cents, employment_type, listing_id, current_rent_cents, current_housing_status")
     .eq("id", applicationId)
     .single()
 
@@ -58,13 +58,20 @@ export async function POST(
 
       if (fileData) {
         const text = await fileData.text()
+        const prompt = buildExtractionPrompt({
+          declaredFirstName: application.first_name ?? "",
+          declaredLastName: application.last_name ?? "",
+          declaredMonthlyIncomeCents: application.gross_monthly_income_cents ?? null,
+          currentRentCents: application.current_rent_cents ?? null,
+          currentHousingStatus: application.current_housing_status ?? null,
+        })
         const { message } = await createMessage(
           {
             model: "claude-sonnet-4-6-20250514",
             max_tokens: 2048,
             messages: [{
               role: "user",
-              content: `${INCOME_EXTRACTION_PROMPT}\n\nBank statement text:\n${text.slice(0, 15000)}`,
+              content: `${prompt}\n\nBank statement text:\n${text.slice(0, 15000)}`,
             }],
           },
           { orgId: application.org_id as string, purpose: "applicant_income_extraction" },
