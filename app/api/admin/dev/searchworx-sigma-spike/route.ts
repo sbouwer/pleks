@@ -70,14 +70,21 @@ async function post(url: string, body: Record<string, unknown>, extraHeaders?: R
   return { status: res.status, headers: resHeaders, body: resBody, duration_ms: Date.now() - t0 }
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 function extractToken(body: unknown): string | undefined {
   if (!body || typeof body !== "object") return undefined
   const b = body as Record<string, unknown>
-  return (
+  // Standard shapes
+  const explicit =
     (b.SessionToken as string | undefined) ??
     (b.Token        as string | undefined) ??
     ((b.ResponseObject as Record<string, unknown> | undefined)?.SessionToken as string | undefined)
-  )
+  if (explicit) return explicit
+  // Searchworx-specific: token returned as a bare UUID in ResponseMessage
+  const msg = b.ResponseMessage as string | undefined
+  if (msg && UUID_RE.test(msg.trim())) return msg.trim()
+  return undefined
 }
 
 function isErrorResponse(body: unknown): boolean {
