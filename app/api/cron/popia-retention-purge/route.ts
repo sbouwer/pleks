@@ -9,6 +9,7 @@
  *         Wired into app/api/cron/daily/route.ts (Hobby plan — no extra vercel.json entry).
  *         isErasableNow() is called per row — no inline retention logic here (D-POPIA-06).
  *         Purge never touches consent_log (immutable) or closed trust_reconciliation_periods (BUILD_64).
+ *         One retention_purge_runs row per org per run (§5.6) — all category counts rolled up inside.
  */
 import { NextRequest, NextResponse } from "next/server"
 import * as Sentry from "@sentry/nextjs"
@@ -25,6 +26,8 @@ const PURGE_CATEGORIES: DataCategory[] = [
   // communications, inspection_photos, lease_documents added progressively
   // as the per-table delete helpers mature (Phase 7 wires full cascade)
 ]
+
+// ─── Per-category purge helpers (pure — no retention_purge_runs writes) ───────
 
 async function purgeRejectedApplications(
   db: SupabaseClient,
@@ -65,12 +68,13 @@ async function purgeRejectedApplications(
   return result
 }
 
-async function runCategoryForOrg(
+// ─── Per-org orchestrator (one retention_purge_runs row per org) ──────────────
+
+async function runForOrg(
   db: SupabaseClient,
   orgId: string,
-  category: DataCategory,
   now: Date,
-  summary: CatSummary,
+  summary: Record<string, CatSummary>,
 ): Promise<void> {
   const { data: runRow } = await db
     .from("retention_purge_runs")
@@ -79,41 +83,43 @@ async function runCategoryForOrg(
     .single()
   const runId = runRow?.id
 
-  try {
-    let catResult: CatResult = { evaluated: 0, deleted: 0, skipped_carveout: 0 }
+  const aggregated: Record<string, CatResult> = {}
+  const errors: Array<{ category: string; error: string }> = []
 
-    if (category === "rejected_applications") {
-      catResult = await purgeRejectedApplications(db, orgId, now)
-    }
+  for (const category of PURGE_CATEGORIES) {
+    try {
+      let catResult: CatResult = { evaluated: 0, deleted: 0, skipped_carveout: 0 }
 
-    summary.orgs_processed++
-    summary.deleted += catResult.deleted
-    summary.skipped += catResult.skipped_carveout
+      if (category === "rejected_applications") {
+        catResult = await purgeRejectedApplications(db, orgId, now)
+      }
+      // future categories appended here as helpers land
 
-    if (runId) {
-      await db.from("retention_purge_runs")
-        .update({
-          status: "completed",
-          run_completed_at: new Date().toISOString(),
-          records_by_category: { [category]: catResult },
-        })
-        .eq("id", runId)
-    }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    summary.errors.push(`org ${orgId}: ${msg}`)
-    Sentry.captureException(err, { tags: { cron: "popia-retention-purge", org_id: orgId, category } })
-    if (runId) {
-      await db.from("retention_purge_runs")
-        .update({
-          status: "failed",
-          run_completed_at: new Date().toISOString(),
-          errors: [{ category, error: msg }],
-        })
-        .eq("id", runId)
+      aggregated[category] = catResult
+      summary[category].orgs_processed++
+      summary[category].deleted += catResult.deleted
+      summary[category].skipped += catResult.skipped_carveout
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      errors.push({ category, error: msg })
+      summary[category].errors.push(`org ${orgId}: ${msg}`)
+      Sentry.captureException(err, { tags: { cron: "popia-retention-purge", org_id: orgId, category } })
     }
   }
+
+  if (runId) {
+    await db.from("retention_purge_runs")
+      .update({
+        status: errors.length > 0 ? "failed" : "completed",
+        run_completed_at: new Date().toISOString(),
+        records_by_category: aggregated,
+        errors: errors.length > 0 ? errors : [],
+      })
+      .eq("id", runId)
+  }
 }
+
+// ─── GET handler ──────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
   const secret = req.headers.get("x-cron-secret")
@@ -124,6 +130,10 @@ export async function GET(req: NextRequest) {
   const db = await createServiceClient()
   const now = new Date()
   const summary: Record<string, CatSummary> = {}
+
+  for (const category of PURGE_CATEGORIES) {
+    summary[category] = { orgs_processed: 0, deleted: 0, skipped: 0, errors: [] }
+  }
 
   const { data: orgs, error: orgsErr } = await db
     .from("organisations")
@@ -136,11 +146,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Failed to load orgs" }, { status: 500 })
   }
 
-  for (const category of PURGE_CATEGORIES) {
-    summary[category] = { orgs_processed: 0, deleted: 0, skipped: 0, errors: [] }
-    for (const org of orgs) {
-      await runCategoryForOrg(db, org.id, category, now, summary[category])
-    }
+  for (const org of orgs) {
+    await runForOrg(db, org.id, now, summary)
   }
 
   if (process.env.HEARTBEAT_POPIA_RETENTION_PURGE) {

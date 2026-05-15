@@ -2153,3 +2153,71 @@ BEGIN
       );
   END IF;
 END $$;
+
+-- ─── Seed default retention policies per org (D-POPIA-02 defaults) ───────────
+-- Synced with PLATFORM_DEFAULTS in lib/popia/retention.ts — that constant is
+-- the source of truth; keep this JSONB in lockstep with it.
+
+CREATE OR REPLACE FUNCTION seed_default_retention_policies(org_uuid uuid)
+RETURNS void AS $$
+BEGIN
+  INSERT INTO retention_policies_snapshot (org_id, effective_from, policies)
+  VALUES (
+    org_uuid,
+    current_date,
+    '{
+      "trust_account_records":   {"retention_months": 60,    "legal_basis": "legal_obligation",    "regulatory_source": "PPRA s54A",                                                                           "erasable_during_retention": false},
+      "lease_documents":         {"retention_months": 60,    "legal_basis": "legal_obligation",    "regulatory_source": "Prescription Act 68 of 1969 + PPRA practice",                                         "erasable_during_retention": false},
+      "inspection_photos":       {"retention_months": 36,    "legal_basis": "legal_obligation",    "regulatory_source": "Rental Housing Act 50 of 1999 s5(3)",                                                 "erasable_during_retention": false},
+      "inspection_reports":      {"retention_months": 36,    "legal_basis": "legal_obligation",    "regulatory_source": "Rental Housing Act 50 of 1999 s5(3)",                                                 "erasable_during_retention": false},
+      "rent_ledger":             {"retention_months": 60,    "legal_basis": "legal_obligation",    "regulatory_source": "Tax Administration Act 28 of 2011 s29 + PPRA",                                        "erasable_during_retention": false},
+      "communications":          {"retention_months": 60,    "legal_basis": "legitimate_interest", "regulatory_source": "PPRA practice — aligned with trust-record retention",                                 "erasable_during_retention": false},
+      "rejected_applications":   {"retention_months": 12,    "legal_basis": "legitimate_interest", "regulatory_source": "POPIA s14 minimisation principle",                                                    "erasable_during_retention": false},
+      "credit_checks":           {"retention_months": 12,    "legal_basis": "consent",             "regulatory_source": "POPIA s11(1)(a) + credit bureau consent form",                                        "erasable_during_retention": false},
+      "consent_log":             {"retention_months": 99999, "legal_basis": "legal_obligation",    "regulatory_source": "POPIA s17 (accountability principle)",                                                "erasable_during_retention": false, "never_erasable": true},
+      "audit_log":               {"retention_months": 84,    "legal_basis": "legal_obligation",    "regulatory_source": "SA business records retention standard",                                              "erasable_during_retention": false},
+      "maintenance_records":     {"retention_months": 36,    "legal_basis": "legitimate_interest", "regulatory_source": "RHT evidentiary practice",                                                            "erasable_during_retention": false},
+      "platform_account":        {"retention_months": 0,     "legal_basis": "consent",             "regulatory_source": "POPIA s14 minimisation — account data deleted 30 days post closure",                 "erasable_during_retention": true}
+    }'::jsonb
+  )
+  ON CONFLICT DO NOTHING;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ─── Auto-seed retention policies on org creation ─────────────────────────────
+
+CREATE OR REPLACE FUNCTION trigger_seed_retention_policies()
+RETURNS trigger AS $$
+BEGIN
+  -- Skip sentinel org (ADDENDUM_57G purge sentinel)
+  IF NEW.id = '00000000-0000-0000-0000-000000000001'::uuid THEN
+    RETURN NEW;
+  END IF;
+  PERFORM seed_default_retention_policies(NEW.id);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_org_seed_retention ON organisations;
+CREATE TRIGGER trg_org_seed_retention
+  AFTER INSERT ON organisations
+  FOR EACH ROW
+  EXECUTE FUNCTION trigger_seed_retention_policies();
+
+-- ─── One-shot backfill for active orgs ───────────────────────────────────────
+-- Idempotent: NOT IN skips orgs that already have an active snapshot;
+-- ON CONFLICT DO NOTHING in the helper provides a second safety net.
+
+DO $$
+DECLARE
+  org_row record;
+BEGIN
+  FOR org_row IN
+    SELECT id FROM organisations
+    WHERE deleted_at IS NULL
+      AND id != '00000000-0000-0000-0000-000000000001'::uuid
+      AND id NOT IN (SELECT org_id FROM retention_policies_snapshot WHERE superseded_at IS NULL)
+  LOOP
+    PERFORM seed_default_retention_policies(org_row.id);
+  END LOOP;
+END $$;

@@ -814,4 +814,6 @@ COMMENT ON COLUMN consent_log.consent_type IS
   'Consent category. See brief/legal/PROCESSING_PURPOSES.md for the
    full enumeration and mapping to POPIA s11 lawful bases.
    Current enum: credit_check, data_processing, marketing,
-   trust_account_notice, popia_application, lease_template_disclaimer.';
+   trust_account_notice, popia_application, lease_template_disclaimer,
+   criminal_record_check.
+   Note: whenever the consent_type CHECK constraint is extended, update this comment in the same migration.';
