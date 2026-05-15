@@ -1,7 +1,7 @@
 /**
  * lib/searchworx/utils.ts — Shared Searchworx parsing helpers
  *
- * Notes:  ADDENDUM_14H §4.3 + Amendment §C, §D. Five date formats observed across products;
+ * Notes:  ADDENDUM_14H §4.3 + Amendment §C, §D. Four date formats observed across products;
  *         each product elides absent fields differently (Sigma omits, Deeds/CIPC use "-").
  *         Numeric coercion lives here — callers receive typed numbers, never quoted strings.
  */

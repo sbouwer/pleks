@@ -7,9 +7,9 @@
  */
 
 export const SEARCHWORX_COSTS: Record<string, number> = {
-  experian_sigma:        0,     // TBD — pending rate card for new endpoint (14B applicant-screening lane)
+  experian_sigma:        4065,  // R40.65 ex-VAT (SEARCHWORX_RATE_CARD.md — applicant-screening lane)
   deeds_search:          2280,  // R22.80 ex-VAT (14A v2 rate card)
   lightstone_erf_short:  11700, // R117.00 ex-VAT (14A v2 rate card)
   cipc_company:          1565,  // R15.65 ex-VAT (14A v2 rate card)
-  cipc_director:         0,     // TBD — pending rate card for director endpoint
+  cipc_director:         2174,  // R21.74 ex-VAT (SEARCHWORX_RATE_CARD.md — verify against John's confirmation)
 }

@@ -2348,3 +2348,9 @@ END $$;
 -- Add search_token to property_intelligence_pulls (populated once per-product modules return real tokens)
 ALTER TABLE property_intelligence_pulls
   ADD COLUMN IF NOT EXISTS search_token uuid;
+
+-- §28.1 patch: searchworx_pdf_storage_path (run route writes to it — was absent from original §28)
+-- Points to the raw Searchworx vendor PDF stored in screening-reports bucket.
+-- Distinct from pdf_storage_path (Pleks-branded report in property-intelligence bucket).
+ALTER TABLE property_intelligence_pulls
+  ADD COLUMN IF NOT EXISTS searchworx_pdf_storage_path text;

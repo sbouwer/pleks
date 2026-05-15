@@ -74,6 +74,7 @@ export async function GET(req: NextRequest) {
         vendorUrl:    result.pdfCopyUrl,
         orgId:        DEV_ORG_ID,
         refId:        DEV_REF_ID,
+        productKey:   "experian_sigma",
         searchToken,
         artefactKind: "pdf",
         mimeType:     "application/pdf",

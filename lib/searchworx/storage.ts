@@ -15,13 +15,14 @@ export interface DownloadArtefactArgs {
   vendorUrl:    string                                              // raw vendor URL — never persisted, never logged
   orgId:        string
   refId:        string                                              // property_intelligence_pulls.id or application_screening_payments.id
+  productKey:   string                                              // product_type slug (e.g. "deeds_search") — disambiguates bundle PDFs
   searchToken:  string
   artefactKind: "pdf" | "aerial" | "street" | "map" | "cadaster" | "chart" | string
   mimeType:     "application/pdf" | "image/jpeg" | "image/png"
 }
 
 export interface DownloadArtefactResult {
-  storagePath: string  // {orgId}/{refId}/{searchToken}-{artefactKind}.{ext}
+  storagePath: string  // {orgId}/{refId}/{productKey}/{searchToken}-{artefactKind}.{ext}
   byteSize:    number
 }
 
@@ -42,7 +43,7 @@ export async function downloadAndStoreSearchworxArtefact(
   const buffer = Buffer.from(await response.arrayBuffer())
 
   const ext         = mimeToExt(args.mimeType)
-  const storagePath = `${args.orgId}/${args.refId}/${args.searchToken}-${args.artefactKind}.${ext}`
+  const storagePath = `${args.orgId}/${args.refId}/${args.productKey}/${args.searchToken}-${args.artefactKind}.${ext}`
 
   const db = await createServiceClient()
   const { error } = await db.storage.from(STORAGE_BUCKET).upload(storagePath, buffer, {

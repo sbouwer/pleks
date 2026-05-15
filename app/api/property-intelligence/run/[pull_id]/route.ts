@@ -133,12 +133,14 @@ async function tryDownloadSearchworxPdf(
   pdfCopyUrl: string,
   orgId: string,
   pullId: string,
+  productType: string,
 ): Promise<string | null> {
   try {
     const result = await downloadAndStoreSearchworxArtefact({
       vendorUrl:    pdfCopyUrl,
       orgId,
       refId:        pullId,
+      productKey:   productType,
       searchToken:  pullId,
       artefactKind: "pdf",
       mimeType:     "application/pdf",
@@ -205,7 +207,7 @@ export async function POST(
     const facts = vendorResult.data
 
     const searchworxPath = vendorResult.pdfCopyUrl
-      ? await tryDownloadSearchworxPdf(vendorResult.pdfCopyUrl, pull.org_id as string, pullId)
+      ? await tryDownloadSearchworxPdf(vendorResult.pdfCopyUrl, pull.org_id as string, pullId, productType)
       : null
 
     const productLabel = PRODUCT_LABELS[productType] ?? productType
