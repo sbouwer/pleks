@@ -29,6 +29,7 @@ export type AiPurpose =
   | "recon_matching"
   | "document_detection"
   | "warranty_match"
+  | "popia_export_narrative"
   | "other"
 
 export interface AiCallOptions {
@@ -102,7 +103,7 @@ export async function createMessage(
       Sentry.captureException(err, { tags: { origin: "ai_usage_log" } })
     })
 
-    return { message, usage: { input_tokens: inputTokens, output_tokens: outputTokens, cost_cents } as AiCallUsage, latency_ms }
+    return { message, usage: { input_tokens: inputTokens, output_tokens: outputTokens, cost_cents }, latency_ms }
   } catch (err) {
     errorCode = classifyError(err)
     const latency_ms = Date.now() - start

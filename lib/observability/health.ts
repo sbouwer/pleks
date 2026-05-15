@@ -94,7 +94,7 @@ async function checkStorage(supabase: SupabaseClient): Promise<HealthReport["com
 
 // Jobs that write to cron_runs — must match actual job_name values in handlers.
 // "daily" is written by the orchestrator itself; others write their own entries.
-const TRACKED_DAILY_JOBS = ["daily", "insurance-renewals", "expire-info-requests", "cost-snapshots"]
+const TRACKED_DAILY_JOBS = ["daily", "insurance-renewals", "expire-info-requests", "cost-snapshots", "popia-retention-purge"]
 const TRACKED_MONTHLY_JOBS = ["trust-period-close", "levy-generate", "deposit-interest-statement", "owner-statement-gen"]
 
 const DAILY_STALE_MS   = 48 * 60 * 60 * 1000

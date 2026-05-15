@@ -1733,3 +1733,423 @@ BEGIN
       );
   END IF;
 END $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §27  BUILD_65: POPIA CUSTOMER-FACING SURFACE
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Data-subject-request workflow, immutable versioned privacy policy,
+-- retention-aware erasure cascade, export bundle artefacts.
+--
+-- See brief/build/BUILD_65_POPIA_CUSTOMER_SURFACE.md for the full spec.
+-- See brief/legal/PROCESSING_PURPOSES.md for the POPIA register.
+--
+-- Invariant (D-POPIA-01): Pleks is Operator for agency-operated data,
+-- Responsible Party for platform account data. This schema models the
+-- routing and resolution of subject rights across both controllers.
+
+-- ─── privacy_policy_versions ─────────────────────────────────────────────────
+-- Immutable versioned privacy policy. consent_log.consent_version references
+-- the `version` text column by soft text-equality (no hard FK — missing
+-- version degrades to "text not available" fallback, not cascade deletion).
+
+CREATE TABLE IF NOT EXISTS privacy_policy_versions (
+  version                 text PRIMARY KEY,  -- e.g. '2026.1', '2026.2-material'
+  title                   text NOT NULL,
+  body_markdown           text NOT NULL,
+  body_html               text NOT NULL,     -- pre-rendered to avoid runtime pandoc
+  change_type             text NOT NULL DEFAULT 'minor'
+                          CHECK (change_type IN ('minor', 'material')),
+  change_summary          text,              -- what changed vs previous version
+  effective_from          date NOT NULL,
+  superseded_at           date,              -- NULL = currently effective
+  is_current              boolean NOT NULL DEFAULT false,
+  created_by              uuid REFERENCES auth.users(id),
+  created_at              timestamptz NOT NULL DEFAULT now()
+);
+
+-- Only one current version at any time
+CREATE UNIQUE INDEX IF NOT EXISTS idx_privacy_policy_single_current
+  ON privacy_policy_versions(is_current)
+  WHERE is_current = true;
+
+ALTER TABLE privacy_policy_versions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "privacy_policy_public_select" ON privacy_policy_versions;
+CREATE POLICY "privacy_policy_public_select" ON privacy_policy_versions
+  FOR SELECT USING (true);  -- public read (policy is public by POPIA s18)
+
+DROP POLICY IF EXISTS "privacy_policy_platform_admin_insert" ON privacy_policy_versions;
+CREATE POLICY "privacy_policy_platform_admin_insert" ON privacy_policy_versions
+  FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM organisations o
+      JOIN user_orgs uo ON uo.org_id = o.id
+      WHERE uo.user_id = auth.uid()
+        AND uo.deleted_at IS NULL
+        AND (o.settings->>'platform_admin')::boolean = true
+    )
+  );
+
+-- UPDATE allowed only to flip superseded_at + is_current; body is immutable
+DROP POLICY IF EXISTS "privacy_policy_platform_admin_update_supersede" ON privacy_policy_versions;
+CREATE POLICY "privacy_policy_platform_admin_update_supersede" ON privacy_policy_versions
+  FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM organisations o
+      JOIN user_orgs uo ON uo.org_id = o.id
+      WHERE uo.user_id = auth.uid()
+        AND uo.deleted_at IS NULL
+        AND (o.settings->>'platform_admin')::boolean = true
+    )
+  );
+-- Immutability of body enforced via trigger (below)
+
+-- ─── data_subject_requests ───────────────────────────────────────────────────
+-- Every POPIA right exercised (and the Pleks nuke request type).
+-- Agency-gated resolution within 30-day SLA.
+
+CREATE TABLE IF NOT EXISTS data_subject_requests (
+  id                      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id                  uuid NOT NULL REFERENCES organisations(id),
+
+  -- Subject identification
+  subject_user_id         uuid REFERENCES auth.users(id),  -- NULL if non-user
+  subject_email           text NOT NULL,
+  subject_full_name       text,                            -- captured at submission
+  subject_id_last4        text,                            -- optional, for identity verification
+  subject_role_context    text CHECK (subject_role_context IN
+                          ('tenant', 'landlord', 'supplier', 'applicant',
+                           'reference', 'emergency_contact', 'household_member',
+                           'platform_account', 'other')),
+
+  -- Request details
+  request_type            text NOT NULL CHECK (request_type IN
+                          ('access', 'correction', 'erasure', 'objection',
+                           'restriction', 'portability', 'consent_withdrawal',
+                           'nuke')),
+  request_scope           jsonb DEFAULT '{}'::jsonb,
+  -- Shape varies per request_type, e.g.:
+  -- correction: { field_path, current_value, requested_value, supporting_docs[] }
+  -- objection:  { processing_purpose_keys[], reason }
+  -- consent_withdrawal: { consent_type, consent_log_id }
+  -- nuke: { acknowledged_carveouts: [{ category, retained_until, reason }] }
+
+  subject_narrative       text,              -- free-text from subject explaining request
+  supporting_documents    jsonb DEFAULT '[]'::jsonb,  -- [{ storage_path, filename, uploaded_at }]
+
+  -- Lifecycle
+  status                  text NOT NULL DEFAULT 'new'
+                          CHECK (status IN ('new', 'verifying_identity',
+                                            'under_review', 'approved',
+                                            'rejected', 'completed',
+                                            'cancelled')),
+  submitted_at            timestamptz NOT NULL DEFAULT now(),
+  submitted_via           text NOT NULL DEFAULT 'portal'
+                          CHECK (submitted_via IN ('portal', 'email', 'platform_admin_route', 'agency_initiated')),
+  sla_deadline            date NOT NULL DEFAULT (now() + interval '30 days')::date,
+
+  -- Resolution
+  assigned_to             uuid REFERENCES auth.users(id),  -- agency staff
+  resolution_notes        text,              -- why approved/rejected, carve-outs applied
+  resolution_legal_basis  text,              -- s24(1)(b) obligation, s11(1)(c) legitimate interest, etc.
+  resolved_at             timestamptz,
+  resolved_by             uuid REFERENCES auth.users(id),
+
+  -- Artefact linkage
+  export_id               uuid,              -- FK added after popia_exports is created
+  erasure_records_affected jsonb,            -- summary of what was deleted/restricted
+
+  -- Communications
+  notified_subject_at     timestamptz,       -- when resolution email sent
+  notified_subject_template text,            -- which React Email template used
+
+  created_at              timestamptz NOT NULL DEFAULT now(),
+  updated_at              timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_dsr_org_status
+  ON data_subject_requests(org_id, status, submitted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_dsr_sla_overdue
+  ON data_subject_requests(org_id, sla_deadline)
+  WHERE status IN ('new', 'verifying_identity', 'under_review');
+CREATE INDEX IF NOT EXISTS idx_dsr_subject
+  ON data_subject_requests(subject_user_id, submitted_at DESC)
+  WHERE subject_user_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_dsr_subject_email
+  ON data_subject_requests(lower(subject_email), submitted_at DESC);
+
+ALTER TABLE data_subject_requests ENABLE ROW LEVEL SECURITY;
+
+-- Subject sees their own requests (matched by auth.uid() or email)
+DROP POLICY IF EXISTS "dsr_subject_select_own" ON data_subject_requests;
+CREATE POLICY "dsr_subject_select_own" ON data_subject_requests
+  FOR SELECT USING (
+    subject_user_id = auth.uid()
+    OR lower(subject_email) = (SELECT lower(email) FROM auth.users WHERE id = auth.uid())
+  );
+
+-- Org staff see their org's requests
+DROP POLICY IF EXISTS "dsr_org_select" ON data_subject_requests;
+CREATE POLICY "dsr_org_select" ON data_subject_requests
+  FOR SELECT USING (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+  );
+
+-- Subject creates own request
+DROP POLICY IF EXISTS "dsr_subject_insert" ON data_subject_requests;
+CREATE POLICY "dsr_subject_insert" ON data_subject_requests
+  FOR INSERT WITH CHECK (
+    subject_user_id = auth.uid()
+    OR lower(subject_email) = (SELECT lower(email) FROM auth.users WHERE id = auth.uid())
+  );
+
+-- Org staff update their org's requests (status, assignment, resolution)
+DROP POLICY IF EXISTS "dsr_org_update" ON data_subject_requests;
+CREATE POLICY "dsr_org_update" ON data_subject_requests
+  FOR UPDATE USING (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+  );
+
+-- No DELETE — requests are immutable history (resolution writes resolved_at, doesn't remove the row)
+
+-- ─── popia_exports ───────────────────────────────────────────────────────────
+-- Structurally similar to trust_audit_exports (BUILD_64). Manifest-hash tamper
+-- evidence; regenerateable with immutable history.
+
+CREATE TABLE IF NOT EXISTS popia_exports (
+  id                      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id                  uuid REFERENCES organisations(id),
+  -- org_id NULL when this is a Pleks-RP platform-account export
+  -- (not an Operator export for a specific agency)
+  controller_role         text NOT NULL
+                          CHECK (controller_role IN ('pleks_rp', 'agency_operator')),
+
+  -- Subject identification (same pattern as data_subject_requests)
+  subject_user_id         uuid REFERENCES auth.users(id),
+  subject_email           text NOT NULL,
+
+  -- Request linkage
+  request_id              uuid REFERENCES data_subject_requests(id),
+  export_type             text NOT NULL
+                          CHECK (export_type IN ('access', 'portability', 'nuke_predelivery')),
+
+  -- Artefacts (all in popia-exports Storage bucket)
+  pdf_storage_path        text NOT NULL,
+  json_storage_path       text NOT NULL,
+  zip_storage_path        text,              -- nullable if no supporting files
+  manifest_hash           text NOT NULL,     -- SHA-256 of concatenated artefact bytes
+  manifest_summary        jsonb NOT NULL,    -- { artefact_paths, byte_counts, category_counts }
+
+  -- Lifecycle
+  generated_at            timestamptz NOT NULL DEFAULT now(),
+  generated_by            uuid NOT NULL REFERENCES auth.users(id),
+  expires_at              timestamptz NOT NULL DEFAULT (now() + interval '7 days'),
+  downloaded_at           timestamptz,       -- first download timestamp
+  download_count          integer NOT NULL DEFAULT 0,
+
+  -- Regeneration lineage (per D-POPIA-12)
+  regeneration_of         uuid REFERENCES popia_exports(id),
+  regeneration_reason     text,
+
+  created_at              timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_popia_exports_subject
+  ON popia_exports(subject_user_id, generated_at DESC)
+  WHERE subject_user_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_popia_exports_request
+  ON popia_exports(request_id)
+  WHERE request_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_popia_exports_org
+  ON popia_exports(org_id, generated_at DESC)
+  WHERE org_id IS NOT NULL;
+
+ALTER TABLE popia_exports ENABLE ROW LEVEL SECURITY;
+
+-- Subject reads own exports
+DROP POLICY IF EXISTS "popia_exports_subject_select" ON popia_exports;
+CREATE POLICY "popia_exports_subject_select" ON popia_exports
+  FOR SELECT USING (
+    subject_user_id = auth.uid()
+    OR lower(subject_email) = (SELECT lower(email) FROM auth.users WHERE id = auth.uid())
+  );
+
+-- Org staff read their org's exports
+DROP POLICY IF EXISTS "popia_exports_org_select" ON popia_exports;
+CREATE POLICY "popia_exports_org_select" ON popia_exports
+  FOR SELECT USING (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+  );
+
+-- INSERT via service role only (export generation is server-side)
+-- No client INSERT policy.
+
+-- UPDATE only to record download (downloaded_at, download_count)
+DROP POLICY IF EXISTS "popia_exports_subject_update_download" ON popia_exports;
+CREATE POLICY "popia_exports_subject_update_download" ON popia_exports
+  FOR UPDATE USING (
+    subject_user_id = auth.uid()
+    OR lower(subject_email) = (SELECT lower(email) FROM auth.users WHERE id = auth.uid())
+  );
+-- Write permissions to individual columns enforced by explicit UPDATE statement shape in lib/popia/export.ts
+
+-- No DELETE
+
+-- Add FK from data_subject_requests.export_id now that popia_exports exists
+ALTER TABLE data_subject_requests
+  DROP CONSTRAINT IF EXISTS data_subject_requests_export_id_fkey;
+ALTER TABLE data_subject_requests
+  ADD CONSTRAINT data_subject_requests_export_id_fkey
+  FOREIGN KEY (export_id) REFERENCES popia_exports(id) ON DELETE SET NULL;
+
+-- ─── retention_policies_snapshot ─────────────────────────────────────────────
+-- Per-org snapshot of retention defaults at a point in time. Enables
+-- per-org future customisation without losing the historical what-was-the-rule
+-- audit trail. For Phase 1, every active org has one row matching the
+-- platform defaults (D-POPIA-02). Tier 2 may add per-org overrides.
+
+CREATE TABLE IF NOT EXISTS retention_policies_snapshot (
+  id                      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id                  uuid NOT NULL REFERENCES organisations(id),
+  effective_from          date NOT NULL DEFAULT current_date,
+  superseded_at           date,
+  policies                jsonb NOT NULL,
+  -- Shape: { category: { retention_months: int, legal_basis: text, regulatory_source: text, erasable_during_retention: bool } }
+  -- Categories match D-POPIA-02 table
+  created_at              timestamptz NOT NULL DEFAULT now(),
+  created_by              uuid REFERENCES auth.users(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_retention_policies_org_current
+  ON retention_policies_snapshot(org_id)
+  WHERE superseded_at IS NULL;
+
+ALTER TABLE retention_policies_snapshot ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "retention_policies_org_select" ON retention_policies_snapshot;
+CREATE POLICY "retention_policies_org_select" ON retention_policies_snapshot
+  FOR SELECT USING (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+  );
+
+-- Subject-facing read via SECURITY DEFINER helper (subject isn't in user_orgs for that agency)
+-- See lib/popia/retention.ts getRetentionForSubject()
+
+-- INSERT / UPDATE via service role only (platform admin manages)
+
+-- ─── retention_purge_runs ────────────────────────────────────────────────────
+-- Daily retention cron writes one row per purge execution per org, with
+-- structured counts of records affected per category. Full audit trail for
+-- the regulatory claim "we enforce retention automatically."
+
+CREATE TABLE IF NOT EXISTS retention_purge_runs (
+  id                      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id                  uuid NOT NULL REFERENCES organisations(id),
+  run_started_at          timestamptz NOT NULL DEFAULT now(),
+  run_completed_at        timestamptz,
+  records_by_category     jsonb NOT NULL DEFAULT '{}'::jsonb,
+  -- Shape: { category: { evaluated: n, deleted: n, skipped_carveout: n } }
+  errors                  jsonb DEFAULT '[]'::jsonb,
+  status                  text NOT NULL DEFAULT 'running'
+                          CHECK (status IN ('running', 'completed', 'failed'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_purge_runs_org_started
+  ON retention_purge_runs(org_id, run_started_at DESC);
+
+ALTER TABLE retention_purge_runs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "purge_runs_org_select" ON retention_purge_runs;
+CREATE POLICY "purge_runs_org_select" ON retention_purge_runs
+  FOR SELECT USING (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+  );
+
+-- Service-role-only INSERT/UPDATE
+
+-- ─── Trigger: immutable policy body ──────────────────────────────────────────
+-- Once a privacy_policy_versions row is created, body_markdown and body_html
+-- cannot change. Only is_current and superseded_at may flip.
+
+CREATE OR REPLACE FUNCTION check_policy_version_immutable()
+RETURNS trigger AS $$
+BEGIN
+  IF OLD.body_markdown IS DISTINCT FROM NEW.body_markdown
+     OR OLD.body_html IS DISTINCT FROM NEW.body_html
+     OR OLD.change_type IS DISTINCT FROM NEW.change_type
+     OR OLD.effective_from IS DISTINCT FROM NEW.effective_from
+     OR OLD.version IS DISTINCT FROM NEW.version
+     OR OLD.title IS DISTINCT FROM NEW.title
+     OR OLD.change_summary IS DISTINCT FROM NEW.change_summary
+  THEN
+    RAISE EXCEPTION 'POPIA_POLICY_IMMUTABLE: Policy content is immutable once created. Create a new version instead.';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_policy_version_immutable ON privacy_policy_versions;
+CREATE TRIGGER trg_policy_version_immutable
+  BEFORE UPDATE ON privacy_policy_versions
+  FOR EACH ROW EXECUTE FUNCTION check_policy_version_immutable();
+
+-- ─── Trigger: data_subject_requests.updated_at ───────────────────────────────
+DROP TRIGGER IF EXISTS trg_dsr_updated_at ON data_subject_requests;
+CREATE TRIGGER trg_dsr_updated_at
+  BEFORE UPDATE ON data_subject_requests
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ─── Storage bucket: popia-exports ───────────────────────────────────────────
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'popia-exports', 'popia-exports', false, 52428800,
+  ARRAY['application/pdf', 'application/json', 'application/zip',
+        'image/jpeg', 'image/png', 'message/rfc822']
+)
+ON CONFLICT (id) DO NOTHING;
+
+-- Path convention: {org_id}/{subject_user_id or _email_hash}/{export_id}/{filename}
+-- Platform-account exports (org_id NULL): platform/{subject_user_id}/{export_id}/{filename}
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'storage' AND tablename = 'objects'
+      AND policyname = 'popia_exports_subject_read'
+  ) THEN
+    CREATE POLICY "popia_exports_subject_read" ON storage.objects
+      FOR SELECT USING (
+        bucket_id = 'popia-exports'
+        AND EXISTS (
+          SELECT 1 FROM popia_exports pe
+          WHERE (pe.pdf_storage_path = storage.objects.name
+                 OR pe.json_storage_path = storage.objects.name
+                 OR pe.zip_storage_path = storage.objects.name)
+            AND (
+              pe.subject_user_id = auth.uid()
+              OR lower(pe.subject_email) = (SELECT lower(email) FROM auth.users WHERE id = auth.uid())
+            )
+            AND pe.expires_at > now()
+        )
+      );
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'storage' AND tablename = 'objects'
+      AND policyname = 'popia_exports_org_read'
+  ) THEN
+    CREATE POLICY "popia_exports_org_read" ON storage.objects
+      FOR SELECT USING (
+        bucket_id = 'popia-exports'
+        AND EXISTS (
+          SELECT 1 FROM popia_exports pe
+          WHERE (pe.pdf_storage_path = storage.objects.name
+                 OR pe.json_storage_path = storage.objects.name
+                 OR pe.zip_storage_path = storage.objects.name)
+            AND pe.org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+        )
+      );
+  END IF;
+END $$;

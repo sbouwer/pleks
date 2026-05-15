@@ -789,3 +789,29 @@ ALTER TABLE consent_log ADD COLUMN IF NOT EXISTS verification_status        text
   ));
 ALTER TABLE consent_log ADD COLUMN IF NOT EXISTS verification_id            uuid;
 -- Soft FK to consent_verifications.id — no hard constraint (verifications can be purged)
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §N  BUILD_65: POPIA INVARIANT DOCUMENTATION
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Documentary comments on consent_log and related tables to capture the
+-- POPIA posture established by BUILD_65. No new tables.
+--
+-- Invariant (D-POPIA-01): Pleks is Operator for agency-operated data;
+-- Responsible Party for platform account data.
+
+COMMENT ON TABLE consent_log IS
+  'POPIA consent audit trail. Append-only. See BUILD_65 §4 and
+   brief/legal/PROCESSING_PURPOSES.md for processing-purpose taxonomy.
+   consent_version is a soft text reference to privacy_policy_versions.version
+   (no hard FK). Retention: indefinite (POPIA accountability).';
+
+COMMENT ON COLUMN consent_log.consent_version IS
+  'Version of the privacy policy in effect at the time of consent.
+   Matches privacy_policy_versions.version via text equality.
+   Historical versions remain queryable at /privacy/versions/[version].';
+
+COMMENT ON COLUMN consent_log.consent_type IS
+  'Consent category. See brief/legal/PROCESSING_PURPOSES.md for the
+   full enumeration and mapping to POPIA s11 lawful bases.
+   Current enum: credit_check, data_processing, marketing,
+   trust_account_notice, popia_application, lease_template_disclaimer.';

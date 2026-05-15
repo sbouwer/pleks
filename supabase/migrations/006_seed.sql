@@ -671,3 +671,25 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO storage.buckets (id, name, public, file_size_limit)
 VALUES ('legal-archive', 'legal-archive', false, null)
 ON CONFLICT (id) DO NOTHING;
+
+-- ─── BUILD_65: initial privacy policy version ────────────────────────────────
+-- Seed the '2026.1' row that bootstraps consent_log.consent_version tracking.
+-- body_markdown and body_html are populated when PRIVACY_POLICY_2026_1.md
+-- is authored in Phase 8. Until then, the placeholder text is valid SQL but
+-- should be replaced before any policy-version surface goes live.
+INSERT INTO privacy_policy_versions (
+  version, title, body_markdown, body_html, change_type,
+  change_summary, effective_from, is_current, created_at
+)
+VALUES (
+  '2026.1',
+  'Pleks Privacy Notice',
+  '# Pleks Privacy Notice\n\nThis notice will be replaced with the full POPIA-compliant policy text from brief/legal/PRIVACY_POLICY_2026_1.md during Phase 8 of BUILD_65.',
+  '<h1>Pleks Privacy Notice</h1><p>This notice will be replaced with the full POPIA-compliant policy text from brief/legal/PRIVACY_POLICY_2026_1.md during Phase 8 of BUILD_65.</p>',
+  'minor',
+  'Initial POPIA-compliant privacy notice. Aligned with BUILD_65 customer-facing surface.',
+  '2026-05-01',
+  true,
+  now()
+)
+ON CONFLICT (version) DO NOTHING;

@@ -8,7 +8,7 @@
  */
 
 export type TemplateChannel  = "email" | "sms" | "whatsapp" | "both"
-export type TemplateCategory = "applications" | "arrears" | "maintenance" | "inspections" | "leases" | "deposits" | "statements" | "subscriptions" | "portal" | "reports" | "onboarding" | "insurance" | "feedback" | "rent" | "notices"
+export type TemplateCategory = "applications" | "arrears" | "maintenance" | "inspections" | "leases" | "deposits" | "statements" | "subscriptions" | "portal" | "reports" | "onboarding" | "insurance" | "feedback" | "rent" | "notices" | "popia"
 export type ToneProfile      = "transactional" | "relational" | "legal"
 
 export interface TemplateEntry {
@@ -409,6 +409,15 @@ export const TEMPLATE_REGISTRY: Record<string, TemplateEntry> = {
 
   // ── Delivery fallback (BUILD_63 §7.2) ─────────────────────────────────────
   "notice.delivery_fallback":          { key: "notice.delivery_fallback",          channel: "sms",      category: "notices",     is_mandatory: false, tone_profile: "transactional", allowed_channels: ["whatsapp", "sms"],  description: "Side-channel delivery alert: 'We tried to reach you — view your notice here'" },
+
+  // ── POPIA data-subject request lifecycle (BUILD_65) ───────────────────────
+  "popia.request_received":            { key: "popia.request_received",            channel: "email", category: "popia", is_mandatory: true,  tone_profile: "legal", allowed_channels: ["email"], description: "Subject confirmation — POPIA request received with SLA deadline" },
+  "popia.request_under_review":        { key: "popia.request_under_review",        channel: "email", category: "popia", is_mandatory: true,  tone_profile: "legal", allowed_channels: ["email"], description: "Subject notified after identity verification — request now under review" },
+  "popia.request_approved":            { key: "popia.request_approved",            channel: "email", category: "popia", is_mandatory: true,  tone_profile: "legal", allowed_channels: ["email"], description: "Subject notified of approval for non-export requests (correction, objection, etc.)" },
+  "popia.request_rejected":            { key: "popia.request_rejected",            channel: "email", category: "popia", is_mandatory: true,  tone_profile: "legal", allowed_channels: ["email"], description: "Subject notified of rejection with s24 legal basis and IR escalation path" },
+  "popia.nuke_confirmation":           { key: "popia.nuke_confirmation",           channel: "email", category: "popia", is_mandatory: true,  tone_profile: "legal", allowed_channels: ["email"], description: "Full erasure completion — summary of deleted, anonymised, and retained records" },
+  "popia.export_ready":                { key: "popia.export_ready",                channel: "email", category: "popia", is_mandatory: true,  tone_profile: "legal", allowed_channels: ["email"], description: "Data export bundle ready — signed download URL with 7-day TTL and manifest hash" },
+  "popia.policy_update":               { key: "popia.policy_update",               channel: "email", category: "popia", is_mandatory: false, tone_profile: "legal", allowed_channels: ["email"], description: "Material privacy policy change notification with diff link" },
 }
 
 /** Returns the template entry or throws if the key is unknown */

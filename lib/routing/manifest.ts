@@ -1,11 +1,9 @@
 /**
- * lib/routing/manifest.ts — FILL: one-line purpose
+ * lib/routing/manifest.ts — Route auth manifest consumed by proxy.ts middleware
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   Read-only by proxy.ts — no auth required to read this module
+ * Notes:  Longest-match wins. Every path prefix the app serves must have an entry.
+ *         Webhook/cron/auth/admin API routes are handled separately in proxy.ts.
  */
 export const AGENT_ROLES = [
   "owner",
