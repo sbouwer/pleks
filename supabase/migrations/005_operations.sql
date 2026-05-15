@@ -2310,3 +2310,41 @@ CREATE POLICY "vendor_usage_org_read" ON vendor_usage
   FOR SELECT TO authenticated
   USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid()));
 -- No INSERT policy — service role writes only.
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §28  ADDENDUM_14H: screening-reports Storage bucket + search_token column
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Searchworx generates a PDF on every product call. We download it immediately
+-- and store here; the vendor URL is publicly accessible by GUID and must never
+-- be exposed to client code or logged outside lib/searchworx/.
+-- Path convention: {org_id}/{ref_id}/{search_token}-{artefact_kind}.{ext}
+-- ref_id = property_intelligence_pulls.id or application_screening_payments.id
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'screening-reports', 'screening-reports', false, 10485760,
+  ARRAY['application/pdf', 'image/jpeg', 'image/png']
+)
+ON CONFLICT (id) DO NOTHING;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'storage' AND tablename = 'objects'
+      AND policyname = 'screening_reports_org_read'
+  ) THEN
+    CREATE POLICY "screening_reports_org_read" ON storage.objects
+      FOR SELECT TO authenticated
+      USING (
+        bucket_id = 'screening-reports'
+        AND (storage.foldername(name))[1] IN (
+          SELECT org_id::text FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL
+        )
+      );
+  END IF;
+END $$;
+
+-- Add search_token to property_intelligence_pulls (populated once per-product modules return real tokens)
+ALTER TABLE property_intelligence_pulls
+  ADD COLUMN IF NOT EXISTS search_token uuid;

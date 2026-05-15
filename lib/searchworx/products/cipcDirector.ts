@@ -1,56 +1,33 @@
 /**
- * lib/searchworx/products/cipcDirector.ts — Searchworx CIPC Director lookup
+ * lib/searchworx/products/cipcDirector.ts — Searchworx CIPC Director Search (stub)
  *
- * Notes:  ADDENDUM_14A. Retail: R25 incl. VAT. Cost: R15.65 ex-VAT.
- *         Public-register data. Verifies a natural person is a CIPC-listed director.
- *         Input: ID number + company registration number.
- *         Output: director name, appointment date, status, position held.
- *         Mismatch detection (declared-vs-CIPC) is performed in the UI layer, not here.
+ * Notes:  ADDENDUM_14H. Stub pending per-product UAT spike. Endpoint path and request body shape
+ *         are confirmed from the docs capture (brief/vendors/searchworx/raw/cipc-director-search/)
+ *         but no real UAT call has been made yet — do not enable in production without the spike.
+ *         Retail: R25 incl. VAT. Cost: R15.65 ex-VAT. Public-register data; POPIA s11(1)(f) basis.
+ *         ResponseObject is an ARRAY (unique among the 5 Tier 1 products) — each element is one match.
+ *         Note: `Firstname` is PascalCase here (differs from Sigma's lowercase `firstname`).
  */
-import { searchworxPost, type SearchworxResult } from "@/lib/searchworx/client"
+import { searchworxCall, type SearchworxResult } from "@/lib/searchworx/client"
 
 export interface CipcDirectorInput {
   idNumber:           string
-  registrationNumber: string
-}
-
-export interface CipcDirectorFacts {
-  director_name:       string | null
-  director_id_number:  string | null
-  appointment_date:    string | null
-  status:              string | null
-  position:            string | null
-}
-
-interface SearchworxCipcDirectorRaw {
-  director_name?:      string
-  id_number?:          string
-  appointment_date?:   string
-  status?:             string
-  position?:           string
-  [key: string]: unknown
+  surname:            string
+  firstName:          string
+  registrationNumber: string  // company reg — used to narrow matches
 }
 
 export async function runCipcDirector(
   input: CipcDirectorInput,
-): Promise<SearchworxResult<CipcDirectorFacts>> {
-  const result = await searchworxPost<SearchworxCipcDirectorRaw>("/cipc/director", {
-    id_number:           input.idNumber,
-    registration_number: input.registrationNumber,
-    product_code:        "CIPC_DIRECTOR",
+): Promise<SearchworxResult<unknown[]>> {
+  return searchworxCall({
+    productPath: "cipc/director",
+    buildBody: (token) => ({
+      SessionToken: token,
+      Reference:    input.registrationNumber,
+      Surname:      input.surname,
+      Firstname:    input.firstName,  // PascalCase — different from Sigma's lowercase `firstname`
+      IDNumber:     input.idNumber,
+    }),
   })
-
-  if (!result.ok) return result
-
-  const raw = result.data
-  return {
-    ok: true,
-    data: {
-      director_name:      raw.director_name ?? null,
-      director_id_number: raw.id_number ?? input.idNumber,
-      appointment_date:   raw.appointment_date ?? null,
-      status:             raw.status ?? null,
-      position:           raw.position ?? null,
-    },
-  }
 }

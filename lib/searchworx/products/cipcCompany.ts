@@ -1,56 +1,29 @@
 /**
- * lib/searchworx/products/cipcCompany.ts — Searchworx CIPC Company lookup
+ * lib/searchworx/products/cipcCompany.ts — Searchworx CIPC Company Search by Registration Number (stub)
  *
- * Notes:  ADDENDUM_14A. Retail: R25 incl. VAT. Cost: R15.65 ex-VAT.
- *         Public-register data. POPIA s11(1)(f) legitimate-interest basis.
- *         Input: company registration number (format: YYYY/NNNNNN/NN).
- *         Output: registered name, status, registered address, business start date.
+ * Notes:  ADDENDUM_14H. Stub pending per-product UAT spike. Endpoint path and request body shape
+ *         are confirmed from the docs capture (brief/vendors/searchworx/raw/cipc-company-search/)
+ *         but no real UAT call has been made yet — do not enable in production without the spike.
+ *         Retail: R25 incl. VAT. Cost: R15.65 ex-VAT. Public-register data; POPIA s11(1)(f) basis.
+ *         CRITICAL: This endpoint uses camelCase request body (sessionToken, registrationNumber),
+ *         unlike all other Searchworx products which use PascalCase. buildBody handles this.
  */
-import { searchworxPost, type SearchworxResult } from "@/lib/searchworx/client"
+import { searchworxCall, type SearchworxResult } from "@/lib/searchworx/client"
 
 export interface CipcCompanyInput {
-  registrationNumber: string
-}
-
-export interface CipcCompanyFacts {
-  registered_name:      string | null
-  registration_number:  string | null
-  status:               string | null
-  status_date:          string | null
-  registered_address:   string | null
-  business_start_date:  string | null
-}
-
-interface SearchworxCipcCompanyRaw {
-  registered_name?:     string
-  registration_number?: string
-  status?:              string
-  status_date?:         string
-  registered_address?:  string
-  business_start_date?: string
-  [key: string]: unknown
+  registrationNumber: string  // SA company reg format: YYYY/NNNNNN/NN
+  reference?:         string
 }
 
 export async function runCipcCompany(
   input: CipcCompanyInput,
-): Promise<SearchworxResult<CipcCompanyFacts>> {
-  const result = await searchworxPost<SearchworxCipcCompanyRaw>("/cipc/company", {
-    registration_number: input.registrationNumber,
-    product_code:        "CIPC_COMPANY",
+): Promise<SearchworxResult<Record<string, unknown>>> {
+  return searchworxCall({
+    productPath: "cipc/company/registrationNumber/NoMulti",
+    buildBody: (token) => ({
+      sessionToken:       token,              // camelCase — CIPC Company quirk; differs from all other products
+      reference:          input.reference ?? input.registrationNumber,
+      registrationNumber: input.registrationNumber,
+    }),
   })
-
-  if (!result.ok) return result
-
-  const raw = result.data
-  return {
-    ok: true,
-    data: {
-      registered_name:     raw.registered_name ?? null,
-      registration_number: raw.registration_number ?? input.registrationNumber,
-      status:              raw.status ?? null,
-      status_date:         raw.status_date ?? null,
-      registered_address:  raw.registered_address ?? null,
-      business_start_date: raw.business_start_date ?? null,
-    },
-  }
 }

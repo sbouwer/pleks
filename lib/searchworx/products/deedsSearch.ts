@@ -1,60 +1,35 @@
 /**
- * lib/searchworx/products/deedsSearch.ts — Searchworx Deeds Office Search product
+ * lib/searchworx/products/deedsSearch.ts — Searchworx Deeds Office Property Search on Erf (stub)
  *
- * Notes:  ADDENDUM_14A. Retail: R30 incl. VAT. Cost: R22.80 ex-VAT.
- *         Input: erf number + municipality (or title deed reference).
- *         Output: registered owner, ID number, purchase date/price, deed number.
- *         "No record found" = 404 from vendor; charge still stands per Searchworx rate card.
+ * Notes:  ADDENDUM_14H. Stub pending per-product UAT spike. Endpoint path and request body shape
+ *         are confirmed from the docs capture (brief/vendors/searchworx/raw/deeds-search/) but no
+ *         real UAT call has been made yet — do not enable in production without the spike.
+ *         Retail: R30 incl. VAT. Cost: R22.80 ex-VAT. Uses PascalCase request body.
+ *         DeedsOffice integer maps to the registrar jurisdiction (1=Bloemfontein, 2=Cape Town, ...).
  */
-import { searchworxPost, type SearchworxResult } from "@/lib/searchworx/client"
+import { searchworxCall, type SearchworxResult } from "@/lib/searchworx/client"
 
 export interface DeedsSearchInput {
-  erfNumber:    string
-  municipality: string
-  titleDeedRef?: string
-}
-
-export interface DeedsSearchFacts {
-  owner_name:          string | null
-  owner_id_number:     string | null
-  purchase_date:       string | null
-  purchase_price_cents: number | null
-  deed_number:         string | null
-  transfer_date:       string | null
-}
-
-interface SearchworxDeedsRaw {
-  owner_name?:    string
-  id_number?:     string
-  purchase_date?: string
-  purchase_price?: number
-  deed_number?:   string
-  transfer_date?: string
-  [key: string]: unknown
+  erfNumber:      string
+  municipality:   string
+  deedsOffice?:   number  // 1–12 per the deeds-office enum; defaults to 2 (Cape Town) if omitted
+  portionNumber?: string
+  titleDeedRef?:  string
 }
 
 export async function runDeedsSearch(
   input: DeedsSearchInput,
-): Promise<SearchworxResult<DeedsSearchFacts>> {
-  const result = await searchworxPost<SearchworxDeedsRaw>("/deeds/search", {
-    erf_number:    input.erfNumber,
-    municipality:  input.municipality,
-    title_deed_ref: input.titleDeedRef ?? null,
-    product_code:  "DEEDS_OFFICE_SEARCH",
+): Promise<SearchworxResult<Record<string, unknown>>> {
+  return searchworxCall({
+    productPath: "deedsoffice/property/erf",
+    buildBody: (token) => ({
+      SessionToken:    token,
+      Reference:       input.titleDeedRef ?? input.erfNumber,
+      DeedsOffice:     input.deedsOffice ?? 2,
+      Township:        input.municipality,
+      ErfNumber:       input.erfNumber,
+      PortionNumber:   input.portionNumber ?? "0",
+      RemainingExtent: false,
+    }),
   })
-
-  if (!result.ok) return result
-
-  const raw = result.data
-  return {
-    ok: true,
-    data: {
-      owner_name:           raw.owner_name ?? null,
-      owner_id_number:      raw.id_number ?? null,
-      purchase_date:        raw.purchase_date ?? null,
-      purchase_price_cents: raw.purchase_price != null ? Math.round(raw.purchase_price * 100) : null,
-      deed_number:          raw.deed_number ?? null,
-      transfer_date:        raw.transfer_date ?? null,
-    },
-  }
 }

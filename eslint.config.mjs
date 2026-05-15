@@ -42,6 +42,27 @@ const eslintConfig = defineConfig([
     },
   },
   {
+    // Searchworx vendor URLs (uatapp/uatrest/rest.searchworks.co.za) must never leave
+    // lib/searchworx/. The PDF and imagery endpoints are publicly-accessible by GUID;
+    // exposing them to client code or logs creates POPIA s19 artefact-lifecycle risk.
+    // Download immediately via downloadAndStoreSearchworxArtefact() and discard the URL.
+    // D-14H-10, D-14H-12. See ADDENDUM_14H §5.
+    files: ["**/*.ts", "**/*.tsx"],
+    ignores: ["lib/searchworx/**"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: String.raw`Literal[value=/searchworks\.co\.za/]`,
+          message:
+            "Searchworx vendor URLs must not leave lib/searchworx/. " +
+            "Download and store via downloadAndStoreSearchworxArtefact() in lib/searchworx/storage.ts. " +
+            "See ADDENDUM_14H §5 and D-14H-12.",
+        },
+      ],
+    },
+  },
+  {
     // Direct @anthropic-ai/sdk usage is prohibited — all AI calls must go through
     // lib/ai/client.ts, which handles logging, cost attribution, and org tracking.
     //
