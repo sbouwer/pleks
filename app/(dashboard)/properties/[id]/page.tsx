@@ -7,11 +7,13 @@
  */
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { getServerOrgMembership } from "@/lib/auth/server"
+import { hasFeature } from "@/lib/tier/gates"
 import { redirect, notFound } from "next/navigation"
 import { Badge } from "@/components/ui/badge"
 import { BackLink } from "@/components/ui/BackLink"
 import { PropertyTabs } from "./PropertyTabs"
 import { OverviewTab, type RecentActivityItem, type OverviewUnit } from "./OverviewTab"
+import type { LatestPull } from "./PropertyVerificationCard"
 import { UnitsTab, type UnitTabData, type BuildingTabData } from "./UnitsTab"
 import { PropertyDocumentsTab } from "./PropertyDocumentsTab"
 import { OperationsTab, type RecentInspection, type RecentMaintenance, type ComplianceItem, type AuditItem } from "./OperationsTab"
@@ -151,6 +153,8 @@ interface OverviewData {
   activity: RecentActivityItem[]
   managingScheme: string | null
   teamMembers: { userId: string; name: string; role: string }[]
+  latestDeeds: LatestPull | null
+  latestLightstone: LatestPull | null
 }
 
 async function fetchOverviewData(
@@ -172,6 +176,8 @@ async function fetchOverviewData(
     managingAgentResult,
     managingSchemeResult,
     { data: teamMemberRows },
+    { data: latestDeedsRaw },
+    { data: latestLightstoneRaw },
   ] = await Promise.all([
     supabase.from("units").select("id, status, asking_rent_cents").eq("property_id", propertyId).is("deleted_at", null).eq("is_archived", false),
     landlordId
@@ -201,6 +207,8 @@ async function fetchOverviewData(
       : Promise.resolve({ data: null }),
     service.from("contractors").select("name").eq("org_id", orgId).limit(1),
     service.from("user_orgs").select("user_id, role, user_profiles(id, full_name)").eq("org_id", orgId).is("deleted_at", null),
+    service.from("property_intelligence_pulls").select("id, product_type, status, completed_at, extracted_facts_jsonb, subject_label").eq("property_id", propertyId).eq("org_id", orgId).eq("product_type", "deeds_search").in("status", ["complete", "no_data_found", "failed", "running", "pending"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    service.from("property_intelligence_pulls").select("id, product_type, status, completed_at, extracted_facts_jsonb, subject_label").eq("property_id", propertyId).eq("org_id", orgId).eq("product_type", "lightstone_erf_short").in("status", ["complete", "no_data_found", "failed", "running", "pending"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ])
 
   // Arrears totals
@@ -247,16 +255,18 @@ async function fetchOverviewData(
   })
 
   return {
-    landlord:       landlordResult.data as OverviewData["landlord"],
-    allLandlords:   (allLandlords ?? []) as OverviewData["allLandlords"],
-    activeUnits:    (units ?? []) as OverviewUnit[],
-    buildingCount:  (buildings ?? []).length,
+    landlord:         landlordResult.data as OverviewData["landlord"],
+    allLandlords:     (allLandlords ?? []) as OverviewData["allLandlords"],
+    activeUnits:      (units ?? []) as OverviewUnit[],
+    buildingCount:    (buildings ?? []).length,
     arrearsCents,
     arrearsCount,
     managingAgentName,
-    activity:       activity.slice(0, 5),
+    activity:         activity.slice(0, 5),
     managingScheme,
     teamMembers,
+    latestDeeds:      (latestDeedsRaw ?? null) as LatestPull | null,
+    latestLightstone: (latestLightstoneRaw ?? null) as LatestPull | null,
   }
 }
 
@@ -609,7 +619,7 @@ export default async function PropertyDetailPage({
   const membership = await getServerOrgMembership()
   if (!membership) redirect("/login")
   const { org_id: orgId } = membership
-  const tier              = membership.tier ?? "owner"
+  const tier              = (membership.tier ?? "owner") as import("@/lib/constants").Tier
   // Owners are always admin; other roles (admin, manager) gated server-side on action submit.
   const isAdminUi         = membership.role === "owner"
 
@@ -774,6 +784,7 @@ export default async function PropertyDetailPage({
                 insurance_renewal_date:  (propRaw.insurance_renewal_date as string | null) ?? null,
                 scenario_label:          resolveScenarioLabel(propRaw.scenario_type as ScenarioType | null),
                 operating_hours_preset:  (propRaw.operating_hours_preset as string | null) ?? null,
+                municipality:            (propRaw.municipality as string | null) ?? null,
               }}
               landlord={overviewData.landlord}
               activeUnits={overviewData.activeUnits}
@@ -786,6 +797,9 @@ export default async function PropertyDetailPage({
               activity={overviewData.activity}
               managingScheme={overviewData.managingScheme}
               hasManagingScheme={hasManagingScheme}
+              canAccessIntelligence={hasFeature(tier, "property_intelligence")}
+              latestDeeds={overviewData.latestDeeds}
+              latestLightstone={overviewData.latestLightstone}
             />
           </>
         )}

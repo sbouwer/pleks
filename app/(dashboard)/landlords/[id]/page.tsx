@@ -1,11 +1,11 @@
 /**
- * app/(dashboard)/landlords/[id]/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/landlords/[id]/page.tsx — Landlord detail page
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /landlords/[id]
+ * Auth:   createClient() for auth.getUser(); createServiceClient() for all data queries
+ * Data:   landlord_view, contact_phones/emails/addresses, properties, leases, owner_statements,
+ *         arrears_cases, subscriptions, property_intelligence_pulls
+ * Notes:  ADDENDUM_14A: LandlordVerificationCard added for Steward+ tiers (juristic + natural person branches).
  */
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
@@ -20,10 +20,71 @@ import { ActivityTimeline } from "@/components/contacts/ActivityTimeline"
 import { LandlordIdentitySection, LandlordContactSection, LandlordAddressSection, LandlordBankingSection } from "./LandlordSections"
 import { LandlordPortalSection } from "@/components/portal/LandlordPortalSection"
 import { WelcomePackBanner } from "@/components/reports/WelcomePackBanner"
+import { LandlordVerificationCard, type LinkedDeedsPull } from "./LandlordVerificationCard"
+import type { LatestPull } from "../../properties/[id]/PropertyVerificationCard"
+import { hasFeature } from "@/lib/tier/gates"
+import type { Tier } from "@/lib/constants"
 import { formatZAR } from "@/lib/constants"
 
 interface Props {
   params: Promise<{ id: string }>
+}
+
+// Extracted to keep page function complexity within limits
+async function fetchLandlordVerification(
+  service: Awaited<ReturnType<typeof createServiceClient>>,
+  orgId:      string,
+  contactId:  string,
+  entityType: string | null,
+  propertyIds: string[],
+  propertiesMap: Record<string, string>,
+): Promise<{ latestCipcCompany: LatestPull | null; linkedDeedsPulls: LinkedDeedsPull[] }> {
+  if (entityType === "organisation") {
+    const { data, error } = await service
+      .from("property_intelligence_pulls")
+      .select("id, product_type, status, completed_at, extracted_facts_jsonb, subject_label, pdf_storage_path")
+      .eq("org_id", orgId)
+      .eq("product_type", "cipc_company")
+      .eq("landlord_id", contactId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (error) console.error("cipc_company pull fetch failed:", error.message)
+    return { latestCipcCompany: (data as LatestPull | null) ?? null, linkedDeedsPulls: [] }
+  }
+
+  if (propertyIds.length === 0) {
+    return { latestCipcCompany: null, linkedDeedsPulls: [] }
+  }
+
+  const { data: deedsPulls, error } = await service
+    .from("property_intelligence_pulls")
+    .select("id, property_id, status, completed_at, extracted_facts_jsonb")
+    .eq("org_id", orgId)
+    .eq("product_type", "deeds_search")
+    .in("property_id", propertyIds)
+    .order("created_at", { ascending: false })
+  if (error) {
+    console.error("deeds pull fetch failed:", error.message)
+    return { latestCipcCompany: null, linkedDeedsPulls: [] }
+  }
+
+  const seen = new Set<string>()
+  const linkedDeedsPulls = (deedsPulls ?? []).reduce<LinkedDeedsPull[]>((acc, pull) => {
+    if (!pull.property_id || seen.has(pull.property_id)) return acc
+    seen.add(pull.property_id)
+    const facts = pull.extracted_facts_jsonb as Record<string, unknown> | null
+    acc.push({
+      propertyId:   pull.property_id,
+      propertyName: propertiesMap[pull.property_id] ?? pull.property_id,
+      status:       pull.status as string,
+      completedAt:  pull.completed_at as string | null,
+      ownerName:    (facts?.owner_name as string) ?? null,
+    })
+    return acc
+  }, [])
+
+  return { latestCipcCompany: null, linkedDeedsPulls }
 }
 
 export default async function LandlordDetailPage({ params }: Props) {
@@ -148,6 +209,20 @@ export default async function LandlordDetailPage({ params }: Props) {
     .eq("org_id", membership.org_id)
     .single()
   const orgTier = sub?.tier ?? "steward"
+  const canAccessIntelligence = hasFeature((orgTier ?? "owner") as Tier, "property_intelligence")
+
+  // Property Intelligence — fetch verification pulls for this landlord
+  const propertiesMap = Object.fromEntries((properties ?? []).map((p) => [p.id, p.name]))
+  const { latestCipcCompany, linkedDeedsPulls } = canAccessIntelligence
+    ? await fetchLandlordVerification(
+        service,
+        membership.org_id,
+        landlord.contact_id,
+        landlord.entity_type,
+        (properties ?? []).map((p) => p.id),
+        propertiesMap,
+      )
+    : { latestCipcCompany: null as LatestPull | null, linkedDeedsPulls: [] as LinkedDeedsPull[] }
 
   return (
     <ContactDetailLayout
@@ -247,6 +322,17 @@ export default async function LandlordDetailPage({ params }: Props) {
           { label: "Outstanding", value: formatZAR(totalArrears), variant: totalArrears > 0 ? "red" as const : "green" as const },
         ]} />
       </SectionCard>
+
+      <LandlordVerificationCard
+        landlordContactId={landlord.contact_id}
+        entityType={landlord.entity_type}
+        registrationNumber={landlord.registration_number ?? null}
+        companyName={landlord.company_name ?? null}
+        landlordDisplayName={displayName}
+        canAccessIntelligence={canAccessIntelligence}
+        latestCipcCompany={latestCipcCompany}
+        linkedDeedsPulls={linkedDeedsPulls}
+      />
 
       <SectionCard title="Owner statements" count={recentStatements.length}>
         <ActivityTimeline

@@ -4,6 +4,7 @@
  * Route:  /properties/[id] (overview tab)
  * Auth:   gateway-protected server wrapper
  * Data:   landlord, units, arrears, activity passed from server page
+ * Notes:  ADDENDUM_14A: PropertyVerificationCard added for Steward+ tiers.
  */
 import { Card, CardContent } from "@/components/ui/card"
 import { ContactCard } from "@/components/contacts/ContactCard"
@@ -11,6 +12,7 @@ import { InlineLink } from "@/components/ui/actions"
 import { formatZAR } from "@/lib/constants"
 import { ExternalLink } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { PropertyVerificationCard, type LatestPull } from "./PropertyVerificationCard"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -53,6 +55,7 @@ interface OverviewTabProps {
     insurance_renewal_date: string | null
     scenario_label: string | null
     operating_hours_preset: string | null
+    municipality: string | null
   }
   landlord: OverviewLandlord | null
   activeUnits: OverviewUnit[]
@@ -65,6 +68,9 @@ interface OverviewTabProps {
   activity: RecentActivityItem[]
   managingScheme: string | null
   hasManagingScheme: boolean
+  canAccessIntelligence: boolean
+  latestDeeds: LatestPull | null
+  latestLightstone: LatestPull | null
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -168,6 +174,9 @@ export function OverviewTab({
   activity,
   managingScheme,
   hasManagingScheme,
+  canAccessIntelligence,
+  latestDeeds,
+  latestLightstone,
 }: Readonly<OverviewTabProps>) {
   const totalUnits    = activeUnits.length
   const occupied      = activeUnits.filter((u) => u.status === "occupied").length
@@ -321,6 +330,16 @@ export function OverviewTab({
           </div>
         </div>
       </div>
+
+      {/* Property verification (Steward+; hidden for Owner free) */}
+      <PropertyVerificationCard
+        propertyId={propertyId}
+        erfNumber={property.erf_number}
+        municipality={property.municipality}
+        canAccessIntelligence={canAccessIntelligence}
+        latestDeeds={latestDeeds}
+        latestLightstone={latestLightstone}
+      />
 
       {/* Recent activity */}
       {activity.length > 0 && (

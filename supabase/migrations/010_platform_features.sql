@@ -1669,3 +1669,67 @@ ALTER TABLE auth_events ADD CONSTRAINT auth_events_event_type_check
     'consent_email_link_sent', 'consent_email_link_verified',
     'consent_special_information_given', 'consent_special_information_revoked'
   ));
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §26  ADDENDUM_14A: organisation_payment_tokens + property-intelligence bucket
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Stores PayFast Tokenisation tokens (subscription_type=2) for saved-card
+-- one-click pulls. One active token per org at a time; deleted_at soft-deletes.
+-- Storage bucket: property-intelligence — org-scoped PDFs from vendor pulls.
+
+CREATE TABLE IF NOT EXISTS organisation_payment_tokens (
+  id           uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id       uuid        NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+  payfast_token text       NOT NULL,
+  last_4       text,
+  card_brand   text,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  deleted_at   timestamptz
+);
+
+CREATE INDEX IF NOT EXISTS idx_org_payment_tokens_org ON organisation_payment_tokens(org_id)
+  WHERE deleted_at IS NULL;
+
+ALTER TABLE organisation_payment_tokens ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "org_payment_tokens_read"   ON organisation_payment_tokens;
+DROP POLICY IF EXISTS "org_payment_tokens_delete"  ON organisation_payment_tokens;
+
+CREATE POLICY "org_payment_tokens_read" ON organisation_payment_tokens
+  FOR SELECT TO authenticated
+  USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid()));
+
+-- Soft-delete only (set deleted_at); no hard DELETE from client
+CREATE POLICY "org_payment_tokens_delete" ON organisation_payment_tokens
+  FOR UPDATE TO authenticated
+  USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid()))
+  WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid()));
+
+-- Storage bucket: property-intelligence
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'property-intelligence',
+  'property-intelligence',
+  false,
+  10485760,
+  ARRAY['application/pdf']
+)
+ON CONFLICT (id) DO NOTHING;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'storage' AND tablename = 'objects'
+    AND policyname = 'pi_org_read'
+  ) THEN
+    CREATE POLICY "pi_org_read" ON storage.objects
+      FOR SELECT TO authenticated
+      USING (
+        bucket_id = 'property-intelligence'
+        AND (storage.foldername(name))[1] IN (
+          SELECT org_id::text FROM user_orgs WHERE user_id = auth.uid()
+        )
+      );
+  END IF;
+END $$;

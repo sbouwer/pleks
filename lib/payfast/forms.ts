@@ -5,6 +5,8 @@
  * Notes:  Each builder computes return_url/cancel_url/notify_url, signs with the org passphrase,
  *         and returns { url, data } for use with <PayFastForm>. custom_str* fields carry context
  *         that the ITN webhook uses to locate the relevant DB rows (no session available in ITN).
+ *         ADDENDUM_14A: buildPropertyIntelligenceFeeForm added for PAYG pulls. First-pull flow
+ *         includes subscription_type=2 for card tokenisation (D-14A-19).
  */
 import { generatePayFastSignature } from "./signature"
 import { PAYFAST_CONFIG } from "./config"
@@ -117,6 +119,77 @@ export function buildDirectorFeeForm({
     custom_str2: coApplicantId,
     custom_str3: orgId,
     custom_str4: String(feeCents),
+  }
+
+  const signature = generatePayFastSignature(data, PAYFAST_CONFIG.passphrase)
+  data.signature = signature
+
+  return { url: PAYFAST_CONFIG.processUrl, data }
+}
+
+// Product retail prices in Rands (spec D-14A-03)
+export const PI_RETAIL_CENTS: Record<string, number> = {
+  deeds_search:          3000,
+  lightstone_erf_short:  15500,
+  cipc_company:          2500,
+  cipc_director:         2500,
+}
+
+// Searchworx cost ex-VAT in cents (for vendor_usage margin reporting)
+export const PI_COST_CENTS: Record<string, number> = {
+  deeds_search:          2280,
+  lightstone_erf_short:  11700,
+  cipc_company:          1565,
+  cipc_director:         1565,
+}
+
+const PI_PRODUCT_LABELS: Record<string, string> = {
+  deeds_search:         "Deeds Office Search",
+  lightstone_erf_short: "Lightstone Erf Valuation",
+  cipc_company:         "CIPC Company Verification",
+  cipc_director:        "CIPC Director Verification",
+}
+
+interface PropertyIntelligenceFeeFormData {
+  pullId:       string
+  orgId:        string
+  productType:  string
+  subjectLabel: string
+  tokenise:     boolean  // true on first pull (no saved card), false on re-checkout
+}
+
+export function buildPropertyIntelligenceFeeForm({
+  pullId,
+  orgId,
+  productType,
+  subjectLabel,
+  tokenise,
+}: PropertyIntelligenceFeeFormData) {
+  const retailCents = PI_RETAIL_CENTS[productType]
+  if (!retailCents) throw new Error(`Unknown productType: ${productType}`)
+
+  const amount = (retailCents / 100).toFixed(2)
+  const label  = PI_PRODUCT_LABELS[productType] ?? productType
+
+  const data: Record<string, string> = {
+    merchant_id:  PAYFAST_CONFIG.merchantId,
+    merchant_key: PAYFAST_CONFIG.merchantKey,
+    return_url:   `${process.env.NEXT_PUBLIC_APP_URL}/intelligence/pull/${pullId}/result`,
+    cancel_url:   `${process.env.NEXT_PUBLIC_APP_URL}/intelligence`,
+    notify_url:   `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/payfast/property-intelligence`,
+    amount,
+    item_name:         `${label} — ${subjectLabel}`,
+    item_description:  "Property intelligence pull",
+    custom_str1:       pullId,
+    custom_str2:       orgId,
+    custom_str3:       productType,
+  }
+
+  // subscription_type=2 instructs PayFast to tokenise the card without creating
+  // a recurring subscription. The ITN will return a `token` field we store in
+  // organisation_payment_tokens for future 1-click adhoc charges (D-14A-19).
+  if (tokenise) {
+    data.subscription_type = "2"
   }
 
   const signature = generatePayFastSignature(data, PAYFAST_CONFIG.passphrase)

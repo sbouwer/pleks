@@ -29,6 +29,7 @@ const TIER_FEATURES_STEWARD = [
   "sms_notifications",      // Africa's Talking SMS (R0.20/SMS)
   "whatsapp_notifications", // Africa's Talking WhatsApp Business (Steward+; Owner uses email only)
   "fitscore_paypercheck",
+  "property_intelligence",  // ADDENDUM_14A: Deeds/Lightstone/CIPC PAYG pulls (D-14A-16, D-14A-17)
 ] as const
 
 const TIER_FEATURES_PORTFOLIO = [
@@ -36,7 +37,6 @@ const TIER_FEATURES_PORTFOLIO = [
   "arrears_automation",
   "ai_full", // Sonnet — bank statements, FitScore, lease drafting, etc.
   "fitscore_included",
-  "lightstone_avm",
   "application_pipeline",
   "municipal_bills",
   "reports_full",

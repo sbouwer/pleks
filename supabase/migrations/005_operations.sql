@@ -2202,3 +2202,111 @@ CREATE INDEX IF NOT EXISTS idx_rate_limit_hard_lockout ON consent_verification_r
 
 ALTER TABLE consent_verification_rate_limits ENABLE ROW LEVEL SECURITY;
 -- Service role only — no client-facing policies.
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §ADDENDUM_14A  Property-intelligence module (PAYG)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- property_intelligence_pulls: one row per agent-initiated vendor pull (Deeds,
+-- Lightstone, CIPC). Immutable after creation — status transitions via service role.
+-- vendor_usage: cost-observability sibling to ai_usage (D-14A-18).
+
+CREATE TABLE IF NOT EXISTS property_intelligence_pulls (
+  id                  uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id              uuid        NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+
+  -- What was pulled
+  product_type        text        NOT NULL
+                      CHECK (product_type IN (
+                        'deeds_search',
+                        'lightstone_erf_short',
+                        'cipc_company',
+                        'cipc_director'
+                      )),
+
+  -- Target identification
+  property_id         uuid        REFERENCES properties(id),
+  landlord_id         uuid        REFERENCES contacts(id),
+  subject_identifier  text        NOT NULL,
+  subject_label       text,
+
+  -- Vendor response
+  searchworx_response_jsonb jsonb,
+  extracted_facts_jsonb     jsonb,
+  pdf_storage_path          text,
+
+  -- Status
+  status              text        NOT NULL DEFAULT 'pending'
+                      CHECK (status IN (
+                        'pending',
+                        'running',
+                        'complete',
+                        'failed',
+                        'no_data_found'
+                      )),
+  failure_reason      text,
+
+  -- Billing
+  retail_cents        integer     NOT NULL,
+  cost_cents          integer     NOT NULL,
+  payfast_payment_id  uuid        REFERENCES payments(id),
+  refunded_payment_id uuid        REFERENCES payments(id),
+
+  -- Audit
+  created_at          timestamptz NOT NULL DEFAULT now(),
+  created_by_user_id  uuid        NOT NULL REFERENCES auth.users(id),
+  completed_at        timestamptz,
+  failed_at           timestamptz,
+  refunded_at         timestamptz
+);
+
+CREATE INDEX IF NOT EXISTS idx_pip_org_property ON property_intelligence_pulls(org_id, property_id)
+  WHERE property_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_pip_org_landlord ON property_intelligence_pulls(org_id, landlord_id)
+  WHERE landlord_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_pip_org_recent   ON property_intelligence_pulls(org_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_pip_org_status   ON property_intelligence_pulls(org_id, status)
+  WHERE status IN ('pending', 'running');
+
+ALTER TABLE property_intelligence_pulls ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "pip_org_read"   ON property_intelligence_pulls;
+DROP POLICY IF EXISTS "pip_org_insert" ON property_intelligence_pulls;
+
+CREATE POLICY "pip_org_read" ON property_intelligence_pulls
+  FOR SELECT TO authenticated
+  USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid()));
+
+CREATE POLICY "pip_org_insert" ON property_intelligence_pulls
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid())
+    AND created_by_user_id = auth.uid()
+  );
+
+-- vendor_usage: service-role-only cost ledger (D-14A-18)
+CREATE TABLE IF NOT EXISTS vendor_usage (
+  id           uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id       uuid        NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+  vendor       text        NOT NULL CHECK (vendor IN ('searchworx', 'payfast')),
+  product_key  text        NOT NULL,
+  cost_cents   integer     NOT NULL,
+  retail_cents integer,
+  ref_table    text,
+  ref_id       uuid,
+  metadata     jsonb       NOT NULL DEFAULT '{}'::jsonb,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_vendor_usage_org_date   ON vendor_usage(org_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_vendor_usage_org_vendor ON vendor_usage(org_id, vendor);
+CREATE INDEX IF NOT EXISTS idx_vendor_usage_ref        ON vendor_usage(ref_table, ref_id)
+  WHERE ref_id IS NOT NULL;
+
+ALTER TABLE vendor_usage ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "vendor_usage_org_read" ON vendor_usage;
+
+CREATE POLICY "vendor_usage_org_read" ON vendor_usage
+  FOR SELECT TO authenticated
+  USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid()));
+-- No INSERT policy — service role writes only.
