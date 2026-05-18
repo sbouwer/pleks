@@ -69,7 +69,7 @@ function getCredentials(): { username: string; password: string } {
   return { username, password }
 }
 
-function getBaseUrl(): string {
+export function getSearchworxBaseUrl(): string {
   const url = process.env.SEARCHWORX_BASE_URL
   if (!url) {
     if (process.env.NODE_ENV === "production") {
@@ -84,7 +84,7 @@ function getBaseUrl(): string {
 
 export async function _mintToken(): Promise<string> {
   const { username, password } = getCredentials()
-  const response = await fetch(`${getBaseUrl()}/auth/login/`, {
+  const response = await fetch(`${getSearchworxBaseUrl()}/auth/login/`, {
     method:  "POST",
     headers: { "Content-Type": "application/json" },
     body:    JSON.stringify({ Username: username, Password: password }),
@@ -101,7 +101,7 @@ export async function _mintToken(): Promise<string> {
 
 export async function _validateToken(token: string): Promise<boolean> {
   try {
-    const response = await fetch(`${getBaseUrl()}/auth/validatetoken/`, {
+    const response = await fetch(`${getSearchworxBaseUrl()}/auth/validatetoken/`, {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({ SessionToken: token }),
@@ -167,7 +167,7 @@ function hasProductData(responseObject: unknown): boolean {
 export async function searchworxCall<TResult>(
   options: SearchworxCallOptions,
 ): Promise<SearchworxResult<TResult>> {
-  const baseUrl   = getBaseUrl()
+  const baseUrl   = getSearchworxBaseUrl()
   const timeoutMs = options.timeout_ms ?? 60_000
 
   for (let attempt = 1; attempt <= 2; attempt++) {
