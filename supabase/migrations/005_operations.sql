@@ -2355,8 +2355,7 @@ ALTER TABLE property_intelligence_pulls
 ALTER TABLE property_intelligence_pulls
   ADD COLUMN IF NOT EXISTS searchworx_pdf_storage_path text;
 
--- §28.2  Deferred — application_screening_lines is a CREATE TABLE in Phase 2 (not yet an existing table).
---         pdf_storage_path, result_summary, screening_run_id columns will be added in the Phase 2 migration.
+-- §28.2  Deferred — see §28.5 below. The spec assumed this was an existing table; it is a Phase 2 CREATE.
 
 -- §28.3  BUILD_14_AMENDMENT_14H_V2: FitScore document on application, current run pointer
 ALTER TABLE public.applications
@@ -2391,3 +2390,64 @@ CREATE POLICY "Applicants can read their own bureau PDFs (not FitScore)"
     )
     AND name NOT LIKE '%/fitscore-%'
   );
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §28.5  BUILD_14H_PHASE2: application_screening_lines — per-subject per-product results
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- One row per screening subject × bundle product × screening run.
+-- Subjects come from v_application_screening_lines (primary applicant + co-applicants).
+-- The §28.2 columns (pdf_storage_path, result_summary, screening_run_id) are included here
+-- since the table is new. The ALTER TABLE stubs in §28.2 are no-ops (IF NOT EXISTS guard).
+CREATE TABLE IF NOT EXISTS public.application_screening_lines (
+  id                      uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id                  uuid NOT NULL REFERENCES organisations(id),
+  application_id          uuid NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
+  subject_type            text NOT NULL CHECK (subject_type IN ('company', 'co_applicant', 'guarantor')),
+  subject_id              uuid NOT NULL,
+  product_key             text NOT NULL,
+  screening_run_id        uuid,
+  status                  text NOT NULL DEFAULT 'pending'
+                          CHECK (status IN ('pending', 'running', 'completed', 'failed', 'skipped', 'refunded')),
+  cost_cents              integer,
+  retail_cost_cents       integer,
+  pdf_storage_path        text,
+  result_summary          text,
+  searchworx_search_token text,
+  started_at              timestamptz,
+  completed_at            timestamptz,
+  created_at              timestamptz NOT NULL DEFAULT now(),
+  updated_at              timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_screening_lines_application
+  ON public.application_screening_lines (application_id);
+CREATE INDEX IF NOT EXISTS idx_screening_lines_run
+  ON public.application_screening_lines (screening_run_id)
+  WHERE screening_run_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_screening_lines_subject
+  ON public.application_screening_lines (subject_type, subject_id);
+
+COMMENT ON TABLE public.application_screening_lines IS
+  'One row per screening subject × bundle product × run. Drives bundle-runner writes and agent dashboard reads.';
+COMMENT ON COLUMN public.application_screening_lines.subject_type IS
+  'Mirrors application_screening_payments.subject_type: company (primary applicant entity), co_applicant, guarantor.';
+COMMENT ON COLUMN public.application_screening_lines.product_key IS
+  'Bundle product identifier: combined_consumer_credit_report | vccb_income_estimator. Matches costs.ts keys.';
+COMMENT ON COLUMN public.application_screening_lines.screening_run_id IS
+  'Groups all lines in the same bundle run. Re-screening produces a new run_id; prior runs are preserved.';
+COMMENT ON COLUMN public.application_screening_lines.pdf_storage_path IS
+  'Path in screening-reports bucket for the raw vendor PDF (Stream 1 artefact). applicants see via §28.4 RLS.';
+COMMENT ON COLUMN public.application_screening_lines.result_summary IS
+  'Agent-facing one-liner from COMBINED_RESULT_SUMMARIES or VCCB_RESULT_SUMMARIES constants.';
+
+ALTER TABLE public.application_screening_lines ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_screening_lines" ON public.application_screening_lines;
+CREATE POLICY "org_screening_lines" ON public.application_screening_lines
+  FOR ALL USING (
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+  );
+
+DROP TRIGGER IF EXISTS update_screening_lines_updated_at ON public.application_screening_lines;
+CREATE TRIGGER update_screening_lines_updated_at
+  BEFORE UPDATE ON public.application_screening_lines
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
