@@ -3,7 +3,8 @@
  *
  * Auth:   Admin HMAC token (enforced by proxy.ts)
  * Notes:  NOT for production use — admin/dev namespace only.
- *         ?step=1|2a|2b|3|full  ?id=eva|goofy|stean|<id_number>  ?docGuid=<guid>
+ *         ?step=1|2a|2b|3|crc|full  ?id=eva|goofy|stean|<id_number>  ?docGuid=<guid>
+ *         step=crc — direct CriminalRecordCheck with Identifier=IDNumber + Surname field (no Step 1).
  *         ?diag=true — 5-test diagnostic battery to distinguish permissions gate vs wrong path/body.
  *         Step 1 on Stéan's ID resolves Interpretation A (SAPS-derived) vs B (HomeAffairs-derived).
  *         All Huru endpoints are under /Huru/* — separate service tree from credit/<bureau>/<product>.
@@ -178,6 +179,24 @@ async function runStep3Poll(token: string, docGuid: string): Promise<Record<stri
   return { polls, total_wallclock_ms: last?.elapsed_ms ?? 0, terminal_state: last?.response.body ?? null }
 }
 
+async function runCRCDirect(token: string, subject: Subject): Promise<Record<string, unknown>> {
+  const body: Record<string, unknown> = {
+    SessionToken: token, Reference: "PLEKS-HURU-SPIKE-DIAG-002",
+    Identifier:   subject.idNumber, IDNumber: subject.idNumber,
+    FirstName:    subject.firstName, Surname: subject.lastName,
+    AFIS_premium: false,
+  }
+  const r    = await huruPost("Huru/Request/CriminalRecordCheck", body)
+  const guid = extractDocGuid(r.body)
+  console.log(`[huru-spike] CRC-direct: status=${r.status}, guid=${guid ?? "null"}`)
+  return {
+    request:   { url: `${getSearchworxBaseUrl().replace(/\/$/, "")}/Huru/Request/CriminalRecordCheck/`, body },
+    response:  r,
+    extracted: { documentGroupGUID: guid },
+    note:      "Identifier=IDNumber (no prior fingerprint lookup), Surname field (not LastName)",
+  }
+}
+
 // ─── Diagnostic battery ───────────────────────────────────────────────────────
 
 async function rawPost(
@@ -341,14 +360,20 @@ export async function GET(req: NextRequest) {
 
   const out: Record<string, unknown> = { step, subject: { alias: idAlias, ...subject }, scenario: "unknown" }
 
+  // Direct CRC probe — no Step 1 fingerprint lookup
+  if (step === "crc") {
+    out.crc_direct = await runCRCDirect(token, subject)
+    return NextResponse.json(out)
+  }
+
   // Step 1
   let profileRef: string | null = null
   if (["1", "2a", "2b", "full"].includes(step)) {
     const s1 = await runStep1(token, subject)
     out.step_1_search_fingerprints = s1.result
-    profileRef   = s1.profileRef
-    out.scenario = profileRef ? "A" : "B"
+    profileRef = s1.profileRef
   }
+  out.scenario = profileRef ? "A" : "B"
 
   // Step 2a + optional Step 3 poll
   if ((step === "2a" || step === "full") && profileRef) {
