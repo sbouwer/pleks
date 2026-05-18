@@ -2354,3 +2354,40 @@ ALTER TABLE property_intelligence_pulls
 -- Distinct from pdf_storage_path (Pleks-branded report in property-intelligence bucket).
 ALTER TABLE property_intelligence_pulls
   ADD COLUMN IF NOT EXISTS searchworx_pdf_storage_path text;
+
+-- §28.2  Deferred — application_screening_lines is a CREATE TABLE in Phase 2 (not yet an existing table).
+--         pdf_storage_path, result_summary, screening_run_id columns will be added in the Phase 2 migration.
+
+-- §28.3  BUILD_14_AMENDMENT_14H_V2: FitScore document on application, current run pointer
+ALTER TABLE public.applications
+  ADD COLUMN IF NOT EXISTS fitscore_document_path    text,
+  ADD COLUMN IF NOT EXISTS fitscore_generated_at     timestamptz,
+  ADD COLUMN IF NOT EXISTS current_screening_run_id  uuid;
+
+CREATE INDEX IF NOT EXISTS applications_current_screening_run_id_idx
+  ON public.applications (current_screening_run_id)
+  WHERE current_screening_run_id IS NOT NULL;
+
+COMMENT ON COLUMN public.applications.fitscore_document_path IS
+  'Storage path in screening-reports bucket for the consolidated FitScore document (Stream 2 artefact — agent-only).';
+COMMENT ON COLUMN public.applications.fitscore_generated_at IS
+  'Timestamp when current fitscore_document was generated. NULL until first generation.';
+COMMENT ON COLUMN public.applications.current_screening_run_id IS
+  'Points to the screening_run_id of the most recent screening run for this application.';
+
+-- §28.4  BUILD_14_AMENDMENT_14H_V2: applicant read access to bureau PDFs, NOT FitScore document
+-- Path: {orgId}/{applicationId}/{productKey}/{token}-{kind}.{ext} — foldername[2] = applicationId.
+-- applicant = tenant without a lease; link is applications.tenant_id → tenants.auth_user_id.
+DROP POLICY IF EXISTS "Applicants can read their own bureau PDFs (not FitScore)" ON storage.objects;
+CREATE POLICY "Applicants can read their own bureau PDFs (not FitScore)"
+  ON storage.objects FOR SELECT
+  USING (
+    bucket_id = 'screening-reports'
+    AND (storage.foldername(name))[2] IN (
+      SELECT a.id::text
+      FROM public.applications a
+      JOIN public.tenants t ON t.id = a.tenant_id
+      WHERE t.auth_user_id = auth.uid()
+    )
+    AND name NOT LIKE '%/fitscore-%'
+  );

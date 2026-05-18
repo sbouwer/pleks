@@ -2,8 +2,9 @@
  * lib/searchworx/client.ts — Searchworx REST API client (auth, token cache, error normalisation)
  *
  * Auth:   SEARCHWORX_USERNAME + SEARCHWORX_PASSWORD → POST /auth/login/ → SessionToken (UUID)
- * Notes:  ADDENDUM_14H. Token cached in-memory per serverless instance (30 min TTL, 5 min refresh buffer).
- *         HTTP 200 on both success and error — ResponseObject presence drives success detection.
+ * Notes:  ADDENDUM_14H + v3 amendment §J. Token cached in-memory per serverless instance (30 min TTL, 5 min refresh buffer).
+ *         HTTP 200 on both success and error — structural detection drives success (hasProductData).
+ *         ResponseMessage on success = canonical product identifier string (e.g. "CombinedConsumerCreditReport").
  *         Product modules call searchworxCall() with buildBody() owning all field casing.
  *         Each product has different casing conventions (CIPC Company uses camelCase; others PascalCase).
  *         Exports _mintToken, _validateToken, _resetCache for unit-test access only.
@@ -136,13 +137,29 @@ async function getCachedToken(): Promise<string> {
 
 function categoriseError(rawMessage: string): SearchworxError["category"] {
   const lower = rawMessage.toLowerCase()
-  if (lower.includes("invalid sessiontoken") || lower.includes("session expired")) return "auth_expired"
-  if (lower.includes("invalid credentials") || lower.includes("invalid username")) return "invalid_credentials"
-  if (lower.includes("no data") || lower.includes("not found") || lower.includes("no record")) return "no_data"
-  if (lower.includes("rate limit") || lower.includes("too many")) return "rate_limited"
-  if (lower.includes("unavailable") || lower.includes("maintenance")) return "vendor_unavailable"
-  if (lower.includes("invalid") || lower.includes("required")) return "validation"
+  if (lower.includes("invalid sessiontoken") || lower.includes("session expired"))    return "auth_expired"
+  if (lower.includes("invalid credentials") || lower.includes("invalid username"))    return "invalid_credentials"
+  if (lower.includes("notfound") || lower.includes("no data") ||
+      lower.includes("not found") || lower.includes("no record"))                    return "no_data"
+  if (lower.includes("rate limit") || lower.includes("too many"))                    return "rate_limited"
+  if (lower.includes("serviceoffline") || lower.includes("service offline") ||
+      lower.includes("unavailable") || lower.includes("maintenance"))                return "vendor_unavailable"
+  if (lower.includes("parameter") && lower.includes("was not supplied"))             return "validation"
+  if (lower.includes("invalid") || lower.includes("required"))                       return "validation"
   return "unknown"
+}
+
+// ─── Success detection ────────────────────────────────────────────────────────
+
+function hasProductData(responseObject: unknown): boolean {
+  if (Array.isArray(responseObject)) {
+    return responseObject.length > 0 &&
+      Object.keys(responseObject[0] as object).some(k => k !== "SearchInformation")
+  }
+  if (responseObject && typeof responseObject === "object") {
+    return Object.keys(responseObject).some(k => k !== "SearchInformation")
+  }
+  return false
 }
 
 // ─── Core call ────────────────────────────────────────────────────────────────
@@ -187,8 +204,11 @@ export async function searchworxCall<TResult>(
     type Envelope = { ResponseMessage?: string; ResponseObject?: unknown; PDFCopyURL?: string }
     const data = (await response.json()) as Envelope
 
-    // ResponseObject present (including empty array) → success
-    if (data.ResponseObject !== undefined && data.ResponseObject !== null) {
+    // Structural success detection: ResponseObject must contain product data beyond SearchInformation.
+    // ResponseMessage on success = product identifier (e.g. "CombinedConsumerCreditReport").
+    // Failure responses can also populate ResponseObject with just SearchInformation — so presence
+    // alone is not sufficient; we check that at least one key besides SearchInformation exists.
+    if (hasProductData(data.ResponseObject)) {
       return {
         ok:         true,
         data:       data.ResponseObject as TResult,
@@ -196,7 +216,6 @@ export async function searchworxCall<TResult>(
       }
     }
 
-    // No ResponseObject → ResponseMessage is the error string
     const rawMessage = data.ResponseMessage ?? "Unknown response shape"
     const category   = categoriseError(rawMessage)
 
