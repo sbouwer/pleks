@@ -3,9 +3,8 @@
  *
  * Notes:  ADDENDUM_14A (D-14A-19). Handles the server-side API auth layer for PayFast
  *         Tokenisation (subscription_type=2). Adhoc charges use header-based HMAC-MD5
- *         auth — different from the passphrase-in-form pattern used by checkouts.
- *         Env vars required: PAYFAST_API_KEY, PAYFAST_API_SECRET (separate from merchant
- *         credentials used for form signing).
+ *         auth with the merchant passphrase — same credential as form signing, different
+ *         signing surface (headers not form body).
  *         PayFast adhoc endpoint: POST /subscriptions/{token}/adhoc
  *         PayFast refund endpoint: POST /process/query/refund
  */
@@ -16,17 +15,8 @@ const PAYFAST_API_BASE = PAYFAST_CONFIG.isSandbox
   ? "https://api.sandbox.payfast.co.za"
   : "https://api.payfast.co.za"
 
-function getApiCredentials(): { key: string; secret: string } {
-  const key    = process.env.PAYFAST_API_KEY
-  const secret = process.env.PAYFAST_API_SECRET
-  if (!key || !secret) {
-    throw new Error("PAYFAST_API_KEY and PAYFAST_API_SECRET must be set for adhoc charges")
-  }
-  return { key, secret }
-}
-
 function buildApiHeaders(params: Record<string, string>): Record<string, string> {
-  const { secret } = getApiCredentials()
+  const secret = PAYFAST_CONFIG.passphrase
   const timestamp = new Date().toISOString().replace("T", " ").slice(0, 19)
   const version   = "v1"
 

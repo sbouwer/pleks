@@ -24,37 +24,28 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "?id_number= is required" }, { status: 400 })
   }
 
-  const [combinedResult, vccbResult] = await Promise.all([
-    runCombinedConsumerCreditReport({
-      orgId,
-      applicationId,
-      reference: `dev-${idNumber}`,
-      idNumber,
-    }),
-    runVccbIncomeEstimator({
-      orgId,
-      applicationId,
-      reference: `dev-${idNumber}`,
-      idNumber,
-    }),
-  ])
+  // Run sequentially so a thrown HTTP error from one doesn't mask the other.
+  // searchworxCall throws for HTTP 4xx/5xx; { ok: false } is returned for API-level errors.
+  let combinedOut: unknown
+  let vccbOut: unknown
 
-  return NextResponse.json({
-    combined: combinedResult.ok
-      ? {
-          ok:             true,
-          parsed:         combinedResult.parsed,
-          pdfStoragePath: combinedResult.pdfStoragePath,
-          resultSummaryKey: combinedResult.resultSummaryKey,
-        }
-      : { ok: false, error: combinedResult.error.message, category: combinedResult.error.category },
-    vccb: vccbResult.ok
-      ? {
-          ok:             true,
-          parsed:         vccbResult.parsed,
-          pdfStoragePath: vccbResult.pdfStoragePath,
-          resultSummaryKey: vccbResult.resultSummaryKey,
-        }
-      : { ok: false, error: vccbResult.error.message, category: vccbResult.error.category },
-  })
+  try {
+    const r = await runCombinedConsumerCreditReport({ orgId, applicationId, reference: `dev-${idNumber}`, idNumber })
+    combinedOut = r.ok
+      ? { ok: true, parsed: r.parsed, pdfStoragePath: r.pdfStoragePath, resultSummaryKey: r.resultSummaryKey }
+      : { ok: false, error: r.error.message, category: r.error.category }
+  } catch (err) {
+    combinedOut = { ok: false, threw: true, error: err instanceof Error ? err.message : String(err) }
+  }
+
+  try {
+    const r = await runVccbIncomeEstimator({ orgId, applicationId, reference: `dev-${idNumber}`, idNumber })
+    vccbOut = r.ok
+      ? { ok: true, parsed: r.parsed, pdfStoragePath: r.pdfStoragePath, resultSummaryKey: r.resultSummaryKey }
+      : { ok: false, error: r.error.message, category: r.error.category }
+  } catch (err) {
+    vccbOut = { ok: false, threw: true, error: err instanceof Error ? err.message : String(err) }
+  }
+
+  return NextResponse.json({ combined: combinedOut, vccb: vccbOut })
 }
