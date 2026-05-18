@@ -105,39 +105,32 @@ async function runStep1(token: string, subject: Subject): Promise<{ result: Reco
 type Step2aOut = { result: Record<string, unknown>; docGuid: string | null }
 
 async function runStep2a(token: string, subject: Subject, profileRef: string): Promise<Step2aOut> {
-  type Attempt = { body_shape: string; request_body: Record<string, unknown>; response: HuruResp }
-  const attempts: Attempt[] = []
-  let docGuid: string | null = null
-  let winningShape = "none"
-
-  const base2a: Record<string, unknown> = {
+  // Identifier field name confirmed: step=crc diagnostic returned "Parameter 'Identifier' was not supplied"
+  // when the value was a raw ID number — system validated format, so field name is correct, value must be
+  // the ProfileRef returned by Step 1 (Search/Fingerprints), not the raw SA ID number.
+  const body: Record<string, unknown> = {
     SessionToken: token, Reference: "PLEKS-HURU-SPIKE-001",
     IDNumber: subject.idNumber, FirstName: subject.firstName,
-    LastName: subject.lastName, AFIS_premium: false,
+    Surname: subject.lastName, AFIS_premium: false,
+    Identifier: profileRef,
   }
-
-  const body_v1 = { ...base2a, ProfileRef: profileRef }
-  const a1      = await huruPost("Huru/Request/CriminalRecordCheck", body_v1)
-  attempts.push({ body_shape: "ProfileRef field", request_body: body_v1, response: a1 })
-  docGuid = extractDocGuid(a1.body)
-  if (docGuid) winningShape = "ProfileRef field"
-
-  if (!docGuid && JSON.stringify(a1.body).toLowerCase().includes("identifier")) {
-    const body_v2 = { ...base2a, Identifier: profileRef }
-    const a2      = await huruPost("Huru/Request/CriminalRecordCheck", body_v2)
-    attempts.push({ body_shape: "Identifier field", request_body: body_v2, response: a2 })
-    docGuid = extractDocGuid(a2.body)
-    if (docGuid) winningShape = "Identifier field"
+  const r    = await huruPost("Huru/Request/CriminalRecordCheck", body)
+  const guid = extractDocGuid(r.body)
+  console.log(`[huru-spike] Step 2a: GUID=${guid ?? "null"}`)
+  return {
+    docGuid: guid,
+    result: {
+      request:   { url: `${getSearchworxBaseUrl().replace(/\/$/, "")}/Huru/Request/CriminalRecordCheck/`, body },
+      response:  r,
+      extracted: { documentGroupGUID: guid },
+    },
   }
-
-  console.log(`[huru-spike] Step 2a: GUID=${docGuid ?? "null"}, shape=${winningShape}`)
-  return { docGuid, result: { attempts, winning_body_shape: winningShape, extracted: { documentGroupGUID: docGuid } } }
 }
 
 async function runStep2b(token: string, subject: Subject): Promise<Record<string, unknown>> {
   const body: Record<string, unknown> = {
     SessionToken: token, Reference: "PLEKS-HURU-SPIKE-001",
-    IDNumber: subject.idNumber, FirstName: subject.firstName, LastName: subject.lastName,
+    IDNumber: subject.idNumber, FirstName: subject.firstName, Surname: subject.lastName,
   }
   const r    = await huruPost("Huru/Request/Fingerprints", body)
   const guid = extractDocGuid(r.body)
@@ -239,6 +232,7 @@ async function diagTest2(token: string, subject: Subject, base: string): Promise
     rawPost(url, { ...base2, Reference: "PLEKS-HURU-DIAG" }).then(r => ({ label: "with_reference", response: r })),
     rawPost(url, { ...base2, Reference: "PLEKS-HURU-DIAG", FirstName: subject.firstName, LastName: subject.lastName }).then(r => ({ label: "with_name", response: r })),
     rawPost(url, { ...base2, Reference: "PLEKS-HURU-DIAG", FirstName: subject.firstName, LastName: subject.lastName, AFIS_premium: false }).then(r => ({ label: "full_body", response: r })),
+    rawPost(url, { ...base2, Reference: "PLEKS-HURU-DIAG", EnquiryReason: "Affordability Assessment" }).then(r => ({ label: "with_enquiry_reason", response: r })),
     rawPost(url, { sessionToken: token, reference: "PLEKS-HURU-DIAG", idNumber: subject.idNumber }).then(r => ({ label: "camelcase_fields", response: r })),
   ])
   return { label: "body_shapes", shapes }
@@ -247,7 +241,7 @@ async function diagTest2(token: string, subject: Subject, base: string): Promise
 async function diagTest3(token: string, subject: Subject, base: string): Promise<Record<string, unknown>> {
   const body: Record<string, unknown> = {
     SessionToken: token, Reference: "PLEKS-HURU-DIAG",
-    IDNumber: subject.idNumber, FirstName: subject.firstName, LastName: subject.lastName,
+    IDNumber: subject.idNumber, FirstName: subject.firstName, Surname: subject.lastName,
   }
   const endpoints: DiagEntry[] = await Promise.all([
     rawPost(`${base}/Huru/Search/Fingerprints/`,           body).then(r => ({ label: "Search_Fingerprints",          response: r })),
@@ -282,37 +276,42 @@ function diagVerdict(t1: Record<string, unknown>, t3: Record<string, unknown>): 
   const variants  = (t1.variants  as DiagEntry[]) ?? []
   const endpoints = (t3.endpoints as DiagEntry[]) ?? []
 
-  const canonical   = variants.find(v => v.label === "canonical_trailing_slash")
-  const fictional   = variants.find(v => v.label === "fictional_control")
+  const canonical    = variants.find(v => v.label === "canonical_trailing_slash")
+  const fictional    = variants.find(v => v.label === "fictional_control")
   const canonicalMsg = (canonical?.response.body as Record<string, unknown>)?.ResponseMessage
   const fictionalMsg = (fictional?.response.body as Record<string, unknown>)?.ResponseMessage
 
+  const msgs           = endpoints.map(e => (e.response.body as Record<string, unknown>)?.ResponseMessage ?? null)
+  const consistent     = msgs.every(m => m === msgs[0])
+  const sisterMessages = Object.fromEntries(endpoints.map(e => [
+    e.label,
+    (e.response.body as Record<string, unknown>)?.ResponseMessage ?? null,
+  ]))
+
   let root_cause: string
   let interpretation: string
+  let action: string
 
-  if (canonical?.response.status !== 200) {
+  // Test 3 takes priority: diverging sister endpoints rules out a namespace-level gate
+  if (!consistent) {
+    root_cause     = "per_endpoint_gating_or_different_errors"
+    interpretation = "Sister endpoints return different responses — not a uniform namespace-level permission gate. Examine sister_messages to identify the divergent endpoint."
+    action         = "Examine sister_messages — the divergent endpoint may require different access or reveal a missing body field."
+  } else if (canonical?.response.status !== 200) {
     root_cause     = "wrong_path_or_transport_error"
     interpretation = `Canonical path returned HTTP ${canonical?.response.status ?? "unknown"} — URL structure may be wrong.`
+    action         = "Investigate URL path and body structure in the spike route."
   } else if (fictional?.response.status === 200 && canonicalMsg === fictionalMsg) {
     root_cause     = "account_permission_gate_confirmed"
     interpretation = "Both canonical and fictional paths return HTTP 200 with the same message — namespace-level account permission flag, not a URL or body problem."
+    action         = "Ask John to enable Huru product access on the UAT API account."
   } else {
     root_cause     = "account_permission_gate_likely"
     interpretation = "Canonical returns HTTP 200/'not enabled'; fictional returns non-200. Permission gate fires before per-path routing."
+    action         = "Ask John to enable Huru product access on the UAT API account."
   }
 
-  const msgs       = endpoints.map(e => (e.response.body as Record<string, unknown>)?.ResponseMessage)
-  const consistent = msgs.every(m => m === msgs[0])
-
-  return {
-    root_cause,
-    interpretation,
-    sister_endpoints_consistent: consistent,
-    sister_message: msgs[0] ?? null,
-    action: root_cause.includes("account_permission_gate")
-      ? "Ask John to enable Huru product access on the UAT API account."
-      : "Investigate URL path and body structure in the spike route.",
-  }
+  return { root_cause, interpretation, sister_endpoints_consistent: consistent, sister_messages: sisterMessages, action }
 }
 
 async function runDiagnostics(token: string, subject: Subject): Promise<Record<string, unknown>> {
