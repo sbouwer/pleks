@@ -23,7 +23,7 @@ import {
 export const VCCB_PRODUCT_KEY  = "vccb_income_estimator"
 export const VCCB_COST_CENTS   = 635   // R6.35 ex-VAT — ADDENDUM_14H v3 rate card
 export const VCCB_SEARCH_TYPE  = 220   // VeriCredIncomeEstimation
-export const VCCB_PRODUCT_PATH = "credit/vericred"
+export const VCCB_PRODUCT_PATH = "credit/vericred/incomeestimate"
 
 export const VCCB_RESULT_SUMMARIES = {
   success:                "Gross income estimate retrieved",

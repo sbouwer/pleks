@@ -3,8 +3,7 @@
  *
  * Notes:  ADDENDUM_14H v3 §A + §B. Single R170 call returning 4-6 bureaus in parallel.
  *         CallerModule: "credit/csi", SearchType: 126, ResponseMessage: "CombinedConsumerCreditReport".
- *         Endpoint path "credit/csi" derived from CallerModule in captured response — verify vs
- *         DocCentral before production switch (open decision §9.1 in _HANDOVER_14H_PHASE2_COMBINED.md).
+ *         Endpoint path: credit/combinedreport/consumer (confirmed by Searchworx — not the CallerModule value).
  *         Bureau-level status flags: {BureauName}: "Found" | "SERVICE OFFLINE".
  *         Sub-parsers handle per-bureau field shapes (casing, monetary format, date format differ).
  *         computeCombinedResultSummary counts TU/XDS/Sigma/VeriCred — CompuScan/Experian are bonus.
@@ -32,7 +31,7 @@ import type { XdsParsed }                          from "./_subparsers/xds"
 export const COMBINED_PRODUCT_KEY  = "combined_consumer_credit_report"
 export const COMBINED_COST_CENTS   = 17000  // R170.00 ex-VAT — ADDENDUM_14H v3 rate card
 export const COMBINED_SEARCH_TYPE  = 126    // CSICombinedCreditReport
-export const COMBINED_PRODUCT_PATH = "credit/csi"
+export const COMBINED_PRODUCT_PATH = "credit/combinedreport/consumer"
 
 export const COMBINED_DISPLAY_NAME = "Credit profile & identity verification — Multi-bureau"
 export const COMBINED_DESCRIPTION  =
