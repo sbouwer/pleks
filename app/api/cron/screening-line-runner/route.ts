@@ -5,7 +5,7 @@
  * Auth:   x-cron-secret header
  * Notes:  Runs every 15 minutes via cPanel curl cron (Vercel Hobby = 1 cron slot taken by /api/cron/daily).
  *         Queries v_application_screening_lines for 'ready_to_run' lines, marks each 'running',
- *         calls Searchworx (Phase 1: placeholder — Searchworx integration ships with BUILD_14 Phase 2 cutover),
+ *         calls runStandardBundle (ADDENDUM_14H Phase 2 — Combined + VCCB bundle),
  *         marks 'complete' or 'failed'. Idempotent: optimistic claim via UPDATE ... WHERE status IN (...)
  *         RETURNING id — if 0 rows returned, another runner already owns the line and we skip.
  *         Max 50 lines per invocation to stay within 15-minute windows.
@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
+import { runStandardBundle } from "@/lib/screening/bundle-runner"
 
 const BATCH_SIZE = 50
 
@@ -101,10 +102,14 @@ async function processLine(
 
   if (!claimed || claimed.length === 0) return  // Another runner owns this line
 
-  // Phase 1 placeholder — Searchworx integration ships in BUILD_14 Phase 2 cutover.
-  // When Searchworx is live: call the appropriate bundle endpoints, persist results,
-  // generate Consumer Report, mark complete. For now: mark complete immediately (no-op check).
-  // This lets the state machine run end-to-end and surfaces the UX without blocking on vendor integration.
+  // Run the Standard bundle (Combined + VCCB). Results are written to application_screening_lines.
+  await runStandardBundle({
+    applicationId: line.application_id,
+    subjectType:   line.subject_type as "company" | "co_applicant",
+    subjectId:     line.subject_id,
+    orgId:         line.org_id,
+  })
+
   await markLineComplete(service, line, now)
 }
 
