@@ -90,9 +90,10 @@ export async function runCombinedConsumerCreditReport(
   const result = await searchworxCall<Record<string, unknown>>({
     productPath: COMBINED_PRODUCT_PATH,
     buildBody:   (token) => ({
-      SessionToken: token,
-      Reference:    input.reference,
-      IDNumber:     input.idNumber,
+      SessionToken:  token,
+      Reference:     input.reference,
+      IDNumber:      input.idNumber,
+      EnquiryReason: "Affordability Assessment",
     }),
   })
 
