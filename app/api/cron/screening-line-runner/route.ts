@@ -9,11 +9,13 @@
  *         marks 'complete' or 'failed'. Idempotent: optimistic claim via UPDATE ... WHERE status IN (...)
  *         RETURNING id — if 0 rows returned, another runner already owns the line and we skip.
  *         Max 50 lines per invocation to stay within 15-minute windows.
+ *         Phase C: after all subjects for an application are complete, triggers runFitScoreOrchestrator.
  */
 import { NextRequest, NextResponse } from "next/server"
 import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
 import { runStandardBundle } from "@/lib/screening/bundle-runner"
+import { runFitScoreOrchestrator } from "@/lib/screening/fitScoreOrchestrator"
 
 const BATCH_SIZE = 50
 
@@ -111,6 +113,7 @@ async function processLine(
   })
 
   await markLineComplete(service, line, now)
+  await maybeRunOrchestrator(service, line.application_id)
 }
 
 async function markLineComplete(
@@ -138,4 +141,40 @@ async function markLineComplete(
     action:     "UPDATE",
     new_values: { searchworx_check_status: "complete", searchworx_checked_at: now },
   })
+}
+
+// Runs after every subject completion. If ALL subjects for the application are now
+// complete, triggers the FitScore orchestrator. Gated on FITSCORE_V1_ENABLED.
+async function maybeRunOrchestrator(
+  service: Awaited<ReturnType<typeof createServiceClient>>,
+  applicationId: string,
+): Promise<void> {
+  if (!process.env.FITSCORE_V1_ENABLED) return
+
+  // Primary applicant must be complete
+  const { data: app, error: appErr } = await service
+    .from("applications")
+    .select("searchworx_check_status")
+    .eq("id", applicationId)
+    .single()
+  if (appErr || !app || app.searchworx_check_status !== "complete") return
+
+  // All co-applicants must be complete
+  const { data: coApps, error: coErr } = await service
+    .from("application_co_applicants")
+    .select("searchworx_check_status")
+    .eq("primary_application_id", applicationId)
+  if (coErr) return
+  if ((coApps ?? []).some(c => c.searchworx_check_status !== "complete")) return
+
+  // All subjects complete — run the FitScore engine
+  console.log(`[screening-line-runner] all subjects complete for ${applicationId} — running FitScore orchestrator`)
+  const orchResult = await runFitScoreOrchestrator(applicationId, service)
+  if (!orchResult.ok) {
+    console.error(`[screening-line-runner] FitScore orchestrator failed for ${applicationId}:`, orchResult.reason)
+    Sentry.captureMessage("FitScore orchestrator failed", {
+      level: "error",
+      extra: { application_id: applicationId, reason: orchResult.reason },
+    })
+  }
 }

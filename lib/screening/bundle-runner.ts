@@ -7,12 +7,15 @@
  *         The runner writes one application_screening_lines row per product_key.
  *         screeningRunId groups all products in a single run; re-screening creates a new run_id.
  *         Does NOT touch searchworx_check_status on applications/co-applicants — the cron owns that.
+ *         Phase C: stores fitscore_bureau_scores + fitscore_vccb_income_gross_cents in
+ *         searchworx_extracted_data JSONB on the subject row for the FitScore orchestrator.
  */
-import { randomUUID }                             from "crypto"
+import { randomUUID }                             from "node:crypto"
 import { createServiceClient }                    from "@/lib/supabase/server"
 import { decrypt }                                from "@/lib/crypto/encryption"
 import { runCombinedConsumerCreditReport, COMBINED_PRODUCT_KEY, COMBINED_COST_CENTS } from "@/lib/searchworx/products/combinedConsumerCreditReport"
 import { runVccbIncomeEstimator, VCCB_PRODUCT_KEY, VCCB_COST_CENTS, VCCB_RESULT_SUMMARIES } from "@/lib/searchworx/products/vccbIncomeEstimator"
+import { extractBureauScores } from "@/lib/screening/searchworxBureauAdapter"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -47,8 +50,10 @@ export async function runStandardBundle(args: BundleArgs): Promise<BundleResult>
     throw new Error(`No ID number on record for subject ${subjectId} (${subjectType})`)
   }
 
-  const reference = `${applicationId}-${screeningRunId.slice(0, 8)}`
+  const reference  = `${applicationId}-${screeningRunId.slice(0, 8)}`
   const isSaCitizen = idType === "sa_id"
+  const subjectTable = subjectType === "company" ? "applications" : "application_co_applicants"
+  const subjectRowId = subjectType === "company" ? applicationId : subjectId
 
   // ── Run Combined Consumer Credit Report (always) ────────────────────────────
   const combinedResult = await runCombinedConsumerCreditReport({
@@ -58,9 +63,7 @@ export async function runStandardBundle(args: BundleArgs): Promise<BundleResult>
     idNumber,
   })
 
-  const combinedSummary = combinedResult.ok
-    ? combinedResult.resultSummaryKey
-    : "failed"
+  const combinedSummary = combinedResult.ok ? combinedResult.resultSummaryKey : "failed"
 
   await upsertScreeningLine(service, {
     orgId,
@@ -68,60 +71,24 @@ export async function runStandardBundle(args: BundleArgs): Promise<BundleResult>
     subjectType,
     subjectId,
     screeningRunId,
-    productKey:         COMBINED_PRODUCT_KEY,
-    status:             combinedResult.ok ? "completed" : "failed",
-    costCents:          COMBINED_COST_CENTS,
-    pdfStoragePath:     combinedResult.ok ? combinedResult.pdfStoragePath : null,
-    resultSummary:      combinedSummary,
-    searchToken:        combinedResult.ok ? combinedResult.parsed.searchToken : null,
+    productKey:     COMBINED_PRODUCT_KEY,
+    status:         combinedResult.ok ? "completed" : "failed",
+    costCents:      COMBINED_COST_CENTS,
+    pdfStoragePath: combinedResult.ok ? combinedResult.pdfStoragePath : null,
+    resultSummary:  combinedSummary,
+    searchToken:    combinedResult.ok ? combinedResult.parsed.searchToken : null,
   })
 
-  // ── VCCB Income Estimator (SA citizens only) ────────────────────────────────
-  let vccbOk: boolean | "skipped"
-  let vccbSummary: string
-
-  if (!isSaCitizen) {
-    vccbOk      = "skipped"
-    vccbSummary = VCCB_RESULT_SUMMARIES.foreign_national_skip
-
-    await upsertScreeningLine(service, {
-      orgId,
-      applicationId,
-      subjectType,
-      subjectId,
-      screeningRunId,
-      productKey:     VCCB_PRODUCT_KEY,
-      status:         "skipped",
-      costCents:      0,
-      pdfStoragePath: null,
-      resultSummary:  vccbSummary,
-      searchToken:    null,
-    })
-  } else {
-    const vccbResult = await runVccbIncomeEstimator({
-      orgId,
-      applicationId,
-      reference,
-      idNumber,
-    })
-
-    vccbOk      = vccbResult.ok
-    vccbSummary = vccbResult.ok ? vccbResult.resultSummaryKey : "failed"
-
-    await upsertScreeningLine(service, {
-      orgId,
-      applicationId,
-      subjectType,
-      subjectId,
-      screeningRunId,
-      productKey:         VCCB_PRODUCT_KEY,
-      status:             vccbResult.ok ? "completed" : "failed",
-      costCents:          VCCB_COST_CENTS,
-      pdfStoragePath:     vccbResult.ok ? vccbResult.pdfStoragePath : null,
-      resultSummary:      vccbSummary,
-      searchToken:        vccbResult.ok ? vccbResult.parsed.searchToken : null,
-    })
+  if (combinedResult.ok) {
+    const bureauScores = extractBureauScores(combinedResult.parsed)
+    await mergeExtractedData(service, subjectTable, subjectRowId, { fitscore_bureau_scores: bureauScores })
   }
+
+  // ── VCCB Income Estimator (SA citizens only) ────────────────────────────────
+  const { vccbOk, vccbSummary } = await runVccbStep({
+    service, orgId, applicationId, subjectType, subjectId,
+    subjectTable, subjectRowId, screeningRunId, reference, idNumber, isSaCitizen,
+  })
 
   // ── Update applications.current_screening_run_id (primary applicant only) ──
   if (subjectType === "company") {
@@ -133,6 +100,72 @@ export async function runStandardBundle(args: BundleArgs): Promise<BundleResult>
   }
 
   return { screeningRunId, combinedOk: combinedResult.ok, vccbOk, combinedSummary, vccbSummary }
+}
+
+// ─── VCCB step (extracted to reduce cognitive complexity) ─────────────────────
+
+interface VccbStepArgs {
+  service:        Awaited<ReturnType<typeof createServiceClient>>
+  orgId:          string
+  applicationId:  string
+  subjectType:    "company" | "co_applicant"
+  subjectId:      string
+  subjectTable:   "applications" | "application_co_applicants"
+  subjectRowId:   string
+  screeningRunId: string
+  reference:      string
+  idNumber:       string
+  isSaCitizen:    boolean
+}
+
+async function runVccbStep(a: VccbStepArgs): Promise<{ vccbOk: boolean | "skipped"; vccbSummary: string }> {
+  if (!a.isSaCitizen) {
+    await upsertScreeningLine(a.service, {
+      orgId:          a.orgId,
+      applicationId:  a.applicationId,
+      subjectType:    a.subjectType,
+      subjectId:      a.subjectId,
+      screeningRunId: a.screeningRunId,
+      productKey:     VCCB_PRODUCT_KEY,
+      status:         "skipped",
+      costCents:      0,
+      pdfStoragePath: null,
+      resultSummary:  VCCB_RESULT_SUMMARIES.foreign_national_skip,
+      searchToken:    null,
+    })
+    return { vccbOk: "skipped", vccbSummary: VCCB_RESULT_SUMMARIES.foreign_national_skip }
+  }
+
+  const vccbResult = await runVccbIncomeEstimator({
+    orgId:         a.orgId,
+    applicationId: a.applicationId,
+    reference:     a.reference,
+    idNumber:      a.idNumber,
+  })
+
+  const vccbSummary = vccbResult.ok ? vccbResult.resultSummaryKey : "failed"
+
+  await upsertScreeningLine(a.service, {
+    orgId:          a.orgId,
+    applicationId:  a.applicationId,
+    subjectType:    a.subjectType,
+    subjectId:      a.subjectId,
+    screeningRunId: a.screeningRunId,
+    productKey:     VCCB_PRODUCT_KEY,
+    status:         vccbResult.ok ? "completed" : "failed",
+    costCents:      VCCB_COST_CENTS,
+    pdfStoragePath: vccbResult.ok ? vccbResult.pdfStoragePath : null,
+    resultSummary:  vccbSummary,
+    searchToken:    vccbResult.ok ? vccbResult.parsed.searchToken : null,
+  })
+
+  if (vccbResult.ok) {
+    await mergeExtractedData(a.service, a.subjectTable, a.subjectRowId, {
+      fitscore_vccb_income_gross_cents: vccbResult.parsed.person.incomeGrossEstimateCents,
+    })
+  }
+
+  return { vccbOk: vccbResult.ok, vccbSummary }
 }
 
 // ─── DB helpers ───────────────────────────────────────────────────────────────
@@ -159,6 +192,31 @@ async function fetchSubjectCredentials(
     .single()
   if (error) throw new Error(`fetch co-applicant credentials: ${error.message}`)
   return { idNumberEncrypted: data?.id_number ?? null, idType: data?.id_type ?? null }
+}
+
+async function mergeExtractedData(
+  service: Awaited<ReturnType<typeof createServiceClient>>,
+  table: "applications" | "application_co_applicants",
+  id: string,
+  patches: Record<string, unknown>,
+): Promise<void> {
+  const { data, error: readErr } = await service
+    .from(table)
+    .select("searchworx_extracted_data")
+    .eq("id", id)
+    .single()
+  if (readErr) {
+    console.error(`[bundle-runner] read searchworx_extracted_data (${table}):`, readErr.message)
+    return
+  }
+  const merged = Object.assign({}, data?.searchworx_extracted_data, patches)
+  const { error: writeErr } = await service
+    .from(table)
+    .update({ searchworx_extracted_data: merged })
+    .eq("id", id)
+  if (writeErr) {
+    console.error(`[bundle-runner] write searchworx_extracted_data (${table}):`, writeErr.message)
+  }
 }
 
 interface ScreeningLinePayload {
