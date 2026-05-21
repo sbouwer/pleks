@@ -2693,6 +2693,11 @@ CREATE TRIGGER audit_applications_fitscore_trigger
   FOR EACH ROW
   EXECUTE FUNCTION audit_applications_fitscore_changes();
 
+-- §29.2  Drop duplicate index on application_co_applicants(primary_application_id)
+-- idx_co_applicants_primary (BUILD_14 v1) and idx_co_applicants_primary_application_id (§29 §5.6)
+-- both cover the same column. Retaining the original; dropping the §29 duplicate.
+DROP INDEX IF EXISTS idx_co_applicants_primary_application_id;
+
 -- §29.1  Phase B backfill — label pre-v1 scores (ADDENDUM_14H COMPOSITE §5.4)
 -- Runs idempotently: no-op when fitscore IS NULL (no rows to backfill at 2026-05-21 Phase B landing).
 UPDATE applications

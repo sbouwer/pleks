@@ -125,6 +125,7 @@ export interface ApplicantSnapshot {
   incomeSharePct: number
   verificationIntegrityScore: number
   verificationIntegrityGrade: VerificationIntegrityGrade
+  incomeVarianceViGradeDelta: number
   viAdjustmentsApplied: string[]
   bureauProcessing: BureauProcessingSnapshot
   stabilityScore: number
@@ -204,6 +205,9 @@ const BAND_ORDER: FitScoreBand[] = [
   'adverse_signals', 'limited_confidence', 'cautious_review',
   'stable_profile', 'verified_stability',
 ]
+
+// VI grade ordering for variance downshift (higher index = lower grade)
+const VI_GRADE_ORDER: VerificationIntegrityGrade[] = ['high', 'medium', 'low', 'limited']
 
 // ─── Pure helpers ─────────────────────────────────────────────────────────────
 
@@ -288,6 +292,12 @@ function viGrade(score: number): VerificationIntegrityGrade {
   return 'limited'
 }
 
+function reduceVIGrade(grade: VerificationIntegrityGrade, steps: number): VerificationIntegrityGrade {
+  if (steps <= 0) return grade
+  const idx = VI_GRADE_ORDER.indexOf(grade)
+  return VI_GRADE_ORDER[Math.min(idx + steps, VI_GRADE_ORDER.length - 1)]
+}
+
 // ─── Income tier resolution (§4.2) ───────────────────────────────────────────
 
 function resolveIncome(a: ApplicantInput): { tier: 1 | 2 | 3 | 4; amountCents: number } {
@@ -300,9 +310,67 @@ function resolveIncome(a: ApplicantInput): { tier: 1 | 2 | 3 | 4; amountCents: n
   return { tier: 4, amountCents: a.tier4IncomeCents ?? 0 }
 }
 
+// ─── Income variance reconciliation (§4.3) ───────────────────────────────────
+
+function computeIncomeVariance(
+  a: ApplicantInput,
+  authTier: 1 | 2 | 3 | 4,
+  authCents: number,
+  computedAt: string,
+): { viGradeDelta: number; flags: MaterialFlag[]; maxVariancePct: number | null } {
+  if (authCents <= 0) return { viGradeDelta: 0, flags: [], maxVariancePct: null }
+
+  const lowerTierValues: number[] = []
+  if (authTier < 2 && a.tier2IncomeCents !== null && a.tier2IncomeCents > 0)
+    lowerTierValues.push(a.tier2IncomeCents)
+  if (authTier < 3 && a.tier3IncomeCents !== null && a.tier3IncomeCents > 0)
+    lowerTierValues.push(a.tier3IncomeCents)
+  if (authTier < 4 && a.tier4IncomeCents !== null && a.tier4IncomeCents > 0)
+    lowerTierValues.push(a.tier4IncomeCents)
+
+  if (lowerTierValues.length === 0) return { viGradeDelta: 0, flags: [], maxVariancePct: null }
+
+  const maxVariance = Math.max(...lowerTierValues.map(v => Math.abs(authCents - v) / authCents))
+  const maxVariancePct = Math.round(maxVariance * 100)
+  const flags: MaterialFlag[] = []
+  let viGradeDelta = 0
+
+  if (maxVariance > 0.4) {
+    viGradeDelta = 2
+    flags.push({
+      flag: 'income_discrepancy_material',
+      class: 'capping',
+      applicantId: a.id,
+      applicantLabel: a.label,
+      description: `Income variance of ${maxVariancePct}% between verified and declared income for ${a.label} — material overstatement risk.`,
+      source: 'income_evidence_reconciliation',
+      capApplied: true,
+      capCeiling: 'cautious_review',
+      observedAt: computedAt,
+    })
+  } else if (maxVariance > 0.25) {
+    viGradeDelta = 1
+    flags.push({
+      flag: 'income_discrepancy_observed',
+      class: 'capping',
+      applicantId: a.id,
+      applicantLabel: a.label,
+      description: `Income variance of ${maxVariancePct}% observed between verified and declared income for ${a.label}.`,
+      source: 'income_evidence_reconciliation',
+      capApplied: false,
+      capCeiling: null,
+      observedAt: computedAt,
+    })
+  } else if (maxVariance > 0.1) {
+    viGradeDelta = 1
+  }
+
+  return { viGradeDelta, flags, maxVariancePct }
+}
+
 // ─── Verification Integrity per applicant (§2.8) ──────────────────────────────
 
-function computeApplicantVI(a: ApplicantInput): {
+function computeApplicantVI(a: ApplicantInput, viGradeDelta: number = 0): {
   score: number
   grade: VerificationIntegrityGrade
   adjustments: string[]
@@ -316,11 +384,12 @@ function computeApplicantVI(a: ApplicantInput): {
 
   const bonus = a.secondaryReferencePresent ? VI_SECONDARY_BONUS : 0
   const score = Math.min(100, base + bonus)
-  const grade = viGrade(score)
+  const grade = reduceVIGrade(viGrade(score), viGradeDelta)
   const adjustments: string[] = []
 
   if (a.identityMatchStatus === 'fail') adjustments.push('identity_match_failed')
   if (a.identityMatchStatus === 'not_attempted') adjustments.push('identity_match_not_attempted')
+  if (viGradeDelta > 0) adjustments.push(`income_variance_vi_grade_reduced_${viGradeDelta}`)
 
   return { score, grade, adjustments }
 }
@@ -751,12 +820,18 @@ export function runFitScoreEngine(input: EngineInput): EngineResult {
     incomeShares.set(applicants[i].id, share)
   }
 
+  // Income variance reconciliation (§4.3) — must run before flag aggregation
+  const varianceResults = applicants.map((a, i) =>
+    computeIncomeVariance(a, incomeResolutions[i].tier, incomeResolutions[i].amountCents, computedAt)
+  )
+  for (const vr of varianceResults) flags.push(...vr.flags)
+
   // Detect hard flags (needs income shares for materiality rules)
   const hardFlags = detectHardFlags(applicants, incomeShares, computedAt)
   flags.push(...hardFlags)
 
   // Per-applicant dimension scores
-  const viResults = applicants.map(a => computeApplicantVI(a))
+  const viResults = applicants.map((a, i) => computeApplicantVI(a, varianceResults[i].viGradeDelta))
   const stabilityResults = applicants.map(a => computeApplicantStability(a))
   const bureauResults = applicants.map(a =>
     processBureau(a, flags, confidenceReductions, computedAt)
@@ -848,6 +923,7 @@ export function runFitScoreEngine(input: EngineInput): EngineResult {
       incomeSharePct: Math.round(share * 100 * 10) / 10,
       verificationIntegrityScore: viResults[i].score,
       verificationIntegrityGrade: viResults[i].grade,
+      incomeVarianceViGradeDelta: varianceResults[i].viGradeDelta,
       viAdjustmentsApplied: viResults[i].adjustments,
       bureauProcessing: bureauResults[i].snapshot,
       stabilityScore: stabilityResults[i].score,
