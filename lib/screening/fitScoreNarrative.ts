@@ -7,7 +7,15 @@
  * Data:   where data comes from, any non-obvious access pattern
  * Notes:  gotchas, invariants, why-not-X decisions
  */
-import { type FitScoreComponents } from "./fitScore"
+// Inlined from legacy fitScore.ts — Phase D rewrites this file entirely
+interface FitScoreComponents {
+  credit_score: { raw: number | null; score: number; weight: number }
+  income_to_rent: { ratio: number | null; score: number; weight: number }
+  rental_history: { rating: string | null; score: number; weight: number }
+  employment_stability: { type: string | null; score: number; weight: number }
+  judgements: { count: number; score: number; weight: number }
+  references: { count: number; score: number; weight: number }
+}
 
 export function buildFitScoreNarrativePrompt(
   applicantName: string,

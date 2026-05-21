@@ -2692,3 +2692,10 @@ CREATE TRIGGER audit_applications_fitscore_trigger
   AFTER UPDATE ON applications
   FOR EACH ROW
   EXECUTE FUNCTION audit_applications_fitscore_changes();
+
+-- §29.1  Phase B backfill — label pre-v1 scores (ADDENDUM_14H COMPOSITE §5.4)
+-- Runs idempotently: no-op when fitscore IS NULL (no rows to backfill at 2026-05-21 Phase B landing).
+UPDATE applications
+  SET fitscore_engine_version = 'legacy_v0_unreplayable'
+  WHERE fitscore IS NOT NULL
+    AND fitscore_engine_version IS NULL;
