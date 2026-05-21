@@ -2451,3 +2451,244 @@ DROP TRIGGER IF EXISTS update_screening_lines_updated_at ON public.application_s
 CREATE TRIGGER update_screening_lines_updated_at
   BEFORE UPDATE ON public.application_screening_lines
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §29  BUILD_FITSCORE_v1: FitScore Composite Engine
+--
+-- Implements ADDENDUM_14H_FITSCORE_COMPOSITE.md §§5.3-5.8
+-- Lease-level composite scoring with explainability persistence.
+-- Multi-applicant via existing primary-on-applications +
+-- application_co_applicants pattern (Decision #9 / §5.5).
+-- Hard-flag taxonomy persistence (§3.8). Audit-replayable.
+--
+-- Spec: brief/build/_ADDENDUM/ADDENDUM_14H_FITSCORE_COMPOSITE.md
+-- Date: 2026-05-21
+--
+-- Pre-flight verification (CC, 2026-05-21):
+--   applications.fitscore:            present (integer CHECK 0-100)
+--   applications.fitscore_components: present (jsonb)
+--   applications.fitscore_summary:    present (text, legacy — preserved unchanged)
+--   applications.fitscore_document_path: present (added §28.3)
+--   application_co_applicants:        present, extensive schema, ON DELETE CASCADE
+--   application_screening_lines:      present (§28.5), polymorphic, primary applicant
+--                                     bureau data NOT in screening_lines (on applications directly)
+--   audit_log column shape:           table_name / record_id / changed_by / old_values /
+--                                     new_values / ip_address / user_agent / actor_name
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- ─── §5.3 FitScore composite + explainability columns on applications ──────────
+
+-- Composite output columns
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS fitscore_band                    text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS fitscore_confidence_index         text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS fitscore_verification_integrity   text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS fitscore_material_flags           jsonb DEFAULT '[]'::jsonb;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS fitscore_computed_at              timestamptz;
+
+-- Structured AI narrative output (separate from legacy fitscore_summary text —
+-- preserves BUILD_14 historical semantics, avoids overloaded meaning, supports
+-- cleaner replay. NarrativeResponse JSONB shape per DELIVERY §7.8.)
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS fitscore_narrative                jsonb;
+
+-- Explainability persistence (POPIA s23 replay)
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS fitscore_engine_version           text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS fitscore_inputs_hash              text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS fitscore_component_snapshot       jsonb;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS fitscore_narrative_prompt_version text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS fitscore_runtime_code_hash        text;
+
+-- Interpretation document version at score time — closes methodology provenance chain.
+-- Surfaced in Stream 2 PDF footer and L2 POPIA s23 response (DELIVERY §6.11 / §8.6).
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS fitscore_interpretation_version   text;
+
+-- CHECK constraints — enforce enumerated values
+ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_fitscore_band_check;
+ALTER TABLE applications ADD  CONSTRAINT applications_fitscore_band_check CHECK (
+  fitscore_band IS NULL OR fitscore_band IN (
+    'verified_stability', 'stable_profile', 'cautious_review',
+    'limited_confidence', 'adverse_signals', 'limited_data_profile', 'blocked'
+  )
+);
+
+ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_fitscore_confidence_index_check;
+ALTER TABLE applications ADD  CONSTRAINT applications_fitscore_confidence_index_check CHECK (
+  fitscore_confidence_index IS NULL OR fitscore_confidence_index IN (
+    'high', 'medium', 'low', 'insufficient'
+  )
+);
+
+ALTER TABLE applications DROP CONSTRAINT IF EXISTS applications_fitscore_verification_integrity_check;
+ALTER TABLE applications ADD  CONSTRAINT applications_fitscore_verification_integrity_check CHECK (
+  fitscore_verification_integrity IS NULL OR fitscore_verification_integrity IN (
+    'high', 'medium', 'low', 'limited'
+  )
+);
+
+-- ─── §5.5a Per-applicant verification columns — primary applicant (on applications) ──
+
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS income_evidence_tier integer
+  CHECK (income_evidence_tier IS NULL OR income_evidence_tier IN (1, 2, 3, 4));
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS verified_monthly_income_cents bigint;
+
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS identity_match_status text
+  CHECK (identity_match_status IS NULL OR identity_match_status IN ('pass','fail','pending','not_attempted'));
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS identity_match_reference text;
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS employer_verification_status text
+  CHECK (employer_verification_status IS NULL OR employer_verification_status IN ('pass','fail','pending','not_attempted'));
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS salary_reconciliation_status text
+  CHECK (salary_reconciliation_status IS NULL OR salary_reconciliation_status IN ('pass','fail','pending','not_attempted'));
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS document_consistency_status text
+  CHECK (document_consistency_status IS NULL OR document_consistency_status IN ('pass','fail','pending','not_attempted'));
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS bank_account_ownership_status text
+  CHECK (bank_account_ownership_status IS NULL OR bank_account_ownership_status IN ('pass','fail','pending','not_attempted'));
+
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS verification_integrity_grade text
+  CHECK (verification_integrity_grade IS NULL OR verification_integrity_grade IN ('high','medium','low','limited'));
+
+-- Pleks-network history (populated when ADDENDUM_14K ships)
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS pleks_network_history_status text
+  CHECK (pleks_network_history_status IS NULL OR pleks_network_history_status IN ('trusted','adverse','none'));
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS pleks_network_tenancy_count integer;
+
+-- ─── §5.5b Per-applicant verification columns — co-applicants (on application_co_applicants) ──
+
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS income_evidence_tier integer
+  CHECK (income_evidence_tier IS NULL OR income_evidence_tier IN (1, 2, 3, 4));
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS verified_monthly_income_cents bigint;
+
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS identity_match_status text
+  CHECK (identity_match_status IS NULL OR identity_match_status IN ('pass','fail','pending','not_attempted'));
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS identity_match_reference text;
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS employer_verification_status text
+  CHECK (employer_verification_status IS NULL OR employer_verification_status IN ('pass','fail','pending','not_attempted'));
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS salary_reconciliation_status text
+  CHECK (salary_reconciliation_status IS NULL OR salary_reconciliation_status IN ('pass','fail','pending','not_attempted'));
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS document_consistency_status text
+  CHECK (document_consistency_status IS NULL OR document_consistency_status IN ('pass','fail','pending','not_attempted'));
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS bank_account_ownership_status text
+  CHECK (bank_account_ownership_status IS NULL OR bank_account_ownership_status IN ('pass','fail','pending','not_attempted'));
+
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS verification_integrity_grade text
+  CHECK (verification_integrity_grade IS NULL OR verification_integrity_grade IN ('high','medium','low','limited'));
+
+-- Pleks-network history (populated when ADDENDUM_14K ships)
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS pleks_network_history_status text
+  CHECK (pleks_network_history_status IS NULL OR pleks_network_history_status IN ('trusted','adverse','none'));
+ALTER TABLE application_co_applicants ADD COLUMN IF NOT EXISTS pleks_network_tenancy_count integer;
+
+-- ─── §5.6 Indexes ──────────────────────────────────────────────────────────────
+
+-- Replay: all scores from a given engine version
+CREATE INDEX IF NOT EXISTS idx_applications_fitscore_engine_version
+  ON applications(fitscore_engine_version)
+  WHERE fitscore_engine_version IS NOT NULL;
+
+-- Ops: range scans over scoring history
+CREATE INDEX IF NOT EXISTS idx_applications_fitscore_computed_at
+  ON applications(fitscore_computed_at)
+  WHERE fitscore_computed_at IS NOT NULL;
+
+-- Agent dashboard: filter by band
+CREATE INDEX IF NOT EXISTS idx_applications_fitscore_band
+  ON applications(org_id, fitscore_band)
+  WHERE fitscore_band IS NOT NULL;
+
+-- Ops: surface all blocked applications across an agency
+CREATE INDEX IF NOT EXISTS idx_applications_fitscore_blocked
+  ON applications(org_id, created_at)
+  WHERE fitscore_band = 'blocked';
+
+-- ADDENDUM_14K network history: primary applicant passport lookup
+-- applications has a dedicated passport_number column (BUILD_00, line 354) — distinct
+-- from application_co_applicants which stores passports in id_number WHERE id_type='passport'
+CREATE INDEX IF NOT EXISTS idx_applications_passport_number
+  ON applications(passport_number)
+  WHERE passport_number IS NOT NULL;
+
+-- ADDENDUM_14K network history: co-applicant SA ID lookup
+CREATE INDEX IF NOT EXISTS idx_co_applicants_id_number
+  ON application_co_applicants(id_number)
+  WHERE id_number IS NOT NULL;
+
+-- ADDENDUM_14K network history: co-applicant passport lookup
+-- application_co_applicants has no separate passport_number column; passports live in
+-- id_number discriminated by id_type='passport'
+CREATE INDEX IF NOT EXISTS idx_co_applicants_passport_lookup
+  ON application_co_applicants(id_number)
+  WHERE id_type = 'passport';
+
+-- Orchestrator joins: co-applicants by parent application
+CREATE INDEX IF NOT EXISTS idx_co_applicants_primary_application_id
+  ON application_co_applicants(primary_application_id);
+
+-- ─── §5.8 Audit trigger — fitscore_* column changes on applications ────────────
+
+CREATE OR REPLACE FUNCTION audit_applications_fitscore_changes()
+RETURNS trigger AS $func$
+DECLARE
+  fitscore_old_values jsonb;
+  fitscore_new_values jsonb;
+BEGIN
+  -- Only log when a fitscore_* column actually changed
+  IF NEW.fitscore                        IS DISTINCT FROM OLD.fitscore
+     OR NEW.fitscore_band                IS DISTINCT FROM OLD.fitscore_band
+     OR NEW.fitscore_confidence_index    IS DISTINCT FROM OLD.fitscore_confidence_index
+     OR NEW.fitscore_verification_integrity IS DISTINCT FROM OLD.fitscore_verification_integrity
+     OR NEW.fitscore_material_flags      IS DISTINCT FROM OLD.fitscore_material_flags
+     OR NEW.fitscore_engine_version      IS DISTINCT FROM OLD.fitscore_engine_version
+     OR NEW.fitscore_inputs_hash         IS DISTINCT FROM OLD.fitscore_inputs_hash
+     OR NEW.fitscore_narrative           IS DISTINCT FROM OLD.fitscore_narrative
+     OR NEW.fitscore_interpretation_version IS DISTINCT FROM OLD.fitscore_interpretation_version
+  THEN
+    fitscore_old_values := jsonb_build_object(
+      'fitscore',                          OLD.fitscore,
+      'fitscore_band',                     OLD.fitscore_band,
+      'fitscore_confidence_index',         OLD.fitscore_confidence_index,
+      'fitscore_verification_integrity',   OLD.fitscore_verification_integrity,
+      'fitscore_material_flags',           OLD.fitscore_material_flags,
+      'fitscore_engine_version',           OLD.fitscore_engine_version,
+      'fitscore_inputs_hash',              OLD.fitscore_inputs_hash,
+      'fitscore_narrative',                OLD.fitscore_narrative,
+      'fitscore_interpretation_version',   OLD.fitscore_interpretation_version
+    );
+
+    fitscore_new_values := jsonb_build_object(
+      'fitscore',                          NEW.fitscore,
+      'fitscore_band',                     NEW.fitscore_band,
+      'fitscore_confidence_index',         NEW.fitscore_confidence_index,
+      'fitscore_verification_integrity',   NEW.fitscore_verification_integrity,
+      'fitscore_material_flags',           NEW.fitscore_material_flags,
+      'fitscore_engine_version',           NEW.fitscore_engine_version,
+      'fitscore_inputs_hash',              NEW.fitscore_inputs_hash,
+      'fitscore_narrative',                NEW.fitscore_narrative,
+      'fitscore_interpretation_version',   NEW.fitscore_interpretation_version
+    );
+
+    INSERT INTO audit_log (
+      org_id, table_name, record_id, action,
+      changed_by, actor_name, ip_address, user_agent,
+      old_values, new_values, created_at
+    ) VALUES (
+      NEW.org_id,
+      'applications',
+      NEW.id,
+      'UPDATE',
+      COALESCE(NULLIF(current_setting('app.current_user_id', true), '')::uuid, NULL),
+      NULLIF(current_setting('app.current_user_name', true), ''),
+      NULLIF(current_setting('app.current_ip', true), '')::inet,
+      NULLIF(current_setting('app.current_user_agent', true), ''),
+      fitscore_old_values,
+      fitscore_new_values,
+      now()
+    );
+  END IF;
+
+  RETURN NEW;
+END;
+$func$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS audit_applications_fitscore_trigger ON applications;
+CREATE TRIGGER audit_applications_fitscore_trigger
+  AFTER UPDATE ON applications
+  FOR EACH ROW
+  EXECUTE FUNCTION audit_applications_fitscore_changes();
