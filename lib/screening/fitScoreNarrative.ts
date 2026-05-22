@@ -85,7 +85,8 @@ const SUBMIT_NARRATIVE_TOOL = {
 
 // ─── Banned-phrase deterministic scan (DELIVERY.md §7.10) ─────────────────────
 
-const BANNED_PATTERNS: RegExp[] = [
+// Exported for unit testing — not part of the external API surface.
+export const BANNED_PATTERNS: RegExp[] = [
   /\brecommend(?:ed|ation)?\b/i,
   /\badvise[sd]?\b/i,
   /\badvisable\b/i,
@@ -134,14 +135,14 @@ const BANNED_PATTERNS: RegExp[] = [
   /\bcould be\b/i,
 ]
 
-function findBannedPhrase(r: NarrativeResponse): string | null {
+export function findBannedPhrase(r: NarrativeResponse): string | null {
   const text = [
     ...r.observedStrengths, ...r.observedConcerns, ...r.limitedVisibility,
     r.affordabilityEvidenceLine, r.stabilityEvidenceLine,
     r.creditEvidenceLine ?? '', r.verificationEvidenceLine, r.ldpSummary ?? '',
   ].join('\n')
   for (const pat of BANNED_PATTERNS) {
-    const m = text.match(pat)
+    const m = pat.exec(text)
     if (m) return m[0]
   }
   return null
@@ -149,7 +150,7 @@ function findBannedPhrase(r: NarrativeResponse): string | null {
 
 // ─── NarrativeRequest builder ─────────────────────────────────────────────────
 
-function buildRequest(result: EngineResult, applicants: ApplicantInput[]): string {
+export function buildRequest(result: EngineResult, applicants: ApplicantInput[]): string {
   const snap = result.componentSnapshot
   const lease = snap.lease
   const isAllForeign = applicants.every(a => isForeignNational(a.nationalityType))
@@ -255,7 +256,7 @@ function buildRequest(result: EngineResult, applicants: ApplicantInput[]): strin
 
 // ─── Tool output parser ───────────────────────────────────────────────────────
 
-function parseToolInput(raw: unknown): NarrativeResponse | null {
+export function parseToolInput(raw: unknown): NarrativeResponse | null {
   if (!raw || typeof raw !== 'object') return null
   const t = raw as Record<string, unknown>
   if (!Array.isArray(t.observed_strengths) || !Array.isArray(t.observed_concerns) || !Array.isArray(t.limited_visibility)) return null
@@ -292,7 +293,7 @@ function templatedFallback(
     a.salaryReconciliationStatus, a.documentConsistencyStatus, a.bankOwnershipStatus,
   ].filter(c => c === 'pass').length, 0)
   const isAllForeign = applicants.every(a => isForeignNational(a.nationalityType))
-  const bureauPlural = bureauCount !== 1 ? 's' : ''
+  const bureauPlural = bureauCount === 1 ? '' : 's'
   const unavailMsg = '(Narrative generation was unavailable for this report. See the dimensional scores and Material Flags above for the engine\'s findings.)'
   return {
     observedStrengths:         [unavailMsg],
