@@ -47,6 +47,10 @@ const CLEAN: NarrativeResponse = {
   stabilityEvidenceLine:     '2 verified rental references on record.',
   creditEvidenceLine:        'TransUnion 710 Delphi score.',
   verificationEvidenceLine:  '5 of 5 checks passed.',
+  affordabilityObservations: ['Rent 28% of verified joint income.', 'No debt servicing data present.', 'Disposable income not computed for this lease.'],
+  stabilityObservations:     ['Two rental references verified on record.', 'Employment tenure not recorded for this applicant.', 'Address history gap: no move data supplied.'],
+  creditObservations:        ['TransUnion responded; no adverse listings recorded.', 'One bureau responded for this applicant.', 'No bureau divergence detected.'],
+  verificationObservations:  ['5 of 5 checks passed.', 'Identity match passed as foundational signal.', 'No outstanding verification gaps noted.'],
   ldpSummary:                null,
   isTemplated:               false,
   failureReason:             null,
@@ -62,6 +66,9 @@ describe('parseToolInput', () => {
     affordability_evidence_line: 'Rent 28% of verified income.',
     stability_evidence_line:    '3 rental references verified.',
     verification_evidence_line: '5 of 5 checks passed.',
+    affordability_observations: ['Rent 28% of verified income.', 'No debt data present.', 'Disposable income not computed.'],
+    stability_observations:     ['3 rental references verified.', 'Employment tenure not recorded.', 'Address history gap noted.'],
+    verification_observations:  ['5 of 5 checks passed.', 'Identity match foundational.', 'No outstanding gaps noted.'],
   }
 
   it('accepts valid minimal input and sets isTemplated=false', () => {
@@ -296,6 +303,12 @@ const BASE_RESULT: EngineResult = {
     stability:            75,
     creditBehaviour:      80,
     verificationIntegrity: 85,
+  },
+  preferredThresholds: {
+    affordability:         70,
+    stability:             60,
+    creditBehaviour:       65,
+    verificationIntegrity: 80,
   },
   engineVersion: 'fitscore.v1.0',
   inputsHash:    'abc123',

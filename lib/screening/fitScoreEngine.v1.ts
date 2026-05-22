@@ -11,7 +11,7 @@
 
 import { createHash } from 'crypto'
 
-export const ENGINE_VERSION = 'fitscore.v1.0'
+export const ENGINE_VERSION = 'fitscore.v1.0.1'
 
 // ─── Input types ──────────────────────────────────────────────────────────────
 
@@ -166,6 +166,13 @@ export interface LeaseSnapshot {
   finalBand: FitScoreBand
 }
 
+export interface PreferredThresholds {
+  affordability: number
+  stability: number
+  creditBehaviour: number | null        // null for all-foreign-national lease
+  verificationIntegrity: number
+}
+
 export interface EngineResult {
   score: number | null                  // null for LDP and Blocked
   band: FitScoreBand
@@ -173,9 +180,20 @@ export interface EngineResult {
   verificationIntegrity: VerificationIntegrityGrade
   materialFlags: MaterialFlag[]
   components: DimensionScores
+  preferredThresholds: PreferredThresholds
   engineVersion: string
   inputsHash: string
   componentSnapshot: ComponentSnapshot
+}
+
+// v1.0 static lookup; Stability will vary per-case in v1.1 when per-case tenure data is available.
+export function getPreferredThresholds(isAllForeignNational: boolean): PreferredThresholds {
+  return {
+    affordability:        70,
+    stability:            60,
+    creditBehaviour:      isAllForeignNational ? null : 65,
+    verificationIntegrity: 80,
+  }
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -986,6 +1004,8 @@ export function runFitScoreEngine(input: EngineInput): EngineResult {
     lease: leaseSnapshot,
   }
 
+  const isAllForeign = applicants.every(a => isForeignNational(a.nationalityType))
+
   return {
     score: band === 'limited_data_profile' || band === 'blocked' ? null : composite,
     band,
@@ -998,6 +1018,7 @@ export function runFitScoreEngine(input: EngineInput): EngineResult {
       creditBehaviour: leaseCre,
       verificationIntegrity: leaseVIScore,
     },
+    preferredThresholds: getPreferredThresholds(isAllForeign),
     engineVersion: ENGINE_VERSION,
     inputsHash: computeInputsHash(input),
     componentSnapshot: snapshot,

@@ -14,9 +14,9 @@ import type { TextBlockParam } from "@anthropic-ai/sdk/resources/messages/messag
 import { createMessage } from "@/lib/ai/client"
 import type { EngineResult, ApplicantInput } from "@/lib/screening/fitScoreEngine.v1"
 import { isForeignNational } from "@/lib/screening/fitScoreEngine.v1"
-import { FITSCORE_NARRATIVE_PROMPT_V1_0 } from "@/lib/screening/prompts/fitScoreNarrative.v1.0"
+import { FITSCORE_NARRATIVE_PROMPT_V1_1 } from "@/lib/screening/prompts/fitScoreNarrative.v1.1"
 
-export const CURRENT_PROMPT_VERSION = 'narr.v1.0'
+export const CURRENT_PROMPT_VERSION = 'narr.v1.1'
 
 // ─── Output type ──────────────────────────────────────────────────────────────
 
@@ -28,6 +28,11 @@ export interface NarrativeResponse {
   stabilityEvidenceLine: string
   creditEvidenceLine: string | null
   verificationEvidenceLine: string
+  // Per-dimension observation bullets (narr.v1.1). 3 items each, ≤20 words per item.
+  affordabilityObservations: string[]
+  stabilityObservations: string[]
+  creditObservations: string[] | null   // null for all-foreign-national lease
+  verificationObservations: string[]
   ldpSummary: string | null
   isTemplated: boolean
   failureReason: 'api_error' | 'malformed_output' | 'banned_phrase_detected' | null
@@ -37,7 +42,7 @@ export interface NarrativeResponse {
 
 const SYSTEM_PROMPT_BLOCK: TextBlockParam = {
   type: 'text',
-  text: FITSCORE_NARRATIVE_PROMPT_V1_0,
+  text: FITSCORE_NARRATIVE_PROMPT_V1_1,
   cache_control: { type: 'ephemeral' },
 }
 
@@ -71,6 +76,26 @@ const SUBMIT_NARRATIVE_TOOL = {
         description: 'Dimension card evidence, ≤18 words. Null for foreign-national-only lease.',
       },
       verification_evidence_line:  { type: 'string', description: 'Dimension card evidence, ≤18 words.' },
+      affordability_observations: {
+        type: 'array',
+        items: { type: 'string' },
+        description: '3 observation bullets for Affordability, each ≤20 words, grounded in supplied evidence.',
+      },
+      stability_observations: {
+        type: 'array',
+        items: { type: 'string' },
+        description: '3 observation bullets for Stability, each ≤20 words, grounded in supplied evidence.',
+      },
+      credit_observations: {
+        type: ['array', 'null'],
+        items: { type: 'string' },
+        description: '3 observation bullets for Credit Behaviour, each ≤20 words. Null for foreign-national-only lease.',
+      },
+      verification_observations: {
+        type: 'array',
+        items: { type: 'string' },
+        description: '3 observation bullets for Verification Integrity, each ≤20 words, grounded in supplied evidence.',
+      },
       ldp_summary: {
         type: ['string', 'null'],
         description: 'For Limited Data Profile: one sentence on why the engine refused to score. Null otherwise.',
@@ -79,6 +104,7 @@ const SUBMIT_NARRATIVE_TOOL = {
     required: [
       'observed_strengths', 'observed_concerns', 'limited_visibility',
       'affordability_evidence_line', 'stability_evidence_line', 'verification_evidence_line',
+      'affordability_observations', 'stability_observations', 'verification_observations',
     ],
   },
 }
@@ -139,7 +165,12 @@ export function findBannedPhrase(r: NarrativeResponse): string | null {
   const text = [
     ...r.observedStrengths, ...r.observedConcerns, ...r.limitedVisibility,
     r.affordabilityEvidenceLine, r.stabilityEvidenceLine,
-    r.creditEvidenceLine ?? '', r.verificationEvidenceLine, r.ldpSummary ?? '',
+    r.creditEvidenceLine ?? '', r.verificationEvidenceLine,
+    ...(r.affordabilityObservations ?? []),
+    ...(r.stabilityObservations ?? []),
+    ...(r.creditObservations ?? []),
+    ...(r.verificationObservations ?? []),
+    r.ldpSummary ?? '',
   ].join('\n')
   for (const pat of BANNED_PATTERNS) {
     const m = pat.exec(text)
@@ -263,6 +294,9 @@ export function parseToolInput(raw: unknown): NarrativeResponse | null {
   if (typeof t.affordability_evidence_line !== 'string') return null
   if (typeof t.stability_evidence_line !== 'string') return null
   if (typeof t.verification_evidence_line !== 'string') return null
+  if (!Array.isArray(t.affordability_observations)) return null
+  if (!Array.isArray(t.stability_observations)) return null
+  if (!Array.isArray(t.verification_observations)) return null
   return {
     observedStrengths:         (t.observed_strengths as unknown[]).filter(s => typeof s === 'string') as string[],
     observedConcerns:          (t.observed_concerns  as unknown[]).filter(s => typeof s === 'string') as string[],
@@ -271,6 +305,12 @@ export function parseToolInput(raw: unknown): NarrativeResponse | null {
     stabilityEvidenceLine:     t.stability_evidence_line,
     creditEvidenceLine:        typeof t.credit_evidence_line   === 'string' ? t.credit_evidence_line   : null,
     verificationEvidenceLine:  t.verification_evidence_line,
+    affordabilityObservations: (t.affordability_observations as unknown[]).filter(s => typeof s === 'string') as string[],
+    stabilityObservations:     (t.stability_observations     as unknown[]).filter(s => typeof s === 'string') as string[],
+    creditObservations:        Array.isArray(t.credit_observations)
+      ? (t.credit_observations as unknown[]).filter(s => typeof s === 'string') as string[]
+      : null,
+    verificationObservations:  (t.verification_observations  as unknown[]).filter(s => typeof s === 'string') as string[],
     ldpSummary:                typeof t.ldp_summary            === 'string' ? t.ldp_summary            : null,
     isTemplated:   false,
     failureReason: null,
@@ -303,6 +343,10 @@ function templatedFallback(
     stabilityEvidenceLine:     `Stability signals not available; income-weighted tenure not recorded.`,
     creditEvidenceLine:        isAllForeign ? null : `Coverage across ${bureauCount} bureau${bureauPlural}.`,
     verificationEvidenceLine:  `${passedChecks} of ${totalChecks} verification checks passed.`,
+    affordabilityObservations: [unavailMsg],
+    stabilityObservations:     [unavailMsg],
+    creditObservations:        isAllForeign ? null : [unavailMsg],
+    verificationObservations:  [unavailMsg],
     ldpSummary:                lease.isLimitedDataProfile
       ? 'Engine did not produce a composite score due to insufficient verified income signals.'
       : null,
