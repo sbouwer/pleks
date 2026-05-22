@@ -46,6 +46,7 @@ const S = StyleSheet.create({
   right: {
     flexDirection: 'row',
     gap:           14,
+    width:         240,
     fontFamily:    FONTS.mono,
     fontSize:      7.5,
     color:         C.ink.faint,

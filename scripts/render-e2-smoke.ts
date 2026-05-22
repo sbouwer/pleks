@@ -129,7 +129,7 @@ const FIXTURE: FitScoreReportData = {
   interpretationVersion: 'interpretation.v1.0',
   inputsHash:            'b2c3d4e5f6789000b2c3d4e5f6789000b2c3d4e5f6789000b2c3d4e5f6789000',
   orgName:               'Pleks Demo Agency',
-  orgFfcNumber:          'FFC654321',
+  orgFfcNumber:          'FFC 2026-097 431',
   dimensions: {
     affordability: { rentToIncomePct: 32, windowMonths: 6 },
     stability:     { currentTenureDisplay: '3y 2mo', employersIn7Years: 2 },

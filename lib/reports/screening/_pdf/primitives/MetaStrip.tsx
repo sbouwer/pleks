@@ -86,7 +86,7 @@ export function MetaStrip({ data }: Readonly<MetaStripProps>) {
         <Text style={S.label}>Managing agent</Text>
         <Text style={S.value}>{sp(data.orgName)}</Text>
         {data.orgFfcNumber !== null && (
-          <Text style={S.valueSub}>{`EAAB · FFC ${sp(data.orgFfcNumber)}`}</Text>
+          <Text style={S.valueSub}>{`EAAB · ${sp(data.orgFfcNumber)}`}</Text>
         )}
       </View>
     </View>

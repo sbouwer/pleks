@@ -147,7 +147,7 @@ const FIXTURE: FitScoreReportData = {
   interpretationVersion: 'interpretation.v1.0',
   inputsHash:            'a1b2c3d4e5f67890a1b2c3d4e5f67890a1b2c3d4e5f67890a1b2c3d4e5f67890',
   orgName:               'Bouwer Property Group (Pty) Ltd',
-  orgFfcNumber:          'FFC123456',
+  orgFfcNumber:          'FFC 2026-184 922',
   dimensions: {
     affordability: { rentToIncomePct: 22, windowMonths: 6 },
     stability:     { currentTenureDisplay: '4y 7mo', employersIn7Years: 1 },

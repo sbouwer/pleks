@@ -7,7 +7,7 @@
  */
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
-import { C } from "./theme"
+import { C, FONTS } from "./theme"
 
 const S = StyleSheet.create({
   mark: {
@@ -25,7 +25,7 @@ const S = StyleSheet.create({
     backgroundColor: C.amber.base,
   },
   text: {
-    fontFamily: 'JetBrains Mono',
+    fontFamily: FONTS.mono,
     fontSize: 7,
     color: C.ink.faint,
     letterSpacing: 0.8,

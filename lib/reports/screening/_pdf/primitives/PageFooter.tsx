@@ -1,14 +1,15 @@
 /**
  * lib/reports/screening/_pdf/primitives/PageFooter.tsx
  *
- * Per-page footer: left = disclaimer + help URL + privacy URL, right = version string + hash.
+ * Per-page footer: left = disclaimer + help URL + privacy URL, right = report ref + page counter.
  * Absolute-positioned so it sits at the bottom of every page without affecting content flow.
- * "How to Read" URL uses the version-specific path (interpretationVersion from data).
+ * B1: Version metadata removed — AuditStrip on page 1 already carries ENGINE/NARR/HASH.
+ *     Right column is terse: applicationRef + PAGE {n} · {total}.
  * Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §E.1, §6.11.
  */
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
-import { C, PAGE, sp } from "./theme"
+import { C, FONTS, PAGE, sp } from "./theme"
 import type { FitScoreReportData } from "./theme"
 
 const BOTTOM = 22
@@ -35,34 +36,43 @@ const S = StyleSheet.create({
     flex: 1,
   },
   disclaim: {
-    fontFamily:  'Inter Tight',
-    fontSize:    7.5,
-    color:       C.ink.mute,
-    lineHeight:  1.55,
+    fontFamily:   FONTS.sans,
+    fontSize:     7.5,
+    color:        C.ink.mute,
+    lineHeight:   1.55,
     marginBottom: 5,
   },
   disclaimPrefix: {
-    fontFamily:  'JetBrains Mono',
-    fontSize:    7,
-    color:       C.ink.faint,
+    fontFamily:    FONTS.mono,
+    fontSize:      7,
+    color:         C.ink.faint,
     letterSpacing: 0.8,
   },
   link: {
-    fontFamily:  'JetBrains Mono',
-    fontSize:    7,
-    color:       C.ink.faint,
+    fontFamily:    FONTS.mono,
+    fontSize:      7,
+    color:         C.ink.faint,
     letterSpacing: 0.3,
-    marginBottom: 2,
+    marginBottom:  2,
   },
-  sig: {
-    fontFamily:  'JetBrains Mono',
-    fontSize:    7,
-    color:       C.ink.faint,
+  right: {
+    width:       160,
+    alignItems:  'flex-end',
+  },
+  sigRef: {
+    fontFamily:    FONTS.mono,
+    fontSize:      7,
+    color:         C.ink.mute,
     letterSpacing: 0.3,
-    textAlign:   'right',
+    textAlign:     'right',
+    marginBottom:  2,
   },
-  sigBold: {
-    color: C.ink.mute,
+  sigPage: {
+    fontFamily:    FONTS.mono,
+    fontSize:      7,
+    color:         C.ink.faint,
+    letterSpacing: 0.3,
+    textAlign:     'right',
   },
 })
 
@@ -76,15 +86,6 @@ export function PageFooter({ data }: Readonly<PageFooterProps>) {
   // are malformed; fontkit crashes during layout. Display domain-only URL in footer.
   const displayHost = appUrl.replace(/^https?:\/\//, '')
   const helpUrl     = `${displayHost}/help/fitscore-report/${sp(data.interpretationVersion)}`
-  // No trailing ... — the ... trigraph is also a JB ligature with broken metrics.
-  const hashDisplay = `sha256:${sp(data.inputsHash).slice(0, 8)}`
-
-  const versionLine = [
-    `Engine: ${sp(data.engineVersion)}`,
-    `Narr: ${sp(data.narrativeVersion)}`,
-    `Interp: ${sp(data.interpretationVersion)}`,
-    `Inputs: ${hashDisplay}`,
-  ].join('  ·  ')
 
   return (
     <View style={S.footer} fixed>
@@ -100,10 +101,13 @@ export function PageFooter({ data }: Readonly<PageFooterProps>) {
           <Text style={S.link}>POPIA access requests: privacy@pleks.co.za</Text>
         </View>
 
-        <Text style={S.sig}>
-          <Text style={S.sigBold}>{sp(data.orgName)}</Text>{'\n'}
-          {versionLine}
-        </Text>
+        <View style={S.right}>
+          <Text style={S.sigRef}>{sp(data.applicationRef)}</Text>
+          <Text
+            style={S.sigPage}
+            render={({ pageNumber, totalPages }) => `PAGE ${pageNumber} · ${totalPages}`}
+          />
+        </View>
       </View>
     </View>
   )
