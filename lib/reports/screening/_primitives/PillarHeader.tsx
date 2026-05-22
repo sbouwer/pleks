@@ -20,11 +20,20 @@ interface Props {
 }
 
 const FLAG_CLASS_ORDER: Record<string, number> = { critical: 0, capping: 1, trust: 2 }
+const CAPPING_SEVERITY: Record<string, number> = { cautious_review: 0, limited_confidence: 1, stable_profile: 2 }
+
+function cappingSeverity(capCeiling: string | null): number {
+  return capCeiling === null ? 3 : (CAPPING_SEVERITY[capCeiling] ?? 2)
+}
 
 function sortFlags(flags: MaterialFlag[]): MaterialFlag[] {
   return [...flags].sort((a, b) => {
     const classOrd = (FLAG_CLASS_ORDER[a.class] ?? 1) - (FLAG_CLASS_ORDER[b.class] ?? 1)
-    return classOrd
+    if (classOrd !== 0) return classOrd
+    if (a.class === 'capping' && b.class === 'capping') {
+      return cappingSeverity(a.capCeiling) - cappingSeverity(b.capCeiling)
+    }
+    return 0
   })
 }
 

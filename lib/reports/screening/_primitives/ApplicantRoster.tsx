@@ -10,6 +10,7 @@
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
 import { colors, fmtZAR, sp } from "./theme"
 import type { FitScoreApplicantEntry } from "./theme"
+import { BureauList } from "./BureauList"
 
 interface Props {
   applicants: FitScoreApplicantEntry[]
@@ -43,9 +44,6 @@ function networkLabel(status: 'trusted' | 'adverse' | 'none', count: number): st
 }
 
 function ApplicantRow({ entry, alt }: Readonly<{ entry: FitScoreApplicantEntry; alt: boolean }>) {
-  const bureauText = entry.respondingBureaus.length > 0
-    ? entry.respondingBureaus.map(sp).join(', ')
-    : 'None'
   const incomeText = `${fmtZAR(entry.verifiedIncomeCents)} (${Math.round(entry.incomeSharePct)}% of joint)`
   const verificationText = `${entry.verificationPassCount} of ${entry.verificationTotal} checks passed`
 
@@ -64,7 +62,7 @@ function ApplicantRow({ entry, alt }: Readonly<{ entry: FitScoreApplicantEntry; 
         </View>
         <View style={S.metaItem}>
           <Text style={S.metaLabel}>Bureau coverage</Text>
-          <Text style={S.metaValue}>{bureauText}</Text>
+          <BureauList bureaus={entry.respondingBureaus} />
         </View>
         <View style={S.metaItem}>
           <Text style={S.metaLabel}>Pleks-network history</Text>
