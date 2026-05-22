@@ -45,6 +45,9 @@ schema-drift-report.md
 sonar-report.txt
 sonar-results.json
 
+# generated PDF samples (render script outputs)
+lib/reports/screening/_pdf/__samples__/
+
 # Claude Code internal state
 .claude/
 

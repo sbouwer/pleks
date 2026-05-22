@@ -54,7 +54,11 @@ export function DocumentShell({
     <Page size={PAGE.size} style={S.page}>
       <Watermark />
       {showAuditStrip && <AuditStrip data={data} />}
-      <RunningHeader section={section} />
+      <RunningHeader
+        section={section}
+        applicantName={data.primaryApplicantName}
+        applicationRef={data.applicationRef}
+      />
       {children}
       <PageFooter data={data} />
     </Page>

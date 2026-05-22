@@ -9,25 +9,38 @@
  */
 
 import { Font, StyleSheet } from "@react-pdf/renderer"
+import path from "node:path"
 
 // ─── Font registration ────────────────────────────────────────────────────────
-// Fonts served as static files from /public/fonts/ via the app URL.
-// HTTP URLs avoid Vercel outputFileTracing issues with filesystem font paths.
+// In Next.js / Vercel (default): fonts fetched via HTTP URL from the app origin.
+// In render scripts: set FITSCORE_FONT_SOURCE=local (via cross-env in npm script)
+// to load fonts from the local public/ directory using fontkit.open() — no dev
+// server needed. Bare paths (not file:// URLs) bypass fetch and go straight to
+// fontkit.open(), which reads the file directly.
+// Font.register() is idempotent — first call wins — so FITSCORE_FONT_SOURCE must
+// be set at process start (before tsx loads any module). Use the npm scripts.
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.pleks.co.za'
+
+function fontSrc(filename: string): string {
+  if (process.env.FITSCORE_FONT_SOURCE === 'local') {
+    return path.resolve(process.cwd(), 'public', 'fonts', filename)
+  }
+  return `${APP_URL}/fonts/${filename}`
+}
 
 Font.register({
   family: 'Inter Tight',
   fonts: [
-    { src: `${APP_URL}/fonts/InterTight-Regular.ttf`, fontWeight: 'normal' },
-    { src: `${APP_URL}/fonts/InterTight-Bold.ttf`,    fontWeight: 'bold'   },
+    { src: fontSrc('InterTight-Regular.ttf'), fontWeight: 'normal' },
+    { src: fontSrc('InterTight-Bold.ttf'),    fontWeight: 'bold'   },
   ],
 })
 
 Font.register({
   family: 'JetBrains Mono',
   fonts: [
-    { src: `${APP_URL}/fonts/JetBrainsMono-Regular.ttf`, fontWeight: 'normal' },
+    { src: fontSrc('JetBrainsMono-Regular.ttf'), fontWeight: 'normal' },
   ],
 })
 

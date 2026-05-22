@@ -1,21 +1,22 @@
 /**
  * lib/reports/screening/_pdf/primitives/RunningHeader.tsx
  *
- * Per-page header: left = "PLEKS · FITSCORE REPORT · {section}", right = amber-bordered page counter.
- * Rendered by DocumentShell on every page, below the AuditStrip on page 1.
+ * Per-page header: left = document identity (applicant + ref + section), right = page counter.
+ * Last page shows "· END" suffix on the counter to mark document close.
+ * DocumentShell passes applicantName and applicationRef from data automatically.
  * Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §E.1.
  */
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
-import { C } from "./theme"
+import { C, sp } from "./theme"
 
 const S = StyleSheet.create({
   header: {
-    flexDirection:  'row',
-    justifyContent: 'space-between',
-    alignItems:     'flex-end',
-    paddingBottom:  14,
-    marginBottom:   28,
+    flexDirection:     'row',
+    justifyContent:    'space-between',
+    alignItems:        'flex-end',
+    paddingBottom:     14,
+    marginBottom:      28,
     borderBottomWidth: 1,
     borderBottomColor: C.rule.base,
   },
@@ -25,14 +26,14 @@ const S = StyleSheet.create({
     gap:           8,
     fontFamily:    'JetBrains Mono',
     fontSize:      7.5,
-    letterSpacing: 1.0,
+    letterSpacing: 1,
     textTransform: 'uppercase',
     color:         C.ink.mute,
   },
   metaSep: {
-    width:           1,
-    height:          8,
-    backgroundColor: C.rule.strong,
+    width:            1,
+    height:           8,
+    backgroundColor:  C.rule.strong,
     marginHorizontal: 2,
   },
   metaBold: {
@@ -45,13 +46,13 @@ const S = StyleSheet.create({
     gap:           8,
     fontFamily:    'JetBrains Mono',
     fontSize:      7.5,
-    letterSpacing: 1.0,
+    letterSpacing: 1,
     textTransform: 'uppercase',
     color:         C.ink.mute,
   },
   pagenoN: {
-    color:          C.ink.primary,
-    fontWeight:     'normal',
+    color:           C.ink.primary,
+    fontWeight:      'normal',
     borderLeftWidth: 1.5,
     borderLeftColor: C.amber.base,
     paddingLeft:     6,
@@ -59,16 +60,20 @@ const S = StyleSheet.create({
 })
 
 interface RunningHeaderProps {
-  section: string
+  section:       string
+  applicantName: string
+  applicationRef: string
 }
 
-export function RunningHeader({ section }: Readonly<RunningHeaderProps>) {
+export function RunningHeader({ section, applicantName, applicationRef }: Readonly<RunningHeaderProps>) {
   return (
     <View style={S.header}>
       <View style={S.meta}>
         <Text style={S.metaBold}>PLEKS</Text>
         <View style={S.metaSep} />
-        <Text>FITSCORE REPORT</Text>
+        <Text style={S.metaBold}>{sp(applicantName).toUpperCase()}</Text>
+        <View style={S.metaSep} />
+        <Text>{sp(applicationRef).toUpperCase()}</Text>
         <View style={S.metaSep} />
         <Text>{section.toUpperCase()}</Text>
       </View>
@@ -77,7 +82,11 @@ export function RunningHeader({ section }: Readonly<RunningHeaderProps>) {
         <Text>PAGE</Text>
         <Text
           style={S.pagenoN}
-          render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`}
+          render={({ pageNumber, totalPages }) =>
+            pageNumber === totalPages
+              ? `${pageNumber} / ${totalPages} · END`
+              : `${pageNumber} / ${totalPages}`
+          }
         />
       </View>
     </View>

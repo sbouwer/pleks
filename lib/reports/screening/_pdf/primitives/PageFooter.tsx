@@ -72,8 +72,12 @@ interface PageFooterProps {
 
 export function PageFooter({ data }: Readonly<PageFooterProps>) {
   const appUrl      = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.pleks.co.za'
-  const helpUrl     = `${appUrl}/help/fitscore-report/${sp(data.interpretationVersion)}`
-  const hashDisplay = `sha256:${sp(data.inputsHash).slice(0, 8)}...`
+  // Strip https:// — the // digraph is a JetBrains Mono ligature whose glyph metrics
+  // are malformed; fontkit crashes during layout. Display domain-only URL in footer.
+  const displayHost = appUrl.replace(/^https?:\/\//, '')
+  const helpUrl     = `${displayHost}/help/fitscore-report/${sp(data.interpretationVersion)}`
+  // No trailing ... — the ... trigraph is also a JB ligature with broken metrics.
+  const hashDisplay = `sha256:${sp(data.inputsHash).slice(0, 8)}`
 
   const versionLine = [
     `Engine: ${sp(data.engineVersion)}`,
