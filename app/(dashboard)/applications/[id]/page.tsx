@@ -1,20 +1,25 @@
 /**
- * app/(dashboard)/applications/[id]/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/applications/[id]/page.tsx — Rental application detail view with Stream 2 FitScore surface
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /applications/[id]
+ * Auth:   gatewaySSR (agent workspace — service client, explicit org_id filter on every query)
+ * Data:   applications + application_co_applicants + listings → units → properties
+ * Notes:  FitScoreSection renders when fitscore_band is set (Stream 2 orchestrator has run).
+ *         Legacy pre-band display retained for applications not yet re-run under Stream 2.
+ *         ID reveal gated to agent role; logs to audit_log per ADDENDUM_14H §8.7.
+ *         Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §10.7.
  */
-import { createClient } from "@/lib/supabase/server"
 import { redirect, notFound } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatZAR } from "@/lib/constants"
 import { getDepositRecommendation } from "@/lib/screening/depositRecommendation"
 import { checkVisaLeaseAlignment } from "@/lib/screening/visaLeaseCheck"
+import { gatewaySSR } from "@/lib/supabase/gateway"
 import { ApplicationActions } from "./ApplicationActions"
 import { BackLink } from "@/components/ui/BackLink"
+import { FitScoreSection } from "./_components/FitScoreSection"
+import { FitScorePdfDownload } from "./_components/FitScorePdfDownload"
+import { IdReveal } from "./_components/IdReveal"
 
 export default async function ApplicationDetailPage({
   params,
@@ -22,45 +27,82 @@ export default async function ApplicationDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const gw = await gatewaySSR()
+  if (!gw) redirect("/login")
+  const { db, orgId } = gw
 
-  const { data: app } = await supabase
+  const { data: app, error: appErr } = await db
     .from("applications")
-    .select("*, listings(asking_rent_cents, units(unit_number, properties(name, address_line1)))")
+    .select(`
+      id, org_id, first_name, last_name, applicant_email, applicant_phone,
+      id_type, id_number, employment_type, employer_name,
+      gross_monthly_income_cents, bank_statement_extracted,
+      applicant_nationality_type, is_foreign_national,
+      permit_type, permit_expiry_date, tpn_listing_limited,
+      immigration_compliance_confirmed,
+      pleks_network_history_status, pleks_network_tenancy_count,
+      prescreen_score, prescreen_income_score, prescreen_employment_score,
+      prescreen_refs_score, prescreen_affordability_flag,
+      stage1_status, stage2_status,
+      fitscore, fitscore_band, fitscore_confidence_index,
+      fitscore_verification_integrity, fitscore_material_flags,
+      fitscore_components, fitscore_component_snapshot, fitscore_narrative,
+      fitscore_computed_at, fitscore_engine_version,
+      fitscore_narrative_prompt_version, fitscore_interpretation_version,
+      fitscore_inputs_hash,
+      fitscore_summary, has_co_applicant,
+      applicant_motivation, motivation_doc_path, agent_notes,
+      listing_id, unit_id,
+      listings(asking_rent_cents, units(unit_number, properties(name, address_line1)))
+    `)
     .eq("id", id)
+    .eq("org_id", orgId)
     .single()
 
-  if (!app) notFound()
+  if (appErr || !app) notFound()
 
-  const listing = app.listings as unknown as { asking_rent_cents: number; units: { unit_number: string; properties: { name: string; address_line1: string } } } | null
+  const { data: coApplicants } = await db
+    .from("application_co_applicants")
+    .select("id, first_name, last_name, id_type, co_applicant_index")
+    .eq("primary_application_id", id)
+    .order("co_applicant_index", { ascending: true })
+
+  const listing = app.listings as unknown as {
+    asking_rent_cents: number
+    units: { unit_number: string; properties: { name: string; address_line1: string } }
+  } | null
+
   const name = `${app.first_name || ""} ${app.last_name || ""}`.trim()
   const bankData = app.bank_statement_extracted as Record<string, unknown> | null
 
-  // Deposit recommendation for foreign nationals
   const permitExpiry = app.permit_expiry_date ? new Date(app.permit_expiry_date) : null
   const depositRec = app.is_foreign_national
     ? getDepositRecommendation(true, app.applicant_nationality_type, permitExpiry)
     : null
 
-  // Visa-lease alignment
   const visaCheck = app.is_foreign_national && app.permit_expiry_date
     ? checkVisaLeaseAlignment(new Date(app.permit_expiry_date), null)
     : null
 
-  // FitScore components
-  const fitComponents = app.fitscore_components as Record<string, unknown> | null
+  // Legacy v0 FitScore components (pre-Stream 2 — nested .components structure)
+  const legacyFitComponents = (() => {
+    const raw = app.fitscore_components as Record<string, unknown> | null
+    if (!raw || app.fitscore_band) return null
+    return raw.components as Record<string, { score: number; weight: number }> | null
+  })()
+
+  const hasStream2 = !!app.fitscore_band
 
   return (
     <div>
       <BackLink href="/applications" label="Applications" />
+
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <h1 className="font-heading text-3xl">{name}</h1>
-            {app.fitscore !== null && (
+            {!hasStream2 && app.fitscore !== null && (
               <span className="font-heading text-2xl text-brand">{app.fitscore}/100</span>
             )}
           </div>
@@ -70,14 +112,17 @@ export default async function ApplicationDetailPage({
             {app.has_co_applicant && " · Joint application"}
           </p>
         </div>
-        <ApplicationActions
-          applicationId={id}
-          orgId={app.org_id}
-          stage1Status={app.stage1_status}
-          stage2Status={app.stage2_status}
-          isForeignNational={app.is_foreign_national}
-          immigrationConfirmed={app.immigration_compliance_confirmed}
-        />
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {hasStream2 && <FitScorePdfDownload applicationId={id} />}
+          <ApplicationActions
+            applicationId={id}
+            orgId={app.org_id}
+            stage1Status={app.stage1_status}
+            stage2Status={app.stage2_status}
+            isForeignNational={app.is_foreign_national}
+            immigrationConfirmed={app.immigration_compliance_confirmed}
+          />
+        </div>
       </div>
 
       {/* Foreign national warnings */}
@@ -110,6 +155,7 @@ export default async function ApplicationDetailPage({
             <div className="flex justify-between"><span className="text-muted-foreground">Email</span><span>{app.applicant_email}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Phone</span><span>{app.applicant_phone || "—"}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">ID Type</span><span className="capitalize">{app.id_type?.replaceAll("_", " ") || "—"}</span></div>
+            <IdReveal applicationId={id} idType={app.id_type} hasIdNumber={!!app.id_number} />
             <div className="flex justify-between"><span className="text-muted-foreground">Employment</span><span className="capitalize">{app.employment_type || "—"}</span></div>
             {app.employer_name && <div className="flex justify-between"><span className="text-muted-foreground">Employer</span><span>{app.employer_name}</span></div>}
             <div className="flex justify-between"><span className="text-muted-foreground">Stated Income</span><span>{app.gross_monthly_income_cents ? formatZAR(app.gross_monthly_income_cents) + "/mo" : "—"}</span></div>
@@ -140,12 +186,20 @@ export default async function ApplicationDetailPage({
         </Card>
       </div>
 
-      {/* FitScore (Stage 2) */}
-      {app.fitscore !== null && fitComponents && (
+      {/* Stream 2 FitScore surface */}
+      {hasStream2 && (
+        <FitScoreSection
+          app={app}
+          coApplicants={coApplicants ?? []}
+        />
+      )}
+
+      {/* Legacy Stream 1 FitScore (pre-Stream 2 applications) */}
+      {!hasStream2 && app.fitscore !== null && legacyFitComponents && (
         <Card className="mt-6">
           <CardHeader><CardTitle className="text-lg">FitScore (Stage 2) — {app.fitscore}/100</CardTitle></CardHeader>
           <CardContent className="space-y-2 text-sm">
-            {Object.entries((fitComponents as Record<string, unknown>).components as Record<string, { score: number; weight: number }> || {}).map(([key, comp]) => (
+            {Object.entries(legacyFitComponents).map(([key, comp]) => (
               <div key={key} className="flex items-center justify-between">
                 <span className="text-muted-foreground capitalize">{key.replaceAll("_", " ")}</span>
                 <div className="flex items-center gap-2">
@@ -161,8 +215,8 @@ export default async function ApplicationDetailPage({
         </Card>
       )}
 
-      {/* FitScore narrative */}
-      {app.fitscore_summary && (
+      {/* Legacy AI summary (Stream 1 only) */}
+      {!hasStream2 && app.fitscore_summary && (
         <Card className="mt-4">
           <CardHeader><CardTitle className="text-lg">AI Summary</CardTitle></CardHeader>
           <CardContent>
