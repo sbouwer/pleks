@@ -48,7 +48,7 @@ const S = StyleSheet.create({
   gradeText:    { fontSize: 10, fontFamily: FONTS.sans, fontWeight: 'bold', color: colors.text.primary },
   flagRow:      { paddingLeft: 5, paddingVertical: 2, paddingRight: 4, marginBottom: 2 },
   flagText:     { fontSize: 8, fontFamily: FONTS.sans, color: colors.text.primary },
-  noFlags:      { fontSize: 8, fontFamily: FONTS.sans, color: colors.text.faint, fontStyle: 'italic' },
+  noFlags:      { fontSize: 8, fontFamily: FONTS.sans, color: colors.text.faint },
 })
 
 function PillarLabel({ text }: Readonly<{ text: string }>) {

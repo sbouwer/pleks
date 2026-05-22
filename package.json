@@ -16,7 +16,8 @@
     "security:quick": "node scripts/security/audit.mjs --quick",
     "security:ci": "node scripts/security/audit.mjs --ci",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "fitscore:replay": "node scripts/fitscore-replay.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.96.0",

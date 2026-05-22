@@ -2230,3 +2230,59 @@ END $$;
 
 ALTER TABLE organisations
   ADD COLUMN IF NOT EXISTS fitscore_narrative_enabled boolean NOT NULL DEFAULT true;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §29  ADDENDUM_14H Phase G: user_capabilities — capability-grant model
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Capability-grant model on top of the existing role hierarchy (Review #4 decision).
+-- Three capabilities: can_generate_popia_s23, can_run_fitscore_replay,
+-- can_view_sensitive_identity_data. Org-scoped: a user can hold a capability in
+-- one org but not another. Only owner / property_manager roles are eligible grantees.
+-- Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §8.7.
+
+CREATE TABLE IF NOT EXISTS user_capabilities (
+  id              uuid        NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id         uuid        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  org_id          uuid        NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+  capability_name text        NOT NULL,
+  granted_at      timestamptz NOT NULL DEFAULT now(),
+  granted_by      uuid        REFERENCES auth.users(id),
+  CONSTRAINT user_capabilities_name_check CHECK (
+    capability_name IN (
+      'can_generate_popia_s23',
+      'can_run_fitscore_replay',
+      'can_view_sensitive_identity_data'
+    )
+  ),
+  CONSTRAINT user_capabilities_unique UNIQUE (user_id, org_id, capability_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_capabilities_user_org
+  ON user_capabilities(user_id, org_id);
+
+ALTER TABLE user_capabilities ENABLE ROW LEVEL SECURITY;
+
+-- Agents can read their own capabilities (needed for dashboard capability checks)
+DROP POLICY IF EXISTS "agents read own capabilities" ON user_capabilities;
+CREATE POLICY "agents read own capabilities" ON user_capabilities
+  FOR SELECT
+  USING (user_id = auth.uid());
+
+-- Org owners and property managers can manage capabilities within their org
+DROP POLICY IF EXISTS "owners manage org capabilities" ON user_capabilities;
+CREATE POLICY "owners manage org capabilities" ON user_capabilities
+  FOR ALL
+  USING (
+    org_id IN (
+      SELECT org_id FROM user_orgs
+      WHERE user_id = auth.uid()
+        AND role IN ('owner', 'property_manager')
+    )
+  )
+  WITH CHECK (
+    org_id IN (
+      SELECT org_id FROM user_orgs
+      WHERE user_id = auth.uid()
+        AND role IN ('owner', 'property_manager')
+    )
+  );

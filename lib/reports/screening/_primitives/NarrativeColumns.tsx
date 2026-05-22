@@ -36,7 +36,7 @@ const S = StyleSheet.create({
   bulletRow:   { flexDirection: 'row', gap: 3, marginBottom: 4 },
   bullet:      { fontSize: 8.5, fontFamily: FONTS.sans, color: colors.text.primary, lineHeight: 1.45 },
   bulletDot:   { fontSize: 8.5, fontFamily: FONTS.sans, color: colors.text.soft },
-  emptyText:   { fontSize: 8, fontFamily: FONTS.sans, color: colors.text.faint, lineHeight: 1.4, fontStyle: 'italic' },
+  emptyText:   { fontSize: 8, fontFamily: FONTS.sans, color: colors.text.faint, lineHeight: 1.4 },
 })
 
 function Column({ title, items, emptyText }: Readonly<{ title: string; items: string[]; emptyText: string }>) {
@@ -46,8 +46,8 @@ function Column({ title, items, emptyText }: Readonly<{ title: string; items: st
       {items.length === 0 ? (
         <Text style={S.emptyText}>{emptyText}</Text>
       ) : (
-        items.map((item, i) => (
-          <View key={i} style={S.bulletRow}>
+        items.map((item) => (
+          <View key={item} style={S.bulletRow}>
             <Text style={S.bulletDot}>•</Text>
             <Text style={[S.bullet, { flex: 1 }]}>{sp(item)}</Text>
           </View>

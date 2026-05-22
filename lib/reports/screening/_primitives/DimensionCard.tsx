@@ -28,7 +28,8 @@ const S = StyleSheet.create({
   },
   name: {
     fontSize: 6.5,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: FONTS.sans,
+    fontWeight: 'bold',
     color: colors.text.faint,
     textTransform: 'uppercase',
     marginBottom: 5,

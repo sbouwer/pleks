@@ -3,8 +3,7 @@
  *
  * Auth:   gateway (agent workspace)
  * Data:   reads + decrypts applications.id_number; writes to audit_log
- * Notes:  revealIdNumber is gated by agent role; capability model (can_view_sensitive_identity_data)
- *         will refine the gate in Phase G when the capability column ships.
+ * Notes:  revealIdNumber is gated by can_view_sensitive_identity_data capability (§8.7).
  *         Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §8.7, §10.7.
  */
 "use server"
@@ -16,6 +15,20 @@ export async function revealIdNumber(applicationId: string): Promise<{ value: st
   const gw = await gateway()
   if (!gw) return { value: null, error: 'Unauthorized' }
   const { db, orgId, userId } = gw
+
+  // Capability gate — must hold can_view_sensitive_identity_data for this org
+  const { data: cap, error: capErr } = await db
+    .from('user_capabilities')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('org_id', orgId)
+    .eq('capability_name', 'can_view_sensitive_identity_data')
+    .maybeSingle()
+  if (capErr) {
+    console.error('revealIdNumber capability check failed:', capErr.message)
+    return { value: null, error: 'Authorization check failed' }
+  }
+  if (!cap) return { value: null, error: 'Capability not granted — contact your Information Officer.' }
 
   const { data: app, error } = await db
     .from('applications')

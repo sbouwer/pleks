@@ -67,6 +67,16 @@ export default async function ApplicationDetailPage({
     .eq("primary_application_id", id)
     .order("co_applicant_index", { ascending: true })
 
+  const { data: idCap } = await db
+    .from("user_capabilities")
+    .select("id")
+    .eq("user_id", gw.userId)
+    .eq("org_id", orgId)
+    .eq("capability_name", "can_view_sensitive_identity_data")
+    .maybeSingle()
+
+  const canViewId = !!idCap
+
   const listing = app.listings as unknown as {
     asking_rent_cents: number
     units: { unit_number: string; properties: { name: string; address_line1: string } }
@@ -155,7 +165,7 @@ export default async function ApplicationDetailPage({
             <div className="flex justify-between"><span className="text-muted-foreground">Email</span><span>{app.applicant_email}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">Phone</span><span>{app.applicant_phone || "—"}</span></div>
             <div className="flex justify-between"><span className="text-muted-foreground">ID Type</span><span className="capitalize">{app.id_type?.replaceAll("_", " ") || "—"}</span></div>
-            <IdReveal applicationId={id} idType={app.id_type} hasIdNumber={!!app.id_number} />
+            <IdReveal applicationId={id} idType={app.id_type} hasIdNumber={!!app.id_number} hasCapability={canViewId} />
             <div className="flex justify-between"><span className="text-muted-foreground">Employment</span><span className="capitalize">{app.employment_type || "—"}</span></div>
             {app.employer_name && <div className="flex justify-between"><span className="text-muted-foreground">Employer</span><span>{app.employer_name}</span></div>}
             <div className="flex justify-between"><span className="text-muted-foreground">Stated Income</span><span>{app.gross_monthly_income_cents ? formatZAR(app.gross_monthly_income_cents) + "/mo" : "—"}</span></div>
