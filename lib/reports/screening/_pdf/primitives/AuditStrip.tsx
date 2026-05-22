@@ -8,7 +8,7 @@
  */
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
-import { C, PAGE, sp } from "./theme"
+import { C, FONTS, PAGE, sp } from "./theme"
 import type { FitScoreReportData } from "./theme"
 
 const S = StyleSheet.create({
@@ -29,9 +29,9 @@ const S = StyleSheet.create({
     flexDirection: 'row',
     alignItems:    'center',
     gap:           8,
-    fontFamily:    'JetBrains Mono',
+    fontFamily:    FONTS.mono,
     fontSize:      8,
-    letterSpacing: 1.0,
+    letterSpacing: 1,
   },
   crumbMute: {
     color: C.ink.faint,
@@ -46,7 +46,7 @@ const S = StyleSheet.create({
   right: {
     flexDirection: 'row',
     gap:           14,
-    fontFamily:    'JetBrains Mono',
+    fontFamily:    FONTS.mono,
     fontSize:      7.5,
     color:         C.ink.faint,
     letterSpacing: 0.5,

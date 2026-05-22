@@ -18,7 +18,7 @@
 
 import { Page, StyleSheet } from "@react-pdf/renderer"
 import type { ReactNode } from "react"
-import { C, PAGE } from "./theme"
+import { C, FONTS, PAGE } from "./theme"
 import type { FitScoreReportData } from "./theme"
 import { Watermark }     from "./Watermark"
 import { AuditStrip }    from "./AuditStrip"
@@ -31,7 +31,7 @@ const S = StyleSheet.create({
     paddingBottom:     PAGE.paddingBottom,
     paddingHorizontal: PAGE.paddingHorizontal,
     fontSize:          9.5,
-    fontFamily:        'Inter Tight',
+    fontFamily:        FONTS.sans,
     backgroundColor:   C.surface.paper,
     color:             C.ink.primary,
   },

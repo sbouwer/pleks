@@ -2,15 +2,15 @@
  * lib/reports/screening/_pdf/primitives/DimensionCardEditorial.tsx
  *
  * 2x2 grid of dimensional score cards: Affordability, Stability, Credit Behaviour,
- * Verification Integrity. Each card: header, qualitative headline, score evidence bar,
- * key stats, and the dimension-specific evidence line from narrative.
- * For foreign-national-only leases, credit behaviour card shows "Not Applicable."
- * Maps to .dims / .dim in HTML reference.
+ * Verification Integrity.
+ * F10/F11: Observation bullets from narrative replace duplicated evidence line text.
+ * F12: EvidenceBar renders a preferred-threshold marker from engine-emitted field.
+ * F13: Stats use orchestrator-computed data.dimensions.* values.
  * Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §E.2.
  */
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
-import { C, sp } from "./theme"
+import { C, FONTS, sp } from "./theme"
 import type { FitScoreReportData } from "./theme"
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -42,21 +42,21 @@ const S = StyleSheet.create({
     marginBottom:   12,
   },
   headLabel: {
-    fontFamily:    'JetBrains Mono',
+    fontFamily:    FONTS.mono,
     fontSize:      7.5,
     letterSpacing: 1,
     textTransform: 'uppercase',
     color:         C.ink.mute,
   },
   headRef: {
-    fontFamily:    'JetBrains Mono',
+    fontFamily:    FONTS.mono,
     fontSize:      7,
     color:         C.ink.faint,
     letterSpacing: 0.3,
   },
 
   qual: {
-    fontFamily:    'Inter Tight',
+    fontFamily:    FONTS.sans,
     fontSize:      11,
     fontWeight:    'bold',
     color:         C.ink.primary,
@@ -81,14 +81,14 @@ const S = StyleSheet.create({
   },
   statRowLast: { marginBottom: 0 },
   statLabel: {
-    fontFamily:    'JetBrains Mono',
+    fontFamily:    FONTS.mono,
     fontSize:      7.5,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
     color:         C.ink.mute,
     flex:          1,
   },
-  statValue:      { fontFamily: 'JetBrains Mono', fontSize: 9.5, color: C.ink.primary, letterSpacing: 0.3 },
+  statValue:      { fontFamily: FONTS.mono, fontSize: 9.5, color: C.ink.primary,  letterSpacing: 0.3 },
   statValueMuted: { color: C.ink.soft },
 
   ebarWrap: { marginBottom: 12 },
@@ -108,6 +108,13 @@ const S = StyleSheet.create({
     backgroundColor: C.data.base,
     borderRadius:    1,
   },
+  ebarPref: {
+    position:        'absolute',
+    top:             -2,
+    bottom:          -2,
+    width:           1,
+    backgroundColor: C.amber.ink,
+  },
   ebarPin: {
     position:        'absolute',
     top:             -3,
@@ -116,21 +123,27 @@ const S = StyleSheet.create({
     backgroundColor: C.amber.base,
   },
 
-  obs: { fontFamily: 'Inter Tight', fontSize: 8.5, color: C.ink.soft, lineHeight: 1.55 },
+  // Observation bullets (F10/F11)
+  obsList:  { gap: 4 },
+  obsRow:   { flexDirection: 'row', gap: 6, alignItems: 'flex-start' },
+  obsDot:   { fontFamily: FONTS.mono, fontSize: 8, color: C.ink.ghost, marginTop: 1 },
+  obsText:  { fontFamily: FONTS.sans, fontSize: 8.5, color: C.ink.soft, lineHeight: 1.55, flex: 1 },
 
-  naText: { fontFamily: 'Inter Tight', fontSize: 9.5, color: C.ink.mute },
-  naSub:  { fontFamily: 'Inter Tight', fontSize: 8.5, color: C.ink.faint, lineHeight: 1.55, marginTop: 8 },
+  naText: { fontFamily: FONTS.sans, fontSize: 9.5, color: C.ink.mute },
+  naSub:  { fontFamily: FONTS.sans, fontSize: 8.5, color: C.ink.faint, lineHeight: 1.55, marginTop: 8 },
 })
 
-// ─── Evidence bar ─────────────────────────────────────────────────────────────
+// ─── Evidence bar (F12) ───────────────────────────────────────────────────────
 
-function EvidenceBar({ score }: Readonly<{ score: number }>) {
-  const pct = Math.max(0, Math.min(100, score))
+function EvidenceBar({ score, preferred }: Readonly<{ score: number; preferred: number }>) {
+  const pct     = Math.max(0, Math.min(100, score))
+  const prefPct = Math.max(0, Math.min(100, preferred))
   return (
     <View style={S.ebarWrap}>
       <View style={S.ebarTrack}>
         <View style={[S.ebarFill, { width: `${pct}%` }]} />
-        <View style={[S.ebarPin, { left: `${pct}%` }]} />
+        <View style={[S.ebarPref, { left: `${prefPct}%` }]} />
+        <View style={[S.ebarPin,  { left: `${pct}%` }]} />
       </View>
     </View>
   )
@@ -149,37 +162,53 @@ function StatRow({ label, value, muted = false, isLast = false }: Readonly<{
   )
 }
 
+// ─── Observation bullets (F10/F11) ────────────────────────────────────────────
+
+function ObsBullets({ bullets }: Readonly<{ bullets: string[] }>) {
+  return (
+    <View style={S.obsList}>
+      {bullets.map((bullet, i) => (
+        <View key={`${i}-${bullet.slice(0, 16)}`} style={S.obsRow}>
+          <Text style={S.obsDot}>·</Text>
+          <Text style={S.obsText}>{sp(bullet)}</Text>
+        </View>
+      ))}
+    </View>
+  )
+}
+
 // ─── Card bodies ──────────────────────────────────────────────────────────────
 
 function AffordabilityCard({ data }: Readonly<{ data: FitScoreReportData }>) {
   const score = data.dimensionalScores.affordability
+  const dim   = data.dimensions.affordability
   return (
     <View>
       <Text style={S.qual}>{sp(data.narrative.affordabilityEvidenceLine)}</Text>
       <View style={S.stats}>
-        <StatRow label="Score" value={String(score)} />
-        <StatRow label="Income share" value={`${data.applicants[0]?.incomeSharePct ?? 0}% primary`} muted />
-        <StatRow label="Applicants" value={String(data.applicants.length)} muted isLast />
+        <StatRow label="Score"  value={String(score)} />
+        <StatRow label="Rent"   value={`${dim.rentToIncomePct}% of income`} muted />
+        <StatRow label="Window" value={`${dim.windowMonths} months`}        muted isLast />
       </View>
-      <EvidenceBar score={score} />
-      <Text style={S.obs}>{sp(data.narrative.affordabilityEvidenceLine)}</Text>
+      <EvidenceBar score={score} preferred={data.dimensionalScores.affordability_preferred_threshold} />
+      <ObsBullets bullets={data.narrative.affordabilityObservations} />
     </View>
   )
 }
 
 function StabilityCard({ data }: Readonly<{ data: FitScoreReportData }>) {
-  const score   = data.dimensionalScores.stability
-  const bureaus = data.applicants[0]?.respondingBureaus.length ?? 0
+  const score = data.dimensionalScores.stability
+  const dim   = data.dimensions.stability
   return (
     <View>
       <Text style={S.qual}>{sp(data.narrative.stabilityEvidenceLine)}</Text>
       <View style={S.stats}>
-        <StatRow label="Score" value={String(score)} />
-        <StatRow label="Bureaus" value={`${bureaus} responding`} muted />
-        <StatRow label="Applicants" value={String(data.applicants.length)} muted isLast />
+        <StatRow label="Score"          value={String(score)} />
+        <StatRow label="Current tenure" value={sp(dim.currentTenureDisplay)}        muted />
+        <StatRow label="Employers (7y)" value={String(dim.employersIn7Years)} muted isLast />
       </View>
-      <EvidenceBar score={score} />
-      <Text style={S.obs}>{sp(data.narrative.stabilityEvidenceLine)}</Text>
+      <EvidenceBar score={score} preferred={data.dimensionalScores.stability_preferred_threshold} />
+      <ObsBullets bullets={data.narrative.stabilityObservations} />
     </View>
   )
 }
@@ -196,37 +225,36 @@ function CreditCard({ data }: Readonly<{ data: FitScoreReportData }>) {
       </View>
     )
   }
-  const score   = data.dimensionalScores.creditBehaviour
-  const bureaus = data.applicants.reduce((m, a) => Math.max(m, a.respondingBureaus.length), 0)
-  const critical = data.materialFlags.filter(f => f.class === 'critical').length
+  const score = data.dimensionalScores.creditBehaviour
+  const dim   = data.dimensions.credit
+  const divDisplay = dim.divergencePoints === null ? 'None' : String(dim.divergencePoints)
   return (
     <View>
       <Text style={S.qual}>{sp(data.narrative.creditEvidenceLine)}</Text>
       <View style={S.stats}>
-        <StatRow label="Score" value={String(score)} />
-        <StatRow label="Bureau coverage" value={`${bureaus} responding`} muted />
-        <StatRow label="Critical flags" value={String(critical)} muted isLast />
+        <StatRow label="Score"           value={String(score)} />
+        <StatRow label="Bureau coverage" value={sp(dim.bureauCoverageDisplay)}      muted />
+        <StatRow label="Divergence"      value={divDisplay}                   muted isLast />
       </View>
-      <EvidenceBar score={score} />
-      <Text style={S.obs}>{sp(data.narrative.creditEvidenceLine)}</Text>
+      <EvidenceBar score={score} preferred={data.dimensionalScores.creditBehaviour_preferred_threshold ?? 65} />
+      <ObsBullets bullets={data.narrative.creditObservations ?? []} />
     </View>
   )
 }
 
 function VerificationCard({ data }: Readonly<{ data: FitScoreReportData }>) {
-  const score      = data.dimensionalScores.verificationIntegrity
-  const passTotal  = data.applicants.reduce((s, a) => s + a.verificationPassCount, 0)
-  const checkTotal = data.applicants.reduce((s, a) => s + a.verificationTotal, 0)
+  const score = data.dimensionalScores.verificationIntegrity
+  const dim   = data.dimensions.verification
   return (
     <View>
       <Text style={S.qual}>{sp(data.narrative.verificationEvidenceLine)}</Text>
       <View style={S.stats}>
-        <StatRow label="Score" value={String(score)} />
-        <StatRow label="Checks passed" value={`${passTotal} / ${checkTotal}`} />
-        <StatRow label="Applicants" value={String(data.applicants.length)} muted isLast />
+        <StatRow label="Score"            value={String(score)} />
+        <StatRow label="Checks"           value={sp(dim.checksPassedDisplay)}                    />
+        <StatRow label="Overrides pending" value={String(dim.manualOverridesPending)} muted isLast />
       </View>
-      <EvidenceBar score={score} />
-      <Text style={S.obs}>{sp(data.narrative.verificationEvidenceLine)}</Text>
+      <EvidenceBar score={score} preferred={data.dimensionalScores.verificationIntegrity_preferred_threshold} />
+      <ObsBullets bullets={data.narrative.verificationObservations} />
     </View>
   )
 }

@@ -1,13 +1,15 @@
 /**
  * lib/reports/screening/_pdf/primitives/EditorialHeadline.tsx
  *
- * Page 1 hero block: eyebrow pill, large band-name headline, unit-label subtitle.
- * Maps to .doc-title-row + .eyebrow-inline + h1.doc-title + .doc-sub in HTML reference.
+ * Page 1 hero block: 2-token eyebrow pill, editorial thesis H1, doctrine sub.
+ * F1: H1 = static editorial thesis with amber highlight on "verification".
+ * F2: Eyebrow = "FITSCORE · STREAM 2" | "evidence summary" (third token deferred E.6).
+ * F3: Sub = DOCTRINE_DISCLAIMER constant.
  * Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §E.2.
  */
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
-import { C, BAND_LABELS, sp, fmtDate } from "./theme"
+import { C, FONTS, DOCTRINE_DISCLAIMER, sp, fmtDate } from "./theme"
 import type { FitScoreReportData } from "./theme"
 
 const S = StyleSheet.create({
@@ -15,20 +17,20 @@ const S = StyleSheet.create({
     marginBottom: 24,
   },
   eyebrow: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    gap:            10,
-    marginBottom:   12,
-    borderWidth:    0.75,
-    borderColor:    C.rule.base,
-    borderRadius:   999,
-    alignSelf:      'flex-start',
-    paddingVertical: 4,
+    flexDirection:     'row',
+    alignItems:        'center',
+    gap:               10,
+    marginBottom:      12,
+    borderWidth:       0.75,
+    borderColor:       C.rule.base,
+    borderRadius:      999,
+    alignSelf:         'flex-start',
+    paddingVertical:   4,
     paddingHorizontal: 10,
-    backgroundColor: C.surface.paperSunk,
+    backgroundColor:   C.surface.paperSunk,
   },
   eyebrowText: {
-    fontFamily:    'JetBrains Mono',
+    fontFamily:    FONTS.mono,
     fontSize:      7.5,
     letterSpacing: 1,
     textTransform: 'uppercase',
@@ -47,7 +49,7 @@ const S = StyleSheet.create({
     marginBottom:   8,
   },
   h1: {
-    fontFamily:    'Inter Tight',
+    fontFamily:    FONTS.sans,
     fontSize:      24,
     fontWeight:    'bold',
     color:         C.ink.primary,
@@ -55,8 +57,11 @@ const S = StyleSheet.create({
     lineHeight:    1.08,
     flex:          1,
   },
+  h1Amber: {
+    color: C.amber.base,
+  },
   dateBlock: {
-    fontFamily:    'JetBrains Mono',
+    fontFamily:    FONTS.mono,
     fontSize:      7.5,
     color:         C.ink.faint,
     letterSpacing: 0.5,
@@ -64,7 +69,7 @@ const S = StyleSheet.create({
     paddingBottom:  2,
   },
   sub: {
-    fontFamily:  'Inter Tight',
+    fontFamily:  FONTS.sans,
     fontSize:    10.5,
     color:       C.ink.soft,
     lineHeight:  1.5,
@@ -76,22 +81,29 @@ interface EditorialHeadlineProps {
 }
 
 export function EditorialHeadline({ data }: Readonly<EditorialHeadlineProps>) {
+  const n = data.applicants.length
+  const plural = n === 1 ? '' : 's'
+
   return (
     <View style={S.wrap}>
       <View style={S.eyebrow}>
-        <Text style={S.eyebrowText}>FitScore Report</Text>
+        <Text style={S.eyebrowText}>FITSCORE · STREAM 2</Text>
         <View style={S.eyebrowSep} />
-        <Text style={S.eyebrowText}>{sp(data.applicationRef)}</Text>
+        <Text style={S.eyebrowText}>evidence summary</Text>
       </View>
 
       <View style={S.titleRow}>
-        <Text style={S.h1}>{sp(BAND_LABELS[data.band] ?? data.band)}</Text>
+        <Text style={S.h1}>
+          {'A structured '}
+          <Text style={S.h1Amber}>verification</Text>
+          {` and financial\nanalysis of ${n} rental applicant${plural}.`}
+        </Text>
         <Text style={S.dateBlock}>
           {'Generated\n'}{sp(fmtDate(data.generatedAt))}
         </Text>
       </View>
 
-      <Text style={S.sub}>{sp(data.unitLabel)}</Text>
+      <Text style={S.sub}>{sp(DOCTRINE_DISCLAIMER)}</Text>
     </View>
   )
 }

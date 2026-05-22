@@ -2,14 +2,14 @@
  * lib/reports/screening/_pdf/primitives/BandLadder.tsx
  *
  * Two-column profile block: left = 6-rung band ladder, right = three signals
- * (Confidence, Verification Integrity, Material Flags summary) each with a TierBar.
- * Maps to .band-block / .band-card / .band-ladder / .parallel in HTML reference.
+ * (Confidence, Verification Integrity, Material Flags with inline pill badges).
+ * F9: Material Flags signal renders inline pill badges (replaces text summary).
  * Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §E.2.
  */
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
-import { C, BAND_LABELS, GRADE_LABELS, sp } from "./theme"
-import type { FitScoreReportData, FitScoreBand, ConfidenceGrade, VerificationIntegrityGrade } from "./theme"
+import { C, FONTS, BAND_LABELS, GRADE_LABELS, sp } from "./theme"
+import type { FitScoreReportData, FitScoreBand, ConfidenceGrade, VerificationIntegrityGrade, MaterialFlag } from "./theme"
 
 // ─── Band ladder configuration ────────────────────────────────────────────────
 
@@ -63,11 +63,11 @@ const S = StyleSheet.create({
 
   // Left: band card
   bandCard: {
-    flex:           1.35,
-    borderWidth:    0.75,
-    borderColor:    C.rule.base,
+    flex:            1.35,
+    borderWidth:     0.75,
+    borderColor:     C.rule.base,
     backgroundColor: C.surface.paperRaised,
-    padding:        22,
+    padding:         22,
   },
   cardHead: {
     flexDirection:  'row',
@@ -76,21 +76,17 @@ const S = StyleSheet.create({
     marginBottom:   16,
   },
   cardLabel: {
-    fontFamily:    'JetBrains Mono',
+    fontFamily:    FONTS.mono,
     fontSize:      7.5,
     letterSpacing: 1,
     textTransform: 'uppercase',
     color:         C.ink.mute,
   },
   scoreText: {
-    fontFamily:    'JetBrains Mono',
+    fontFamily:    FONTS.mono,
     fontSize:      8,
     color:         C.ink.mute,
     letterSpacing: 0.5,
-  },
-  scoreBold: {
-    color:      C.ink.primary,
-    fontWeight: 'normal',
   },
 
   // Rungs
@@ -100,14 +96,14 @@ const S = StyleSheet.create({
     marginBottom:   14,
   },
   rung: {
-    flexDirection:   'row',
-    alignItems:      'center',
-    paddingVertical:  8,
-    paddingLeft:      0,
-    paddingRight:     4,
+    flexDirection:     'row',
+    alignItems:        'center',
+    paddingVertical:   8,
+    paddingLeft:       0,
+    paddingRight:      4,
     borderBottomWidth: 0.75,
     borderBottomColor: C.rule.base,
-    gap:             10,
+    gap:               10,
   },
   rungCurrent: {
     backgroundColor: C.surface.paperSunk,
@@ -118,20 +114,20 @@ const S = StyleSheet.create({
     paddingRight:    10,
   },
   rungNum: {
-    fontFamily:    'JetBrains Mono',
+    fontFamily:    FONTS.mono,
     fontSize:      7.5,
     color:         C.ink.faint,
     letterSpacing: 0.5,
     width:         18,
   },
   rungNumCurrent: {
-    color:      C.amber.ink,
+    color: C.amber.ink,
   },
   rungName: {
-    flex:        1,
-    fontFamily:  'Inter Tight',
-    fontSize:    9.5,
-    color:       C.ink.faint,
+    flex:       1,
+    fontFamily: FONTS.sans,
+    fontSize:   9.5,
+    color:      C.ink.faint,
   },
   rungNameCurrent: {
     color:      C.ink.primary,
@@ -141,19 +137,19 @@ const S = StyleSheet.create({
     color: C.ink.ghost,
   },
   rungRange: {
-    fontFamily:    'JetBrains Mono',
+    fontFamily:    FONTS.mono,
     fontSize:      7.5,
     color:         C.ink.faint,
     letterSpacing: 0.3,
   },
   rungRangeCurrent: {
-    color:      C.ink.primary,
+    color: C.ink.primary,
   },
   cardFoot: {
-    fontFamily:  'Inter Tight',
-    fontSize:    8,
-    color:       C.ink.mute,
-    lineHeight:  1.55,
+    fontFamily: FONTS.sans,
+    fontSize:   8,
+    color:      C.ink.mute,
+    lineHeight: 1.55,
   },
   cardFootBold: {
     fontWeight: 'bold',
@@ -162,21 +158,21 @@ const S = StyleSheet.create({
 
   // Right: signals panel
   signalCol: {
-    flex:  1,
-    gap:   12,
+    flex: 1,
+    gap:  12,
   },
   signal: {
-    borderWidth:    0.75,
-    borderColor:    C.rule.base,
+    borderWidth:     0.75,
+    borderColor:     C.rule.base,
     backgroundColor: C.surface.paperRaised,
-    padding:        16,
+    padding:         16,
   },
   sigLabel: {
-    fontFamily:    'JetBrains Mono',
-    fontSize:      7.5,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    color:         C.ink.mute,
+    fontFamily:     FONTS.mono,
+    fontSize:       7.5,
+    letterSpacing:  1,
+    textTransform:  'uppercase',
+    color:          C.ink.mute,
     flexDirection:  'row',
     justifyContent: 'space-between',
     marginBottom:   10,
@@ -186,20 +182,25 @@ const S = StyleSheet.create({
     fontSize: 7,
   },
   sigValue: {
-    fontFamily:  'Inter Tight',
-    fontSize:    13,
-    fontWeight:  'bold',
-    color:       C.ink.primary,
+    fontFamily:    FONTS.sans,
+    fontSize:      13,
+    fontWeight:    'bold',
+    color:         C.ink.primary,
     letterSpacing: -0.1,
-    lineHeight:  1.25,
-    marginBottom: 2,
+    lineHeight:    1.25,
+    marginBottom:  2,
   },
   sigQual: {
-    fontFamily:    'JetBrains Mono',
+    fontFamily:    FONTS.mono,
     fontSize:      7.5,
     color:         C.ink.mute,
     letterSpacing: 0.3,
     marginBottom:  8,
+  },
+  sigEmpty: {
+    fontFamily: FONTS.sans,
+    fontSize:   8.5,
+    color:      C.ink.faint,
   },
   tierBar: {
     flexDirection: 'row',
@@ -211,6 +212,33 @@ const S = StyleSheet.create({
     height:       4,
     borderRadius: 1,
   },
+
+  // Inline flag pills (F9)
+  pillRow: {
+    flexDirection: 'row',
+    flexWrap:      'wrap',
+    gap:           4,
+    marginTop:     4,
+  },
+  pill: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    gap:               5,
+    fontFamily:        FONTS.mono,
+    fontSize:          7,
+    letterSpacing:     0.3,
+    paddingVertical:   3,
+    paddingHorizontal: 7,
+    borderWidth:       0.75,
+    borderRadius:      2,
+  },
+  pillCritical: { borderColor: C.ink.primary, backgroundColor: C.surface.paper, color: C.ink.primary },
+  pillCapping:  { borderColor: C.rule.strong,  backgroundColor: C.surface.paper, color: C.ink.soft   },
+  pillTrust:    { borderColor: C.data.base,    backgroundColor: C.data.wash,     color: C.ink.soft   },
+  dot: { width: 4, height: 4, borderRadius: 999 },
+  dotCritical: { backgroundColor: C.amber.base },
+  dotCapping:  { backgroundColor: C.ink.ghost  },
+  dotTrust:    { backgroundColor: C.data.soft  },
 })
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -266,18 +294,42 @@ function Signal({ label, docRef, grade, qualifier }: Readonly<{
   )
 }
 
-// ─── Flag summary helpers ─────────────────────────────────────────────────────
+// ─── Inline flag pill helpers (F9) ───────────────────────────────────────────
 
-function plural(count: number, word: string): string {
-  return count === 1 ? word : `${word}s`
+function flagPillStyle(cls: MaterialFlag['class']) {
+  if (cls === 'critical') return S.pillCritical
+  if (cls === 'trust')    return S.pillTrust
+  return S.pillCapping
 }
 
-function buildFlagSummary(flagCount: number, trustCount: number): string {
-  if (flagCount === 0 && trustCount === 0) return 'No material flags'
-  if (flagCount === 0) return `${trustCount} ${plural(trustCount, 'trust network signal')}`
-  const flagPart = `${flagCount} ${plural(flagCount, 'flag')} observed`
-  if (trustCount === 0) return flagPart
-  return `${flagPart}, ${trustCount} ${plural(trustCount, 'trust signal')}`
+function flagDotStyle(cls: MaterialFlag['class']) {
+  if (cls === 'critical') return S.dotCritical
+  if (cls === 'trust')    return S.dotTrust
+  return S.dotCapping
+}
+
+function FlagSignal({ data }: Readonly<{ data: FitScoreReportData }>) {
+  return (
+    <View style={S.signal}>
+      <View style={S.sigLabel}>
+        <Text>Material flags</Text>
+        <Text style={S.sigRef}>1.6</Text>
+      </View>
+      {data.materialFlags.length === 0
+        ? <Text style={S.sigEmpty}>No material flags.</Text>
+        : (
+          <View style={S.pillRow}>
+            {data.materialFlags.map((flag, i) => (
+              <View key={`${flag.flag}-${i}`} style={[S.pill, flagPillStyle(flag.class)]}>
+                <View style={[S.dot, flagDotStyle(flag.class)]} />
+                <Text>{sp(flag.description)}</Text>
+              </View>
+            ))}
+          </View>
+        )
+      }
+    </View>
+  )
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -290,10 +342,6 @@ export function BandLadder({ data }: Readonly<BandLadderProps>) {
   const scoreDisplay = data.score === null
     ? 'Score n/c'
     : `Score ${data.score} / 100`
-
-  const flagCount   = data.materialFlags.filter(f => f.class !== 'trust').length
-  const trustCount  = data.materialFlags.filter(f => f.class === 'trust').length
-  const flagSummary = buildFlagSummary(flagCount, trustCount)
 
   return (
     <View style={S.block}>
@@ -331,13 +379,7 @@ export function BandLadder({ data }: Readonly<BandLadderProps>) {
           grade={data.verificationIntegrity}
           qualifier={sp(VI_QUALIFIER[data.verificationIntegrity] ?? '')}
         />
-        <View style={S.signal}>
-          <View style={S.sigLabel}>
-            <Text>Material flags</Text>
-            <Text style={S.sigRef}>1.6</Text>
-          </View>
-          <Text style={S.sigQual}>{sp(flagSummary)}</Text>
-        </View>
+        <FlagSignal data={data} />
       </View>
     </View>
   )

@@ -1,23 +1,24 @@
 /**
  * lib/reports/screening/_pdf/primitives/IdentityRow.tsx
  *
- * Per-applicant identity row: name, nationality status, verified income, income share.
- * One row per applicant. Maps to .applicant in HTML reference.
+ * Per-applicant identity row: name + ID context, employment, screening date.
+ * F7: Cell 1 = name / ID line (masked ID · sex · age) or Passport + nationality.
+ * F8: Cell 2 = employer name / job title · tenure; cell 3 = screening date / time SAST.
  * Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §E.2.
  */
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
-import { C, sp, fmtZAR } from "./theme"
+import { C, FONTS, sp, fmtShortDate, fmtTime } from "./theme"
 import type { FitScoreReportData, FitScoreApplicantEntry } from "./theme"
 
 const S = StyleSheet.create({
   wrap: {
-    borderWidth:   0.75,
-    borderColor:   C.rule.base,
-    borderTopWidth: 1.5,
-    borderTopColor: C.ink.primary,
+    borderWidth:     0.75,
+    borderColor:     C.rule.base,
+    borderTopWidth:  1.5,
+    borderTopColor:  C.ink.primary,
     backgroundColor: C.surface.paperRaised,
-    marginBottom:  24,
+    marginBottom:    24,
   },
   row: {
     flexDirection: 'row',
@@ -33,7 +34,7 @@ const S = StyleSheet.create({
     borderRightWidth: 0,
   },
   label: {
-    fontFamily:    'JetBrains Mono',
+    fontFamily:    FONTS.mono,
     fontSize:      7,
     letterSpacing: 1,
     textTransform: 'uppercase',
@@ -41,7 +42,7 @@ const S = StyleSheet.create({
     marginBottom:  8,
   },
   name: {
-    fontFamily:    'Inter Tight',
+    fontFamily:    FONTS.sans,
     fontSize:      13,
     fontWeight:    'bold',
     color:         C.ink.primary,
@@ -49,24 +50,25 @@ const S = StyleSheet.create({
     lineHeight:    1.25,
   },
   meta: {
-    fontFamily:  'Inter Tight',
+    fontFamily:  FONTS.sans,
     fontSize:    8.5,
     color:       C.ink.mute,
     marginTop:   4,
     lineHeight:  1.4,
   },
-  income: {
-    fontFamily:    'JetBrains Mono',
-    fontSize:      13,
+  value: {
+    fontFamily:    FONTS.mono,
+    fontSize:      11,
     color:         C.ink.primary,
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
     lineHeight:    1.25,
   },
-  incomeSub: {
-    fontFamily:  'Inter Tight',
+  valueSub: {
+    fontFamily:  FONTS.sans,
     fontSize:    8.5,
     color:       C.ink.mute,
     marginTop:   4,
+    lineHeight:  1.4,
   },
   divider: {
     borderTopWidth: 0.75,
@@ -78,30 +80,51 @@ interface IdentityRowProps {
   data: FitScoreReportData
 }
 
-function ApplicantRow({ entry, isLast, isFirst }: Readonly<{
-  entry: FitScoreApplicantEntry; isLast: boolean; isFirst: boolean
+function buildIdLine(entry: FitScoreApplicantEntry): string {
+  if (entry.isForeignNational) {
+    return `Passport · ${sp(entry.nationalityStatus)}`
+  }
+  const masked = entry.idNumberMasked
+    ? sp(entry.idNumberMasked.replaceAll('•', '*'))
+    : ''
+  const parts: string[] = ['ID']
+  if (masked) parts.push(masked)
+  if (entry.sex) parts.push(entry.sex)
+  if (entry.ageYears !== null) parts.push(`${entry.ageYears}y`)
+  return parts.join(' · ')
+}
+
+function ApplicantRow({ entry, isFirst, isLast, screenDate, screenTime }: Readonly<{
+  entry: FitScoreApplicantEntry
+  isFirst: boolean
+  isLast: boolean
+  screenDate: string
+  screenTime: string
 }>) {
-  const bureausLine = entry.respondingBureaus.join(', ')
-  const passLine    = `${entry.verificationPassCount} / ${entry.verificationTotal} checks`
+  const idLine        = buildIdLine(entry)
+  const employerName  = sp(entry.employment?.employerName ?? 'Employment not provided')
+  const employmentSub = entry.employment
+    ? sp(`${entry.employment.jobTitle} · ${entry.employment.tenureDisplay}`)
+    : ''
 
   return (
     <View style={[S.row, isFirst ? {} : S.divider]}>
       <View style={S.cell}>
         <Text style={S.label}>{sp(entry.label)}</Text>
         <Text style={S.name}>{sp(entry.fullName)}</Text>
-        <Text style={S.meta}>{sp(entry.nationalityStatus)}</Text>
+        <Text style={S.meta}>{idLine}</Text>
       </View>
 
       <View style={S.cell}>
-        <Text style={S.label}>Verified income</Text>
-        <Text style={S.income}>{sp(fmtZAR(entry.verifiedIncomeCents))} / mo</Text>
-        <Text style={S.incomeSub}>{entry.incomeSharePct}% income share</Text>
+        <Text style={S.label}>Employment</Text>
+        <Text style={S.value}>{employerName}</Text>
+        {employmentSub !== '' && <Text style={S.valueSub}>{employmentSub}</Text>}
       </View>
 
       <View style={[S.cell, isLast ? S.cellLast : {}]}>
-        <Text style={S.label}>Verification</Text>
-        <Text style={S.income}>{sp(passLine)}</Text>
-        <Text style={S.incomeSub}>{sp(bureausLine)}</Text>
+        <Text style={S.label}>Screened</Text>
+        <Text style={S.value}>{screenDate}</Text>
+        <Text style={S.valueSub}>{`${screenTime} SAST · auto-refresh nightly`}</Text>
       </View>
     </View>
   )
@@ -109,6 +132,9 @@ function ApplicantRow({ entry, isLast, isFirst }: Readonly<{
 
 export function IdentityRow({ data }: Readonly<IdentityRowProps>) {
   if (data.applicants.length === 0) return null
+
+  const screenDate = sp(fmtShortDate(data.generatedAt))
+  const screenTime = sp(fmtTime(data.generatedAt))
 
   return (
     <View style={S.wrap}>
@@ -118,6 +144,8 @@ export function IdentityRow({ data }: Readonly<IdentityRowProps>) {
           entry={entry}
           isFirst={i === 0}
           isLast={i === data.applicants.length - 1}
+          screenDate={screenDate}
+          screenTime={screenTime}
         />
       ))}
     </View>
