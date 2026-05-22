@@ -8,7 +8,7 @@
  */
 
 import { View, Text } from "@react-pdf/renderer"
-import { colors, sp } from "./theme"
+import { colors, FONTS, sp } from "./theme"
 import type { MaterialFlag } from "./theme"
 
 interface Props {
@@ -34,7 +34,7 @@ export function FlagBadge({ flag, showApplicantLabel = true }: Readonly<Props>) 
       paddingRight: 5,
       marginBottom: 3,
     }}>
-      <Text style={{ fontSize: 8, fontFamily: 'Helvetica', color: colors.text.primary }}>
+      <Text style={{ fontSize: 8, fontFamily: FONTS.sans, color: colors.text.primary }}>
         {label}
       </Text>
     </View>

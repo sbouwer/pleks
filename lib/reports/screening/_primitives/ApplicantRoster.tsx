@@ -8,7 +8,7 @@
  */
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
-import { colors, fmtZAR, sp } from "./theme"
+import { colors, fmtZAR, FONTS, sp } from "./theme"
 import type { FitScoreApplicantEntry } from "./theme"
 import { BureauList } from "./BureauList"
 
@@ -19,7 +19,8 @@ interface Props {
 const S = StyleSheet.create({
   sectionHeader: {
     fontSize: 6.5,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: FONTS.sans,
+    fontWeight: 'bold',
     color: colors.text.faint,
     textTransform: 'uppercase',
     marginBottom: 6,
@@ -29,12 +30,12 @@ const S = StyleSheet.create({
   },
   row:    { paddingVertical: 8, paddingHorizontal: 6, borderBottomWidth: 0.5, borderBottomColor: colors.surface.divider },
   rowAlt: { paddingVertical: 8, paddingHorizontal: 6, borderBottomWidth: 0.5, borderBottomColor: colors.surface.divider, backgroundColor: colors.surface.paperSoft },
-  name:        { fontSize: 9, fontFamily: 'Helvetica-Bold', color: colors.text.primary, marginBottom: 1 },
-  nationality: { fontSize: 8, fontFamily: 'Helvetica',      color: colors.text.soft,    marginBottom: 4 },
+  name:        { fontSize: 9, fontFamily: FONTS.sans, fontWeight: 'bold', color: colors.text.primary, marginBottom: 1 },
+  nationality: { fontSize: 8, fontFamily: FONTS.sans,                   color: colors.text.soft,    marginBottom: 4 },
   metaRow:     { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
   metaItem:    { flexDirection: 'column' },
-  metaLabel:   { fontSize: 6.5, fontFamily: 'Helvetica-Bold', color: colors.text.faint, textTransform: 'uppercase', marginBottom: 1 },
-  metaValue:   { fontSize: 8,   fontFamily: 'Helvetica',      color: colors.text.primary },
+  metaLabel:   { fontSize: 6.5, fontFamily: FONTS.sans, fontWeight: 'bold', color: colors.text.faint, textTransform: 'uppercase', marginBottom: 1 },
+  metaValue:   { fontSize: 8,   fontFamily: FONTS.sans,                     color: colors.text.primary },
 })
 
 function networkLabel(status: 'trusted' | 'adverse' | 'none', count: number): string {

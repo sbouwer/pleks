@@ -7,7 +7,7 @@
  */
 
 import { Text } from "@react-pdf/renderer"
-import { colors, sp } from "./theme"
+import { colors, FONTS, sp } from "./theme"
 
 interface Props {
   bureaus: string[]
@@ -17,7 +17,7 @@ interface Props {
 export function BureauList({ bureaus, fontSize = 8 }: Readonly<Props>) {
   const text = bureaus.length > 0 ? bureaus.map(sp).join(', ') : 'None'
   return (
-    <Text style={{ fontSize, fontFamily: 'Helvetica', color: colors.text.soft }}>
+    <Text style={{ fontSize, fontFamily: FONTS.sans, color: colors.text.soft }}>
       {text}
     </Text>
   )

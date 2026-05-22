@@ -10,21 +10,21 @@
 
 import { View, Text, StyleSheet, Page } from "@react-pdf/renderer"
 import type { ReactNode } from "react"
-import { colors, fmtShortDate, sp } from "./theme"
+import { colors, fmtShortDate, FONTS, sp } from "./theme"
 import type { FitScoreReportData } from "./theme"
 
 // ─── Title block (page 1 only) ────────────────────────────────────────────────
 
 const TS = StyleSheet.create({
   block:       { marginBottom: 10 },
-  title:       { fontSize: 11, fontFamily: 'Helvetica-Bold', color: colors.text.primary, marginBottom: 2 },
-  sub:         { fontSize: 8.5, fontFamily: 'Helvetica', color: colors.text.soft, marginBottom: 1 },
-  meta:        { fontSize: 7.5, fontFamily: 'Helvetica', color: colors.text.faint, marginTop: 3 },
+  title:       { fontSize: 11, fontFamily: FONTS.sans, fontWeight: 'bold', color: colors.text.primary, marginBottom: 2 },
+  sub:         { fontSize: 8.5, fontFamily: FONTS.sans,                   color: colors.text.soft,    marginBottom: 1 },
+  meta:        { fontSize: 7.5, fontFamily: FONTS.sans,                   color: colors.text.faint,   marginTop: 3 },
   divider:     { borderBottomWidth: 1, borderBottomColor: colors.surface.divider, marginBottom: 10, marginTop: 6 },
 })
 
 export function TitleBlock({ data }: Readonly<{ data: FitScoreReportData }>) {
-  const coPlural = data.coApplicantCount !== 1 ? 's' : ''
+  const coPlural = data.coApplicantCount === 1 ? '' : 's'
   const applicantLine = data.coApplicantCount > 0
     ? `${sp(data.primaryApplicantName)} and ${data.coApplicantCount} co-applicant${coPlural}`
     : sp(data.primaryApplicantName)
@@ -53,12 +53,12 @@ export function TitleBlock({ data }: Readonly<{ data: FitScoreReportData }>) {
 const FS = StyleSheet.create({
   footer:      { position: 'absolute', bottom: 22, left: 40, right: 40 },
   topRule:     { borderTopWidth: 0.75, borderTopColor: colors.surface.divider, marginBottom: 4 },
-  disclaimer:  { fontSize: 7.5, fontFamily: 'Helvetica', color: colors.text.soft, lineHeight: 1.4, marginBottom: 3 },
+  disclaimer:  { fontSize: 7.5, fontFamily: FONTS.sans, color: colors.text.soft,  lineHeight: 1.4, marginBottom: 3 },
   metaRow:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
   metaLeft:    { flex: 1 },
-  link:        { fontSize: 7, fontFamily: 'Helvetica', color: colors.text.faint, marginBottom: 1 },
-  versionLine: { fontSize: 7, fontFamily: 'Helvetica', color: colors.text.faint },
-  pageNum:     { fontSize: 7, fontFamily: 'Helvetica', color: colors.text.faint },
+  link:        { fontSize: 7, fontFamily: FONTS.sans, color: colors.text.faint, marginBottom: 1 },
+  versionLine: { fontSize: 7, fontFamily: FONTS.sans, color: colors.text.faint },
+  pageNum:     { fontSize: 7, fontFamily: FONTS.sans, color: colors.text.faint },
 })
 
 export function ReportFooter({ data }: Readonly<{ data: FitScoreReportData }>) {
@@ -103,7 +103,7 @@ const PS = StyleSheet.create({
     paddingBottom: 68,
     paddingHorizontal: 40,
     fontSize: 9,
-    fontFamily: 'Helvetica',
+    fontFamily: FONTS.sans,
     backgroundColor: colors.surface.paper,
     color: colors.text.primary,
   },

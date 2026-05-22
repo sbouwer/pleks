@@ -14,7 +14,7 @@
 import { Document, View, Text, StyleSheet } from "@react-pdf/renderer"
 import { FlagBadge } from "./_primitives/FlagBadge"
 import { TitleBlock, ReportPage } from "./_primitives/DocumentChrome"
-import { colors, sp } from "./_primitives/theme"
+import { colors, FONTS, sp } from "./_primitives/theme"
 import type { FitScoreReportData, MaterialFlag } from "./_primitives/theme"
 
 const S = StyleSheet.create({
@@ -28,19 +28,21 @@ const S = StyleSheet.create({
   },
   ldpTitle: {
     fontSize: 11,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: FONTS.sans,
+    fontWeight: 'bold',
     color: colors.band.limited_data_profile.text,
     marginBottom: 4,
   },
   ldpBody: {
     fontSize: 8.5,
-    fontFamily: 'Helvetica',
+    fontFamily: FONTS.sans,
     color: colors.text.soft,
     lineHeight: 1.5,
   },
   sectionHeader: {
     fontSize: 6.5,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: FONTS.sans,
+    fontWeight: 'bold',
     color: colors.text.faint,
     textTransform: 'uppercase',
     marginBottom: 6,
@@ -73,8 +75,8 @@ const S = StyleSheet.create({
     marginTop: 1,
     marginRight: 6,
   },
-  evidenceLabel: { fontSize: 8.5, fontFamily: 'Helvetica-Bold', color: colors.text.primary, flex: 1 },
-  evidenceNote:  { fontSize: 8, fontFamily: 'Helvetica', color: colors.text.soft, flex: 2, marginLeft: 4 },
+  evidenceLabel: { fontSize: 8.5, fontFamily: FONTS.sans, fontWeight: 'bold', color: colors.text.primary, flex: 1 },
+  evidenceNote:  { fontSize: 8,   fontFamily: FONTS.sans,                     color: colors.text.soft,    flex: 2, marginLeft: 4 },
 })
 
 interface EvidenceItem {
@@ -105,7 +107,7 @@ function EvidenceRow({ item, alt }: Readonly<{ item: EvidenceItem; alt: boolean 
     <View style={alt ? S.evidenceRowAlt : S.evidenceRow}>
       <View style={[S.statusDot, { backgroundColor: dotColor }]} />
       <Text style={S.evidenceLabel}>{sp(item.label)}</Text>
-      <Text style={[S.evidenceNote, { color: dotColor, fontFamily: 'Helvetica-Bold', fontSize: 7.5, flex: 1 }]}>
+      <Text style={[S.evidenceNote, { color: dotColor, fontFamily: FONTS.sans, fontWeight: 'bold', fontSize: 7.5, flex: 1 }]}>
         {statusLabel}
       </Text>
       {item.note !== undefined && (

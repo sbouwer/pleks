@@ -8,7 +8,7 @@
  */
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
-import { colors, sp } from "./theme"
+import { colors, FONTS, sp } from "./theme"
 import type { NarrativeResponse } from "./theme"
 
 interface Props {
@@ -24,7 +24,8 @@ const S = StyleSheet.create({
   column:      { flex: 1 },
   colHeader:   {
     fontSize: 6.5,
-    fontFamily: 'Helvetica-Bold',
+    fontFamily: FONTS.sans,
+    fontWeight: 'bold',
     color: colors.text.faint,
     textTransform: 'uppercase',
     marginBottom: 6,
@@ -33,9 +34,9 @@ const S = StyleSheet.create({
     borderBottomColor: colors.surface.divider,
   },
   bulletRow:   { flexDirection: 'row', gap: 3, marginBottom: 4 },
-  bullet:      { fontSize: 8.5, fontFamily: 'Helvetica', color: colors.text.primary, lineHeight: 1.45 },
-  bulletDot:   { fontSize: 8.5, fontFamily: 'Helvetica', color: colors.text.soft },
-  emptyText:   { fontSize: 8, fontFamily: 'Helvetica', color: colors.text.faint, lineHeight: 1.4, fontStyle: 'italic' },
+  bullet:      { fontSize: 8.5, fontFamily: FONTS.sans, color: colors.text.primary, lineHeight: 1.45 },
+  bulletDot:   { fontSize: 8.5, fontFamily: FONTS.sans, color: colors.text.soft },
+  emptyText:   { fontSize: 8, fontFamily: FONTS.sans, color: colors.text.faint, lineHeight: 1.4, fontStyle: 'italic' },
 })
 
 function Column({ title, items, emptyText }: Readonly<{ title: string; items: string[]; emptyText: string }>) {

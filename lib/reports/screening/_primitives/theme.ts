@@ -8,7 +8,34 @@
  *        Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §6.2, §10.6.
  */
 
-import { StyleSheet } from "@react-pdf/renderer"
+import path from 'node:path'
+import { Font, StyleSheet } from "@react-pdf/renderer"
+
+// ─── Font registration ────────────────────────────────────────────────────────
+// Fonts live in public/ (static files committed to the repo).
+// process.cwd() is the project root in both Vercel and local dev.
+
+const FONT_BASE = path.join(process.cwd(), 'public', 'fonts')
+
+Font.register({
+  family: 'Plus Jakarta Sans',
+  fonts: [
+    { src: path.join(FONT_BASE, 'PlusJakartaSans-Regular.ttf'), fontWeight: 'normal' },
+    { src: path.join(FONT_BASE, 'PlusJakartaSans-Bold.ttf'),    fontWeight: 'bold'   },
+  ],
+})
+
+Font.register({
+  family: 'JetBrains Mono',
+  fonts: [
+    { src: path.join(FONT_BASE, 'JetBrainsMono-Regular.ttf'), fontWeight: 'normal' },
+  ],
+})
+
+export const FONTS = {
+  sans: 'Plus Jakarta Sans',
+  mono: 'JetBrains Mono',
+} as const
 import type {
   FitScoreBand,
   ConfidenceGrade,
@@ -178,12 +205,12 @@ export const GRADE_LABELS: Record<string, string> = {
 // ─── Shared typography base styles ────────────────────────────────────────────
 
 export const T = StyleSheet.create({
-  h2:      { fontSize: 11, fontFamily: 'Helvetica-Bold', color: RAW.ink, marginBottom: 4, marginTop: 10 },
-  h3:      { fontSize: 9,  fontFamily: 'Helvetica-Bold', color: RAW.ink, marginBottom: 3, marginTop: 8 },
-  body:    { fontSize: 9,  fontFamily: 'Helvetica',      color: RAW.ink, lineHeight: 1.5 },
-  small:   { fontSize: 7.5, fontFamily: 'Helvetica',     color: RAW.inkSoft },
-  faint:   { fontSize: 7,   fontFamily: 'Helvetica',     color: RAW.inkFaint },
-  label:   { fontSize: 6.5, fontFamily: 'Helvetica-Bold', color: RAW.inkFaint, textTransform: 'uppercase' },
+  h2:      { fontSize: 11, fontFamily: FONTS.sans, fontWeight: 'bold',   color: RAW.ink, marginBottom: 4, marginTop: 10 },
+  h3:      { fontSize: 9,  fontFamily: FONTS.sans, fontWeight: 'bold',   color: RAW.ink, marginBottom: 3, marginTop: 8 },
+  body:    { fontSize: 9,  fontFamily: FONTS.sans,                        color: RAW.ink, lineHeight: 1.5 },
+  small:   { fontSize: 7.5, fontFamily: FONTS.sans,                       color: RAW.inkSoft },
+  faint:   { fontSize: 7,   fontFamily: FONTS.sans,                       color: RAW.inkFaint },
+  label:   { fontSize: 6.5, fontFamily: FONTS.sans, fontWeight: 'bold',   color: RAW.inkFaint, textTransform: 'uppercase' },
   row:     { flexDirection: 'row' as const },
   divider: { borderBottomWidth: 0.75, borderBottomColor: RAW.divider, marginVertical: 8 },
 })

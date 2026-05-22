@@ -8,7 +8,7 @@
  */
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
-import { colors, GRADE_LABELS, sp } from "./theme"
+import { colors, GRADE_LABELS, FONTS, sp } from "./theme"
 
 interface Props {
   name: string
@@ -39,12 +39,12 @@ const S = StyleSheet.create({
     gap: 3,
     marginBottom: 5,
   },
-  score:    { fontSize: 14, fontFamily: 'Helvetica-Bold', color: colors.text.primary },
-  scoreMax: { fontSize: 8,  fontFamily: 'Helvetica',      color: colors.text.soft },
-  grade:    { fontSize: 11, fontFamily: 'Helvetica-Bold', color: colors.text.primary },
-  gradeSecondary: { fontSize: 8, fontFamily: 'Helvetica', color: colors.text.soft, marginLeft: 4 },
+  score:    { fontSize: 14, fontFamily: FONTS.mono,                         color: colors.text.primary },
+  scoreMax: { fontSize: 8,  fontFamily: FONTS.sans,                         color: colors.text.soft },
+  grade:    { fontSize: 11, fontFamily: FONTS.sans, fontWeight: 'bold',     color: colors.text.primary },
+  gradeSecondary: { fontSize: 8, fontFamily: FONTS.mono,                    color: colors.text.soft, marginLeft: 4 },
   divider:  { borderBottomWidth: 0.5, borderBottomColor: colors.surface.divider, marginBottom: 5 },
-  evidence: { fontSize: 8, fontFamily: 'Helvetica', color: colors.text.soft, lineHeight: 1.4 },
+  evidence: { fontSize: 8, fontFamily: FONTS.sans,                          color: colors.text.soft, lineHeight: 1.4 },
 })
 
 export function DimensionCard({ name, score, grade, evidenceLine }: Readonly<Props>) {

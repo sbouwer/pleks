@@ -8,7 +8,7 @@
  */
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
-import { colors, BAND_LABELS, GRADE_LABELS, sp } from "./theme"
+import { colors, BAND_LABELS, GRADE_LABELS, FONTS, sp } from "./theme"
 import type { FitScoreBand, ConfidenceGrade, VerificationIntegrityGrade, MaterialFlag } from "./theme"
 
 interface Props {
@@ -41,14 +41,14 @@ const S = StyleSheet.create({
   container:    { flexDirection: 'row', gap: 8, marginBottom: 10 },
   pillar:       { flex: 1, flexDirection: 'column' },
   pillarWide:   { flex: 2, flexDirection: 'column' },
-  pillarLabel:  { fontSize: 6.5, fontFamily: 'Helvetica-Bold', color: colors.text.faint, textTransform: 'uppercase', marginBottom: 4 },
+  pillarLabel:  { fontSize: 6.5, fontFamily: FONTS.sans, fontWeight: 'bold', color: colors.text.faint, textTransform: 'uppercase', marginBottom: 4 },
   bandBadge:    { borderRadius: 3, paddingHorizontal: 6, paddingVertical: 3, alignSelf: 'flex-start' },
-  bandText:     { fontSize: 10, fontFamily: 'Helvetica-Bold' },
-  scoreCaption: { fontSize: 7.5, fontFamily: 'Helvetica', color: colors.text.soft, marginTop: 3 },
-  gradeText:    { fontSize: 10, fontFamily: 'Helvetica-Bold', color: colors.text.primary },
+  bandText:     { fontSize: 10, fontFamily: FONTS.sans, fontWeight: 'bold' },
+  scoreCaption: { fontSize: 7.5, fontFamily: FONTS.sans, color: colors.text.soft, marginTop: 3 },
+  gradeText:    { fontSize: 10, fontFamily: FONTS.sans, fontWeight: 'bold', color: colors.text.primary },
   flagRow:      { paddingLeft: 5, paddingVertical: 2, paddingRight: 4, marginBottom: 2 },
-  flagText:     { fontSize: 8, fontFamily: 'Helvetica', color: colors.text.primary },
-  noFlags:      { fontSize: 8, fontFamily: 'Helvetica', color: colors.text.faint, fontStyle: 'italic' },
+  flagText:     { fontSize: 8, fontFamily: FONTS.sans, color: colors.text.primary },
+  noFlags:      { fontSize: 8, fontFamily: FONTS.sans, color: colors.text.faint, fontStyle: 'italic' },
 })
 
 function PillarLabel({ text }: Readonly<{ text: string }>) {
