@@ -67,7 +67,7 @@ interface RunningHeaderProps {
 
 export function RunningHeader({ section, applicantName, applicationRef }: Readonly<RunningHeaderProps>) {
   return (
-    <View style={S.header}>
+    <View style={S.header} fixed>
       <View style={S.meta}>
         <Text style={S.metaBold}>PLEKS</Text>
         <View style={S.metaSep} />
