@@ -32,6 +32,13 @@ import { BandLadder }              from "@/lib/reports/screening/_pdf/primitives
 import { FlagPillRow }             from "@/lib/reports/screening/_pdf/primitives/FlagPillRow"
 import { DimensionCardEditorial }  from "@/lib/reports/screening/_pdf/primitives/DimensionCardEditorial"
 
+// E.3 primitives
+import { IncomeReconciliationTable } from "@/lib/reports/screening/_pdf/primitives/IncomeReconciliationTable"
+import { ExpenditureTable }          from "@/lib/reports/screening/_pdf/primitives/ExpenditureTable"
+import { RiskUncertaintySplit }      from "@/lib/reports/screening/_pdf/primitives/RiskUncertaintySplit"
+import { BureauCoverageMatrix }      from "@/lib/reports/screening/_pdf/primitives/BureauCoverageMatrix"
+import { VerificationCheckTable }    from "@/lib/reports/screening/_pdf/primitives/VerificationCheckTable"
+
 
 const OUT_DIR = path.resolve(process.cwd(), 'lib/reports/screening/_pdf/__samples__')
 
@@ -205,15 +212,13 @@ const doc = h(Document, {},
     h(DimensionCardEditorial, { data: FIXTURE }),
   ),
   h(DocumentShell, { data: FIXTURE, section: 'Financial Analysis' },
-    h(Placeholder, { label: 'E.3 — Income Reconciliation Table shell', lines: 6 }),
-    h(Placeholder, { label: 'E.3 — Expenditure Table shell', lines: 6 }),
-    h(Placeholder, { label: 'E.3 — DisposableBars shell', lines: 4 }),
+    h(IncomeReconciliationTable, { data: FIXTURE }),
+    h(ExpenditureTable,          { data: FIXTURE }),
+    h(RiskUncertaintySplit,      { data: FIXTURE }),
   ),
   h(DocumentShell, { data: FIXTURE, section: 'Evidence & Credit' },
-    h(Placeholder, { label: 'E.3 — RiskUncertaintySplit', lines: 4 }),
-    h(Placeholder, { label: 'E.3 — BureauCoverageMatrix', lines: 4 }),
-    h(Placeholder, { label: 'E.3 — DivergenceAxis', lines: 4 }),
-    h(Placeholder, { label: 'E.3 — VerificationCheckTable', lines: 6 }),
+    h(BureauCoverageMatrix,   { data: FIXTURE }),
+    h(VerificationCheckTable, { data: FIXTURE }),
   ),
   h(DocumentShell, { data: FIXTURE, section: 'Narrative' },
     h(Placeholder, { label: 'E.4 — NarrativeQuadrants (2×2)', lines: 8 }),
