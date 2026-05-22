@@ -20,9 +20,17 @@ import { createElement as h } from "react"
 import { writeFileSync, mkdirSync } from "node:fs"
 import path from "node:path"
 
-import { DocumentShell } from "@/lib/reports/screening/_pdf/primitives/DocumentShell"
+import { DocumentShell }           from "@/lib/reports/screening/_pdf/primitives/DocumentShell"
 import type { FitScoreReportData } from "@/lib/reports/screening/_pdf/primitives/theme"
-import { C } from "@/lib/reports/screening/_pdf/primitives/theme"
+import { C }                       from "@/lib/reports/screening/_pdf/primitives/theme"
+
+// E.2 primitives
+import { EditorialHeadline }       from "@/lib/reports/screening/_pdf/primitives/EditorialHeadline"
+import { MetaStrip }               from "@/lib/reports/screening/_pdf/primitives/MetaStrip"
+import { IdentityRow }             from "@/lib/reports/screening/_pdf/primitives/IdentityRow"
+import { BandLadder }              from "@/lib/reports/screening/_pdf/primitives/BandLadder"
+import { FlagPillRow }             from "@/lib/reports/screening/_pdf/primitives/FlagPillRow"
+import { DimensionCardEditorial }  from "@/lib/reports/screening/_pdf/primitives/DimensionCardEditorial"
 
 
 const OUT_DIR = path.resolve(process.cwd(), 'lib/reports/screening/_pdf/__samples__')
@@ -136,10 +144,12 @@ function Placeholder({ label, lines = 3 }: { label: string; lines?: number }) {
 
 const doc = h(Document, {},
   h(DocumentShell, { data: FIXTURE, section: 'Profile', showAuditStrip: true },
-    h(Placeholder, { label: 'E.2 — Profile: EditorialHeadline + MetaStrip', lines: 4 }),
-    h(Placeholder, { label: 'E.2 — BandLadder + TierBar', lines: 6 }),
-    h(Placeholder, { label: 'E.2 — FlagPillRow', lines: 2 }),
-    h(Placeholder, { label: 'E.2 — DimensionCardEditorial ×4 (2×2 grid)', lines: 8 }),
+    h(EditorialHeadline, { data: FIXTURE }),
+    h(MetaStrip, { data: FIXTURE }),
+    h(IdentityRow, { data: FIXTURE }),
+    h(BandLadder, { data: FIXTURE }),
+    h(FlagPillRow, { data: FIXTURE }),
+    h(DimensionCardEditorial, { data: FIXTURE }),
   ),
   h(DocumentShell, { data: FIXTURE, section: 'Financial Analysis' },
     h(Placeholder, { label: 'E.3 — Income Reconciliation Table shell', lines: 6 }),
