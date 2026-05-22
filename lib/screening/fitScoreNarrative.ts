@@ -13,6 +13,7 @@ import * as Sentry from "@sentry/nextjs"
 import type { TextBlockParam } from "@anthropic-ai/sdk/resources/messages/messages"
 import { createMessage } from "@/lib/ai/client"
 import type { EngineResult, ApplicantInput } from "@/lib/screening/fitScoreEngine.v1"
+import { isForeignNational } from "@/lib/screening/fitScoreEngine.v1"
 import { FITSCORE_NARRATIVE_PROMPT_V1_0 } from "@/lib/screening/prompts/fitScoreNarrative.v1.0"
 
 export const CURRENT_PROMPT_VERSION = 'narr.v1.0'
@@ -128,6 +129,9 @@ const BANNED_PATTERNS: RegExp[] = [
   /\bseems to\b/i,
   /\bmay have\b/i,
   /\bmight have\b/i,
+  /\breliable\b/i,
+  /\bunreliable\b/i,
+  /\bcould be\b/i,
 ]
 
 function findBannedPhrase(r: NarrativeResponse): string | null {
@@ -148,9 +152,7 @@ function findBannedPhrase(r: NarrativeResponse): string | null {
 function buildRequest(result: EngineResult, applicants: ApplicantInput[]): string {
   const snap = result.componentSnapshot
   const lease = snap.lease
-  const isAllForeign = applicants.every(
-    a => a.nationalityType !== 'sa_citizen' && a.nationalityType !== 'permanent_resident'
-  )
+  const isAllForeign = applicants.every(a => isForeignNational(a.nationalityType))
 
   const totalDebtCents = applicants.reduce((sum, a) => {
     const xds = a.bureauScores.find(b => b.bureau === 'xds')
@@ -289,9 +291,7 @@ function templatedFallback(
     a.identityMatchStatus, a.employerConsistencyStatus,
     a.salaryReconciliationStatus, a.documentConsistencyStatus, a.bankOwnershipStatus,
   ].filter(c => c === 'pass').length, 0)
-  const isAllForeign = applicants.every(
-    a => a.nationalityType !== 'sa_citizen' && a.nationalityType !== 'permanent_resident'
-  )
+  const isAllForeign = applicants.every(a => isForeignNational(a.nationalityType))
   const bureauPlural = bureauCount !== 1 ? 's' : ''
   const unavailMsg = '(Narrative generation was unavailable for this report. See the dimensional scores and Material Flags above for the engine\'s findings.)'
   return {

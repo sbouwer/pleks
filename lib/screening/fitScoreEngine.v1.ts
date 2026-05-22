@@ -211,7 +211,7 @@ const VI_GRADE_ORDER: VerificationIntegrityGrade[] = ['high', 'medium', 'low', '
 
 // ─── Pure helpers ─────────────────────────────────────────────────────────────
 
-function isForeignNational(nationalityType: string): boolean {
+export function isForeignNational(nationalityType: string): boolean {
   return nationalityType.startsWith('foreign_') || nationalityType === 'foreign_national'
 }
 
