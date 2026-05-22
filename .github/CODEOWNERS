@@ -1,0 +1,7 @@
+# CODEOWNERS — Required reviewers for policy-grade content paths.
+# Pattern reference: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# FitScore interpretation document — policy-grade content (POPIA s71 mechanism #2).
+# Edits require Stéan + CD sign-off before merge. Changes to band criteria or flag glossary
+# must be coordinated with a corresponding interpretation version bump (DELIVERY §9.7).
+/content/help/fitscore-report/   @sbouwer
