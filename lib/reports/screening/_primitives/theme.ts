@@ -8,32 +8,31 @@
  *        Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §6.2, §10.6.
  */
 
-import path from 'node:path'
 import { Font, StyleSheet } from "@react-pdf/renderer"
 
 // ─── Font registration ────────────────────────────────────────────────────────
-// Fonts live in public/ (static files committed to the repo).
-// process.cwd() is the project root in both Vercel and local dev.
+// Fonts served as static files from /public/fonts/ via the app URL.
+// HTTP URLs avoid Vercel outputFileTracing issues with filesystem font paths.
 
-const FONT_BASE = path.join(process.cwd(), 'public', 'fonts')
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.pleks.co.za'
 
 Font.register({
-  family: 'Plus Jakarta Sans',
+  family: 'Inter Tight',
   fonts: [
-    { src: path.join(FONT_BASE, 'PlusJakartaSans-Regular.ttf'), fontWeight: 'normal' },
-    { src: path.join(FONT_BASE, 'PlusJakartaSans-Bold.ttf'),    fontWeight: 'bold'   },
+    { src: `${APP_URL}/fonts/InterTight-Regular.ttf`, fontWeight: 'normal' },
+    { src: `${APP_URL}/fonts/InterTight-Bold.ttf`,    fontWeight: 'bold'   },
   ],
 })
 
 Font.register({
   family: 'JetBrains Mono',
   fonts: [
-    { src: path.join(FONT_BASE, 'JetBrainsMono-Regular.ttf'), fontWeight: 'normal' },
+    { src: `${APP_URL}/fonts/JetBrainsMono-Regular.ttf`, fontWeight: 'normal' },
   ],
 })
 
 export const FONTS = {
-  sans: 'Plus Jakarta Sans',
+  sans: 'Inter Tight',
   mono: 'JetBrains Mono',
 } as const
 import type {
