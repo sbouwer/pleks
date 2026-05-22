@@ -7,6 +7,8 @@ import { EmailLayout, EmailButton, EmailSectionHeading, EmailDetail } from "@/li
 import type { OrgBranding } from "@/lib/comms/templates/layout"
 import { sendEmail } from "@/lib/comms/send-email"
 import { formatZAR } from "@/lib/constants"
+import type { FitScoreBand, ConfidenceGrade, VerificationIntegrityGrade, MaterialFlag } from "@/lib/screening/fitScoreEngine.v1"
+import type { NarrativeResponse } from "@/lib/screening/fitScoreNarrative"
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://pleks.co.za"
 const SCREENING_FEE = "R399"
@@ -285,40 +287,117 @@ export async function sendPaymentReceived(
 
 // ── Email 7: Screening complete (agent) ───────────────────────────────────────
 
+const BAND_LABELS: Record<FitScoreBand, string> = {
+  verified_stability:   'Verified Stability',
+  stable_profile:       'Stable Profile',
+  cautious_review:      'Cautious Review',
+  limited_confidence:   'Limited Confidence',
+  adverse_signals:      'Adverse Signals',
+  limited_data_profile: 'Limited Data Profile',
+  blocked:              'Blocked',
+}
+
+function gradeLabel(g: string): string { return g.charAt(0).toUpperCase() + g.slice(1) }
+
+export interface ScreeningCompleteOpts {
+  band: FitScoreBand
+  bandLabel: string
+  score: number | null
+  confidenceIndex: ConfidenceGrade
+  verificationIntegrity: VerificationIntegrityGrade
+  materialFlags: MaterialFlag[]
+  narrative: NarrativeResponse
+}
+
 export async function sendScreeningComplete(
   app: ApplicationSummary,
   listing: ListingSummary,
   org: OrgContext,
-  opts: { fitScore: number; fitScoreSummary?: string; components?: Record<string, number> }
+  opts: ScreeningCompleteOpts,
 ) {
   if (!org.agentEmail) return { success: false as const, error: "No agent email" }
 
-  return sendEmail({
-    orgId: org.orgId,
-    templateKey: "application.screening_complete",
-    to: { email: org.agentEmail, name: org.agentName ?? org.orgName },
-    subject: `Screening complete — ${app.firstName} ${app.lastName} — FitScore ${opts.fitScore}/100`,
-    emailElement: (
-      <EmailLayout preview={`Screening complete — FitScore ${opts.fitScore}/100`} branding={org.branding}>
-        <p style={S.body}>Tenant screening complete for {app.firstName} {app.lastName}.</p>
-        <EmailSectionHeading>FitScore</EmailSectionHeading>
-        <EmailDetail label="Overall" value={`${opts.fitScore}/100`} />
-        {opts.components && Object.entries(opts.components).map(([k, v]) => (
-          <EmailDetail key={k} label={k.replace(/_/g, " ")} value={`${v}/100`} />
-        ))}
-        {opts.fitScoreSummary && (
-          <>
-            <EmailSectionHeading>AI summary</EmailSectionHeading>
-            <p style={S.body}>{opts.fitScoreSummary}</p>
-          </>
-        )}
-        <EmailButton href={`${APP_URL}/applications/${app.id}`} accentColor={org.branding.accentColor}>Review full results →</EmailButton>
-        <p style={S.footer}>Action required: Approve or decline this application.</p>
+  const fullName = `${app.firstName} ${app.lastName}`
+  const isBlocked = opts.band === 'blocked'
+  const isLdp     = opts.band === 'limited_data_profile'
+  const reportUrl = `${APP_URL}/applications/${app.id}`
+
+  const subject = isBlocked
+    ? `Screening complete — ${fullName} — Material flag raised`
+    : `Screening complete — ${fullName} — ${BAND_LABELS[opts.band]}`
+
+  let emailElement: React.ReactElement
+  let bodyPreview: string
+
+  if (isBlocked) {
+    // D1(c): Blocked → neutral subject + neutral body, dashboard is canonical
+    bodyPreview = `Screening complete — material flag raised for ${fullName}.`
+    emailElement = (
+      <EmailLayout preview={bodyPreview} branding={org.branding}>
+        <p style={S.body}>Tenant screening complete for {fullName}.</p>
+        <p style={S.body}>A material flag has been raised on this application. View the full FitScore report for details.</p>
+        <EmailButton href={reportUrl} accentColor={org.branding.accentColor}>View full FitScore report →</EmailButton>
+        <p style={S.footer}>This notification was sent to {org.agentEmail}.</p>
       </EmailLayout>
-    ),
-    bodyPreview: `FitScore: ${opts.fitScore}/100 for ${app.firstName} ${app.lastName}. Action required.`,
-    entityType: "application",
-    entityId: app.id,
+    )
+  } else if (isLdp) {
+    // Limited Data Profile — no 4-pillar header, show ldp summary
+    bodyPreview = `Screening complete — Limited Data Profile for ${fullName}.`
+    emailElement = (
+      <EmailLayout preview={bodyPreview} branding={org.branding}>
+        <p style={S.body}>Tenant screening complete for {fullName}.</p>
+        <EmailSectionHeading>Limited Data Profile</EmailSectionHeading>
+        <p style={S.body}>{opts.narrative.ldpSummary ?? 'Insufficient verified income signals for a composite score.'}</p>
+        <EmailButton href={reportUrl} accentColor={org.branding.accentColor}>View full FitScore report →</EmailButton>
+        <p style={S.footer}>This notification was sent to {org.agentEmail}.</p>
+      </EmailLayout>
+    )
+  } else {
+    // Standard: 4-pillar header + narrative three-column block
+    bodyPreview = `Screening complete — ${opts.bandLabel} — ${fullName}.`
+    emailElement = (
+      <EmailLayout preview={bodyPreview} branding={org.branding}>
+        <p style={S.body}>Tenant screening complete for {fullName}.</p>
+        <EmailSectionHeading>Assessment</EmailSectionHeading>
+        <EmailDetail label="Band" value={BAND_LABELS[opts.band]} />
+        <EmailDetail label="Confidence" value={gradeLabel(opts.confidenceIndex)} />
+        <EmailDetail label="Verification Integrity" value={gradeLabel(opts.verificationIntegrity)} />
+        {opts.score !== null && (
+          <EmailDetail label="Score" value={`${opts.score}/100 (metadata)`} />
+        )}
+        {opts.materialFlags.length > 0 && (
+          <EmailDetail
+            label="Material Flags"
+            value={`${opts.materialFlags.length} flag${opts.materialFlags.length !== 1 ? 's' : ''} — see full report`}
+          />
+        )}
+        <EmailSectionHeading>Observed Strengths</EmailSectionHeading>
+        {opts.narrative.observedStrengths.map((s, i) => (
+          <p key={i} style={S.body}>• {s}</p>
+        ))}
+        <EmailSectionHeading>Observed Concerns</EmailSectionHeading>
+        {opts.narrative.observedConcerns.map((s, i) => (
+          <p key={i} style={S.body}>• {s}</p>
+        ))}
+        <EmailSectionHeading>Limited Visibility</EmailSectionHeading>
+        {opts.narrative.limitedVisibility.map((s, i) => (
+          <p key={i} style={S.body}>• {s}</p>
+        ))}
+        <EmailButton href={reportUrl} accentColor={org.branding.accentColor}>View full FitScore report →</EmailButton>
+        <p style={S.footer}>This notification was sent to {org.agentEmail}.</p>
+      </EmailLayout>
+    )
+  }
+
+  return sendEmail({
+    orgId:           org.orgId,
+    templateKey:     "application.screening_complete",
+    to:              { email: org.agentEmail, name: org.agentName ?? org.orgName },
+    subject,
+    emailElement,
+    bodyPreview,
+    entityType:      "application",
+    entityId:        app.id,
   })
 }
 

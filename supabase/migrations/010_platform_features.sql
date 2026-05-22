@@ -2221,3 +2221,12 @@ BEGIN
     PERFORM seed_default_retention_policies(org_row.id);
   END LOOP;
 END $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §28  ADDENDUM_14H Phase D: per-org FitScore narrative feature flag
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Per D2 decision (2026-05-21): per-org flag defaulting true. Enables soft-launch
+-- (flip to false for specific orgs to opt out) and future per-org narrative control.
+
+ALTER TABLE organisations
+  ADD COLUMN IF NOT EXISTS fitscore_narrative_enabled boolean NOT NULL DEFAULT true;

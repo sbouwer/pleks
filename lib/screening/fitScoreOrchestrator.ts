@@ -5,8 +5,9 @@
  * Data:   reads applications + application_co_applicants + listings; writes fitscore_* to applications
  * Notes:  Feature-flagged via FITSCORE_V1_ENABLED env var. Idempotent: same inputs hash skips DB write.
  *         Bureau scores and VCCB income read from searchworx_extracted_data JSONB (written by bundle-runner).
- *         Email 7 (application.screening_complete) deferred — template not yet built (Phase D).
- *         Spec: ADDENDUM_14H_FITSCORE_COMPOSITE.md §§2-5, ADDENDUM_14H_FITSCORE_DELIVERY.md §10.
+ *         Email 7 (application.screening_complete) fires after DB write — non-blocking (void).
+ *         Narrative generation via Sonnet 4.6 (lib/screening/fitScoreNarrative.ts) runs between engine and write.
+ *         Spec: ADDENDUM_14H_FITSCORE_COMPOSITE.md §§2-5, ADDENDUM_14H_FITSCORE_DELIVERY.md §§7, §10.
  *
  * ─── Known transitional state at Phase C landing ─────────────────────────────
  * The following inputs are hardcoded null/zero because their upstream sources are not yet built.
@@ -38,6 +39,7 @@
  *                      queued as follow-up migration (F3-b decision, 2026-05-21).
  * ─────────────────────────────────────────────────────────────────────────────
  */
+import * as Sentry from "@sentry/nextjs"
 import { runFitScoreEngine, ENGINE_VERSION } from "@/lib/screening/fitScoreEngine.v1"
 import type {
   ApplicantInput,
@@ -46,6 +48,10 @@ import type {
   PleksNetworkStatus,
   VerificationStatus,
 } from "@/lib/screening/fitScoreEngine.v1"
+import { generateFitScoreNarrative, CURRENT_PROMPT_VERSION } from "@/lib/screening/fitScoreNarrative"
+import type { NarrativeResponse } from "@/lib/screening/fitScoreNarrative"
+import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
+import { sendScreeningComplete } from "@/lib/applications/emails"
 import type { createServiceClient } from "@/lib/supabase/server"
 
 export const CURRENT_INTERPRETATION_VERSION = 'interpretation.v1.0'
@@ -99,6 +105,101 @@ function extractBankIncome(json: unknown): number | null {
   return typeof raw === 'number' ? raw : null
 }
 
+// ─── Email fire (non-blocking) ─────────────────────────────────────────────────
+
+async function maybeFireScreeningEmail(
+  applicationId: string,
+  orgId: string,
+  appRow: { first_name: string | null; last_name: string | null; applicant_email: string; unit_id: string | null },
+  listingId: string,
+  rentCents: number,
+  result: EngineResult,
+  narrative: NarrativeResponse,
+  supabase: Awaited<ReturnType<typeof createServiceClient>>,
+): Promise<void> {
+  // D2: check per-org narrative flag (defaults true)
+  const { data: orgRow, error: orgFlagErr } = await supabase
+    .from('organisations')
+    .select('fitscore_narrative_enabled')
+    .eq('id', orgId)
+    .single()
+  if (orgFlagErr) return
+  if ((orgRow as Record<string, unknown> | null)?.fitscore_narrative_enabled === false) return
+
+  // D1(c): LDP only sends if there's an ldpSummary to show
+  const isLdp = result.band === 'limited_data_profile'
+  if (isLdp && !narrative.ldpSummary) return
+
+  // Fetch org settings (name, branding, email)
+  const orgSettings = await fetchOrgSettings(orgId)
+
+  // Fetch agent email from user_orgs → user_profiles
+  const { data: agentRow } = await supabase
+    .from('user_orgs')
+    .select('user_profiles(email)')
+    .eq('org_id', orgId)
+    .in('role', ['agent', 'property_manager', 'owner'])
+    .is('deleted_at', null)
+    .limit(1)
+    .maybeSingle()
+  const rawProfile = agentRow?.user_profiles
+  const profileEmail: string | undefined = Array.isArray(rawProfile)
+    ? rawProfile[0]?.email
+    : (rawProfile as unknown as { email: string } | null)?.email
+  const agentEmail = profileEmail ?? orgSettings?.email ?? null
+  if (!agentEmail) return
+
+  // Fetch unit label and property name
+  let unitLabel = ''
+  let propertyName = ''
+  if (appRow.unit_id) {
+    const { data: unitRow } = await supabase
+      .from('units')
+      .select('unit_number, property_id')
+      .eq('id', appRow.unit_id)
+      .single()
+    if (unitRow) {
+      unitLabel = (unitRow.unit_number as string | null) ?? ''
+      const { data: propRow } = await supabase
+        .from('properties')
+        .select('name')
+        .eq('id', unitRow.property_id as string)
+        .single()
+      propertyName = (propRow?.name as string | null) ?? ''
+    }
+  }
+
+  const branding = buildBranding(orgSettings)
+  const bandLabel = result.band.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+
+  await sendScreeningComplete(
+    {
+      id: applicationId,
+      firstName: appRow.first_name ?? '',
+      lastName:  appRow.last_name  ?? '',
+      email:     appRow.applicant_email,
+    },
+    { id: listingId, unitLabel, propertyName, askingRentCents: rentCents },
+    {
+      orgId,
+      orgName:    orgSettings?.name  ?? 'Pleks',
+      orgEmail:   orgSettings?.email ?? undefined,
+      orgPhone:   orgSettings?.phone ?? undefined,
+      agentEmail,
+      branding,
+    },
+    {
+      band:                result.band,
+      bandLabel,
+      score:               result.score,
+      confidenceIndex:     result.confidenceIndex,
+      verificationIntegrity: result.verificationIntegrity,
+      materialFlags:       result.materialFlags,
+      narrative,
+    },
+  )
+}
+
 // ─── Orchestrator ─────────────────────────────────────────────────────────────
 
 export async function runFitScoreOrchestrator(
@@ -113,7 +214,8 @@ export async function runFitScoreOrchestrator(
   const { data: app, error: appErr } = await supabase
     .from('applications')
     .select(`
-      id, org_id, listing_id, applicant_nationality_type, is_foreign_national,
+      id, org_id, listing_id, unit_id, first_name, last_name, applicant_email,
+      applicant_nationality_type, is_foreign_national,
       gross_monthly_income_cents, bank_statement_extracted, searchworx_extracted_data,
       income_evidence_tier, identity_match_status, employer_verification_status,
       salary_reconciliation_status, document_consistency_status,
@@ -214,11 +316,13 @@ export async function runFitScoreOrchestrator(
     pleksNetworkTenancyCount: co.pleks_network_tenancy_count ?? 0,
   }))
 
-  // ── Run engine ────────────────────────────────────────────────────────────
+  const allApplicants = [primaryInput, ...coInputs]
+
+  // ── Run deterministic engine ──────────────────────────────────────────────
   const result = runFitScoreEngine({
     applicationId,
     proposedRentCents,
-    applicants: [primaryInput, ...coInputs],
+    applicants: allApplicants,
     computedAt,
   })
 
@@ -227,7 +331,11 @@ export async function runFitScoreOrchestrator(
     return { ok: true, result }
   }
 
-  // ── Write FitScore to applications ────────────────────────────────────────
+  // ── Generate narrative (Sonnet 4.6) ───────────────────────────────────────
+  const narrative = await generateFitScoreNarrative(result, allApplicants, app.org_id as string)
+  const narrativePromptVersion = narrative.isTemplated ? 'fallback.template.v1' : CURRENT_PROMPT_VERSION
+
+  // ── Write FitScore + narrative to applications ────────────────────────────
   const { error: writeErr } = await supabase
     .from('applications')
     .update({
@@ -242,8 +350,8 @@ export async function runFitScoreOrchestrator(
       fitscore_inputs_hash:              result.inputsHash,
       fitscore_component_snapshot:       result.componentSnapshot,
       fitscore_interpretation_version:   CURRENT_INTERPRETATION_VERSION,
-      fitscore_narrative_prompt_version: null,
-      fitscore_narrative:                null,
+      fitscore_narrative_prompt_version: narrativePromptVersion,
+      fitscore_narrative:                narrative,
       fitscore_runtime_code_hash:        RUNTIME_CODE_HASH,
       stage2_status:                     'screening_complete',
     })
@@ -251,7 +359,27 @@ export async function runFitScoreOrchestrator(
 
   if (writeErr) return { ok: false, reason: `fitscore_write_failed: ${writeErr.message}` }
 
-  // Email 7 (application.screening_complete) to agent — deferred until Phase D builds the template.
+  // ── Email 7: Screening complete — non-blocking ─────────────────────────────
+  void maybeFireScreeningEmail(
+    applicationId,
+    app.org_id as string,
+    {
+      first_name:      app.first_name as string | null,
+      last_name:       app.last_name  as string | null,
+      applicant_email: app.applicant_email as string,
+      unit_id:         app.unit_id    as string | null,
+    },
+    app.listing_id as string,
+    proposedRentCents,
+    result,
+    narrative,
+    supabase,
+  ).catch(err => {
+    Sentry.captureException(err, {
+      tags: { origin: 'fitscore_orchestrator', step: 'email_fire' },
+      extra: { application_id: applicationId },
+    })
+  })
 
   return { ok: true, result }
 }
