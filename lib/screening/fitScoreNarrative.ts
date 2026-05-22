@@ -218,13 +218,17 @@ function buildRequest(result: EngineResult, applicants: ApplicantInput[]): strin
       proposed_rent_cents: lease.proposedRentCents,
       verified_joint_income_cents: lease.totalVerifiedIncomeCents,
       rent_to_income_pct: Math.round(lease.rentToIncomeRatio * 100),
-      debt_servicing_pct: debtPct,
-      nsf_events_observed: 0,
+      // F3: only include debt_servicing_pct when XDS returned actual instalment data.
+      // Zero means "no XDS data" here, not "zero debt" — omitting avoids fabricating 0%.
+      ...(totalDebtCents > 0 ? { debt_servicing_pct: debtPct } : {}),
       disposable_income_cents: lease.totalVerifiedIncomeCents - lease.proposedRentCents - totalDebtCents,
     },
     stability_signals: {
+      // F2: income_weighted_median_tenure_months is always 0 until ADDENDUM_14D ships
+      // (employmentTenureMonths hardcoded null in orchestrator). Included as 0 — factually
+      // true that no tenure data is available. address_continuity_grade omitted entirely:
+      // address history not yet collected, so emitting 'low' would be fabricated.
       income_weighted_median_tenure_months: Math.round(incomeWeightedTenureMonths),
-      address_continuity_grade: 'low',
       rental_references_verified: totalRefs,
     },
     credit_signals: creditSignals,

@@ -335,6 +335,22 @@ export async function runFitScoreOrchestrator(
   const narrative = await generateFitScoreNarrative(result, allApplicants, app.org_id as string)
   const narrativePromptVersion = narrative.isTemplated ? 'fallback.template.v1' : CURRENT_PROMPT_VERSION
 
+  // F1: append narrative_engine_failed capping flag when the narrative fell back to template.
+  // Agents see this in the PDF header flags so they know prose is synthetic, not engine-generated.
+  const materialFlags = narrative.isTemplated
+    ? [...result.materialFlags, {
+        flag: 'narrative_engine_failed',
+        class: 'capping' as const,
+        capApplied: false,
+        capCeiling: null,
+        applicantId: null,
+        applicantLabel: null,
+        description: 'Narrative generation unavailable — templated fallback active.',
+        source: 'narrative_engine',
+        observedAt: computedAt,
+      }]
+    : result.materialFlags
+
   // ── Write FitScore + narrative to applications ────────────────────────────
   const { error: writeErr } = await supabase
     .from('applications')
@@ -343,7 +359,7 @@ export async function runFitScoreOrchestrator(
       fitscore_band:                     result.band,
       fitscore_confidence_index:         result.confidenceIndex,
       fitscore_verification_integrity:   result.verificationIntegrity,
-      fitscore_material_flags:           result.materialFlags,
+      fitscore_material_flags:           materialFlags,
       fitscore_components:               result.components,
       fitscore_computed_at:              computedAt,
       fitscore_engine_version:           ENGINE_VERSION,
