@@ -18,20 +18,29 @@ export {
   FONTS,
   BAND_LABELS,
   GRADE_LABELS,
+  DOCTRINE_DISCLAIMER,
   sp,
   fmtZAR,
   fmtDate,
   fmtShortDate,
+  fmtTime,
 } from "../../_primitives/theme"
 
 export type {
   FitScoreReportData,
   FitScoreApplicantEntry,
+  ApplicantEmployment,
   FitScoreBand,
   ConfidenceGrade,
   VerificationIntegrityGrade,
   MaterialFlag,
   NarrativeResponse,
+  ExpenditureItem,
+  FitScoreFinancialAnalysis,
+  BureauEntry,
+  VerificationOutcome,
+  VerificationCheckItem,
+  FitScoreCreditAnalysis,
 } from "../../_primitives/theme"
 
 // ─── Raw colour values (oklch → hex approximation) ───────────────────────────

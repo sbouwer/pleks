@@ -12,7 +12,7 @@ import type { DocumentProps } from "@react-pdf/renderer"
 import { createElement } from "react"
 import type { ReactElement } from "react"
 import { gateway } from "@/lib/supabase/gateway"
-import { isForeignNational } from "@/lib/screening/fitScoreEngine.v1"
+import { isForeignNational, getPreferredThresholds } from "@/lib/screening/fitScoreEngine.v1"
 import type { MaterialFlag, FitScoreBand, ConfidenceGrade, VerificationIntegrityGrade } from "@/lib/screening/fitScoreEngine.v1"
 import type { NarrativeResponse } from "@/lib/screening/fitScoreNarrative"
 import { AgentSingleReport } from "@/lib/reports/screening/agent_single"
@@ -153,6 +153,10 @@ export async function GET(
     label: 'A',
     fullName: `${app.first_name ?? ''} ${app.last_name ?? ''}`.trim() || 'Primary Applicant',
     nationalityStatus: natLabel(primaryNat),
+    idNumberMasked:   '',   // not yet surfaced in route assembly; set by report orchestrator
+    sex:              null,
+    ageYears:         null,
+    employment:       null,
     verifiedIncomeCents: rawSnap.applicants[0]?.verifiedIncomeCents ?? 0,
     incomeSharePct:      rawSnap.applicants[0]?.incomeSharePct ?? 100,
     verificationPassCount: countPasses([
@@ -169,13 +173,15 @@ export async function GET(
 
   const coEntries: FitScoreApplicantEntry[] = (coApplicants ?? []).map((co, idx) => {
     const coNat = coNatFromIdType(co.id_type)
+    const coLabel = APPLICANT_LABELS[idx + 1] ?? `CO${idx + 1}`
     return {
-      label: APPLICANT_LABELS[idx + 1] ?? `CO${idx + 1}`,
-      fullName: (() => {
-        const coLabel = APPLICANT_LABELS[idx + 1] ?? `CO${idx + 1}`
-        return `${co.first_name ?? ''} ${co.last_name ?? ''}`.trim() || `Applicant ${coLabel}`
-      })(),
+      label:            coLabel,
+      fullName:         `${co.first_name ?? ''} ${co.last_name ?? ''}`.trim() || `Applicant ${coLabel}`,
       nationalityStatus: natLabel(coNat),
+      idNumberMasked:   '',
+      sex:              null,
+      ageYears:         null,
+      employment:       null,
       verifiedIncomeCents: rawSnap.applicants[idx + 1]?.verifiedIncomeCents ?? 0,
       incomeSharePct:      rawSnap.applicants[idx + 1]?.incomeSharePct ?? 0,
       verificationPassCount: countPasses([
@@ -193,30 +199,51 @@ export async function GET(
 
   const allApplicants = [primaryEntry, ...coEntries]
   const band = app.fitscore_band as FitScoreBand
+  const isAllForeign = allApplicants.every(a => a.isForeignNational)
+  const prefThresholds = getPreferredThresholds(isAllForeign)
 
   const data: FitScoreReportData = {
     applicationRef: app.id,
     unitLabel: listing
       ? `Unit ${listing.units.unit_number}, ${listing.units.properties.name}`
       : 'Unknown unit',
-    generatedAt: (app.fitscore_computed_at as string | null) ?? new Date().toISOString(),
+    generatedAt:  (app.fitscore_computed_at as string | null) ?? new Date().toISOString(),
+    submittedAt:  (app.fitscore_computed_at as string | null) ?? new Date().toISOString(),
     primaryApplicantName: primaryEntry.fullName,
     coApplicantCount:     coEntries.length,
     applicants:           allApplicants,
+    leaseIntent: {
+      termMonths:         12,
+      monthlyRentCents:   listing?.asking_rent_cents ?? 0,
+      depositMultiplier:  1,
+    },
     band,
     score:                app.fitscore as number | null,
     confidenceIndex:      app.fitscore_confidence_index as ConfidenceGrade,
     verificationIntegrity: app.fitscore_verification_integrity as VerificationIntegrityGrade,
-    dimensionalScores:    components,
+    dimensionalScores: {
+      ...components,
+      affordability_preferred_threshold:         prefThresholds.affordability,
+      stability_preferred_threshold:             prefThresholds.stability,
+      creditBehaviour_preferred_threshold:       prefThresholds.creditBehaviour,
+      verificationIntegrity_preferred_threshold: prefThresholds.verificationIntegrity,
+    },
     materialFlags,
     isLdp:                band === 'limited_data_profile',
-    isAllForeignNational: allApplicants.every(a => a.isForeignNational),
+    isAllForeignNational: isAllForeign,
     narrative,
     engineVersion:        (app.fitscore_engine_version as string | null) ?? 'fitscore.v1.0',
     narrativeVersion:     (app.fitscore_narrative_prompt_version as string | null) ?? 'narr.v1.0',
     interpretationVersion: (app.fitscore_interpretation_version as string | null) ?? 'interpretation.v1.0',
     inputsHash:           (app.fitscore_inputs_hash as string | null) ?? '',
     orgName:              orgRow?.name ?? 'Pleks',
+    orgFfcNumber:         null,
+    dimensions: {
+      affordability: { rentToIncomePct: 0, windowMonths: 3 },
+      stability:     { currentTenureDisplay: 'N/A', employersIn7Years: 0 },
+      credit:        { bureauCoverageDisplay: '0 / 3', divergencePoints: null },
+      verification:  { checksPassedDisplay: '0 / 5', manualOverridesPending: 0, auditEntriesCount: 0 },
+    },
   }
 
   let buffer: Buffer

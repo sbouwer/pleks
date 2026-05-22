@@ -68,10 +68,20 @@ export type {
 
 // ─── Shared data contract ─────────────────────────────────────────────────────
 
+export interface ApplicantEmployment {
+  employerName: string
+  jobTitle: string
+  tenureDisplay: string             // e.g. '4y 7mo'
+}
+
 export interface FitScoreApplicantEntry {
   label: string                     // 'Applicant A', 'Applicant B', …
   fullName: string
   nationalityStatus: string         // e.g. 'SA Citizen', 'Foreign National (work permit, expires 2027-08-15)'
+  idNumberMasked: string            // e.g. '8807•••••091' (SA ID) or 'M••••••3' (passport)
+  sex: 'M' | 'F' | null            // derived from SA ID digit 7; null for foreign nationals
+  ageYears: number | null           // derived from SA ID YYMMDD prefix; null for foreign nationals
+  employment: ApplicantEmployment | null
   verifiedIncomeCents: number
   incomeSharePct: number            // 0–100
   verificationPassCount: number
@@ -87,11 +97,19 @@ export interface FitScoreReportData {
   applicationRef: string            // display-safe short ref
   unitLabel: string                 // e.g. '2-bedroom apartment, Sea Point, Cape Town'
   generatedAt: string               // ISO datetime
+  submittedAt: string               // ISO datetime — when applicant submitted
 
   // Applicants
   primaryApplicantName: string
   coApplicantCount: number
   applicants: FitScoreApplicantEntry[]
+
+  // Lease details
+  leaseIntent: {
+    termMonths: number
+    monthlyRentCents: number
+    depositMultiplier: number
+  }
 
   // Engine outputs
   band: FitScoreBand
@@ -103,6 +121,11 @@ export interface FitScoreReportData {
     stability: number
     creditBehaviour: number | null  // null for foreign-national-only lease
     verificationIntegrity: number
+    // Engine-emitted thresholds; v1.0: static lookup in getPreferredThresholds(). v1.1+ derives Stability per-case.
+    affordability_preferred_threshold: number
+    stability_preferred_threshold: number
+    creditBehaviour_preferred_threshold: number | null  // null for all-foreign-national lease
+    verificationIntegrity_preferred_threshold: number
   }
   materialFlags: MaterialFlag[]
   isLdp: boolean
@@ -119,6 +142,89 @@ export interface FitScoreReportData {
 
   // Org branding
   orgName: string
+  orgFfcNumber: string | null       // PPRA FFC number; null until org has entered it
+
+  // Per-dimension editorial stats (F13 — orchestrator-computed)
+  dimensions: {
+    affordability: {
+      rentToIncomePct: number
+      windowMonths: number
+    }
+    stability: {
+      currentTenureDisplay: string  // e.g. '4y 7mo'
+      employersIn7Years: number
+    }
+    credit: {
+      bureauCoverageDisplay: string // e.g. '2 / 3'
+      divergencePoints: number | null
+    }
+    verification: {
+      checksPassedDisplay: string   // e.g. '5 / 5'
+      manualOverridesPending: number
+      auditEntriesCount: number
+    }
+  }
+
+  // Extended analysis pages (E.3)
+  financialAnalysis?: FitScoreFinancialAnalysis
+  creditAnalysis?: FitScoreCreditAnalysis
+}
+
+// ─── Financial analysis types ─────────────────────────────────────────────────
+
+export interface ExpenditureItem {
+  category: string
+  tagSource: string
+  monthlyAvgCents: number
+  incomeSharePct: number
+}
+
+export interface FitScoreFinancialAnalysis {
+  windowLabel: string
+  declaredIncomeCents: number
+  observedInflowsCents: number
+  verifiedBaselineCents: number
+  variancePct: number                // negative = declared > verified
+  evidenceTierLabel: string
+  expenditures: ExpenditureItem[]
+  totalOutflowsCents: number
+  disposableCents: number
+  proposedRentCents: number
+  proposedRentPct: number
+  disposableAfterRentCents: number
+}
+
+// ─── Credit analysis types ────────────────────────────────────────────────────
+
+export interface BureauEntry {
+  name: string
+  subLabel: string
+  coveragePips: number               // 0-5 filled squares
+  coverageLabel: string
+  tradeLines: string
+  adverseListings: string
+  reportedScore: number | null       // null = no response
+}
+
+export type VerificationOutcome = 'pass' | 'partial' | 'absent'
+
+export interface VerificationCheckItem {
+  checkName: string
+  checkSub: string
+  source: string
+  method: string
+  outcomeType: VerificationOutcome
+  outcomeLabel: string
+  evidenceNote: string
+}
+
+export interface FitScoreCreditAnalysis {
+  bureausSolicited: number
+  bureausResponding: number
+  bureauEntries: BureauEntry[]
+  verificationsLabel: string
+  verificationsQueryLabel: string
+  verificationChecks: VerificationCheckItem[]
 }
 
 // ─── Raw colour values (do NOT reference directly outside this file) ──────────
@@ -227,6 +333,13 @@ export const T = StyleSheet.create({
   divider: { borderBottomWidth: 0.75, borderBottomColor: RAW.divider, marginVertical: 8 },
 })
 
+// ─── Editorial constants ──────────────────────────────────────────────────────
+
+export const DOCTRINE_DISCLAIMER =
+  'This is not an approval or rejection. It is a record of the evidence Pleks received, ' +
+  'how that evidence reconciles, and where uncertainty remains. ' +
+  'Final tenancy decisions rest with the agent or landlord.'
+
 // ─── String sanitiser (Helvetica / WinAnsiEncoding safe) ──────────────────────
 
 export function sp(s: string | null | undefined): string {
@@ -254,6 +367,17 @@ export function fmtDate(iso: string): string {
     })
   } catch {
     return sp(iso)
+  }
+}
+
+export function fmtTime(iso: string): string {
+  try {
+    const d = new Date(iso)
+    const h = (d.getUTCHours() + 2) % 24   // SAST = UTC+2, no DST
+    const m = d.getUTCMinutes()
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+  } catch {
+    return ''
   }
 }
 
