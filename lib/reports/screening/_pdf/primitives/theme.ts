@@ -71,6 +71,7 @@ const RAW = {
 
   // Data — muted banking blue for evidence visualisations
   data:        '#3d5a8a',  // oklch(0.46 0.06 240)
+  dataDark:    '#344d75',  // oklch ~0.39 0.07 240; 15% darker than data on L axis — surplus segment
   dataSoft:    '#8aabcc',  // oklch(0.72 0.04 240)
   dataWash:    '#eef2f7',  // oklch(0.96 0.012 240)
 
@@ -111,6 +112,7 @@ export const C = {
   },
   data: {
     base: RAW.data,
+    dark: RAW.dataDark,
     soft: RAW.dataSoft,
     wash: RAW.dataWash,
   },

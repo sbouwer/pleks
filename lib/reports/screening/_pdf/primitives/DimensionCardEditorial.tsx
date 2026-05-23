@@ -109,6 +109,20 @@ const S = StyleSheet.create({
     backgroundColor: C.data.base,
     borderRadius:    1,
   },
+  ebarSurplus: {
+    position:        'absolute',
+    top:             0,
+    bottom:          0,
+    backgroundColor: C.data.dark,
+    borderRadius:    1,
+  },
+  ebarDeficit: {
+    position:        'absolute',
+    top:             0,
+    bottom:          0,
+    backgroundColor: C.amber.wash,
+    borderRadius:    1,
+  },
   ebarPref: {
     position:        'absolute',
     top:             -2,
@@ -146,16 +160,34 @@ const S = StyleSheet.create({
 function EvidenceBar({ score, preferred }: Readonly<{ score: number; preferred: number }>) {
   const pct     = Math.max(0, Math.min(100, score))
   const prefPct = Math.max(0, Math.min(100, preferred))
+  const isSurplus  = pct > prefPct
+  const isDeficit  = pct < prefPct
+  const showLabel  = pct >= prefPct       // State A (surplus) and State C (edge); not deficit
+  const baseWidth  = `${Math.min(pct, prefPct)}%`
   return (
     <View style={S.ebarWrap}>
       <View style={S.ebarTrack}>
-        <View style={[S.ebarFill, { width: `${pct}%` }]} />
+        {/* Baseline fill: 0 → min(score, threshold) */}
+        <View style={[S.ebarFill, { width: baseWidth }]} />
+        {/* Surplus segment (score > threshold): darker blue from threshold to score */}
+        {isSurplus && (
+          <View style={[S.ebarSurplus, { left: `${prefPct}%`, width: `${pct - prefPct}%` }]} />
+        )}
+        {/* Deficit segment (score < threshold): amber wash from score to threshold */}
+        {isDeficit && (
+          <View style={[S.ebarDeficit, { left: `${pct}%`, width: `${prefPct - pct}%` }]} />
+        )}
+        {/* Threshold tick — always visible */}
         <View style={[S.ebarPref, { left: `${prefPct}%` }]} />
-        <View style={[S.ebarPin,  { left: `${pct}%` }]} />
+        {/* Score pin — always visible */}
+        <View style={[S.ebarPin, { left: `${pct}%` }]} />
       </View>
-      <View style={[S.ebarLabelRow, { width: `${prefPct}%` }]}>
-        <Text style={S.ebarLabel}>min. preferred</Text>
-      </View>
+      {/* min. preferred label: State A (surplus) and State C (edge) only */}
+      {showLabel && (
+        <View style={[S.ebarLabelRow, { width: `${prefPct}%` }]}>
+          <Text style={S.ebarLabel}>min. preferred</Text>
+        </View>
+      )}
     </View>
   )
 }

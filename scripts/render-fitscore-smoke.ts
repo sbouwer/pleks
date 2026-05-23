@@ -5,11 +5,13 @@
  * Output: lib/reports/screening/_pdf/__samples__/fitscore-skeleton-smoke.pdf
  *         lib/reports/screening/_pdf/__samples__/fitscore-populated-smoke.pdf
  *
- * Two fixtures, two PDFs:
+ * Three fixtures, three PDFs:
  *   skeleton   — creditAnalysis absent; exercises all PENDING placeholder states.
  *                Realistic v1 production state.
  *   populated  — creditAnalysis present (3 bureaus, 5 checks, 1 absent);
  *                exercises full render paths in BureauCoverageMatrix + VerificationCheckTable.
+ *   deficit    — populated + creditBehaviour 55 (below threshold 65); exercises State B
+ *                (amber-wash deficit segment) on the Credit Behaviour evidence bar.
  *
  * FITSCORE_FONT_SOURCE=local is injected by the npm script via cross-env.
  * Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §E.3 acceptance criteria.
@@ -237,8 +239,18 @@ const CREDIT_ANALYSIS: FitScoreCreditAnalysis = {
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
-const FIXTURE_SKELETON: FitScoreReportData  = BASE
+const FIXTURE_SKELETON:  FitScoreReportData = BASE
 const FIXTURE_POPULATED: FitScoreReportData = { ...BASE, creditAnalysis: CREDIT_ANALYSIS }
+
+// Deficit fixture: credit dimension scores below threshold → State B bar on Credit Behaviour card.
+const FIXTURE_DEFICIT: FitScoreReportData = {
+  ...BASE,
+  creditAnalysis: CREDIT_ANALYSIS,
+  dimensionalScores: {
+    ...BASE.dimensionalScores,
+    creditBehaviour: 55,  // below creditBehaviour_preferred_threshold (65) → deficit bar state
+  },
+}
 
 // ─── Document factory ─────────────────────────────────────────────────────────
 
@@ -279,6 +291,11 @@ async function main() {
   const populatedPath = path.join(OUT_DIR, 'fitscore-populated-smoke.pdf')
   writeFileSync(populatedPath, populatedBuf)
   console.log(`✓  ${populatedPath}  (${(populatedBuf.byteLength / 1024).toFixed(1)} KB)`)
+
+  const deficitBuf = await renderToBuffer(buildDoc(FIXTURE_DEFICIT))
+  const deficitPath = path.join(OUT_DIR, 'fitscore-deficit-smoke.pdf')
+  writeFileSync(deficitPath, deficitBuf)
+  console.log(`✓  ${deficitPath}  (${(deficitBuf.byteLength / 1024).toFixed(1)} KB)`)
 }
 
 main().catch((err: unknown) => { console.error(err); process.exit(1) })
