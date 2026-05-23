@@ -111,7 +111,7 @@ function ApplicantRow({ entry, isFirst, isLast, screenDate, screenTime }: Readon
   return (
     <View style={[S.row, isFirst ? {} : S.divider]}>
       <View style={S.cell}>
-        <Text style={S.label}>{sp(entry.label)}</Text>
+        <Text style={S.label}>APPLICANT</Text>
         <Text style={S.name}>{sp(entry.fullName)}</Text>
         <Text style={S.meta}>{idLine}</Text>
       </View>
