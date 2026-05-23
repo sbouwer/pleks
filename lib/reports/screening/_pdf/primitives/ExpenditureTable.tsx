@@ -9,23 +9,23 @@
  */
 
 import { View, StyleSheet } from "@react-pdf/renderer"
-import { C } from "./theme"
+import { C, D } from "./theme"
 import type { FitScoreReportData } from "./theme"
 import { SectionHeader }   from "./SectionHeader"
 import { BlockHeader }     from "./BlockHeader"
 import { PlaceholderCard } from "./PlaceholderCard"
 
 const S = StyleSheet.create({
-  wrap: { marginBottom: 16 },
+  wrap: { marginBottom: D.primitiveGap },
   block: {
     borderWidth:     0.75,
     borderColor:     C.rule.base,
     backgroundColor: C.surface.paperRaised,
-    marginBottom:    12,
+    marginBottom:    D.primitiveGapTight,
   },
   blockBody: {
-    paddingHorizontal: 16,
-    paddingVertical:   14,
+    paddingHorizontal: D.cardPaddingX,
+    paddingVertical:   D.cardPaddingY,
   },
 })
 
@@ -37,7 +37,7 @@ export function ExpenditureTable({ data }: Readonly<ExpenditureTableProps>) {
   const hasFin = data.financialAnalysis !== undefined
 
   return (
-    <View style={S.wrap}>
+    <View style={S.wrap} wrap={false}>
       <SectionHeader
         badge="2.2"
         title="Expenditure analysis"

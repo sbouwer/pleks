@@ -8,23 +8,23 @@
  */
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
-import { C, FONTS, sp } from "./theme"
+import { C, D, FONTS, sp } from "./theme"
 import type { FitScoreReportData, BureauEntry } from "./theme"
 import { SectionHeader }   from "./SectionHeader"
 import { BlockHeader }     from "./BlockHeader"
 import { PlaceholderCard } from "./PlaceholderCard"
 
 const S = StyleSheet.create({
-  wrap:  { marginBottom: 16 },
+  wrap:  { marginBottom: D.primitiveGap },
   block: {
     borderWidth:     0.75,
     borderColor:     C.rule.base,
     backgroundColor: C.surface.paperRaised,
-    marginBottom:    10,
+    marginBottom:    D.primitiveGapTight,
   },
   blockBody: {
-    paddingHorizontal: 16,
-    paddingVertical:   14,
+    paddingHorizontal: D.cardPaddingX,
+    paddingVertical:   D.cardPaddingY,
   },
 
   // Bureau table
@@ -177,7 +177,7 @@ const S = StyleSheet.create({
     fontFamily:  FONTS.sans,
     fontSize:    8.5,
     color:       C.ink.mute,
-    lineHeight:  1.55,
+    lineHeight:  D.bodyLineHeight,
     marginTop:   8,
   },
   divNoteBold: { color: C.ink.primary, fontWeight: 'bold' },
@@ -221,10 +221,10 @@ function BureauRow({ entry, isLast }: Readonly<{ entry: BureauEntry; isLast: boo
 }
 
 function DivergenceAxis({ entries }: Readonly<{ entries: BureauEntry[] }>) {
-  const scored = entries.filter(e => e.reportedScore !== null)
+  const scored = entries.filter((e): e is BureauEntry & { reportedScore: number } => e.reportedScore !== null)
   if (scored.length < 2) return null
 
-  const scores   = scored.map(e => e.reportedScore as number)
+  const scores   = scored.map(e => e.reportedScore)
   const minScore = Math.min(...scores)
   const maxScore = Math.max(...scores)
   const pts      = maxScore - minScore
@@ -242,10 +242,10 @@ function DivergenceAxis({ entries }: Readonly<{ entries: BureauEntry[] }>) {
         <View style={S.axisTrack} />
         <View style={[S.axisSpread, { left: toPos(minScore), width: spreadW }]} />
         {scored.map((e, i) => (
-          <View key={`${i}-${e.name.slice(0, 8)}`} style={[S.axisMarkerLine, { left: toPos(e.reportedScore as number) }]} />
+          <View key={`${i}-${e.name.slice(0, 8)}`} style={[S.axisMarkerLine, { left: toPos(e.reportedScore) }]} />
         ))}
         {scored.map((e, i) => (
-          <Text key={`lbl-${i}-${e.name.slice(0, 8)}`} style={[S.axisLabel, { left: toPos(e.reportedScore as number) }]}>
+          <Text key={`lbl-${i}-${e.name.slice(0, 8)}`} style={[S.axisLabel, { left: toPos(e.reportedScore) }]}>
             {String(e.reportedScore)}
           </Text>
         ))}
@@ -280,7 +280,7 @@ export function BureauCoverageMatrix({ data }: Readonly<BureauCoverageMatrixProp
     : sp(data.dimensions.credit.bureauCoverageDisplay)
 
   return (
-    <View style={S.wrap}>
+    <View style={S.wrap} wrap={false}>
       <SectionHeader
         badge="3.1"
         title="Bureau coverage and consistency"

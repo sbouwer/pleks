@@ -8,7 +8,7 @@
  */
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
-import { C, FONTS, BAND_LABELS, GRADE_LABELS, sp } from "./theme"
+import { C, D, FONTS, BAND_LABELS, GRADE_LABELS, sp } from "./theme"
 import type { FitScoreReportData, FitScoreBand, ConfidenceGrade, VerificationIntegrityGrade, MaterialFlag } from "./theme"
 
 // ─── Band ladder configuration ────────────────────────────────────────────────
@@ -57,23 +57,24 @@ const TIER_FILLED: Record<string, number> = {
 const S = StyleSheet.create({
   block: {
     flexDirection: 'row',
-    gap:           20,
-    marginBottom:  24,
+    gap:           16,
+    marginBottom:  D.primitiveGap,
   },
 
   // Left: band card
   bandCard: {
-    flex:            1.35,
-    borderWidth:     0.75,
-    borderColor:     C.rule.base,
-    backgroundColor: C.surface.paperRaised,
-    padding:         22,
+    flex:             1.35,
+    borderWidth:      0.75,
+    borderColor:      C.rule.base,
+    backgroundColor:  C.surface.paperRaised,
+    paddingVertical:  D.cardPaddingY,
+    paddingHorizontal: D.cardPaddingX,
   },
   cardHead: {
     flexDirection:  'row',
     justifyContent: 'space-between',
     alignItems:     'baseline',
-    marginBottom:   16,
+    marginBottom:   10,
   },
   cardLabel: {
     fontFamily:    FONTS.mono,
@@ -93,12 +94,12 @@ const S = StyleSheet.create({
   ladderWrap: {
     borderTopWidth: 0.75,
     borderTopColor: C.rule.base,
-    marginBottom:   14,
+    marginBottom:   8,
   },
   rung: {
     flexDirection:     'row',
     alignItems:        'center',
-    paddingVertical:   8,
+    paddingVertical:   6,
     paddingLeft:       0,
     paddingRight:      4,
     borderBottomWidth: 0.75,
@@ -149,7 +150,7 @@ const S = StyleSheet.create({
     fontFamily: FONTS.sans,
     fontSize:   8,
     color:      C.ink.mute,
-    lineHeight: 1.55,
+    lineHeight: D.bodyLineHeight,
   },
   cardFootBold: {
     fontWeight: 'bold',
@@ -159,13 +160,14 @@ const S = StyleSheet.create({
   // Right: signals panel
   signalCol: {
     flex: 1,
-    gap:  12,
+    gap:  D.primitiveGapTight,
   },
   signal: {
-    borderWidth:     0.75,
-    borderColor:     C.rule.base,
-    backgroundColor: C.surface.paperRaised,
-    padding:         16,
+    borderWidth:       0.75,
+    borderColor:       C.rule.base,
+    backgroundColor:   C.surface.paperRaised,
+    paddingVertical:   D.cardPaddingY,
+    paddingHorizontal: D.cardPaddingX,
   },
   sigLabel: {
     fontFamily:     FONTS.mono,
@@ -175,7 +177,7 @@ const S = StyleSheet.create({
     color:          C.ink.mute,
     flexDirection:  'row',
     justifyContent: 'space-between',
-    marginBottom:   10,
+    marginBottom:   6,
   },
   sigRef: {
     color:    C.ink.faint,
@@ -195,7 +197,7 @@ const S = StyleSheet.create({
     fontSize:      7.5,
     color:         C.ink.mute,
     letterSpacing: 0.3,
-    marginBottom:  8,
+    marginBottom:  4,
   },
   sigEmpty: {
     fontFamily: FONTS.sans,
@@ -268,7 +270,7 @@ function BandRung({ rung, currentBand }: Readonly<{ rung: Rung; currentBand: Fit
   const isOut      = currentIdx >= 0 && rungIdx >= 0 && rungIdx !== currentIdx
 
   return (
-    <View style={[S.rung, isCurrent ? S.rungCurrent : {}]}>
+    <View style={[S.rung, isCurrent ? S.rungCurrent : {}]} wrap={false}>
       <Text style={[S.rungNum, isCurrent ? S.rungNumCurrent : {}]}>{rung.num}</Text>
       <Text style={[S.rungName, isCurrent ? S.rungNameCurrent : {}, isOut ? S.rungNameOut : {}]}>
         {sp(BAND_LABELS[rung.key])}
@@ -344,7 +346,7 @@ export function BandLadder({ data }: Readonly<BandLadderProps>) {
     : `Score ${data.score} / 100`
 
   return (
-    <View style={S.block}>
+    <View style={S.block} wrap={false}>
       {/* Left: Band card */}
       <View style={S.bandCard}>
         <View style={S.cardHead}>

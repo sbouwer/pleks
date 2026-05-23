@@ -29,7 +29,6 @@ import { EditorialHeadline }       from "@/lib/reports/screening/_pdf/primitives
 import { MetaStrip }               from "@/lib/reports/screening/_pdf/primitives/MetaStrip"
 import { IdentityRow }             from "@/lib/reports/screening/_pdf/primitives/IdentityRow"
 import { BandLadder }              from "@/lib/reports/screening/_pdf/primitives/BandLadder"
-import { FlagPillRow }             from "@/lib/reports/screening/_pdf/primitives/FlagPillRow"
 import { DimensionCardEditorial }  from "@/lib/reports/screening/_pdf/primitives/DimensionCardEditorial"
 
 // E.3 primitives
@@ -208,7 +207,6 @@ const doc = h(Document, {},
     h(MetaStrip, { data: FIXTURE }),
     h(IdentityRow, { data: FIXTURE }),
     h(BandLadder, { data: FIXTURE }),
-    h(FlagPillRow, { data: FIXTURE }),
     h(DimensionCardEditorial, { data: FIXTURE }),
   ),
   h(DocumentShell, { data: FIXTURE, section: 'Financial Analysis' },

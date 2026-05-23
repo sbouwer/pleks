@@ -10,7 +10,7 @@
  */
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
-import { C, FONTS, sp } from "./theme"
+import { C, D, FONTS, sp } from "./theme"
 import type { FitScoreReportData } from "./theme"
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -22,11 +22,12 @@ const S = StyleSheet.create({
     borderWidth:     0.75,
     borderColor:     C.rule.base,
     backgroundColor: C.surface.paperRaised,
-    marginBottom:    16,
+    marginBottom:    D.primitiveGap,
   },
   card: {
     width:             '50%',
-    padding:           24,
+    paddingVertical:   D.cardPaddingY,
+    paddingHorizontal: D.cardPaddingX,
     borderRightWidth:  0.75,
     borderRightColor:  C.rule.base,
     borderBottomWidth: 0.75,
@@ -39,7 +40,7 @@ const S = StyleSheet.create({
     flexDirection:  'row',
     justifyContent: 'space-between',
     alignItems:     'baseline',
-    marginBottom:   12,
+    marginBottom:   8,
   },
   headLabel: {
     fontFamily:    FONTS.mono,
@@ -62,7 +63,7 @@ const S = StyleSheet.create({
     color:         C.ink.primary,
     letterSpacing: -0.1,
     lineHeight:    1.3,
-    marginBottom:  12,
+    marginBottom:  8,
   },
 
   stats: {
@@ -70,14 +71,14 @@ const S = StyleSheet.create({
     borderTopColor:    C.rule.base,
     borderBottomWidth: 0.75,
     borderBottomColor: C.rule.base,
-    paddingVertical:   10,
-    marginBottom:      12,
+    paddingVertical:   D.cardPaddingY,
+    marginBottom:      8,
   },
   statRow: {
     flexDirection:  'row',
     justifyContent: 'space-between',
     alignItems:     'baseline',
-    marginBottom:   5,
+    marginBottom:   4,
   },
   statRowLast: { marginBottom: 0 },
   statLabel: {
@@ -91,7 +92,7 @@ const S = StyleSheet.create({
   statValue:      { fontFamily: FONTS.mono, fontSize: 9.5, color: C.ink.primary,  letterSpacing: 0.3 },
   statValueMuted: { color: C.ink.soft },
 
-  ebarWrap: { marginBottom: 12 },
+  ebarWrap: { marginBottom: 8 },
   ebarTrack: {
     height:          5,
     backgroundColor: C.surface.paperDeeper,
@@ -127,10 +128,10 @@ const S = StyleSheet.create({
   obsList:  { gap: 4 },
   obsRow:   { flexDirection: 'row', gap: 6, alignItems: 'flex-start' },
   obsDot:   { fontFamily: FONTS.mono, fontSize: 8, color: C.ink.ghost, marginTop: 1 },
-  obsText:  { fontFamily: FONTS.sans, fontSize: 8.5, color: C.ink.soft, lineHeight: 1.55, flex: 1 },
+  obsText:  { fontFamily: FONTS.sans, fontSize: 8.5, color: C.ink.soft, lineHeight: D.bodyLineHeight, flex: 1 },
 
   naText: { fontFamily: FONTS.sans, fontSize: 9.5, color: C.ink.mute },
-  naSub:  { fontFamily: FONTS.sans, fontSize: 8.5, color: C.ink.faint, lineHeight: 1.55, marginTop: 8 },
+  naSub:  { fontFamily: FONTS.sans, fontSize: 8.5, color: C.ink.faint, lineHeight: D.bodyLineHeight, marginTop: 6 },
 })
 
 // ─── Evidence bar (F12) ───────────────────────────────────────────────────────
@@ -265,7 +266,7 @@ function DimCard({ label, docRef, children, noRight = false, noBottom = false }:
   label: string; docRef: string; children: React.ReactNode; noRight?: boolean; noBottom?: boolean
 }>) {
   return (
-    <View style={[S.card, noRight ? S.cardNoRight : {}, noBottom ? S.cardNoBottom : {}]}>
+    <View style={[S.card, noRight ? S.cardNoRight : {}, noBottom ? S.cardNoBottom : {}]} wrap={false}>
       <View style={S.cardHead}>
         <Text style={S.headLabel}>{label}</Text>
         <Text style={S.headRef}>{docRef}</Text>
@@ -283,7 +284,7 @@ interface DimensionCardEditorialProps {
 
 export function DimensionCardEditorial({ data }: Readonly<DimensionCardEditorialProps>) {
   return (
-    <View style={S.grid}>
+    <View style={S.grid} wrap={false}>
       <DimCard label="01 Affordability" docRef="2">
         <AffordabilityCard data={data} />
       </DimCard>

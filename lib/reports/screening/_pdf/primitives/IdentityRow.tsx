@@ -8,7 +8,7 @@
  */
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
-import { C, FONTS, sp, fmtShortDate, fmtTime } from "./theme"
+import { C, D, FONTS, sp, fmtShortDate, fmtTime } from "./theme"
 import type { FitScoreReportData, FitScoreApplicantEntry } from "./theme"
 
 const S = StyleSheet.create({
@@ -18,15 +18,15 @@ const S = StyleSheet.create({
     borderTopWidth:  1.5,
     borderTopColor:  C.ink.primary,
     backgroundColor: C.surface.paperRaised,
-    marginBottom:    24,
+    marginBottom:    D.primitiveGap,
   },
   row: {
     flexDirection: 'row',
   },
   cell: {
     flex:              1,
-    paddingVertical:   18,
-    paddingHorizontal: 22,
+    paddingVertical:   D.cardPaddingY,
+    paddingHorizontal: D.cardPaddingX,
     borderRightWidth:  0.75,
     borderRightColor:  C.rule.base,
   },
@@ -39,7 +39,7 @@ const S = StyleSheet.create({
     letterSpacing: 1,
     textTransform: 'uppercase',
     color:         C.ink.mute,
-    marginBottom:  8,
+    marginBottom:  6,
   },
   name: {
     fontFamily:    FONTS.sans,
@@ -53,7 +53,7 @@ const S = StyleSheet.create({
     fontFamily:  FONTS.sans,
     fontSize:    8.5,
     color:       C.ink.mute,
-    marginTop:   4,
+    marginTop:   3,
     lineHeight:  1.4,
   },
   value: {
@@ -67,12 +67,13 @@ const S = StyleSheet.create({
     fontFamily:  FONTS.sans,
     fontSize:    8.5,
     color:       C.ink.mute,
-    marginTop:   4,
+    marginTop:   3,
     lineHeight:  1.4,
   },
   divider: {
-    borderTopWidth: 0.75,
-    borderTopColor: C.rule.base,
+    borderTopWidth:  0.75,
+    borderTopColor:  C.rule.base,
+    marginVertical:  8,
   },
 })
 
@@ -137,7 +138,7 @@ export function IdentityRow({ data }: Readonly<IdentityRowProps>) {
   const screenTime = sp(fmtTime(data.generatedAt))
 
   return (
-    <View style={S.wrap}>
+    <View style={S.wrap} wrap={false}>
       {data.applicants.map((entry, i) => (
         <ApplicantRow
           key={entry.label}

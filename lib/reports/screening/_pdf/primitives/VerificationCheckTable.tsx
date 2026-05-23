@@ -8,23 +8,23 @@
  */
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
-import { C, FONTS, sp } from "./theme"
+import { C, D, FONTS, sp } from "./theme"
 import type { FitScoreReportData, VerificationCheckItem, VerificationOutcome } from "./theme"
 import { SectionHeader }   from "./SectionHeader"
 import { BlockHeader }     from "./BlockHeader"
 import { PlaceholderCard } from "./PlaceholderCard"
 
 const S = StyleSheet.create({
-  wrap:  { marginBottom: 16 },
+  wrap:  { marginBottom: D.primitiveGap },
   block: {
     borderWidth:     0.75,
     borderColor:     C.rule.base,
     backgroundColor: C.surface.paperRaised,
-    marginBottom:    12,
+    marginBottom:    D.primitiveGapTight,
   },
   blockBody: {
-    paddingHorizontal: 16,
-    paddingVertical:   14,
+    paddingHorizontal: D.cardPaddingX,
+    paddingVertical:   D.cardPaddingY,
   },
 
   tableHead: {
@@ -145,7 +145,7 @@ export function VerificationCheckTable({ data }: Readonly<VerificationCheckTable
     : sp(data.dimensions.verification.checksPassedDisplay)
 
   return (
-    <View style={S.wrap}>
+    <View style={S.wrap} wrap={false}>
       <SectionHeader
         badge="3.2"
         title="Verification integrity panel"

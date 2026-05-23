@@ -9,7 +9,7 @@
  */
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
-import { C, FONTS, sp, fmtZAR, fmtShortDate } from "./theme"
+import { C, D, FONTS, sp, fmtZAR, fmtShortDate } from "./theme"
 import type { FitScoreReportData } from "./theme"
 
 const S = StyleSheet.create({
@@ -18,12 +18,12 @@ const S = StyleSheet.create({
     borderWidth:      0.75,
     borderColor:      C.rule.base,
     backgroundColor:  C.surface.paperSunk,
-    marginBottom:     24,
+    marginBottom:     D.primitiveGapTight,
   },
   cell: {
     flex:              1,
-    paddingVertical:   14,
-    paddingHorizontal: 18,
+    paddingVertical:   D.cardPaddingY,
+    paddingHorizontal: D.cardPaddingX,
     borderRightWidth:  0.75,
     borderRightColor:  C.rule.base,
   },
@@ -36,7 +36,8 @@ const S = StyleSheet.create({
     letterSpacing: 1,
     textTransform: 'uppercase',
     color:         C.ink.mute,
-    marginBottom:  8,
+    marginBottom:  6,
+    numberOfLines: 1,
   },
   value: {
     fontFamily:    FONTS.mono,
@@ -64,9 +65,9 @@ export function MetaStrip({ data }: Readonly<MetaStripProps>) {
   const depositLine = `Deposit · ${depositMultiplier}x rent`
 
   return (
-    <View style={S.strip}>
+    <View style={S.strip} wrap={false}>
       <View style={S.cell}>
-        <Text style={S.label}>Property under review</Text>
+        <Text style={S.label}>Unit</Text>
         <Text style={S.value}>{sp(data.unitLabel)}</Text>
       </View>
 

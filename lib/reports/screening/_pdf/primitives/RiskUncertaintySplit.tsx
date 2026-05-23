@@ -9,19 +9,19 @@
  */
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
-import { C, FONTS, sp } from "./theme"
+import { C, D, FONTS, sp } from "./theme"
 import type { FitScoreReportData } from "./theme"
 import { SectionHeader } from "./SectionHeader"
 
 const S = StyleSheet.create({
-  wrap: { marginBottom: 16 },
+  wrap: { marginBottom: D.primitiveGap },
 
   doctrine: {
     fontFamily:   FONTS.sans,
     fontSize:     8.5,
     color:        C.ink.mute,
-    lineHeight:   1.6,
-    marginBottom: 12,
+    lineHeight:   D.bodyLineHeight,
+    marginBottom: 8,
   },
 
   split: {
@@ -38,8 +38,8 @@ const S = StyleSheet.create({
     flexDirection:     'row',
     alignItems:        'center',
     justifyContent:    'space-between',
-    paddingHorizontal: 14,
-    paddingVertical:   10,
+    paddingHorizontal: D.cardPaddingX,
+    paddingVertical:   D.cardPaddingY,
     borderBottomWidth: 0.75,
     borderBottomColor: C.rule.base,
     backgroundColor:   C.surface.paperSunk,
@@ -70,12 +70,12 @@ const S = StyleSheet.create({
   },
 
   colBody: {
-    paddingHorizontal: 14,
-    paddingVertical:   12,
-    gap:               10,
+    paddingHorizontal: D.cardPaddingX,
+    paddingVertical:   D.cardPaddingY,
+    gap:               8,
   },
   item: {
-    paddingBottom: 8,
+    paddingBottom: 6,
     borderBottomWidth: 0.75,
     borderBottomColor: C.rule.base,
   },
@@ -87,13 +87,13 @@ const S = StyleSheet.create({
     fontFamily: FONTS.sans,
     fontSize:   8.5,
     color:      C.ink.primary,
-    lineHeight: 1.55,
+    lineHeight: D.bodyLineHeight,
   },
   emptyText: {
     fontFamily: FONTS.sans,
     fontSize:   8.5,
     color:      C.ink.faint,
-    lineHeight: 1.55,
+    lineHeight: D.bodyLineHeight,
   },
 })
 
@@ -141,7 +141,7 @@ export function RiskUncertaintySplit({ data }: Readonly<RiskUncertaintySplitProp
   const visibility = data.narrative.limitedVisibility  ?? []
 
   return (
-    <View style={S.wrap}>
+    <View style={S.wrap} wrap={false}>
       <SectionHeader
         badge="2.3"
         title="Observed concerns  |  Limited visibility"

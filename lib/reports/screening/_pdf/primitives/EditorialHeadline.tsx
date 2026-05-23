@@ -9,18 +9,18 @@
  */
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
-import { C, FONTS, DOCTRINE_DISCLAIMER, sp, fmtDate } from "./theme"
+import { C, D, FONTS, DOCTRINE_DISCLAIMER, sp, fmtDate } from "./theme"
 import type { FitScoreReportData } from "./theme"
 
 const S = StyleSheet.create({
   wrap: {
-    marginBottom: 24,
+    marginBottom: D.primitiveGap,
   },
   eyebrow: {
     flexDirection:     'row',
     alignItems:        'center',
     gap:               10,
-    marginBottom:      12,
+    marginBottom:      10,
     borderWidth:       0.75,
     borderColor:       C.rule.base,
     borderRadius:      999,
@@ -46,15 +46,15 @@ const S = StyleSheet.create({
     alignItems:     'flex-end',
     justifyContent: 'space-between',
     gap:            24,
-    marginBottom:   8,
+    marginBottom:   6,
   },
   h1: {
     fontFamily:    FONTS.sans,
-    fontSize:      24,
+    fontSize:      D.h1Size,
     fontWeight:    'bold',
     color:         C.ink.primary,
     letterSpacing: -0.4,
-    lineHeight:    1.08,
+    lineHeight:    1.15,
     flex:          1,
   },
   h1Amber: {
@@ -72,7 +72,7 @@ const S = StyleSheet.create({
     fontFamily:  FONTS.sans,
     fontSize:    10.5,
     color:       C.ink.soft,
-    lineHeight:  1.5,
+    lineHeight:  D.bodyLineHeight,
   },
 })
 
@@ -85,7 +85,7 @@ export function EditorialHeadline({ data }: Readonly<EditorialHeadlineProps>) {
   const plural = n === 1 ? '' : 's'
 
   return (
-    <View style={S.wrap}>
+    <View style={S.wrap} wrap={false}>
       <View style={S.eyebrow}>
         <Text style={S.eyebrowText}>FITSCORE · STREAM 2</Text>
         <View style={S.eyebrowSep} />
