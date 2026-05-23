@@ -3,8 +3,9 @@
  *
  * Auth:   agent workspace (gateway — org scoped)
  * Data:   reads applications + application_co_applicants + organisations
- * Notes:  Routes to agent_single / agent_multi / agent_limited_data by band + co-applicant count.
- *         Requires fitscore_band to be set (orchestrator must have run).
+ * Notes:  Routes to agent_single (co-applicants == 0) or agent_multi (co-applicants >= 1).
+ *         LDP is a state branch within whichever template the lease shape selects — no separate
+ *         template. Requires fitscore_band to be set (orchestrator must have run).
  *         Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §10.7.
  */
 import { renderToBuffer } from "@react-pdf/renderer"
@@ -17,7 +18,6 @@ import type { MaterialFlag, FitScoreBand, ConfidenceGrade, VerificationIntegrity
 import type { NarrativeResponse } from "@/lib/screening/fitScoreNarrative"
 import { AgentSingleReport } from "@/lib/reports/screening/agent_single"
 import { AgentMultiReport } from "@/lib/reports/screening/agent_multi"
-import { AgentLimitedDataReport } from "@/lib/reports/screening/agent_limited_data"
 import type { FitScoreReportData, FitScoreApplicantEntry } from "@/lib/reports/screening/_primitives/theme"
 
 export const dynamic = "force-dynamic"
@@ -67,7 +67,6 @@ function filterBureaus(snap: AppSnap | undefined): string[] {
 }
 
 function selectTemplate(data: FitScoreReportData, coCount: number): ReactElement<DocumentProps> {
-  if (data.isLdp) return createElement(AgentLimitedDataReport, { data }) as unknown as ReactElement<DocumentProps>
   if (coCount > 0) return createElement(AgentMultiReport, { data }) as unknown as ReactElement<DocumentProps>
   return createElement(AgentSingleReport, { data }) as unknown as ReactElement<DocumentProps>
 }
