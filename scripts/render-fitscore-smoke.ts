@@ -256,7 +256,7 @@ const FIXTURE_DEFICIT: FitScoreReportData = {
   },
 }
 
-// With-flag fixture: one critical material flag → exercises synthesis v1.0.1 critical-flag sentence.
+// With-flag fixture: one critical material flag → exercises synthesis v1.0.2 critical-flag sentence.
 const FIXTURE_WITH_FLAG: FitScoreReportData = {
   ...FIXTURE_POPULATED,
   materialFlags: [
@@ -273,6 +273,35 @@ const FIXTURE_WITH_FLAG: FitScoreReportData = {
       observedAt:     '2026-05-22T10:15:00Z',
     },
   ],
+}
+
+// LDP fixture: stability + verificationIntegrity scored; affordability + creditBehaviour null.
+// Exercises E.5 state: notAssessed PlaceholderCards, LDP synthesis paragraph, insufficient confidence.
+const FIXTURE_LDP: FitScoreReportData = {
+  ...BASE,
+  band:            'limited_data_profile',
+  score:           null,
+  confidenceIndex: 'insufficient',
+  isLdp:           true,
+  synthesisVersion: 'synthesis.v1.0.2',
+  dimensionalScores: {
+    affordability:                             null,
+    stability:                                 72,
+    creditBehaviour:                           null,
+    verificationIntegrity:                     88,
+    affordability_preferred_threshold:         70,
+    stability_preferred_threshold:             60,
+    creditBehaviour_preferred_threshold:       65,
+    verificationIntegrity_preferred_threshold: 80,
+  },
+  materialFlags: [
+    { flag: 'network_positive', class: 'trust',    description: 'Pleks network: 1 tenancy in good standing', observedAt: '2026-05-22T10:15:00Z', source: '', capApplied: false, capCeiling: null, applicantId: null, applicantLabel: null },
+    { flag: 'income_absent',    class: 'critical', description: 'Income evidence absent; bureau fallback only', observedAt: '2026-05-22T10:15:00Z', source: '', capApplied: false, capCeiling: null, applicantId: null, applicantLabel: null },
+  ],
+  narrative: {
+    ...BASE.narrative,
+    ldpSummary: 'Affordability and credit behaviour dimensions had insufficient data to score.',
+  },
 }
 
 // ─── Document factory ─────────────────────────────────────────────────────────
@@ -331,6 +360,11 @@ async function main() {
   const withFlagPath = path.join(OUT_DIR, 'fitscore-with-flag-smoke.pdf')
   writeFileSync(withFlagPath, withFlagBuf)
   console.log(`✓  ${withFlagPath}  (${(withFlagBuf.byteLength / 1024).toFixed(1)} KB)`)
+
+  const ldpBuf = await renderToBuffer(buildDoc(FIXTURE_LDP))
+  const ldpPath = path.join(OUT_DIR, 'fitscore-ldp-smoke.pdf')
+  writeFileSync(ldpPath, ldpBuf)
+  console.log(`✓  ${ldpPath}  (${(ldpBuf.byteLength / 1024).toFixed(1)} KB)`)
 }
 
 main().catch((err: unknown) => { console.error(err); process.exit(1) })
