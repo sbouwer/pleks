@@ -134,17 +134,20 @@ function ApplicantRow({ entry, isFirst, isLast, screenDate, screenTime }: Readon
 export function IdentityRow({ data }: Readonly<IdentityRowProps>) {
   if (data.applicants.length === 0) return null
 
+  // For multi-applicant leases, IdentityRow shows the primary applicant only.
+  // Additional applicants render in AdditionalApplicants below this primitive.
+  const visible    = data.applicants.slice(0, 1)
   const screenDate = sp(fmtShortDate(data.generatedAt))
   const screenTime = sp(fmtTime(data.generatedAt))
 
   return (
     <View style={S.wrap} wrap={false}>
-      {data.applicants.map((entry, i) => (
+      {visible.map((entry, i) => (
         <ApplicantRow
           key={entry.label}
           entry={entry}
           isFirst={i === 0}
-          isLast={i === data.applicants.length - 1}
+          isLast={i === visible.length - 1}
           screenDate={screenDate}
           screenTime={screenTime}
         />

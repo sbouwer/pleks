@@ -1,20 +1,19 @@
 /**
- * scripts/render-fitscore-smoke.ts — FitScore PDF smoke render (E.1–E.3 surface)
+ * scripts/render-fitscore-smoke.ts — FitScore PDF smoke render (E.1–E.6 surface)
  *
  * Run:    npm run fitscore:render-smoke
- * Output: lib/reports/screening/_pdf/__samples__/fitscore-skeleton-smoke.pdf
- *         lib/reports/screening/_pdf/__samples__/fitscore-populated-smoke.pdf
+ * Output: lib/reports/screening/_pdf/__samples__/fitscore-*.pdf
  *
- * Three fixtures, three PDFs:
+ * Six fixtures, six PDFs:
  *   skeleton   — creditAnalysis absent; exercises all PENDING placeholder states.
- *                Realistic v1 production state.
- *   populated  — creditAnalysis present (3 bureaus, 5 checks, 1 absent);
- *                exercises full render paths in BureauCoverageMatrix + VerificationCheckTable.
- *   deficit    — populated + creditBehaviour 55 (below threshold 65); exercises State B
- *                (amber-wash deficit segment) on the Credit Behaviour evidence bar.
+ *   populated  — creditAnalysis present (3 bureaus, 5 checks, 1 absent).
+ *   deficit    — populated + creditBehaviour 55; exercises amber-wash deficit bar.
+ *   with-flag  — populated + additional critical material flag.
+ *   ldp        — band=limited_data_profile; exercises notAssessed placeholders + LDP synthesis.
+ *   multi      — 2 applicants; exercises AdditionalApplicants primitive + expanded §1 composition.
  *
  * FITSCORE_FONT_SOURCE=local is injected by the npm script via cross-env.
- * Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §E.3 acceptance criteria.
+ * Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §E.3, §E.5, §E.6 acceptance criteria.
  */
 
 import { Document, renderToBuffer } from "@react-pdf/renderer"
@@ -26,6 +25,7 @@ import { DocumentShell }          from "@/lib/reports/screening/_pdf/primitives/
 import { EditorialHeadline }      from "@/lib/reports/screening/_pdf/primitives/EditorialHeadline"
 import { MetaStrip }              from "@/lib/reports/screening/_pdf/primitives/MetaStrip"
 import { IdentityRow }            from "@/lib/reports/screening/_pdf/primitives/IdentityRow"
+import { AdditionalApplicants }   from "@/lib/reports/screening/_pdf/primitives/AdditionalApplicants"
 import { BandLadder }             from "@/lib/reports/screening/_pdf/primitives/BandLadder"
 import { DimensionCardEditorial } from "@/lib/reports/screening/_pdf/primitives/DimensionCardEditorial"
 import { DimensionReadingGuide }  from "@/lib/reports/screening/_pdf/primitives/DimensionReadingGuide"
@@ -275,6 +275,58 @@ const FIXTURE_WITH_FLAG: FitScoreReportData = {
   ],
 }
 
+// Multi fixture: 2 applicants — Thandi (primary) + Daniel (additional). Same scores as FIXTURE_POPULATED.
+// Exercises AdditionalApplicants primitive, expanded §1 composition, synthesis neutrality (same text as single).
+const FIXTURE_MULTI: FitScoreReportData = {
+  ...FIXTURE_POPULATED,
+  primaryApplicantName: 'Thandi Nkosi',
+  coApplicantCount:     1,
+  applicants: [
+    {
+      label:                 'A',
+      fullName:              'Thandi Nkosi',
+      nationalityStatus:     'SA Citizen',
+      idNumberMasked:        '9203****082',
+      sex:                   'F',
+      ageYears:              34,
+      employment: {
+        employerName:  'Cape Digital Solutions (Pty) Ltd',
+        jobTitle:      'Product Manager',
+        tenureDisplay: '3y 2mo',
+      },
+      verifiedIncomeCents:      3800000,
+      incomeSharePct:           62,
+      verificationPassCount:    5,
+      verificationTotal:        5,
+      respondingBureaus:        ['TransUnion', 'Experian', 'VeriCred'],
+      pleksNetworkStatus:       'trusted',
+      pleksNetworkTenancyCount: 1,
+      isForeignNational:        false,
+    },
+    {
+      label:                 'B',
+      fullName:              'Daniel Khumalo',
+      nationalityStatus:     'SA Citizen',
+      idNumberMasked:        '8811****094',
+      sex:                   'M',
+      ageYears:              37,
+      employment: {
+        employerName:  'Khumalo Engineering (Pty) Ltd',
+        jobTitle:      'Senior Engineer',
+        tenureDisplay: '5y 8mo',
+      },
+      verifiedIncomeCents:      2320000,
+      incomeSharePct:           38,
+      verificationPassCount:    5,
+      verificationTotal:        5,
+      respondingBureaus:        ['TransUnion', 'Experian'],
+      pleksNetworkStatus:       'none',
+      pleksNetworkTenancyCount: 0,
+      isForeignNational:        false,
+    },
+  ],
+}
+
 // LDP fixture: stability + verificationIntegrity scored; affordability + creditBehaviour null.
 // Exercises E.5 state: notAssessed PlaceholderCards, LDP synthesis paragraph, insufficient confidence.
 const FIXTURE_LDP: FitScoreReportData = {
@@ -307,14 +359,16 @@ const FIXTURE_LDP: FitScoreReportData = {
 // ─── Document factory ─────────────────────────────────────────────────────────
 
 function buildDoc(data: FitScoreReportData) {
+  const hasAdditional = data.applicants.length >= 2
   return h(Document, {},
     h(DocumentShell, { data, section: 'Profile' },
-      h(EditorialHeadline,      { data }),
-      h(MetaStrip,              { data }),
-      h(IdentityRow,            { data }),
-      h(BandLadder,             { data }),
-      h(DimensionCardEditorial,  { data }),
-      h(DimensionReadingGuide,   {}),
+      h(EditorialHeadline,    { data }),
+      h(MetaStrip,            { data }),
+      h(IdentityRow,          { data }),
+      ...(hasAdditional ? [h(AdditionalApplicants, { applicants: data.applicants })] : []),
+      h(BandLadder,           { data }),
+      h(DimensionCardEditorial, { data }),
+      h(DimensionReadingGuide,  {}),
     ),
     h(DocumentShell, { data, section: 'Financial Analysis' },
       h(IncomeReconciliationTable, { data }),
@@ -365,6 +419,11 @@ async function main() {
   const ldpPath = path.join(OUT_DIR, 'fitscore-ldp-smoke.pdf')
   writeFileSync(ldpPath, ldpBuf)
   console.log(`✓  ${ldpPath}  (${(ldpBuf.byteLength / 1024).toFixed(1)} KB)`)
+
+  const multiBuf = await renderToBuffer(buildDoc(FIXTURE_MULTI))
+  const multiPath = path.join(OUT_DIR, 'fitscore-multi-smoke.pdf')
+  writeFileSync(multiPath, multiBuf)
+  console.log(`✓  ${multiPath}  (${(multiBuf.byteLength / 1024).toFixed(1)} KB)`)
 }
 
 main().catch((err: unknown) => { console.error(err); process.exit(1) })
