@@ -43,7 +43,7 @@ export function IncomeReconciliationTable({ data }: Readonly<IncomeReconciliatio
 
       <View style={S.block}>
         <BlockHeader
-          label="2.1.A"
+          label="2.1"
           title="Declared, observed and verified income — reconciled"
           rightTag="Source · payslip · employer · bank statement"
         />

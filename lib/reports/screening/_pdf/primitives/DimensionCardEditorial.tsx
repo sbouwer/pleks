@@ -305,13 +305,13 @@ function VerificationCard({ data }: Readonly<{ data: FitScoreReportData }>) {
 // ─── Dimension card wrapper ───────────────────────────────────────────────────
 
 function DimCard({ label, docRef, children, noRight = false, noBottom = false }: Readonly<{
-  label: string; docRef: string; children: React.ReactNode; noRight?: boolean; noBottom?: boolean
+  label: string; docRef?: string; children: React.ReactNode; noRight?: boolean; noBottom?: boolean
 }>) {
   return (
     <View style={[S.card, noRight ? S.cardNoRight : {}, noBottom ? S.cardNoBottom : {}]} wrap={false}>
       <View style={S.cardHead}>
         <Text style={S.headLabel}>{label}</Text>
-        <Text style={S.headRef}>{docRef}</Text>
+        {docRef !== undefined && <Text style={S.headRef}>{docRef}</Text>}
       </View>
       {children}
     </View>
@@ -330,7 +330,7 @@ export function DimensionCardEditorial({ data }: Readonly<DimensionCardEditorial
       <DimCard label="01 Affordability" docRef="2">
         <AffordabilityCard data={data} />
       </DimCard>
-      <DimCard label="02 Stability" docRef="3.1" noRight>
+      <DimCard label="02 Stability" noRight>
         <StabilityCard data={data} />
       </DimCard>
       <DimCard label="03 Credit behaviour" docRef="3.1" noBottom>

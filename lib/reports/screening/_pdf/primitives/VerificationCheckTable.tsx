@@ -147,7 +147,7 @@ export function VerificationCheckTable({ data }: Readonly<VerificationCheckTable
     <View style={S.wrap} wrap={false}>
       <View style={S.block}>
         <BlockHeader
-          label="3.2.A"
+          label="3.2"
           title={`Primary checks · ${checksLabel}`}
           rightTag="queried via Pleks broker"
         />

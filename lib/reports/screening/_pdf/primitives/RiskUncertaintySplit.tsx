@@ -11,16 +11,26 @@
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
 import { C, D, FONTS, sp } from "./theme"
 import type { FitScoreReportData } from "./theme"
+import { BlockHeader } from "./BlockHeader"
 
 const S = StyleSheet.create({
   wrap: { marginBottom: D.primitiveGap },
 
+  headerCard: {
+    borderWidth:     0.75,
+    borderColor:     C.rule.base,
+    backgroundColor: C.surface.paperRaised,
+    marginBottom:    D.primitiveGapTight,
+  },
+  doctrineBody: {
+    paddingHorizontal: D.cardPaddingX,
+    paddingVertical:   D.cardPaddingY,
+  },
   doctrine: {
-    fontFamily:   FONTS.sans,
-    fontSize:     8.5,
-    color:        C.ink.mute,
-    lineHeight:   D.bodyLineHeight,
-    marginBottom: 8,
+    fontFamily: FONTS.sans,
+    fontSize:   8.5,
+    color:      C.ink.mute,
+    lineHeight: D.bodyLineHeight,
   },
 
   split: {
@@ -141,13 +151,18 @@ export function RiskUncertaintySplit({ data }: Readonly<RiskUncertaintySplitProp
 
   return (
     <View style={S.wrap} wrap={false}>
-      <Text style={S.doctrine}>
-        {sp(
-          'The left column lists signals that were observed in the supplied evidence. ' +
-          'The right column lists information that was not available or was incomplete. ' +
-          'Both inform manual review, but they are not the same kind of finding and must not be conflated.'
-        )}
-      </Text>
+      <View style={S.headerCard}>
+        <BlockHeader label="2.3" title="Risk and uncertainty" />
+        <View style={S.doctrineBody}>
+          <Text style={S.doctrine}>
+            {sp(
+              'The left column lists signals that were observed in the supplied evidence. ' +
+              'The right column lists information that was not available or was incomplete. ' +
+              'Both inform manual review, but they are not the same kind of finding and must not be conflated.'
+            )}
+          </Text>
+        </View>
+      </View>
 
       <View style={S.split}>
         <Col

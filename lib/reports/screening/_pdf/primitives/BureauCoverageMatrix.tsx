@@ -1,7 +1,9 @@
 /**
  * lib/reports/screening/_pdf/primitives/BureauCoverageMatrix.tsx
  *
- * §3.1 — Bureau coverage matrix (3.1.A) and divergence axis (3.1.B).
+ * §3.1 — Bureau coverage matrix (3.1 / 3.1.A) and divergence block (3.1.B, populated only).
+ * 3.1.A suffix applies only when the divergence block (3.1.B) also renders (>=2 scored bureaus).
+ * When no divergence exists, the single block carries label 3.1.
  * Renders when data.creditAnalysis is present; PENDING otherwise.
  * Coverage pips: 0–5 filled squares. Divergence axis: 300–800 score range.
  * Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §E.3.
@@ -109,29 +111,6 @@ const S = StyleSheet.create({
   obsInk: { color: C.ink.primary },
 
   // Divergence axis
-  divWrap: {
-    marginTop:  10,
-    paddingTop: 14,
-  },
-  divHeadRow: {
-    flexDirection:  'row',
-    alignItems:     'baseline',
-    justifyContent: 'space-between',
-    marginBottom:   10,
-  },
-  divRef: {
-    fontFamily:    FONTS.mono,
-    fontSize:      7.5,
-    letterSpacing: 0.8,
-    color:         C.ink.mute,
-  },
-  divPts: {
-    fontFamily:    FONTS.mono,
-    fontSize:      9.5,
-    color:         C.ink.primary,
-    letterSpacing: 0.3,
-  },
-
   axisWrap: { position: 'relative', height: 36, marginBottom: 6 },
   axisTrack: {
     position:        'absolute',
@@ -225,6 +204,7 @@ function BureauRow({ entry, isLast }: Readonly<{ entry: BureauEntry; isLast: boo
   )
 }
 
+// Axis-only visualization — header lives in the 3.1.B BlockHeader above.
 function DivergenceAxis({ entries }: Readonly<{ entries: BureauEntry[] }>) {
   const scored = entries.filter((e): e is BureauEntry & { reportedScore: number } => e.reportedScore !== null)
   if (scored.length < 2) return null
@@ -232,18 +212,12 @@ function DivergenceAxis({ entries }: Readonly<{ entries: BureauEntry[] }>) {
   const scores      = scored.map(e => e.reportedScore)
   const minScore    = Math.min(...scores)
   const maxScore    = Math.max(...scores)
-  const pts         = maxScore - minScore
   const toPos       = (s: number) => `${((s - 300) / 500) * 100}%`
   const toLabelLeft = (s: number) => ((s - 300) / 500) * AXIS_WIDTH_PT - AXIS_LABEL_W / 2
   const spreadW     = `${((maxScore - minScore) / 500) * 100}%`
 
   return (
-    <View style={S.divWrap}>
-      <View style={S.divHeadRow}>
-        <Text style={S.divRef}>3.1.B · Bureau divergence</Text>
-        <Text style={S.divPts}>{`${pts} pts`}</Text>
-      </View>
-
+    <View>
       <View style={S.axisWrap}>
         <View style={S.axisTrack} />
         <View style={[S.axisSpread, { left: toPos(minScore), width: spreadW }]} />
@@ -281,9 +255,21 @@ interface BureauCoverageMatrixProps {
 
 export function BureauCoverageMatrix({ data }: Readonly<BureauCoverageMatrixProps>) {
   const ca = data.creditAnalysis
+
+  const scored = ca
+    ? ca.bureauEntries.filter((e): e is BureauEntry & { reportedScore: number } => e.reportedScore !== null)
+    : []
+  const showDivergence = scored.length >= 2
+  const pts            = showDivergence
+    ? Math.max(...scored.map(e => e.reportedScore)) - Math.min(...scored.map(e => e.reportedScore))
+    : 0
+
   const coverageLabel = ca
     ? `${ca.bureausResponding} of ${ca.bureausSolicited} responding`
     : sp(data.dimensions.credit.bureauCoverageDisplay)
+
+  // 3.1.A only when sibling 3.1.B also renders; singleton block uses plain 3.1.
+  const matrixLabel = (ca !== undefined && showDivergence) ? '3.1.A' : '3.1'
 
   return (
     <View style={S.wrap} wrap={false}>
@@ -295,7 +281,7 @@ export function BureauCoverageMatrix({ data }: Readonly<BureauCoverageMatrixProp
 
       <View style={S.block}>
         <BlockHeader
-          label="3.1.A"
+          label={matrixLabel}
           title="Coverage matrix · trade-line depth · adverse listings"
           rightTag="refresh · nightly"
         />
@@ -334,14 +320,23 @@ export function BureauCoverageMatrix({ data }: Readonly<BureauCoverageMatrixProp
                   )}
                 </Text>
               </View>
-
-              {ca.bureauEntries.some(e => e.reportedScore !== null) && (
-                <DivergenceAxis entries={ca.bureauEntries} />
-              )}
             </>
           )}
         </View>
       </View>
+
+      {ca !== undefined && showDivergence && (
+        <View style={S.block}>
+          <BlockHeader
+            label="3.1.B"
+            title="Bureau divergence"
+            rightTag={`${pts} pts`}
+          />
+          <View style={S.blockBody}>
+            <DivergenceAxis entries={ca.bureauEntries} />
+          </View>
+        </View>
+      )}
     </View>
   )
 }

@@ -144,7 +144,7 @@ const BASE: FitScoreReportData = {
   engineVersion:         'fitscore.v1.0.1',
   narrativeVersion:      'narr.v1.1',
   interpretationVersion: 'interpretation.v1.0',
-  synthesisVersion:      'synthesis.v1.0',
+  synthesisVersion:      'synthesis.v1.0.1',
   inputsHash:            'b2c3d4e5f6789000b2c3d4e5f6789000b2c3d4e5f6789000b2c3d4e5f6789000',
   orgName:               'Pleks Demo Agency',
   orgFfcNumber:          'FFC 2026-097 431',
@@ -256,6 +256,25 @@ const FIXTURE_DEFICIT: FitScoreReportData = {
   },
 }
 
+// With-flag fixture: one critical material flag → exercises synthesis v1.0.1 critical-flag sentence.
+const FIXTURE_WITH_FLAG: FitScoreReportData = {
+  ...FIXTURE_POPULATED,
+  materialFlags: [
+    ...BASE.materialFlags,
+    {
+      flag:           'adverse_credit',
+      class:          'critical',
+      description:    'Adverse listing recorded at TransUnion within 12 months',
+      source:         'bureau',
+      capApplied:     false,
+      capCeiling:     null,
+      applicantId:    null,
+      applicantLabel: null,
+      observedAt:     '2026-05-22T10:15:00Z',
+    },
+  ],
+}
+
 // ─── Document factory ─────────────────────────────────────────────────────────
 
 function buildDoc(data: FitScoreReportData) {
@@ -307,6 +326,11 @@ async function main() {
   const deficitPath = path.join(OUT_DIR, 'fitscore-deficit-smoke.pdf')
   writeFileSync(deficitPath, deficitBuf)
   console.log(`✓  ${deficitPath}  (${(deficitBuf.byteLength / 1024).toFixed(1)} KB)`)
+
+  const withFlagBuf = await renderToBuffer(buildDoc(FIXTURE_WITH_FLAG))
+  const withFlagPath = path.join(OUT_DIR, 'fitscore-with-flag-smoke.pdf')
+  writeFileSync(withFlagPath, withFlagBuf)
+  console.log(`✓  ${withFlagPath}  (${(withFlagBuf.byteLength / 1024).toFixed(1)} KB)`)
 }
 
 main().catch((err: unknown) => { console.error(err); process.exit(1) })

@@ -281,13 +281,13 @@ function BandRung({ rung, currentBand }: Readonly<{ rung: Rung; currentBand: Fit
 }
 
 function Signal({ label, docRef, grade, qualifier }: Readonly<{
-  label: string; docRef: string; grade: string; qualifier: string
+  label: string; docRef?: string; grade: string; qualifier: string
 }>) {
   return (
     <View style={S.signal}>
       <View style={S.sigLabel}>
         <Text>{label}</Text>
-        <Text style={S.sigRef}>{docRef}</Text>
+        {docRef !== undefined && <Text style={S.sigRef}>{docRef}</Text>}
       </View>
       <Text style={S.sigValue}>{sp(GRADE_LABELS[grade] ?? grade)}</Text>
       <Text style={S.sigQual}>{sp(qualifier)}</Text>
@@ -315,7 +315,6 @@ function FlagSignal({ data }: Readonly<{ data: FitScoreReportData }>) {
     <View style={S.signal}>
       <View style={S.sigLabel}>
         <Text>Material flags</Text>
-        <Text style={S.sigRef}>1.6</Text>
       </View>
       {data.materialFlags.length === 0
         ? <Text style={S.sigEmpty}>No material flags.</Text>
@@ -371,7 +370,6 @@ export function BandLadder({ data }: Readonly<BandLadderProps>) {
       <View style={S.signalCol}>
         <Signal
           label="Band placement confidence"
-          docRef="1.5"
           grade={data.confidenceIndex}
           qualifier={sp(CONFIDENCE_QUALIFIER[data.confidenceIndex] ?? '')}
         />
