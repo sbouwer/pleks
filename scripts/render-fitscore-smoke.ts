@@ -35,6 +35,9 @@ import { ExpenditureTable }          from "@/lib/reports/screening/_pdf/primitiv
 import { RiskUncertaintySplit }      from "@/lib/reports/screening/_pdf/primitives/RiskUncertaintySplit"
 import { BureauCoverageMatrix }      from "@/lib/reports/screening/_pdf/primitives/BureauCoverageMatrix"
 import { VerificationCheckTable }    from "@/lib/reports/screening/_pdf/primitives/VerificationCheckTable"
+import { ObservedStrengths }         from "@/lib/reports/screening/_pdf/primitives/ObservedStrengths"
+import { AssessmentSynthesis }       from "@/lib/reports/screening/_pdf/primitives/AssessmentSynthesis"
+import { DocumentReadingGuide }      from "@/lib/reports/screening/_pdf/primitives/DocumentReadingGuide"
 import { AttestationCard }           from "@/lib/reports/screening/_pdf/primitives/AttestationCard"
 
 import type { FitScoreReportData, FitScoreCreditAnalysis } from "@/lib/reports/screening/_pdf/primitives/theme"
@@ -141,6 +144,7 @@ const BASE: FitScoreReportData = {
   engineVersion:         'fitscore.v1.0.1',
   narrativeVersion:      'narr.v1.1',
   interpretationVersion: 'interpretation.v1.0',
+  synthesisVersion:      'synthesis.v1.0',
   inputsHash:            'b2c3d4e5f6789000b2c3d4e5f6789000b2c3d4e5f6789000b2c3d4e5f6789000',
   orgName:               'Pleks Demo Agency',
   orgFfcNumber:          'FFC 2026-097 431',
@@ -272,7 +276,12 @@ function buildDoc(data: FitScoreReportData) {
     h(DocumentShell, { data, section: 'Evidence & Credit' },
       h(BureauCoverageMatrix,   { data }),
       h(VerificationCheckTable, { data }),
-      h(AttestationCard,        { data }),
+    ),
+    h(DocumentShell, { data, section: 'Narrative' },
+      h(ObservedStrengths,    { data }),
+      h(AssessmentSynthesis,  { data }),
+      h(DocumentReadingGuide, {}),
+      h(AttestationCard,      { data }),
     ),
   )
 }
