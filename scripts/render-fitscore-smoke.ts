@@ -144,7 +144,7 @@ const BASE: FitScoreReportData = {
   engineVersion:         'fitscore.v1.0.1',
   narrativeVersion:      'narr.v1.1',
   interpretationVersion: 'interpretation.v1.0',
-  synthesisVersion:      'synthesis.v1.0.1',
+  synthesisVersion:      'synthesis.v1.0.2',
   inputsHash:            'b2c3d4e5f6789000b2c3d4e5f6789000b2c3d4e5f6789000b2c3d4e5f6789000',
   orgName:               'Pleks Demo Agency',
   orgFfcNumber:          'FFC 2026-097 431',

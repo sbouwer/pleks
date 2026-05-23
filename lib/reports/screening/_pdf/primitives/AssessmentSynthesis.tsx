@@ -10,7 +10,7 @@ import { View, Text, StyleSheet } from "@react-pdf/renderer"
 import { C, D, FONTS } from "./theme"
 import type { FitScoreReportData } from "./theme"
 import { BlockHeader } from "./BlockHeader"
-import { buildSynthesis } from "@/lib/screening/prompts/synthesisTemplate.v1.0.1"
+import { buildSynthesis } from "@/lib/screening/prompts/synthesisTemplate.v1.0.2"
 
 const S = StyleSheet.create({
   wrap: { marginBottom: D.primitiveGap },

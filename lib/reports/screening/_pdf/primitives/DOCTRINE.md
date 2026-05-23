@@ -35,3 +35,21 @@ Examples (current state, 2026-05-23):
 | Page 2 Stability dimension card       | none | (distributed)         |
 | Page 2 Credit Behaviour dimension     | 3.1  | §3.1 Bureau coverage  |
 | Page 2 Verification Integrity card    | 3.2  | §3.2 Verification     |
+
+## LDP rendering doctrine
+
+Limited Data Profile (LDP) is a coverage-state classification, not a risk band.
+It represents an absence of placement, not a low-confidence placement.
+
+1. `band === 'limited_data_profile'` sets `score: null`, `confidenceIndex: 'insufficient'`,
+   and zero or more of `affordability`, `stability`, `verificationIntegrity` to `null`.
+2. Null dimension scores render as a `notAssessed` PlaceholderCard — NOT a deficit bar.
+3. `confidenceIndex === 'insufficient'` renders with sub-description
+   "Evidence insufficient for comparative placement". Do NOT map to 'low'.
+4. The synthesis paragraph uses synthesisTemplate.v1.0.2 LDP branch:
+   "Limited Data Profile — composite not positioned. N of 4 dimensions had scoreable
+   evidence available. Band placement requires evidence across all four primary
+   dimensions. Final tenancy decisions rest with the agent or landlord."
+5. INVARIANT: Do NOT collapse 'insufficient' to 'low' during any refactor.
+   LDP is not a degraded risk band. The distinction is critical for agent guidance
+   and Tribunal defensibility.
