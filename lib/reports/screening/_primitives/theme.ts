@@ -117,10 +117,10 @@ export interface FitScoreReportData {
   confidenceIndex: ConfidenceGrade
   verificationIntegrity: VerificationIntegrityGrade
   dimensionalScores: {
-    affordability: number
-    stability: number
-    creditBehaviour: number | null  // null for foreign-national-only lease
-    verificationIntegrity: number
+    affordability: number | null            // null when LDP and dimension unscored
+    stability: number | null               // null when LDP and dimension unscored
+    creditBehaviour: number | null         // null for foreign-national-only lease or LDP
+    verificationIntegrity: number | null   // null when LDP and dimension unscored
     // Engine-emitted thresholds; v1.0: static lookup in getPreferredThresholds(). v1.1+ derives Stability per-case.
     affordability_preferred_threshold: number
     stability_preferred_threshold: number

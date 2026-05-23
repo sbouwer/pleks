@@ -12,6 +12,7 @@
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
 import { C, D, FONTS, sp } from "./theme"
 import type { FitScoreReportData } from "./theme"
+import { PlaceholderCard } from "./PlaceholderCard"
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -222,9 +223,10 @@ function ObsBullets({ bullets }: Readonly<{ bullets: string[] }>) {
 
 // ─── Card bodies ──────────────────────────────────────────────────────────────
 
-function AffordabilityCard({ data }: Readonly<{ data: FitScoreReportData }>) {
-  const score = data.dimensionalScores.affordability
-  const dim   = data.dimensions.affordability
+const NOT_ASSESSED_MSG = 'Insufficient verified evidence available for this dimension.'
+
+function AffordabilityCard({ data, score }: Readonly<{ data: FitScoreReportData; score: number }>) {
+  const dim = data.dimensions.affordability
   return (
     <View>
       <Text style={S.qual}>{sp(data.narrative.affordabilityEvidenceLine)}</Text>
@@ -239,15 +241,14 @@ function AffordabilityCard({ data }: Readonly<{ data: FitScoreReportData }>) {
   )
 }
 
-function StabilityCard({ data }: Readonly<{ data: FitScoreReportData }>) {
-  const score = data.dimensionalScores.stability
-  const dim   = data.dimensions.stability
+function StabilityCard({ data, score }: Readonly<{ data: FitScoreReportData; score: number }>) {
+  const dim = data.dimensions.stability
   return (
     <View>
       <Text style={S.qual}>{sp(data.narrative.stabilityEvidenceLine)}</Text>
       <View style={S.stats}>
         <StatRow label="Score"          value={String(score)} />
-        <StatRow label="Current tenure" value={sp(dim.currentTenureDisplay)}        muted />
+        <StatRow label="Current tenure" value={sp(dim.currentTenureDisplay)}  muted />
         <StatRow label="Employers (7y)" value={String(dim.employersIn7Years)} muted isLast />
       </View>
       <EvidenceBar score={score} preferred={data.dimensionalScores.stability_preferred_threshold} />
@@ -257,7 +258,7 @@ function StabilityCard({ data }: Readonly<{ data: FitScoreReportData }>) {
 }
 
 function CreditCard({ data }: Readonly<{ data: FitScoreReportData }>) {
-  if (data.isAllForeignNational || data.dimensionalScores.creditBehaviour === null) {
+  if (data.isAllForeignNational) {
     return (
       <View>
         <Text style={S.naText}>Not applicable for all-foreign-national leases.</Text>
@@ -269,15 +270,18 @@ function CreditCard({ data }: Readonly<{ data: FitScoreReportData }>) {
     )
   }
   const score = data.dimensionalScores.creditBehaviour
-  const dim   = data.dimensions.credit
+  if (score === null) {
+    return <PlaceholderCard variant="notAssessed" message={NOT_ASSESSED_MSG} />
+  }
+  const dim        = data.dimensions.credit
   const divDisplay = dim.divergencePoints === null ? 'None' : String(dim.divergencePoints)
   return (
     <View>
       <Text style={S.qual}>{sp(data.narrative.creditEvidenceLine)}</Text>
       <View style={S.stats}>
         <StatRow label="Score"           value={String(score)} />
-        <StatRow label="Bureau coverage" value={sp(dim.bureauCoverageDisplay)}      muted />
-        <StatRow label="Divergence"      value={divDisplay}                   muted isLast />
+        <StatRow label="Bureau coverage" value={sp(dim.bureauCoverageDisplay)} muted />
+        <StatRow label="Divergence"      value={divDisplay}                    muted isLast />
       </View>
       <EvidenceBar score={score} preferred={data.dimensionalScores.creditBehaviour_preferred_threshold ?? 65} />
       <ObsBullets bullets={data.narrative.creditObservations ?? []} />
@@ -285,15 +289,14 @@ function CreditCard({ data }: Readonly<{ data: FitScoreReportData }>) {
   )
 }
 
-function VerificationCard({ data }: Readonly<{ data: FitScoreReportData }>) {
-  const score = data.dimensionalScores.verificationIntegrity
-  const dim   = data.dimensions.verification
+function VerificationCard({ data, score }: Readonly<{ data: FitScoreReportData; score: number }>) {
+  const dim = data.dimensions.verification
   return (
     <View>
       <Text style={S.qual}>{sp(data.narrative.verificationEvidenceLine)}</Text>
       <View style={S.stats}>
-        <StatRow label="Score"            value={String(score)} />
-        <StatRow label="Checks"           value={sp(dim.checksPassedDisplay)}                    />
+        <StatRow label="Score"             value={String(score)} />
+        <StatRow label="Checks"            value={sp(dim.checksPassedDisplay)}          />
         <StatRow label="Overrides pending" value={String(dim.manualOverridesPending)} muted isLast />
       </View>
       <EvidenceBar score={score} preferred={data.dimensionalScores.verificationIntegrity_preferred_threshold} />
@@ -325,19 +328,32 @@ interface DimensionCardEditorialProps {
 }
 
 export function DimensionCardEditorial({ data }: Readonly<DimensionCardEditorialProps>) {
+  const affScore = data.dimensionalScores.affordability
+  const stabScore = data.dimensionalScores.stability
+  const viScore   = data.dimensionalScores.verificationIntegrity
+
   return (
     <View style={S.grid} wrap={false}>
       <DimCard label="01 Affordability" docRef="2">
-        <AffordabilityCard data={data} />
+        {affScore === null
+          ? <PlaceholderCard variant="notAssessed" message={NOT_ASSESSED_MSG} />
+          : <AffordabilityCard data={data} score={affScore} />
+        }
       </DimCard>
       <DimCard label="02 Stability" noRight>
-        <StabilityCard data={data} />
+        {stabScore === null
+          ? <PlaceholderCard variant="notAssessed" message={NOT_ASSESSED_MSG} />
+          : <StabilityCard data={data} score={stabScore} />
+        }
       </DimCard>
       <DimCard label="03 Credit behaviour" docRef="3.1" noBottom>
         <CreditCard data={data} />
       </DimCard>
       <DimCard label="04 Verification integrity" docRef="3.2" noRight noBottom>
-        <VerificationCard data={data} />
+        {viScore === null
+          ? <PlaceholderCard variant="notAssessed" message={NOT_ASSESSED_MSG} />
+          : <VerificationCard data={data} score={viScore} />
+        }
       </DimCard>
     </View>
   )

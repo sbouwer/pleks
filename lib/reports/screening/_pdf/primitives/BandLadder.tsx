@@ -34,7 +34,8 @@ const CONFIDENCE_QUALIFIER: Record<ConfidenceGrade, string> = {
   high:         'strong evidence position across all dimensions',
   medium:       'sufficient evidence to position, some gaps remain',
   low:          'limited evidence; result is provisional',
-  insufficient: 'insufficient data for confident positioning',
+  // LDP: not a degraded placement — an absence of placement. Do NOT map to 'low'.
+  insufficient: 'Evidence insufficient for comparative placement',
 }
 
 const VI_QUALIFIER: Record<VerificationIntegrityGrade, string> = {

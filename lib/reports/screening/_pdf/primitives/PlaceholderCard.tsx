@@ -2,16 +2,17 @@
  * lib/reports/screening/_pdf/primitives/PlaceholderCard.tsx
  *
  * Shared placeholder states for E.3 skeleton sections.
- * pending       — amber dashed border; data gated on ADDENDUM_14D.
- * not-solicited — grey dashed; data declined or not requested by the applicant.
+ * pending        — amber dashed border; data gated on ADDENDUM_14D.
+ * not-solicited  — grey dashed; data declined or not requested by the applicant.
  * not-applicable — muted solid; section irrelevant for this applicant type.
- * Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §E.3.
+ * notAssessed    — muted solid; insufficient evidence for this dimension (LDP).
+ * Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §E.3, §E.5.
  */
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
 import { C, FONTS } from "./theme"
 
-export type PlaceholderVariant = 'pending' | 'not-solicited' | 'not-applicable'
+export type PlaceholderVariant = 'pending' | 'not-solicited' | 'not-applicable' | 'notAssessed'
 
 const S = StyleSheet.create({
   card: {
@@ -71,6 +72,7 @@ function msgVariantStyle(v: PlaceholderVariant) {
 function variantLabel(v: PlaceholderVariant): string {
   if (v === 'pending')       return 'PENDING'
   if (v === 'not-solicited') return 'NOT SOLICITED'
+  if (v === 'notAssessed')   return 'NOT ASSESSED'
   return 'NOT APPLICABLE'
 }
 

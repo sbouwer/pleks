@@ -25,12 +25,12 @@ function countPopulatedDimensions(data: FitScoreReportData): number {
 function countDimensionsAboveOrAtThreshold(data: FitScoreReportData): number {
   const s = data.dimensionalScores
   const checks = [
-    s.affordability >= s.affordability_preferred_threshold,
-    s.stability    >= s.stability_preferred_threshold,
+    s.affordability !== null && s.affordability >= s.affordability_preferred_threshold,
+    s.stability !== null && s.stability >= s.stability_preferred_threshold,
     s.creditBehaviour !== null &&
       s.creditBehaviour_preferred_threshold !== null &&
       s.creditBehaviour >= s.creditBehaviour_preferred_threshold,
-    s.verificationIntegrity >= s.verificationIntegrity_preferred_threshold,
+    s.verificationIntegrity !== null && s.verificationIntegrity >= s.verificationIntegrity_preferred_threshold,
   ]
   return checks.filter(Boolean).length
 }
