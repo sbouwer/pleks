@@ -9,13 +9,14 @@
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
 import { C, D, FONTS, sp } from "./theme"
-
-const A4_WIDTH_PT  = 595
-const AXIS_LABEL_W = 20
 import type { FitScoreReportData, BureauEntry } from "./theme"
 import { SectionHeader }   from "./SectionHeader"
 import { BlockHeader }     from "./BlockHeader"
 import { PlaceholderCard } from "./PlaceholderCard"
+
+// Axis width: A4 595pt minus page padding, block border (2×0.75), and blockBody padding.
+const AXIS_WIDTH_PT = 595 - 2 * D.pagePaddingX - 2 * 0.75 - 2 * D.cardPaddingX
+const AXIS_LABEL_W  = 20
 
 const S = StyleSheet.create({
   wrap:  { marginBottom: D.primitiveGap },
@@ -131,10 +132,10 @@ const S = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  axisWrap: { position: 'relative', height: 28, marginBottom: 6 },
+  axisWrap: { position: 'relative', height: 36, marginBottom: 6 },
   axisTrack: {
     position:        'absolute',
-    top:             12,
+    top:             20,
     left:            0,
     right:           0,
     height:          1,
@@ -142,7 +143,7 @@ const S = StyleSheet.create({
   },
   axisSpread: {
     position:        'absolute',
-    top:             10,
+    top:             17,
     height:          5,
     backgroundColor: C.data.wash,
     borderWidth:     0.75,
@@ -150,9 +151,9 @@ const S = StyleSheet.create({
   },
   axisMarkerLine: {
     position:        'absolute',
-    top:             6,
+    top:             13,
     width:           1,
-    height:          12,
+    height:          16,
     backgroundColor: C.data.base,
   },
   axisLabel: {
@@ -232,9 +233,8 @@ function DivergenceAxis({ entries }: Readonly<{ entries: BureauEntry[] }>) {
   const minScore    = Math.min(...scores)
   const maxScore    = Math.max(...scores)
   const pts         = maxScore - minScore
-  const axisW       = A4_WIDTH_PT - 2 * D.pagePaddingX
   const toPos       = (s: number) => `${((s - 300) / 500) * 100}%`
-  const toLabelLeft = (s: number) => ((s - 300) / 500) * axisW - AXIS_LABEL_W / 2
+  const toLabelLeft = (s: number) => ((s - 300) / 500) * AXIS_WIDTH_PT - AXIS_LABEL_W / 2
   const spreadW     = `${((maxScore - minScore) / 500) * 100}%`
 
   return (

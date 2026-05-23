@@ -123,6 +123,13 @@ const S = StyleSheet.create({
     width:           2,
     backgroundColor: C.amber.base,
   },
+  ebarLabelRow: { marginTop: 3 },
+  ebarLabel: {
+    fontFamily:    FONTS.mono,
+    fontSize:      6,
+    color:         C.amber.ink,
+    letterSpacing: 0.3,
+  },
 
   // Observation bullets (F10/F11)
   obsList:  { gap: 4 },
@@ -145,6 +152,9 @@ function EvidenceBar({ score, preferred }: Readonly<{ score: number; preferred: 
         <View style={[S.ebarFill, { width: `${pct}%` }]} />
         <View style={[S.ebarPref, { left: `${prefPct}%` }]} />
         <View style={[S.ebarPin,  { left: `${pct}%` }]} />
+      </View>
+      <View style={[S.ebarLabelRow, { paddingLeft: `${prefPct}%` }]}>
+        <Text style={S.ebarLabel}>min. preferred</Text>
       </View>
     </View>
   )
