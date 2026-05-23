@@ -1,19 +1,23 @@
 /**
- * lib/screening/__tests__/synthesisTemplate.v1.0.test.ts — Unit tests for synthesis paragraph template
+ * lib/screening/__tests__/synthesisTemplate.v1.0.1.test.ts — Unit tests for synthesis paragraph template v1.0.1
  *
  * Coverage:
- *   1. Version constant exported at 'synthesis.v1.0'
- *   2. Standard branch — all-surplus (spec acceptance string)
- *   3. Standard branch — one dimension in deficit (3 of 4)
- *   4. Standard branch — all-foreign-national (3 populated dimensions, M=3)
- *   5. Standard branch — all below threshold (N=0, uses "None of the M applicable")
- *   6. LDP branch — isLdp produces no-score output
- *   7. Blocked branch — plural critical flags
- *   8. Blocked branch — singular critical flag
+ *   1.  Version constant exported at 'synthesis.v1.0.1'
+ *   2.  Standard branch — all-surplus (spec acceptance string with em-dash)
+ *   3.  Standard branch — one dimension in deficit (3 of 4)
+ *   4.  Standard branch — all-foreign-national (3 populated dimensions, M=3)
+ *   5.  Standard branch — all below threshold (N=0, uses "None of the M applicable")
+ *   6.  Standard branch — includes band label, score, confidence and closing disclaimer
+ *   7.  Standard branch — singular critical flag adds "One material flag (critical) observed"
+ *   8.  Standard branch — plural critical flags adds "{N} material flags (critical) observed"
+ *   9.  LDP branch — isLdp produces no-score output
+ *   10. Blocked branch — plural critical flags
+ *   11. Blocked branch — singular critical flag
+ *   12. Blocked branch — references "Material flags card" not "section 1"
  */
 
 import { describe, it, expect } from 'vitest'
-import { buildSynthesis, SYNTHESIS_TEMPLATE_VERSION } from '@/lib/screening/prompts/synthesisTemplate.v1.0'
+import { buildSynthesis, SYNTHESIS_TEMPLATE_VERSION } from '@/lib/screening/prompts/synthesisTemplate.v1.0.1'
 import type { FitScoreReportData } from '@/lib/reports/screening/_primitives/theme'
 
 // ─── Minimal base fixture ──────────────────────────────────────────────────────
@@ -63,7 +67,7 @@ const BASE: FitScoreReportData = {
   engineVersion:         'fitscore.v1.0.1',
   narrativeVersion:      'narr.v1.1',
   interpretationVersion: 'interpretation.v1.0',
-  synthesisVersion:      'synthesis.v1.0',
+  synthesisVersion:      'synthesis.v1.0.1',
   inputsHash:            'a'.repeat(64),
   orgName:               'Test Agency',
   orgFfcNumber:          null,
@@ -75,11 +79,17 @@ const BASE: FitScoreReportData = {
   },
 }
 
+const CRITICAL_FLAG: FitScoreReportData['materialFlags'][0] = {
+  flag: 'critical_test', class: 'critical', description: 'Critical signal', source: '',
+  capApplied: false, capCeiling: null, applicantId: null, applicantLabel: null,
+  observedAt: '2026-05-22T10:00:00Z',
+}
+
 // ─── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('SYNTHESIS_TEMPLATE_VERSION', () => {
   it('exports the expected version string', () => {
-    expect(SYNTHESIS_TEMPLATE_VERSION).toBe('synthesis.v1.0')
+    expect(SYNTHESIS_TEMPLATE_VERSION).toBe('synthesis.v1.0.1')
   })
 })
 
@@ -113,7 +123,6 @@ describe('buildSynthesis — standard branch', () => {
         ...BASE.dimensionalScores,
         creditBehaviour:                       null,
         creditBehaviour_preferred_threshold:   null,
-        // affordability, stability, verificationIntegrity all above threshold
         affordability:    84,
         stability:        78,
         verificationIntegrity: 92,
@@ -127,10 +136,10 @@ describe('buildSynthesis — standard branch', () => {
     const data: FitScoreReportData = {
       ...BASE,
       dimensionalScores: {
-        affordability:                             20, // below 70
-        stability:                                 10, // below 60
-        creditBehaviour:                           30, // below 65
-        verificationIntegrity:                     40, // below 80
+        affordability:                             20,
+        stability:                                 10,
+        creditBehaviour:                           30,
+        verificationIntegrity:                     40,
         affordability_preferred_threshold:         70,
         stability_preferred_threshold:             60,
         creditBehaviour_preferred_threshold:       65,
@@ -146,6 +155,22 @@ describe('buildSynthesis — standard branch', () => {
     expect(result).toContain('composite 82')
     expect(result).toContain('Band placement confidence: high')
     expect(result).toContain('Final tenancy decisions rest with the agent or landlord.')
+  })
+
+  it('appends singular critical-flag sentence when exactly 1 critical flag present', () => {
+    const data: FitScoreReportData = { ...BASE, materialFlags: [CRITICAL_FLAG] }
+    const result = buildSynthesis(data)
+    expect(result).toContain('One material flag (critical) observed — see the Material flags card.')
+    expect(result).not.toContain('material flags (critical)')
+  })
+
+  it('appends plural critical-flag sentence when multiple critical flags present', () => {
+    const data: FitScoreReportData = {
+      ...BASE,
+      materialFlags: [CRITICAL_FLAG, { ...CRITICAL_FLAG, flag: 'critical_test_2' }],
+    }
+    const result = buildSynthesis(data)
+    expect(result).toContain('2 material flags (critical) observed — see the Material flags card.')
   })
 })
 
@@ -186,7 +211,7 @@ describe('buildSynthesis — blocked branch', () => {
     expect(buildSynthesis(data)).toContain('1 critical flag prevents composite assessment')
   })
 
-  it('references section 1 for material flags', () => {
+  it('references the Material flags card, not section 1', () => {
     const data: FitScoreReportData = {
       ...BASE,
       band: 'blocked',
@@ -195,6 +220,8 @@ describe('buildSynthesis — blocked branch', () => {
         { flag: 'a', class: 'critical', description: '', source: '', capApplied: false, capCeiling: null, applicantId: null, applicantLabel: null, observedAt: '2026-05-22T10:00:00Z' },
       ],
     }
-    expect(buildSynthesis(data)).toContain('section 1')
+    const result = buildSynthesis(data)
+    expect(result).toContain('Material flags card')
+    expect(result).not.toContain('section 1')
   })
 })
