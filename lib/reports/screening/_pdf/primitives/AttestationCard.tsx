@@ -1,10 +1,10 @@
 /**
  * lib/reports/screening/_pdf/primitives/AttestationCard.tsx
  *
- * Document attestation block — body content, not chrome. Replaces the per-page AuditStrip.
- * Placed as the last child of the final DocumentShell by the composing template.
- * Carries version metadata, inputs hash, help URL, and POPIA contact.
- * Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §E.3 density retune.
+ * §4.4 — Document attestation block — body content, not chrome.
+ * Placed as the last child of the Narrative DocumentShell.
+ * Carries version metadata (engine, narrative, interpretation, synthesis), inputs hash, help URL, and POPIA contact.
+ * Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §E.4 (moved from §3.3 in E.3).
  */
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
@@ -90,7 +90,7 @@ export function AttestationCard({ data }: Readonly<AttestationCardProps>) {
     <View style={S.wrap} wrap={false}>
       <View style={S.card}>
         <BlockHeader
-          label="3.3"
+          label="4.4"
           title="Document attestation"
           rightTag={sp(data.applicationRef)}
         />
@@ -107,6 +107,10 @@ export function AttestationCard({ data }: Readonly<AttestationCardProps>) {
             <View style={S.metaRow}>
               <Text style={S.metaKey}>Interpretation</Text>
               <Text style={S.metaVal}>{sp(data.interpretationVersion)}</Text>
+            </View>
+            <View style={S.metaRow}>
+              <Text style={S.metaKey}>Synthesis</Text>
+              <Text style={S.metaVal}>{sp(data.synthesisVersion)}</Text>
             </View>
             <View style={[S.metaRow, S.metaRowLast]}>
               <Text style={S.metaKey}>Inputs hash</Text>
