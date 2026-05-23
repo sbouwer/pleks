@@ -1,14 +1,15 @@
 /**
- * scripts/render-e2-smoke.ts — E.2 + E.3 smoke render (skeleton + populated)
+ * scripts/render-fitscore-smoke.ts — FitScore PDF smoke render (E.1–E.3 surface)
  *
- * Run:    npm run fitscore:render-e2-smoke
- * Output: lib/reports/screening/_pdf/__samples__/e2-e3-skeleton.pdf
- *         lib/reports/screening/_pdf/__samples__/e2-e3-populated.pdf
+ * Run:    npm run fitscore:render-smoke
+ * Output: lib/reports/screening/_pdf/__samples__/fitscore-skeleton-smoke.pdf
+ *         lib/reports/screening/_pdf/__samples__/fitscore-populated-smoke.pdf
  *
  * Two fixtures, two PDFs:
- *   skeleton   — creditAnalysis absent; exercises all PENDING placeholder states in E.3.
- *   populated  — creditAnalysis present (3 bureaus, 5 checks, 1 absent); exercises full
- *                render paths in BureauCoverageMatrix + VerificationCheckTable.
+ *   skeleton   — creditAnalysis absent; exercises all PENDING placeholder states.
+ *                Realistic v1 production state.
+ *   populated  — creditAnalysis present (3 bureaus, 5 checks, 1 absent);
+ *                exercises full render paths in BureauCoverageMatrix + VerificationCheckTable.
  *
  * FITSCORE_FONT_SOURCE=local is injected by the npm script via cross-env.
  * Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §E.3 acceptance criteria.
@@ -24,7 +25,6 @@ import { EditorialHeadline }      from "@/lib/reports/screening/_pdf/primitives/
 import { MetaStrip }              from "@/lib/reports/screening/_pdf/primitives/MetaStrip"
 import { IdentityRow }            from "@/lib/reports/screening/_pdf/primitives/IdentityRow"
 import { BandLadder }             from "@/lib/reports/screening/_pdf/primitives/BandLadder"
-import { FlagPillRow }            from "@/lib/reports/screening/_pdf/primitives/FlagPillRow"
 import { DimensionCardEditorial } from "@/lib/reports/screening/_pdf/primitives/DimensionCardEditorial"
 
 import { IncomeReconciliationTable } from "@/lib/reports/screening/_pdf/primitives/IncomeReconciliationTable"
@@ -32,6 +32,7 @@ import { ExpenditureTable }          from "@/lib/reports/screening/_pdf/primitiv
 import { RiskUncertaintySplit }      from "@/lib/reports/screening/_pdf/primitives/RiskUncertaintySplit"
 import { BureauCoverageMatrix }      from "@/lib/reports/screening/_pdf/primitives/BureauCoverageMatrix"
 import { VerificationCheckTable }    from "@/lib/reports/screening/_pdf/primitives/VerificationCheckTable"
+import { AttestationCard }           from "@/lib/reports/screening/_pdf/primitives/AttestationCard"
 
 import type { FitScoreReportData, FitScoreCreditAnalysis } from "@/lib/reports/screening/_pdf/primitives/theme"
 
@@ -148,86 +149,86 @@ const BASE: FitScoreReportData = {
   },
 }
 
-// ─── Credit analysis fixture (populated variant only) ─────────────────────────
+// ─── Credit analysis fixture (populated variant) ──────────────────────────────
 
 const CREDIT_ANALYSIS: FitScoreCreditAnalysis = {
-  bureausResponding:     2,
+  bureausResponding:     3,
   bureausSolicited:      3,
   bureauEntries: [
     {
       name:            'TransUnion',
-      subLabel:        'ITC · South Africa',
+      subLabel:        'Empirica score',
       coveragePips:    5,
-      coverageLabel:   'Full coverage · all trade-lines present',
-      tradeLines:      '7',
-      adverseListings: 'None',
-      reportedScore:   712,
+      coverageLabel:   'Full coverage',
+      tradeLines:      '8',
+      adverseListings: '0',
+      reportedScore:   718,
     },
     {
       name:            'Experian',
-      subLabel:        'Delphi score · v5',
+      subLabel:        'Delphi score',
       coveragePips:    4,
-      coverageLabel:   'Strong coverage · 1 trade-line absent',
-      tradeLines:      '6',
-      adverseListings: 'None',
-      reportedScore:   688,
+      coverageLabel:   'Coverage 4/5',
+      tradeLines:      '7',
+      adverseListings: '0',
+      reportedScore:   702,
     },
     {
       name:            'VeriCred',
-      subLabel:        'Solicited · no response',
-      coveragePips:    0,
-      coverageLabel:   'No response received',
-      tradeLines:      '—',
+      subLabel:        'Composite',
+      coveragePips:    3,
+      coverageLabel:   'Coverage 3/5',
+      tradeLines:      '5',
       adverseListings: '—',
-      reportedScore:   null,
+      reportedScore:   651,
     },
   ],
-  verificationsLabel:      '5 of 5 passed',
-  verificationsQueryLabel: 'queried 2026-05-19',
+  verificationsLabel:      '5 of 5 checks passed',
+  verificationsQueryLabel: 'queried 22 May 2026',
   verificationChecks: [
     {
-      checkName:    'Identity verification',
-      checkSub:     'ID number · Home Affairs match',
-      source:       'DHA via Pleks',
-      method:       'API · real-time',
+      checkName:    'Identity match',
+      checkSub:     'DHA · SA ID',
+      source:       'DHA',
+      method:       'ID number + biometric',
       outcomeType:  'pass',
-      outcomeLabel: '',
+      outcomeLabel: 'Consistent across all sources',
       evidenceNote: '',
     },
     {
       checkName:    'Income verification',
-      checkSub:     'Payslip vs bureau statement',
-      source:       'TransUnion · Experian',
-      method:       'Bureau cross-check',
-      outcomeType:  'pass',
-      outcomeLabel: 'Aligned · within 8% variance',
-      evidenceNote: '',
+      checkSub:     'Payslip + bank statement',
+      source:       'Employer',
+      method:       'Payslip + bank reconciliation',
+      outcomeType:  'partial',
+      outcomeLabel: '8% variance',
+      evidenceNote: 'Declared R38,500; verified R35,420 (6-mo mean)',
     },
     {
       checkName:    'Employment verification',
-      checkSub:     'Current employer · Cape Digital Solutions',
-      source:       'Pleks employment API',
-      method:       'CIPC + payslip match',
+      checkSub:     'Employer attestation',
+      source:       'Employer HR',
+      method:       'Direct enquiry',
       outcomeType:  'pass',
-      outcomeLabel: '',
+      outcomeLabel: 'Active employment confirmed',
       evidenceNote: '',
     },
     {
-      checkName:    'Rental reference · primary',
-      checkSub:     'Prior tenancy · Pleks network record',
-      source:       'Pleks network',
-      method:       'On-ledger reference',
-      outcomeType:  'partial',
-      outcomeLabel: 'One reference verified; second not on record',
-      evidenceNote: 'ref-network · 2024-09',
-    },
-    {
-      checkName:    'Secondary employer reference',
-      checkSub:     'Prior employer · not solicited',
+      checkName:    'Address history',
+      checkSub:     'Bureau move data',
       source:       '—',
       method:       '—',
       outcomeType:  'absent',
       outcomeLabel: '',
+      evidenceNote: 'No move data supplied for this applicant',
+    },
+    {
+      checkName:    'Rental reference',
+      checkSub:     'Pleks network',
+      source:       'Pleks network',
+      method:       'Internal tenancy lookup',
+      outcomeType:  'pass',
+      outcomeLabel: '1 prior tenancy in good standing',
       evidenceNote: '',
     },
   ],
@@ -242,12 +243,11 @@ const FIXTURE_POPULATED: FitScoreReportData = { ...BASE, creditAnalysis: CREDIT_
 
 function buildDoc(data: FitScoreReportData) {
   return h(Document, {},
-    h(DocumentShell, { data, section: 'Profile', showAuditStrip: true },
+    h(DocumentShell, { data, section: 'Profile' },
       h(EditorialHeadline,      { data }),
       h(MetaStrip,              { data }),
       h(IdentityRow,            { data }),
       h(BandLadder,             { data }),
-      h(FlagPillRow,            { data }),
       h(DimensionCardEditorial, { data }),
     ),
     h(DocumentShell, { data, section: 'Financial Analysis' },
@@ -258,6 +258,7 @@ function buildDoc(data: FitScoreReportData) {
     h(DocumentShell, { data, section: 'Evidence & Credit' },
       h(BureauCoverageMatrix,   { data }),
       h(VerificationCheckTable, { data }),
+      h(AttestationCard,        { data }),
     ),
   )
 }
@@ -268,12 +269,12 @@ async function main() {
   mkdirSync(OUT_DIR, { recursive: true })
 
   const skeletonBuf = await renderToBuffer(buildDoc(FIXTURE_SKELETON))
-  const skeletonPath = path.join(OUT_DIR, 'e2-e3-skeleton.pdf')
+  const skeletonPath = path.join(OUT_DIR, 'fitscore-skeleton-smoke.pdf')
   writeFileSync(skeletonPath, skeletonBuf)
   console.log(`✓  ${skeletonPath}  (${(skeletonBuf.byteLength / 1024).toFixed(1)} KB)`)
 
   const populatedBuf = await renderToBuffer(buildDoc(FIXTURE_POPULATED))
-  const populatedPath = path.join(OUT_DIR, 'e2-e3-populated.pdf')
+  const populatedPath = path.join(OUT_DIR, 'fitscore-populated-smoke.pdf')
   writeFileSync(populatedPath, populatedBuf)
   console.log(`✓  ${populatedPath}  (${(populatedBuf.byteLength / 1024).toFixed(1)} KB)`)
 }
