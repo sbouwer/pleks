@@ -65,9 +65,10 @@ const RAW = {
   ruleStrong:  '#c7c4bc',  // oklch(0.78 0.008 85)
 
   // Brand amber — focus / current state / audit marks; NOT "approved"
-  amber:       '#d4820d',  // oklch(0.68 0.14 65)
-  amberInk:    '#8b5200',  // oklch(0.50 0.13 55)
-  amberWash:   '#fdf5eb',  // oklch(0.95 0.04 75)
+  amber:        '#d4820d',  // oklch(0.68 0.14 65)
+  amberInk:     '#8b5200',  // oklch(0.50 0.13 55)
+  amberWash:    '#fdf5eb',  // oklch(0.95 0.04 75) — very light; partial-outcome tag bg
+  amberDeficit: '#e2bd85',  // ~45% amber over paperDeeper (#eeede7); evidence bar deficit segment
 
   // Data — muted banking blue for evidence visualisations
   data:        '#3d5a8a',  // oklch(0.46 0.06 240)
@@ -106,9 +107,10 @@ export const C = {
     strong: RAW.ruleStrong,
   },
   amber: {
-    base: RAW.amber,
-    ink:  RAW.amberInk,
-    wash: RAW.amberWash,
+    base:    RAW.amber,
+    ink:     RAW.amberInk,
+    wash:    RAW.amberWash,
+    deficit: RAW.amberDeficit,
   },
   data: {
     base: RAW.data,

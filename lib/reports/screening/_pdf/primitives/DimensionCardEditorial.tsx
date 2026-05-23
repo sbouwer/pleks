@@ -106,21 +106,21 @@ const S = StyleSheet.create({
     left:            0,
     top:             0,
     bottom:          0,
-    backgroundColor: C.data.base,
+    backgroundColor: C.data.soft,    // light baseline — contrasts clearly with surplus
     borderRadius:    1,
   },
   ebarSurplus: {
     position:        'absolute',
     top:             0,
     bottom:          0,
-    backgroundColor: C.data.dark,
+    backgroundColor: C.data.base,    // full dark blue — clearly darker than soft baseline
     borderRadius:    1,
   },
   ebarDeficit: {
     position:        'absolute',
     top:             0,
     bottom:          0,
-    backgroundColor: C.amber.wash,
+    backgroundColor: C.amber.deficit, // ~45% amber over track bg; clearly visible
     borderRadius:    1,
   },
   ebarPref: {
