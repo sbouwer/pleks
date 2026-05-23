@@ -152,7 +152,7 @@ export function RiskUncertaintySplit({ data }: Readonly<RiskUncertaintySplitProp
         {sp(
           'The left column lists signals that were observed in the supplied evidence. ' +
           'The right column lists information that was not available or was incomplete. ' +
-          'Both inform manual review, but they are not the same kind of finding.'
+          'Both inform manual review, but they are not the same kind of finding and must not be conflated.'
         )}
       </Text>
 

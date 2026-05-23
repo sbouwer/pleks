@@ -7,7 +7,7 @@
  */
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
-import { C, T } from "./theme"
+import { C, FONTS, T } from "./theme"
 
 const S = StyleSheet.create({
   wrap: {
@@ -21,9 +21,9 @@ const S = StyleSheet.create({
     backgroundColor:   C.surface.paperSunk,
   },
   label: {
-    fontFamily:   'JetBrains Mono',
+    fontFamily:   FONTS.mono,
     fontSize:     7.5,
-    letterSpacing: 1.0,
+    letterSpacing: 1,
     textTransform: 'uppercase',
     color:         C.ink.mute,
   },
@@ -32,7 +32,7 @@ const S = StyleSheet.create({
     flex: 1,
   },
   rightTag: {
-    fontFamily:   'JetBrains Mono',
+    fontFamily:   FONTS.mono,
     fontSize:     7.5,
     letterSpacing: 0.8,
     textTransform: 'uppercase',

@@ -10,6 +10,7 @@
 
 import { StyleSheet } from "@react-pdf/renderer"
 import type { FitScoreBand } from "@/lib/screening/fitScoreEngine.v1"
+import { FONTS } from "../../_primitives/theme"
 
 // ─── Re-export shared contract from the original theme ───────────────────────
 // Font.register() lives there and runs once at import time.
@@ -128,13 +129,13 @@ export const C = {
 // letterSpacing in pt (0.14em at 8pt ≈ 1.1pt → 1.0; 0.06em at 8pt ≈ 0.5pt → 0.5)
 
 export const T = StyleSheet.create({
-  h2:     { fontSize: 16, fontFamily: 'Inter Tight', fontWeight: 500,    color: RAW.ink,     letterSpacing: -0.3, lineHeight: 1.2  },
-  h3:     { fontSize: 11, fontFamily: 'Inter Tight', fontWeight: 500,    color: RAW.ink,     letterSpacing: -0.1, lineHeight: 1.25 },
-  body:   { fontSize: 9.5, fontFamily: 'Inter Tight',                    color: RAW.ink,     lineHeight: 1.55 },
-  soft:   { fontSize: 9.5, fontFamily: 'Inter Tight',                    color: RAW.inkSoft, lineHeight: 1.55 },
-  mono:   { fontSize: 8,   fontFamily: 'JetBrains Mono',                 color: RAW.inkMute, letterSpacing: 1 },
-  monoSm: { fontSize: 7.5, fontFamily: 'JetBrains Mono',                 color: RAW.inkFaint, letterSpacing: 0.5 },
-  label:  { fontSize: 7.5, fontFamily: 'JetBrains Mono',                 color: RAW.inkMute, letterSpacing: 1, textTransform: 'uppercase' },
+  h2:     { fontSize: 16, fontFamily: FONTS.sans, fontWeight: 500,    color: RAW.ink,     letterSpacing: -0.3, lineHeight: 1.2  },
+  h3:     { fontSize: 11, fontFamily: FONTS.sans, fontWeight: 500,    color: RAW.ink,     letterSpacing: -0.1, lineHeight: 1.25 },
+  body:   { fontSize: 9.5, fontFamily: FONTS.sans,                    color: RAW.ink,     lineHeight: 1.55 },
+  soft:   { fontSize: 9.5, fontFamily: FONTS.sans,                    color: RAW.inkSoft, lineHeight: 1.55 },
+  mono:   { fontSize: 8,   fontFamily: FONTS.mono,                    color: RAW.inkMute, letterSpacing: 1 },
+  monoSm: { fontSize: 7.5, fontFamily: FONTS.mono,                    color: RAW.inkFaint, letterSpacing: 0.5 },
+  label:  { fontSize: 7.5, fontFamily: FONTS.mono,                    color: RAW.inkMute, letterSpacing: 1, textTransform: 'uppercase' },
   row:    { flexDirection: 'row' as const },
   divider:{ borderBottomWidth: 0.75, borderBottomColor: RAW.rule },
 })

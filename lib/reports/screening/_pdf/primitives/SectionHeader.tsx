@@ -8,7 +8,7 @@
  */
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
-import { C, T } from "./theme"
+import { C, FONTS, T } from "./theme"
 
 const S = StyleSheet.create({
   wrap: {
@@ -32,9 +32,9 @@ const S = StyleSheet.create({
     backgroundColor: C.amber.base,
   },
   badge: {
-    fontFamily:      'JetBrains Mono',
+    fontFamily:      FONTS.mono,
     fontSize:        7.5,
-    letterSpacing:   1.0,
+    letterSpacing:   1,
     textTransform:   'uppercase',
     color:           C.ink.mute,
     borderWidth:     0.75,
@@ -48,7 +48,7 @@ const S = StyleSheet.create({
     flex: 1,
   },
   rightLabel: {
-    fontFamily:   'JetBrains Mono',
+    fontFamily:   FONTS.mono,
     fontSize:     7.5,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
