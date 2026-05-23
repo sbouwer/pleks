@@ -8,53 +8,36 @@
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
 import { C, D, FONTS } from "./theme"
+import { BlockHeader } from "./BlockHeader"
 
 const S = StyleSheet.create({
   wrap: { marginBottom: D.primitiveGap },
   card: {
-    borderWidth:       0.75,
-    borderColor:       C.rule.base,
-    paddingHorizontal: D.cardPaddingX,
-    paddingTop:        D.cardPaddingY,
-    paddingBottom:     0,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    gap:           10,
-    marginBottom:  8,
-  },
-  title: {
-    fontFamily:    FONTS.mono,
-    fontSize:      7.5,
-    letterSpacing: 1,
-    color:         C.ink.mute,
-    textTransform: 'uppercase',
-  },
-  intro: {
-    fontFamily: FONTS.sans,
-    fontSize:   8.5,
-    color:      C.ink.mute,
-    lineHeight: D.bodyLineHeight,
+    borderWidth:     0.75,
+    borderColor:     C.rule.base,
+    backgroundColor: C.surface.paperRaised,
+    paddingBottom:   0,
   },
   row: {
     flexDirection:     'row',
     paddingVertical:   10,
+    paddingHorizontal: D.cardPaddingX,
     borderBottomWidth: 0.75,
     borderBottomColor: C.rule.base,
     gap:               12,
     alignItems:        'flex-start',
   },
   rowLast: {
-    flexDirection:  'row',
-    paddingVertical: 10,
-    gap:             12,
-    alignItems:      'flex-start',
+    flexDirection:     'row',
+    paddingVertical:   10,
+    paddingHorizontal: D.cardPaddingX,
+    gap:               12,
+    alignItems:        'flex-start',
   },
   rowLabel: {
     width:      80,
     fontFamily: FONTS.sans,
-    fontSize:   9,
+    fontSize:   8.5,
     fontWeight: 'bold',
     color:      C.ink.primary,
     lineHeight: D.bodyLineHeight,
@@ -89,10 +72,7 @@ export function DimensionReadingGuide() {
   return (
     <View style={S.wrap} wrap={false}>
       <View style={S.card}>
-        <View style={S.titleRow}>
-          <Text style={S.title}>Reading guide · Dimensions</Text>
-          <Text style={S.intro}>How to read the four dimension cards above.</Text>
-        </View>
+        <BlockHeader label="—" title="Reading guide · Dimensions" rightTag="How to read the four dimension cards above" />
         {ROWS.map((row, i) => (
           <View key={`${i}-${row.label.slice(0, 8)}`} style={i === ROWS.length - 1 ? S.rowLast : S.row}>
             <Text style={S.rowLabel}>{row.label}</Text>
