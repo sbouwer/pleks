@@ -15,9 +15,10 @@ import { BlockHeader }   from "./BlockHeader"
 const S = StyleSheet.create({
   wrap: { marginBottom: D.primitiveGap },
   card: {
-    borderWidth:   0.75,
-    borderColor:   C.rule.base,
-    paddingBottom: 0,
+    borderWidth:     0.75,
+    borderColor:     C.rule.base,
+    backgroundColor: C.surface.paperRaised,
+    paddingBottom:   0,
   },
   row: {
     flexDirection:     'row',
