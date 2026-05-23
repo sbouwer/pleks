@@ -108,7 +108,7 @@ function outcomeTagLabel(t: VerificationOutcome): string {
 
 function CheckRow({ item, isLast }: Readonly<{ item: VerificationCheckItem; isLast: boolean }>) {
   return (
-    <View style={isLast ? S.tableRowLast : S.tableRow}>
+    <View style={isLast ? [S.tableRow, S.tableRowLast] : S.tableRow}>
       <View style={S.colCheck}>
         <Text style={S.td}>{sp(item.checkName)}</Text>
         <Text style={S.tdSub}>{sp(item.checkSub)}</Text>

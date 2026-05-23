@@ -20,7 +20,7 @@ const S = StyleSheet.create({
   },
   titleRow: {
     flexDirection: 'row',
-    alignItems:    'baseline',
+    alignItems:    'center',
     gap:           10,
     marginBottom:  8,
   },

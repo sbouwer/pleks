@@ -9,6 +9,9 @@
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
 import { C, D, FONTS, sp } from "./theme"
+
+const A4_WIDTH_PT  = 595
+const AXIS_LABEL_W = 20
 import type { FitScoreReportData, BureauEntry } from "./theme"
 import { SectionHeader }   from "./SectionHeader"
 import { BlockHeader }     from "./BlockHeader"
@@ -153,12 +156,13 @@ const S = StyleSheet.create({
     backgroundColor: C.data.base,
   },
   axisLabel: {
-    position:   'absolute',
-    top:        0,
-    fontFamily: FONTS.mono,
-    fontSize:   6.5,
-    color:      C.ink.primary,
-    textAlign:  'center',
+    position:      'absolute',
+    top:           0,
+    width:         AXIS_LABEL_W,
+    fontFamily:    FONTS.mono,
+    fontSize:      6.5,
+    color:         C.ink.primary,
+    textAlign:     'center',
     letterSpacing: 0.3,
   },
 
@@ -196,7 +200,7 @@ function CoveragePips({ filled }: Readonly<{ filled: number }>) {
 function BureauRow({ entry, isLast }: Readonly<{ entry: BureauEntry; isLast: boolean }>) {
   const hasScore = entry.reportedScore !== null
   return (
-    <View style={isLast ? S.tableRowLast : S.tableRow}>
+    <View style={isLast ? [S.tableRow, S.tableRowLast] : S.tableRow}>
       <View style={S.colBureau}>
         <Text style={S.td}>{sp(entry.name)}</Text>
         <Text style={S.tdSub}>{sp(entry.subLabel)}</Text>
@@ -224,12 +228,14 @@ function DivergenceAxis({ entries }: Readonly<{ entries: BureauEntry[] }>) {
   const scored = entries.filter((e): e is BureauEntry & { reportedScore: number } => e.reportedScore !== null)
   if (scored.length < 2) return null
 
-  const scores   = scored.map(e => e.reportedScore)
-  const minScore = Math.min(...scores)
-  const maxScore = Math.max(...scores)
-  const pts      = maxScore - minScore
-  const toPos    = (s: number) => `${((s - 300) / 500) * 100}%`
-  const spreadW  = `${((maxScore - minScore) / 500) * 100}%`
+  const scores      = scored.map(e => e.reportedScore)
+  const minScore    = Math.min(...scores)
+  const maxScore    = Math.max(...scores)
+  const pts         = maxScore - minScore
+  const axisW       = A4_WIDTH_PT - 2 * D.pagePaddingX
+  const toPos       = (s: number) => `${((s - 300) / 500) * 100}%`
+  const toLabelLeft = (s: number) => ((s - 300) / 500) * axisW - AXIS_LABEL_W / 2
+  const spreadW     = `${((maxScore - minScore) / 500) * 100}%`
 
   return (
     <View style={S.divWrap}>
@@ -245,7 +251,7 @@ function DivergenceAxis({ entries }: Readonly<{ entries: BureauEntry[] }>) {
           <View key={`${i}-${e.name.slice(0, 8)}`} style={[S.axisMarkerLine, { left: toPos(e.reportedScore) }]} />
         ))}
         {scored.map((e, i) => (
-          <Text key={`lbl-${i}-${e.name.slice(0, 8)}`} style={[S.axisLabel, { left: toPos(e.reportedScore) }]}>
+          <Text key={`lbl-${i}-${e.name.slice(0, 8)}`} style={[S.axisLabel, { left: toLabelLeft(e.reportedScore) }]}>
             {String(e.reportedScore)}
           </Text>
         ))}
