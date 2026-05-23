@@ -281,7 +281,9 @@ function buildDoc(data: FitScoreReportData) {
       h(ObservedStrengths,    { data }),
       h(AssessmentSynthesis,  { data }),
       h(DocumentReadingGuide, {}),
-      h(AttestationCard,      { data }),
+    ),
+    h(DocumentShell, { data, section: 'Document Attestation' },
+      h(AttestationCard, { data }),
     ),
   )
 }
