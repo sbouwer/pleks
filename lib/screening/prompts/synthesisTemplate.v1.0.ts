@@ -3,7 +3,7 @@
  *
  * Data:   FitScoreReportData from _primitives/theme
  * Notes:  Deterministic — no AI call. Three branches: Standard (scored), LDP, Blocked.
- *         Output passes through sp() at render time — no Unicode chars needed here.
+ *         Output is rendered directly — do NOT wrap with sp(); em-dashes must survive.
  *         Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §E.4.
  */
 
@@ -51,7 +51,7 @@ export function buildSynthesis(data: FitScoreReportData): string {
     // n === 0 here indicates an engine inconsistency; phrase degrades gracefully.
     const flagPhrase = n === 1 ? '1 critical flag prevents' : `${n} critical flags prevent`
     return [
-      `This lease application is blocked - ${flagPhrase} composite assessment.`,
+      `This lease application is blocked — ${flagPhrase} composite assessment.`,
       'See the Material Flags section in section 1 for the specific signals that triggered this state.',
       'Final tenancy decisions rest with the agent or landlord.',
     ].join(' ')
@@ -65,7 +65,7 @@ export function buildSynthesis(data: FitScoreReportData): string {
     : `${n} of ${m} dimensions met or exceeded their preferred threshold.`
 
   return [
-    `${BAND_LABELS[data.band]} - composite ${score}.`,
+    `${BAND_LABELS[data.band]} — composite ${score}.`,
     dimSentence,
     `Band placement confidence: ${data.confidenceIndex}.`,
     'Final tenancy decisions rest with the agent or landlord.',

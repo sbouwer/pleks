@@ -10,7 +10,7 @@
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
 import { C, D, FONTS, sp, fmtDate } from "./theme"
 import type { FitScoreReportData } from "./theme"
-import { SectionHeader } from "./SectionHeader"
+import { BlockHeader } from "./BlockHeader"
 
 const S = StyleSheet.create({
   wrap: { marginBottom: D.primitiveGap },
@@ -89,10 +89,10 @@ export function AttestationCard({ data }: Readonly<AttestationCardProps>) {
   return (
     <View style={S.wrap} wrap={false}>
       <View style={S.card}>
-        <SectionHeader
-          badge="5.1"
-          title="Document attestation"
-          rightLabel={sp(data.applicationRef)}
+        <BlockHeader
+          label="5.2"
+          title="Document trail"
+          rightTag={sp(data.applicationRef)}
         />
         <View style={S.cardBody}>
           <View style={S.metaBlock}>

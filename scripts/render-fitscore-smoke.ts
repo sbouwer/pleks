@@ -278,12 +278,12 @@ function buildDoc(data: FitScoreReportData) {
       h(VerificationCheckTable, { data }),
     ),
     h(DocumentShell, { data, section: 'Narrative' },
-      h(ObservedStrengths,    { data }),
-      h(AssessmentSynthesis,  { data }),
-      h(DocumentReadingGuide, {}),
+      h(ObservedStrengths,   { data }),
+      h(AssessmentSynthesis, { data }),
     ),
     h(DocumentShell, { data, section: 'Document Attestation' },
-      h(AttestationCard, { data }),
+      h(DocumentReadingGuide, {}),
+      h(AttestationCard,      { data }),
     ),
   )
 }

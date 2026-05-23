@@ -9,6 +9,7 @@ import { View, Text, StyleSheet } from "@react-pdf/renderer"
 import { C, D, FONTS, sp } from "./theme"
 import type { FitScoreReportData } from "./theme"
 import { SectionHeader } from "./SectionHeader"
+import { BlockHeader }   from "./BlockHeader"
 
 const S = StyleSheet.create({
   wrap: { marginBottom: D.primitiveGap },
@@ -96,8 +97,9 @@ export function ObservedStrengths({ data }: Readonly<ObservedStrengthsProps>) {
 
   return (
     <View style={S.wrap}>
-      <SectionHeader badge="4.1" title="Assessment narrative" />
+      <SectionHeader badge="4" title="Assessment narrative" />
       <View style={S.card}>
+        <BlockHeader label="4.1" title="Observed strengths, concerns and limited visibility" />
         <View style={S.body}>
           {strengths.length > 0 && (
             <View style={isLastSection ? S.sectionLast : S.section}>

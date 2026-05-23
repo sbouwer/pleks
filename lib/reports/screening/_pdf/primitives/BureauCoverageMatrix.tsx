@@ -288,8 +288,8 @@ export function BureauCoverageMatrix({ data }: Readonly<BureauCoverageMatrixProp
   return (
     <View style={S.wrap} wrap={false}>
       <SectionHeader
-        badge="3.1"
-        title="Bureau coverage and consistency"
+        badge="3"
+        title="Evidence and credit"
         rightLabel={`${coverageLabel} · nightly refresh`}
       />
 

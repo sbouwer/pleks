@@ -10,7 +10,6 @@
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
 import { C, D, FONTS, sp } from "./theme"
 import type { FitScoreReportData, VerificationCheckItem, VerificationOutcome } from "./theme"
-import { SectionHeader }   from "./SectionHeader"
 import { BlockHeader }     from "./BlockHeader"
 import { PlaceholderCard } from "./PlaceholderCard"
 
@@ -146,12 +145,6 @@ export function VerificationCheckTable({ data }: Readonly<VerificationCheckTable
 
   return (
     <View style={S.wrap} wrap={false}>
-      <SectionHeader
-        badge="3.2"
-        title="Verification integrity panel"
-        rightLabel="Evidentiary consistency · not engine confidence"
-      />
-
       <View style={S.block}>
         <BlockHeader
           label="3.2.A"

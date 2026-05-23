@@ -11,7 +11,6 @@
 import { View, StyleSheet } from "@react-pdf/renderer"
 import { C, D } from "./theme"
 import type { FitScoreReportData } from "./theme"
-import { SectionHeader }   from "./SectionHeader"
 import { BlockHeader }     from "./BlockHeader"
 import { PlaceholderCard } from "./PlaceholderCard"
 
@@ -33,17 +32,9 @@ interface ExpenditureTableProps {
   data: FitScoreReportData
 }
 
-export function ExpenditureTable({ data }: Readonly<ExpenditureTableProps>) {
-  const hasFin = data.financialAnalysis !== undefined
-
+export function ExpenditureTable({ data: _data }: Readonly<ExpenditureTableProps>) {
   return (
     <View style={S.wrap} wrap={false}>
-      <SectionHeader
-        badge="2.2"
-        title="Expenditure analysis"
-        rightLabel={hasFin ? 'Category engine · txn-tagger' : 'Pending · ADDENDUM 14D'}
-      />
-
       <View style={S.block}>
         <BlockHeader
           label="2.2.A"

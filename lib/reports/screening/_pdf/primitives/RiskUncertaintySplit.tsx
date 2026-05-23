@@ -11,7 +11,6 @@
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
 import { C, D, FONTS, sp } from "./theme"
 import type { FitScoreReportData } from "./theme"
-import { SectionHeader } from "./SectionHeader"
 
 const S = StyleSheet.create({
   wrap: { marginBottom: D.primitiveGap },
@@ -142,12 +141,6 @@ export function RiskUncertaintySplit({ data }: Readonly<RiskUncertaintySplitProp
 
   return (
     <View style={S.wrap} wrap={false}>
-      <SectionHeader
-        badge="2.3"
-        title="Observed concerns  |  Limited visibility"
-        rightLabel="Architecturally separated"
-      />
-
       <Text style={S.doctrine}>
         {sp(
           'The left column lists signals that were observed in the supplied evidence. ' +

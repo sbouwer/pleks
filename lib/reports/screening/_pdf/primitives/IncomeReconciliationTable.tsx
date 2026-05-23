@@ -36,8 +36,8 @@ export function IncomeReconciliationTable({ data }: Readonly<IncomeReconciliatio
   return (
     <View style={S.wrap} wrap={false}>
       <SectionHeader
-        badge="2.1"
-        title="Income summary"
+        badge="2"
+        title="Financial analysis"
         rightLabel={data.financialAnalysis ? data.financialAnalysis.windowLabel : 'Pending · ADDENDUM 14D'}
       />
 

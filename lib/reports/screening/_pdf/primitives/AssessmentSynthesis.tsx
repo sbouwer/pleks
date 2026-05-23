@@ -7,7 +7,7 @@
  */
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
-import { C, D, FONTS, sp } from "./theme"
+import { C, D, FONTS } from "./theme"
 import type { FitScoreReportData } from "./theme"
 import { BlockHeader } from "./BlockHeader"
 import { buildSynthesis } from "@/lib/screening/prompts/synthesisTemplate.v1.0"
@@ -49,8 +49,8 @@ export function AssessmentSynthesis({ data }: Readonly<AssessmentSynthesisProps>
       <View style={S.card}>
         <BlockHeader label="4.2" title="Assessment synthesis" />
         <View style={S.body}>
-          <Text style={S.synthesis}>{sp(buildSynthesis(data))}</Text>
-          <Text style={S.xref}>Observed concerns and limited visibility are detailed in section 2.3.</Text>
+          <Text style={S.synthesis}>{buildSynthesis(data)}</Text>
+          <Text style={S.xref}>Observed concerns and limited visibility are detailed in §2.3.</Text>
         </View>
       </View>
     </View>
