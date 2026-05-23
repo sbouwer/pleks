@@ -50,6 +50,7 @@ import type {
 } from "@/lib/screening/fitScoreEngine.v1"
 import { generateFitScoreNarrative, CURRENT_PROMPT_VERSION } from "@/lib/screening/fitScoreNarrative"
 import type { NarrativeResponse } from "@/lib/screening/fitScoreNarrative"
+import { SYNTHESIS_TEMPLATE_VERSION } from "@/lib/screening/prompts/synthesisTemplate.v1.0"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { sendScreeningComplete } from "@/lib/applications/emails"
 import type { createServiceClient } from "@/lib/supabase/server"
@@ -365,9 +366,10 @@ export async function runFitScoreOrchestrator(
       fitscore_engine_version:           ENGINE_VERSION,
       fitscore_inputs_hash:              result.inputsHash,
       fitscore_component_snapshot:       result.componentSnapshot,
-      fitscore_interpretation_version:   CURRENT_INTERPRETATION_VERSION,
-      fitscore_narrative_prompt_version: narrativePromptVersion,
-      fitscore_narrative:                narrative,
+      fitscore_interpretation_version:       CURRENT_INTERPRETATION_VERSION,
+      fitscore_narrative_prompt_version:     narrativePromptVersion,
+      fitscore_synthesis_template_version:   SYNTHESIS_TEMPLATE_VERSION,
+      fitscore_narrative:                    narrative,
       fitscore_runtime_code_hash:        RUNTIME_CODE_HASH,
       stage2_status:                     'screening_complete',
     })

@@ -138,6 +138,7 @@ export interface FitScoreReportData {
   engineVersion: string
   narrativeVersion: string
   interpretationVersion: string
+  synthesisVersion: string
   inputsHash: string                // full SHA-256; first 8 chars shown in footer
 
   // Org branding

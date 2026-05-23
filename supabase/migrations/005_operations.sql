@@ -2704,3 +2704,11 @@ UPDATE applications
   SET fitscore_engine_version = 'legacy_v0_unreplayable'
   WHERE fitscore IS NOT NULL
     AND fitscore_engine_version IS NULL;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §29.3  ADDENDUM_14H E.4: synthesis template version tracking
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+ALTER TABLE applications
+  ADD COLUMN IF NOT EXISTS fitscore_synthesis_template_version VARCHAR(32)
+    NOT NULL DEFAULT 'synthesis.v1.0';

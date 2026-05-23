@@ -99,6 +99,7 @@ export async function GET(
       fitscore_components, fitscore_component_snapshot,
       fitscore_computed_at, fitscore_engine_version,
       fitscore_narrative_prompt_version, fitscore_interpretation_version,
+      fitscore_synthesis_template_version,
       fitscore_narrative, fitscore_inputs_hash,
       listings(asking_rent_cents, units(unit_number, properties(name)))
     `)
@@ -232,9 +233,10 @@ export async function GET(
     isLdp:                band === 'limited_data_profile',
     isAllForeignNational: isAllForeign,
     narrative,
-    engineVersion:        (app.fitscore_engine_version as string | null) ?? 'fitscore.v1.0',
-    narrativeVersion:     (app.fitscore_narrative_prompt_version as string | null) ?? 'narr.v1.0',
+    engineVersion:         (app.fitscore_engine_version as string | null) ?? 'fitscore.v1.0',
+    narrativeVersion:      (app.fitscore_narrative_prompt_version as string | null) ?? 'narr.v1.0',
     interpretationVersion: (app.fitscore_interpretation_version as string | null) ?? 'interpretation.v1.0',
+    synthesisVersion:      (app.fitscore_synthesis_template_version as string | null) ?? 'synthesis.v1.0',
     inputsHash:           (app.fitscore_inputs_hash as string | null) ?? '',
     orgName:              orgRow?.name ?? 'Pleks',
     orgFfcNumber:         null,
