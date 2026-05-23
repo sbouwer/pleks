@@ -127,7 +127,7 @@ const S = StyleSheet.create({
     position:        'absolute',
     top:             -2,
     bottom:          -2,
-    width:           1,
+    width:           1.5,
     backgroundColor: C.amber.ink,
   },
   ebarPin: {

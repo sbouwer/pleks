@@ -370,7 +370,7 @@ export function BandLadder({ data }: Readonly<BandLadderProps>) {
       {/* Right: Signals */}
       <View style={S.signalCol}>
         <Signal
-          label="Confidence in band"
+          label="Band placement confidence"
           docRef="1.5"
           grade={data.confidenceIndex}
           qualifier={sp(CONFIDENCE_QUALIFIER[data.confidenceIndex] ?? '')}
