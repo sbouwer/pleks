@@ -123,7 +123,7 @@ const S = StyleSheet.create({
     width:           2,
     backgroundColor: C.amber.base,
   },
-  ebarLabelRow: { marginTop: 3 },
+  ebarLabelRow: { marginTop: 3, alignItems: 'flex-end' },
   ebarLabel: {
     fontFamily:    FONTS.mono,
     fontSize:      6,
@@ -153,7 +153,7 @@ function EvidenceBar({ score, preferred }: Readonly<{ score: number; preferred: 
         <View style={[S.ebarPref, { left: `${prefPct}%` }]} />
         <View style={[S.ebarPin,  { left: `${pct}%` }]} />
       </View>
-      <View style={[S.ebarLabelRow, { paddingLeft: `${prefPct}%` }]}>
+      <View style={[S.ebarLabelRow, { width: `${prefPct}%` }]}>
         <Text style={S.ebarLabel}>min. preferred</Text>
       </View>
     </View>
