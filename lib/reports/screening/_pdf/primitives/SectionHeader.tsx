@@ -15,7 +15,7 @@ const S = StyleSheet.create({
     flexDirection:    'row',
     alignItems:       'flex-end',
     gap:              12,
-    marginBottom:     18,
+    marginBottom:     14,
     paddingBottom:    10,
     borderBottomWidth: 1.5,
     borderBottomColor: C.ink.primary,

@@ -145,16 +145,16 @@ export const T = StyleSheet.create({
 // A single retune here propagates to every primitive.
 
 export const D = {
-  pagePaddingX:       44,
-  pagePaddingY:       36,
-  primitiveGap:       12,
-  primitiveGapTight:  8,
-  cardPaddingY:       8,
-  cardPaddingX:       14,
-  h1Size:             22,
-  bodyLineHeight:     1.45,
+  pagePaddingX:       50,
+  pagePaddingY:       44,
+  primitiveGap:       16,
+  primitiveGapTight:  12,
+  cardPaddingY:       12,
+  cardPaddingX:       16,
+  h1Size:             24,
+  bodyLineHeight:     1.5,
   footerLineHeight:   1.35,
-  bandLadderRungSize: 25,
+  bandLadderRungSize: 28,
 } as const
 
 // ─── Page geometry ────────────────────────────────────────────────────────────

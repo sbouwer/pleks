@@ -26,6 +26,7 @@ import { MetaStrip }              from "@/lib/reports/screening/_pdf/primitives/
 import { IdentityRow }            from "@/lib/reports/screening/_pdf/primitives/IdentityRow"
 import { BandLadder }             from "@/lib/reports/screening/_pdf/primitives/BandLadder"
 import { DimensionCardEditorial } from "@/lib/reports/screening/_pdf/primitives/DimensionCardEditorial"
+import { DimensionReadingGuide }  from "@/lib/reports/screening/_pdf/primitives/DimensionReadingGuide"
 
 import { IncomeReconciliationTable } from "@/lib/reports/screening/_pdf/primitives/IncomeReconciliationTable"
 import { ExpenditureTable }          from "@/lib/reports/screening/_pdf/primitives/ExpenditureTable"
@@ -248,7 +249,8 @@ function buildDoc(data: FitScoreReportData) {
       h(MetaStrip,              { data }),
       h(IdentityRow,            { data }),
       h(BandLadder,             { data }),
-      h(DimensionCardEditorial, { data }),
+      h(DimensionCardEditorial,  { data }),
+      h(DimensionReadingGuide,   {}),
     ),
     h(DocumentShell, { data, section: 'Financial Analysis' },
       h(IncomeReconciliationTable, { data }),
