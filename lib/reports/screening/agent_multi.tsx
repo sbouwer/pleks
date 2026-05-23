@@ -1,25 +1,34 @@
 /**
- * lib/reports/screening/agent_multi.tsx — FitScore Stream 2 PDF for multi-applicant leases
+ * lib/reports/screening/agent_multi.tsx — FitScore editorial PDF for multi-applicant leases
  *
  * Auth:   internal — rendered by the PDF generation route (Phase F)
- * Data:   FitScoreReportData assembled by the orchestrator and stored in applications.fitscore_*
- * Notes:  Used when co_applicants.count >= 1. Includes ApplicantRoster on page 2 (§6.7).
- *         Document title block lists primary applicant name + "and N co-applicants".
- *         Nationality-aware dimension card layout: 2×2 for SA/mixed, 3-card for foreign-only (§6.4).
- *         Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §6.9, §10.6.
+ * Data:   FitScoreReportData assembled by fitScoreOrchestrator and stored in applications.fitscore_*
+ * Notes:  Handles co_applicants.count >= 1 for ALL bands including LDP. Extends the §1 Profile
+ *         section with AdditionalApplicants below IdentityRow (primary-only row) and above
+ *         BandLadder. All other sections are identical to agent_single. Decision-#9 invariant:
+ *         no per-applicant scoring UI — composite dimensions remain lease-level.
+ *         Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §6.7, §6.9, §10.6.
  */
 
-import { Document, View, StyleSheet } from "@react-pdf/renderer"
-import { PillarHeader } from "./_primitives/PillarHeader"
-import { DimensionCardGrid, dimensionDivider } from "./_primitives/DimensionCardGrid"
-import { NarrativeColumns } from "./_primitives/NarrativeColumns"
-import { ApplicantRoster } from "./_primitives/ApplicantRoster"
-import { TitleBlock, ReportPage } from "./_primitives/DocumentChrome"
-import type { FitScoreReportData } from "./_primitives/theme"
-
-const GS = StyleSheet.create({
-  divider: dimensionDivider,
-})
+import { Document }               from "@react-pdf/renderer"
+import { DocumentShell }          from "./_pdf/primitives/DocumentShell"
+import { EditorialHeadline }      from "./_pdf/primitives/EditorialHeadline"
+import { MetaStrip }              from "./_pdf/primitives/MetaStrip"
+import { IdentityRow }            from "./_pdf/primitives/IdentityRow"
+import { ApplicantDetail }         from "./_pdf/primitives/ApplicantDetail"
+import { BandLadder }             from "./_pdf/primitives/BandLadder"
+import { DimensionCardEditorial } from "./_pdf/primitives/DimensionCardEditorial"
+import { DimensionReadingGuide }  from "./_pdf/primitives/DimensionReadingGuide"
+import { IncomeReconciliationTable } from "./_pdf/primitives/IncomeReconciliationTable"
+import { ExpenditureTable }          from "./_pdf/primitives/ExpenditureTable"
+import { RiskUncertaintySplit }      from "./_pdf/primitives/RiskUncertaintySplit"
+import { BureauCoverageMatrix }      from "./_pdf/primitives/BureauCoverageMatrix"
+import { VerificationCheckTable }    from "./_pdf/primitives/VerificationCheckTable"
+import { ObservedStrengths }         from "./_pdf/primitives/ObservedStrengths"
+import { AssessmentSynthesis }       from "./_pdf/primitives/AssessmentSynthesis"
+import { DocumentReadingGuide }      from "./_pdf/primitives/DocumentReadingGuide"
+import { AttestationCard }           from "./_pdf/primitives/AttestationCard"
+import type { FitScoreReportData }   from "./_pdf/primitives/theme"
 
 // ─── Template ─────────────────────────────────────────────────────────────────
 
@@ -29,30 +38,38 @@ export function AgentMultiReport({ data }: Readonly<{ data: FitScoreReportData }
       title={`Pleks FitScore Report - Application ${data.applicationRef}`}
       author="Pleks"
       subject="Rental screening evidence"
-      creator={`Pleks Stream 2 generator ${data.engineVersion}`}
+      creator={`Pleks FitScore ${data.engineVersion}`}
     >
-      <ReportPage data={data}>
-        <TitleBlock data={data} />
+      <DocumentShell data={data} section="Profile">
+        <EditorialHeadline data={data} />
+        <MetaStrip data={data} />
+        <IdentityRow data={data} />
+        <BandLadder data={data} />
+        <ApplicantDetail applicants={data.applicants} />
+        <DimensionCardEditorial data={data} />
+        <DimensionReadingGuide />
+      </DocumentShell>
 
-        <PillarHeader
-          band={data.band}
-          score={data.score}
-          confidenceIndex={data.confidenceIndex}
-          verificationIntegrity={data.verificationIntegrity}
-          materialFlags={data.materialFlags}
-        />
+      <DocumentShell data={data} section="Financial Analysis">
+        <IncomeReconciliationTable data={data} />
+        <ExpenditureTable data={data} />
+        <RiskUncertaintySplit data={data} />
+      </DocumentShell>
 
-        <View style={GS.divider} />
+      <DocumentShell data={data} section="Evidence & Credit">
+        <BureauCoverageMatrix data={data} />
+        <VerificationCheckTable data={data} />
+      </DocumentShell>
 
-        <DimensionCardGrid data={data} />
+      <DocumentShell data={data} section="Narrative">
+        <ObservedStrengths data={data} />
+        <AssessmentSynthesis data={data} />
+      </DocumentShell>
 
-        <View style={GS.divider} />
-
-        <NarrativeColumns narrative={data.narrative} />
-
-        {/* ApplicantRoster flows naturally — may start a new page if content is long */}
-        <ApplicantRoster applicants={data.applicants} />
-      </ReportPage>
+      <DocumentShell data={data} section="Document Attestation">
+        <DocumentReadingGuide />
+        <AttestationCard data={data} />
+      </DocumentShell>
     </Document>
   )
 }

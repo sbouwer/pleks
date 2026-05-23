@@ -4,13 +4,16 @@
  * Run:    npm run fitscore:render-smoke
  * Output: lib/reports/screening/_pdf/__samples__/fitscore-*.pdf
  *
- * Six fixtures, six PDFs:
+ * Nine fixtures, nine PDFs:
  *   skeleton   — creditAnalysis absent; exercises all PENDING placeholder states.
  *   populated  — creditAnalysis present (3 bureaus, 5 checks, 1 absent).
  *   deficit    — populated + creditBehaviour 55; exercises amber-wash deficit bar.
  *   with-flag  — populated + additional critical material flag.
  *   ldp        — band=limited_data_profile; exercises notAssessed placeholders + LDP synthesis.
- *   multi      — 2 applicants; exercises AdditionalApplicants primitive + expanded §1 composition.
+ *   multi-2    — 2 applicants; ApplicantDetail rich tier (N=2 stacked cards).
+ *   multi-3    — 3 applicants; ApplicantDetail medium tier (N=3 third-page cards).
+ *   multi-4    — 4 applicants; ApplicantDetail compact tier (N=4 2x2 grid).
+ *   multi-6    — 6 applicants; ApplicantDetail tabular tier (N>=5 list with page overflow).
  *
  * FITSCORE_FONT_SOURCE=local is injected by the npm script via cross-env.
  * Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §E.3, §E.5, §E.6 acceptance criteria.
@@ -25,7 +28,7 @@ import { DocumentShell }          from "@/lib/reports/screening/_pdf/primitives/
 import { EditorialHeadline }      from "@/lib/reports/screening/_pdf/primitives/EditorialHeadline"
 import { MetaStrip }              from "@/lib/reports/screening/_pdf/primitives/MetaStrip"
 import { IdentityRow }            from "@/lib/reports/screening/_pdf/primitives/IdentityRow"
-import { AdditionalApplicants }   from "@/lib/reports/screening/_pdf/primitives/AdditionalApplicants"
+import { ApplicantDetail }         from "@/lib/reports/screening/_pdf/primitives/ApplicantDetail"
 import { BandLadder }             from "@/lib/reports/screening/_pdf/primitives/BandLadder"
 import { DimensionCardEditorial } from "@/lib/reports/screening/_pdf/primitives/DimensionCardEditorial"
 import { DimensionReadingGuide }  from "@/lib/reports/screening/_pdf/primitives/DimensionReadingGuide"
@@ -275,55 +278,109 @@ const FIXTURE_WITH_FLAG: FitScoreReportData = {
   ],
 }
 
-// Multi fixture: 2 applicants — Thandi (primary) + Daniel (additional). Same scores as FIXTURE_POPULATED.
-// Exercises AdditionalApplicants primitive, expanded §1 composition, synthesis neutrality (same text as single).
-const FIXTURE_MULTI: FitScoreReportData = {
+// ─── Shared applicant entries (reused across multi fixtures) ──────────────────
+
+const APP_A = {
+  label: 'A', fullName: 'Thandi Nkosi', nationalityStatus: 'SA Citizen',
+  idNumberMasked: '9203****082', sex: 'F', ageYears: 34,
+  employment: { employerName: 'Cape Digital Solutions (Pty) Ltd', jobTitle: 'Product Manager', tenureDisplay: '3y 2mo' },
+  verificationPassCount: 5, verificationTotal: 5,
+  respondingBureaus: ['TransUnion', 'Experian', 'VeriCred'],
+  pleksNetworkStatus: 'trusted' as const, pleksNetworkTenancyCount: 1, isForeignNational: false,
+}
+
+const APP_B = {
+  label: 'B', fullName: 'Daniel Khumalo', nationalityStatus: 'SA Citizen',
+  idNumberMasked: '8811****094', sex: 'M', ageYears: 37,
+  employment: { employerName: 'Khumalo Engineering (Pty) Ltd', jobTitle: 'Senior Engineer', tenureDisplay: '5y 8mo' },
+  verificationPassCount: 5, verificationTotal: 5,
+  respondingBureaus: ['TransUnion', 'Experian'],
+  pleksNetworkStatus: 'none' as const, pleksNetworkTenancyCount: 0, isForeignNational: false,
+}
+
+const APP_C = {
+  label: 'C', fullName: 'Zanele Mokoena', nationalityStatus: 'SA Citizen',
+  idNumberMasked: '9708****061', sex: 'F', ageYears: 28,
+  employment: { employerName: 'Mokoena & Associates', jobTitle: 'Graphic Designer', tenureDisplay: '2y 1mo' },
+  verificationPassCount: 4, verificationTotal: 5,
+  respondingBureaus: ['TransUnion', 'Experian'],
+  pleksNetworkStatus: 'none' as const, pleksNetworkTenancyCount: 0, isForeignNational: false,
+}
+
+const APP_D = {
+  label: 'D', fullName: 'Sipho Dlamini', nationalityStatus: 'SA Citizen',
+  idNumberMasked: '8304****074', sex: 'M', ageYears: 42,
+  employment: { employerName: 'Dlamini Property Group', jobTitle: 'Operations Director', tenureDisplay: '8y 4mo' },
+  verificationPassCount: 5, verificationTotal: 5,
+  respondingBureaus: ['TransUnion', 'Experian', 'VeriCred'],
+  pleksNetworkStatus: 'trusted' as const, pleksNetworkTenancyCount: 2, isForeignNational: false,
+}
+
+const APP_E = {
+  label: 'E', fullName: 'Lerato Sithole', nationalityStatus: 'Foreign National (Work Permit)',
+  idNumberMasked: '', sex: 'F', ageYears: 31,
+  employment: { employerName: 'Stellenbosch Consulting Inc.', jobTitle: 'Business Analyst', tenureDisplay: '1y 6mo' },
+  verificationPassCount: 3, verificationTotal: 5,
+  respondingBureaus: ['TransUnion'],
+  pleksNetworkStatus: 'none' as const, pleksNetworkTenancyCount: 0, isForeignNational: true,
+}
+
+const APP_F = {
+  label: 'F', fullName: 'Tumelo Moagi', nationalityStatus: 'SA Citizen',
+  idNumberMasked: '9512****083', sex: 'M', ageYears: 29,
+  employment: { employerName: 'Moagi Creative Studio', jobTitle: 'Art Director', tenureDisplay: '3y 9mo' },
+  verificationPassCount: 4, verificationTotal: 5,
+  respondingBureaus: ['TransUnion', 'Experian'],
+  pleksNetworkStatus: 'none' as const, pleksNetworkTenancyCount: 0, isForeignNational: false,
+}
+
+// Multi fixtures — same band/composite/dimensional scores in all; only applicant count varies.
+// Validates ApplicantDetail density tiers: rich (N=2), medium (N=3), compact (N=4), tabular (N>=5).
+
+const FIXTURE_MULTI_2: FitScoreReportData = {
   ...FIXTURE_POPULATED,
   primaryApplicantName: 'Thandi Nkosi',
   coApplicantCount:     1,
   applicants: [
-    {
-      label:                 'A',
-      fullName:              'Thandi Nkosi',
-      nationalityStatus:     'SA Citizen',
-      idNumberMasked:        '9203****082',
-      sex:                   'F',
-      ageYears:              34,
-      employment: {
-        employerName:  'Cape Digital Solutions (Pty) Ltd',
-        jobTitle:      'Product Manager',
-        tenureDisplay: '3y 2mo',
-      },
-      verifiedIncomeCents:      3800000,
-      incomeSharePct:           62,
-      verificationPassCount:    5,
-      verificationTotal:        5,
-      respondingBureaus:        ['TransUnion', 'Experian', 'VeriCred'],
-      pleksNetworkStatus:       'trusted',
-      pleksNetworkTenancyCount: 1,
-      isForeignNational:        false,
-    },
-    {
-      label:                 'B',
-      fullName:              'Daniel Khumalo',
-      nationalityStatus:     'SA Citizen',
-      idNumberMasked:        '8811****094',
-      sex:                   'M',
-      ageYears:              37,
-      employment: {
-        employerName:  'Khumalo Engineering (Pty) Ltd',
-        jobTitle:      'Senior Engineer',
-        tenureDisplay: '5y 8mo',
-      },
-      verifiedIncomeCents:      2320000,
-      incomeSharePct:           38,
-      verificationPassCount:    5,
-      verificationTotal:        5,
-      respondingBureaus:        ['TransUnion', 'Experian'],
-      pleksNetworkStatus:       'none',
-      pleksNetworkTenancyCount: 0,
-      isForeignNational:        false,
-    },
+    { ...APP_A, verifiedIncomeCents: 3800000, incomeSharePct: 62 },
+    { ...APP_B, verifiedIncomeCents: 2320000, incomeSharePct: 38 },
+  ],
+}
+
+const FIXTURE_MULTI_3: FitScoreReportData = {
+  ...FIXTURE_POPULATED,
+  primaryApplicantName: 'Thandi Nkosi',
+  coApplicantCount:     2,
+  applicants: [
+    { ...APP_A, verifiedIncomeCents: 3800000, incomeSharePct: 45 },
+    { ...APP_B, verifiedIncomeCents: 2700000, incomeSharePct: 32 },
+    { ...APP_C, verifiedIncomeCents: 1950000, incomeSharePct: 23 },
+  ],
+}
+
+const FIXTURE_MULTI_4: FitScoreReportData = {
+  ...FIXTURE_POPULATED,
+  primaryApplicantName: 'Thandi Nkosi',
+  coApplicantCount:     3,
+  applicants: [
+    { ...APP_A, verifiedIncomeCents: 2800000, incomeSharePct: 32 },
+    { ...APP_B, verifiedIncomeCents: 2200000, incomeSharePct: 25 },
+    { ...APP_C, verifiedIncomeCents: 1900000, incomeSharePct: 22 },
+    { ...APP_D, verifiedIncomeCents: 1900000, incomeSharePct: 21 },
+  ],
+}
+
+const FIXTURE_MULTI_6: FitScoreReportData = {
+  ...FIXTURE_POPULATED,
+  primaryApplicantName: 'Thandi Nkosi',
+  coApplicantCount:     5,
+  applicants: [
+    { ...APP_A, verifiedIncomeCents: 2000000, incomeSharePct: 22 },
+    { ...APP_B, verifiedIncomeCents: 1720000, incomeSharePct: 19 },
+    { ...APP_C, verifiedIncomeCents: 1540000, incomeSharePct: 17 },
+    { ...APP_D, verifiedIncomeCents: 1450000, incomeSharePct: 16 },
+    { ...APP_E, verifiedIncomeCents: 1270000, incomeSharePct: 14 },
+    { ...APP_F, verifiedIncomeCents: 1090000, incomeSharePct: 12 },
   ],
 }
 
@@ -359,14 +416,13 @@ const FIXTURE_LDP: FitScoreReportData = {
 // ─── Document factory ─────────────────────────────────────────────────────────
 
 function buildDoc(data: FitScoreReportData) {
-  const hasAdditional = data.applicants.length >= 2
   return h(Document, {},
     h(DocumentShell, { data, section: 'Profile' },
       h(EditorialHeadline,    { data }),
       h(MetaStrip,            { data }),
       h(IdentityRow,          { data }),
-      ...(hasAdditional ? [h(AdditionalApplicants, { applicants: data.applicants })] : []),
       h(BandLadder,           { data }),
+      h(ApplicantDetail,      { applicants: data.applicants }),
       h(DimensionCardEditorial, { data }),
       h(DimensionReadingGuide,  {}),
     ),
@@ -420,10 +476,25 @@ async function main() {
   writeFileSync(ldpPath, ldpBuf)
   console.log(`✓  ${ldpPath}  (${(ldpBuf.byteLength / 1024).toFixed(1)} KB)`)
 
-  const multiBuf = await renderToBuffer(buildDoc(FIXTURE_MULTI))
-  const multiPath = path.join(OUT_DIR, 'fitscore-multi-smoke.pdf')
-  writeFileSync(multiPath, multiBuf)
-  console.log(`✓  ${multiPath}  (${(multiBuf.byteLength / 1024).toFixed(1)} KB)`)
+  const multi2Buf = await renderToBuffer(buildDoc(FIXTURE_MULTI_2))
+  const multi2Path = path.join(OUT_DIR, 'fitscore-multi-2-smoke.pdf')
+  writeFileSync(multi2Path, multi2Buf)
+  console.log(`✓  ${multi2Path}  (${(multi2Buf.byteLength / 1024).toFixed(1)} KB)`)
+
+  const multi3Buf = await renderToBuffer(buildDoc(FIXTURE_MULTI_3))
+  const multi3Path = path.join(OUT_DIR, 'fitscore-multi-3-smoke.pdf')
+  writeFileSync(multi3Path, multi3Buf)
+  console.log(`✓  ${multi3Path}  (${(multi3Buf.byteLength / 1024).toFixed(1)} KB)`)
+
+  const multi4Buf = await renderToBuffer(buildDoc(FIXTURE_MULTI_4))
+  const multi4Path = path.join(OUT_DIR, 'fitscore-multi-4-smoke.pdf')
+  writeFileSync(multi4Path, multi4Buf)
+  console.log(`✓  ${multi4Path}  (${(multi4Buf.byteLength / 1024).toFixed(1)} KB)`)
+
+  const multi6Buf = await renderToBuffer(buildDoc(FIXTURE_MULTI_6))
+  const multi6Path = path.join(OUT_DIR, 'fitscore-multi-6-smoke.pdf')
+  writeFileSync(multi6Path, multi6Buf)
+  console.log(`✓  ${multi6Path}  (${(multi6Buf.byteLength / 1024).toFixed(1)} KB)`)
 }
 
 main().catch((err: unknown) => { console.error(err); process.exit(1) })
