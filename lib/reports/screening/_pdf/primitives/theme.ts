@@ -140,12 +140,29 @@ export const T = StyleSheet.create({
   divider:{ borderBottomWidth: 0.75, borderBottomColor: RAW.rule },
 })
 
+// ─── Density tokens ───────────────────────────────────────────────────────────
+// Central spacing and sizing constants. All primitives reference D.* for layout.
+// A single retune here propagates to every primitive.
+
+export const D = {
+  pagePaddingX:       44,
+  pagePaddingY:       36,
+  primitiveGap:       12,
+  primitiveGapTight:  8,
+  cardPaddingY:       8,
+  cardPaddingX:       14,
+  h1Size:             22,
+  bodyLineHeight:     1.45,
+  footerLineHeight:   1.35,
+  bandLadderRungSize: 25,
+} as const
+
 // ─── Page geometry ────────────────────────────────────────────────────────────
-// A4 at 595×842pt. Page padding matches HTML .page{ padding: 56px 64px }.
+// A4 at 595×842pt.
 
 export const PAGE = {
-  paddingTop:        56,
-  paddingBottom:     80,   // extra for footer
-  paddingHorizontal: 56,
+  paddingTop:        D.pagePaddingY,
+  paddingBottom:     58,
+  paddingHorizontal: D.pagePaddingX,
   size: 'A4' as const,
 }

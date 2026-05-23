@@ -5,7 +5,7 @@
  * Usage (in agent templates):
  *
  *   <Document>
- *     <DocumentShell data={data} section="Profile" showAuditStrip>
+ *     <DocumentShell data={data} section="Profile">
  *       {page1Content}
  *     </DocumentShell>
  *     <DocumentShell data={data} section="Financial Analysis">
@@ -13,7 +13,8 @@
  *     </DocumentShell>
  *   </Document>
  *
- * Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §E.1.
+ * AuditStrip removed — version metadata now lives in AttestationCard (body, last page only).
+ * Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §E.3 density retune.
  */
 
 import { Page, StyleSheet } from "@react-pdf/renderer"
@@ -21,7 +22,6 @@ import type { ReactNode } from "react"
 import { C, FONTS, PAGE } from "./theme"
 import type { FitScoreReportData } from "./theme"
 import { Watermark }     from "./Watermark"
-import { AuditStrip }    from "./AuditStrip"
 import { RunningHeader } from "./RunningHeader"
 import { PageFooter }    from "./PageFooter"
 
@@ -38,22 +38,15 @@ const S = StyleSheet.create({
 })
 
 interface DocumentShellProps {
-  data:           FitScoreReportData
-  section:        string      // e.g. "Profile", "Financial Analysis"
-  showAuditStrip?: boolean    // true on page 1 only
-  children:       ReactNode
+  data:     FitScoreReportData
+  section:  string
+  children: ReactNode
 }
 
-export function DocumentShell({
-  data,
-  section,
-  showAuditStrip = false,
-  children,
-}: Readonly<DocumentShellProps>) {
+export function DocumentShell({ data, section, children }: Readonly<DocumentShellProps>) {
   return (
     <Page size={PAGE.size} style={S.page}>
       <Watermark />
-      {showAuditStrip && <AuditStrip data={data} />}
       <RunningHeader
         section={section}
         applicantName={data.primaryApplicantName}

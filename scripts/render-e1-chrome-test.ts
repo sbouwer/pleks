@@ -203,7 +203,7 @@ function Placeholder({ label, lines = 3 }: { label: string; lines?: number }) {
 // ─── Document ─────────────────────────────────────────────────────────────────
 
 const doc = h(Document, {},
-  h(DocumentShell, { data: FIXTURE, section: 'Profile', showAuditStrip: true },
+  h(DocumentShell, { data: FIXTURE, section: 'Profile' },
     h(EditorialHeadline, { data: FIXTURE }),
     h(MetaStrip, { data: FIXTURE }),
     h(IdentityRow, { data: FIXTURE }),
