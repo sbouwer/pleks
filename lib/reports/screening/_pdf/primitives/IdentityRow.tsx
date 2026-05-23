@@ -135,7 +135,7 @@ export function IdentityRow({ data }: Readonly<IdentityRowProps>) {
   if (data.applicants.length === 0) return null
 
   // For multi-applicant leases, IdentityRow shows the primary applicant only.
-  // Additional applicants render in AdditionalApplicants below this primitive.
+  // Additional applicants render in ApplicantDetail (placed after BandLadder in §1).
   const visible    = data.applicants.slice(0, 1)
   const screenDate = sp(fmtShortDate(data.generatedAt))
   const screenTime = sp(fmtTime(data.generatedAt))

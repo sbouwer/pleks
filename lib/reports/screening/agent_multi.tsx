@@ -4,8 +4,8 @@
  * Auth:   internal — rendered by the PDF generation route (Phase F)
  * Data:   FitScoreReportData assembled by fitScoreOrchestrator and stored in applications.fitscore_*
  * Notes:  Handles co_applicants.count >= 1 for ALL bands including LDP. Extends the §1 Profile
- *         section with AdditionalApplicants below IdentityRow (primary-only row) and above
- *         BandLadder. All other sections are identical to agent_single. Decision-#9 invariant:
+ *         section with ApplicantDetail after BandLadder (page 2 within §1 Profile).
+ *         Page 1 composition is identical to agent_single. Decision-#9 invariant:
  *         no per-applicant scoring UI — composite dimensions remain lease-level.
  *         Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §6.7, §6.9, §10.6.
  */
