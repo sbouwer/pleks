@@ -10,6 +10,7 @@
 import type { JSX } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { FitScoreReportData } from "@/lib/reports/screening/_primitives/theme"
+import { toDocAnchorId } from "@/lib/reports/screening/_primitives/anchors"
 import { SectionNav } from "@/lib/reports/screening/_web/SectionNav"
 import { PopiaResponseAction } from "@/app/(dashboard)/applications/[id]/_components/PopiaResponseAction"
 
@@ -31,11 +32,11 @@ import { DocumentReadingGuide }    from "./primitives/DocumentReadingGuide"
 import { AttestationCard }         from "./primitives/AttestationCard"
 
 const SECTIONS = [
-  { id: "fs-1", label: "Profile" },
-  { id: "fs-2", label: "Financial Analysis" },
-  { id: "fs-3", label: "Evidence & Credit" },
-  { id: "fs-4", label: "Narrative" },
-  { id: "fs-5", label: "Attestation" },
+  { id: toDocAnchorId("1"), label: "Profile" },
+  { id: toDocAnchorId("2"), label: "Financial Analysis" },
+  { id: toDocAnchorId("3"), label: "Evidence & Credit" },
+  { id: toDocAnchorId("4"), label: "Narrative" },
+  { id: toDocAnchorId("5"), label: "Attestation" },
 ]
 
 interface FitScoreReportProps {
@@ -60,7 +61,7 @@ export function FitScoreReport({
       <CardContent className="space-y-0 pt-5">
 
         {/* §1 — Profile */}
-        <section id="fs-1">
+        <section id={toDocAnchorId("1")}>
           <EditorialHeadline data={data} />
           <MetaStrip         data={data} />
           <IdentityRow       data={data} />
@@ -73,7 +74,7 @@ export function FitScoreReport({
         <div className="border-t border-border my-6" />
 
         {/* §2 — Financial Analysis */}
-        <section id="fs-2">
+        <section id={toDocAnchorId("2")}>
           <IncomeReconciliationTable data={data} />
           <ExpenditureTable          data={data} />
           <RiskUncertaintySplit      data={data} />
@@ -82,7 +83,7 @@ export function FitScoreReport({
         <div className="border-t border-border my-6" />
 
         {/* §3 — Evidence and Credit */}
-        <section id="fs-3">
+        <section id={toDocAnchorId("3")}>
           <BureauCoverageMatrix    data={data} />
           <VerificationCheckTable  data={data} />
         </section>
@@ -90,7 +91,7 @@ export function FitScoreReport({
         <div className="border-t border-border my-6" />
 
         {/* §4 — Assessment Narrative */}
-        <section id="fs-4">
+        <section id={toDocAnchorId("4")}>
           <ObservedStrengths   data={data} />
           <AssessmentSynthesis data={data} />
         </section>
@@ -98,7 +99,7 @@ export function FitScoreReport({
         <div className="border-t border-border my-6" />
 
         {/* §5 — Document Attestation */}
-        <section id="fs-5">
+        <section id={toDocAnchorId("5")}>
           <DocumentReadingGuide />
           <AttestationCard data={data} />
         </section>
