@@ -1376,22 +1376,20 @@ ALTER TABLE organisations
 
 CREATE OR REPLACE FUNCTION find_dormant_org_candidates(cutoff_iso timestamptz)
 RETURNS TABLE (
-  id                uuid,
-  name              text,
-  email             text,
-  phone             text,
-  address_line1     text,
-  city              text,
-  brand_logo_url    text,
+  id                 uuid,
+  name               text,
+  email              text,
+  phone              text,
+  address            text,
   brand_accent_color text,
-  last_member_login timestamptz
+  last_member_login  timestamptz
 )
 LANGUAGE sql SECURITY DEFINER
 SET search_path = public, auth
 AS $$
   SELECT
-    o.id, o.name, o.email, o.phone, o.address_line1, o.city,
-    o.brand_logo_url, o.brand_accent_color,
+    o.id, o.name, o.email, o.phone, o.address,
+    o.brand_accent_color,
     MAX(au.last_sign_in_at) AS last_member_login
   FROM organisations o
   LEFT JOIN user_orgs uo ON uo.org_id = o.id AND uo.deleted_at IS NULL
@@ -1413,9 +1411,7 @@ RETURNS TABLE (
   name                     text,
   email                    text,
   phone                    text,
-  address_line1            text,
-  city                     text,
-  brand_logo_url           text,
+  address                  text,
   brand_accent_color       text,
   dormancy_warning_sent_at timestamptz,
   last_member_login        timestamptz
@@ -1424,8 +1420,8 @@ LANGUAGE sql SECURITY DEFINER
 SET search_path = public, auth
 AS $$
   SELECT
-    o.id, o.name, o.email, o.phone, o.address_line1, o.city,
-    o.brand_logo_url, o.brand_accent_color,
+    o.id, o.name, o.email, o.phone, o.address,
+    o.brand_accent_color,
     o.dormancy_warning_sent_at,
     MAX(au.last_sign_in_at) AS last_member_login
   FROM organisations o

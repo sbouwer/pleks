@@ -80,9 +80,11 @@ async function processFirstWarningOrg(supabase: SupabaseClient, org: OrgRow, now
   return true
 }
 
+type FinalCandidateRow = OrgRow & { dormancy_warning_sent_at: string; last_member_login: string | null }
+
 async function processFinalWarningOrg(
   supabase: SupabaseClient,
-  org: OrgRow & { dormancy_warning_sent_at: string; last_member_login: string | null },
+  org: FinalCandidateRow,
   now: Date,
 ): Promise<boolean> {
   const purgeDateStr = new Date(now.getTime() + DORMANCY_FINAL_DAYS * 24 * 60 * 60 * 1000)
@@ -147,7 +149,7 @@ export async function GET(req: NextRequest) {
     console.error("subscription-dormancy: final-warning query failed:", finalErr.message)
   } else {
     for (const org of finalOrgs ?? []) {
-      const typedOrg = org as OrgRow & { dormancy_warning_sent_at: string; last_member_login: string | null }
+      const typedOrg = org as FinalCandidateRow
       if (await processFinalWarningOrg(supabase, typedOrg, now)) finalSent++
     }
   }
