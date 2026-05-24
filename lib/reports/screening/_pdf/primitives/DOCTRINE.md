@@ -19,6 +19,15 @@ DOCTRINE.md is referenced, not duplicated.
 4. Every numbered subsection gets a proper BlockHeader treatment. Do NOT
    use inline labels in place of BlockHeader chips for numbered subsections.
 
+5. §1 Profile is the sole top-level section exempt from inline SectionHeader
+   chip rendering. The page-1 EditorialHeadline + MetaStrip + IdentityRow +
+   BandLadder stack acts as the section-level hero construct; an additional
+   `SectionHeader badge="§1"` chip below would be redundant and would dilute
+   the editorial intent of the opening surface. §2 through §5 retain inline
+   SectionHeader chips on both PDF and web. Anchor resolution for §1 is
+   preserved via the `<section id={toDocAnchorId("1")}>` wrapper in
+   `FitScoreReport` and the equivalent doc-level anchor on PDF.
+
 ## Parity-atomic invariant (locked 2026-05-24 — DO NOT DRIFT)
 
 No `_pdf/primitives/*` doctrinal primitive may be added, removed, or materially
