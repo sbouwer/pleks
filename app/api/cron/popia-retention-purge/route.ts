@@ -138,8 +138,7 @@ export async function GET(req: NextRequest) {
   const { data: orgs, error: orgsErr } = await db
     .from("organisations")
     .select("id")
-    .is("deleted_at", null)
-    .neq("subscription_status", "purged")
+    .is("deleted_at", null)   // purge sets deleted_at — this already excludes purged orgs
 
   if (orgsErr || !orgs) {
     Sentry.captureException(orgsErr, { tags: { cron: "popia-retention-purge" } })
