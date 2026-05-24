@@ -1369,6 +1369,80 @@ ALTER TABLE organisations
   ADD COLUMN IF NOT EXISTS dormancy_warning_sent_at timestamptz,
   ADD COLUMN IF NOT EXISTS dormancy_final_sent_at   timestamptz;
 
+-- §X.4  BUILD_57G dormancy: RPC helpers that join into auth.users
+--        The JS client cannot reach auth schema directly; SECURITY DEFINER
+--        runs with the definer's privileges. Locked to service_role only.
+--        search_path pinned to prevent SECURITY DEFINER schema-hijack.
+
+CREATE OR REPLACE FUNCTION find_dormant_org_candidates(cutoff_iso timestamptz)
+RETURNS TABLE (
+  id                uuid,
+  name              text,
+  email             text,
+  phone             text,
+  address_line1     text,
+  city              text,
+  brand_logo_url    text,
+  brand_accent_color text,
+  last_member_login timestamptz
+)
+LANGUAGE sql SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+  SELECT
+    o.id, o.name, o.email, o.phone, o.address_line1, o.city,
+    o.brand_logo_url, o.brand_accent_color,
+    MAX(au.last_sign_in_at) AS last_member_login
+  FROM organisations o
+  LEFT JOIN user_orgs uo ON uo.org_id = o.id AND uo.deleted_at IS NULL
+  LEFT JOIN auth.users au ON au.id = uo.user_id
+  WHERE o.dormancy_warning_sent_at IS NULL
+    AND o.created_at < cutoff_iso
+    AND o.deleted_at IS NULL
+  GROUP BY o.id
+  HAVING MAX(au.last_sign_in_at) IS NULL
+      OR MAX(au.last_sign_in_at) < cutoff_iso;
+$$;
+
+REVOKE EXECUTE ON FUNCTION find_dormant_org_candidates(timestamptz) FROM public, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION find_dormant_org_candidates(timestamptz) TO service_role;
+
+CREATE OR REPLACE FUNCTION find_dormancy_final_candidates(cutoff_iso timestamptz)
+RETURNS TABLE (
+  id                       uuid,
+  name                     text,
+  email                    text,
+  phone                    text,
+  address_line1            text,
+  city                     text,
+  brand_logo_url           text,
+  brand_accent_color       text,
+  dormancy_warning_sent_at timestamptz,
+  last_member_login        timestamptz
+)
+LANGUAGE sql SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+  SELECT
+    o.id, o.name, o.email, o.phone, o.address_line1, o.city,
+    o.brand_logo_url, o.brand_accent_color,
+    o.dormancy_warning_sent_at,
+    MAX(au.last_sign_in_at) AS last_member_login
+  FROM organisations o
+  LEFT JOIN user_orgs uo ON uo.org_id = o.id AND uo.deleted_at IS NULL
+  LEFT JOIN auth.users au ON au.id = uo.user_id
+  WHERE o.dormancy_warning_sent_at IS NOT NULL
+    AND o.dormancy_final_sent_at IS NULL
+    AND o.dormancy_warning_sent_at < cutoff_iso
+    AND o.deleted_at IS NULL
+  GROUP BY o.id
+  HAVING MAX(au.last_sign_in_at) IS NULL
+      OR MAX(au.last_sign_in_at) <= o.dormancy_warning_sent_at;
+$$;
+
+REVOKE EXECUTE ON FUNCTION find_dormancy_final_candidates(timestamptz) FROM public, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION find_dormancy_final_candidates(timestamptz) TO service_role;
+
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- §23  ADDENDUM_57G Step 8: purgeOrg() primitive — claim slot + cascade delete

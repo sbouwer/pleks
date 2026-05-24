@@ -3,12 +3,14 @@
  *
  * Route:  GET /api/cron/subscription-dormancy
  * Auth:   x-cron-secret header
- * Data:   organisations table; service client (bypasses RLS)
+ * Data:   find_dormant_org_candidates RPC (auth.users join), organisations table; service client
  * Notes:  Called from daily orchestrator. Targets Owner-free orgs (no subscription
  *         or Owner-tier subscription) that have been dormant for ≥60 days with
  *         zero data. Timeline: day 60 → warning, day 90 → final, day 91 → purge.
  *         Purge delegated to purgeOrg() (Step 8) — dormancy step only flags and sends.
  *         Idempotent via dormancy_warning_sent_at / dormancy_final_sent_at columns.
+ *         Dormancy determined via find_dormant_org_candidates / find_dormancy_final_candidates
+ *         RPCs which join auth.users (inaccessible from JS client directly).
  */
 import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
@@ -78,11 +80,11 @@ async function processFirstWarningOrg(supabase: SupabaseClient, org: OrgRow, now
   return true
 }
 
-async function processFinalWarningOrg(supabase: SupabaseClient, org: OrgRow, now: Date): Promise<boolean> {
-  const lastLogin = (org.last_login_at as string | null) ? new Date(org.last_login_at as string) : null
-  const warnedAt  = new Date(org.dormancy_warning_sent_at as string)
-  if (lastLogin && lastLogin > warnedAt) return false
-
+async function processFinalWarningOrg(
+  supabase: SupabaseClient,
+  org: OrgRow & { dormancy_warning_sent_at: string; last_member_login: string | null },
+  now: Date,
+): Promise<boolean> {
   const purgeDateStr = new Date(now.getTime() + DORMANCY_FINAL_DAYS * 24 * 60 * 60 * 1000)
     .toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
 
@@ -115,17 +117,16 @@ export async function GET(req: NextRequest) {
 
   const supabase = await createServiceClient()
   const now = new Date()
-  const dormancyCutoff  = new Date(now.getTime() - DORMANCY_DAYS      * 24 * 60 * 60 * 1000)
-  const warnPurgeCutoff = new Date(now.getTime() - DORMANCY_WARN_DAYS * 24 * 60 * 60 * 1000)
+  const dormancyCutoffIso  = new Date(now.getTime() - DORMANCY_DAYS      * 24 * 60 * 60 * 1000).toISOString()
+  const warnPurgeCutoffIso = new Date(now.getTime() - DORMANCY_WARN_DAYS * 24 * 60 * 60 * 1000).toISOString()
   let warned = 0
   let finalSent = 0
 
   // §11.2 — First dormancy warning (day 60 of no logins + no data)
+  // RPC joins auth.users (inaccessible from JS client) to find orgs whose most
+  // recent member login is older than the cutoff (or who have never logged in).
   const { data: dormantOrgs, error: dormantErr } = await supabase
-    .from("organisations")
-    .select("id, name, email, phone, address_line1, city, brand_logo_url, brand_accent_color, last_login_at, dormancy_warning_sent_at")
-    .is("dormancy_warning_sent_at", null)
-    .lt("last_login_at", dormancyCutoff.toISOString())
+    .rpc("find_dormant_org_candidates", { cutoff_iso: dormancyCutoffIso })
 
   if (dormantErr) {
     console.error("subscription-dormancy: first-warning query failed:", dormantErr.message)
@@ -137,23 +138,19 @@ export async function GET(req: NextRequest) {
   }
 
   // §11.2 — Final dormancy warning (day 90 — 1 day before purge)
+  // RPC returns only orgs whose last member login is on or before the warning date,
+  // so the JS side no longer needs to filter on last_login_at.
   const { data: finalOrgs, error: finalErr } = await supabase
-    .from("organisations")
-    .select("id, name, email, phone, address_line1, city, brand_logo_url, brand_accent_color, dormancy_warning_sent_at, last_login_at")
-    .not("dormancy_warning_sent_at", "is", null)
-    .is("dormancy_final_sent_at", null)
-    .lt("dormancy_warning_sent_at", warnPurgeCutoff.toISOString())
+    .rpc("find_dormancy_final_candidates", { cutoff_iso: warnPurgeCutoffIso })
 
   if (finalErr) {
     console.error("subscription-dormancy: final-warning query failed:", finalErr.message)
   } else {
     for (const org of finalOrgs ?? []) {
-      if (await processFinalWarningOrg(supabase, org as OrgRow, now)) finalSent++
+      const typedOrg = org as OrgRow & { dormancy_warning_sent_at: string; last_member_login: string | null }
+      if (await processFinalWarningOrg(supabase, typedOrg, now)) finalSent++
     }
   }
-
-  // Note: actual purge of eligible orgs is handled by subscription-purge-warnings
-  // step (which calls purgeOrg() — Step 8). Dormancy step only sends warnings.
 
   return Response.json({ ok: true, dormancy_warned: warned, dormancy_final_sent: finalSent })
 }
