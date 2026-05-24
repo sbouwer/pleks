@@ -118,6 +118,17 @@ function StabilityBody({ data, score }: Readonly<{ data: FitScoreReportData; sco
 }
 
 function CreditBody({ data }: Readonly<{ data: FitScoreReportData }>): JSX.Element {
+  if (data.isAllForeignNational) {
+    return (
+      <div>
+        <p className="text-sm text-muted-foreground">Not applicable for all-foreign-national leases.</p>
+        <p className="text-xs text-muted-foreground/60 leading-relaxed mt-2">
+          Credit bureau data is not available for foreign national applicants.
+          Affordability and verification dimensions carry additional weight in the composite score.
+        </p>
+      </div>
+    )
+  }
   const score = data.dimensionalScores.creditBehaviour
   if (score === null) return <PlaceholderCard variant="notAssessed" message={NOT_ASSESSED_MSG} />
   const dim        = data.dimensions.credit
@@ -152,12 +163,11 @@ function VerificationBody({ data, score }: Readonly<{ data: FitScoreReportData; 
   )
 }
 
-function DimCard({ label, docRef, children, widthCls = "w-1/2", noRight = false, noBottom = false }: Readonly<{
-  label: string; docRef?: string; children: React.ReactNode;
-  widthCls?: string; noRight?: boolean; noBottom?: boolean
+function DimCard({ label, docRef, children, noRight = false, noBottom = false }: Readonly<{
+  label: string; docRef?: string; children: React.ReactNode; noRight?: boolean; noBottom?: boolean
 }>): JSX.Element {
   return (
-    <div className={`${widthCls} p-3 border-r border-b border-border ${noRight ? "border-r-0" : ""} ${noBottom ? "border-b-0" : ""}`}>
+    <div className={`w-1/2 p-3 border-r border-b border-border ${noRight ? "border-r-0" : ""} ${noBottom ? "border-b-0" : ""}`}>
       <div className="flex items-baseline justify-between mb-2">
         <span className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground">{label}</span>
         {docRef !== undefined && (
@@ -178,35 +188,6 @@ export function DimensionCardEditorial({ data }: Readonly<DimensionCardEditorial
   const stabScore = data.dimensionalScores.stability
   const viScore   = data.dimensionalScores.verificationIntegrity
 
-  // Foreign-national methodology class: 3 dimensions, not 4. Credit Behaviour
-  // is not part of this methodology class — rendering it as a placeholder would
-  // read as omission rather than deliberate dimension-set narrowing. Per §6.4.
-  if (data.isAllForeignNational) {
-    return (
-      <div className="flex border border-border bg-card mb-5">
-        <DimCard label="01 Affordability" docRef="2" widthCls="w-1/3" noBottom>
-          {affScore === null
-            ? <PlaceholderCard variant="notAssessed" message={NOT_ASSESSED_MSG} />
-            : <AffordabilityBody data={data} score={affScore} />
-          }
-        </DimCard>
-        <DimCard label="02 Stability" widthCls="w-1/3" noBottom>
-          {stabScore === null
-            ? <PlaceholderCard variant="notAssessed" message={NOT_ASSESSED_MSG} />
-            : <StabilityBody data={data} score={stabScore} />
-          }
-        </DimCard>
-        <DimCard label="03 Verification integrity" docRef="3.2" widthCls="w-1/3" noRight noBottom>
-          {viScore === null
-            ? <PlaceholderCard variant="notAssessed" message={NOT_ASSESSED_MSG} />
-            : <VerificationBody data={data} score={viScore} />
-          }
-        </DimCard>
-      </div>
-    )
-  }
-
-  // SA / mixed-nationality lease: 2×2 grid with Credit Behaviour.
   return (
     <div className="flex flex-wrap border border-border bg-card mb-5">
       <DimCard label="01 Affordability" docRef="2">
