@@ -4,7 +4,7 @@
  * Route:  /applications/[id]
  * Auth:   gatewaySSR (agent workspace — service client, explicit org_id filter on every query)
  * Data:   applications + application_co_applicants + listings → units → properties
- * Notes:  FitScoreSection renders when fitscore_band is set (Stream 2 orchestrator has run).
+ * Notes:  FitScoreReport renders when fitscore_band is set (Stream 2 orchestrator has run).
  *         Legacy pre-band display retained for applications not yet re-run under Stream 2.
  *         ID reveal gated to agent role; logs to audit_log per ADDENDUM_14H §8.7.
  *         Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §10.7.

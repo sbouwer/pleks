@@ -5,7 +5,7 @@
  * Data:   FitScoreReportData from assembleReportData.ts
  * Notes:  Tribunal-match invariant: same evidentiary content as the archived PDF, primitive-for-primitive.
  *         All five sections render for both scored and LDP layouts (LDP null dims → PlaceholderCard notAssessed).
- *         Replaces FitScoreSection.tsx. See ADDENDUM_14H_FITSCORE_DELIVERY.md §10.7.
+ *         Replaces retired FitScoreSection.tsx (2026-05-24). See ADDENDUM_14H_FITSCORE_DELIVERY.md §10.7.
  */
 import type { JSX } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
