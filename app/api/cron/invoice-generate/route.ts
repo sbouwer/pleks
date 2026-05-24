@@ -239,7 +239,7 @@ export async function GET(req: Request) {
   }
 
   if (process.env.HEARTBEAT_INVOICE_GENERATE) {
-    void fetch(process.env.HEARTBEAT_INVOICE_GENERATE, { method: "POST" }).catch(() => undefined)
+    await fetch(process.env.HEARTBEAT_INVOICE_GENERATE, { method: "POST" }).catch(() => undefined)
   }
 
   return NextResponse.json({ ok: true, generated })

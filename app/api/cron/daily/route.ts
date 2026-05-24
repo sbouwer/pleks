@@ -157,9 +157,8 @@ export async function GET(req: NextRequest) {
     }).eq("id", cronRunId)
   }
 
-  // Heartbeat — Better Stack confirms the orchestrator completed (fire-and-forget)
   if (process.env.HEARTBEAT_DAILY) {
-    void fetch(process.env.HEARTBEAT_DAILY, { method: "POST" }).catch(() => undefined)
+    await fetch(process.env.HEARTBEAT_DAILY, { method: "POST" }).catch(() => undefined)
   }
 
   return Response.json({ ok: true, ran_at: today.toISOString(), results })

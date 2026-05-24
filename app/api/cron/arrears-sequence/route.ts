@@ -567,9 +567,9 @@ export async function GET(req: Request) {
   } catch (e) {
     console.error("[arrears-sequence] fatal error:", e instanceof Error ? e.message : e)
   } finally {
-    // Heartbeat fires regardless of success or failure — a crashed run is still a run
+    // Await the ping — void/fire-and-forget is killed when the serverless function returns
     if (process.env.HEARTBEAT_ARREARS_SEQUENCE) {
-      void fetch(process.env.HEARTBEAT_ARREARS_SEQUENCE, { method: "POST" }).catch(() => undefined)
+      await fetch(process.env.HEARTBEAT_ARREARS_SEQUENCE, { method: "POST" }).catch(() => undefined)
     } else {
       console.warn("[arrears-sequence] HEARTBEAT_ARREARS_SEQUENCE env var missing — heartbeat skipped")
     }

@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     }).eq("id", runId)
 
     if (process.env.HEARTBEAT_COST_SNAPSHOTS) {
-      void fetch(process.env.HEARTBEAT_COST_SNAPSHOTS, { method: "POST" }).catch(() => undefined)
+      await fetch(process.env.HEARTBEAT_COST_SNAPSHOTS, { method: "POST" }).catch(() => undefined)
     }
 
     return NextResponse.json({ ok: true, ...result })
