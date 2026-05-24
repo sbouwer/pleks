@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatZAR } from "@/lib/constants"
 import { getDepositRecommendation } from "@/lib/screening/depositRecommendation"
 import { checkVisaLeaseAlignment } from "@/lib/screening/visaLeaseCheck"
+import { assembleReportData } from "@/lib/screening/assembleReportData"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { ApplicationActions } from "./ApplicationActions"
 import { BackLink } from "@/components/ui/BackLink"
@@ -41,6 +42,9 @@ export default async function ApplicationDetailPage({
       permit_type, permit_expiry_date, tpn_listing_limited,
       immigration_compliance_confirmed,
       pleks_network_history_status, pleks_network_tenancy_count,
+      identity_match_status, employer_verification_status,
+      salary_reconciliation_status, document_consistency_status,
+      bank_account_ownership_status,
       prescreen_score, prescreen_income_score, prescreen_employment_score,
       prescreen_refs_score, prescreen_affordability_flag,
       stage1_status, stage2_status,
@@ -49,7 +53,7 @@ export default async function ApplicationDetailPage({
       fitscore_components, fitscore_component_snapshot, fitscore_narrative,
       fitscore_computed_at, fitscore_engine_version,
       fitscore_narrative_prompt_version, fitscore_interpretation_version,
-      fitscore_inputs_hash,
+      fitscore_synthesis_template_version, fitscore_inputs_hash,
       fitscore_summary, has_co_applicant,
       applicant_motivation, motivation_doc_path, agent_notes,
       listing_id, unit_id,
@@ -63,11 +67,17 @@ export default async function ApplicationDetailPage({
 
   const { data: coApplicants } = await db
     .from("application_co_applicants")
-    .select("id, first_name, last_name, id_type, co_applicant_index")
+    .select(`
+      id, first_name, last_name, id_type, co_applicant_index,
+      identity_match_status, employer_verification_status,
+      salary_reconciliation_status, document_consistency_status,
+      bank_account_ownership_status,
+      pleks_network_history_status, pleks_network_tenancy_count
+    `)
     .eq("primary_application_id", id)
     .order("co_applicant_index", { ascending: true })
 
-  const [{ data: idCap }, { data: s23Cap }] = await Promise.all([
+  const [{ data: idCap }, { data: s23Cap }, { data: orgRow }] = await Promise.all([
     db
       .from("user_capabilities")
       .select("id")
@@ -82,6 +92,7 @@ export default async function ApplicationDetailPage({
       .eq("org_id", orgId)
       .eq("capability_name", "can_generate_popia_s23")
       .maybeSingle(),
+    db.from("organisations").select("name").eq("id", orgId).single(),
   ])
 
   const canViewId      = !!idCap
@@ -112,6 +123,27 @@ export default async function ApplicationDetailPage({
   })()
 
   const hasStream2 = !!app.fitscore_band
+
+  // Assemble FitScoreReportData for the dashboard surface (same shape as PDF)
+  const reportData = hasStream2
+    ? assembleReportData(app, coApplicants ?? [], orgRow?.name ?? 'Pleks')
+    : null
+
+  // Verification statuses for the Evidence section
+  const primaryStatuses = {
+    identity:    app.identity_match_status,
+    employer:    app.employer_verification_status,
+    salary:      app.salary_reconciliation_status,
+    document:    app.document_consistency_status,
+    bankAccount: app.bank_account_ownership_status,
+  }
+  const coStatuses = (coApplicants ?? []).map(co => ({
+    identity:    co.identity_match_status,
+    employer:    co.employer_verification_status,
+    salary:      co.salary_reconciliation_status,
+    document:    co.document_consistency_status,
+    bankAccount: co.bank_account_ownership_status,
+  }))
 
   return (
     <div>
@@ -207,11 +239,13 @@ export default async function ApplicationDetailPage({
       </div>
 
       {/* Stream 2 FitScore surface */}
-      {hasStream2 && (
+      {hasStream2 && reportData && (
         <FitScoreSection
-          app={app}
-          coApplicants={coApplicants ?? []}
+          data={reportData}
+          applicationId={id}
           canGenerateS23={canGenerateS23}
+          primaryStatuses={primaryStatuses}
+          coStatuses={coStatuses}
         />
       )}
 

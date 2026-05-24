@@ -47,6 +47,15 @@ export interface BureauScore {
 }
 
 export interface ApplicantInput {
+  /**
+   * Scoring-run subject key. Holds `applications.id` for the primary applicant,
+   * `application_co_applicants.id` for co-applicants. NOT a `tenants.id` and
+   * NOT a column on any `applicants` table (no such table exists —
+   * see CLAUDE.md § KNOWN SCHEMA GOTCHAS § Applicant ≡ Tenant).
+   *
+   * Used internally to attribute MaterialFlags and per-applicant scoring back
+   * to their source row within a single scoring run.
+   */
   id: string
   label: string                        // "Applicant A", "Applicant B"…
   nationalityType: string              // applicant_nationality_type enum value
@@ -92,6 +101,11 @@ export interface EngineInput {
 export interface MaterialFlag {
   flag: string
   class: FlagClass
+  /**
+   * In-memory scoring-run subject key matching `ApplicantInput.id`.
+   * Holds `applications.id` (primary) or `application_co_applicants.id` (co-applicants),
+   * NEVER a `tenants.id`. See CLAUDE.md § KNOWN SCHEMA GOTCHAS § Applicant ≡ Tenant.
+   */
   applicantId: string | null
   applicantLabel: string | null
   description: string

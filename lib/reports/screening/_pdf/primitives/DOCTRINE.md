@@ -1,7 +1,9 @@
 # Numbering & cross-reference doctrine
 
-This document governs how §-numbering and cross-reference chips work in the
-FitScore PDF primitives. Established 2026-05-23 after a normalization pass.
+This document governs how §-numbering, cross-reference chips, density tiers,
+and primitive scoping work in the FitScore PDF primitives. Established
+2026-05-23 after a normalization pass; extended with breakpoint + scoping
+doctrine 2026-05-23 after E.6/E.7 completion.
 
 ## Section numbering
 
@@ -53,3 +55,91 @@ It represents an absence of placement, not a low-confidence placement.
 5. INVARIANT: Do NOT collapse 'insufficient' to 'low' during any refactor.
    LDP is not a degraded risk band. The distinction is critical for agent guidance
    and Tribunal defensibility.
+
+## ApplicantDetail density tiers (multi-applicant residential)
+
+The ApplicantDetail primitive renders all applicants on a dedicated §1 page
+(positioned after BandLadder, before DimensionCardEditorial). Layout density
+adapts to applicant count via semantic tier names — NOT viewport-driven
+responsive breakpoints. Editorial semantic compression, not CSS responsive scaling.
+
+| N    | Tier       | Layout                                            |
+|------|------------|---------------------------------------------------|
+| 1    | (omitted)  | ApplicantDetail not rendered — IdentityRow only   |
+| 2    | `rich`     | 2 cards full-width × half-page, stacked           |
+| 3    | `medium`   | 3 cards full-width × third-page, stacked          |
+| 4    | `compact`  | 4 cards in 2×2 grid (half-width × half-page each) |
+| ≥5   | `tabular`  | List view, one row per applicant, no card chrome  |
+
+### Field compression by tier
+
+| Field                       | rich (N=2) | medium (N=3) | compact (N=4) | tabular (N≥5) |
+|-----------------------------|------------|--------------|---------------|---------------|
+| Applicant label (A/B/C…)    | header     | header       | header        | column        |
+| Full name                   | header     | header       | header        | column        |
+| Nationality status          | header     | compact      | compact       | column        |
+| Masked ID                   | ✓          | ✓            | ✓             | drop          |
+| Sex                         | ✓          | drop         | drop          | drop          |
+| Age                         | ✓          | ✓            | drop          | drop          |
+| Employer name               | ✓          | ✓            | ✓             | drop          |
+| Job title                   | ✓          | drop         | drop          | drop          |
+| Tenure                      | ✓          | ✓            | drop          | drop          |
+| Verified income (ZAR)       | ✓          | ✓            | ✓             | column        |
+| Income share %              | ✓          | inline       | inline        | column        |
+| Verification N of M         | ✓          | ✓            | ✓             | column        |
+| Bureau coverage             | full names | count + div  | count only    | count column  |
+| Pleks-network status        | full       | compact      | compact       | column        |
+| Network tenancy count       | ✓          | drop         | drop          | drop          |
+
+Drop order rationale: identity context (sex, age, masked ID) drops first
+because multi-applicant identity is captured by name + nationality. Then
+employment context fades (employer name retained longest). Bureau coverage
+shifts from full list to count to recapture vertical space. Income,
+verification, network status — the three signals that materially
+differentiate applicants — survive to the list view.
+
+### Overflow handling
+
+If card content overflows the available page space at any tier, react-pdf
+reflows naturally to a second applicants page. Do NOT auto-degrade to a
+lower tier on overflow — the tier is applicant-count driven, not
+typography-accident driven. Content-dependent layout switching creates
+inconsistent disclosure across otherwise-identical leases and is
+QA-hostile.
+
+## Primitive scope (residential vs domain-agnostic)
+
+The editorial primitive set splits into two scopes. **Residential-specific
+primitives must not be extended via configuration flags to support
+commercial.** Commercial domain primitives are built as parallel
+implementations that inherit the shared design language (spacing,
+typography, borders, chrome) but support distinct data models.
+
+### Structurally reusable (domain-agnostic editorial language)
+
+- `DocumentShell`, `RunningHeader`, `PageFooter`
+- `MetaStrip` (may extend with entity metadata fields for commercial)
+- `SectionHeader`, `BlockHeader`
+- `AttestationCard`, `DocumentReadingGuide`
+- `BandLadder` (may need director/entity segmentation extension for commercial)
+- `PlaceholderCard` (all four variants — pending / notSolicited / notApplicable / notAssessed)
+- Narrative primitives (`ObservedStrengths`, `AssessmentSynthesis`)
+
+### Residential-specific (build parallel primitives for commercial)
+
+- `IdentityRow` — assumes natural-person data (masked SA ID, sex, age)
+- `ApplicantDetail` — built for residential consumer context; density tiers above
+- `DimensionCardEditorial` — bound to personal affordability/stability semantics
+- `RiskUncertaintySplit` — driven by individual income validation patterns
+
+### Anti-pattern (DO NOT)
+
+Do NOT add `commercial?: boolean` or `reportFamily` discriminator props to
+residential-specific primitives. Do NOT add optional commercial fields to
+the residential `FitScoreReportData` type. Do NOT pre-emptively "prepare"
+residential code for commercial via config flags.
+
+Doctrine: preserve clean extension seams, not speculative convergence.
+
+See `brief/build/_ADDENDUM/ADDENDUM_14H_FITSCORE_COMMERCIAL.md` for the
+commercial scaffold + non-goals section.
