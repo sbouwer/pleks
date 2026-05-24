@@ -540,6 +540,8 @@ export async function GET(req: Request) {
 
   if (process.env.HEARTBEAT_ARREARS_SEQUENCE) {
     void fetch(process.env.HEARTBEAT_ARREARS_SEQUENCE, { method: "POST" }).catch(() => undefined)
+  } else {
+    console.warn("[arrears-sequence] HEARTBEAT_ARREARS_SEQUENCE env var missing — heartbeat skipped")
   }
 
   return NextResponse.json({ ok: true, processed })
