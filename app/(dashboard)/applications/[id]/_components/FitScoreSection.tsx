@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatZAR } from "@/lib/constants"
 import type { NarrativeResponse } from "@/lib/screening/fitScoreNarrative"
 import type { MaterialFlag } from "@/lib/screening/fitScoreEngine.v1"
+import { PopiaResponseAction } from "./PopiaResponseAction"
 
 // ─── Labels and colours (web — parallel to PDF theme.ts tokens) ───────────────
 
@@ -301,9 +302,10 @@ interface CoApplicant {
 interface Props {
   app: AppData
   coApplicants: CoApplicant[]
+  canGenerateS23: boolean
 }
 
-export function FitScoreSection({ app, coApplicants }: Readonly<Props>) {
+export function FitScoreSection({ app, coApplicants, canGenerateS23 }: Readonly<Props>) {
   if (!app.fitscore_band) return null
 
   const band = app.fitscore_band
@@ -414,6 +416,11 @@ export function FitScoreSection({ app, coApplicants }: Readonly<Props>) {
             ))}
           </div>
         )}
+
+        {/* POPIA s23 action */}
+        <div className="border-t border-border pt-3 flex items-center justify-end">
+          <PopiaResponseAction applicationId={app.id} hasCapability={canGenerateS23} />
+        </div>
       </CardContent>
     </Card>
   )

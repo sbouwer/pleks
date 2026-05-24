@@ -67,15 +67,25 @@ export default async function ApplicationDetailPage({
     .eq("primary_application_id", id)
     .order("co_applicant_index", { ascending: true })
 
-  const { data: idCap } = await db
-    .from("user_capabilities")
-    .select("id")
-    .eq("user_id", gw.userId)
-    .eq("org_id", orgId)
-    .eq("capability_name", "can_view_sensitive_identity_data")
-    .maybeSingle()
+  const [{ data: idCap }, { data: s23Cap }] = await Promise.all([
+    db
+      .from("user_capabilities")
+      .select("id")
+      .eq("user_id", gw.userId)
+      .eq("org_id", orgId)
+      .eq("capability_name", "can_view_sensitive_identity_data")
+      .maybeSingle(),
+    db
+      .from("user_capabilities")
+      .select("id")
+      .eq("user_id", gw.userId)
+      .eq("org_id", orgId)
+      .eq("capability_name", "can_generate_popia_s23")
+      .maybeSingle(),
+  ])
 
-  const canViewId = !!idCap
+  const canViewId      = !!idCap
+  const canGenerateS23 = !!s23Cap
 
   const listing = app.listings as unknown as {
     asking_rent_cents: number
@@ -201,6 +211,7 @@ export default async function ApplicationDetailPage({
         <FitScoreSection
           app={app}
           coApplicants={coApplicants ?? []}
+          canGenerateS23={canGenerateS23}
         />
       )}
 
