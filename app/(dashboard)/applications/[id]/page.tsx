@@ -18,7 +18,7 @@ import { assembleReportData } from "@/lib/screening/assembleReportData"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { ApplicationActions } from "./ApplicationActions"
 import { BackLink } from "@/components/ui/BackLink"
-import { FitScoreSection } from "./_components/FitScoreSection"
+import { FitScoreReport } from "@/lib/reports/screening/_web/FitScoreReport"
 import { FitScorePdfDownload } from "./_components/FitScorePdfDownload"
 import { IdReveal } from "./_components/IdReveal"
 
@@ -129,22 +129,6 @@ export default async function ApplicationDetailPage({
     ? assembleReportData(app, coApplicants ?? [], orgRow?.name ?? 'Pleks')
     : null
 
-  // Verification statuses for the Evidence section
-  const primaryStatuses = {
-    identity:    app.identity_match_status,
-    employer:    app.employer_verification_status,
-    salary:      app.salary_reconciliation_status,
-    document:    app.document_consistency_status,
-    bankAccount: app.bank_account_ownership_status,
-  }
-  const coStatuses = (coApplicants ?? []).map(co => ({
-    identity:    co.identity_match_status,
-    employer:    co.employer_verification_status,
-    salary:      co.salary_reconciliation_status,
-    document:    co.document_consistency_status,
-    bankAccount: co.bank_account_ownership_status,
-  }))
-
   return (
     <div>
       <BackLink href="/applications" label="Applications" />
@@ -240,12 +224,10 @@ export default async function ApplicationDetailPage({
 
       {/* Stream 2 FitScore surface */}
       {hasStream2 && reportData && (
-        <FitScoreSection
+        <FitScoreReport
           data={reportData}
           applicationId={id}
           canGenerateS23={canGenerateS23}
-          primaryStatuses={primaryStatuses}
-          coStatuses={coStatuses}
         />
       )}
 

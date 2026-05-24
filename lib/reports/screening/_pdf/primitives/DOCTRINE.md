@@ -1,9 +1,14 @@
 # Numbering & cross-reference doctrine
 
 This document governs how §-numbering, cross-reference chips, density tiers,
-and primitive scoping work in the FitScore PDF primitives. Established
-2026-05-23 after a normalization pass; extended with breakpoint + scoping
-doctrine 2026-05-23 after E.6/E.7 completion.
+and primitive scoping work in the FitScore PDF **and web** primitives.
+Established 2026-05-23 after a normalization pass; extended with breakpoint +
+scoping doctrine 2026-05-23 after E.6/E.7 completion; extended with
+parity-atomic invariant + web anchor convention 2026-05-24 (F.2 respec).
+
+**This document is authoritative for both `_pdf/primitives/` and
+`_web/primitives/`.** The web primitives implement the same doctrine;
+DOCTRINE.md is referenced, not duplicated.
 
 ## Section numbering
 
@@ -13,6 +18,52 @@ doctrine 2026-05-23 after E.6/E.7 completion.
    multiple sibling sub-blocks exist. Singleton sub-blocks drop the letter.
 4. Every numbered subsection gets a proper BlockHeader treatment. Do NOT
    use inline labels in place of BlockHeader chips for numbered subsections.
+
+## Parity-atomic invariant (locked 2026-05-24 — DO NOT DRIFT)
+
+No `_pdf/primitives/*` doctrinal primitive may be added, removed, or materially
+altered without a corresponding `_web/primitives/*` parity update in the same
+change-set. The check is file-level: a matching-named file must exist and reflect
+the same doctrinal content. This applies to all future PRs — not only F.2.
+
+## Web anchor id convention (locked 2026-05-24)
+
+`SectionHeader` and `BlockHeader` primitives on the web side emit `id` attributes
+using normalised `docRef` values:
+
+| docRef | id |
+|--------|----|
+| `3`    | `fs-3` |
+| `3.1`  | `fs-3-1` |
+| `3.1.B`| `fs-3-1-b` |
+
+Normalisation rule: lowercase, dots and letter suffixes separated by hyphens,
+`fs-` prefix. Centralise in a single helper `toDocAnchorId(docRef: string): string`
+used by both `SectionHeader` and `BlockHeader` — never hand-rolled inline.
+
+Chips render as `<a href={`#${toDocAnchorId(chip.docRef)}`}>` anchor links.
+If the target `BlockHeader` does not exist, the chip is omitted — not rendered
+as a dead link.
+
+## Verification outcome doctrine (locked 2026-05-24)
+
+`VerificationOutcome` is a doctrinal evidentiary type, shared between PDF and web:
+
+```ts
+type VerificationOutcome = 'pass' | 'partial' | 'absent'
+```
+
+It represents **final evidentiary interpretation only** — never operational pipeline
+state. Dashboard-only transient states live in a separate type:
+
+```ts
+type VerificationRuntimeState = 'pending' | 'running' | 'retrying' | 'failed_transport'
+```
+
+Runtime states resolve into doctrinal outcomes before PDF generation. Future
+contributors must not push retry, inflight, queue, or timeout states into
+`VerificationOutcome`. That type boundary enforces the distinction between
+decision record and orchestration monitor.
 
 ## Cross-reference chips (doctrine — DO NOT DRIFT)
 
