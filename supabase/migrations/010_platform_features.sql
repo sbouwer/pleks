@@ -1397,6 +1397,7 @@ AS $$
   WHERE o.dormancy_warning_sent_at IS NULL
     AND o.created_at < cutoff_iso
     AND o.deleted_at IS NULL
+    AND o.id <> '00000000-0000-0000-0000-000000000001'::uuid  -- Excludes BUILD_65 POPIA-purged tombstone
   GROUP BY o.id
   HAVING MAX(au.last_sign_in_at) IS NULL
       OR MAX(au.last_sign_in_at) < cutoff_iso;
@@ -1431,6 +1432,7 @@ AS $$
     AND o.dormancy_final_sent_at IS NULL
     AND o.dormancy_warning_sent_at < cutoff_iso
     AND o.deleted_at IS NULL
+    AND o.id <> '00000000-0000-0000-0000-000000000001'::uuid  -- Excludes BUILD_65 POPIA-purged tombstone
   GROUP BY o.id
   HAVING MAX(au.last_sign_in_at) IS NULL
       OR MAX(au.last_sign_in_at) <= o.dormancy_warning_sent_at;
