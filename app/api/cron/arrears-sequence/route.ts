@@ -471,20 +471,10 @@ async function autoResolveIfPaid(
   return true
 }
 
-// ── Route handler ────────────────────────────────────────────────────────────
+// ── Phase runners ────────────────────────────────────────────────────────────
 
-export async function GET(req: Request) {
-  const cronSecret = req.headers.get("x-cron-secret") ?? new URL(req.url).searchParams.get("secret")
-  if (cronSecret !== process.env.CRON_SECRET) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  const supabase = await createServiceClient()
-  const today    = new Date()
+async function phase1DetectNewArrears(supabase: SupabaseClient, today: Date): Promise<number> {
   const todayStr = today.toISOString().split("T")[0]
-  let processed  = 0
-
-  // 1. Detect new arrears — overdue invoices without an open case
   const { data: overdueInvoices, error: invErr } = await supabase
     .from("rent_invoices")
     .select("id, org_id, lease_id, tenant_id, unit_id, due_date, balance_cents, leases(property_id, lease_type)")
@@ -492,12 +482,19 @@ export async function GET(req: Request) {
     .lt("due_date", todayStr)
   if (invErr) console.error("[arrears-sequence] overdue invoices:", invErr.message)
 
+  let count = 0
   for (const inv of overdueInvoices ?? []) {
-    const created = await handleOverdueInvoice(supabase, inv as OverdueInvoice, today)
-    if (created) processed++
+    try {
+      const created = await handleOverdueInvoice(supabase, inv as OverdueInvoice, today)
+      if (created) count++
+    } catch (e) {
+      console.error("[arrears-sequence] handleOverdueInvoice failed for", inv.id, e instanceof Error ? e.message : e)
+    }
   }
+  return count
+}
 
-  // 2. Advance sequences for open cases
+async function phase2AdvanceSequences(supabase: SupabaseClient, today: Date): Promise<number> {
   const { data: openCases, error: casesErr } = await supabase
     .from("arrears_cases")
     .select("id, org_id, tenant_id, lease_id, unit_id, current_step, sequence_id, oldest_outstanding_date, total_arrears_cents, months_in_arrears")
@@ -506,7 +503,6 @@ export async function GET(req: Request) {
     .not("sequence_id", "is", null)
   if (casesErr) console.error("[arrears-sequence] open cases:", casesErr.message)
 
-  // Batch org capabilities + tenant tone preference
   const uniqueOrgIds = [...new Set((openCases ?? []).map((c) => c.org_id))]
   const capabilitiesMap = new Map<string, OrgCapabilities>()
   const orgToneMap      = new Map<string, string>()
@@ -519,29 +515,64 @@ export async function GET(req: Request) {
     }
   }
 
+  let count = 0
   for (const arrearsCase of openCases ?? []) {
-    const capabilities = capabilitiesMap.get(arrearsCase.org_id) ?? getOrgCapabilities("agency", "")
-    const orgTone      = orgToneMap.get(arrearsCase.org_id) ?? "professional"
-    const advanced = await advanceSequenceStep(supabase, arrearsCase as ArrearsCase, today, capabilities, orgTone)
-    if (advanced) processed++
+    try {
+      const capabilities = capabilitiesMap.get(arrearsCase.org_id) ?? getOrgCapabilities("agency", "")
+      const orgTone      = orgToneMap.get(arrearsCase.org_id) ?? "professional"
+      const advanced = await advanceSequenceStep(supabase, arrearsCase as ArrearsCase, today, capabilities, orgTone)
+      if (advanced) count++
+    } catch (e) {
+      console.error("[arrears-sequence] advanceSequenceStep failed for case", arrearsCase.id, e instanceof Error ? e.message : e)
+    }
   }
+  return count
+}
 
-  // 3. Auto-resolve cases where all invoices are now paid
+async function phase3AutoResolve(supabase: SupabaseClient): Promise<number> {
   const { data: paidCases, error: paidErr } = await supabase
     .from("arrears_cases")
     .select("id, lease_id, org_id, tenant_id")
     .in("status", ["open", "payment_arrangement"])
   if (paidErr) console.error("[arrears-sequence] paid cases:", paidErr.message)
 
+  let count = 0
   for (const arrearsCase of paidCases ?? []) {
-    const resolved = await autoResolveIfPaid(supabase, arrearsCase)
-    if (resolved) processed++
+    try {
+      const resolved = await autoResolveIfPaid(supabase, arrearsCase)
+      if (resolved) count++
+    } catch (e) {
+      console.error("[arrears-sequence] autoResolveIfPaid failed for case", arrearsCase.id, e instanceof Error ? e.message : e)
+    }
+  }
+  return count
+}
+
+// ── Route handler ────────────────────────────────────────────────────────────
+
+export async function GET(req: Request) {
+  const cronSecret = req.headers.get("x-cron-secret") ?? new URL(req.url).searchParams.get("secret")
+  if (cronSecret !== process.env.CRON_SECRET) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  if (process.env.HEARTBEAT_ARREARS_SEQUENCE) {
-    void fetch(process.env.HEARTBEAT_ARREARS_SEQUENCE, { method: "POST" }).catch(() => undefined)
-  } else {
-    console.warn("[arrears-sequence] HEARTBEAT_ARREARS_SEQUENCE env var missing — heartbeat skipped")
+  const supabase = await createServiceClient()
+  const today    = new Date()
+  let processed  = 0
+
+  try {
+    processed += await phase1DetectNewArrears(supabase, today)
+    processed += await phase2AdvanceSequences(supabase, today)
+    processed += await phase3AutoResolve(supabase)
+  } catch (e) {
+    console.error("[arrears-sequence] fatal error:", e instanceof Error ? e.message : e)
+  } finally {
+    // Heartbeat fires regardless of success or failure — a crashed run is still a run
+    if (process.env.HEARTBEAT_ARREARS_SEQUENCE) {
+      void fetch(process.env.HEARTBEAT_ARREARS_SEQUENCE, { method: "POST" }).catch(() => undefined)
+    } else {
+      console.warn("[arrears-sequence] HEARTBEAT_ARREARS_SEQUENCE env var missing — heartbeat skipped")
+    }
   }
 
   return NextResponse.json({ ok: true, processed })
