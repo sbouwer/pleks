@@ -7,7 +7,7 @@
  */
 import type { JSX } from "react"
 import type { FitScoreReportData } from "@/lib/reports/screening/_primitives/theme"
-import { toDocAnchorId } from "./SectionHeader"
+import { toDocAnchorId } from "@/lib/reports/screening/_primitives/anchors"
 import { PlaceholderCard } from "./PlaceholderCard"
 
 const NOT_ASSESSED_MSG = "Insufficient verified evidence available for this dimension."

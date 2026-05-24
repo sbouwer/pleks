@@ -38,8 +38,11 @@ using normalised `docRef` values:
 | `3.1.B`| `fs-3-1-b` |
 
 Normalisation rule: lowercase, dots and letter suffixes separated by hyphens,
-`fs-` prefix. Centralise in a single helper `toDocAnchorId(docRef: string): string`
-used by both `SectionHeader` and `BlockHeader` — never hand-rolled inline.
+`fs-` prefix. Lives in `lib/reports/screening/_primitives/anchors.ts` as
+`toDocAnchorId(docRef: string): string`. Imported by `_web/primitives/SectionHeader`,
+`_web/primitives/BlockHeader`, dimension-card chips, `_web/FitScoreReport` section
+wrappers, and `_web/SectionNav`. The helper is doctrinal infrastructure — never
+hand-rolled inline, never colocated with a presentation primitive.
 
 Chips render as `<a href={`#${toDocAnchorId(chip.docRef)}`}>` anchor links.
 If the target `BlockHeader` does not exist, the chip is omitted — not rendered

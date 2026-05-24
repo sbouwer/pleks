@@ -7,7 +7,7 @@
 import type { JSX } from "react"
 import { BAND_LABELS, GRADE_LABELS, colors } from "@/lib/reports/screening/_primitives/theme"
 import type { FitScoreReportData, FitScoreBand, ConfidenceGrade, VerificationIntegrityGrade, MaterialFlag } from "@/lib/reports/screening/_primitives/theme"
-import { toDocAnchorId } from "./SectionHeader"
+import { toDocAnchorId } from "@/lib/reports/screening/_primitives/anchors"
 
 const RUNGS: { key: FitScoreBand; num: string; range: string }[] = [
   { key: "verified_stability",   num: "01", range: "86-100" },

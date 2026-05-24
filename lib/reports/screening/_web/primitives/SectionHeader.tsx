@@ -2,13 +2,10 @@
  * lib/reports/screening/_web/primitives/SectionHeader.tsx — §-section heading with badge and amber accent
  *
  * Notes:  Web parity for _pdf/primitives/SectionHeader.tsx. Emits id={toDocAnchorId(badge)} for
- *         in-document anchor navigation. Exports toDocAnchorId — used by BlockHeader and chips.
+ *         in-document anchor navigation. toDocAnchorId lives in _primitives/anchors.ts.
  */
 import type { JSX } from "react"
-
-export function toDocAnchorId(docRef: string): string {
-  return "fs-" + docRef.toLowerCase().replaceAll(".", "-")
-}
+import { toDocAnchorId } from "@/lib/reports/screening/_primitives/anchors"
 
 interface SectionHeaderProps {
   badge:       string

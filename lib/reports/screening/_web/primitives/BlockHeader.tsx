@@ -5,7 +5,7 @@
  *         cross-reference anchor chips can link to numbered subsections.
  */
 import type { JSX } from "react"
-import { toDocAnchorId } from "./SectionHeader"
+import { toDocAnchorId } from "@/lib/reports/screening/_primitives/anchors"
 
 interface BlockHeaderProps {
   label:     string
