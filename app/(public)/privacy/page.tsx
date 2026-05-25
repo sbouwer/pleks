@@ -10,6 +10,7 @@ import { LegalPageLayout } from "@/components/legal/LegalPageLayout"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import { EXTERNAL_LINKS } from "@/lib/external-links"
 import { ExtLink } from "@/components/legal/ExtLink"
+import { RETENTION_CATEGORIES } from "@/lib/legal/retention-categories"
 
 export const metadata: Metadata = {
   title: "Privacy Policy — Pleks",
@@ -441,131 +442,16 @@ export default function PrivacyPolicyPage() {
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td className="who">Sessions<span className="sub">authenticated sessions</span></td>
-              <td>30 days after expiry</td>
-              <td>Operational</td>
-            </tr>
-            <tr>
-              <td className="who">Authentication events &amp; MFA records<span className="sub">login events, passkey, TOTP</span></td>
-              <td>7 years</td>
-              <td>POPIA s17 — documentation / accountability</td>
-            </tr>
-            <tr>
-              <td className="who">Error events<span className="sub">PII-scrubbed at Sentry</span></td>
-              <td>90 days</td>
-              <td>Operator default</td>
-            </tr>
-            <tr>
-              <td className="who">Marketing waitlist<span className="sub">opt-in email registrations</span></td>
-              <td>Until account creation, or 12 months</td>
-              <td>POPIA s14 — purpose specification</td>
-            </tr>
-            <tr>
-              <td className="who">Platform billing records<span className="sub">subscription charges</span></td>
-              <td>5 years from most recent charge</td>
-              <td>Tax Administration Act s29</td>
-            </tr>
-            <tr>
-              <td className="who">Platform operational data<span className="sub">after cancellation — properties, leases, tenants, documents</span></td>
-              <td>12 months from cancellation date</td>
-              <td>Contractual — ToS §04; POPIA s11(1)(b) (performance of contract — customer&rsquo;s right to reactivate during the grace period) plus s11(1)(f) (legitimate interest in customer recovery)</td>
-            </tr>
-            <tr>
-              <td className="who">Support correspondence<span className="sub">emails, tickets</span></td>
-              <td>3 years from most recent message</td>
-              <td>Operational</td>
-            </tr>
-            <tr>
-              <td className="who">Audit log<span className="sub">all state changes on the platform</span></td>
-              <td>7 years</td>
-              <td>POPIA s17 · PPRA audit timelines</td>
-            </tr>
-            <tr>
-              <td className="who">Rental applications — successful<span className="sub">accepted applicants</span></td>
-              <td>Absorbed into lease retention</td>
-              <td>Lease retention rules</td>
-            </tr>
-            <tr>
-              <td className="who">Rental applications — declined or withdrawn<span className="sub">automatic purge — all associated records including identity documents, bank statements, income records</span></td>
-              <td>90 days from rejection</td>
-              <td>POPIA s14 — no longer than necessary. Retention extended only for active legal hold, ongoing dispute, fraud investigation, or compliance purposes.</td>
-            </tr>
-            <tr>
-              <td className="who">Credit check results<span className="sub">declined / withdrawn applications</span></td>
-              <td>90 days (purged with application package)</td>
-              <td>POPIA s14 · Credit Bureau Code of Conduct</td>
-            </tr>
-            <tr>
-              <td className="who">Credit check results<span className="sub">active lease records</span></td>
-              <td>5 years post-termination</td>
-              <td>Prescription Act · PPA s54</td>
-            </tr>
-            <tr>
-              <td className="who">Consent log<span className="sub">timestamp, IP, consent version, purpose</span></td>
-              <td>10 years</td>
-              <td>POPIA s17 — documentation / accountability</td>
-            </tr>
-            <tr>
-              <td className="who">Lease records<span className="sub">after lease end</span></td>
-              <td>5 years post-termination</td>
-              <td>Prescription Act · PPA s54 + Reg 33</td>
-            </tr>
-            <tr>
-              <td className="who">Trust account records<span className="sub">from end of financial year</span></td>
-              <td>5 years</td>
-              <td>PPA Reg 33 · Tax Administration Act s29</td>
-            </tr>
-            <tr>
-              <td className="who">Deposit records<span className="sub">after lease end</span></td>
-              <td>5 years post-termination</td>
-              <td>RHA s5 · PPA Reg 33</td>
-            </tr>
-            <tr>
-              <td className="who">Inspection records &amp; photos<span className="sub">Tribunal evidence preservation</span></td>
-              <td>3 years post-termination; extended to 5 years from final resolution of the dispute, claim, or proceedings where a Tribunal dispute arises</td>
-              <td>Tribunal evidentiary practice</td>
-            </tr>
-            <tr>
-              <td className="who">Maintenance records<span className="sub">after job completion</span></td>
-              <td>3 years post-completion</td>
-              <td>Tribunal evidentiary practice</td>
-            </tr>
-            <tr>
-              <td className="who">Tenant communications<span className="sub">mandatory + operational — full body retained</span></td>
-              <td>5 years post-termination</td>
-              <td>RHA · Tax Administration Act s29</td>
-            </tr>
-            <tr>
-              <td className="who">Owner statements<span className="sub">financial reporting to landlords</span></td>
-              <td>5 years from statement date</td>
-              <td>Tax Administration Act s29</td>
-            </tr>
-            <tr>
-              <td className="who">Supplier records<span className="sub">contractors, maintenance suppliers</span></td>
-              <td>5 years from last engagement</td>
-              <td>Tax Administration Act s29</td>
-            </tr>
-            <tr>
-              <td className="who">FICA / KYC documentation<span className="sub">post-termination of business relationship</span></td>
-              <td>5 years</td>
-              <td>FICA s23</td>
-            </tr>
-            <tr>
-              <td className="who">HOA / scheme records<span className="sub">AGM and scheme records</span></td>
-              <td>5 years; AGM records per scheme bylaws</td>
-              <td>STSMA · Tax Administration Act s29</td>
-            </tr>
-            <tr>
-              <td className="who">Subject-request records<span className="sub">POPIA rights requests and responses</span></td>
-              <td>10 years</td>
-              <td>POPIA s17 — accountability</td>
-            </tr>
-            <tr>
-              <td className="who">Companies Act accounting records<span className="sub">Pleks own records</span></td>
-              <td>7 years</td>
-              <td>Companies Act s24</td>
-            </tr>
+            {RETENTION_CATEGORIES.map((cat, i) => (
+              <tr key={i}>
+                <td className="who">
+                  {cat.category}
+                  {cat.subLabel ? <span className="sub">{cat.subLabel}</span> : null}
+                </td>
+                <td>{cat.retention}</td>
+                <td>{cat.basis}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
         <p>
