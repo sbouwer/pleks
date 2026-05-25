@@ -93,6 +93,44 @@ const eslintConfig = defineConfig([
       }],
     },
   },
+  {
+    // Public surfaces must not import the POPIA domain-data modules directly.
+    // Use MARKETING_FACTS from @/lib/marketing/facts for counts and summaries.
+    // Exempted: lib/legal/** (domain modules themselves), lib/marketing/** (aggregator),
+    // and the legal register/privacy pages which need the full enumeration.
+    // See ADDENDUM_00J §4.2, D-MKT-16.
+    files: ["**/*.ts", "**/*.tsx"],
+    ignores: [
+      "lib/legal/**",
+      "lib/marketing/**",
+      "app/(public)/popia-register/**",
+      "app/(public)/privacy/**",
+    ],
+    rules: {
+      "no-restricted-imports": ["error", {
+        paths: [
+          {
+            name: "@/lib/legal/popia-purposes",
+            message:
+              "Import MARKETING_FACTS from `@/lib/marketing/facts` instead of the raw domain module. " +
+              "See ADDENDUM_00J §4.2.",
+          },
+          {
+            name: "@/lib/legal/operators",
+            message:
+              "Import MARKETING_FACTS from `@/lib/marketing/facts` instead of the raw domain module. " +
+              "See ADDENDUM_00J §4.2.",
+          },
+          {
+            name: "@/lib/legal/retention-categories",
+            message:
+              "Import MARKETING_FACTS from `@/lib/marketing/facts` instead of the raw domain module. " +
+              "See ADDENDUM_00J §4.2.",
+          },
+        ],
+      }],
+    },
+  },
 ]);
 
 export default eslintConfig;
