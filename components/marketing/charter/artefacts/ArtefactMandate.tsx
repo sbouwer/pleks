@@ -1,39 +1,34 @@
 /**
  * components/marketing/charter/artefacts/ArtefactMandate.tsx
- * §02 Tenant Data — mandate flow diagram: Tenant Bank → Agency Trust, Pleks crossed out
+ * §02 Tenant Data — mandate flow: Tenant Bank → Agency Trust, Pleks below as observer
  */
 export function ArtefactMandate() {
   return (
     <svg
-      viewBox="0 0 200 56"
+      viewBox="0 0 200 60"
       width="100%"
-      height="56"
+      height="60"
       role="img"
-      aria-label="Mandate diagram showing rent flowing from tenant bank to agency trust account, with Pleks crossed out as an intermediary"
+      aria-label="Mandate diagram showing rent flowing directly from tenant bank to agency trust account, with Pleks positioned below as an observer only — never in the payment path"
     >
       {/* Tenant Bank box */}
-      <rect x="2" y="10" width="62" height="22" rx="1" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.5"/>
-      <text x="33" y="24" fontFamily="var(--pub-mono)" fontSize="6" fill="currentColor" opacity="0.7" textAnchor="middle" fontWeight="500">TENANT BANK</text>
+      <rect x="2" y="6" width="66" height="22" rx="1" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.5"/>
+      <text x="35" y="20" fontFamily="var(--pub-mono)" fontSize="6" fill="currentColor" opacity="0.7" textAnchor="middle" fontWeight="500">TENANT BANK</text>
 
-      {/* Arrow */}
-      <line x1="64" y1="21" x2="88" y2="21" stroke="currentColor" strokeWidth="0.8" opacity="0.4"/>
-      <polygon points="88,18 94,21 88,24" fill="currentColor" opacity="0.4"/>
+      {/* Arrow — the actual payment rail */}
+      <line x1="68" y1="17" x2="90" y2="17" stroke="currentColor" strokeWidth="0.8" opacity="0.4"/>
+      <polygon points="90,14 96,17 90,20" fill="currentColor" opacity="0.4"/>
 
       {/* Agency Trust box */}
-      <rect x="94" y="10" width="64" height="22" rx="1" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.5"/>
-      <text x="126" y="24" fontFamily="var(--pub-mono)" fontSize="6" fill="currentColor" opacity="0.7" textAnchor="middle" fontWeight="500">AGENCY TRUST</text>
+      <rect x="96" y="6" width="72" height="22" rx="1" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.5"/>
+      <text x="132" y="20" fontFamily="var(--pub-mono)" fontSize="6" fill="currentColor" opacity="0.7" textAnchor="middle" fontWeight="500">AGENCY TRUST</text>
 
-      {/* Pleks box — detached, dashed, struck through */}
-      <rect x="168" y="10" width="30" height="22" rx="1" fill="none" stroke="currentColor" strokeWidth="0.6" strokeDasharray="2 2" opacity="0.3"/>
-      <text x="183" y="24" fontFamily="var(--pub-mono)" fontSize="5" fill="currentColor" opacity="0.3" textAnchor="middle">PLEKS</text>
-      {/* Strikethrough diagonal */}
-      <line x1="168" y1="10" x2="198" y2="32" stroke="var(--amber-ink)" strokeWidth="1.2" strokeLinecap="round"/>
+      {/* Dotted observer sightline from flow midpoint down to Pleks */}
+      <line x1="82" y1="28" x2="82" y2="38" stroke="var(--amber-ink)" strokeWidth="0.7" strokeDasharray="2 2" opacity="0.6"/>
 
-      {/* Divider */}
-      <line x1="0" y1="37" x2="200" y2="37" stroke="currentColor" strokeWidth="0.5" opacity="0.15"/>
-
-      {/* Footnote */}
-      <text x="100" y="50" fontFamily="var(--pub-mono)" fontSize="6" fill="var(--amber-ink)" textAnchor="middle" letterSpacing="0.08em" fontWeight="500">PLEKS · OBSERVES, NEVER HANDLES</text>
+      {/* Pleks observer box — below the flow, dashed amber border */}
+      <rect x="42" y="38" width="80" height="16" rx="1" fill="none" stroke="var(--amber-ink)" strokeWidth="0.6" strokeDasharray="2 2" opacity="0.5"/>
+      <text x="82" y="49" fontFamily="var(--pub-mono)" fontSize="5.5" fill="var(--amber-ink)" textAnchor="middle" letterSpacing="0.1em" fontWeight="600">PLEKS · READS ONLY</text>
     </svg>
   )
 }
