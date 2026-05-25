@@ -17,13 +17,13 @@ import { ArtefactErasureTimeline } from "./artefacts/ArtefactErasureTimeline"
 import { ArtefactNoTracking }     from "./artefacts/ArtefactNoTracking"
 import { ArtefactAgencyIsolation } from "./artefacts/ArtefactAgencyIsolation"
 import { ArtefactBreachClock }    from "./artefacts/ArtefactBreachClock"
-import type { ComponentType } from "react"
+import type { ComponentType, ReactNode } from "react"
 
 interface Commitment {
   num: number
   label: string
   featured?: boolean
-  title: string
+  title: ReactNode
   body: string
   foot: string
   hover: string
@@ -36,7 +36,7 @@ const COMMITMENTS: Commitment[] = [
     num: 1,
     label: "§01 · TRUST MONEY",
     featured: true,
-    title: "We never hold your landlord's money.",
+    title: <>We <span className="amber-wash-underline">never</span> hold your landlord&apos;s money.</>,
     body: "Client funds stay in your Section 86 trust account, at your own bank, under your own FFC. Pleks has no outbound payment rail — and the codebase can't grow one without rewriting the schema, the lint rules, and the UI layer.",
     foot: "Enforced at 4 layers",
     hover: "See it in the architecture",
@@ -56,41 +56,41 @@ const COMMITMENTS: Commitment[] = [
   {
     num: 3,
     label: "§03 · PORTABILITY",
-    title: "You can leave any month. We'll help you pack.",
+    title: <>You can leave <span className="amber-wash-underline">any month</span>. We&apos;ll help you pack.</>,
     body: "Full export on demand. Every lease, inspection photo, statement, mandate, audit entry. Signed and hashed.",
     foot: "PDF + JSON + ZIP",
     hover: "Bundle structure",
-    href: "/privacy",
+    href: "/privacy#rights",
     Artefact: ArtefactManifest,
   },
   {
     num: 4,
     label: "§04 · ACCESS CONTINUITY",
-    title: "Overdue doesn't lock you out.",
+    title: <><span className="amber-wash-underline">Overdue</span> doesn&apos;t lock you out.</>,
     body: "If we ever need to chase you for an invoice, we'll chase the invoice. Nobody's rent roll becomes the collateral.",
     foot: "In every Operator agreement",
     hover: "Read the clause",
-    href: "/terms",
+    href: "/terms#cancellation",
     Artefact: ArtefactStateAccess,
   },
   {
     num: 5,
     label: "§05 · RIGHT TO BE FORGOTTEN",
-    title: "Your tenant's erasure request actually works.",
+    title: <>Your tenant&apos;s erasure request <span className="amber-wash-underline">actually works</span>.</>,
     body: "30 days. Carve-outs (FICA 5y, PPRA, Tribunal holds) disclosed before they submit, not after. No silent retention.",
     foot: "Retention-aware cascade",
     hover: "What stays, what goes",
-    href: "/popia-register",
+    href: "/popia-register#subject-rights",
     Artefact: ArtefactErasureTimeline,
   },
   {
     num: 6,
     label: "§06 · NO TRACKING",
-    title: "You're not a dataset. Your tenants aren't either.",
+    title: <>You&apos;re <span className="amber-wash-underline">not</span> a dataset. Your tenants aren&apos;t either.</>,
     body: "Our AI provider operates under a zero-data-retention policy. No product-analytics vendors deployed. Deliberately, not accidentally.",
     foot: "AI zero-retention · zero analytics",
     hover: "Sub-processor list",
-    href: "/cookie-policy",
+    href: "/cookie-policy#analytics",
     Artefact: ArtefactNoTracking,
   },
   {
@@ -106,11 +106,11 @@ const COMMITMENTS: Commitment[] = [
   {
     num: 8,
     label: "§08 · BREACH POSTURE",
-    title: "If something goes wrong, you hear within 24 hours.",
-    body: "POPIA gives us 72. We've committed to 24. Post-mortem published. IR escalation path always surfaced.",
+    title: <>If something goes wrong, you hear within <span className="amber-wash-underline">24 hours</span>.</>,
+    body: "POPIA gives us 72. We've committed to 24. Post-mortem published. Incident escalation path always surfaced.",
     foot: "3× faster than required",
     hover: "Incident-response runbook",
-    href: "/paia-manual",
+    href: "/paia-manual#security",
     Artefact: ArtefactBreachClock,
   },
 ]

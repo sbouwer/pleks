@@ -17,7 +17,7 @@ export function CharterRegisterCard() {
       className={styles.charterRegisterCard}
       aria-label="Read the full POPIA Processing Purpose Register"
     >
-      <SealMark section="v1" register />
+      <SealMark section={LEGAL_VERSIONS.popiaRegister} register />
 
       <div className={styles.cardHead}>
         <span className={styles.cardNum}>§ FULL REGISTER</span>

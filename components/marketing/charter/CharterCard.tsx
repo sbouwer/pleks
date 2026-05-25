@@ -6,7 +6,7 @@
  *         Server component — no JS, hover handled by CSS in charter.module.css.
  *         Spec: BUILD_66_CHARTER_HOMEPAGE.md §7.2
  */
-import type { ComponentType } from "react"
+import type { ComponentType, ReactNode } from "react"
 import Link from "next/link"
 import styles from "./charter.module.css"
 import { SealMark } from "./SealMark"
@@ -15,8 +15,8 @@ interface CharterCardProps {
   num: number
   label: string
   featured?: boolean
-  title: string
-  body: string
+  title: ReactNode
+  body: ReactNode
   foot: string
   hover: string
   href: string
@@ -44,7 +44,7 @@ export function CharterCard({
     <Link
       href={href}
       className={cardClass}
-      aria-label={`Charter commitment ${num}: ${title}`}
+      aria-label={`Charter commitment: ${label}`}
     >
       <SealMark section={`§${numStr}`} featured={featured} />
 

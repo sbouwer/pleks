@@ -4,7 +4,7 @@
  * Notes:  Dual-ring circular stamp, rotated -8deg, amber at variable opacity.
  *         Opacity is driven by parent hover via CSS in charter.module.css.
  *         Two variants: regular (48px) and featured (64px).
- *         Register variant uses "REGISTER" + "v1" labels instead of "ATTESTED".
+ *         Register variant uses "REGISTER" + section (version) labels instead of "ATTESTED".
  */
 import styles from "./charter.module.css"
 
@@ -20,7 +20,7 @@ export function SealMark({ section, featured = false, register = false }: SealMa
   const outerR = cx - 1.5
   const innerR = outerR - 5
   const labelTop = register ? "REGISTER" : "ATTESTED"
-  const labelBot = register ? "v1" : section
+  const labelBot = section
   const fontSize = featured ? 7 : 5.5
   const botFontSize = featured ? 6.5 : 5
 
