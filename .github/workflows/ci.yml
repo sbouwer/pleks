@@ -88,6 +88,21 @@ jobs:
           exit-code: ${{ github.ref == 'refs/heads/main' && '1' || '0' }}
           ignore-unfixed: true
 
+  fitscore-parity:
+    name: FitScore primitive parity (§11.20)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Check FitScore primitive parity
+        run: node scripts/check-fitscore-parity.mjs
+        env:
+          PARITY_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+
   pr-title:
     name: PR title (Conventional Commits)
     if: github.event_name == 'pull_request'
