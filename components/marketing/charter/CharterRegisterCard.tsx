@@ -6,6 +6,7 @@
  */
 import Link from "next/link"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
+import { MARKETING_FACTS } from "@/lib/marketing/facts"
 import styles from "./charter.module.css"
 import { SealMark } from "./SealMark"
 import { ArtefactRegister } from "./artefacts/ArtefactRegister"
@@ -29,7 +30,7 @@ export function CharterRegisterCard() {
 
       <h3 className={styles.cardTitle}>Every line of it. On the public record.</h3>
       <p className={styles.cardBody}>
-        39 processing activities. Who, why, how long, on what legal basis. Most
+        {MARKETING_FACTS.popiaPurposes.total} processing activities. Who, why, how long, on what legal basis. Most
         companies keep this internal. We publish it.
       </p>
 

@@ -2,6 +2,8 @@
  * components/marketing/charter/artefacts/ArtefactRegister.tsx
  * §9 Register card — numbered ledger rows previewing the processing-purpose register
  */
+import { MARKETING_FACTS } from "@/lib/marketing/facts"
+
 export function ArtefactRegister() {
   return (
     <svg
@@ -9,7 +11,7 @@ export function ArtefactRegister() {
       width="100%"
       height="56"
       role="img"
-      aria-label="Preview of the processing-purpose register showing rows A1 lease execution, A2 trust reconciliation, B5 FitScore generation, and 36 more activities"
+      aria-label={`Preview of the processing-purpose register showing rows A1 lease execution, A2 trust reconciliation, B5 FitScore generation, and ${MARKETING_FACTS.popiaPurposes.total - 3} more activities`}
     >
       {/* Header rule */}
       <line x1="0" y1="4" x2="200" y2="4" stroke="currentColor" strokeWidth="0.5" opacity="0.2"/>
@@ -33,7 +35,7 @@ export function ArtefactRegister() {
 
       {/* "... 34 more →" row — dashed border */}
       <rect x="0" y="49" width="200" height="9" rx="1" fill="none" stroke="currentColor" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.2"/>
-      <text x="100" y="55.5" fontFamily="var(--pub-mono)" fontSize="5.5" fill="currentColor" opacity="0.35" textAnchor="middle" letterSpacing="0.06em">… 36 more →</text>
+      <text x="100" y="55.5" fontFamily="var(--pub-mono)" fontSize="5.5" fill="currentColor" opacity="0.35" textAnchor="middle" letterSpacing="0.06em">… {MARKETING_FACTS.popiaPurposes.total - 3} more →</text>
     </svg>
   )
 }
