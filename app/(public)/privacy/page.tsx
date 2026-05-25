@@ -11,6 +11,7 @@ import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import { EXTERNAL_LINKS } from "@/lib/external-links"
 import { ExtLink } from "@/components/legal/ExtLink"
 import { RETENTION_CATEGORIES } from "@/lib/legal/retention-categories"
+import { OPERATORS } from "@/lib/legal/operators"
 
 export const metadata: Metadata = {
   title: "Privacy Policy — Pleks",
@@ -255,61 +256,13 @@ export default function PrivacyPolicyPage() {
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td className="who">Supabase<span className="sub">database, auth &amp; storage</span></td>
-              <td>All platform and agency purposes · database storage, authentication, file storage · United States</td>
-              <td>Standard Contractual Clauses <span className="act-pill">POPIA · S72</span></td>
-            </tr>
-            <tr>
-              <td className="who">Vercel<span className="sub">application hosting</span></td>
-              <td>All platform and agency purposes · application hosting and global edge delivery · United States and global edge</td>
-              <td>Standard Contractual Clauses <span className="act-pill">POPIA · S72</span></td>
-            </tr>
-            <tr>
-              <td className="who">Anthropic<span className="sub">AI model provider</span></td>
-              <td>AI-assisted processing (income extraction, FitScore rationale, lease drafting, arrears letters) · United States · Enterprise DPA with minimal operational retention</td>
-              <td>SCCs + Enterprise DPA · minimal operational retention</td>
-            </tr>
-            <tr>
-              <td className="who">Sentry<span className="sub">error monitoring</span></td>
-              <td>Application error tracking and performance monitoring (PII-scrubbed before transmission) · United States</td>
-              <td>Standard Contractual Clauses <span className="act-pill">POPIA · S72</span></td>
-            </tr>
-            <tr>
-              <td className="who">Resend<span className="sub">transactional email</span></td>
-              <td>Transactional and notification email · United States</td>
-              <td>Standard Contractual Clauses <span className="act-pill">POPIA · S72</span></td>
-            </tr>
-            <tr>
-              <td className="who">Africa&rsquo;s Talking<span className="sub">SMS &amp; WhatsApp aggregator</span></td>
-              <td>SMS and WhatsApp message delivery · Kenya (Nairobi)</td>
-              <td>Kenya Data Protection Act 2019 + Standard Contractual Clauses</td>
-            </tr>
-            <tr>
-              <td className="who">Meta<span className="sub">WhatsApp Business Platform</span></td>
-              <td>Upstream WhatsApp routing via Africa&rsquo;s Talking · United States (California) / Ireland</td>
-              <td>Standard Contractual Clauses (via Africa&rsquo;s Talking relationship)</td>
-            </tr>
-            <tr>
-              <td className="who">PayFast<span className="sub">payment gateway</span></td>
-              <td>Application fee processing and platform billing · South Africa · PCI DSS Level 1</td>
-              <td>South Africa (domestic)</td>
-            </tr>
-            <tr>
-              <td className="who">Searchworx<span className="sub">credit bureau aggregator</span></td>
-              <td>Credit bureau queries — TransUnion, Experian, Compuscan, XDS, Home Affairs (DHA), TPN · South Africa · Consent-gated</td>
-              <td>South Africa (domestic)</td>
-            </tr>
-            <tr>
-              <td className="who">DocuSeal<span className="sub">e-signature</span></td>
-              <td>Lease and consent document signing · self-hosted on Hetzner SA (South African infrastructure) · no data leaves Pleks&rsquo;s infrastructure</td>
-              <td>South Africa — Hetzner SA (domestic; no SCCs required)</td>
-            </tr>
-            <tr>
-              <td className="who">Better Stack<span className="sub">uptime monitoring</span></td>
-              <td>Uptime monitoring only — operational metadata, no personal data transmitted · United States</td>
-              <td>Standard Contractual Clauses <span className="act-pill">POPIA · S72</span></td>
-            </tr>
+            {OPERATORS.filter(op => op.surfaceInShareTable).map(op => (
+              <tr key={op.name}>
+                <td className="who">{op.name}<span className="sub">{op.shareTableSub ?? op.sub}</span></td>
+                <td>{op.shareTablePurpose}</td>
+                <td>{op.shareTableTransfer}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
         <p>
@@ -442,8 +395,8 @@ export default function PrivacyPolicyPage() {
             </tr>
           </thead>
           <tbody>
-            {RETENTION_CATEGORIES.map((cat, i) => (
-              <tr key={i}>
+            {RETENTION_CATEGORIES.map((cat) => (
+              <tr key={`${cat.category}-${cat.subLabel}`}>
                 <td className="who">
                   {cat.category}
                   {cat.subLabel ? <span className="sub">{cat.subLabel}</span> : null}
