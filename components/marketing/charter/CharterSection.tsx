@@ -10,6 +10,7 @@ import { VaultDoorSVG } from "@/app/(public)/svgs/VaultDoorSVG"
 import { CharterCard } from "./CharterCard"
 import { CharterRegisterCard } from "./CharterRegisterCard"
 import { CHARTER_COMMITMENTS } from "./commitments"
+import { MARKETING_FACTS } from "@/lib/marketing/facts"
 
 export function CharterSection() {
   return (
@@ -26,7 +27,7 @@ export function CharterSection() {
             </h2>
           </div>
           <p className="pub-body" style={{ maxWidth: "62ch" }}>
-            Eight commitments we&apos;ve put in writing, not in marketing copy. Every one exists
+            {MARKETING_FACTS.charter.total} commitments we&apos;ve put in writing, not in marketing copy. Every one exists
             because the alternative has bitten someone in this industry. Every one is
             enforceable — by you, by your tenants, by the Information Regulator.
           </p>

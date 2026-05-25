@@ -37,7 +37,7 @@ export default function ProcessingRegisterPage() {
       eyebrowParts={["POPIA · S17 · S18", "processing register", LEGAL_VERSIONS.popiaRegister]}
       titleBefore="Processing"
       titleHighlight="register"
-      subtitle="Pleks's POPIA processing-purpose register — all 12 platform purposes and 27 operator purposes, with lawful bases, data categories, retention periods, and the full operators directory."
+      subtitle={`Pleks's POPIA processing-purpose register — all ${MARKETING_FACTS.popiaPurposes.partA} platform purposes and ${MARKETING_FACTS.popiaPurposes.partB} operator purposes, with lawful bases, data categories, retention periods, and the full operators directory.`}
       kicker={[
         { label: "Last reviewed", value: "2026 · 05 · 13", mono: true },
         { label: "In force from",  value: "2026 · 05 · 01", mono: true },
@@ -54,7 +54,7 @@ export default function ProcessingRegisterPage() {
         <p className="sc-eyebrow">Plain-language summary</p>
         <h2 className="sc-h">What this register covers</h2>
         <ul className="summary-list">
-          <li><span className="b" /><span>Pleks operates in two roles: as <strong>Responsible Party</strong> for 12 platform purposes (authentication, billing, support — Part A) and as <strong>Operator</strong> for 27 agency-side purposes (tenant data, leases, inspections, credit and criminal screening, property-intelligence — Part B).</span></li>
+          <li><span className="b" /><span>Pleks operates in two roles: as <strong>Responsible Party</strong> for {MARKETING_FACTS.popiaPurposes.partA} platform purposes (authentication, billing, support — Part A) and as <strong>Operator</strong> for {MARKETING_FACTS.popiaPurposes.partB} agency-side purposes (tenant data, leases, inspections, credit and criminal screening, property-intelligence — Part B).</span></li>
           <li><span className="b" /><span>For Part B data, the <strong>agency is the Responsible Party</strong>. Data-subject requests about tenant or lease records must be directed to the agency, not to Pleks.</span></li>
           <li><span className="b" /><span>Credit checks (B4) require the applicant&rsquo;s <strong>explicit consent</strong> under <span className="act-pill">POPIA · S11(1)(a)</span> and the Credit Bureau Code of Conduct (issued under POPIA, October 2020) before any bureau query is submitted.</span></li>
           <li><span className="b" /><span>AI processing (B22) is <strong>assistive only</strong>. Pleks does not make automated decisions about tenants or applicants — all decisions remain with the agency or landlord.</span></li>
@@ -313,7 +313,7 @@ export default function ProcessingRegisterPage() {
         <p className="sec-num"><span className="bar" /><span>A · Pleks as Responsible Party</span></p>
         <h2 className="sec-h">Platform <span className="hl">purposes</span></h2>
         <p>
-          These 12 purposes are those for which Pleks itself is the Responsible Party. The lawful basis for each is normally either
+          These {MARKETING_FACTS.popiaPurposes.partA} purposes are those for which Pleks itself is the Responsible Party. The lawful basis for each is normally either
           performance of the contract between Pleks and the platform user (the Terms of Service, <span className="act-pill">POPIA · S11(1)(b)</span>),
           or Pleks&rsquo;s legitimate interest in operating a reliable and secure service (<span className="act-pill">POPIA · S11(1)(f)</span>),
           with appropriate balancing against the data subject&rsquo;s interests.
