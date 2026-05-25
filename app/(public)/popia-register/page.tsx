@@ -319,6 +319,19 @@ export default function ProcessingRegisterPage() {
           with appropriate balancing against the data subject&rsquo;s interests.
         </p>
 
+        <div className="summary-card">
+          <p className="sc-eyebrow">§07 Charter · Agency isolation</p>
+          <p className="sc-h">Zero cross-org aggregation</p>
+          <p>
+            Every agency on Pleks is an isolated data silo at the database level. Row Level Security
+            (RLS) is enforced in Postgres — not in the application layer — so no application bug can
+            expose one agency&rsquo;s data to another. Pleks runs no cross-org queries and maintains no
+            aggregation pool across agencies. FitScore results (Purpose B5) are org-scoped at the point
+            of computation and cannot be surfaced to a different agency context. There is no mechanism
+            for one agency to access another agency&rsquo;s applicant data.
+          </p>
+        </div>
+
         {POPIA_PURPOSES.filter(p => p.id.startsWith("A")).map(p => (
           <div key={p.id} className="purpose-entry">
             <div className="purpose-hdr">
@@ -355,6 +368,19 @@ export default function ProcessingRegisterPage() {
           rather than s11(1)(b) contract for a given purpose). Each agency must confirm and document its own lawful basis in its own
           register. Where the agency relies on s11(1)(f) legitimate interest, it must conduct and retain a balancing test.
         </p>
+
+        <div className="summary-card">
+          <p className="sc-eyebrow">§02 Charter · Mandate mechanics</p>
+          <p className="sc-h">No inbound rail — how rent collection works</p>
+          <p>
+            Pleks does not initiate payments. Rent collection runs through a DebiCheck or NAEDO mandate
+            held between the tenant&rsquo;s bank and the agency&rsquo;s bank — Pleks is not a party to
+            that mandate and holds no bank account numbers for this purpose. What Pleks does is read your
+            bank statement after the collection run, match the incoming receipts to your trust ledger, and
+            flag any mismatches. The {MARKETING_FACTS.popiaPurposes.partB} Operator purposes in this
+            section reflect that reconciliation-observer role — not a payment-initiation role.
+          </p>
+        </div>
 
         {POPIA_PURPOSES.filter(p => p.id.startsWith("B")).map(p => (
           <div key={p.id} className="purpose-entry">

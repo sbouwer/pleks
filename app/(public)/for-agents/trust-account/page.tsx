@@ -140,6 +140,48 @@ export default function TrustAccountPage() {
         </div>
       </section>
 
+      {/* Section — 4-layer enforcement architecture */}
+      <section className="mx-auto max-w-5xl px-6 py-16" id="architecture">
+        <div className="text-center mb-12">
+          <p className="text-xs font-mono tracking-widest uppercase text-muted-foreground mb-3">Enforced at 4 layers</p>
+          <h2 className="font-heading text-3xl font-bold mb-4">Not a policy. An architectural constraint.</h2>
+          <p className="text-muted-foreground max-w-2xl mx-auto">
+            The §01 Charter claim is verifiable. We removed the capability at four independent enforcement points.
+            Defeating one layer does not defeat the others.
+          </p>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-6">
+          {[
+            {
+              layer: "Layer 1 · Database",
+              title: "Schema constraint and enforcement trigger",
+              body: "The database schema includes a CHECK constraint and a BEFORE INSERT trigger that reject any configuration designating Pleks as trustee. A direct SQL write to the trust table — bypassing the application layer entirely — still fails. The constraint is defined in the foundation migration and cannot be silently removed.",
+            },
+            {
+              layer: "Layer 2 · Application",
+              title: "Trust invariant guard",
+              body: "Every write path through the trust module passes through a central invariant guard in lib/trust/invariants.ts, which re-asserts the no-trustee constraint at the application layer. There is no bypass route. New code paths that touch trust writes must explicitly pass the invariant check, or the write is refused.",
+            },
+            {
+              layer: "Layer 3 · Codebase",
+              title: "ESLint payment-initiation ban",
+              body: "A lint rule embedded in the codebase prevents any engineer from importing payment-initiation APIs — bank payment rails, EFT processors, or payment-initiation SDKs. The rule fails CI automatically. Adding a payment rail would require removing the lint rule — a visible, reviewable code change that cannot be hidden.",
+            },
+            {
+              layer: "Layer 4 · Integration",
+              title: "No payment rail exists",
+              body: "Pleks holds no bank credentials, no outbound EFT API contract, and no payment processor integration of any kind. There is no rail to compromise. A successful attack on Pleks infrastructure yields data — not the ability to move money, because the payment system does not exist.",
+            },
+          ].map((item) => (
+            <div key={item.layer} className="rounded-xl border border-border/60 bg-surface-elevated p-6">
+              <p className="text-xs font-mono tracking-widest uppercase text-muted-foreground mb-2">{item.layer}</p>
+              <p className="font-semibold mb-2">{item.title}</p>
+              <p className="text-sm text-muted-foreground">{item.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* Section 2 — operational workflow */}
       <section className="bg-muted/30 py-16">
         <div className="mx-auto max-w-3xl px-6">
