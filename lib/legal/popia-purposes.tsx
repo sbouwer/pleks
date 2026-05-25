@@ -19,6 +19,7 @@ export interface PopiaProcessingPurpose {
   crossBorder: string     // from pm-row Cross-border
   dpia?: string           // from pm-row DPIA (B26, B27 only)
   notDeployed?: boolean   // true for A11 and B25
+  notDeployedLabel?: string  // badge text; defaults to "Not deployed" if omitted
 }
 
 export const POPIA_PURPOSES: readonly PopiaProcessingPurpose[] = [
@@ -145,6 +146,7 @@ export const POPIA_PURPOSES: readonly PopiaProcessingPurpose[] = [
     retention: "Not applicable",
     crossBorder: "Not applicable",
     notDeployed: true,
+    notDeployedLabel: "Not deployed",
   },
   {
     id: "A12",
@@ -453,6 +455,7 @@ export const POPIA_PURPOSES: readonly PopiaProcessingPurpose[] = [
     retention: "Not applicable",
     crossBorder: "Not applicable",
     notDeployed: true,
+    notDeployedLabel: "Reserved — not deployed",
   },
   {
     id: "B26",
