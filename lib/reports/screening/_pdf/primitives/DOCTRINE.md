@@ -206,3 +206,73 @@ Doctrine: preserve clean extension seams, not speculative convergence.
 
 See `brief/build/_ADDENDUM/ADDENDUM_14H_FITSCORE_COMMERCIAL.md` for the
 commercial scaffold + non-goals section.
+
+## Editorial-mode framework
+
+Established 2026-05-25 after the F3 revert audit and the §11.21 Density &
+Surface Pass. These principles are binding for all current and future
+primitive work. They resolve the methodology tension exposed by F3 and
+gate the Commercial Build Phase.
+
+### Principle 1 — Topology changes alone do not constitute a new editorial mode
+
+A change in column count, card count, or grid geometry is not an editorial-mode
+change. Editorial modes require distinct hierarchy, pacing, content
+distribution, and methodology semantics — not merely a different layout shell.
+
+**Corollary:** Do NOT introduce a conditional grid branch (e.g. "1×3 for
+foreign-national") unless the data model and applicant methodology are
+substantively different in that branch — and even then, both the new topology
+AND the new methodology must be defined simultaneously in the same changeset.
+A topology change without a methodology rationale is a visual refactor
+dressed as a feature. (Source: Stéan, 2026-05-24; triggered by F3 revert.)
+
+**Holding pattern:** When the methodology for a case type is unresolved, the
+"Not applicable" hold state with explanatory sub-text is the correct
+primitive response. It keeps the gap visible. A mechanical layout rearrangement
+that papers over an unresolved methodology question is strictly worse than
+the hold state it replaces.
+
+### Principle 2 — Density tiers are editorial modes, not field-visibility filters
+
+`rich` / `medium` / `compact` / `tabular` are distinct editorial postures, not
+subsets of the same visual shell with fields removed. Each tier must produce a
+visually distinguishable result — different hierarchy, different emphasis,
+different reading order — not just a shorter version of `rich`.
+
+**Corollary:** Do NOT implement a new density tier by adding `if tier === X,
+skip this field`. That is a field-visibility filter. A genuine tier change
+reorders and regroups content to communicate a different editorial priority.
+
+### Principle 3 — Editorial-mode discipline precedes commercial primitives
+
+The editorial-mode framework (Principles 1 & 2) must be fully codified and
+validated against the residential primitive set before any commercial
+primitives are authored. Commercial report types introduce different data
+models and applicant entities — implementing them before the mode framework
+is stable would require a retroactive respec of the commercial layer.
+
+**Gate:** Commercial Build Phase is blocked until §11.21 Density & Surface
+Pass is complete, including smoke-render validation across N=2/3/4/5
+applicant variants.
+
+### Surface-token discipline
+
+White page + white card body + tinted structural accents only. This is the
+invariant for both PDF and web surface layers.
+
+| Layer | PDF token | Web token | Used on |
+|---|---|---|---|
+| Structural accent | `C.surface.paperSunk` (#f5f4ef) | `bg-muted/20` | Card header strips, BlockHeader chips, table column headers |
+| Subtle accent | `C.surface.paperDeeper` (#eeede7) | `bg-muted/10` | Alternating table row striping |
+| Card body | no background (white by inheritance) | no background (white by inheritance) | All card bodies — never add a tinted background here |
+| Page / outer shell | `C.surface.paper` (#ffffff) | white | Document background |
+
+A card body that carries a tinted background (`paperSunk`, `bg-muted/20`,
+etc.) is a violation. The tint belongs only on structural frame elements
+(header strips, chips, table headers) — not on content zones. This creates
+visual depth without adding noise to the reading surface.
+
+**Sweep (2026-05-25):** Both PDF and web primitive sets confirmed clean.
+No code changes required — the discipline was already in practice;
+this section codifies it as explicit doctrine.
