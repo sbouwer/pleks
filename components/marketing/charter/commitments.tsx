@@ -95,8 +95,8 @@ export const CHARTER_COMMITMENTS: readonly CharterCommitment[] = [
     title: <>One agency&apos;s rejection doesn&apos;t become another agency&apos;s <span className="amber-wash-underline">blacklist</span>.</>,
     body: "FitScore evaluates each applicant on their own declared evidence — credit, affordability, references, ID integrity. Outcomes don't pool across agencies; another agency's history doesn't reach yours.",
     foot: "Zero cross-org aggregation",
-    hover: "Applicant data register",
-    href: "/popia-register#part-a",
+    hover: "Agency isolation",
+    href: "/popia-register#fitscore-isolation",
     Artefact: ArtefactAgencyIsolation,
   },
   {

@@ -319,17 +319,39 @@ export default function ProcessingRegisterPage() {
           with appropriate balancing against the data subject&rsquo;s interests.
         </p>
 
-        <div className="summary-card">
+        <div className="summary-card" id="fitscore-isolation">
           <p className="sc-eyebrow">§07 Charter · Agency isolation</p>
-          <p className="sc-h">Zero cross-org aggregation</p>
-          <p>
-            Every agency on Pleks is an isolated data silo at the database level. Row Level Security
-            (RLS) is enforced in Postgres — not in the application layer — so no application bug can
-            expose one agency&rsquo;s data to another. Pleks runs no cross-org queries and maintains no
-            aggregation pool across agencies. FitScore results (Purpose B5) are org-scoped at the point
-            of computation and cannot be surfaced to a different agency context. There is no mechanism
-            for one agency to access another agency&rsquo;s applicant data.
-          </p>
+          <p className="sc-h">Enforced at 4 layers</p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14, marginTop: 20 }}>
+            {[
+              {
+                layer: "Layer 1 · Database",
+                title: "Row Level Security on every table",
+                body: "Postgres RLS policies are defined on every agency-scoped table and enforced by the database engine, not the application layer. Every policy carries both USING and WITH CHECK clauses — reads and writes are equally gated. The anon key, used on all client-facing paths, cannot bypass RLS. A direct SQL query using the anon key fails the policy check if org_id does not match the session organisation.",
+              },
+              {
+                layer: "Layer 2 · Application",
+                title: "Gateway org_id binding",
+                body: "Every server-side read and write path passes through gateway() or requireAgentWriteAccess(), which bind the session orgId to the Supabase client before any query executes. Project rules mandate that every query include the org_id scope. Omitting it is a policy violation caught in code review. No server route queries across org boundaries.",
+              },
+              {
+                layer: "Layer 3 · Computation",
+                title: "FitScore scoped at compute time",
+                body: "FitScore results (Purpose B5) are computed within the requesting org context and inserted with org_id bound at the point of write. The FitScore engine has no API surface that accepts a cross-org context. The archived PDF report-of-record is stored under the originating org storage path. A result produced for Agency A cannot be read by Agency B — RLS blocks the read at the database layer.",
+              },
+              {
+                layer: "Layer 4 · Integration",
+                title: "No external aggregation pool",
+                body: "Pleks maintains no external data warehouse, analytics platform, or ML training dataset that aggregates applicant or tenant data across agencies. Each agency's data is a closed silo from ingest to deletion. A successful intrusion yields one agency's data — not a cross-agency pool, because the aggregation system does not exist.",
+              },
+            ].map((item) => (
+              <div key={item.layer} style={{ border: "1px solid var(--rule)", borderRadius: "var(--r-sm)", padding: "16px 20px" }}>
+                <p className="sc-eyebrow" style={{ marginBottom: 8 }}>{item.layer}</p>
+                <p style={{ fontWeight: 500, marginBottom: 8, fontSize: 15 }}>{item.title}</p>
+                <p style={{ fontSize: 14, color: "var(--ink-soft)", margin: 0 }}>{item.body}</p>
+              </div>
+            ))}
+          </div>
         </div>
 
         {POPIA_PURPOSES.filter(p => p.id.startsWith("A")).map(p => (

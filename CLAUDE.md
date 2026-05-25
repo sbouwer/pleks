@@ -811,6 +811,10 @@ destination, and the two must match.
 
 Operational truth originates once, in domain-owned structured data; surfaces render from that source; CI defends the rendering. Counts, lists, retention periods, notification windows, sub-processor identities, and structured legal references are derived facts, not authored content. The pattern generalises the dates-on-homepage automation, the parity-atomic invariant (§11.20), and the D-TRUST-01 architectural invariant into a single class. Public-facing fact drift becomes impossible by construction once the source is unique and the consuming surface derives from it. See ADDENDUM_00J for the SSOT module structure, CI script, and migration sequence.
 
+**The evidentiary-doctrine standard for Charter substantiation (load-bearing):**
+
+Every Charter card that claims an architectural constraint must substantiate at the linked page with a four-layer evidentiary structure: Database (RLS or schema constraint), Application (invariant guard or gateway binding), Codebase (ESLint rule or code review requirement), Integration (what does not exist and cannot be compromised). A prose paragraph explaining what is enforced is not sufficient — the structure must make the claim falsifiable layer-by-layer. §01 (trust account, /for-agents/trust-account#architecture) and §07 (agency isolation, /popia-register#fitscore-isolation) are the reference implementations. Any future Charter commitment that claims architectural enforcement must add a substantiation section following the same structure before the card ships.
+
 **The Charter test:** if a proposed copy edit could appear in WeConnectU,
 PropWorx, or RedRabbit's marketing without seeming out of place, it does
 not belong on a Pleks public surface. The voice should be impossible to
@@ -835,3 +839,4 @@ evaluated against named principles rather than re-litigated each time.
 - Do not use ANON_KEY — the correct env var is
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
 - Do not build debit order or DebiCheck mandate features — Pleks reads bank statement matches only. Agencies hold mandates bank-side between themselves and their bank. Pleks is not in the payment flow.
+- Do not split an extension migration across commits — when changing a file extension (.ts → .tsx, .js → .ts, etc.), delete the predecessor in the same commit that introduces the successor. A surviving .ts shadow alongside a new .tsx file causes TypeScript to resolve to the old interface (.ts takes priority over .tsx in module resolution), silently masking the extension and breaking builds downstream.
