@@ -36,7 +36,7 @@ const sovereignProperties = [
   {
     icon: FileText,
     title: "Exportable, deletable, yours",
-    body: "Any tenant can request a copy of their data in PDF + JSON format. Any tenant can request deletion of everything we're legally allowed to delete — with explicit pre-submission disclosure of what can't be deleted and why.",
+    body: "Any tenant can request a copy of their data in PDF + JSON + ZIP format. Any tenant can request deletion of everything we're legally allowed to delete — with explicit pre-submission disclosure of what can't be deleted and why.",
   },
   {
     icon: Users,
