@@ -43,6 +43,26 @@ jobs:
   # credentials (several pages prerender with live data). The Vercel preview
   # deploy that fires on every PR is the authoritative build signal.
 
+  marketing-consistency:
+    name: Marketing consistency (ADDENDUM_00J)
+    needs: quick-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit
+
+      - name: Check marketing consistency
+        run: node scripts/check-marketing-consistency.mjs
+
   security-scan:
     name: Security (static Supabase checks)
     needs: quick-check

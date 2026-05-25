@@ -3,7 +3,7 @@
  *
  * Route:  /popia-register
  * Auth:   public
- * Notes:  Covers Part A (12 Pleks-RP purposes) and Part B (27 Operator purposes).
+ * Notes:  Covers Part A (Pleks-RP purposes) and Part B (Operator purposes).
  */
 import type { Metadata } from "next"
 import Link from "next/link"
