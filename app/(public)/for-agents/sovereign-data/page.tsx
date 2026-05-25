@@ -138,8 +138,8 @@ export default function SovereignDataPage() {
           </p>
         </div>
         <div className="flex gap-4 flex-wrap pt-2">
-          <Link href="/privacy/processing-purposes" className="text-sm underline text-muted-foreground hover:text-foreground">
-            Processing purposes register
+          <Link href="/popia-register" className="text-sm underline text-muted-foreground hover:text-foreground">
+            POPIA processing register
           </Link>
           <Link href="/privacy" className="text-sm underline text-muted-foreground hover:text-foreground">
             Privacy policy
