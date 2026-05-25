@@ -29,7 +29,7 @@ export function CharterRegisterCard() {
 
       <h3 className={styles.cardTitle}>Every line of it. On the public record.</h3>
       <p className={styles.cardBody}>
-        37 processing activities. Who, why, how long, on what legal basis. Most
+        39 processing activities. Who, why, how long, on what legal basis. Most
         companies keep this internal. We publish it.
       </p>
 
