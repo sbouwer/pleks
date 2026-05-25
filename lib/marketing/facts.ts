@@ -9,6 +9,7 @@ import { POPIA_PURPOSES } from "@/lib/legal/popia-purposes"
 import { OPERATORS } from "@/lib/legal/operators"
 import { RETENTION_CATEGORIES } from "@/lib/legal/retention-categories"
 import { CHARTER_COMMITMENTS } from "@/components/marketing/charter/commitments"
+import { TIERS } from "@/lib/marketing/tiers"
 
 export const MARKETING_FACTS = {
   popiaPurposes: {
@@ -31,6 +32,11 @@ export const MARKETING_FACTS = {
   },
   charter: {
     total: CHARTER_COMMITMENTS.length,
+  },
+  pricing: {
+    tierCount:              TIERS.length,
+    freeTier:               "Owner" as const,
+    bespokeLeaseThreshold:  Math.max(...TIERS.filter(t => t.leaseCap !== null).map(t => t.leaseCap as number)),
   },
   sla: {
     popiaResponseDays:        30,

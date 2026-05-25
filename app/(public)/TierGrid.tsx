@@ -1,39 +1,30 @@
 "use client"
 
 /**
- * app/(public)/TierGrid.tsx — FILL: one-line purpose
+ * app/(public)/TierGrid.tsx — Interactive tier pricing grid with lease-count suggester
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  / (rendered inside the marketing homepage pricing section)
+ * Auth:   none — public
+ * Data:   TIERS from lib/marketing/tiers.ts (static)
  */
 
 import { useState } from "react"
 import Link from "next/link"
+import type { TierData } from "@/lib/marketing/tiers"
 
-export type TierData = {
-  name: string
-  leaseCap: number | null
-  leases: string
-  price: string | null
-  perLease: string
-  desc: string
-  featured?: true
-}
+export type { TierData }
 
-function getSuggestedTier(count: number, tiers: TierData[]): string {
+function getSuggestedTier(count: number, tiers: readonly TierData[]): string {
   for (const tier of tiers) {
     if (tier.leaseCap !== null && count <= tier.leaseCap) return tier.name
   }
-  return tiers[tiers.length - 1].name
+  return tiers.at(-1)!.name
 }
 
-export function TierGrid({ tiers }: { tiers: TierData[] }) {
+export function TierGrid({ tiers }: Readonly<{ tiers: readonly TierData[] }>) {
   const [raw, setRaw] = useState("")
-  const num = raw === "" ? null : Math.max(1, parseInt(raw) || 1)
-  const suggested = num !== null ? getSuggestedTier(num, tiers) : null
+  const num = raw === "" ? null : Math.max(1, Number.parseInt(raw) || 1)
+  const suggested = num === null ? null : getSuggestedTier(num, tiers)
 
   return (
     <>
