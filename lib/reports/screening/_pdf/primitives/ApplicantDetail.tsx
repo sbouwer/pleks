@@ -239,7 +239,7 @@ const S = StyleSheet.create({
     borderBottomWidth: 0.75,
     borderBottomColor: C.rule.base,
   },
-  tabRowAlt:  { backgroundColor: C.surface.paperSunk },
+  tabRowAlt:  { backgroundColor: C.surface.paperDeeper },
   tabRowLast: { borderBottomWidth: 0 },
   tabHL: {
     fontFamily:    FONTS.mono,
