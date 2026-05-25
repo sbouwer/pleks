@@ -258,21 +258,30 @@ applicant variants.
 
 ### Surface-token discipline
 
-White page + white card body + tinted structural accents only. This is the
-invariant for both PDF and web surface layers.
+Warm-paper page + raised-white card body + tinted structural accents.
+This three-layer surface hierarchy gives the report editorial-document tone
+rather than dashboard-export tone — the page warms, the cards rise, the
+accents tint structural frame elements without invading content zones.
+This is the invariant for both PDF and web surface layers.
 
 | Layer | PDF token | Web token | Used on |
 |---|---|---|---|
-| Structural accent | `C.surface.paperSunk` (#f5f4ef) | `bg-muted/20` | Card header strips, BlockHeader chips, table column headers |
-| Subtle accent | `C.surface.paperDeeper` (#eeede7) | `bg-muted/10` | Alternating table row striping |
-| Card body | no background (white by inheritance) | no background (white by inheritance) | All card bodies — never add a tinted background here |
-| Page / outer shell | `C.surface.paper` (#ffffff) | white | Document background |
+| Page / outer shell | `C.surface.paper` (#faf9f5) | warm-paper inherit | Document background — the warm editorial page |
+| Card body (raised) | `C.surface.paperRaised` (#ffffff) | `bg-card` / `bg-white` | Card bodies that should visually elevate off the page |
+| Structural accent | `C.surface.paperSunk` (#f5f4ef) | `bg-muted/20` (web-token unification pending §11.21) | Card header strips, BlockHeader chips, table column headers |
+| Subtle accent | `C.surface.paperDeeper` (#eeede7) | `bg-muted/10` (web-token unification pending §11.21) | Alternating table row striping |
 
 A card body that carries a tinted background (`paperSunk`, `bg-muted/20`,
 etc.) is a violation. The tint belongs only on structural frame elements
 (header strips, chips, table headers) — not on content zones. This creates
 visual depth without adding noise to the reading surface.
 
-**Sweep (2026-05-25):** Both PDF and web primitive sets confirmed clean.
-No code changes required — the discipline was already in practice;
-this section codifies it as explicit doctrine.
+**Sweep (2026-05-25, corrected 2026-05-25):** Surface-token discipline
+corrected against shipped implementation. One violation found and fixed:
+`_pdf/primitives/ApplicantDetail.tsx::tabRowAlt` was using `C.surface.paperSunk`
+for alternating-row bodies in the tabular (N≥5) layout — corrected to
+`C.surface.paperDeeper` per the subtle-accent row of the table above.
+Web-side token unification (semantic Tailwind extension exposing
+`bg-paper`, `bg-paper-raised`, `bg-paper-sunk`, `bg-paper-deeper`)
+deferred to §11.21 Density & Surface Pass — current `bg-muted/20`
+/ `bg-muted/10` references stand as the interim Web-side vocabulary.
