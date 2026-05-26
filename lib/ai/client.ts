@@ -6,9 +6,9 @@
  * Notes:  ONLY file permitted to import @anthropic-ai/sdk — enforced by ESLint no-restricted-imports.
  *         Logging is fire-and-forget; failures go to Sentry and never surface to the caller.
  *         Callers MUST pass { orgId, purpose } — these are required for cost attribution.
+ *         Set suppressLogging/harnessMode to suppress ai_usage writes — harness use only.
  */
 import type { MessageCreateParamsNonStreaming } from "@anthropic-ai/sdk/resources/messages"
-import { createServiceClient } from "@/lib/supabase/server"
 import { calculateAiCostCents } from "@/lib/observability/cost"
 import * as Sentry from "@sentry/nextjs"
 
@@ -30,6 +30,10 @@ export type AiPurpose =
   | "document_detection"
   | "warranty_match"
   | "popia_export_narrative"
+  | "document_archetype_classification"
+  | "document_type_classification"
+  | "document_extraction"
+  | "document_reconciliation"
   | "other"
 
 export interface AiCallOptions {
@@ -37,6 +41,8 @@ export interface AiCallOptions {
   userId?: string | null
   purpose: AiPurpose
   metadata?: Record<string, unknown>  // NO PII — enforced by reviewer
+  suppressLogging?: boolean           // harness use only — suppresses ai_usage write
+  harnessMode?: boolean               // harness use only — also suppresses ai_usage write
 }
 
 export interface AiCallUsage {
@@ -59,6 +65,7 @@ export async function createMessage(
   }
 
   const start = Date.now()
+  const skipLogging = opts.suppressLogging === true || opts.harnessMode === true
   let errorCode: string | null = null
   let inputTokens  = 0
   let outputTokens = 0
@@ -85,46 +92,50 @@ export async function createMessage(
       cache_write_tokens: cacheWriteTokens,
     })
 
-    void logAiUsage({
-      org_id:             opts.orgId,
-      user_id:            opts.userId ?? null,
-      purpose:            opts.purpose,
-      model:              params.model,
-      input_tokens:       inputTokens,
-      output_tokens:      outputTokens,
-      cache_read_tokens:  cacheReadTokens,
-      cache_write_tokens: cacheWriteTokens,
-      cost_cents,
-      latency_ms,
-      success: true,
-      error_code:         null,
-      metadata:           opts.metadata ?? {},
-    }).catch(err => {
-      Sentry.captureException(err, { tags: { origin: "ai_usage_log" } })
-    })
+    if (!skipLogging) {
+      void logAiUsage({
+        org_id:             opts.orgId,
+        user_id:            opts.userId ?? null,
+        purpose:            opts.purpose,
+        model:              params.model,
+        input_tokens:       inputTokens,
+        output_tokens:      outputTokens,
+        cache_read_tokens:  cacheReadTokens,
+        cache_write_tokens: cacheWriteTokens,
+        cost_cents,
+        latency_ms,
+        success: true,
+        error_code:         null,
+        metadata:           opts.metadata ?? {},
+      }).catch(err => {
+        Sentry.captureException(err, { tags: { origin: "ai_usage_log" } })
+      })
+    }
 
     return { message, usage: { input_tokens: inputTokens, output_tokens: outputTokens, cost_cents }, latency_ms }
   } catch (err) {
     errorCode = classifyError(err)
     const latency_ms = Date.now() - start
 
-    void logAiUsage({
-      org_id:             opts.orgId,
-      user_id:            opts.userId ?? null,
-      purpose:            opts.purpose,
-      model:              params.model,
-      input_tokens:       inputTokens,
-      output_tokens:      outputTokens,
-      cache_read_tokens:  cacheReadTokens,
-      cache_write_tokens: cacheWriteTokens,
-      cost_cents:         0,
-      latency_ms,
-      success: false,
-      error_code:         errorCode,
-      metadata:           opts.metadata ?? {},
-    }).catch(logErr => {
-      Sentry.captureException(logErr, { tags: { origin: "ai_usage_log" } })
-    })
+    if (!skipLogging) {
+      void logAiUsage({
+        org_id:             opts.orgId,
+        user_id:            opts.userId ?? null,
+        purpose:            opts.purpose,
+        model:              params.model,
+        input_tokens:       inputTokens,
+        output_tokens:      outputTokens,
+        cache_read_tokens:  cacheReadTokens,
+        cache_write_tokens: cacheWriteTokens,
+        cost_cents:         0,
+        latency_ms,
+        success: false,
+        error_code:         errorCode,
+        metadata:           opts.metadata ?? {},
+      }).catch(logErr => {
+        Sentry.captureException(logErr, { tags: { origin: "ai_usage_log" } })
+      })
+    }
 
     throw err
   }
@@ -145,6 +156,8 @@ async function logAiUsage(row: {
   error_code:         string | null
   metadata:           Record<string, unknown>
 }): Promise<void> {
+  // Dynamic import keeps next/headers out of the module graph when suppressLogging is true
+  const { createServiceClient } = await import("@/lib/supabase/server")
   const db = await createServiceClient()
   const { error } = await db.from("ai_usage").insert(row)
   if (error) throw error

@@ -70,6 +70,19 @@ export default function DocumentsPage() {
       })
   }, [token, slug, router])
 
+  async function convertIfHeic(raw: File): Promise<File> {
+    const ext = raw.name.split(".").pop()?.toLowerCase() ?? ""
+    if (ext !== "heic" && ext !== "heif" && raw.type !== "image/heic" && raw.type !== "image/heif") {
+      return raw
+    }
+    // Client-side HEIC conversion — server never receives HEIC (D-14L-23)
+    const heic2any = (await import("heic2any")).default
+    const converted = await heic2any({ blob: raw, toType: "image/jpeg", quality: 0.92 })
+    const blob = Array.isArray(converted) ? converted[0] : converted
+    const newName = raw.name.replace(/\.(heic|heif)$/i, ".jpg")
+    return new File([blob as Blob], newName, { type: "image/jpeg" })
+  }
+
   async function handleFileChange(index: number, list: "required" | "optional", file: File | null) {
     if (!file || !applicationId || !orgId) return
 
@@ -80,13 +93,14 @@ export default function DocumentsPage() {
     setDocs((prev) => prev.map((d, i) => i === index ? { ...d, file, uploading: true, error: null } : d))
 
     try {
+      const uploadFile = await convertIfHeic(file)
       const supabase = createClient()
-      const ext = file.name.split(".").pop() ?? "pdf"
+      const ext = uploadFile.name.split(".").pop() ?? "pdf"
       const path = `applications/${orgId}/${applicationId}/${doc.key}.${ext}`
 
       const { error: uploadError } = await supabase.storage
         .from("application-docs")
-        .upload(path, file, { upsert: true })
+        .upload(path, uploadFile, { upsert: true })
 
       if (uploadError) throw uploadError
 
