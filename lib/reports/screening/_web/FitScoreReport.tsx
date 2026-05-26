@@ -19,6 +19,7 @@ import { MetaStrip }               from "./primitives/MetaStrip"
 import { IdentityRow }             from "./primitives/IdentityRow"
 import { BandLadder }              from "./primitives/BandLadder"
 import { ApplicantDetail }         from "./primitives/ApplicantDetail"
+import { MethodologyEyebrow }      from "./primitives/MethodologyEyebrow"
 import { DimensionCardEditorial }  from "./primitives/DimensionCardEditorial"
 import { DimensionReadingGuide }   from "./primitives/DimensionReadingGuide"
 import { IncomeReconciliationTable } from "./primitives/IncomeReconciliationTable"
@@ -67,6 +68,9 @@ export function FitScoreReport({
           <IdentityRow       data={data} />
           <BandLadder        data={data} />
           {data.applicants.length > 1 && <ApplicantDetail applicants={data.applicants} />}
+          {data.isAllForeignNational && !data.isLdp && (
+            <MethodologyEyebrow variant="foreign-national-evidentiary-class" />
+          )}
           <DimensionCardEditorial data={data} />
           <DimensionReadingGuide />
         </section>

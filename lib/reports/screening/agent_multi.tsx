@@ -17,6 +17,7 @@ import { MetaStrip }              from "./_pdf/primitives/MetaStrip"
 import { IdentityRow }            from "./_pdf/primitives/IdentityRow"
 import { ApplicantDetail }         from "./_pdf/primitives/ApplicantDetail"
 import { BandLadder }             from "./_pdf/primitives/BandLadder"
+import { MethodologyEyebrow }     from "./_pdf/primitives/MethodologyEyebrow"
 import { DimensionCardEditorial } from "./_pdf/primitives/DimensionCardEditorial"
 import { DimensionReadingGuide }  from "./_pdf/primitives/DimensionReadingGuide"
 import { IncomeReconciliationTable } from "./_pdf/primitives/IncomeReconciliationTable"
@@ -46,6 +47,9 @@ export function AgentMultiReport({ data }: Readonly<{ data: FitScoreReportData }
         <IdentityRow data={data} />
         <BandLadder data={data} />
         <ApplicantDetail applicants={data.applicants} />
+        {data.isAllForeignNational && !data.isLdp && (
+          <MethodologyEyebrow variant="foreign-national-evidentiary-class" />
+        )}
         <DimensionCardEditorial data={data} />
         <DimensionReadingGuide />
       </DocumentShell>

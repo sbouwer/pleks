@@ -1,12 +1,14 @@
 /**
  * lib/reports/screening/_pdf/primitives/DimensionCardEditorial.tsx
  *
- * 2x2 grid of dimensional score cards: Affordability, Stability, Credit Behaviour,
- * Verification Integrity.
- * F10/F11: Observation bullets from narrative replace duplicated evidence line text.
- * F12: EvidenceBar renders a preferred-threshold marker from engine-emitted field.
+ * Dimensional score cards: Affordability, Stability, Credit Behaviour, Verification Integrity.
+ * Three-case methodology dispatch (D-DSP-15/20/21):
+ *   all-foreign + not LDP → three-card row at 33% (Affordability/Stability/Verification);
+ *   LDP → 2×2 with notAssessed placeholders;
+ *   all-SA or mixed → 2×2; Credit card carries reduced-coverage note for mixed leases.
+ * F10/F11: Observation bullets from narrative. F12: EvidenceBar preferred-threshold marker.
  * F13: Stats use orchestrator-computed data.dimensions.* values.
- * Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §E.2.
+ * Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §E.2; ADDENDUM_14H_DENSITY_SURFACE_PASS §6.2/§6.5/§6.6.
  */
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
@@ -34,6 +36,7 @@ const S = StyleSheet.create({
     borderBottomWidth: 0.75,
     borderBottomColor: C.rule.base,
   },
+  cardThird:    { width: '33.33%' },
   cardNoRight:  { borderRightWidth:  0 },
   cardNoBottom: { borderBottomWidth: 0 },
 
@@ -107,21 +110,21 @@ const S = StyleSheet.create({
     left:            0,
     top:             0,
     bottom:          0,
-    backgroundColor: C.data.soft,    // light baseline — contrasts clearly with surplus
+    backgroundColor: C.data.soft,
     borderRadius:    1,
   },
   ebarSurplus: {
     position:        'absolute',
     top:             0,
     bottom:          0,
-    backgroundColor: C.data.base,    // full dark blue — clearly darker than soft baseline
+    backgroundColor: C.data.base,
     borderRadius:    1,
   },
   ebarDeficit: {
     position:        'absolute',
     top:             0,
     bottom:          0,
-    backgroundColor: C.amber.deficit, // ~45% amber over track bg; clearly visible
+    backgroundColor: C.amber.deficit,
     borderRadius:    1,
   },
   ebarPref: {
@@ -146,14 +149,12 @@ const S = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  // Observation bullets (F10/F11)
   obsList:  { gap: 4 },
   obsRow:   { flexDirection: 'row', gap: 6, alignItems: 'flex-start' },
   obsDot:   { fontFamily: FONTS.mono, fontSize: 8, color: C.ink.ghost, marginTop: 1 },
   obsText:  { fontFamily: FONTS.sans, fontSize: 8.5, color: C.ink.soft, lineHeight: D.bodyLineHeight, flex: 1 },
 
-  naText: { fontFamily: FONTS.sans, fontSize: 9.5, color: C.ink.mute },
-  naSub:  { fontFamily: FONTS.sans, fontSize: 8.5, color: C.ink.faint, lineHeight: D.bodyLineHeight, marginTop: 6 },
+  mixedNote: { fontFamily: FONTS.sans, fontSize: 7.5, color: C.ink.mute, lineHeight: 1.4, marginTop: 6 },
 })
 
 // ─── Evidence bar (F12) ───────────────────────────────────────────────────────
@@ -161,29 +162,23 @@ const S = StyleSheet.create({
 function EvidenceBar({ score, preferred }: Readonly<{ score: number; preferred: number }>) {
   const pct     = Math.max(0, Math.min(100, score))
   const prefPct = Math.max(0, Math.min(100, preferred))
-  const isSurplus  = pct > prefPct
-  const isDeficit  = pct < prefPct
-  const showLabel  = pct >= prefPct       // State A (surplus) and State C (edge); not deficit
-  const baseWidth  = `${Math.min(pct, prefPct)}%`
+  const isSurplus = pct > prefPct
+  const isDeficit = pct < prefPct
+  const showLabel = pct >= prefPct
+  const baseWidth = `${Math.min(pct, prefPct)}%`
   return (
     <View style={S.ebarWrap}>
       <View style={S.ebarTrack}>
-        {/* Baseline fill: 0 → min(score, threshold) */}
         <View style={[S.ebarFill, { width: baseWidth }]} />
-        {/* Surplus segment (score > threshold): darker blue from threshold to score */}
         {isSurplus && (
           <View style={[S.ebarSurplus, { left: `${prefPct}%`, width: `${pct - prefPct}%` }]} />
         )}
-        {/* Deficit segment (score < threshold): amber wash from score to threshold */}
         {isDeficit && (
           <View style={[S.ebarDeficit, { left: `${pct}%`, width: `${prefPct - pct}%` }]} />
         )}
-        {/* Threshold tick — always visible */}
         <View style={[S.ebarPref, { left: `${prefPct}%` }]} />
-        {/* Score pin — always visible */}
-        <View style={[S.ebarPin, { left: `${pct}%` }]} />
+        <View style={[S.ebarPin,  { left: `${pct}%`    }]} />
       </View>
-      {/* min. preferred label: State A (surplus) and State C (edge) only */}
       {showLabel && (
         <View style={[S.ebarLabelRow, { width: `${prefPct}%` }]}>
           <Text style={S.ebarLabel}>min. preferred</Text>
@@ -258,23 +253,13 @@ function StabilityCard({ data, score }: Readonly<{ data: FitScoreReportData; sco
 }
 
 function CreditCard({ data }: Readonly<{ data: FitScoreReportData }>) {
-  if (data.isAllForeignNational) {
-    return (
-      <View>
-        <Text style={S.naText}>Not applicable for all-foreign-national leases.</Text>
-        <Text style={S.naSub}>
-          Credit bureau data is not available for foreign national applicants.
-          Affordability and verification dimensions carry additional weight in the composite score.
-        </Text>
-      </View>
-    )
-  }
   const score = data.dimensionalScores.creditBehaviour
   if (score === null) {
     return <PlaceholderCard variant="notAssessed" message={NOT_ASSESSED_MSG} />
   }
   const dim        = data.dimensions.credit
   const divDisplay = dim.divergencePoints === null ? 'None' : String(dim.divergencePoints)
+  const isMixed    = data.applicants.some(a => a.isForeignNational) && !data.isAllForeignNational
   return (
     <View>
       <Text style={S.qual}>{sp(data.narrative.creditEvidenceLine)}</Text>
@@ -285,6 +270,11 @@ function CreditCard({ data }: Readonly<{ data: FitScoreReportData }>) {
       </View>
       <EvidenceBar score={score} preferred={data.dimensionalScores.creditBehaviour_preferred_threshold ?? 65} />
       <ObsBullets bullets={data.narrative.creditObservations ?? []} />
+      {isMixed && (
+        <Text style={S.mixedNote}>
+          Bureau coverage applies to SA applicants only. Foreign national co-applicants are not assessed by SA bureaus.
+        </Text>
+      )}
     </View>
   )
 }
@@ -307,11 +297,24 @@ function VerificationCard({ data, score }: Readonly<{ data: FitScoreReportData; 
 
 // ─── Dimension card wrapper ───────────────────────────────────────────────────
 
-function DimCard({ label, docRef, children, noRight = false, noBottom = false }: Readonly<{
-  label: string; docRef?: string; children: React.ReactNode; noRight?: boolean; noBottom?: boolean
+function DimCard({ label, docRef, children, noRight = false, noBottom = false, isThird = false }: Readonly<{
+  label:     string
+  docRef?:   string
+  children:  React.ReactNode
+  noRight?:  boolean
+  noBottom?: boolean
+  isThird?:  boolean
 }>) {
   return (
-    <View style={[S.card, noRight ? S.cardNoRight : {}, noBottom ? S.cardNoBottom : {}]} wrap={false}>
+    <View
+      style={[
+        S.card,
+        isThird  ? S.cardThird    : {},
+        noRight  ? S.cardNoRight  : {},
+        noBottom ? S.cardNoBottom : {},
+      ]}
+      wrap={false}
+    >
       <View style={S.cardHead}>
         <Text style={S.headLabel}>{label}</Text>
         {docRef !== undefined && <Text style={S.headRef}>{docRef}</Text>}
@@ -328,10 +331,37 @@ interface DimensionCardEditorialProps {
 }
 
 export function DimensionCardEditorial({ data }: Readonly<DimensionCardEditorialProps>) {
-  const affScore = data.dimensionalScores.affordability
+  const affScore  = data.dimensionalScores.affordability
   const stabScore = data.dimensionalScores.stability
   const viScore   = data.dimensionalScores.verificationIntegrity
 
+  // Three-dimension methodology: all-foreign and not LDP (D-DSP-15; eyebrow rendered by parent)
+  if (data.isAllForeignNational && !data.isLdp) {
+    return (
+      <View style={S.grid} wrap={false}>
+        <DimCard label="01 Affordability" docRef="2" isThird noBottom>
+          {affScore === null
+            ? <PlaceholderCard variant="notAssessed" message={NOT_ASSESSED_MSG} />
+            : <AffordabilityCard data={data} score={affScore} />
+          }
+        </DimCard>
+        <DimCard label="02 Stability" isThird noBottom>
+          {stabScore === null
+            ? <PlaceholderCard variant="notAssessed" message={NOT_ASSESSED_MSG} />
+            : <StabilityCard data={data} score={stabScore} />
+          }
+        </DimCard>
+        <DimCard label="04 Verification integrity" docRef="3.2" isThird noRight noBottom>
+          {viScore === null
+            ? <PlaceholderCard variant="notAssessed" message={NOT_ASSESSED_MSG} />
+            : <VerificationCard data={data} score={viScore} />
+          }
+        </DimCard>
+      </View>
+    )
+  }
+
+  // Default: 2×2 four-dimension grid (all-SA, mixed, or LDP via null scores)
   return (
     <View style={S.grid} wrap={false}>
       <DimCard label="01 Affordability" docRef="2">

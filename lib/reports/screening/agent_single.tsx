@@ -15,6 +15,7 @@ import { EditorialHeadline }      from "./_pdf/primitives/EditorialHeadline"
 import { MetaStrip }              from "./_pdf/primitives/MetaStrip"
 import { IdentityRow }            from "./_pdf/primitives/IdentityRow"
 import { BandLadder }             from "./_pdf/primitives/BandLadder"
+import { MethodologyEyebrow }     from "./_pdf/primitives/MethodologyEyebrow"
 import { DimensionCardEditorial } from "./_pdf/primitives/DimensionCardEditorial"
 import { DimensionReadingGuide }  from "./_pdf/primitives/DimensionReadingGuide"
 import { IncomeReconciliationTable } from "./_pdf/primitives/IncomeReconciliationTable"
@@ -43,6 +44,9 @@ export function AgentSingleReport({ data }: Readonly<{ data: FitScoreReportData 
         <MetaStrip data={data} />
         <IdentityRow data={data} />
         <BandLadder data={data} />
+        {data.isAllForeignNational && !data.isLdp && (
+          <MethodologyEyebrow variant="foreign-national-evidentiary-class" />
+        )}
         <DimensionCardEditorial data={data} />
         <DimensionReadingGuide />
       </DocumentShell>
