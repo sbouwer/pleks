@@ -12,7 +12,7 @@ import { PlaceholderCard } from "./PlaceholderCard"
 function outcomeTagCls(t: VerificationOutcome): string {
   if (t === "pass")    return "text-blue-700 border-blue-300 bg-blue-50"
   if (t === "partial") return "text-amber-700 border-amber-400 bg-amber-50"
-  return "text-muted-foreground border-border bg-muted/20"
+  return "text-muted-foreground border-border bg-paper-sunk"
 }
 
 function outcomeTagLabel(t: VerificationOutcome): string {

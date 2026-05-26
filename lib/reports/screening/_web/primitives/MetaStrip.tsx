@@ -30,7 +30,7 @@ export function MetaStrip({ data }: Readonly<MetaStripProps>): JSX.Element {
   const depositLine = `Deposit · ${depositMultiplier}x rent`
 
   return (
-    <div className="flex border border-border bg-muted/20 mb-3">
+    <div className="flex border border-border bg-paper-sunk mb-3">
       <Cell label="Unit"            value={data.unitLabel} />
       <Cell label="Lease intent"    value={rentLine} sub={depositLine} />
       <Cell label="Application ref" value={data.applicationRef} sub={`Submitted ${fmtShortDate(data.submittedAt)}`} />

@@ -23,12 +23,12 @@ function variantCls(v: PlaceholderVariant): { card: string; label: string; msg: 
     msg:   "text-foreground/70",
   }
   if (v === "not-solicited") return {
-    card:  "border border-dashed border-border bg-muted/20",
+    card:  "border border-dashed border-border bg-paper-sunk",
     label: "text-muted-foreground",
     msg:   "text-muted-foreground",
   }
   return {
-    card:  "border border-border bg-muted/20",
+    card:  "border border-border bg-paper-sunk",
     label: "text-muted-foreground/60",
     msg:   "text-muted-foreground/50",
   }

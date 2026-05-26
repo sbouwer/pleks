@@ -147,7 +147,7 @@ export function BandLadder({ data }: Readonly<BandLadderProps>): JSX.Element {
             return (
               <div
                 key={rung.key}
-                className={`flex items-center gap-2.5 py-1.5 px-0 pr-1 border-b border-border text-[12px] ${isCurrent ? "pl-2.5 border-l-2 -ml-0.5 bg-muted/20" : ""}`}
+                className={`flex items-center gap-2.5 py-1.5 px-0 pr-1 border-b border-border text-[12px] ${isCurrent ? "pl-2.5 border-l-2 -ml-0.5 bg-paper-sunk" : ""}`}
                 style={isCurrent ? { borderLeftColor: "#d97706" } : undefined}
               >
                 <span

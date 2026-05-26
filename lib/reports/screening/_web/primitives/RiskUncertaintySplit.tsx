@@ -19,7 +19,7 @@ interface ColProps {
 function Col({ docRef, title, items, empty }: Readonly<ColProps>): JSX.Element {
   return (
     <div className="flex-1 border border-border">
-      <div className="flex items-center justify-between px-3 py-2.5 border-b border-border bg-muted/20">
+      <div className="flex items-center justify-between px-3 py-2.5 border-b border-border bg-paper-sunk">
         <div>
           <div className="font-mono text-[8px] uppercase tracking-widest text-muted-foreground mb-0.5">{docRef}</div>
           <div className="text-sm font-bold text-foreground">{title}</div>

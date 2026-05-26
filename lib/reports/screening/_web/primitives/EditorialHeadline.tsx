@@ -18,7 +18,7 @@ export function EditorialHeadline({ data }: Readonly<EditorialHeadlineProps>): J
 
   return (
     <div className="mb-5">
-      <div className="inline-flex items-center gap-2.5 border border-border rounded-full px-3 py-1 bg-muted/20 mb-3">
+      <div className="inline-flex items-center gap-2.5 border border-border rounded-full px-3 py-1 bg-paper-sunk mb-3">
         <span className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground">FITSCORE · STREAM 2</span>
         <div className="w-px h-3 bg-border" />
         <span className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground">evidence summary</span>

@@ -15,7 +15,7 @@ interface BlockHeaderProps {
 
 export function BlockHeader({ label, title, rightTag }: Readonly<BlockHeaderProps>): JSX.Element {
   return (
-    <div id={toDocAnchorId(label)} className="flex items-center gap-2.5 px-4 py-2.5 border-b border-border bg-muted/20">
+    <div id={toDocAnchorId(label)} className="flex items-center gap-2.5 px-4 py-2.5 border-b border-border bg-paper-sunk">
       <span className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground shrink-0">{label}</span>
       <span className="text-sm font-semibold text-foreground flex-1">{title}</span>
       {rightTag && (

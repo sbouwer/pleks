@@ -1,31 +1,31 @@
 /**
  * lib/reports/screening/_pdf/primitives/ApplicantDetail.tsx
  *
- * §1 editorial chrome — density-tiered participant detail for multi-applicant leases.
- * Unnumbered editorial surface (DOCTRINE.md). Dispatches to Rich (N=2) / Medium (N=3)
- * / Compact (N=4) / Tabular (N>=5) sub-layouts based on applicant count.
- * Returns null when applicants.length < 2. Natural page overflow for all tiers.
- * Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §6.7, §6.10.
+ * §1 editorial chrome — editorial-mode participant detail for multi-applicant leases.
+ * Unnumbered editorial surface (DOCTRINE.md). Dispatches to Interpretive (N=2) / Summary
+ * (N=3) / Comparative (N=4) / Operational (N>=5) sub-layouts based on applicant count.
+ * Returns null when applicants.length < 2. Natural page overflow for all modes.
+ * Spec: ADDENDUM_14H_DENSITY_SURFACE_PASS §4, §10.2; ADDENDUM_14H_FITSCORE_DELIVERY §6.7, §6.10.
  */
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
 import { C, D, FONTS, sp, fmtZAR } from "./theme"
 import type { FitScoreApplicantEntry } from "./theme"
 
-// ─── Density dispatch ─────────────────────────────────────────────────────────
+// ─── Mode dispatch ────────────────────────────────────────────────────────────
 
-type ApplicantDetailDensity = 'rich' | 'medium' | 'compact' | 'tabular'
+type ApplicantDetailMode = 'interpretive' | 'summary' | 'comparative' | 'operational'
 
-function densityFor(n: number): ApplicantDetailDensity {
-  if (n === 2) return 'rich'
-  if (n === 3) return 'medium'
-  if (n === 4) return 'compact'
-  return 'tabular'
+function modeFor(n: number): ApplicantDetailMode {
+  if (n === 2) return 'interpretive'
+  if (n === 3) return 'summary'
+  if (n === 4) return 'comparative'
+  return 'operational'
 }
 
 // ─── Field helpers ────────────────────────────────────────────────────────────
 
-function idLineRich(e: FitScoreApplicantEntry): string {
+function idLineInterpretive(e: FitScoreApplicantEntry): string {
   if (e.isForeignNational) return `Passport · ${sp(e.nationalityStatus)}`
   const parts: string[] = ['ID']
   if (e.idNumberMasked) parts.push(sp(e.idNumberMasked.replaceAll('•', '*')))
@@ -34,7 +34,7 @@ function idLineRich(e: FitScoreApplicantEntry): string {
   return parts.join(' · ')
 }
 
-function idLineMedium(e: FitScoreApplicantEntry): string {
+function idLineSummary(e: FitScoreApplicantEntry): string {
   if (e.isForeignNational) return `Passport · ${sp(e.nationalityStatus)}`
   const parts: string[] = ['ID']
   if (e.idNumberMasked) parts.push(sp(e.idNumberMasked.replaceAll('•', '*')))
@@ -42,7 +42,7 @@ function idLineMedium(e: FitScoreApplicantEntry): string {
   return parts.join(' · ')
 }
 
-function idLineCompact(e: FitScoreApplicantEntry): string {
+function idLineComparative(e: FitScoreApplicantEntry): string {
   if (e.isForeignNational) return 'Passport'
   const parts: string[] = ['ID']
   if (e.idNumberMasked) parts.push(sp(e.idNumberMasked.replaceAll('•', '*')))
@@ -92,7 +92,7 @@ const S = StyleSheet.create({
     lineHeight:  1.4,
   },
 
-  // Card chrome (rich / medium)
+  // Card chrome (interpretive / summary)
   card: {
     borderWidth:  0.75,
     borderColor:  C.rule.base,
@@ -185,7 +185,7 @@ const S = StyleSheet.create({
     lineHeight: 1.4,
   },
 
-  // Compact grid (2x2) — outer border + row pairs, each row wrap={false}
+  // Comparative grid (2x2) — outer border + row pairs, each row wrap={false}
   cgWrap: {
     borderWidth:  0.75,
     borderColor:  C.rule.base,
@@ -218,7 +218,7 @@ const S = StyleSheet.create({
     paddingHorizontal: D.cardPaddingX,
   },
 
-  // Tabular (N>=5)
+  // Operational (N>=5)
   tabWrap: {
     borderWidth: 0.75,
     borderColor: C.rule.base,
@@ -264,7 +264,7 @@ const S = StyleSheet.create({
     marginTop:  1,
   },
 
-  // Tabular column widths
+  // Operational column widths
   tcL:  { flex: 0.5 },
   tcN:  { flex: 1.4 },
   tcNa: { flex: 1.2 },
@@ -292,9 +292,9 @@ function F({ label, val, sub, muted = false, isLast = false }: Readonly<{
   )
 }
 
-// ─── Rich layout (N=2) ────────────────────────────────────────────────────────
+// ─── Interpretive layout (N=2) ────────────────────────────────────────────────
 
-function RichCard({ entry, isLast }: Readonly<{ entry: FitScoreApplicantEntry; isLast: boolean }>) {
+function InterpretiveCard({ entry, isLast }: Readonly<{ entry: FitScoreApplicantEntry; isLast: boolean }>) {
   const emp = entry.employment
   return (
     <View style={isLast ? [S.card, S.cardLast] : S.card} wrap={false}>
@@ -307,7 +307,7 @@ function RichCard({ entry, isLast }: Readonly<{ entry: FitScoreApplicantEntry; i
       </View>
       <View style={S.cBody}>
         <View style={S.cCol}>
-          <F label="Identity" val={idLineRich(entry)} />
+          <F label="Identity" val={idLineInterpretive(entry)} />
           {emp === null
             ? <F label="Employment" val="Not provided" muted isLast />
             : (
@@ -330,19 +330,19 @@ function RichCard({ entry, isLast }: Readonly<{ entry: FitScoreApplicantEntry; i
   )
 }
 
-function RichLayout({ applicants }: Readonly<{ applicants: FitScoreApplicantEntry[] }>) {
+function InterpretiveLayout({ applicants }: Readonly<{ applicants: FitScoreApplicantEntry[] }>) {
   return (
     <View>
       {applicants.map((e, i) => (
-        <RichCard key={e.label} entry={e} isLast={i === applicants.length - 1} />
+        <InterpretiveCard key={e.label} entry={e} isLast={i === applicants.length - 1} />
       ))}
     </View>
   )
 }
 
-// ─── Medium layout (N=3) ─────────────────────────────────────────────────────
+// ─── Summary layout (N=3) ─────────────────────────────────────────────────────
 
-function MediumCard({ entry, isLast }: Readonly<{ entry: FitScoreApplicantEntry; isLast: boolean }>) {
+function SummaryCard({ entry, isLast }: Readonly<{ entry: FitScoreApplicantEntry; isLast: boolean }>) {
   const emp = entry.employment
   return (
     <View style={isLast ? [S.card, S.cardLast] : S.card} wrap={false}>
@@ -355,7 +355,7 @@ function MediumCard({ entry, isLast }: Readonly<{ entry: FitScoreApplicantEntry;
       </View>
       <View style={S.cBody}>
         <View style={S.cCol}>
-          <F label="Identity" val={idLineMedium(entry)} isLast />
+          <F label="Identity" val={idLineSummary(entry)} isLast />
         </View>
         <View style={S.cCol}>
           {emp === null
@@ -379,19 +379,19 @@ function MediumCard({ entry, isLast }: Readonly<{ entry: FitScoreApplicantEntry;
   )
 }
 
-function MediumLayout({ applicants }: Readonly<{ applicants: FitScoreApplicantEntry[] }>) {
+function SummaryLayout({ applicants }: Readonly<{ applicants: FitScoreApplicantEntry[] }>) {
   return (
     <View>
       {applicants.map((e, i) => (
-        <MediumCard key={e.label} entry={e} isLast={i === applicants.length - 1} />
+        <SummaryCard key={e.label} entry={e} isLast={i === applicants.length - 1} />
       ))}
     </View>
   )
 }
 
-// ─── Compact layout (N=4) ────────────────────────────────────────────────────
+// ─── Comparative layout (N=4) ────────────────────────────────────────────────
 
-function CompactCard({ entry, isLastInRow }: Readonly<{ entry: FitScoreApplicantEntry; isLastInRow: boolean }>) {
+function ComparativeCard({ entry, isLastInRow }: Readonly<{ entry: FitScoreApplicantEntry; isLastInRow: boolean }>) {
   const emp = entry.employment
   return (
     <View style={isLastInRow ? [S.cgCard, S.cgCardLast] : S.cgCard}>
@@ -403,7 +403,7 @@ function CompactCard({ entry, isLastInRow }: Readonly<{ entry: FitScoreApplicant
         </View>
       </View>
       <View style={S.cgCardBody}>
-        <F label="Identity"     val={idLineCompact(entry)} />
+        <F label="Identity"     val={idLineComparative(entry)} />
         <F label="Employer"     val={emp === null ? 'Not provided' : sp(emp.employerName)} muted={emp === null} />
         <F label="Income"       val={`${fmtZAR(entry.verifiedIncomeCents)} (${entry.incomeSharePct}%)`} />
         <F label="Verification" val={`${entry.verificationPassCount} of ${entry.verificationTotal}`} />
@@ -414,7 +414,7 @@ function CompactCard({ entry, isLastInRow }: Readonly<{ entry: FitScoreApplicant
   )
 }
 
-function CompactLayout({ applicants }: Readonly<{ applicants: FitScoreApplicantEntry[] }>) {
+function ComparativeLayout({ applicants }: Readonly<{ applicants: FitScoreApplicantEntry[] }>) {
   // Pair applicants into rows of 2; wrap={false} keeps each row on one page
   const rows: FitScoreApplicantEntry[][] = []
   for (let i = 0; i < applicants.length; i += 2) {
@@ -425,7 +425,7 @@ function CompactLayout({ applicants }: Readonly<{ applicants: FitScoreApplicantE
       {rows.map((row, rowIdx) => (
         <View key={row[0].label} style={rowIdx === rows.length - 1 ? [S.cgRow, S.cgRowLast] : S.cgRow} wrap={false}>
           {row.map((e, cardIdx) => (
-            <CompactCard key={e.label} entry={e} isLastInRow={cardIdx === row.length - 1} />
+            <ComparativeCard key={e.label} entry={e} isLastInRow={cardIdx === row.length - 1} />
           ))}
         </View>
       ))}
@@ -433,9 +433,9 @@ function CompactLayout({ applicants }: Readonly<{ applicants: FitScoreApplicantE
   )
 }
 
-// ─── Tabular layout (N>=5) — natural page overflow ────────────────────────────
+// ─── Operational layout (N>=5) — natural page overflow ────────────────────────
 
-function TabRow({ entry, idx, isLast }: Readonly<{ entry: FitScoreApplicantEntry; idx: number; isLast: boolean }>) {
+function OperationalRow({ entry, idx, isLast }: Readonly<{ entry: FitScoreApplicantEntry; idx: number; isLast: boolean }>) {
   const isAlt = idx % 2 === 1
   const netStyle = entry.pleksNetworkStatus === 'none' ? [S.tabV, S.tabVMute] : S.tabV
   return (
@@ -454,7 +454,7 @@ function TabRow({ entry, idx, isLast }: Readonly<{ entry: FitScoreApplicantEntry
   )
 }
 
-function TabularLayout({ applicants }: Readonly<{ applicants: FitScoreApplicantEntry[] }>) {
+function OperationalLayout({ applicants }: Readonly<{ applicants: FitScoreApplicantEntry[] }>) {
   return (
     <View style={S.tabWrap}>
       <View style={S.tabHead}>
@@ -467,22 +467,22 @@ function TabularLayout({ applicants }: Readonly<{ applicants: FitScoreApplicantE
         <View style={S.tcNw}><Text style={S.tabHL}>NETWORK</Text></View>
       </View>
       {applicants.map((e, i) => (
-        <TabRow key={e.label} entry={e} idx={i} isLast={i === applicants.length - 1} />
+        <OperationalRow key={e.label} entry={e} idx={i} isLast={i === applicants.length - 1} />
       ))}
     </View>
   )
 }
 
-// ─── Layout dispatcher ────────────────────────────────────────────────────────
+// ─── Mode dispatcher ──────────────────────────────────────────────────────────
 
-function ApplicantLayout({ density, applicants }: Readonly<{
-  density:    ApplicantDetailDensity
+function ApplicantLayout({ mode, applicants }: Readonly<{
+  mode:       ApplicantDetailMode
   applicants: FitScoreApplicantEntry[]
 }>) {
-  if (density === 'rich')    return <RichLayout    applicants={applicants} />
-  if (density === 'medium')  return <MediumLayout  applicants={applicants} />
-  if (density === 'compact') return <CompactLayout applicants={applicants} />
-  return <TabularLayout applicants={applicants} />
+  if (mode === 'interpretive') return <InterpretiveLayout applicants={applicants} />
+  if (mode === 'summary')      return <SummaryLayout      applicants={applicants} />
+  if (mode === 'comparative')  return <ComparativeLayout  applicants={applicants} />
+  return <OperationalLayout applicants={applicants} />
 }
 
 // ─── Main export ──────────────────────────────────────────────────────────────
@@ -493,12 +493,12 @@ interface ApplicantDetailProps {
 
 export function ApplicantDetail({ applicants }: Readonly<ApplicantDetailProps>) {
   if (applicants.length < 2) return null
-  const density = densityFor(applicants.length)
+  const mode = modeFor(applicants.length)
   return (
     <View style={S.wrap}>
       <Text style={S.secLabel}>APPLICANT DETAIL</Text>
       <Text style={S.secSub}>Participant context for all parties to this lease.</Text>
-      <ApplicantLayout density={density} applicants={applicants} />
+      <ApplicantLayout mode={mode} applicants={applicants} />
     </View>
   )
 }

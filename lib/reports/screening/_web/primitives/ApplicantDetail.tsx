@@ -1,9 +1,10 @@
 /**
- * lib/reports/screening/_web/primitives/ApplicantDetail.tsx — density-tiered participant detail
+ * lib/reports/screening/_web/primitives/ApplicantDetail.tsx — editorial-mode participant detail
  *
  * Notes:  Web parity for _pdf/primitives/ApplicantDetail.tsx.
- *         Locked: N<=4 = rich-always (full field set); N>=5 = tabular.
+ *         Locked: N<=4 = interpretive-always (full field set); N>=5 = operational.
  *         Returns null when applicants.length < 2.
+ *         Spec: ADDENDUM_14H_DENSITY_SURFACE_PASS §4, §10.2.
  */
 import type { JSX } from "react"
 import { fmtZAR } from "@/lib/reports/screening/_primitives/theme"
@@ -52,11 +53,11 @@ function Field({ label, val, sub, muted = false }: Readonly<{
   )
 }
 
-function RichCard({ entry, isLast }: Readonly<{ entry: FitScoreApplicantEntry; isLast: boolean }>): JSX.Element {
+function InterpretiveCard({ entry, isLast }: Readonly<{ entry: FitScoreApplicantEntry; isLast: boolean }>): JSX.Element {
   const emp = entry.employment
   return (
     <div className={`border border-border ${isLast ? "" : "mb-3"}`}>
-      <div className="flex items-center gap-3 px-3 py-2.5 border-b border-border bg-muted/20">
+      <div className="flex items-center gap-3 px-3 py-2.5 border-b border-border bg-paper-sunk">
         <span className="font-mono font-bold text-sm text-muted-foreground w-5 shrink-0">{entry.label}</span>
         <div className="flex-1">
           <div className="font-bold text-base text-foreground leading-tight">{entry.fullName}</div>
@@ -88,22 +89,22 @@ function RichCard({ entry, isLast }: Readonly<{ entry: FitScoreApplicantEntry; i
   )
 }
 
-function RichLayout({ applicants }: Readonly<{ applicants: FitScoreApplicantEntry[] }>): JSX.Element {
+function InterpretiveLayout({ applicants }: Readonly<{ applicants: FitScoreApplicantEntry[] }>): JSX.Element {
   return (
     <div>
       {applicants.map((e, i) => (
-        <RichCard key={e.label} entry={e} isLast={i === applicants.length - 1} />
+        <InterpretiveCard key={e.label} entry={e} isLast={i === applicants.length - 1} />
       ))}
     </div>
   )
 }
 
-function TabularLayout({ applicants }: Readonly<{ applicants: FitScoreApplicantEntry[] }>): JSX.Element {
+function OperationalLayout({ applicants }: Readonly<{ applicants: FitScoreApplicantEntry[] }>): JSX.Element {
   return (
     <div className="border border-border overflow-x-auto">
       <table className="w-full text-xs">
         <thead>
-          <tr className="border-b border-border bg-muted/20">
+          <tr className="border-b border-border bg-paper-sunk">
             {["APPL", "NAME", "NATIONALITY", "INCOME (SHARE)", "VERIFICATION", "BUREAUS", "NETWORK"].map(h => (
               <th key={h} className="font-mono text-[8px] uppercase tracking-widest text-muted-foreground text-left px-3 py-2">{h}</th>
             ))}
@@ -111,7 +112,7 @@ function TabularLayout({ applicants }: Readonly<{ applicants: FitScoreApplicantE
         </thead>
         <tbody>
           {applicants.map((e, i) => (
-            <tr key={e.label} className={`border-b border-border last:border-0 ${i % 2 === 1 ? "bg-muted/10" : ""}`}>
+            <tr key={e.label} className={`border-b border-border last:border-0 ${i % 2 === 1 ? "bg-paper-deeper" : ""}`}>
               <td className="font-mono text-[10px] text-foreground px-3 py-2">{e.label}</td>
               <td className="font-mono text-[10px] text-foreground px-3 py-2">{e.fullName}</td>
               <td className="text-[10px] text-muted-foreground px-3 py-2">{e.nationalityStatus}</td>
@@ -138,12 +139,12 @@ interface ApplicantDetailProps {
 
 export function ApplicantDetail({ applicants }: Readonly<ApplicantDetailProps>): JSX.Element | null {
   if (applicants.length < 2) return null
-  const useTabular = applicants.length >= 5
+  const useOperational = applicants.length >= 5
   return (
     <div className="mb-5">
       <div className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground mb-1">Applicant detail</div>
       <div className="text-xs text-muted-foreground mb-3">Participant context for all parties to this lease.</div>
-      {useTabular ? <TabularLayout applicants={applicants} /> : <RichLayout applicants={applicants} />}
+      {useOperational ? <OperationalLayout applicants={applicants} /> : <InterpretiveLayout applicants={applicants} />}
     </div>
   )
 }

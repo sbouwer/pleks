@@ -21,7 +21,7 @@ function EvidenceBar({ score, preferred }: Readonly<{ score: number; preferred: 
 
   return (
     <div className="mb-2">
-      <div className="relative h-1.5 bg-muted/50 border border-border rounded-sm">
+      <div className="relative h-1.5 bg-paper-sunk border border-border rounded-sm">
         {/* Baseline fill */}
         <div
           className="absolute left-0 top-0 bottom-0 bg-blue-300 rounded-sm"

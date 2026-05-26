@@ -53,6 +53,11 @@
   --color-info-bg: var(--info-bg);
   --color-surface: var(--surface);
   --color-surface-elevated: var(--surface-elevated);
+  /* Editorial report surface tokens — warm paper palette, matches _pdf/primitives/theme.ts */
+  --color-paper:        #faf9f5;
+  --color-paper-raised: #ffffff;
+  --color-paper-sunk:   #f5f4ef;
+  --color-paper-deeper: #eeede7;
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
