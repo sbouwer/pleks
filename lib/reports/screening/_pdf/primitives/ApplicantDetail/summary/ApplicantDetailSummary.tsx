@@ -91,8 +91,9 @@ const S = StyleSheet.create({
     paddingVertical:   D.cardPaddingY,
     gap:               16,
   },
-  cCol:     { flex: 1 },
-  cColWide: { flex: 1.2 },
+  cColNarrow: { flex: 0.55 },   // narrow rail — identity only, visually subordinated
+  cCol:       { flex: 1 },
+  cColWide:   { flex: 1.2 },
   fWrap:     { marginBottom: 8 },
   fWrapLast: { marginBottom: 0 },
   fLabel: {
@@ -154,8 +155,8 @@ function SummaryCard({ entry, isLast }: Readonly<{ entry: FitScoreApplicantEntry
       </View>
       {/* Zone 2 (narrow rail) + Zone 3 (verification body) — three-column body */}
       <View style={S.cBody}>
-        <View style={S.cCol}>
-          {/* Narrow rail: identity only */}
+        <View style={S.cColNarrow}>
+          {/* Narrow rail: identity only — subordinated by narrower flex width */}
           <F label="Identity" val={idLine(entry)} isLast />
         </View>
         <View style={S.cCol}>

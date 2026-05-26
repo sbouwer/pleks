@@ -15,7 +15,7 @@ export type MethodologyEyebrowVariant = 'foreign-national-evidentiary-class'
 
 const EYEBROW_CONTENT: Record<MethodologyEyebrowVariant, { title: string; body: string }> = {
   'foreign-national-evidentiary-class': {
-    title: 'Three-dimension methodology - Foreign-national evidentiary class',
+    title: 'Three-dimension methodology · Foreign-national evidentiary class',
     body:  'Credit Behaviour is not assessed where South African bureau coverage is unavailable for all applicants. ' +
            'Affordability, Stability, and Verification Integrity carry additional weight in the composite methodology.',
   },
