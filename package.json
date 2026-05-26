@@ -20,7 +20,8 @@
     "fitscore:replay": "node scripts/fitscore-replay.mjs",
     "render:fitscore-e1": "cross-env FITSCORE_FONT_SOURCE=local tsx scripts/render-e1-chrome-test.ts",
     "render:fitscore-samples": "cross-env FITSCORE_FONT_SOURCE=local tsx scripts/render-fitscore-samples.ts",
-    "fitscore:render-smoke": "cross-env FITSCORE_FONT_SOURCE=local tsx scripts/render-fitscore-smoke.ts"
+    "fitscore:render-smoke": "cross-env FITSCORE_FONT_SOURCE=local tsx scripts/render-fitscore-smoke.ts",
+    "render:density-pass": "cross-env FITSCORE_FONT_SOURCE=local tsx scripts/render-density-pass.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.98.0",
