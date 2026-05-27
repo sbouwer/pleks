@@ -74,7 +74,7 @@ const S = StyleSheet.create({
   cgRowCard:     { borderWidth: 0.75, borderColor: C.rule.base, marginBottom: D.primitiveGap },
   cgRowCardLast: { marginBottom: 0 },
   cgInnerRow:    { flexDirection: 'row' },
-  cgCard:        { flex: 1, borderRightWidth: 0.75, borderRightColor: C.rule.base },
+  cgCard:        { flex: 1, borderRightWidth: 1, borderRightColor: C.rule.strong },
   cgCardLast:   { borderRightWidth: 0 },
   cgCardHead: {
     flexDirection:     'row',

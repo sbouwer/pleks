@@ -41,7 +41,7 @@ function MetricRow({ label, cells }: Readonly<{ label: string; cells: JSX.Elemen
         {label}
       </td>
       {cells.map((cell, i) => (
-        <td key={i} className="px-3 py-2 border-r border-border last:border-0 align-top w-1/4">
+        <td key={i} className="px-3 py-2 border-r border-[var(--rule-strong)] last:border-0 align-top w-1/4">
           {cell}
         </td>
       ))}
