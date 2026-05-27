@@ -5,6 +5,7 @@
  *         Explains bar, qual headline, and observations fields to the reviewer. No props.
  */
 import type { JSX } from "react"
+import type { FitScoreReportData } from "@/lib/reports/screening/_primitives/theme"
 import { BlockHeader } from "./BlockHeader"
 
 const ROWS = [
@@ -22,7 +23,8 @@ const ROWS = [
   },
 ] as const
 
-export function DimensionReadingGuide(): JSX.Element {
+export function DimensionReadingGuide({ data }: Readonly<{ data: FitScoreReportData }>): JSX.Element | null {
+  if (data.isLdp) return null
   return (
     <div className="border border-border bg-card mb-5">
       <BlockHeader label="—" title="Reading guide · Dimensions" rightTag="How to read the four dimension cards above" />

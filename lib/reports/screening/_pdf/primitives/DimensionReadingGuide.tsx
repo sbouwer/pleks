@@ -8,6 +8,7 @@
 
 import { View, Text, StyleSheet } from "@react-pdf/renderer"
 import { C, D, FONTS } from "./theme"
+import type { FitScoreReportData } from "./theme"
 import { BlockHeader } from "./BlockHeader"
 
 const S = StyleSheet.create({
@@ -68,7 +69,8 @@ const ROWS: readonly GuideRow[] = [
   },
 ]
 
-export function DimensionReadingGuide() {
+export function DimensionReadingGuide({ data }: Readonly<{ data: FitScoreReportData }>) {
+  if (data.isLdp) return null
   return (
     <View style={S.wrap} wrap={false}>
       <View style={S.card}>

@@ -28,22 +28,41 @@ function bureauCount(e: FitScoreApplicantEntry): string {
 
 const S = StyleSheet.create({
   wrap:    { marginBottom: D.primitiveGap },
-  secLabel: {
+  outerCard: {
+    borderWidth:     0.75,
+    borderColor:     C.rule.base,
+    backgroundColor: C.surface.paperRaised,
+  },
+  outerHead: {
+    paddingVertical:   D.cardPaddingY,
+    paddingHorizontal: D.cardPaddingX,
+    borderBottomWidth: 0.75,
+    borderBottomColor: C.rule.base,
+  },
+  outerL1: {
     fontFamily:    FONTS.mono,
     fontSize:      7.5,
     letterSpacing: 1,
     textTransform: 'uppercase',
     color:         C.ink.mute,
-    marginBottom:  4,
+    marginBottom:  3,
   },
-  secSub: {
-    fontFamily:  FONTS.sans,
-    fontSize:    9,
-    color:       C.ink.mute,
-    marginBottom: D.primitiveGap,
-    lineHeight:  1.4,
+  outerL2: {
+    fontFamily:   FONTS.sans,
+    fontSize:     12,
+    fontWeight:   'bold',
+    color:        C.ink.primary,
+    letterSpacing: -0.1,
+    lineHeight:   1.25,
+    marginBottom: 2,
   },
-  tabWrap: { borderWidth: 0.75, borderColor: C.rule.base, marginBottom: D.primitiveGap },
+  outerL3: {
+    fontFamily:    FONTS.mono,
+    fontSize:      9,
+    color:         C.ink.mute,
+    letterSpacing: 0.2,
+  },
+  // table — outer border provided by outerCard
   tabHead: {
     flexDirection:     'row',
     paddingVertical:    7,
@@ -127,11 +146,20 @@ interface ApplicantDetailOperationalProps {
 }
 
 export function ApplicantDetailOperational({ applicants }: Readonly<ApplicantDetailOperationalProps>) {
+  const n = applicants.length
+  const first = applicants[0]
+  const surname = first.fullName.split(/\s+/).at(-1) ?? first.fullName
+  const l1 = n === 1 ? 'APPLICANT' : 'APPLICANTS'
+  const l2 = n === 1 ? sp(first.fullName) : `${sp(surname)} + ${n - 1}`
+  const l3 = n === 1 ? 'Single applicant' : 'Joint application'
   return (
     <View style={S.wrap}>
-      <Text style={S.secLabel}>APPLICANT DETAIL</Text>
-      <Text style={S.secSub}>Participant context for all parties to this lease.</Text>
-      <View style={S.tabWrap}>
+      <View style={S.outerCard} wrap={false}>
+        <View style={S.outerHead}>
+          <Text style={S.outerL1}>{l1}</Text>
+          <Text style={S.outerL2}>{l2}</Text>
+          <Text style={S.outerL3}>{l3}</Text>
+        </View>
         <View style={S.tabHead}>
           <View style={S.tcL}><Text style={S.tabHL}>APPL</Text></View>
           <View style={S.tcN}><Text style={S.tabHL}>NAME</Text></View>

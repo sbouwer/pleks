@@ -51,7 +51,7 @@ export function AgentMultiReport({ data }: Readonly<{ data: FitScoreReportData }
           <MethodologyEyebrow variant="foreign-national-evidentiary-class" />
         )}
         <DimensionCardEditorial data={data} />
-        <DimensionReadingGuide />
+        <DimensionReadingGuide data={data} />
       </DocumentShell>
 
       <DocumentShell data={data} section="Financial Analysis">

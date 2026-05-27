@@ -98,11 +98,20 @@ interface ApplicantDetailSummaryProps {
 }
 
 export function ApplicantDetailSummary({ applicants }: Readonly<ApplicantDetailSummaryProps>): JSX.Element {
+  const n = applicants.length
+  const first = applicants[0]
+  const surname = first.fullName.split(/\s+/).at(-1) ?? first.fullName
+  const l1 = n === 1 ? "APPLICANT" : "APPLICANTS"
+  const l2 = n === 1 ? first.fullName : `${surname} + ${n - 1}`
+  const l3 = n === 1 ? idLine(first) : "Joint application"
   return (
-    <div className="mb-5">
-      <div className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground mb-1">Applicant detail</div>
-      <div className="text-xs text-muted-foreground mb-3">Participant context for all parties to this lease.</div>
-      <div>
+    <div className="border border-border bg-paper-raised mb-5">
+      <div className="border-b border-border px-3 py-2.5">
+        <div className="font-mono text-[7.5px] uppercase tracking-widest text-muted-foreground mb-1">{l1}</div>
+        <div className="font-bold text-sm text-foreground leading-tight mb-0.5">{l2}</div>
+        <div className="font-mono text-[9px] text-muted-foreground">{l3}</div>
+      </div>
+      <div className="p-3">
         {applicants.map((e, i) => (
           <SummaryCard key={e.label} entry={e} isLast={i === applicants.length - 1} />
         ))}

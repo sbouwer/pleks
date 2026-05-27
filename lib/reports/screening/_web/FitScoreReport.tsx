@@ -72,7 +72,7 @@ export function FitScoreReport({
             <MethodologyEyebrow variant="foreign-national-evidentiary-class" />
           )}
           <DimensionCardEditorial data={data} />
-          <DimensionReadingGuide />
+          <DimensionReadingGuide data={data} />
         </section>
 
         <div className="border-t border-border my-6" />

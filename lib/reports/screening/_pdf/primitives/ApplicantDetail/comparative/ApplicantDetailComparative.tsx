@@ -35,23 +35,41 @@ function bureauCount(e: FitScoreApplicantEntry): string {
 
 const S = StyleSheet.create({
   wrap:    { marginBottom: D.primitiveGap },
-  secLabel: {
+  outerCard: {
+    borderWidth:     0.75,
+    borderColor:     C.rule.base,
+    backgroundColor: C.surface.paperRaised,
+  },
+  outerHead: {
+    paddingVertical:   D.cardPaddingY,
+    paddingHorizontal: D.cardPaddingX,
+    borderBottomWidth: 0.75,
+    borderBottomColor: C.rule.base,
+  },
+  outerL1: {
     fontFamily:    FONTS.mono,
     fontSize:      7.5,
     letterSpacing: 1,
     textTransform: 'uppercase',
     color:         C.ink.mute,
-    marginBottom:  4,
+    marginBottom:  3,
   },
-  secSub: {
-    fontFamily:  FONTS.sans,
-    fontSize:    9,
-    color:       C.ink.mute,
-    marginBottom: D.primitiveGap,
-    lineHeight:  1.4,
+  outerL2: {
+    fontFamily:   FONTS.sans,
+    fontSize:     12,
+    fontWeight:   'bold',
+    color:        C.ink.primary,
+    letterSpacing: -0.1,
+    lineHeight:   1.25,
+    marginBottom: 2,
   },
-  // 2×2 comparative grid
-  cgWrap: { borderWidth: 0.75, borderColor: C.rule.base, marginBottom: D.primitiveGap },
+  outerL3: {
+    fontFamily:    FONTS.mono,
+    fontSize:      9,
+    color:         C.ink.mute,
+    letterSpacing: 0.2,
+  },
+  // 2×2 comparative grid rows — outer border provided by outerCard
   cgRow: {
     flexDirection:     'row',
     borderBottomWidth: 0.75,
@@ -165,6 +183,12 @@ interface ApplicantDetailComparativeProps {
 }
 
 export function ApplicantDetailComparative({ applicants }: Readonly<ApplicantDetailComparativeProps>) {
+  const n = applicants.length
+  const first = applicants[0]
+  const surname = first.fullName.split(/\s+/).at(-1) ?? first.fullName
+  const l1 = n === 1 ? 'APPLICANT' : 'APPLICANTS'
+  const l2 = n === 1 ? sp(first.fullName) : `${sp(surname)} + ${n - 1}`
+  const l3 = n === 1 ? 'Single applicant' : 'Joint application'
   // Pair into rows of 2; wrap={false} keeps each row on one page
   const rows: FitScoreApplicantEntry[][] = []
   for (let i = 0; i < applicants.length; i += 2) {
@@ -172,9 +196,12 @@ export function ApplicantDetailComparative({ applicants }: Readonly<ApplicantDet
   }
   return (
     <View style={S.wrap}>
-      <Text style={S.secLabel}>APPLICANT DETAIL</Text>
-      <Text style={S.secSub}>Participant context for all parties to this lease.</Text>
-      <View style={S.cgWrap}>
+      <View style={S.outerCard} wrap={false}>
+        <View style={S.outerHead}>
+          <Text style={S.outerL1}>{l1}</Text>
+          <Text style={S.outerL2}>{l2}</Text>
+          <Text style={S.outerL3}>{l3}</Text>
+        </View>
         {rows.map((row, rowIdx) => (
           <View
             key={row[0].label}
@@ -186,8 +213,8 @@ export function ApplicantDetailComparative({ applicants }: Readonly<ApplicantDet
             ))}
           </View>
         ))}
+        {/* Zone 4 — Flag row (aggregate across all applicants; reserved) */}
       </View>
-      {/* Zone 4 — Flag row (aggregate across all applicants; reserved) */}
     </View>
   )
 }

@@ -59,14 +59,22 @@ export function ApplicantDetailComparative({ applicants }: Readonly<ApplicantDet
   const Val = ({ val, muted = false }: { val: string; muted?: boolean }) => (
     <span className={`font-mono text-[10px] leading-snug ${muted ? "text-muted-foreground" : "text-foreground"}`}>{val}</span>
   )
+  const n = applicants.length
+  const first = applicants[0]
+  const surname = first.fullName.split(/\s+/).at(-1) ?? first.fullName
+  const l1 = n === 1 ? "APPLICANT" : "APPLICANTS"
+  const l2 = n === 1 ? first.fullName : `${surname} + ${n - 1}`
+  const l3 = n === 1 ? "Single applicant" : "Joint application"
 
   return (
-    <div className="mb-5">
-      <div className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground mb-1">Applicant detail</div>
-      <div className="text-xs text-muted-foreground mb-3">Participant context for all parties to this lease.</div>
-
+    <div className="border border-border bg-paper-raised mb-5">
+      <div className="border-b border-border px-3 py-2.5">
+        <div className="font-mono text-[7.5px] uppercase tracking-widest text-muted-foreground mb-1">{l1}</div>
+        <div className="font-bold text-sm text-foreground leading-tight mb-0.5">{l2}</div>
+        <div className="font-mono text-[9px] text-muted-foreground">{l3}</div>
+      </div>
       {/* Comparison table — metric rows, applicant columns. Horizontal scroll on narrow viewports. */}
-      <div className="border border-border overflow-x-auto">
+      <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="border-b-2 border-border">

@@ -6,7 +6,7 @@
  */
 import type { JSX } from "react"
 import type { FitScoreReportData } from "@/lib/reports/screening/_primitives/theme"
-import { buildSynthesis } from "@/lib/screening/prompts/synthesisTemplate.v1.0.2"
+import { buildSynthesis } from "@/lib/screening/prompts/synthesisTemplate.v1.0.3"
 import { BlockHeader } from "./BlockHeader"
 
 interface AssessmentSynthesisProps {

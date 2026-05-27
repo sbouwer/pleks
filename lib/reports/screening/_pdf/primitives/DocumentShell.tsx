@@ -49,7 +49,11 @@ export function DocumentShell({ data, section, children }: Readonly<DocumentShel
       <Watermark />
       <RunningHeader
         section={section}
-        applicantName={data.primaryApplicantName}
+        applicantName={
+          data.applicants.length >= 2
+            ? `${data.applicants[0].fullName.split(/\s+/).at(-1) ?? data.applicants[0].fullName} + ${data.applicants.length - 1}, JOINT APPLICATION`
+            : data.primaryApplicantName
+        }
         applicationRef={data.applicationRef}
       />
       {children}
