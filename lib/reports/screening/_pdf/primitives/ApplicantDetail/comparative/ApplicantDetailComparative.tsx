@@ -69,14 +69,12 @@ const S = StyleSheet.create({
     color:         C.ink.mute,
     letterSpacing: 0.2,
   },
-  // 2×2 comparative grid rows — outer border provided by outerCard
-  cgRow: {
-    flexDirection:     'row',
-    borderBottomWidth: 0.75,
-    borderBottomColor: C.rule.base,
-  },
-  cgRowLast:    { borderBottomWidth: 0 },
-  cgCard:       { flex: 1, borderRightWidth: 0.75, borderRightColor: C.rule.base },
+  outerBody: { padding: D.cardPaddingX },
+  // Row-pair card: one bordered card per 2 applicants — same card principle as InterpretiveCard
+  cgRowCard:     { borderWidth: 0.75, borderColor: C.rule.base, marginBottom: D.primitiveGap },
+  cgRowCardLast: { marginBottom: 0 },
+  cgInnerRow:    { flexDirection: 'row' },
+  cgCard:        { flex: 1, borderRightWidth: 0.75, borderRightColor: C.rule.base },
   cgCardLast:   { borderRightWidth: 0 },
   cgCardHead: {
     flexDirection:     'row',
@@ -202,17 +200,21 @@ export function ApplicantDetailComparative({ applicants }: Readonly<ApplicantDet
           <Text style={S.outerL2}>{l2}</Text>
           <Text style={S.outerL3}>{l3}</Text>
         </View>
-        {rows.map((row, rowIdx) => (
-          <View
-            key={row[0].label}
-            style={rowIdx === rows.length - 1 ? [S.cgRow, S.cgRowLast] : S.cgRow}
-            wrap={false}
-          >
-            {row.map((e, cardIdx) => (
-              <ComparativeCard key={e.label} entry={e} isLastInRow={cardIdx === row.length - 1} />
-            ))}
-          </View>
-        ))}
+        <View style={S.outerBody}>
+          {rows.map((row, rowIdx) => (
+            <View
+              key={row[0].label}
+              style={rowIdx === rows.length - 1 ? [S.cgRowCard, S.cgRowCardLast] : S.cgRowCard}
+              wrap={false}
+            >
+              <View style={S.cgInnerRow}>
+                {row.map((e, cardIdx) => (
+                  <ComparativeCard key={e.label} entry={e} isLastInRow={cardIdx === row.length - 1} />
+                ))}
+              </View>
+            </View>
+          ))}
+        </View>
         {/* Zone 4 — Flag row (aggregate across all applicants; reserved) */}
       </View>
     </View>

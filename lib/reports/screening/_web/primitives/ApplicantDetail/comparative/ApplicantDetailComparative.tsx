@@ -74,7 +74,8 @@ export function ApplicantDetailComparative({ applicants }: Readonly<ApplicantDet
         <div className="font-mono text-[9px] text-muted-foreground">{l3}</div>
       </div>
       {/* Comparison table — metric rows, applicant columns. Horizontal scroll on narrow viewports. */}
-      <div className="overflow-x-auto">
+      <div className="p-3">
+      <div className="overflow-x-auto border border-border">
         <table className="w-full">
           <thead>
             <tr className="border-b-2 border-border">
@@ -133,6 +134,7 @@ export function ApplicantDetailComparative({ applicants }: Readonly<ApplicantDet
             />
           </tbody>
         </table>
+      </div>
       </div>
       {/* Zone 4 — Flag row (aggregate across all applicants; reserved) */}
     </div>
