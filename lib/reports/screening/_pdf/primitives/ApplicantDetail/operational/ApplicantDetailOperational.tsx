@@ -24,6 +24,12 @@ function bureauCount(e: FitScoreApplicantEntry): string {
   return `${n} bureau${n === 1 ? '' : 's'}`
 }
 
+// Break after "(Work" so foreign-national strings use the narrowest possible width:
+// "Foreign National (Work\nPermit, expires 2027-08-15)"
+function formatNationality(status: string): string {
+  return status.replace('(Work ', '(Work\n')
+}
+
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const S = StyleSheet.create({
@@ -102,14 +108,14 @@ const S = StyleSheet.create({
     lineHeight: 1.35,
     marginTop:  1,
   },
-  // Column widths — borderRight separates columns; paddingLeft gives inter-column breathing room
-  tcL:  { flex: 0.5, borderRightWidth: 0.5, borderRightColor: C.rule.base },
-  tcN:  { flex: 1.4, borderRightWidth: 0.5, borderRightColor: C.rule.base, paddingLeft: 4 },
-  tcNa: { flex: 1.5, borderRightWidth: 0.5, borderRightColor: C.rule.base, paddingLeft: 4 },
-  tcI:  { flex: 1.1, borderRightWidth: 0.5, borderRightColor: C.rule.base, paddingLeft: 4 },
-  tcV:  { flex: 0.7, borderRightWidth: 0.5, borderRightColor: C.rule.base, paddingLeft: 4 },
-  tcB:  { flex: 0.7, borderRightWidth: 0.5, borderRightColor: C.rule.base, paddingLeft: 4 },
-  tcNw: { flex: 0.7, paddingLeft: 4 },
+  // Column widths — borderRight matches row border weight (0.75); paddingHorizontal gives breathing room
+  tcL:  { flex: 0.5, borderRightWidth: 0.75, borderRightColor: C.rule.base },
+  tcN:  { flex: 1.4, borderRightWidth: 0.75, borderRightColor: C.rule.base, paddingHorizontal: 4 },
+  tcNa: { flex: 1.2, borderRightWidth: 0.75, borderRightColor: C.rule.base, paddingHorizontal: 4 },
+  tcI:  { flex: 1.1, borderRightWidth: 0.75, borderRightColor: C.rule.base, paddingHorizontal: 4 },
+  tcV:  { flex: 0.8, borderRightWidth: 0.75, borderRightColor: C.rule.base, paddingHorizontal: 4 },
+  tcB:  { flex: 0.8, borderRightWidth: 0.75, borderRightColor: C.rule.base, paddingHorizontal: 4 },
+  tcNw: { flex: 0.8, paddingLeft: 4 },
 })
 
 // ─── Table row ────────────────────────────────────────────────────────────────
@@ -125,7 +131,7 @@ function OperationalRow({ entry, idx, isLast }: Readonly<{
     <View style={[S.tabRow, isAlt ? S.tabRowAlt : {}, isLast ? S.tabRowLast : {}]} wrap={false}>
       <View style={S.tcL}><Text style={S.tabV}>{entry.label}</Text></View>
       <View style={S.tcN}><Text style={S.tabV}>{sp(entry.fullName)}</Text></View>
-      <View style={S.tcNa}><Text style={S.tabS}>{sp(entry.nationalityStatus)}</Text></View>
+      <View style={S.tcNa}><Text style={S.tabS}>{formatNationality(sp(entry.nationalityStatus))}</Text></View>
       <View style={S.tcI}>
         <Text style={S.tabV}>{fmtZAR(entry.verifiedIncomeCents)}</Text>
         <Text style={S.tabS}>{entry.incomeSharePct}% of joint</Text>
