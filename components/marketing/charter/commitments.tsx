@@ -35,8 +35,8 @@ export const CHARTER_COMMITMENTS: readonly CharterCommitment[] = [
     title: <>We <span className="amber-wash-underline">never</span> hold your landlord&apos;s money.</>,
     body: "Client funds stay in your Section 86 trust account, at your own bank, under your own FFC. Pleks has no outbound payment rail — and can't grow one without a total architectural rewrite. We didn't just write a policy; we removed the pipes.",
     foot: "Enforced at 4 layers",
-    hover: "See it in the architecture",
-    href: "/for-agents/trust-account",
+    hover: "Read the POPIA data register",
+    href: "/popia-register",
     Artefact: ArtefactReconciliation,
   },
   {

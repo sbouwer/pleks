@@ -44,7 +44,7 @@ export const ROUTE_MANIFEST: Record<string, RouteRule> = {
   "/forgot-password":       { auth: false },
   "/reset-password":        { auth: false },
   "/register":              { auth: false },
-  "/onboarding":            { auth: true,  skipOrgCheck: true },
+  "/onboarding":            { auth: false },
   "/accept-terms":          { auth: true,  skipOrgCheck: true },
   "/pricing":               { auth: false },
   "/privacy":               { auth: false },

@@ -27,7 +27,7 @@ export function CharterSection() {
             </h2>
           </div>
           <p className="pub-body" style={{ maxWidth: "62ch" }}>
-            {MARKETING_FACTS.charter.total} commitments we&apos;ve put in writing, not in marketing copy. Every one exists
+            {MARKETING_FACTS.charter.total}{" "}commitments we&apos;ve put in writing, not in marketing copy. Every one exists
             because the alternative has bitten someone in this industry. Every one is
             enforceable — by you, by your tenants, by the Information Regulator.
           </p>
