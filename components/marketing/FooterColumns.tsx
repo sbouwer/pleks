@@ -87,7 +87,7 @@ export function FooterColumns() {
           { label: "Charter", href: "/#charter" },
           { label: "Pricing", href: "/#pricing" },
           { label: "Founding agents", href: "/#founding" },
-          { label: "Early access", href: "/early-access" },
+          { label: "Contact", href: "/contact" },
         ]}
       />
       <FooterSection
@@ -95,6 +95,7 @@ export function FooterColumns() {
         items={[
           { label: "Cookie Policy", href: "/cookie-policy" },
           { label: "Credit Check Policy", href: "/credit-check-policy" },
+          { label: "Definitions", href: "/definitions" },
           { label: "PAIA Manual", href: "/paia-manual" },
           { label: "POPIA Register", href: "/popia-register" },
           { label: "Privacy Policy", href: "/privacy" },

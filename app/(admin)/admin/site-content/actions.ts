@@ -29,6 +29,5 @@ export async function saveContentRow(
 
   revalidatePath("/")
   revalidatePath("/pricing")
-  revalidatePath("/for-agents")
   return {}
 }

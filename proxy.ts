@@ -25,9 +25,9 @@ const WEBHOOK_PREFIXES = ["/api/webhooks", "/api/cron", "/api/waitlist", "/api/h
 
 // ── Subdomain split ───────────────────────────────────────────────────────────
 const APEX_PREFIXES = [
-  "/pricing", "/for-agents", "/for-landlords", "/early-access", "/migrate",
+  "/pricing",
   "/privacy", "/terms", "/credit-check-policy", "/cookie-policy", "/paia-manual",
-  "/popia-register", "/features", "/contact", "/demo", "/marketing",
+  "/popia-register", "/definitions", "/contact", "/demo", "/marketing",
   "/api/paia-manual-pdf",
 ]
 

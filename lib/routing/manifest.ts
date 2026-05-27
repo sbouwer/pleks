@@ -51,10 +51,7 @@ export const ROUTE_MANIFEST: Record<string, RouteRule> = {
   "/terms":                 { auth: false },
   "/credit-check-policy":   { auth: false },
   "/contact":               { auth: false },
-  "/for-agents":            { auth: false },
-  "/for-landlords":         { auth: false },
-  "/early-access":          { auth: false },
-  "/migrate":               { auth: false },
+  "/definitions":           { auth: false },
   "/status":                { auth: false },
 
   // ── Public token-gated ──
@@ -86,6 +83,7 @@ export const ROUTE_MANIFEST: Record<string, RouteRule> = {
   // ── Agent workspace (unprefixed) — requiresAal2 blocks AAL1 sessions ──
   // /settings is intentionally AAL1-accessible so agents can enrol their first
   // TOTP factor before they have an AAL2 session.
+  "/help":                  { auth: true, roles: AGENT_ROLES },
   "/settings":              { auth: true, roles: AGENT_ROLES },
   "/dashboard":             { auth: true, roles: AGENT_ROLES, requiresAal2: true },
   "/properties":            { auth: true, roles: AGENT_ROLES, requiresAal2: true },

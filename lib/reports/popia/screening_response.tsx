@@ -188,8 +188,6 @@ export function ScreeningResponseLetter({ data }: Readonly<{ data: ScreeningResp
     scoreDisplay = data.score === null ? '—' : `${data.score}/100`
   }
 
-  const helpUrl = `${APP_URL}/help/fitscore-report/${data.interpretationVersion}`
-
   return (
     <Document
       title={`Pleks POPIA s23 Response — ${data.applicationRef}`}
@@ -285,11 +283,6 @@ export function ScreeningResponseLetter({ data }: Readonly<{ data: ScreeningResp
             <Text style={S.rowValue}>{data.narrativePromptVersion}</Text>
           </View>
         )}
-        <View style={S.row}>
-          <Text style={S.rowLabel}>Interpretation guide</Text>
-          <Text style={S.rowValue}>{helpUrl}</Text>
-        </View>
-
         <View style={S.divider} />
 
         {/* Escalation */}
