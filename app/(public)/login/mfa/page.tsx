@@ -57,44 +57,51 @@ function MfaContent() {
     setCurrentHost(host)
 
     ;(async () => {
-      const { data: userData } = await supabase.auth.getUser()
-      if (!userData.user) {
-        router.replace("/login")
-        return
-      }
-
-      // Already AAL2 — skip ahead to resolver
-      const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-      if (aal?.currentLevel === "aal2") {
-        router.replace(safeRedirect(redirectParam))
-        return
-      }
-
-      // Get all verified factors, then filter by current host
-      const { data: factors } = await supabase.auth.mfa.listFactors()
-      const allVerified = (factors?.totp ?? []).filter((f) => f.status === "verified")
-
-      if (host) {
-        const hostFactors = filterFactorsByHost(allVerified, host)
-        if (hostFactors.length === 0 && allVerified.length > 0) {
-          // Has factors on a different host — show cross-environment message
-          const otherHost = allVerified[0].friendly_name?.split(" @ ")[1] ?? "another environment"
-          setWrongHostMessage(
-            `Your MFA codes were set up on ${otherHost}. For security, codes don't cross between environments. ` +
-            `Set up MFA on this environment from Settings → Security.`
-          )
-          setChecking(false)
+      try {
+        const { data: userData } = await supabase.auth.getUser()
+        if (!userData.user) {
+          router.replace("/login")
           return
         }
-      }
 
-      if (allVerified.length === 0) {
-        router.replace("/settings/security/enrol-totp?mandatory=true")
-        return
-      }
+        // Already AAL2 — skip ahead to resolver
+        const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+        if (aal?.currentLevel === "aal2") {
+          // Hard navigation — ensures the server sees the latest AAL2 cookies.
+          globalThis.location.href = safeRedirect(redirectParam)
+          return
+        }
 
-      setChecking(false)
-      setTimeout(() => inputRef.current?.focus(), 100)
+        // Get all verified factors, then filter by current host
+        const { data: factors } = await supabase.auth.mfa.listFactors()
+        const allVerified = (factors?.totp ?? []).filter((f) => f.status === "verified")
+
+        if (host) {
+          const hostFactors = filterFactorsByHost(allVerified, host)
+          if (hostFactors.length === 0 && allVerified.length > 0) {
+            // Has factors on a different host — show cross-environment message
+            const otherHost = allVerified[0].friendly_name?.split(" @ ")[1] ?? "another environment"
+            setWrongHostMessage(
+              `Your MFA codes were set up on ${otherHost}. For security, codes don't cross between environments. ` +
+              `Set up MFA on this environment from Settings → Security.`
+            )
+            setChecking(false)
+            return
+          }
+        }
+
+        if (allVerified.length === 0) {
+          router.replace("/settings/security/enrol-totp?mandatory=true")
+          return
+        }
+
+        setChecking(false)
+        setTimeout(() => inputRef.current?.focus(), 100)
+      } catch (err) {
+        console.error("[mfa] setup check failed", err)
+        setError("Couldn't load your MFA settings. Please refresh the page or contact support@pleks.co.za.")
+        setChecking(false)
+      }
     })()
   }, [router, redirectParam])
 
@@ -138,10 +145,10 @@ function MfaContent() {
       return
     }
 
-    fetch("/api/auth/log-totp-verified", { method: "POST" }).catch(() => null)
+    await fetch("/api/auth/log-totp-verified", { method: "POST" }).catch(() => null)
 
-    // Route through resolver — not directly to redirectParam (I-1)
-    router.push(safeRedirect(redirectParam))
+    // Hard navigation — eliminates the AAL1→AAL2 cookie propagation race (see 1A).
+    globalThis.location.href = safeRedirect(redirectParam)
   }
 
   function handleCodeChange(value: string) {

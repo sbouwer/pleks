@@ -93,6 +93,98 @@ export function PublicNav() {
     return () => observer.disconnect()
   }, [pathname])
 
+  const desktopAuthIcon = (() => {
+    if (user === undefined) {
+      return (
+        <span className="pub-icon-btn hidden md:flex" aria-hidden="true" style={{ visibility: "hidden" }}>
+          <LogIn size={15} />
+        </span>
+      )
+    }
+    if (user) {
+      return (
+        <div className="relative hidden md:block">
+          <button
+            type="button"
+            onClick={() => setProfileOpen(p => !p)}
+            className="pub-icon-btn pub-icon-btn--active"
+            aria-label="Account menu"
+          >
+            <User size={15} />
+          </button>
+          {profileOpen && (
+            <>
+              <button type="button" aria-label="Close"
+                style={{ position: "fixed", inset: 0, zIndex: 40, cursor: "default", background: "transparent", border: "none" }}
+                onClick={() => setProfileOpen(false)}
+              />
+              <div style={{
+                position: "absolute", right: 0, top: 42, zIndex: 50, width: 200,
+                borderRadius: "var(--r-md)", border: "1px solid var(--rule)",
+                background: "var(--paper-raised)", boxShadow: "var(--shadow-2)", padding: "4px 0",
+              }}>
+                <p className="pub-xs" style={{ padding: "8px 12px", borderBottom: "1px solid var(--rule)", margin: 0 }}>
+                  {user.email}
+                </p>
+                <Link href="/dashboard"
+                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", fontSize: 13, color: "var(--ink)" }}
+                  onClick={() => setProfileOpen(false)}>
+                  <LayoutDashboard size={14} style={{ color: "var(--ink-mute)" }} /> Dashboard
+                </Link>
+                <button type="button" onClick={handleLogout}
+                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", fontSize: 13, color: "var(--critical)", width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer" }}>
+                  <LogOut size={14} /> Log out
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )
+    }
+    return (
+      <Link href="/login" className="pub-icon-btn hidden md:flex" aria-label="Sign in">
+        <LogIn size={15} />
+      </Link>
+    )
+  })()
+
+  const mobileAuthSection = (() => {
+    if (user === undefined) {
+      return (
+        <>
+          <span className="btn-pleks ghost" style={{ visibility: "hidden", justifyContent: "center" }}>placeholder</span>
+          <span className="btn-pleks" style={{ visibility: "hidden", justifyContent: "center" }}>placeholder</span>
+        </>
+      )
+    }
+    if (user) {
+      return (
+        <>
+          <p className="pub-xs" style={{ padding: "0 8px", margin: 0 }}>{user.email}</p>
+          <Link href="/dashboard"
+            style={{ padding: "10px 8px", fontSize: 14, color: "var(--ink)", display: "flex", alignItems: "center", gap: 8 }}
+            onClick={() => setMobileOpen(false)}>
+            <LayoutDashboard size={16} /> Dashboard
+          </Link>
+          <button type="button" onClick={handleLogout}
+            style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 8px", fontSize: 14, color: "var(--critical)", textAlign: "left", background: "none", border: "none", cursor: "pointer" }}>
+            <LogOut size={16} /> Log out
+          </button>
+        </>
+      )
+    }
+    return (
+      <>
+        <Link href="/login" className="btn-pleks ghost" style={{ justifyContent: "center" }}>
+          <LogIn size={15} /> Sign in
+        </Link>
+        <Link href="/onboarding" className="btn-pleks" style={{ justifyContent: "center" }}>
+          Start free
+        </Link>
+      </>
+    )
+  })()
+
   return (
     <header
       style={{
@@ -138,8 +230,8 @@ export function PublicNav() {
               </Link>
             )
           })}
-          {/* Start free CTA — sits right after the last nav link, hidden when logged in */}
-          {!user && (
+          {/* Start free CTA — only shown when confirmed logged out, not while checking */}
+          {user === null && (
             <Link
               href="/onboarding"
               className="btn-pleks"
@@ -163,55 +255,8 @@ export function PublicNav() {
             {theme === "light" ? <Moon size={15} /> : <Sun size={15} />}
           </button>
 
-          {/* Auth icon — same size/style as theme toggle, only icon changes */}
-          {user ? (
-            /* Logged in: User icon opens profile dropdown */
-            <div className="relative hidden md:block">
-              <button
-                type="button"
-                onClick={() => setProfileOpen(p => !p)}
-                className="pub-icon-btn pub-icon-btn--active"
-                aria-label="Account menu"
-              >
-                <User size={15} />
-              </button>
-              {profileOpen && (
-                <>
-                  <button type="button" aria-label="Close"
-                    style={{ position: "fixed", inset: 0, zIndex: 40, cursor: "default", background: "transparent", border: "none" }}
-                    onClick={() => setProfileOpen(false)}
-                  />
-                  <div style={{
-                    position: "absolute", right: 0, top: 42, zIndex: 50, width: 200,
-                    borderRadius: "var(--r-md)", border: "1px solid var(--rule)",
-                    background: "var(--paper-raised)", boxShadow: "var(--shadow-2)", padding: "4px 0",
-                  }}>
-                    <p className="pub-xs" style={{ padding: "8px 12px", borderBottom: "1px solid var(--rule)", margin: 0 }}>
-                      {user.email}
-                    </p>
-                    <Link href="/dashboard"
-                      style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", fontSize: 13, color: "var(--ink)" }}
-                      onClick={() => setProfileOpen(false)}>
-                      <LayoutDashboard size={14} style={{ color: "var(--ink-mute)" }} /> Dashboard
-                    </Link>
-                    <button type="button" onClick={handleLogout}
-                      style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", fontSize: 13, color: "var(--critical)", width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer" }}>
-                      <LogOut size={14} /> Log out
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          ) : (
-            /* Logged out (or checking): LogIn icon — same bordered style, no text */
-            <Link
-              href="/login"
-              className="pub-icon-btn hidden md:flex"
-              aria-label="Sign in"
-            >
-              <LogIn size={15} />
-            </Link>
-          )}
+          {/* Auth icon — three-state: checking / logged-in / logged-out (computed above) */}
+          {desktopAuthIcon}
 
           {/* Hamburger — mobile only */}
           <button className="md:hidden" onClick={() => setMobileOpen(true)} aria-label="Open menu"
@@ -239,29 +284,7 @@ export function PublicNav() {
               {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
               {theme === "light" ? "Dark mode" : "Light mode"}
             </button>
-            {user ? (
-              <>
-                <p className="pub-xs" style={{ padding: "0 8px", margin: 0 }}>{user.email}</p>
-                <Link href="/dashboard"
-                  style={{ padding: "10px 8px", fontSize: 14, color: "var(--ink)", display: "flex", alignItems: "center", gap: 8 }}
-                  onClick={() => setMobileOpen(false)}>
-                  <LayoutDashboard size={16} /> Dashboard
-                </Link>
-                <button type="button" onClick={handleLogout}
-                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 8px", fontSize: 14, color: "var(--critical)", textAlign: "left", background: "none", border: "none", cursor: "pointer" }}>
-                  <LogOut size={16} /> Log out
-                </button>
-              </>
-            ) : (
-              <>
-                <Link href="/login" className="btn-pleks ghost" style={{ justifyContent: "center" }}>
-                  <LogIn size={15} /> Sign in
-                </Link>
-                <Link href="/onboarding" className="btn-pleks" style={{ justifyContent: "center" }}>
-                  Start free
-                </Link>
-              </>
-            )}
+            {mobileAuthSection}
           </div>
         </SheetContent>
       </Sheet>

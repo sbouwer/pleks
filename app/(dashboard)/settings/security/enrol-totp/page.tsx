@@ -186,7 +186,10 @@ function EnrolTotpContent() {
       return
     }
 
-    fetch("/api/auth/log-totp-enrolled", { method: "POST" }).catch(() => null)
+    await fetch("/api/auth/log-totp-enrolled", { method: "POST" }).catch(() => null)
+    // router.refresh() flushes Next.js's client route cache so the next navigation
+    // carries the freshest AAL2 cookies — prevents the middleware seeing stale AAL1.
+    router.refresh()
     setCode("")
     if (factorNum === 1) {
       setPhase("backup")
@@ -203,7 +206,7 @@ function EnrolTotpContent() {
         <p className="text-muted-foreground text-sm mb-8">
           Two-factor authentication is active on your account.
         </p>
-        <button style={BTN_PRIMARY} onClick={() => router.push("/dashboard")}>
+        <button style={BTN_PRIMARY} onClick={() => { globalThis.location.href = "/dashboard" }}>
           Go to dashboard
         </button>
       </div>
@@ -236,7 +239,7 @@ function EnrolTotpContent() {
               authenticator entries are already synced across your devices — you may not need this at all.
             </p>
             <div className="flex flex-col gap-2">
-              <button style={BTN_PRIMARY} onClick={() => router.push("/dashboard")}>
+              <button style={BTN_PRIMARY} onClick={() => { globalThis.location.href = "/dashboard" }}>
                 I&apos;ve saved it — go to dashboard
               </button>
               <button

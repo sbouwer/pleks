@@ -24,7 +24,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https:",
       "font-src 'self' data:",
-      "connect-src 'self' https://app.pleks.co.za https://*.supabase.co wss://*.supabase.co https://api.resend.com",
+      "connect-src 'self' https://app.pleks.co.za https://*.supabase.co wss://*.supabase.co https://api.resend.com https://*.ingest.sentry.io https://*.ingest.us.sentry.io",
       "manifest-src 'self' https://app.pleks.co.za",
       "frame-src https://maps.google.com https://www.google.com",
       "worker-src 'self'",
