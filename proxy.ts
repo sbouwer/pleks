@@ -79,6 +79,15 @@ async function checkAdminApiAuth(pathname: string, request: NextRequest): Promis
   return NextResponse.next()
 }
 
+// ── Resolver redirect helper ──────────────────────────────────────────────────
+// Always carries ?redirect=<pathname> so resolver can route back to the correct
+// destination after MFA enrolment, org-cookie hydration, or role resolution.
+function resolverRedirect(request: NextRequest): NextResponse {
+  const url = new URL("/auth/resolver", request.url)
+  url.searchParams.set("redirect", request.nextUrl.pathname)
+  return NextResponse.redirect(url)
+}
+
 // ── Org cookie helpers ────────────────────────────────────────────────────────
 function deriveTierFromSub(sub: {
   tier: string; status: string
@@ -146,12 +155,12 @@ async function ensureOrgCookies(
     membership = await resolveUserMembership(user.id)
   } catch {
     // SovereignMembershipViolation or unexpected error — send to resolver to handle
-    return NextResponse.redirect(new URL("/auth/resolver", request.url))
+    return resolverRedirect(request)
   }
 
   if (!membership) {
     // No membership anywhere — resolver decides whether to send to /onboarding
-    return NextResponse.redirect(new URL("/auth/resolver", request.url))
+    return resolverRedirect(request)
   }
 
   // For agent-class: write pleks_org + pleks_has_org as before
@@ -211,9 +220,9 @@ async function checkPortalRoleGate(
       if (role && rule.roles.includes(role as SessionRole)) return null
       if (role) {
         // Wrong role — clear stale deprecated cookie and route through resolver
-        const redirect = NextResponse.redirect(new URL("/auth/resolver", request.url))
-        redirect.cookies.delete("pleks_active_role")
-        return redirect
+        const rr = resolverRedirect(request)
+        rr.cookies.delete("pleks_active_role")
+        return rr
       }
     } catch { /* fall through to DB resolution */ }
   }
@@ -223,18 +232,18 @@ async function checkPortalRoleGate(
   try {
     membership = await resolveUserMembership(user.id)
   } catch {
-    return NextResponse.redirect(new URL("/auth/resolver", request.url))
+    return resolverRedirect(request)
   }
 
   if (!membership) {
-    return NextResponse.redirect(new URL("/auth/resolver", request.url))
+    return resolverRedirect(request)
   }
 
   const roleForCookie = toSessionRole(membership)
 
   if (rule.roles.includes(roleForCookie)) return null
   // Wrong role resolved from DB — route through resolver
-  return NextResponse.redirect(new URL("/auth/resolver", request.url))
+  return resolverRedirect(request)
 }
 
 // ── Agent role gate ───────────────────────────────────────────────────────────
@@ -249,7 +258,7 @@ function checkAgentRoleGate(
   if (!raw) {
     // Cookie absent on an agent-only route — could be non-agent user or stale session.
     // Fail-closed: route through resolver which re-derives the correct destination.
-    return NextResponse.redirect(new URL("/auth/resolver", request.url))
+    return resolverRedirect(request)
   }
 
   try {
@@ -259,7 +268,7 @@ function checkAgentRoleGate(
     }
   } catch {
     // Malformed cookie — route through resolver to re-derive state
-    return NextResponse.redirect(new URL("/auth/resolver", request.url))
+    return resolverRedirect(request)
   }
   return null
 }
@@ -280,12 +289,7 @@ async function handleProtectedRoute(
 
   // AAL2 enforcement — route through resolver so audit trail + consent gate fire.
   // Resolver handles AAL elevation internally and routes to /login/mfa when needed.
-  if (rule.requiresAal2 && aal !== "aal2") {
-    const url = request.nextUrl.clone()
-    url.pathname = "/auth/resolver"
-    url.searchParams.set("redirect", request.nextUrl.pathname)
-    return NextResponse.redirect(url)
-  }
+  if (rule.requiresAal2 && aal !== "aal2") return resolverRedirect(request)
 
   // ToS/Privacy consent is now handled via ConsentGateModal in destination layouts.
   // The resolver appends ?pending_consent=1 when consent is outdated.
