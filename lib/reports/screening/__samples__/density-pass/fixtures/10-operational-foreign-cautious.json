@@ -1,0 +1,278 @@
+{
+  "doctrineClaim": "N=8 operational, all-foreign. MethodologyEyebrow visible. 3-card DimensionCard. Row table with 8 applicants.",
+  "data": {
+    "applicationRef": "dp-10",
+    "unitLabel": "3-bedroom townhouse, Sandton, Johannesburg",
+    "generatedAt": "2026-05-26T08:00:00Z",
+    "submittedAt": "2026-05-25T14:00:00Z",
+    "primaryApplicantName": "Jane Mokoena",
+    "coApplicantCount": 7,
+    "applicants": [
+      {
+        "label": "A",
+        "fullName": "Amara Okonkwo",
+        "nationalityStatus": "Foreign National (Work Permit, expires 2027-08-15)",
+        "idNumberMasked": "M*****3",
+        "sex": null,
+        "ageYears": null,
+        "employment": {
+          "employerName": "Global Solutions Ltd",
+          "jobTitle": "Operations Director",
+          "tenureDisplay": "2y 6mo"
+        },
+        "verifiedIncomeCents": 4200000,
+        "incomeSharePct": 29,
+        "verificationPassCount": 5,
+        "verificationTotal": 5,
+        "respondingBureaus": [],
+        "pleksNetworkStatus": "none",
+        "pleksNetworkTenancyCount": 0,
+        "isForeignNational": true
+      },
+      {
+        "label": "B",
+        "fullName": "Chen Wei",
+        "nationalityStatus": "Foreign National (Work Permit, expires 2028-12-31)",
+        "idNumberMasked": "E*****7",
+        "sex": null,
+        "ageYears": null,
+        "employment": {
+          "employerName": "Sinotech SA (Pty) Ltd",
+          "jobTitle": "Project Manager",
+          "tenureDisplay": "3y 2mo"
+        },
+        "verifiedIncomeCents": 3100000,
+        "incomeSharePct": 22,
+        "verificationPassCount": 5,
+        "verificationTotal": 5,
+        "respondingBureaus": [],
+        "pleksNetworkStatus": "none",
+        "pleksNetworkTenancyCount": 0,
+        "isForeignNational": true
+      },
+      {
+        "label": "C",
+        "fullName": "Fatima Al-Rashid",
+        "nationalityStatus": "Foreign National (Work Permit, expires 2027-03-15)",
+        "idNumberMasked": "F*****2",
+        "sex": null,
+        "ageYears": null,
+        "employment": {
+          "employerName": "Arabica Trading SA",
+          "jobTitle": "Senior Buyer",
+          "tenureDisplay": "2y 1mo"
+        },
+        "verifiedIncomeCents": 2600000,
+        "incomeSharePct": 18,
+        "verificationPassCount": 5,
+        "verificationTotal": 5,
+        "respondingBureaus": [],
+        "pleksNetworkStatus": "none",
+        "pleksNetworkTenancyCount": 0,
+        "isForeignNational": true
+      },
+      {
+        "label": "D",
+        "fullName": "Dmitri Volkov",
+        "nationalityStatus": "Foreign National (Work Permit, expires 2029-06-30)",
+        "idNumberMasked": "V*****9",
+        "sex": null,
+        "ageYears": null,
+        "employment": {
+          "employerName": "EasternBlock Mining",
+          "jobTitle": "Engineer",
+          "tenureDisplay": "1y 8mo"
+        },
+        "verifiedIncomeCents": 2000000,
+        "incomeSharePct": 14,
+        "verificationPassCount": 5,
+        "verificationTotal": 5,
+        "respondingBureaus": [],
+        "pleksNetworkStatus": "none",
+        "pleksNetworkTenancyCount": 0,
+        "isForeignNational": true
+      },
+      {
+        "label": "E",
+        "fullName": "Yuki Tanaka",
+        "nationalityStatus": "Foreign National (Work Permit, expires 2027-11-01)",
+        "idNumberMasked": "T*****4",
+        "sex": null,
+        "ageYears": null,
+        "employment": {
+          "employerName": "Nippon SA Ltd",
+          "jobTitle": "Analyst",
+          "tenureDisplay": "1y 1mo"
+        },
+        "verifiedIncomeCents": 1400000,
+        "incomeSharePct": 10,
+        "verificationPassCount": 5,
+        "verificationTotal": 5,
+        "respondingBureaus": [],
+        "pleksNetworkStatus": "none",
+        "pleksNetworkTenancyCount": 0,
+        "isForeignNational": true
+      },
+      {
+        "label": "F",
+        "fullName": "Maria Santos",
+        "nationalityStatus": "Foreign National (Work Permit, expires 2026-09-30)",
+        "idNumberMasked": "S*****1",
+        "sex": null,
+        "ageYears": null,
+        "employment": {
+          "employerName": "Iberia Trade",
+          "jobTitle": "Assistant",
+          "tenureDisplay": "0y 4mo"
+        },
+        "verifiedIncomeCents": 600000,
+        "incomeSharePct": 4,
+        "verificationPassCount": 5,
+        "verificationTotal": 5,
+        "respondingBureaus": [],
+        "pleksNetworkStatus": "none",
+        "pleksNetworkTenancyCount": 0,
+        "isForeignNational": true
+      },
+      {
+        "label": "G",
+        "fullName": "Kwame Asante",
+        "nationalityStatus": "Foreign National (Work Permit, expires 2028-03-15)",
+        "idNumberMasked": "A*****6",
+        "sex": null,
+        "ageYears": null,
+        "employment": {
+          "employerName": "Continental Freight",
+          "jobTitle": "Coordinator",
+          "tenureDisplay": "0y 7mo"
+        },
+        "verifiedIncomeCents": 350000,
+        "incomeSharePct": 2,
+        "verificationPassCount": 5,
+        "verificationTotal": 5,
+        "respondingBureaus": [],
+        "pleksNetworkStatus": "none",
+        "pleksNetworkTenancyCount": 0,
+        "isForeignNational": true
+      },
+      {
+        "label": "H",
+        "fullName": "Priya Nair",
+        "nationalityStatus": "Foreign National (Work Permit, expires 2027-07-15)",
+        "idNumberMasked": "N*****3",
+        "sex": null,
+        "ageYears": null,
+        "employment": {
+          "employerName": "SA Services Co",
+          "jobTitle": "Junior Analyst",
+          "tenureDisplay": "0y 2mo"
+        },
+        "verifiedIncomeCents": 100000,
+        "incomeSharePct": 1,
+        "verificationPassCount": 5,
+        "verificationTotal": 5,
+        "respondingBureaus": [],
+        "pleksNetworkStatus": "none",
+        "pleksNetworkTenancyCount": 0,
+        "isForeignNational": true
+      }
+    ],
+    "leaseIntent": {
+      "termMonths": 12,
+      "monthlyRentCents": 1950000,
+      "depositMultiplier": 2
+    },
+    "band": "cautious_review",
+    "score": 60,
+    "confidenceIndex": "medium",
+    "verificationIntegrity": "medium",
+    "dimensionalScores": {
+      "affordability": 64,
+      "stability": 60,
+      "creditBehaviour": null,
+      "verificationIntegrity": 70,
+      "affordability_preferred_threshold": 50,
+      "stability_preferred_threshold": 60,
+      "creditBehaviour_preferred_threshold": null,
+      "verificationIntegrity_preferred_threshold": 70
+    },
+    "materialFlags": [
+      {
+        "flag": "permit_expires_within_lease",
+        "class": "capping",
+        "capApplied": true,
+        "capCeiling": "stable_profile",
+        "applicantId": null,
+        "applicantLabel": "Applicant F",
+        "description": "Work permit expires within proposed lease term",
+        "source": "density_pass_fixture",
+        "observedAt": "2026-05-26T08:00:00Z"
+      }
+    ],
+    "isLdp": false,
+    "isAllForeignNational": true,
+    "narrative": {
+      "observedStrengths": [
+        "Identity match confirmed for all applicants via DHA-NPR.",
+        "Joint income well-evidenced via bank statements.",
+        "Employment tenure recorded for all applicants."
+      ],
+      "observedConcerns": [
+        "Two applicants have work permits expiring within the proposed lease term.",
+        "No SA bureau coverage available for any applicant."
+      ],
+      "limitedVisibility": [
+        "Credit Behaviour dimension not assessed — no SA bureau coverage for any applicant."
+      ],
+      "affordabilityEvidenceLine": "Rent 24% of verified joint income.",
+      "stabilityEvidenceLine": "Income-weighted tenure 2.3 years.",
+      "creditEvidenceLine": null,
+      "verificationEvidenceLine": "Most verification checks passed across applicant group.",
+      "affordabilityObservations": [
+        "Rent-to-income at 24% — within preferred threshold.",
+        "Joint income well-evidenced via bank statements.",
+        "Debt servicing estimated from income-band norms."
+      ],
+      "stabilityObservations": [
+        "Income-weighted tenure 1.7 years — below preferred threshold.",
+        "No rental references verified.",
+        "Employment tenure below preferred threshold for two applicants."
+      ],
+      "creditObservations": null,
+      "verificationObservations": [
+        "Most checks passed; one applicant partial.",
+        "Salary reconciliation partial for one applicant.",
+        "No audit overrides applied."
+      ],
+      "ldpSummary": null,
+      "isTemplated": false,
+      "failureReason": null
+    },
+    "engineVersion": "fitscore.v1.0.1",
+    "narrativeVersion": "narr.v1.0",
+    "interpretationVersion": "interpretation.v1.0",
+    "synthesisVersion": "synthesis.v1.0",
+    "inputsHash": "a1b2c3d4e5f67890",
+    "orgName": "Density Pass Agency",
+    "orgFfcNumber": "FFC-20220001",
+    "dimensions": {
+      "affordability": {
+        "rentToIncomePct": 24,
+        "windowMonths": 6
+      },
+      "stability": {
+        "currentTenureDisplay": "3y 4mo",
+        "employersIn7Years": 1
+      },
+      "credit": {
+        "bureauCoverageDisplay": "n/a",
+        "divergencePoints": null
+      },
+      "verification": {
+        "checksPassedDisplay": "5 / 5",
+        "manualOverridesPending": 0,
+        "auditEntriesCount": 5
+      }
+    }
+  }
+}

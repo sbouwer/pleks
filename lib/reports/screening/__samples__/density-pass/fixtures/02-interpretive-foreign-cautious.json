@@ -1,0 +1,163 @@
+{
+  "doctrineClaim": "N=2 all-foreign → interpretive mode. MethodologyEyebrow visible. 3-card DimensionCard; creditBehaviour null.",
+  "data": {
+    "applicationRef": "dp-02",
+    "unitLabel": "3-bedroom townhouse, Sandton, Johannesburg",
+    "generatedAt": "2026-05-26T08:00:00Z",
+    "submittedAt": "2026-05-25T14:00:00Z",
+    "primaryApplicantName": "Jane Mokoena",
+    "coApplicantCount": 1,
+    "applicants": [
+      {
+        "label": "A",
+        "fullName": "Amara Okonkwo",
+        "nationalityStatus": "Foreign National (Work Permit, expires 2027-08-15)",
+        "idNumberMasked": "M*****3",
+        "sex": null,
+        "ageYears": null,
+        "employment": {
+          "employerName": "Global Solutions Ltd",
+          "jobTitle": "Operations Director",
+          "tenureDisplay": "2y 6mo"
+        },
+        "verifiedIncomeCents": 5200000,
+        "incomeSharePct": 52,
+        "verificationPassCount": 5,
+        "verificationTotal": 5,
+        "respondingBureaus": [],
+        "pleksNetworkStatus": "none",
+        "pleksNetworkTenancyCount": 0,
+        "isForeignNational": true
+      },
+      {
+        "label": "B",
+        "fullName": "Chen Wei",
+        "nationalityStatus": "Foreign National (Work Permit, expires 2026-09-30)",
+        "idNumberMasked": "E*****7",
+        "sex": null,
+        "ageYears": null,
+        "employment": {
+          "employerName": "Sinotech SA (Pty) Ltd",
+          "jobTitle": "Project Manager",
+          "tenureDisplay": "1y 4mo"
+        },
+        "verifiedIncomeCents": 4800000,
+        "incomeSharePct": 48,
+        "verificationPassCount": 4,
+        "verificationTotal": 5,
+        "respondingBureaus": [],
+        "pleksNetworkStatus": "none",
+        "pleksNetworkTenancyCount": 0,
+        "isForeignNational": true
+      }
+    ],
+    "leaseIntent": {
+      "termMonths": 12,
+      "monthlyRentCents": 1950000,
+      "depositMultiplier": 2
+    },
+    "band": "cautious_review",
+    "score": 61,
+    "confidenceIndex": "medium",
+    "verificationIntegrity": "medium",
+    "dimensionalScores": {
+      "affordability": 66,
+      "stability": 60,
+      "creditBehaviour": null,
+      "verificationIntegrity": 72,
+      "affordability_preferred_threshold": 50,
+      "stability_preferred_threshold": 60,
+      "creditBehaviour_preferred_threshold": null,
+      "verificationIntegrity_preferred_threshold": 70
+    },
+    "materialFlags": [
+      {
+        "flag": "permit_expires_within_lease",
+        "class": "capping",
+        "capApplied": true,
+        "capCeiling": "stable_profile",
+        "applicantId": null,
+        "applicantLabel": "Applicant A",
+        "description": "Work permit expires within proposed lease term",
+        "source": "density_pass_fixture",
+        "observedAt": "2026-05-26T08:00:00Z"
+      },
+      {
+        "flag": "permit_expires_within_lease",
+        "class": "capping",
+        "capApplied": true,
+        "capCeiling": "stable_profile",
+        "applicantId": null,
+        "applicantLabel": "Applicant B",
+        "description": "Work permit expires within proposed lease term",
+        "source": "density_pass_fixture",
+        "observedAt": "2026-05-26T08:00:00Z"
+      }
+    ],
+    "isLdp": false,
+    "isAllForeignNational": true,
+    "narrative": {
+      "observedStrengths": [
+        "Identity match confirmed for all applicants via DHA-NPR.",
+        "Joint income well-evidenced via bank statements.",
+        "Employment tenure recorded for all applicants."
+      ],
+      "observedConcerns": [
+        "Two applicants have work permits expiring within the proposed lease term.",
+        "No SA bureau coverage available for any applicant."
+      ],
+      "limitedVisibility": [
+        "Credit Behaviour dimension not assessed — no SA bureau coverage for any applicant."
+      ],
+      "affordabilityEvidenceLine": "Rent 24% of verified joint income.",
+      "stabilityEvidenceLine": "Income-weighted tenure 2.3 years.",
+      "creditEvidenceLine": null,
+      "verificationEvidenceLine": "Most verification checks passed across applicant group.",
+      "affordabilityObservations": [
+        "Rent-to-income at 24% — within preferred threshold.",
+        "Joint income well-evidenced via bank statements.",
+        "Debt servicing estimated from income-band norms."
+      ],
+      "stabilityObservations": [
+        "Income-weighted tenure 1.7 years — below preferred threshold.",
+        "No rental references verified.",
+        "Employment tenure below preferred threshold for two applicants."
+      ],
+      "creditObservations": null,
+      "verificationObservations": [
+        "Most checks passed; one applicant partial.",
+        "Salary reconciliation partial for one applicant.",
+        "No audit overrides applied."
+      ],
+      "ldpSummary": null,
+      "isTemplated": false,
+      "failureReason": null
+    },
+    "engineVersion": "fitscore.v1.0.1",
+    "narrativeVersion": "narr.v1.0",
+    "interpretationVersion": "interpretation.v1.0",
+    "synthesisVersion": "synthesis.v1.0",
+    "inputsHash": "a1b2c3d4e5f67890",
+    "orgName": "Density Pass Agency",
+    "orgFfcNumber": "FFC-20220001",
+    "dimensions": {
+      "affordability": {
+        "rentToIncomePct": 24,
+        "windowMonths": 6
+      },
+      "stability": {
+        "currentTenureDisplay": "3y 4mo",
+        "employersIn7Years": 1
+      },
+      "credit": {
+        "bureauCoverageDisplay": "n/a",
+        "divergencePoints": null
+      },
+      "verification": {
+        "checksPassedDisplay": "5 / 5",
+        "manualOverridesPending": 0,
+        "auditEntriesCount": 5
+      }
+    }
+  }
+}

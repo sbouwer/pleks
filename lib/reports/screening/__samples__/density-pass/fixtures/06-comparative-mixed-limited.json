@@ -1,0 +1,229 @@
+{
+  "doctrineClaim": "N=4 comparative, mixed; trust (A) + capping: judgment (C) + permit expiry (D). Limited confidence band. Credit note visible.",
+  "data": {
+    "applicationRef": "dp-06",
+    "unitLabel": "3-bedroom townhouse, Sandton, Johannesburg",
+    "generatedAt": "2026-05-26T08:00:00Z",
+    "submittedAt": "2026-05-25T14:00:00Z",
+    "primaryApplicantName": "Jane Mokoena",
+    "coApplicantCount": 3,
+    "applicants": [
+      {
+        "label": "A",
+        "fullName": "Jane Mokoena",
+        "nationalityStatus": "SA Citizen",
+        "idNumberMasked": "8807*****091",
+        "sex": "F",
+        "ageYears": 37,
+        "employment": {
+          "employerName": "Acme Capital (Pty) Ltd",
+          "jobTitle": "Senior Analyst",
+          "tenureDisplay": "3y 4mo"
+        },
+        "verifiedIncomeCents": 3200000,
+        "incomeSharePct": 42,
+        "verificationPassCount": 5,
+        "verificationTotal": 5,
+        "respondingBureaus": [
+          "TransUnion",
+          "VeriCred",
+          "Sigma"
+        ],
+        "pleksNetworkStatus": "trusted",
+        "pleksNetworkTenancyCount": 1,
+        "isForeignNational": false
+      },
+      {
+        "label": "B",
+        "fullName": "Sipho Dlamini",
+        "nationalityStatus": "SA Citizen",
+        "idNumberMasked": "9201*****082",
+        "sex": "M",
+        "ageYears": 33,
+        "employment": {
+          "employerName": "Metro Bank Ltd",
+          "jobTitle": "Advisor",
+          "tenureDisplay": "1y 6mo"
+        },
+        "verifiedIncomeCents": 1800000,
+        "incomeSharePct": 24,
+        "verificationPassCount": 4,
+        "verificationTotal": 5,
+        "respondingBureaus": [
+          "TransUnion",
+          "VeriCred"
+        ],
+        "pleksNetworkStatus": "none",
+        "pleksNetworkTenancyCount": 0,
+        "isForeignNational": false
+      },
+      {
+        "label": "C",
+        "fullName": "Nomsa Khumalo",
+        "nationalityStatus": "SA Citizen",
+        "idNumberMasked": "9407*****034",
+        "sex": "F",
+        "ageYears": 31,
+        "employment": {
+          "employerName": "City Works Dept",
+          "jobTitle": "Administrator",
+          "tenureDisplay": "2y 2mo"
+        },
+        "verifiedIncomeCents": 1400000,
+        "incomeSharePct": 18,
+        "verificationPassCount": 3,
+        "verificationTotal": 5,
+        "respondingBureaus": [
+          "TransUnion"
+        ],
+        "pleksNetworkStatus": "none",
+        "pleksNetworkTenancyCount": 0,
+        "isForeignNational": false
+      },
+      {
+        "label": "D",
+        "fullName": "Amara Okonkwo",
+        "nationalityStatus": "Foreign National (Work Permit, expires 2027-08-15)",
+        "idNumberMasked": "M*****3",
+        "sex": null,
+        "ageYears": null,
+        "employment": {
+          "employerName": "Global Solutions Ltd",
+          "jobTitle": "Operations Director",
+          "tenureDisplay": "2y 6mo"
+        },
+        "verifiedIncomeCents": 1200000,
+        "incomeSharePct": 16,
+        "verificationPassCount": 5,
+        "verificationTotal": 5,
+        "respondingBureaus": [],
+        "pleksNetworkStatus": "none",
+        "pleksNetworkTenancyCount": 0,
+        "isForeignNational": true
+      }
+    ],
+    "leaseIntent": {
+      "termMonths": 12,
+      "monthlyRentCents": 1950000,
+      "depositMultiplier": 2
+    },
+    "band": "limited_confidence",
+    "score": 47,
+    "confidenceIndex": "low",
+    "verificationIntegrity": "medium",
+    "dimensionalScores": {
+      "affordability": 40,
+      "stability": 45,
+      "creditBehaviour": 48,
+      "verificationIntegrity": 62,
+      "affordability_preferred_threshold": 50,
+      "stability_preferred_threshold": 60,
+      "creditBehaviour_preferred_threshold": 50,
+      "verificationIntegrity_preferred_threshold": 70
+    },
+    "materialFlags": [
+      {
+        "flag": "pleks_network_trusted",
+        "class": "trust",
+        "capApplied": false,
+        "capCeiling": null,
+        "applicantId": null,
+        "applicantLabel": "Applicant A",
+        "description": "Trusted by Pleks Network (Applicant A)",
+        "source": "density_pass_fixture",
+        "observedAt": "2026-05-26T08:00:00Z"
+      },
+      {
+        "flag": "active_judgment",
+        "class": "capping",
+        "capApplied": true,
+        "capCeiling": "limited_confidence",
+        "applicantId": null,
+        "applicantLabel": "Applicant C",
+        "description": "Active judgment recorded in last 24 months",
+        "source": "density_pass_fixture",
+        "observedAt": "2026-05-26T08:00:00Z"
+      },
+      {
+        "flag": "permit_expires_within_lease",
+        "class": "capping",
+        "capApplied": true,
+        "capCeiling": "stable_profile",
+        "applicantId": null,
+        "applicantLabel": "Applicant D",
+        "description": "Work permit expires within proposed lease term",
+        "source": "density_pass_fixture",
+        "observedAt": "2026-05-26T08:00:00Z"
+      }
+    ],
+    "isLdp": false,
+    "isAllForeignNational": false,
+    "narrative": {
+      "observedStrengths": [
+        "Primary applicant trusted by Pleks Network.",
+        "Identity match confirmed for all applicants."
+      ],
+      "observedConcerns": [
+        "Active judgment recorded for one applicant within last 24 months.",
+        "Rent at 42% of verified joint income.",
+        "Work permit expiry falls within proposed lease term (one applicant)."
+      ],
+      "limitedVisibility": [
+        "No bureau coverage for foreign-national applicant."
+      ],
+      "affordabilityEvidenceLine": "Rent 42% of verified joint income; debt servicing 24%.",
+      "stabilityEvidenceLine": "Income-weighted tenure 2.1 years.",
+      "creditEvidenceLine": "Active judgment recorded; coverage partial across SA applicants.",
+      "verificationEvidenceLine": "Majority of checks passed; one applicant partial.",
+      "affordabilityObservations": [
+        "Rent-to-income at 42% — above preferred threshold.",
+        "Debt servicing unconfirmed for one applicant.",
+        "Income evidence Tier 3 for lowest-income applicant."
+      ],
+      "stabilityObservations": [
+        "Income-weighted tenure 2.1 years.",
+        "One applicant work permit within lease term.",
+        "No prior Pleks network tenancy for any applicant."
+      ],
+      "creditObservations": [
+        "Active judgment recorded within last 24 months for one applicant.",
+        "Coverage limited to single bureau for one applicant.",
+        "Capping flag applied — band ceiling limited_confidence."
+      ],
+      "verificationObservations": [
+        "Majority of checks passed; one applicant partial.",
+        "Document consistency check partial for lowest-income applicant.",
+        "No manual overrides."
+      ],
+      "ldpSummary": null,
+      "isTemplated": false,
+      "failureReason": null
+    },
+    "engineVersion": "fitscore.v1.0.1",
+    "narrativeVersion": "narr.v1.0",
+    "interpretationVersion": "interpretation.v1.0",
+    "synthesisVersion": "synthesis.v1.0",
+    "inputsHash": "a1b2c3d4e5f67890",
+    "orgName": "Density Pass Agency",
+    "orgFfcNumber": "FFC-20220001",
+    "dimensions": {
+      "affordability": {
+        "rentToIncomePct": 42,
+        "windowMonths": 6
+      },
+      "stability": {
+        "currentTenureDisplay": "3y 4mo",
+        "employersIn7Years": 1
+      },
+      "credit": {
+        "bureauCoverageDisplay": "3 / 3",
+        "divergencePoints": null
+      },
+      "verification": {
+        "checksPassedDisplay": "5 / 5",
+        "manualOverridesPending": 0,
+        "auditEntriesCount": 5
+      }
+    }
+  }
+}

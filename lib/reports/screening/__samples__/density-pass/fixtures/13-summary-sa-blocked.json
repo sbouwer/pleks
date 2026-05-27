@@ -1,0 +1,180 @@
+{
+  "doctrineClaim": "N=3 summary, blocked band. SAFPS critical flag on primary applicant. Score null. Summary layout still applies.",
+  "data": {
+    "applicationRef": "dp-13",
+    "unitLabel": "3-bedroom townhouse, Sandton, Johannesburg",
+    "generatedAt": "2026-05-26T08:00:00Z",
+    "submittedAt": "2026-05-25T14:00:00Z",
+    "primaryApplicantName": "Jane Mokoena",
+    "coApplicantCount": 2,
+    "applicants": [
+      {
+        "label": "A",
+        "fullName": "Jane Mokoena",
+        "nationalityStatus": "SA Citizen",
+        "idNumberMasked": "8807*****091",
+        "sex": "F",
+        "ageYears": 37,
+        "employment": {
+          "employerName": "Acme Capital (Pty) Ltd",
+          "jobTitle": "Senior Analyst",
+          "tenureDisplay": "3y 4mo"
+        },
+        "verifiedIncomeCents": 3500000,
+        "incomeSharePct": 47,
+        "verificationPassCount": 5,
+        "verificationTotal": 5,
+        "respondingBureaus": [
+          "TransUnion",
+          "VeriCred",
+          "Sigma"
+        ],
+        "pleksNetworkStatus": "none",
+        "pleksNetworkTenancyCount": 0,
+        "isForeignNational": false
+      },
+      {
+        "label": "B",
+        "fullName": "Sipho Dlamini",
+        "nationalityStatus": "SA Citizen",
+        "idNumberMasked": "9201*****082",
+        "sex": "M",
+        "ageYears": 33,
+        "employment": {
+          "employerName": "Acme Capital (Pty) Ltd",
+          "jobTitle": "Senior Analyst",
+          "tenureDisplay": "3y 4mo"
+        },
+        "verifiedIncomeCents": 2500000,
+        "incomeSharePct": 34,
+        "verificationPassCount": 5,
+        "verificationTotal": 5,
+        "respondingBureaus": [
+          "TransUnion",
+          "VeriCred"
+        ],
+        "pleksNetworkStatus": "none",
+        "pleksNetworkTenancyCount": 0,
+        "isForeignNational": false
+      },
+      {
+        "label": "C",
+        "fullName": "Nomsa Khumalo",
+        "nationalityStatus": "SA Citizen",
+        "idNumberMasked": "9407*****034",
+        "sex": "F",
+        "ageYears": 31,
+        "employment": {
+          "employerName": "Acme Capital (Pty) Ltd",
+          "jobTitle": "Senior Analyst",
+          "tenureDisplay": "3y 4mo"
+        },
+        "verifiedIncomeCents": 1500000,
+        "incomeSharePct": 20,
+        "verificationPassCount": 5,
+        "verificationTotal": 5,
+        "respondingBureaus": [
+          "TransUnion"
+        ],
+        "pleksNetworkStatus": "none",
+        "pleksNetworkTenancyCount": 0,
+        "isForeignNational": false
+      }
+    ],
+    "leaseIntent": {
+      "termMonths": 12,
+      "monthlyRentCents": 1950000,
+      "depositMultiplier": 2
+    },
+    "band": "blocked",
+    "score": null,
+    "confidenceIndex": "medium",
+    "verificationIntegrity": "medium",
+    "dimensionalScores": {
+      "affordability": 66,
+      "stability": 60,
+      "creditBehaviour": 42,
+      "verificationIntegrity": 72,
+      "affordability_preferred_threshold": 50,
+      "stability_preferred_threshold": 60,
+      "creditBehaviour_preferred_threshold": 50,
+      "verificationIntegrity_preferred_threshold": 70
+    },
+    "materialFlags": [
+      {
+        "flag": "safps_fraud_match",
+        "class": "critical",
+        "capApplied": false,
+        "capCeiling": null,
+        "applicantId": null,
+        "applicantLabel": "Applicant A",
+        "description": "SAFPS fraud-listing match",
+        "source": "density_pass_fixture",
+        "observedAt": "2026-05-26T08:00:00Z"
+      }
+    ],
+    "isLdp": false,
+    "isAllForeignNational": false,
+    "narrative": {
+      "observedStrengths": [],
+      "observedConcerns": [
+        "SAFPS fraud-listing match returned for primary applicant identity number.",
+        "Assessment blocked — composite score not issued."
+      ],
+      "limitedVisibility": [],
+      "affordabilityEvidenceLine": "Rent 28% of verified joint income.",
+      "stabilityEvidenceLine": "Income-weighted tenure 2.4 years.",
+      "creditEvidenceLine": "Three bureaus responded; SAFPS match recorded for primary applicant.",
+      "verificationEvidenceLine": "Most checks passed; primary applicant identity flagged.",
+      "affordabilityObservations": [
+        "Rent-to-income at 28% — within preferred threshold.",
+        "Score blocked by critical SAFPS flag.",
+        "Affordability metrics otherwise within range."
+      ],
+      "stabilityObservations": [
+        "Income-weighted tenure 2.4 years.",
+        "No adverse stability signals beyond SAFPS.",
+        "Employment patterns consistent across applicants."
+      ],
+      "creditObservations": [
+        "SAFPS fraud-listing match — blocked outcome.",
+        "Three bureaus responded; match confirmed.",
+        "Critical flag overrides composite score."
+      ],
+      "verificationObservations": [
+        "Most checks passed; primary applicant identity flagged.",
+        "Identity match completed but SAFPS match recorded.",
+        "No further overrides possible post-block."
+      ],
+      "ldpSummary": null,
+      "isTemplated": false,
+      "failureReason": null
+    },
+    "engineVersion": "fitscore.v1.0.1",
+    "narrativeVersion": "narr.v1.0",
+    "interpretationVersion": "interpretation.v1.0",
+    "synthesisVersion": "synthesis.v1.0",
+    "inputsHash": "a1b2c3d4e5f67890",
+    "orgName": "Density Pass Agency",
+    "orgFfcNumber": "FFC-20220001",
+    "dimensions": {
+      "affordability": {
+        "rentToIncomePct": 28,
+        "windowMonths": 6
+      },
+      "stability": {
+        "currentTenureDisplay": "3y 4mo",
+        "employersIn7Years": 1
+      },
+      "credit": {
+        "bureauCoverageDisplay": "3 / 3",
+        "divergencePoints": null
+      },
+      "verification": {
+        "checksPassedDisplay": "5 / 5",
+        "manualOverridesPending": 0,
+        "auditEntriesCount": 5
+      }
+    }
+  }
+}

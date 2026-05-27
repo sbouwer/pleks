@@ -1,0 +1,173 @@
+{
+  "doctrineClaim": "N=3 → summary mode. Narrow identity rail visually subordinated. Three-column body per card. 2x2 DimensionCard.",
+  "data": {
+    "applicationRef": "dp-03",
+    "unitLabel": "3-bedroom townhouse, Sandton, Johannesburg",
+    "generatedAt": "2026-05-26T08:00:00Z",
+    "submittedAt": "2026-05-25T14:00:00Z",
+    "primaryApplicantName": "Jane Mokoena",
+    "coApplicantCount": 2,
+    "applicants": [
+      {
+        "label": "A",
+        "fullName": "Jane Mokoena",
+        "nationalityStatus": "SA Citizen",
+        "idNumberMasked": "8807*****091",
+        "sex": "F",
+        "ageYears": 37,
+        "employment": {
+          "employerName": "Acme Capital (Pty) Ltd",
+          "jobTitle": "Senior Analyst",
+          "tenureDisplay": "3y 4mo"
+        },
+        "verifiedIncomeCents": 3500000,
+        "incomeSharePct": 47,
+        "verificationPassCount": 5,
+        "verificationTotal": 5,
+        "respondingBureaus": [
+          "TransUnion",
+          "VeriCred",
+          "Sigma"
+        ],
+        "pleksNetworkStatus": "none",
+        "pleksNetworkTenancyCount": 0,
+        "isForeignNational": false
+      },
+      {
+        "label": "B",
+        "fullName": "Sipho Dlamini",
+        "nationalityStatus": "SA Citizen",
+        "idNumberMasked": "9201*****082",
+        "sex": "M",
+        "ageYears": 33,
+        "employment": {
+          "employerName": "Metro Bank Ltd",
+          "jobTitle": "Financial Advisor",
+          "tenureDisplay": "2y 1mo"
+        },
+        "verifiedIncomeCents": 2500000,
+        "incomeSharePct": 34,
+        "verificationPassCount": 5,
+        "verificationTotal": 5,
+        "respondingBureaus": [
+          "TransUnion",
+          "VeriCred"
+        ],
+        "pleksNetworkStatus": "none",
+        "pleksNetworkTenancyCount": 0,
+        "isForeignNational": false
+      },
+      {
+        "label": "C",
+        "fullName": "Nomsa Khumalo",
+        "nationalityStatus": "SA Citizen",
+        "idNumberMasked": "9407*****034",
+        "sex": "F",
+        "ageYears": 31,
+        "employment": {
+          "employerName": "City Works Dept",
+          "jobTitle": "Administrator",
+          "tenureDisplay": "1y 6mo"
+        },
+        "verifiedIncomeCents": 1500000,
+        "incomeSharePct": 20,
+        "verificationPassCount": 4,
+        "verificationTotal": 5,
+        "respondingBureaus": [
+          "TransUnion"
+        ],
+        "pleksNetworkStatus": "none",
+        "pleksNetworkTenancyCount": 0,
+        "isForeignNational": false
+      }
+    ],
+    "leaseIntent": {
+      "termMonths": 12,
+      "monthlyRentCents": 1950000,
+      "depositMultiplier": 2
+    },
+    "band": "stable_profile",
+    "score": 75,
+    "confidenceIndex": "medium",
+    "verificationIntegrity": "medium",
+    "dimensionalScores": {
+      "affordability": 74,
+      "stability": 72,
+      "creditBehaviour": 70,
+      "verificationIntegrity": 80,
+      "affordability_preferred_threshold": 50,
+      "stability_preferred_threshold": 60,
+      "creditBehaviour_preferred_threshold": 50,
+      "verificationIntegrity_preferred_threshold": 70
+    },
+    "materialFlags": [],
+    "isLdp": false,
+    "isAllForeignNational": false,
+    "narrative": {
+      "observedStrengths": [
+        "Identity match confirmed for all applicants.",
+        "Bureau coverage across two to three bureaus per SA applicant.",
+        "Joint income well above minimum affordability threshold."
+      ],
+      "observedConcerns": [
+        "Bureau coverage partial for one applicant."
+      ],
+      "limitedVisibility": [
+        "No Pleks network history for any applicant."
+      ],
+      "affordabilityEvidenceLine": "Rent 26% of verified joint income; debt servicing 11%.",
+      "stabilityEvidenceLine": "Income-weighted tenure 2.9 years; one rental reference verified.",
+      "creditEvidenceLine": "Coverage-weighted median across two to three bureaus per SA applicant.",
+      "verificationEvidenceLine": "Majority of checks passed across applicant group.",
+      "affordabilityObservations": [
+        "Rent-to-income at 26% — within preferred threshold.",
+        "Debt servicing stable across the observation window.",
+        "No material income variance from bank-verified figure."
+      ],
+      "stabilityObservations": [
+        "Income-weighted tenure 2.9 years.",
+        "One rental reference verified in Pleks network.",
+        "No adverse stability signals."
+      ],
+      "creditObservations": [
+        "Coverage-weighted median across two to three bureaus.",
+        "No adverse listings detected.",
+        "Scores within stable-band range for all SA applicants."
+      ],
+      "verificationObservations": [
+        "Majority of checks passed across applicant group.",
+        "Identity match confirmed for all applicants.",
+        "No manual overrides pending."
+      ],
+      "ldpSummary": null,
+      "isTemplated": false,
+      "failureReason": null
+    },
+    "engineVersion": "fitscore.v1.0.1",
+    "narrativeVersion": "narr.v1.0",
+    "interpretationVersion": "interpretation.v1.0",
+    "synthesisVersion": "synthesis.v1.0",
+    "inputsHash": "a1b2c3d4e5f67890",
+    "orgName": "Density Pass Agency",
+    "orgFfcNumber": "FFC-20220001",
+    "dimensions": {
+      "affordability": {
+        "rentToIncomePct": 27,
+        "windowMonths": 6
+      },
+      "stability": {
+        "currentTenureDisplay": "3y 4mo",
+        "employersIn7Years": 1
+      },
+      "credit": {
+        "bureauCoverageDisplay": "3 / 3",
+        "divergencePoints": null
+      },
+      "verification": {
+        "checksPassedDisplay": "5 / 5",
+        "manualOverridesPending": 0,
+        "auditEntriesCount": 5
+      }
+    }
+  }
+}

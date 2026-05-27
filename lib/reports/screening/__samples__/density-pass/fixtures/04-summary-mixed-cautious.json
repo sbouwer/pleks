@@ -1,0 +1,182 @@
+{
+  "doctrineClaim": "N=3 summary, mixed lease. 2x2 DimensionCard with isMixed reduced-coverage note on Credit card. No eyebrow.",
+  "data": {
+    "applicationRef": "dp-04",
+    "unitLabel": "3-bedroom townhouse, Sandton, Johannesburg",
+    "generatedAt": "2026-05-26T08:00:00Z",
+    "submittedAt": "2026-05-25T14:00:00Z",
+    "primaryApplicantName": "Jane Mokoena",
+    "coApplicantCount": 2,
+    "applicants": [
+      {
+        "label": "A",
+        "fullName": "Jane Mokoena",
+        "nationalityStatus": "SA Citizen",
+        "idNumberMasked": "8807*****091",
+        "sex": "F",
+        "ageYears": 37,
+        "employment": {
+          "employerName": "Acme Capital (Pty) Ltd",
+          "jobTitle": "Senior Analyst",
+          "tenureDisplay": "3y 4mo"
+        },
+        "verifiedIncomeCents": 3000000,
+        "incomeSharePct": 54,
+        "verificationPassCount": 5,
+        "verificationTotal": 5,
+        "respondingBureaus": [
+          "TransUnion",
+          "VeriCred"
+        ],
+        "pleksNetworkStatus": "none",
+        "pleksNetworkTenancyCount": 0,
+        "isForeignNational": false
+      },
+      {
+        "label": "B",
+        "fullName": "Sipho Dlamini",
+        "nationalityStatus": "SA Citizen",
+        "idNumberMasked": "9201*****082",
+        "sex": "M",
+        "ageYears": 33,
+        "employment": {
+          "employerName": "Metro Bank Ltd",
+          "jobTitle": "Teller",
+          "tenureDisplay": "1y 3mo"
+        },
+        "verifiedIncomeCents": 1800000,
+        "incomeSharePct": 32,
+        "verificationPassCount": 4,
+        "verificationTotal": 5,
+        "respondingBureaus": [
+          "TransUnion"
+        ],
+        "pleksNetworkStatus": "none",
+        "pleksNetworkTenancyCount": 0,
+        "isForeignNational": false
+      },
+      {
+        "label": "C",
+        "fullName": "Amara Okonkwo",
+        "nationalityStatus": "Foreign National (Work Permit, expires 2027-08-15)",
+        "idNumberMasked": "M*****3",
+        "sex": null,
+        "ageYears": null,
+        "employment": {
+          "employerName": "Global Solutions Ltd",
+          "jobTitle": "Associate",
+          "tenureDisplay": "0y 8mo"
+        },
+        "verifiedIncomeCents": 800000,
+        "incomeSharePct": 14,
+        "verificationPassCount": 5,
+        "verificationTotal": 5,
+        "respondingBureaus": [],
+        "pleksNetworkStatus": "none",
+        "pleksNetworkTenancyCount": 0,
+        "isForeignNational": true
+      }
+    ],
+    "leaseIntent": {
+      "termMonths": 12,
+      "monthlyRentCents": 1950000,
+      "depositMultiplier": 2
+    },
+    "band": "cautious_review",
+    "score": 59,
+    "confidenceIndex": "medium",
+    "verificationIntegrity": "medium",
+    "dimensionalScores": {
+      "affordability": 55,
+      "stability": 58,
+      "creditBehaviour": 56,
+      "verificationIntegrity": 70,
+      "affordability_preferred_threshold": 50,
+      "stability_preferred_threshold": 60,
+      "creditBehaviour_preferred_threshold": 50,
+      "verificationIntegrity_preferred_threshold": 70
+    },
+    "materialFlags": [
+      {
+        "flag": "permit_expires_within_lease",
+        "class": "capping",
+        "capApplied": true,
+        "capCeiling": "stable_profile",
+        "applicantId": null,
+        "applicantLabel": "Applicant A",
+        "description": "Work permit expires within proposed lease term",
+        "source": "density_pass_fixture",
+        "observedAt": "2026-05-26T08:00:00Z"
+      }
+    ],
+    "isLdp": false,
+    "isAllForeignNational": false,
+    "narrative": {
+      "observedStrengths": [
+        "Identity match confirmed for all applicants.",
+        "Bank statement deposit patterns match employer names."
+      ],
+      "observedConcerns": [
+        "Rent exceeds 35% guideline against joint verified income.",
+        "One applicant with bureau coverage limited to a single bureau."
+      ],
+      "limitedVisibility": [
+        "No Pleks network history.",
+        "One applicant has no SA bureau coverage (foreign national)."
+      ],
+      "affordabilityEvidenceLine": "Rent 36% of verified joint income; debt servicing 18%.",
+      "stabilityEvidenceLine": "Income-weighted tenure 1.7 years; no rental references verified.",
+      "creditEvidenceLine": "Coverage-weighted median for SA applicants; foreign national excluded.",
+      "verificationEvidenceLine": "Most verification checks passed; one applicant partial.",
+      "affordabilityObservations": [
+        "Rent-to-income above 35% guideline.",
+        "Declared income exceeds bank-verified figure.",
+        "Affordability threshold breached for the primary applicant."
+      ],
+      "stabilityObservations": [
+        "Income-weighted tenure 1.7 years — below preferred threshold.",
+        "No rental references verified.",
+        "Employment tenure below preferred threshold for two applicants."
+      ],
+      "creditObservations": [
+        "Coverage partial — one bureau non-responding for primary applicant.",
+        "Score median within cautious-review range.",
+        "No active judgments; bureau thin flag applied."
+      ],
+      "verificationObservations": [
+        "Most checks passed; one applicant partial.",
+        "Salary reconciliation partial for one applicant.",
+        "No audit overrides applied."
+      ],
+      "ldpSummary": null,
+      "isTemplated": false,
+      "failureReason": null
+    },
+    "engineVersion": "fitscore.v1.0.1",
+    "narrativeVersion": "narr.v1.0",
+    "interpretationVersion": "interpretation.v1.0",
+    "synthesisVersion": "synthesis.v1.0",
+    "inputsHash": "a1b2c3d4e5f67890",
+    "orgName": "Density Pass Agency",
+    "orgFfcNumber": "FFC-20220001",
+    "dimensions": {
+      "affordability": {
+        "rentToIncomePct": 38,
+        "windowMonths": 6
+      },
+      "stability": {
+        "currentTenureDisplay": "3y 4mo",
+        "employersIn7Years": 1
+      },
+      "credit": {
+        "bureauCoverageDisplay": "3 / 3",
+        "divergencePoints": null
+      },
+      "verification": {
+        "checksPassedDisplay": "5 / 5",
+        "manualOverridesPending": 0,
+        "auditEntriesCount": 5
+      }
+    }
+  }
+}

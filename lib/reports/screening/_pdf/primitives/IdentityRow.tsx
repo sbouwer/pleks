@@ -95,26 +95,31 @@ function buildIdLine(entry: FitScoreApplicantEntry): string {
   return parts.join(' · ')
 }
 
-function ApplicantRow({ entry, isFirst, isLast, screenDate, screenTime, isJoint }: Readonly<{
+function ApplicantRow({ entry, isFirst, isLast, screenDate, screenTime, totalApplicants }: Readonly<{
   entry: FitScoreApplicantEntry
   isFirst: boolean
   isLast: boolean
   screenDate: string
   screenTime: string
-  isJoint: boolean
+  totalApplicants: number
 }>) {
+  const isJoint       = totalApplicants >= 2
   const idLine        = buildIdLine(entry)
   const employerName  = sp(entry.employment?.employerName ?? 'Employment not provided')
   const employmentSub = entry.employment
     ? sp(`${entry.employment.jobTitle} · ${entry.employment.tenureDisplay}`)
     : ''
 
+  const surname     = entry.fullName.split(/\s+/).at(-1) ?? entry.fullName
+  const nameDisplay = isJoint ? sp(`${surname} + ${totalApplicants - 1}`) : sp(entry.fullName)
+  const metaDisplay = isJoint ? 'Joint application' : idLine
+
   return (
     <View style={[S.row, isFirst ? {} : S.divider]}>
       <View style={S.cell}>
-        <Text style={S.label}>{isJoint ? 'PRIMARY APPLICANT' : 'APPLICANT'}</Text>
-        <Text style={S.name}>{sp(entry.fullName)}</Text>
-        <Text style={S.meta}>{idLine}</Text>
+        <Text style={S.label}>{isJoint ? 'APPLICANTS' : 'APPLICANT'}</Text>
+        <Text style={S.name}>{nameDisplay}</Text>
+        <Text style={S.meta}>{metaDisplay}</Text>
       </View>
 
       <View style={S.cell}>
@@ -138,7 +143,6 @@ export function IdentityRow({ data }: Readonly<IdentityRowProps>) {
   // For multi-applicant leases, IdentityRow shows the primary applicant only.
   // Additional applicants render in ApplicantDetail (placed after BandLadder in §1).
   const visible    = data.applicants.slice(0, 1)
-  const isJoint    = data.applicants.length >= 2
   const screenDate = sp(fmtShortDate(data.generatedAt))
   const screenTime = sp(fmtTime(data.generatedAt))
 
@@ -152,7 +156,7 @@ export function IdentityRow({ data }: Readonly<IdentityRowProps>) {
           isLast={i === visible.length - 1}
           screenDate={screenDate}
           screenTime={screenTime}
-          isJoint={isJoint}
+          totalApplicants={data.applicants.length}
         />
       ))}
     </View>

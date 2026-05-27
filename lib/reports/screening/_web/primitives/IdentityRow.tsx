@@ -35,13 +35,17 @@ export function IdentityRow({ data }: Readonly<IdentityRowProps>): JSX.Element |
   const screenDate = fmtShortDate(data.generatedAt)
   const screenTime = fmtTime(data.generatedAt)
 
+  const surname     = entry.fullName.split(/\s+/).at(-1) ?? entry.fullName
+  const nameDisplay = isJoint ? `${surname} + ${data.applicants.length - 1}` : entry.fullName
+  const metaDisplay = isJoint ? "Joint application" : idLine
+
   return (
     <div className="border border-t-2 border-t-foreground border-border bg-card mb-5">
       <div className="flex">
         <div className="flex-1 px-4 py-3 border-r border-border">
-          <div className="font-mono text-[8px] uppercase tracking-widest text-muted-foreground mb-1.5">{isJoint ? "Primary applicant" : "Applicant"}</div>
-          <div className="font-bold text-lg text-foreground leading-tight">{entry.fullName}</div>
-          <div className="text-xs text-muted-foreground mt-1">{idLine}</div>
+          <div className="font-mono text-[8px] uppercase tracking-widest text-muted-foreground mb-1.5">{isJoint ? "Applicants" : "Applicant"}</div>
+          <div className="font-bold text-lg text-foreground leading-tight">{nameDisplay}</div>
+          <div className="text-xs text-muted-foreground mt-1">{metaDisplay}</div>
         </div>
         <div className="flex-1 px-4 py-3 border-r border-border">
           <div className="font-mono text-[8px] uppercase tracking-widest text-muted-foreground mb-1.5">Employment</div>
