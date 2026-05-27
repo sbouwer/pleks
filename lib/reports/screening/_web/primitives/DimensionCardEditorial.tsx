@@ -87,7 +87,7 @@ function AffordabilityBody({ data, score }: Readonly<{ data: FitScoreReportData;
   const dim = data.dimensions.affordability
   return (
     <div>
-      <p className="font-bold text-sm text-foreground leading-snug mb-2">{data.narrative.affordabilityEvidenceLine}</p>
+      <p className="font-bold text-sm text-foreground leading-snug mb-2 min-h-[38px]">{data.narrative.affordabilityEvidenceLine}</p>
       <div className="border-t border-b border-border py-2 mb-2">
         <StatRow label="Score"  value={String(score)} />
         <StatRow label="Rent"   value={`${dim.rentToIncomePct}% of income`} muted />
@@ -103,7 +103,7 @@ function StabilityBody({ data, score }: Readonly<{ data: FitScoreReportData; sco
   const dim = data.dimensions.stability
   return (
     <div>
-      <p className="font-bold text-sm text-foreground leading-snug mb-2">{data.narrative.stabilityEvidenceLine}</p>
+      <p className="font-bold text-sm text-foreground leading-snug mb-2 min-h-[38px]">{data.narrative.stabilityEvidenceLine}</p>
       <div className="border-t border-b border-border py-2 mb-2">
         <StatRow label="Score"          value={String(score)} />
         <StatRow label="Current tenure" value={dim.currentTenureDisplay}  muted />
@@ -123,7 +123,7 @@ function CreditBody({ data }: Readonly<{ data: FitScoreReportData }>): JSX.Eleme
   const isMixed    = data.applicants.some(a => a.isForeignNational) && !data.isAllForeignNational
   return (
     <div>
-      <p className="font-bold text-sm text-foreground leading-snug mb-2">{data.narrative.creditEvidenceLine}</p>
+      <p className="font-bold text-sm text-foreground leading-snug mb-2 min-h-[38px]">{data.narrative.creditEvidenceLine}</p>
       <div className="border-t border-b border-border py-2 mb-2">
         <StatRow label="Score"           value={String(score)} />
         <StatRow label="Bureau coverage" value={dim.bureauCoverageDisplay} muted />
@@ -144,7 +144,7 @@ function VerificationBody({ data, score }: Readonly<{ data: FitScoreReportData; 
   const dim = data.dimensions.verification
   return (
     <div>
-      <p className="font-bold text-sm text-foreground leading-snug mb-2">{data.narrative.verificationEvidenceLine}</p>
+      <p className="font-bold text-sm text-foreground leading-snug mb-2 min-h-[38px]">{data.narrative.verificationEvidenceLine}</p>
       <div className="border-t border-b border-border py-2 mb-2">
         <StatRow label="Score"             value={String(score)} />
         <StatRow label="Checks"            value={dim.checksPassedDisplay}          />
@@ -205,7 +205,7 @@ export function DimensionCardEditorial({ data }: Readonly<DimensionCardEditorial
             : <StabilityBody data={data} score={stabScore} />
           }
         </DimCard>
-        <DimCard label="04 Verification integrity" docRef="3.2" isThird noRight noBottom>
+        <DimCard label="04 Verification" docRef="3.2" isThird noRight noBottom>
           {viScore === null
             ? <PlaceholderCard variant="notAssessed" message={NOT_ASSESSED_MSG} />
             : <VerificationBody data={data} score={viScore} />

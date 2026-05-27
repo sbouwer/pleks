@@ -68,6 +68,7 @@ const S = StyleSheet.create({
     letterSpacing: -0.1,
     lineHeight:    1.3,
     marginBottom:  8,
+    minHeight:     29,
   },
 
   stats: {
@@ -351,7 +352,7 @@ export function DimensionCardEditorial({ data }: Readonly<DimensionCardEditorial
             : <StabilityCard data={data} score={stabScore} />
           }
         </DimCard>
-        <DimCard label="04 Verification integrity" docRef="3.2" isThird noRight noBottom>
+        <DimCard label="04 Verification" docRef="3.2" isThird noRight noBottom>
           {viScore === null
             ? <PlaceholderCard variant="notAssessed" message={NOT_ASSESSED_MSG} />
             : <VerificationCard data={data} score={viScore} />

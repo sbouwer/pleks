@@ -27,7 +27,7 @@ export function DimensionReadingGuide({ data }: Readonly<{ data: FitScoreReportD
   if (data.isLdp) return null
   return (
     <div className="border border-border bg-card mb-5">
-      <BlockHeader label="—" title="Reading guide · Dimensions" rightTag="How to read the four dimension cards above" />
+      <BlockHeader label="—" title="Reading guide · Dimensions" rightTag={data.isAllForeignNational ? "How to read the three dimension cards above" : "How to read the four dimension cards above"} />
       {ROWS.map((row, i) => (
         <div key={row.label} className={`flex gap-3 px-4 py-2.5 items-start ${i < ROWS.length - 1 ? "border-b border-border" : ""}`}>
           <span className="w-32 shrink-0 text-sm font-semibold text-foreground leading-relaxed">{row.label}</span>

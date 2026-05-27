@@ -32,16 +32,24 @@ function bureauCount(e: FitScoreApplicantEntry): string {
   return `${n} bureau${n === 1 ? "" : "s"}`
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function Val({ val, muted = false }: Readonly<{ val: string; muted?: boolean }>): JSX.Element {
+  return (
+    <span className={`font-mono text-[10px] leading-snug ${muted ? "text-muted-foreground" : "text-foreground"}`}>{val}</span>
+  )
+}
+
 // ─── Metric row in the comparison table ──────────────────────────────────────
 
-function MetricRow({ label, cells }: Readonly<{ label: string; cells: JSX.Element[] }>): JSX.Element {
+function MetricRow({ label, cells, keys }: Readonly<{ label: string; cells: JSX.Element[]; keys: string[] }>): JSX.Element {
   return (
     <tr className="border-b border-border last:border-0">
       <td className="font-mono text-[8px] uppercase tracking-widest text-muted-foreground px-3 py-2 bg-paper-sunk border-r border-border w-28 shrink-0 align-top">
         {label}
       </td>
       {cells.map((cell, i) => (
-        <td key={i} className="px-3 py-2 border-r border-[var(--rule-strong)] last:border-0 align-top w-1/4">
+        <td key={keys[i]} className="px-3 py-2 border-r border-[var(--rule-strong)] last:border-0 align-top w-1/4">
           {cell}
         </td>
       ))}
@@ -56,9 +64,6 @@ interface ApplicantDetailComparativeProps {
 }
 
 export function ApplicantDetailComparative({ applicants }: Readonly<ApplicantDetailComparativeProps>): JSX.Element {
-  const Val = ({ val, muted = false }: { val: string; muted?: boolean }) => (
-    <span className={`font-mono text-[10px] leading-snug ${muted ? "text-muted-foreground" : "text-foreground"}`}>{val}</span>
-  )
   const n = applicants.length
   const first = applicants[0]
   const surname = first.fullName.split(/\s+/).at(-1) ?? first.fullName
@@ -97,10 +102,12 @@ export function ApplicantDetailComparative({ applicants }: Readonly<ApplicantDet
           <tbody>
             <MetricRow
               label="Identity"
+              keys={applicants.map(e => e.label)}
               cells={applicants.map(e => <Val key={e.label} val={idLine(e)} />)}
             />
             <MetricRow
               label="Employer"
+              keys={applicants.map(e => e.label)}
               cells={applicants.map(e => (
                 <Val
                   key={e.label}
@@ -111,6 +118,7 @@ export function ApplicantDetailComparative({ applicants }: Readonly<ApplicantDet
             />
             <MetricRow
               label="Income"
+              keys={applicants.map(e => e.label)}
               cells={applicants.map(e => (
                 <span key={e.label} className="font-mono text-[10px] text-foreground">
                   {fmtZAR(e.verifiedIncomeCents)}
@@ -120,14 +128,17 @@ export function ApplicantDetailComparative({ applicants }: Readonly<ApplicantDet
             />
             <MetricRow
               label="Verification"
+              keys={applicants.map(e => e.label)}
               cells={applicants.map(e => <Val key={e.label} val={`${e.verificationPassCount} of ${e.verificationTotal}`} />)}
             />
             <MetricRow
               label="Bureaus"
+              keys={applicants.map(e => e.label)}
               cells={applicants.map(e => <Val key={e.label} val={bureauCount(e)} />)}
             />
             <MetricRow
               label="Network"
+              keys={applicants.map(e => e.label)}
               cells={applicants.map(e => (
                 <Val key={e.label} val={networkCompact(e)} muted={e.pleksNetworkStatus === "none"} />
               ))}

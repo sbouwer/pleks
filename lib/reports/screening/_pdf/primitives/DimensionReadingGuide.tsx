@@ -74,7 +74,7 @@ export function DimensionReadingGuide({ data }: Readonly<{ data: FitScoreReportD
   return (
     <View style={S.wrap} wrap={false}>
       <View style={S.card}>
-        <BlockHeader label="—" title="Reading guide · Dimensions" rightTag="How to read the four dimension cards above" />
+        <BlockHeader label="—" title="Reading guide · Dimensions" rightTag={data.isAllForeignNational ? "How to read the three dimension cards above" : "How to read the four dimension cards above"} />
         {ROWS.map((row, i) => (
           <View key={`${i}-${row.label.slice(0, 8)}`} style={i === ROWS.length - 1 ? S.rowLast : S.row}>
             <Text style={S.rowLabel}>{row.label}</Text>
