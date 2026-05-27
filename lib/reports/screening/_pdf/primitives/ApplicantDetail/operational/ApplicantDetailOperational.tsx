@@ -108,14 +108,15 @@ const S = StyleSheet.create({
     lineHeight: 1.35,
     marginTop:  1,
   },
-  // Column widths — borderRight matches row border weight (0.75); paddingHorizontal gives breathing room
-  tcL:  { flex: 0.5, borderRightWidth: 0.75, borderRightColor: C.rule.base },
-  tcN:  { flex: 1.4, borderRightWidth: 0.75, borderRightColor: C.rule.base, paddingHorizontal: 4 },
-  tcNa: { flex: 1.2, borderRightWidth: 0.75, borderRightColor: C.rule.base, paddingHorizontal: 4 },
-  tcI:  { flex: 1.1, borderRightWidth: 0.75, borderRightColor: C.rule.base, paddingHorizontal: 4 },
-  tcV:  { flex: 0.8, borderRightWidth: 0.75, borderRightColor: C.rule.base, paddingHorizontal: 4 },
-  tcB:  { flex: 0.8, borderRightWidth: 0.75, borderRightColor: C.rule.base, paddingHorizontal: 4 },
+  // Column widths — explicit sep View between columns for consistent divider rendering
+  tcL:  { flex: 0.5 },
+  tcN:  { flex: 1.4, paddingHorizontal: 4 },
+  tcNa: { flex: 1.2, paddingHorizontal: 4 },
+  tcI:  { flex: 1.1, paddingHorizontal: 4 },
+  tcV:  { flex: 0.8, paddingHorizontal: 4 },
+  tcB:  { flex: 0.8, paddingHorizontal: 4 },
   tcNw: { flex: 0.8, paddingLeft: 4 },
+  sep:  { width: 0.75, backgroundColor: C.rule.base },
 })
 
 // ─── Table row ────────────────────────────────────────────────────────────────
@@ -168,11 +169,17 @@ export function ApplicantDetailOperational({ applicants }: Readonly<ApplicantDet
         </View>
         <View style={S.tabHead}>
           <View style={S.tcL}><Text style={S.tabHL}>APPL</Text></View>
+          <View style={S.sep} />
           <View style={S.tcN}><Text style={S.tabHL}>NAME</Text></View>
+          <View style={S.sep} />
           <View style={S.tcNa}><Text style={S.tabHL}>NATIONALITY</Text></View>
+          <View style={S.sep} />
           <View style={S.tcI}><Text style={S.tabHL}>INCOME</Text></View>
+          <View style={S.sep} />
           <View style={S.tcV}><Text style={S.tabHL}>VERIF.</Text></View>
+          <View style={S.sep} />
           <View style={S.tcB}><Text style={S.tabHL}>BUREAUS</Text></View>
+          <View style={S.sep} />
           <View style={S.tcNw}><Text style={S.tabHL}>NETWORK</Text></View>
         </View>
         {applicants.map((e, i) => (
