@@ -1,23 +1,30 @@
 /**
- * lib/extraction/pipeline.ts — Phase 1 extraction pipeline
+ * lib/extraction/pipeline.ts — Extraction pipeline (Phase 1 + Phase 2a)
  *
- * Orchestration: validate → format-detect → archetype-derive → doctype-classify → language
+ * Orchestration: validate → format-detect → archetype-derive → doctype-classify → extract
  *
  * Archetype is derived deterministically from unitType + applicantCount (no AI call).
  * Document type classification uses Claude Haiku per document.
+ * Per-type extraction uses Claude Sonnet per document (Phase 2a: ID, payslip,
+ * bank statement, employer letter, proof of address).
  *
  * Shared verbatim between production (Next.js API route) and the local harness
  * (scripts/extraction-harness/). The harness passes suppressLogging: true to suppress
  * ai_usage writes (D-14L-20).
  *
- * Spec: ADDENDUM_14L §4.2
+ * Spec: ADDENDUM_14L §4.2, §4.6, §4.7
  */
 import { validateUpload } from "./uploadValidator"
 import { detectFormat } from "./formatDetector"
 import { detectLanguage } from "./languageDetector"
 import { deriveArchetype } from "./archetypeClassifier"
 import { classifyDocumentType } from "./documentTypeClassifier"
-import type { ApplicationArchetype, ApplicationInput, Document } from "./types"
+import { extractId } from "./extractors/id"
+import { extractPayslip } from "./extractors/payslip"
+import { extractBankStatement } from "./extractors/bankStatement"
+import { extractEmployerLetter } from "./extractors/employerLetter"
+import { extractProofOfAddress } from "./extractors/proofOfAddress"
+import type { ApplicationArchetype, ApplicationInput, Document, DocumentExtraction } from "./types"
 import type { AiCallOptions } from "@/lib/ai/client"
 
 export interface PipelineDocumentResult {
@@ -30,6 +37,8 @@ export interface PipelineDocumentResult {
   documentTypeConfidence?: number
   language?: string
   classifyNote?: string
+  extracted?: DocumentExtraction
+  extractionConfidence?: number
 }
 
 export interface PipelineResult {
@@ -44,6 +53,21 @@ interface ClassifyResult {
   confidence: number
   language: string
   classifyNote?: string
+}
+
+async function extractDocument(doc: Document, aiOpts: AiOpts): Promise<DocumentExtraction> {
+  try {
+    switch (doc.documentType) {
+      case "id-document":      return await extractId(doc, aiOpts)
+      case "payslip":          return await extractPayslip(doc, aiOpts)
+      case "bank-statement":   return await extractBankStatement(doc, aiOpts)
+      case "employer-letter":  return await extractEmployerLetter(doc, aiOpts)
+      case "proof-of-address": return await extractProofOfAddress(doc, aiOpts)
+      default:                 return null
+    }
+  } catch {
+    return null
+  }
 }
 
 function gateDocument(
@@ -119,6 +143,18 @@ export async function runPipeline(
   for (const doc of classifiableDocs) {
     const result = await classifyDocWithFallback(doc, archetype, aiOpts)
     applyClassification(doc, result, results)
+  }
+
+  // Phase 2a: per-type structured extraction (ID, payslip, bank statement, employer letter, proof of address)
+  for (const doc of classifiableDocs) {
+    const extraction = await extractDocument(doc, aiOpts)
+    if (extraction !== null) {
+      const idx = results.findIndex(r => r.path === doc.path)
+      if (idx !== -1) {
+        results[idx].extracted            = extraction
+        results[idx].extractionConfidence = extraction.extraction_confidence
+      }
+    }
   }
 
   return { archetype, documents: results }

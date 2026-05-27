@@ -11,16 +11,17 @@ export interface HarnessRunResult {
   classified: number
   rejectedAtUpload: number
   unknownType: number
+  extracted: number
   durationMs: number
   error?: string
 }
 
-const LINE = "-".repeat(110)
+const LINE = "-".repeat(120)
 
 const HEADER =
   "     " +
   pad("FOLDER", 35) + pad("ARCHETYPE", 28) +
-  pad("DOCS", 6) + pad("OK", 5) + pad("REJ", 5) + pad("UNK", 5) + pad("ms", 7)
+  pad("DOCS", 6) + pad("OK", 5) + pad("REJ", 5) + pad("UNK", 5) + pad("EXT", 5) + pad("ms", 7)
 
 function getRowIcon(r: HarnessRunResult): string {
   if (r.error)                return "[ERR]"
@@ -36,11 +37,11 @@ function formatRow(r: HarnessRunResult): string {
     pad(r.folderName, 35) + pad(archStr, 28) +
     pad(String(r.totalDocs), 6) + pad(String(r.classified), 5) +
     pad(String(r.rejectedAtUpload), 5) + pad(String(r.unknownType), 5) +
-    pad(String(r.durationMs), 7)
+    pad(String(r.extracted), 5) + pad(String(r.durationMs), 7)
   )
 }
 
-function sumField(results: HarnessRunResult[], key: "totalDocs" | "classified" | "rejectedAtUpload" | "unknownType"): number {
+function sumField(results: HarnessRunResult[], key: "totalDocs" | "classified" | "rejectedAtUpload" | "unknownType" | "extracted"): number {
   return results.reduce((s, r) => s + r[key], 0)
 }
 
@@ -68,11 +69,12 @@ export function printSummaryTable(results: HarnessRunResult[]): void {
   const totalClassified = sumField(results, "classified")
   const totalRejected   = sumField(results, "rejectedAtUpload")
   const totalUnknown    = sumField(results, "unknownType")
+  const totalExtracted  = sumField(results, "extracted")
   const errors          = results.filter(r => r.error).length
   const archetypesOk    = results.filter(r => r.archetype !== null && !r.error).length
 
   console.log(LINE)
-  console.log("     " + pad("TOTAL", 35) + pad("", 28) + pad(String(totalDocs), 6) + pad(String(totalClassified), 5) + pad(String(totalRejected), 5) + pad(String(totalUnknown), 5))
+  console.log("     " + pad("TOTAL", 35) + pad("", 28) + pad(String(totalDocs), 6) + pad(String(totalClassified), 5) + pad(String(totalRejected), 5) + pad(String(totalUnknown), 5) + pad(String(totalExtracted), 5))
   console.log(LINE)
   console.log()
   console.log(`Folders processed:   ${results.length}`)
@@ -81,6 +83,7 @@ export function printSummaryTable(results: HarnessRunResult[]): void {
   console.log(`Classified:          ${totalClassified}`)
   console.log(`Rejected at upload:  ${totalRejected}`)
   console.log(`Type unknown:        ${totalUnknown}`)
+  console.log(`Extracted:           ${totalExtracted}`)
   if (errors > 0) console.log(`Pipeline errors:     ${errors}`)
 
   printGate(archetypesOk, results.length, errors)

@@ -22,7 +22,7 @@ import { printSummaryTable } from "./lib/reporter"
 import type { HarnessRunResult } from "./lib/reporter"
 
 async function main() {
-  console.log("Extraction Harness — Phase 1 (classification only)")
+  console.log("Extraction Harness — Phase 2a (classification + extraction)")
   console.log("Test data: brief/build/_TEST/")
   console.log("Output:    brief/build/_HARNESS_OUTPUT/\n")
 
@@ -58,6 +58,9 @@ async function main() {
       const unknownType      = pipelineResult.documents.filter(
         d => d.status === "classified" && d.documentType === "unknown",
       ).length
+      const extracted        = pipelineResult.documents.filter(
+        d => d.status === "classified" && d.extracted != null,
+      ).length
       const durationMs = Date.now() - start
 
       results.push({
@@ -67,6 +70,7 @@ async function main() {
         classified,
         rejectedAtUpload,
         unknownType,
+        extracted,
         durationMs,
       })
 
@@ -81,6 +85,7 @@ async function main() {
         classified:    0,
         rejectedAtUpload: 0,
         unknownType:   folder.documents.length,
+        extracted:     0,
         durationMs:    Date.now() - start,
         error:         msg,
       })
