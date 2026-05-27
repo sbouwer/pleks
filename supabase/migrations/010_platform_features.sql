@@ -2360,84 +2360,234 @@ CREATE POLICY "owners manage org capabilities" ON user_capabilities
   );
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- §30  BUILD_AUTH_RESOLVER: onboarding_state + enforce_single_active_membership
+-- §30  BUILD_AUTH_RESOLVER: onboarding_state + one-active-membership invariant
 -- ═══════════════════════════════════════════════════════════════════════════════
--- Adds user_profiles.onboarding_state to persist multi-step wizard progress.
--- enforce_single_active_membership() trigger enforces I-4: one auth.uid() = one
--- active membership across user_orgs (agent), user_orgs_tenants (tenant), and
--- landlords (landlord, portal_access_enabled = true only). Raises SQLSTATE 23514.
+-- Spec: ADDENDUM_AUTH_RESOLVER §8.1 + §4.5 (amended by ADDENDUM_AUTH_RESOLVER_AMENDMENTS_2026-05-27)
+-- Amendment 4: onboarding_state is TEXT CHECK enum (not jsonb); onboarding_progress is JSONB sidecar.
+-- Amendment 1: I-4 trigger restructured around per-table is_*_active() predicates.
+
+-- ── §30.1  onboarding columns ───────────────────────────────────────────────
+
+-- Drop old jsonb column if it exists (was wrong type from first draft)
+ALTER TABLE user_profiles DROP COLUMN IF EXISTS onboarding_state;
+ALTER TABLE user_profiles DROP CONSTRAINT IF EXISTS user_profiles_onboarding_state_check;
+DROP INDEX IF EXISTS idx_user_profiles_onboarding_pending;
 
 ALTER TABLE user_profiles
-  ADD COLUMN IF NOT EXISTS onboarding_state jsonb NULL;
+  ADD COLUMN IF NOT EXISTS onboarding_state TEXT
+    CHECK (onboarding_state IN (
+      'pending_profile',
+      'pending_org',
+      'pending_invite',
+      'complete'
+    ));
+
+ALTER TABLE user_profiles
+  ADD COLUMN IF NOT EXISTS onboarding_progress JSONB DEFAULT '{}'::jsonb;
+
+CREATE INDEX IF NOT EXISTS user_profiles_onboarding_state_idx
+  ON user_profiles(onboarding_state)
+  WHERE onboarding_state != 'complete';
 
 COMMENT ON COLUMN user_profiles.onboarding_state IS
-  'Persisted wizard state for multi-step onboarding. Null once onboarding is complete.';
+  'Coarse onboarding lifecycle. Resolver-read. Four values, see CHECK constraint.';
 
-CREATE INDEX IF NOT EXISTS idx_user_profiles_onboarding_pending
-  ON user_profiles(id)
-  WHERE onboarding_state IS NOT NULL;
+COMMENT ON COLUMN user_profiles.onboarding_progress IS
+  'Wizard-internal step progress, free-form JSONB. Wizard-read only. Reset to {} on complete.';
 
--- Trigger function: raise if the incoming user already holds any active membership.
--- Called BEFORE INSERT on user_orgs, user_orgs_tenants, and landlords.
--- Mirrors the active-membership definition used by resolveUserMembership() in
--- lib/auth/membership.ts — keep the two in sync if active-row criteria change.
-CREATE OR REPLACE FUNCTION enforce_single_active_membership()
-RETURNS trigger LANGUAGE plpgsql AS $$
-DECLARE
-  _user_id uuid;
-  _existing int;
+-- Backfill: existing users with an active membership → complete; others → pending_profile
+UPDATE user_profiles up
+SET onboarding_state    = 'complete',
+    onboarding_progress = '{}'::jsonb
+WHERE onboarding_state IS NULL
+  AND (
+    EXISTS (SELECT 1 FROM user_orgs uo      WHERE uo.user_id      = up.id AND uo.deleted_at IS NULL)
+    OR EXISTS (SELECT 1 FROM user_orgs_tenants uot WHERE uot.user_id  = up.id)
+    OR EXISTS (SELECT 1 FROM landlords l    WHERE l.auth_user_id  = up.id AND l.deleted_at IS NULL AND l.portal_access_enabled = true)
+  );
+
+UPDATE user_profiles
+SET onboarding_state    = 'pending_profile',
+    onboarding_progress = '{}'::jsonb
+WHERE onboarding_state IS NULL;
+
+-- ── §30.2  auth_events event_type extension + pre-auth nullable user_id ────
+-- Add resolver_decision and email_existence_check to the allowed set.
+-- Drop and re-add the CHECK constraint (Postgres has no ADD CONSTRAINT IF NOT EXISTS for CHECK).
+ALTER TABLE auth_events DROP CONSTRAINT IF EXISTS auth_events_event_type_check;
+ALTER TABLE auth_events ADD CONSTRAINT auth_events_event_type_check
+  CHECK (event_type IN (
+    'login_success',
+    'login_failure',
+    'logout',
+    'password_changed',
+    'email_changed',
+    'totp_enrolled',
+    'totp_unenrolled',
+    'totp_verified',
+    'totp_failed',
+    'passkey_enrolled',
+    'passkey_unenrolled',
+    'passkey_verified',
+    'passkey_failed',
+    'step_up_challenged',
+    'step_up_verified',
+    'step_up_failed',
+    'session_revoked',
+    'new_device_detected',
+    'recovery_used',
+    'role_switched',
+    'tenant_portal_login',
+    'landlord_portal_login',
+    'supplier_portal_login',
+    'agent_portal_login',
+    'resolver_decision',
+    'email_existence_check',
+    'membership_claimed',
+    'membership_claim_blocked_by_invariant'
+  ));
+
+-- Pre-auth events (email_existence_check, resolver_decision for unauthenticated paths)
+-- have no associated auth.users row yet. Allow NULL user_id for those rows.
+-- Post-auth events keep the FK when user_id is non-null (nullable FK is still enforced when set).
+ALTER TABLE auth_events ALTER COLUMN user_id DROP NOT NULL;
+
+-- ── §30.3  honeytoken_emails — canary addresses for enumeration detection ───
+CREATE TABLE IF NOT EXISTS honeytoken_emails (
+  email text PRIMARY KEY
+);
+
+ALTER TABLE honeytoken_emails ENABLE ROW LEVEL SECURITY;
+
+-- Service client only — no direct user access
+DROP POLICY IF EXISTS "honeytoken_emails_no_public_access" ON honeytoken_emails;
+CREATE POLICY "honeytoken_emails_no_public_access" ON honeytoken_emails
+  FOR ALL USING (false);
+
+-- ── §30.4  Per-table active-state predicates (Amendment 1) ─────────────────
+-- Centralise "is this row active?" per table. Future lifecycle changes extend
+-- these helpers only — the trigger structure remains stable.
+
+CREATE OR REPLACE FUNCTION is_user_org_active(row_data user_orgs)
+RETURNS BOOLEAN LANGUAGE plpgsql IMMUTABLE AS $$
 BEGIN
-  IF TG_TABLE_NAME = 'user_orgs' THEN
-    _user_id := NEW.user_id;
-  ELSIF TG_TABLE_NAME = 'user_orgs_tenants' THEN
-    _user_id := NEW.user_id;
-  ELSIF TG_TABLE_NAME = 'landlords' THEN
-    -- Enforce only when the row is portal-active (matches resolveUserMembership filter).
-    IF NOT NEW.portal_access_enabled OR NEW.auth_user_id IS NULL THEN
-      RETURN NEW;
-    END IF;
-    _user_id := NEW.auth_user_id;
-  ELSE
-    RETURN NEW;
+  RETURN row_data.deleted_at IS NULL;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION is_tenant_membership_active(row_data user_orgs_tenants)
+RETURNS BOOLEAN LANGUAGE plpgsql IMMUTABLE AS $$
+BEGIN
+  -- user_orgs_tenants has no soft-delete column; presence = active.
+  -- If a deleted_at or suspended_at column is added later, extend this predicate.
+  RETURN TRUE;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION is_landlord_membership_active(row_data landlords)
+RETURNS BOOLEAN LANGUAGE plpgsql IMMUTABLE AS $$
+BEGIN
+  RETURN row_data.deleted_at IS NULL
+    AND row_data.portal_access_enabled = TRUE
+    AND row_data.auth_user_id IS NOT NULL;
+END;
+$$;
+
+-- ── §30.5  Cross-table active-count helper ──────────────────────────────────
+-- Called by per-table triggers to count active memberships excluding the row
+-- currently being inserted/updated (avoiding self-count on UPDATE paths).
+
+CREATE OR REPLACE FUNCTION count_active_memberships_for_user(
+  p_user_id        UUID,
+  p_excluded_table TEXT,
+  p_excluded_id    UUID
+) RETURNS INT
+LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  v_total INT := 0;
+  v_count INT;
+BEGIN
+  SELECT COUNT(*) INTO v_count FROM user_orgs uo
+  WHERE uo.user_id = p_user_id
+    AND is_user_org_active(uo)
+    AND NOT (p_excluded_table = 'user_orgs' AND uo.id = p_excluded_id);
+  v_total := v_total + v_count;
+
+  SELECT COUNT(*) INTO v_count FROM user_orgs_tenants uot
+  WHERE uot.user_id = p_user_id
+    AND is_tenant_membership_active(uot)
+    AND NOT (p_excluded_table = 'user_orgs_tenants' AND uot.id = p_excluded_id);
+  v_total := v_total + v_count;
+
+  SELECT COUNT(*) INTO v_count FROM landlords l
+  WHERE l.auth_user_id = p_user_id
+    AND is_landlord_membership_active(l)
+    AND NOT (p_excluded_table = 'landlords' AND l.id = p_excluded_id);
+  v_total := v_total + v_count;
+
+  -- When ADDENDUM_19B ships, add the supplier_contacts block here.
+  RETURN v_total;
+END;
+$$;
+
+-- ── §30.6  Per-table trigger functions ──────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION enforce_user_orgs_single_active() RETURNS TRIGGER
+LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  IF NOT is_user_org_active(NEW) THEN RETURN NEW; END IF;
+  IF count_active_memberships_for_user(NEW.user_id, 'user_orgs', NEW.id) > 0 THEN
+    RAISE EXCEPTION 'SovereignMembershipViolation: user_id % already has an active membership elsewhere', NEW.user_id
+      USING ERRCODE = 'P0001',
+            DETAIL  = 'one-email-one-active-membership invariant (ADDENDUM_AUTH_RESOLVER I-4)',
+            HINT    = 'sever existing membership before creating new one';
   END IF;
-
-  IF _user_id IS NULL THEN RETURN NEW; END IF;
-
-  SELECT COUNT(*) INTO _existing FROM (
-    SELECT 1 FROM user_orgs
-      WHERE user_id = _user_id AND deleted_at IS NULL
-    UNION ALL
-    SELECT 1 FROM user_orgs_tenants
-      WHERE user_id = _user_id
-    UNION ALL
-    SELECT 1 FROM landlords
-      WHERE auth_user_id = _user_id
-        AND deleted_at IS NULL
-        AND portal_access_enabled = true
-  ) combined;
-
-  IF _existing > 0 THEN
-    RAISE EXCEPTION
-      'sovereign_membership_violation: user % already holds an active membership',
-      _user_id
-      USING ERRCODE = '23514';
-  END IF;
-
   RETURN NEW;
 END;
 $$;
 
+DROP TRIGGER IF EXISTS user_orgs_single_membership ON user_orgs;
 DROP TRIGGER IF EXISTS trg_enforce_single_membership ON user_orgs;
-CREATE TRIGGER trg_enforce_single_membership
-  BEFORE INSERT ON user_orgs
-  FOR EACH ROW EXECUTE FUNCTION enforce_single_active_membership();
+CREATE TRIGGER user_orgs_single_membership
+  BEFORE INSERT OR UPDATE ON user_orgs
+  FOR EACH ROW EXECUTE FUNCTION enforce_user_orgs_single_active();
 
+CREATE OR REPLACE FUNCTION enforce_user_orgs_tenants_single_active() RETURNS TRIGGER
+LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  IF NOT is_tenant_membership_active(NEW) THEN RETURN NEW; END IF;
+  IF count_active_memberships_for_user(NEW.user_id, 'user_orgs_tenants', NEW.id) > 0 THEN
+    RAISE EXCEPTION 'SovereignMembershipViolation: user_id % already has an active membership elsewhere', NEW.user_id
+      USING ERRCODE = 'P0001',
+            DETAIL  = 'one-email-one-active-membership invariant (ADDENDUM_AUTH_RESOLVER I-4)',
+            HINT    = 'sever existing membership before creating new one';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS user_orgs_tenants_single_membership ON user_orgs_tenants;
 DROP TRIGGER IF EXISTS trg_enforce_single_membership ON user_orgs_tenants;
-CREATE TRIGGER trg_enforce_single_membership
-  BEFORE INSERT ON user_orgs_tenants
-  FOR EACH ROW EXECUTE FUNCTION enforce_single_active_membership();
+CREATE TRIGGER user_orgs_tenants_single_membership
+  BEFORE INSERT OR UPDATE ON user_orgs_tenants
+  FOR EACH ROW EXECUTE FUNCTION enforce_user_orgs_tenants_single_active();
 
+CREATE OR REPLACE FUNCTION enforce_landlords_single_active() RETURNS TRIGGER
+LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  IF NOT is_landlord_membership_active(NEW) THEN RETURN NEW; END IF;
+  IF count_active_memberships_for_user(NEW.auth_user_id, 'landlords', NEW.id) > 0 THEN
+    RAISE EXCEPTION 'SovereignMembershipViolation: auth_user_id % already has an active membership elsewhere', NEW.auth_user_id
+      USING ERRCODE = 'P0001',
+            DETAIL  = 'one-email-one-active-membership invariant (ADDENDUM_AUTH_RESOLVER I-4)',
+            HINT    = 'sever existing membership before creating new one';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS landlords_single_membership ON landlords;
 DROP TRIGGER IF EXISTS trg_enforce_single_membership ON landlords;
-CREATE TRIGGER trg_enforce_single_membership
-  BEFORE INSERT ON landlords
-  FOR EACH ROW EXECUTE FUNCTION enforce_single_active_membership();
+CREATE TRIGGER landlords_single_membership
+  BEFORE INSERT OR UPDATE ON landlords
+  FOR EACH ROW EXECUTE FUNCTION enforce_landlords_single_active();

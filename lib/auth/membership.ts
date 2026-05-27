@@ -33,6 +33,34 @@ export class SovereignMembershipViolation extends Error {
 }
 
 /**
+ * Raised when two near-simultaneous invite acceptances race at the Postgres trigger.
+ * The losing attempt (P0001 from enforce_*_single_active) maps to this error class.
+ */
+export class MembershipRaceLost extends Error {
+  constructor(public winningMembershipId?: string) {
+    super("Another invite at a different organisation was accepted moments ago.")
+    this.name = "MembershipRaceLost"
+  }
+}
+
+/**
+ * Maps a raw Postgres/Supabase error from a membership INSERT to a typed error.
+ * P0001 raised by enforce_*_single_active triggers → MembershipRaceLost.
+ */
+export function mapPostgresMembershipError(err: unknown): Error {
+  if (
+    typeof err === "object" && err !== null &&
+    "code" in err && err.code === "P0001" &&
+    "message" in err && typeof err.message === "string" &&
+    err.message.includes("SovereignMembershipViolation")
+  ) {
+    return new MembershipRaceLost()
+  }
+  if (err instanceof Error) return err
+  try { return new Error(JSON.stringify(err)) } catch { return new Error("Unknown membership error") }
+}
+
+/**
  * Returns the user's single active membership, or null if none exist.
  *
  * Queries user_orgs (agent class), user_orgs_tenants (tenant class),

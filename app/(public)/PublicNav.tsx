@@ -4,7 +4,8 @@
  * app/(public)/PublicNav.tsx — sticky top nav for the public marketing site
  *
  * Auth:   public; reads auth session to show profile or sign-in icon
- * Notes:  Hash links have no active indicator — only /contact highlights when on that path.
+ * Notes:  Hash links use IntersectionObserver scroll-spy for active state.
+ *         /contact highlights when on that path.
  *         Nav hides on scroll-down on mobile (scroll-up reveals it).
  */
 
@@ -27,6 +28,11 @@ const NAV_LINKS = [
   { href: "/contact",    label: "Contact" },
 ]
 
+// Extract section IDs from hash links for scroll-spy
+const SECTION_IDS = NAV_LINKS
+  .filter(l => l.href.startsWith("/#"))
+  .map(l => l.href.slice(2))
+
 // Shared style for all icon-only buttons in the nav lives in public.css as `.pub-icon-btn`
 // (theme toggle, sign-in, profile). Use `.pub-icon-btn--active` for the logged-in state.
 
@@ -41,10 +47,11 @@ export function PublicNav() {
   const [profileOpen, setProfileOpen]   = useState(false)
   // undefined = checking; null = logged out; object = logged in
   const [user, setUser]                 = useState<{ email?: string } | null | undefined>(undefined)
-  const [scrollHidden, setScrollHidden] = useState(false)
-  const lastScrollRef                   = useRef(0)
-  const { theme, toggle }               = usePublicTheme()
-  const pathname                        = usePathname()
+  const [scrollHidden, setScrollHidden]   = useState(false)
+  const [activeSection, setActiveSection] = useState<string | null>(null)
+  const lastScrollRef                     = useRef(0)
+  const { theme, toggle }                 = usePublicTheme()
+  const pathname                          = usePathname()
 
   useEffect(() => {
     const supabase = createClient()
@@ -64,6 +71,27 @@ export function PublicNav() {
     globalThis.addEventListener("scroll", handleScroll, { passive: true })
     return () => globalThis.removeEventListener("scroll", handleScroll)
   }, [])
+
+  // Scroll-spy: highlight nav link matching the section in view
+  useEffect(() => {
+    if (pathname !== "/") { setActiveSection(null); return }
+    const visibleRatio = new Map<string, number>()
+    const observer = new IntersectionObserver(
+      entries => {
+        for (const entry of entries) { visibleRatio.set(entry.target.id, entry.intersectionRatio) }
+        let topId: string | null = null
+        let topRatio = 0
+        for (const [id, ratio] of visibleRatio) { if (ratio > topRatio) { topRatio = ratio; topId = id } }
+        setActiveSection(topRatio > 0 ? topId : null)
+      },
+      { threshold: [0, 0.1, 0.25, 0.5], rootMargin: "-64px 0px 0px 0px" },
+    )
+    for (const id of SECTION_IDS) {
+      const el = document.getElementById(id)
+      if (el) observer.observe(el)
+    }
+    return () => observer.disconnect()
+  }, [pathname])
 
   return (
     <header
@@ -88,7 +116,8 @@ export function PublicNav() {
         {/* Centre nav — desktop only */}
         <nav aria-label="Site sections" className="hidden md:flex" style={{ flex: 1, justifyContent: "center", gap: 2, alignItems: "center" }}>
           {NAV_LINKS.map(link => {
-            const isActive = link.href.startsWith("/#") ? false : pathname === link.href
+            const sectionId = link.href.startsWith("/#") ? link.href.slice(2) : null
+            const isActive  = sectionId ? activeSection === sectionId : pathname === link.href
             return (
               <Link
                 key={link.href}

@@ -693,3 +693,17 @@ VALUES (
   now()
 )
 ON CONFLICT (version) DO NOTHING;
+
+-- ── Honeytoken email addresses (BUILD_AUTH_RESOLVER Amendment 3) ──────────
+-- Canary addresses that NEVER correspond to real auth.users rows.
+-- check_email_exists() returns true for these regardless of auth.users state.
+-- Downstream: any IP that later tries to sign in as one, or appears in a
+-- credential dump alongside one, is provably operating against scraped data.
+-- D-AUTH-RESOLVER-28. Keep secret — do NOT expose in API responses or HTML.
+INSERT INTO honeytoken_emails (email) VALUES
+  ('monitor-pleks-001@pleks-canary.internal'),
+  ('monitor-pleks-002@pleks-canary.internal'),
+  ('monitor-pleks-003@pleks-canary.internal'),
+  ('canary-agent-pleks@protonmail.invalid'),
+  ('trap-enrollment@pleks-canary.internal')
+ON CONFLICT (email) DO NOTHING;

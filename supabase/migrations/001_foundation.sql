@@ -817,3 +817,23 @@ COMMENT ON COLUMN consent_log.consent_type IS
    trust_account_notice, popia_application, lease_template_disclaimer,
    criminal_record_check.
    Note: whenever the consent_type CHECK constraint is extended, update this comment in the same migration.';
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §5  BUILD_AUTH_RESOLVER: check_email_exists — include honeytoken addresses
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Honeytoken emails (seeded in 006_seed.sql) always return true regardless of
+-- auth.users state. Bots scraping for valid emails will collect these — their
+-- presence in downstream attacks is evidence of enumeration intent.
+-- See ADDENDUM_AUTH_RESOLVER_AMENDMENTS_2026-05-27 §3.6 (D-AUTH-RESOLVER-28).
+
+CREATE OR REPLACE FUNCTION check_email_exists(p_email text)
+RETURNS boolean AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM auth.users
+    WHERE lower(email) = lower(p_email)
+    UNION ALL
+    SELECT 1 FROM public.honeytoken_emails
+    WHERE lower(email) = lower(p_email)
+  );
+$$ LANGUAGE sql SECURITY DEFINER
+   SET search_path = auth, public;

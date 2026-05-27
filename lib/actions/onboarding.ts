@@ -16,6 +16,7 @@ import { recordTosAcceptance } from "@/lib/subscriptions/acceptance"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import { AUTH_COOKIE_OPTS } from "@/lib/auth/cookie-config"
 import { assertEmailAvailableForRole, isPersonalEmailDomain } from "@/lib/auth/email-policy"
+import { mapPostgresMembershipError, MembershipRaceLost } from "@/lib/auth/membership"
 
 export interface OnboardingData {
   userType: "owner" | "agent" | "agency" | "family" | "exploring"
@@ -88,13 +89,17 @@ export async function createAccountAndOrg(data: OnboardingData): Promise<{
 
   const orgId = org.id
 
-  // Create user_orgs
+  // Create user_orgs — catches MembershipRaceLost (P0001 from enforce_user_orgs_single_active)
   const { error: userOrgError } = await service.from("user_orgs").insert({
     user_id: userId,
     org_id: orgId,
     role: "owner",
   })
   if (userOrgError) {
+    const mapped = mapPostgresMembershipError(userOrgError)
+    if (mapped instanceof MembershipRaceLost) {
+      return { ok: false, errorType: "membership_race_lost" }
+    }
     console.error("[onboarding] user_orgs insert failed:", userOrgError)
     return { error: userOrgError.message, errorType: "user_org_failed" }
   }
