@@ -23,7 +23,7 @@ const EYEBROW_CONTENT: Record<MethodologyEyebrowVariant, { title: string; body: 
 
 const S = StyleSheet.create({
   wrap: {
-    backgroundColor:  C.surface.paperSunk,
+    backgroundColor:  C.surface.paperRaised,
     borderWidth:      0.75,
     borderColor:      C.rule.base,
     paddingVertical:  10,
