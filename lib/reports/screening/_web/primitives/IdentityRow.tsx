@@ -26,6 +26,7 @@ export function IdentityRow({ data }: Readonly<IdentityRowProps>): JSX.Element |
   if (data.applicants.length === 0) return null
 
   const entry      = data.applicants[0]
+  const isJoint    = data.applicants.length >= 2
   const idLine     = buildIdLine(entry)
   const employer   = entry.employment?.employerName ?? "Employment not provided"
   const empSub     = entry.employment
@@ -38,7 +39,7 @@ export function IdentityRow({ data }: Readonly<IdentityRowProps>): JSX.Element |
     <div className="border border-t-2 border-t-foreground border-border bg-card mb-5">
       <div className="flex">
         <div className="flex-1 px-4 py-3 border-r border-border">
-          <div className="font-mono text-[8px] uppercase tracking-widest text-muted-foreground mb-1.5">Applicant</div>
+          <div className="font-mono text-[8px] uppercase tracking-widest text-muted-foreground mb-1.5">{isJoint ? "Primary applicant" : "Applicant"}</div>
           <div className="font-bold text-lg text-foreground leading-tight">{entry.fullName}</div>
           <div className="text-xs text-muted-foreground mt-1">{idLine}</div>
         </div>

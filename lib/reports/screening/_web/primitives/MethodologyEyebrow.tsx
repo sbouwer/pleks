@@ -25,7 +25,7 @@ interface MethodologyEyebrowProps {
 export function MethodologyEyebrow({ variant }: Readonly<MethodologyEyebrowProps>): JSX.Element {
   const content = EYEBROW_CONTENT[variant]
   return (
-    <div className="border border-border bg-paper-sunk px-4 py-3 mb-5">
+    <div className="border border-border bg-card px-4 py-3 mb-5">
       <p className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground mb-1.5">
         {content.title}
       </p>
