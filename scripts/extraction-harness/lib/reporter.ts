@@ -6,8 +6,7 @@
 
 export interface HarnessRunResult {
   folderName: string
-  archetype: string | null
-  archetypeConfidence: number
+  archetype: string | null  // null only on pipeline error
   totalDocs: number
   classified: number
   rejectedAtUpload: number
@@ -16,11 +15,11 @@ export interface HarnessRunResult {
   error?: string
 }
 
-const LINE = "-".repeat(115)
+const LINE = "-".repeat(110)
 
 const HEADER =
   "     " +
-  pad("FOLDER", 35) + pad("ARCHETYPE", 30) + pad("CONF", 6) +
+  pad("FOLDER", 35) + pad("ARCHETYPE", 28) +
   pad("DOCS", 6) + pad("OK", 5) + pad("REJ", 5) + pad("UNK", 5) + pad("ms", 7)
 
 function getRowIcon(r: HarnessRunResult): string {
@@ -31,11 +30,10 @@ function getRowIcon(r: HarnessRunResult): string {
 }
 
 function formatRow(r: HarnessRunResult): string {
-  const archStr = r.archetype ?? "(null)"
-  const confStr = r.archetype ? `${(r.archetypeConfidence * 100).toFixed(0)}%` : "--"
+  const archStr = r.archetype ?? "(error)"
   return (
     getRowIcon(r) + " " +
-    pad(r.folderName, 35) + pad(archStr, 30) + pad(confStr, 6) +
+    pad(r.folderName, 35) + pad(archStr, 28) +
     pad(String(r.totalDocs), 6) + pad(String(r.classified), 5) +
     pad(String(r.rejectedAtUpload), 5) + pad(String(r.unknownType), 5) +
     pad(String(r.durationMs), 7)
@@ -51,8 +49,8 @@ function printGate(archetypesOk: number, total: number, errors: number): void {
   console.log()
   console.log(`Acceptance gate:     ${gatePass ? "PASS" : "FAIL"}`)
   if (gatePass) { console.log(); return }
-  if (errors > 0)             console.log("  FAIL reason: pipeline errors (see [ERR] rows)")
-  if (archetypesOk < total)  console.log("  FAIL reason: unresolved archetypes (see (null) rows)")
+  if (errors > 0)            console.log("  FAIL reason: pipeline errors (see [ERR] rows)")
+  if (archetypesOk < total)  console.log("  FAIL reason: archetype errors (see (error) rows)")
   console.log()
 }
 
@@ -74,7 +72,7 @@ export function printSummaryTable(results: HarnessRunResult[]): void {
   const archetypesOk    = results.filter(r => r.archetype !== null && !r.error).length
 
   console.log(LINE)
-  console.log("     " + pad("TOTAL", 35) + pad("", 30) + pad("", 6) + pad(String(totalDocs), 6) + pad(String(totalClassified), 5) + pad(String(totalRejected), 5) + pad(String(totalUnknown), 5))
+  console.log("     " + pad("TOTAL", 35) + pad("", 28) + pad(String(totalDocs), 6) + pad(String(totalClassified), 5) + pad(String(totalRejected), 5) + pad(String(totalUnknown), 5))
   console.log(LINE)
   console.log()
   console.log(`Folders processed:   ${results.length}`)

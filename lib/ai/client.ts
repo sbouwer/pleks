@@ -30,7 +30,6 @@ export type AiPurpose =
   | "document_detection"
   | "warranty_match"
   | "popia_export_narrative"
-  | "document_archetype_classification"
   | "document_type_classification"
   | "document_extraction"
   | "document_reconciliation"

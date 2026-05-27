@@ -12,9 +12,9 @@
  * Spec: ADDENDUM_14L §4, §5.3
  */
 import { config } from "dotenv"
-// Next.js uses .env.local; load it explicitly for harness runs
 config({ path: ".env.local" })
-config() // also loads .env if present
+config()
+
 import { loadTestFolders } from "./lib/filesystem"
 import { runPipeline } from "../../lib/extraction/pipeline"
 import { writeOutput } from "./lib/outputWriter"
@@ -38,29 +38,32 @@ async function main() {
 
   for (const folder of folders) {
     const start = Date.now()
-    process.stdout.write(`Processing ${folder.folderName} (${folder.documents.length} docs)... `)
+    process.stdout.write(`Processing ${folder.folderName} (${folder.unitType}, ${folder.applicantCount} applicant${folder.applicantCount > 1 ? "s" : ""}, ${folder.documents.length} docs)... `)
 
     try {
       const pipelineResult = await runPipeline(
-        folder.documents,
-        { source: "harness" },
+        {
+          unitType:       folder.unitType,
+          applicantCount: folder.applicantCount,
+          documents:      folder.documents,
+          metadata:       { source: "harness" },
+        },
         { orgId: null, suppressLogging: true, harnessMode: true },
       )
 
       writeOutput(folder.folderName, pipelineResult)
 
-      const classified      = pipelineResult.documents.filter(d => d.status === "classified").length
+      const classified       = pipelineResult.documents.filter(d => d.status === "classified").length
       const rejectedAtUpload = pipelineResult.documents.filter(d => d.status === "rejected-at-upload").length
-      const unknownType     = pipelineResult.documents.filter(
+      const unknownType      = pipelineResult.documents.filter(
         d => d.status === "classified" && d.documentType === "unknown",
       ).length
       const durationMs = Date.now() - start
 
       results.push({
-        folderName:          folder.folderName,
-        archetype:           pipelineResult.archetype,
-        archetypeConfidence: pipelineResult.archetypeConfidence,
-        totalDocs:           folder.documents.length,
+        folderName:    folder.folderName,
+        archetype:     pipelineResult.archetype,
+        totalDocs:     folder.documents.length,
         classified,
         rejectedAtUpload,
         unknownType,
@@ -72,15 +75,14 @@ async function main() {
       const msg = err instanceof Error ? err.message : String(err)
       console.log(`FAILED`)
       results.push({
-        folderName:          folder.folderName,
-        archetype:           null,
-        archetypeConfidence: 0,
-        totalDocs:           folder.documents.length,
-        classified:          0,
-        rejectedAtUpload:    0,
-        unknownType:         folder.documents.length,
-        durationMs:          Date.now() - start,
-        error:               msg,
+        folderName:    folder.folderName,
+        archetype:     null,
+        totalDocs:     folder.documents.length,
+        classified:    0,
+        rejectedAtUpload: 0,
+        unknownType:   folder.documents.length,
+        durationMs:    Date.now() - start,
+        error:         msg,
       })
     }
   }

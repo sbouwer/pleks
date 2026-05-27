@@ -1,26 +1,33 @@
 /**
  * scripts/extraction-harness/lib/filesystem.ts — Load test folders from brief/build/_TEST/
  *
- * Maps folder names to ApplicationArchetype values.
- * residential_single_* (with numeric suffix) all map to "residential-single".
+ * Supplies unitType + applicantCount per folder — the two facts known before any
+ * documents are uploaded and used to derive the archetype deterministically.
  *
  * Spec: ADDENDUM_14L §4.2
  */
 import { readdirSync, readFileSync } from "node:fs"
 import { join, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
-import type { ApplicationArchetype, Document } from "../../../lib/extraction/types"
+import type { UnitType, Document } from "../../../lib/extraction/types"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const TEST_DIR  = join(__dirname, "../../../brief/build/_TEST")
 
-const EXACT_FOLDER_MAP: Record<string, ApplicationArchetype> = {
-  residential_single_destressed: "residential-single-destressed",
-  residential_single_family:     "residential-single-family",
-  residential_single_guarantee:  "residential-single-guarantee",
-  residential_multi:             "residential-multi",
-  commercial_company_director:   "commercial-single-director",
-  commercial_company_directors:  "commercial-multi-director",
+interface FolderMeta {
+  unitType: UnitType
+  applicantCount: number
+}
+
+// family, guarantee → residential-multi (2+ people; applicantCount > 1 → residential-multi)
+// destressed → residential-single (1 applicant in financial difficulty)
+const FOLDER_META: Record<string, FolderMeta> = {
+  commercial_company_director:   { unitType: "commercial",   applicantCount: 1 },
+  commercial_company_directors:  { unitType: "commercial",   applicantCount: 2 },
+  residential_multi:             { unitType: "residential",  applicantCount: 3 },
+  residential_single_destressed: { unitType: "residential",  applicantCount: 1 },
+  residential_single_family:     { unitType: "residential",  applicantCount: 2 },
+  residential_single_guarantee:  { unitType: "residential",  applicantCount: 2 },
 }
 
 function getMimeType(filename: string): string {
@@ -36,7 +43,8 @@ function getMimeType(filename: string): string {
 
 export interface ApplicationFolder {
   folderName: string
-  archetype: ApplicationArchetype | null
+  unitType: UnitType
+  applicantCount: number
   documents: Document[]
 }
 
@@ -50,10 +58,11 @@ export function loadTestFolders(): ApplicationFolder[] {
     const folderPath = join(TEST_DIR, folder.name)
     const files = readdirSync(folderPath).filter(f => !f.startsWith("."))
 
-    // Exact match first, then prefix match for residential_single_N variants
-    const archetype: ApplicationArchetype | null =
-      EXACT_FOLDER_MAP[folder.name] ??
-      (folder.name.startsWith("residential_single") ? "residential-single" : null)
+    // Exact match first; residential_single_N variants default to single
+    const meta: FolderMeta = FOLDER_META[folder.name] ?? {
+      unitType:       "residential",
+      applicantCount: 1,
+    }
 
     const documents: Document[] = files.map(filename => {
       const filePath = join(folderPath, filename)
@@ -66,6 +75,6 @@ export function loadTestFolders(): ApplicationFolder[] {
       }
     })
 
-    return { folderName: folder.name, archetype, documents }
+    return { folderName: folder.name, ...meta, documents }
   })
 }

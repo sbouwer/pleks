@@ -1,7 +1,10 @@
 /**
  * lib/extraction/pipeline.ts — Phase 1 extraction pipeline
  *
- * Orchestration: validate → format-detect → archetype-classify → doctype-classify → language
+ * Orchestration: validate → format-detect → archetype-derive → doctype-classify → language
+ *
+ * Archetype is derived deterministically from unitType + applicantCount (no AI call).
+ * Document type classification uses Claude Haiku per document.
  *
  * Shared verbatim between production (Next.js API route) and the local harness
  * (scripts/extraction-harness/). The harness passes suppressLogging: true to suppress
@@ -12,9 +15,9 @@
 import { validateUpload } from "./uploadValidator"
 import { detectFormat } from "./formatDetector"
 import { detectLanguage } from "./languageDetector"
-import { classifyArchetype } from "./archetypeClassifier"
+import { deriveArchetype } from "./archetypeClassifier"
 import { classifyDocumentType } from "./documentTypeClassifier"
-import type { ApplicationArchetype, Document } from "./types"
+import type { ApplicationArchetype, ApplicationInput, Document } from "./types"
 import type { AiCallOptions } from "@/lib/ai/client"
 
 export interface PipelineDocumentResult {
@@ -30,8 +33,7 @@ export interface PipelineDocumentResult {
 }
 
 export interface PipelineResult {
-  archetype: ApplicationArchetype | null
-  archetypeConfidence: number
+  archetype: ApplicationArchetype
   documents: PipelineDocumentResult[]
 }
 
@@ -70,7 +72,7 @@ function gateDocument(
 
 async function classifyDocWithFallback(
   doc: Document,
-  archetype: ApplicationArchetype | null,
+  archetype: ApplicationArchetype,
   aiOpts: AiOpts,
 ): Promise<ClassifyResult> {
   try {
@@ -100,20 +102,18 @@ function applyClassification(
 }
 
 export async function runPipeline(
-  documents: Document[],
-  _metadata: { source: "harness" | "production"; orgId?: string; applicationId?: string },
+  input: ApplicationInput,
   aiOpts: AiOpts,
 ): Promise<PipelineResult> {
   const results: PipelineDocumentResult[] = []
   const classifiableDocs: Document[] = []
 
-  for (const doc of documents) {
+  for (const doc of input.documents) {
     gateDocument(doc, results, classifiableDocs)
   }
 
-  // Archetype classification — filenames only, no document content (D-14L-06)
-  const allFilenames = documents.map(d => d.filename)
-  const { archetype, confidence: archetypeConfidence } = await classifyArchetype(allFilenames, aiOpts)
+  // Archetype is deterministic — derived from structured application data, not documents
+  const archetype = deriveArchetype(input.unitType, input.applicantCount)
 
   // Document type classification — per classifiable document (D-14L-07)
   for (const doc of classifiableDocs) {
@@ -121,5 +121,5 @@ export async function runPipeline(
     applyClassification(doc, result, results)
   }
 
-  return { archetype, archetypeConfidence, documents: results }
+  return { archetype, documents: results }
 }

@@ -14,14 +14,18 @@ export type DocumentFormat =
   | "psd"
   | "unknown"
 
+/**
+ * Four deterministic archetypes derived from unitType + applicantCount.
+ * Subtypes (guarantee, family, destressed) are document-signal patterns,
+ * not archetypes — Claude surfaces them through document type classification.
+ */
 export type ApplicationArchetype =
   | "residential-single"
-  | "residential-single-destressed"
-  | "residential-single-family"
-  | "residential-single-guarantee"
   | "residential-multi"
   | "commercial-single-director"
   | "commercial-multi-director"
+
+export type UnitType = "residential" | "commercial"
 
 export type DocumentType =
   | "id-document"
@@ -59,7 +63,8 @@ export interface Document {
 }
 
 export interface ApplicationInput {
-  archetype: ApplicationArchetype | null
+  unitType: UnitType
+  applicantCount: number
   documents: Document[]
   metadata: {
     source: "harness" | "production"
@@ -94,7 +99,7 @@ export interface FraudSignal {
 
 export interface ApplicationExtraction {
   applicationId?: string
-  archetype: ApplicationArchetype | null
+  archetype: ApplicationArchetype
   documents: Document[]
   reconciliation: CrossDocumentReconciliation[]
   fraudSignals: FraudSignal[]
