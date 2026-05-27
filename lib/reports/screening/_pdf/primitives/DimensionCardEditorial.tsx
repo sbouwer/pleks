@@ -68,7 +68,7 @@ const S = StyleSheet.create({
     letterSpacing: -0.1,
     lineHeight:    1.3,
     marginBottom:  8,
-    minHeight:     29,
+    minHeight:     43,
   },
 
   stats: {

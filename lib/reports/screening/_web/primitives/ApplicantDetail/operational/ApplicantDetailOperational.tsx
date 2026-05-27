@@ -45,27 +45,27 @@ export function ApplicantDetailOperational({ applicants }: Readonly<ApplicantDet
         <div className="font-mono text-[9px] text-muted-foreground">{l3}</div>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-xs">
+        <table className="w-full">
           <thead>
             <tr className="border-b border-border bg-paper-sunk">
-              {["APPL", "NAME", "NATIONALITY", "INCOME (SHARE)", "VERIFICATION", "BUREAUS", "NETWORK"].map(h => (
-                <th key={h} className="font-mono text-[8px] uppercase tracking-widest text-muted-foreground text-left px-3 py-2">{h}</th>
+              {["APPL", "NAME", "NATIONALITY", "INCOME (SHARE)", "VERIFICATION", "BUREAUS", "NETWORK"].map((h, hi) => (
+                <th key={h} className={`font-mono text-[8px] uppercase tracking-widest text-muted-foreground text-left px-3 py-2 whitespace-nowrap ${hi < 6 ? "border-r border-border" : ""}`}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {applicants.map((e, i) => (
               <tr key={e.label} className={`border-b border-border last:border-0 ${i % 2 === 1 ? "bg-paper-deeper" : ""}`}>
-                <td className="font-mono text-[9px] text-foreground px-3 py-2">{e.label}</td>
-                <td className="font-mono text-[9px] text-foreground px-3 py-2">{e.fullName}</td>
-                <td className="text-[9px] text-muted-foreground px-3 py-2">{e.nationalityStatus}</td>
-                <td className="px-3 py-2">
+                <td className="font-mono text-[9px] text-foreground px-3 py-2 border-r border-border whitespace-nowrap">{e.label}</td>
+                <td className="font-mono text-[9px] text-foreground px-3 py-2 border-r border-border">{e.fullName}</td>
+                <td className="font-mono text-[9px] text-muted-foreground px-3 py-2 border-r border-border">{e.nationalityStatus}</td>
+                <td className="px-3 py-2 border-r border-border whitespace-nowrap">
                   <div className="font-mono text-[9px] text-foreground">{fmtZAR(e.verifiedIncomeCents)}</div>
-                  <div className="text-[9px] text-muted-foreground">{e.incomeSharePct}% of joint</div>
+                  <div className="font-mono text-[9px] text-muted-foreground">{e.incomeSharePct}% of joint</div>
                 </td>
-                <td className="font-mono text-[9px] text-foreground px-3 py-2">{e.verificationPassCount} of {e.verificationTotal}</td>
-                <td className="font-mono text-[9px] text-foreground px-3 py-2">{bureauCount(e)}</td>
-                <td className={`font-mono text-[9px] px-3 py-2 ${e.pleksNetworkStatus === "none" ? "text-muted-foreground" : "text-foreground"}`}>
+                <td className="font-mono text-[9px] text-foreground px-3 py-2 border-r border-border whitespace-nowrap">{e.verificationPassCount} of {e.verificationTotal}</td>
+                <td className="font-mono text-[9px] text-foreground px-3 py-2 border-r border-border whitespace-nowrap">{bureauCount(e)}</td>
+                <td className={`font-mono text-[9px] px-3 py-2 whitespace-nowrap ${e.pleksNetworkStatus === "none" ? "text-muted-foreground" : "text-foreground"}`}>
                   {networkCompact(e)}
                 </td>
               </tr>
