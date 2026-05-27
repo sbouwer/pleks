@@ -48,7 +48,7 @@ export function ApplicantDetailOperational({ applicants }: Readonly<ApplicantDet
         <table className="w-full">
           <thead>
             <tr className="border-b border-border bg-paper-sunk">
-              {["APPL", "NAME", "NATIONALITY", "INCOME (SHARE)", "VERIFICATION", "BUREAUS", "NETWORK"].map((h, hi) => (
+              {["APPL", "NAME", "NATIONALITY", "INCOME", "VERIF.", "BUREAUS", "NETWORK"].map((h, hi) => (
                 <th key={h} className={`font-mono text-[8px] uppercase tracking-widest text-muted-foreground text-left px-3 py-2 whitespace-nowrap ${hi < 6 ? "border-r border-border" : ""}`}>{h}</th>
               ))}
             </tr>

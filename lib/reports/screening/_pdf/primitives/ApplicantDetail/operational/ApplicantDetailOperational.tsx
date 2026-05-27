@@ -102,14 +102,14 @@ const S = StyleSheet.create({
     lineHeight: 1.35,
     marginTop:  1,
   },
-  // Column widths
-  tcL:  { flex: 0.5 },
-  tcN:  { flex: 1.4 },
-  tcNa: { flex: 1.5 },
-  tcI:  { flex: 1.1 },
-  tcV:  { flex: 0.7 },
-  tcB:  { flex: 0.7 },
-  tcNw: { flex: 0.7 },
+  // Column widths — borderRight separates columns; paddingLeft gives inter-column breathing room
+  tcL:  { flex: 0.5, borderRightWidth: 0.5, borderRightColor: C.rule.base },
+  tcN:  { flex: 1.4, borderRightWidth: 0.5, borderRightColor: C.rule.base, paddingLeft: 4 },
+  tcNa: { flex: 1.5, borderRightWidth: 0.5, borderRightColor: C.rule.base, paddingLeft: 4 },
+  tcI:  { flex: 1.1, borderRightWidth: 0.5, borderRightColor: C.rule.base, paddingLeft: 4 },
+  tcV:  { flex: 0.7, borderRightWidth: 0.5, borderRightColor: C.rule.base, paddingLeft: 4 },
+  tcB:  { flex: 0.7, borderRightWidth: 0.5, borderRightColor: C.rule.base, paddingLeft: 4 },
+  tcNw: { flex: 0.7, paddingLeft: 4 },
 })
 
 // ─── Table row ────────────────────────────────────────────────────────────────
@@ -164,8 +164,8 @@ export function ApplicantDetailOperational({ applicants }: Readonly<ApplicantDet
           <View style={S.tcL}><Text style={S.tabHL}>APPL</Text></View>
           <View style={S.tcN}><Text style={S.tabHL}>NAME</Text></View>
           <View style={S.tcNa}><Text style={S.tabHL}>NATIONALITY</Text></View>
-          <View style={S.tcI}><Text style={S.tabHL}>INCOME (SHARE)</Text></View>
-          <View style={S.tcV}><Text style={S.tabHL}>VERIFICATION</Text></View>
+          <View style={S.tcI}><Text style={S.tabHL}>INCOME</Text></View>
+          <View style={S.tcV}><Text style={S.tabHL}>VERIF.</Text></View>
           <View style={S.tcB}><Text style={S.tabHL}>BUREAUS</Text></View>
           <View style={S.tcNw}><Text style={S.tabHL}>NETWORK</Text></View>
         </View>
