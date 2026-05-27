@@ -105,11 +105,11 @@ const S = StyleSheet.create({
   // Column widths
   tcL:  { flex: 0.5 },
   tcN:  { flex: 1.4 },
-  tcNa: { flex: 1.2 },
+  tcNa: { flex: 1.5 },
   tcI:  { flex: 1.1 },
-  tcV:  { flex: 0.8 },
-  tcB:  { flex: 0.8 },
-  tcNw: { flex: 0.9 },
+  tcV:  { flex: 0.7 },
+  tcB:  { flex: 0.7 },
+  tcNw: { flex: 0.7 },
 })
 
 // ─── Table row ────────────────────────────────────────────────────────────────

@@ -95,7 +95,7 @@
       "affordabilityEvidenceLine": "Rent 26% of verified joint income; debt servicing 11%.",
       "stabilityEvidenceLine": "Income-weighted tenure 2.9 years; one rental reference verified.",
       "creditEvidenceLine": "Coverage-weighted median across two to three bureaus per SA applicant.",
-      "verificationEvidenceLine": "Majority of checks passed across applicant group.",
+      "verificationEvidenceLine": "Majority of checks passed across applicants.",
       "affordabilityObservations": [
         "Rent-to-income at 26% — within preferred threshold.",
         "Debt servicing stable across the observation window.",
@@ -112,7 +112,7 @@
         "Scores within stable-band range for all SA applicants."
       ],
       "verificationObservations": [
-        "Majority of checks passed across applicant group.",
+        "Majority of checks passed across applicants.",
         "Identity match confirmed for all applicants.",
         "No manual overrides pending."
       ],

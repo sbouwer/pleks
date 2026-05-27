@@ -56,16 +56,16 @@ export function ApplicantDetailOperational({ applicants }: Readonly<ApplicantDet
           <tbody>
             {applicants.map((e, i) => (
               <tr key={e.label} className={`border-b border-border last:border-0 ${i % 2 === 1 ? "bg-paper-deeper" : ""}`}>
-                <td className="font-mono text-[10px] text-foreground px-3 py-2">{e.label}</td>
-                <td className="font-mono text-[10px] text-foreground px-3 py-2">{e.fullName}</td>
-                <td className="text-[10px] text-muted-foreground px-3 py-2">{e.nationalityStatus}</td>
+                <td className="font-mono text-[9px] text-foreground px-3 py-2">{e.label}</td>
+                <td className="font-mono text-[9px] text-foreground px-3 py-2">{e.fullName}</td>
+                <td className="text-[9px] text-muted-foreground px-3 py-2">{e.nationalityStatus}</td>
                 <td className="px-3 py-2">
-                  <div className="font-mono text-[10px] text-foreground">{fmtZAR(e.verifiedIncomeCents)}</div>
+                  <div className="font-mono text-[9px] text-foreground">{fmtZAR(e.verifiedIncomeCents)}</div>
                   <div className="text-[9px] text-muted-foreground">{e.incomeSharePct}% of joint</div>
                 </td>
-                <td className="font-mono text-[10px] text-foreground px-3 py-2">{e.verificationPassCount} of {e.verificationTotal}</td>
-                <td className="font-mono text-[10px] text-foreground px-3 py-2">{bureauCount(e)}</td>
-                <td className={`font-mono text-[10px] px-3 py-2 ${e.pleksNetworkStatus === "none" ? "text-muted-foreground" : "text-foreground"}`}>
+                <td className="font-mono text-[9px] text-foreground px-3 py-2">{e.verificationPassCount} of {e.verificationTotal}</td>
+                <td className="font-mono text-[9px] text-foreground px-3 py-2">{bureauCount(e)}</td>
+                <td className={`font-mono text-[9px] px-3 py-2 ${e.pleksNetworkStatus === "none" ? "text-muted-foreground" : "text-foreground"}`}>
                   {networkCompact(e)}
                 </td>
               </tr>

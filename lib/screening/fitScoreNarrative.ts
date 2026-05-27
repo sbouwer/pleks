@@ -3,10 +3,10 @@
  *
  * Auth:   internal — called by lib/screening/fitScoreOrchestrator.ts after the deterministic engine runs
  * Data:   Anthropic API via lib/ai/client.ts (logged to ai_usage table)
- * Notes:  System prompt: lib/screening/prompts/fitScoreNarrative.v1.0.ts (imported constant, no file I/O).
+ * Notes:  System prompt: lib/screening/prompts/fitScoreNarrative.v1.2.ts (imported constant, no file I/O).
  *         API errors retry once (250ms + 1s backoff) then fall back to templated response.
  *         Malformed output and banned-phrase detection trigger immediate fallback with Sentry capture.
- *         Prompt version: narr.v1.0. Version bump requires new .vX.Y.ts prompt module + constant update.
+ *         Prompt version: narr.v1.2. Version bump requires new .vX.Y.ts prompt module + constant update.
  *         Spec: ADDENDUM_14H_FITSCORE_DELIVERY.md §7.
  */
 import * as Sentry from "@sentry/nextjs"
@@ -14,9 +14,9 @@ import type { TextBlockParam } from "@anthropic-ai/sdk/resources/messages/messag
 import { createMessage } from "@/lib/ai/client"
 import type { EngineResult, ApplicantInput } from "@/lib/screening/fitScoreEngine.v1"
 import { isForeignNational } from "@/lib/screening/fitScoreEngine.v1"
-import { FITSCORE_NARRATIVE_PROMPT_V1_1 } from "@/lib/screening/prompts/fitScoreNarrative.v1.1"
+import { FITSCORE_NARRATIVE_PROMPT_V1_2 } from "@/lib/screening/prompts/fitScoreNarrative.v1.2"
 
-export const CURRENT_PROMPT_VERSION = 'narr.v1.1'
+export const CURRENT_PROMPT_VERSION = 'narr.v1.2'
 
 // ─── Output type ──────────────────────────────────────────────────────────────
 
@@ -42,7 +42,7 @@ export interface NarrativeResponse {
 
 const SYSTEM_PROMPT_BLOCK: TextBlockParam = {
   type: 'text',
-  text: FITSCORE_NARRATIVE_PROMPT_V1_1,
+  text: FITSCORE_NARRATIVE_PROMPT_V1_2,
   cache_control: { type: 'ephemeral' },
 }
 
