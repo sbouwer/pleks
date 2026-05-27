@@ -24,6 +24,19 @@ import { extractPayslip } from "./extractors/payslip"
 import { extractBankStatement } from "./extractors/bankStatement"
 import { extractEmployerLetter } from "./extractors/employerLetter"
 import { extractProofOfAddress } from "./extractors/proofOfAddress"
+import { extractIRP5 } from "./extractors/irp5"
+import { extractUI19 } from "./extractors/ui19"
+import { extractNoticeOfAssessment } from "./extractors/noticeOfAssessment"
+import { extractProxyLetter } from "./extractors/proxyLetter"
+import { extractDisclosr } from "./extractors/disclosr"
+import { extractDonationDeclaration } from "./extractors/donationDeclaration"
+import { extractMotivationLetter } from "./extractors/motivationLetter"
+import { extractRecommendationLetter } from "./extractors/recommendationLetter"
+import { extractSalaryIncreaseLetter } from "./extractors/salaryIncreaseLetter"
+import { extractSarsIncomeTaxReference } from "./extractors/sarsIncomeTaxReference"
+import { extractSarsVatReference } from "./extractors/sarsVatReference"
+import { extractSavingsAccountDetails } from "./extractors/savingsAccountDetails"
+import { extractCreditBureauReport } from "./extractors/creditBureauReport"
 import type { ApplicationArchetype, ApplicationInput, Document, DocumentExtraction } from "./types"
 import type { AiCallOptions } from "@/lib/ai/client"
 
@@ -58,12 +71,25 @@ interface ClassifyResult {
 async function extractDocument(doc: Document, aiOpts: AiOpts): Promise<DocumentExtraction> {
   try {
     switch (doc.documentType) {
-      case "id-document":      return await extractId(doc, aiOpts)
-      case "payslip":          return await extractPayslip(doc, aiOpts)
-      case "bank-statement":   return await extractBankStatement(doc, aiOpts)
-      case "employer-letter":  return await extractEmployerLetter(doc, aiOpts)
-      case "proof-of-address": return await extractProofOfAddress(doc, aiOpts)
-      default:                 return null
+      case "id-document":             return await extractId(doc, aiOpts)
+      case "payslip":                 return await extractPayslip(doc, aiOpts)
+      case "bank-statement":          return await extractBankStatement(doc, aiOpts)
+      case "employer-letter":         return await extractEmployerLetter(doc, aiOpts)
+      case "proof-of-address":        return await extractProofOfAddress(doc, aiOpts)
+      case "irp5":                    return await extractIRP5(doc, aiOpts)
+      case "ui19":                    return await extractUI19(doc, aiOpts)
+      case "notice-of-assessment":    return await extractNoticeOfAssessment(doc, aiOpts)
+      case "proxy-letter":            return await extractProxyLetter(doc, aiOpts)
+      case "disclosr":                return await extractDisclosr(doc, aiOpts)
+      case "donation-declaration":    return await extractDonationDeclaration(doc, aiOpts)
+      case "motivation-letter":       return await extractMotivationLetter(doc, aiOpts)
+      case "recommendation-letter":   return await extractRecommendationLetter(doc, aiOpts)
+      case "salary-increase-letter":  return await extractSalaryIncreaseLetter(doc, aiOpts)
+      case "sars-income-tax-reference": return await extractSarsIncomeTaxReference(doc, aiOpts)
+      case "sars-vat-reference":      return await extractSarsVatReference(doc, aiOpts)
+      case "savings-account-details": return await extractSavingsAccountDetails(doc, aiOpts)
+      case "credit-bureau-report":    return await extractCreditBureauReport(doc, aiOpts)
+      default:                        return null
     }
   } catch {
     return null
