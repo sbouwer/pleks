@@ -1,18 +1,15 @@
 /**
- * app/(auth)/403/page.tsx — FILL: one-line purpose
+ * app/(auth)/403/page.tsx — forbidden page shown when role doesn't match route
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /403
+ * Auth:   public (no session required; shown after proxy gate)
+ * Notes:  Routes back to /auth/resolver which owns all workspace routing decisions.
+ *         Does not read ROLE_DEFAULT_ROUTES — resolver handles destination logic.
  */
 import { cookies } from "next/headers"
 import Link from "next/link"
 import { ShieldAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import type { SessionRole } from "@/lib/auth/roles"
-import { ROLE_DEFAULT_ROUTES } from "@/lib/auth/roles"
 
 export const metadata = { title: "Not available here" }
 
@@ -31,22 +28,13 @@ const ROLE_LABELS: Record<string, string> = {
 export default async function ForbiddenPage() {
   const cookieStore = await cookies()
   let activeRole: string | null = null
-  let hasMultiple = false
 
   try {
     const raw = cookieStore.get("pleks_active_role")?.value
     if (raw) {
       activeRole = (JSON.parse(raw) as { role?: string }).role ?? null
     }
-    const availRaw = cookieStore.get("pleks_available_roles")?.value
-    if (availRaw) {
-      hasMultiple = (JSON.parse(availRaw) as unknown[]).length > 1
-    }
   } catch { /* cookies malformed */ }
-
-  const workspaceHome = activeRole
-    ? ROLE_DEFAULT_ROUTES[activeRole as SessionRole] ?? "/dashboard"
-    : "/dashboard"
 
   const roleLabel = activeRole ? (ROLE_LABELS[activeRole] ?? activeRole) : null
 
@@ -60,12 +48,7 @@ export default async function ForbiddenPage() {
           : "This page isn't available in your current workspace."}
       </p>
       <div className="flex flex-col sm:flex-row gap-3">
-        {hasMultiple && (
-          <Button render={<Link href="/select-role" />}>Switch workspace</Button>
-        )}
-        <Button variant={hasMultiple ? "outline" : "default"} render={<Link href={workspaceHome} />}>
-          Go to my workspace
-        </Button>
+        <Button render={<Link href="/auth/resolver" />}>Go to my workspace</Button>
         <Button variant="ghost" render={<Link href="/login" />}>Sign out</Button>
       </div>
     </div>

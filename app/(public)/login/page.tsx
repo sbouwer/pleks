@@ -109,10 +109,13 @@ function LoginContent() {
     const supabase = createClient()
 
     if (magicLinkMode) {
+      // Pass the raw destination as next= so /auth/callback doesn't double-wrap resolverUrl()
+      const safeNext = redirectParam ? safeRedirect(redirectParam) : "/"
+      const nextParam = safeNext !== "/" ? `?next=${encodeURIComponent(safeNext)}` : ""
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${globalThis.location.origin}/auth/callback?next=${encodeURIComponent(resolverUrl())}`,
+          emailRedirectTo: `${globalThis.location.origin}/auth/callback${nextParam}`,
         },
       })
       if (otpError) {

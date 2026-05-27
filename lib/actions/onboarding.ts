@@ -136,6 +136,7 @@ export async function createAccountAndOrg(data: OnboardingData): Promise<{
     id: userId,
     full_name: data.contactName || data.name,
     phone: data.phone || null,
+    onboarding_state: "complete",
   }, { onConflict: "id" })
   if (profileError) {
     console.error("[onboarding] user_profiles upsert failed:", profileError)

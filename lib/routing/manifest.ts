@@ -41,10 +41,12 @@ export const ROUTE_MANIFEST: Record<string, RouteRule> = {
   // ── Public ──
   "/":                      { auth: false },
   "/login":                 { auth: false },
+  "/login/mfa":             { auth: true,  skipOrgCheck: true },
   "/forgot-password":       { auth: false },
   "/reset-password":        { auth: false },
   "/register":              { auth: false },
   "/onboarding":            { auth: false },
+  "/onboarding/severed":    { auth: true,  skipOrgCheck: true },
   "/accept-terms":          { auth: true,  skipOrgCheck: true },
   "/pricing":               { auth: false },
   "/privacy":               { auth: false },
