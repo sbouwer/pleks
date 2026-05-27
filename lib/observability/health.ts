@@ -36,7 +36,7 @@ export interface Incident {
   summary:     string
 }
 
-const COMPONENT_TIMEOUT_MS = 5000
+const COMPONENT_TIMEOUT_MS = 10000
 
 // Accepts PromiseLike<T> so Supabase's thenable query builders work correctly.
 function withTimeout<T>(p: PromiseLike<T>, ms: number): Promise<T> {
