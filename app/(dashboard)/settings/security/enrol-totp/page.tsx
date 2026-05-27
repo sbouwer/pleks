@@ -1,18 +1,19 @@
 "use client"
 
 /**
- * app/(dashboard)/settings/security/enrol-totp/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/settings/security/enrol-totp/page.tsx — TOTP MFA enrolment wizard (primary + backup)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /settings/security/enrol-totp
+ * Auth:   Authenticated; AAL2 required when user already has a verified factor (adding backup)
+ * Notes:  Encodes host in factor friendly_name (S-40, ADDENDUM_AUTH_RESOLVER §5.4).
+ *         Refuses enrolment on *.vercel.app preview deploys — no stable host = no factor.
  */
 
 import { useState, useEffect, useRef, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
+import { buildFactorFriendlyName, resolveCurrentHost, isPreviewHost } from "@/lib/auth/mfa-host"
+import type { AllowedHost } from "@/lib/auth/mfa-host"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -57,9 +58,19 @@ function EnrolTotpContent() {
   const [secret2, setSecret2] = useState<string | null>(null)
   const [factorId2, setFactorId2] = useState<string | null>(null)
   const [code, setCode] = useState("")
+  const currentHostRef = useRef<AllowedHost | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
+    const req = new Request(globalThis.location.href)
+
+    if (isPreviewHost(req)) {
+      setError("TOTP setup is disabled on preview deploys. Use the production or staging environment.")
+      return
+    }
+
+    currentHostRef.current = resolveCurrentHost(req)
+
     const supabase = createClient()
     supabase.auth.mfa.listFactors().then(async ({ data: factors }) => {
       const verifiedTotps = (factors?.totp ?? []).filter(f => f.status === "verified")
@@ -84,8 +95,10 @@ function EnrolTotpContent() {
         }
       }
 
-      // Compute a unique friendly name — avoid collision with existing factor names.
-      const friendlyName = verifiedCount === 0 ? "Primary device" : `Backup device ${verifiedCount}`
+      // Embed host in friendly_name so filterFactorsByHost() scopes verification correctly.
+      const label = verifiedCount === 0 ? "Primary device" : `Backup device ${verifiedCount}`
+      const h = currentHostRef.current
+      const friendlyName = h ? buildFactorFriendlyName(label, h) : label
 
       setLoading(true)
       setError(null)
@@ -120,9 +133,11 @@ function EnrolTotpContent() {
     setLoading(true)
     setError(null)
     const supabase = createClient()
+    const label = factorNum === 1 ? "Primary device" : "Backup device"
+    const h = currentHostRef.current
     const { data, error: enrolErr } = await supabase.auth.mfa.enroll({
       factorType: "totp",
-      friendlyName: factorNum === 1 ? "Primary device" : "Backup device",
+      friendlyName: h ? buildFactorFriendlyName(label, h) : label,
     })
     setLoading(false)
     if (enrolErr || !data) {

@@ -7,6 +7,7 @@
  * Data:   organisations, user_orgs, subscriptions, user_profiles, bank_accounts, consent_log, tos_acceptances
  * Notes:  isAlreadyAuthenticated path handles agents who log in first then complete onboarding.
  *         recordTosAcceptance() is called after org row exists (FK constraint on tos_acceptances).
+ *         assertEmailAvailableForRole() enforces I-4 and I-5 before any auth mutation (§4.2–4.3).
  */
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
@@ -14,6 +15,7 @@ import { headers, cookies } from "next/headers"
 import { recordTosAcceptance } from "@/lib/subscriptions/acceptance"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import { AUTH_COOKIE_OPTS } from "@/lib/auth/cookie-config"
+import { assertEmailAvailableForRole, isPersonalEmailDomain } from "@/lib/auth/email-policy"
 
 export interface OnboardingData {
   userType: "owner" | "agent" | "agency" | "family" | "exploring"
@@ -51,6 +53,9 @@ export async function createAccountAndOrg(data: OnboardingData): Promise<{
   const ip = headersList.get("x-forwarded-for") || "unknown"
   const ua = headersList.get("user-agent") ?? null
   const service = await createServiceClient()
+
+  const policyError = await checkIdentityPolicy(data)
+  if (policyError) return policyError
 
   const authResult = await resolveUserId(data, service)
   if ("error" in authResult) return authResult
@@ -172,6 +177,33 @@ export async function createAccountAndOrg(data: OnboardingData): Promise<{
 }
 
 type ServiceClient = Awaited<ReturnType<typeof createServiceClient>>
+
+// ─── Identity policy guard (I-4 + I-5) ───────────────
+// Extracted to keep createAccountAndOrg() below the cyclomatic-complexity limit.
+
+async function checkIdentityPolicy(
+  data: OnboardingData,
+): Promise<{ error: string; errorType: string } | null> {
+  const isAgentClass = data.userType === "agent" || data.userType === "agency"
+
+  if (isAgentClass && data.email && isPersonalEmailDomain(data.email)) {
+    return { error: "Agent accounts require an organisation email, not a personal address.", errorType: "agent_requires_org_domain" }
+  }
+
+  if (!data.email || data.isAlreadyAuthenticated) return null
+
+  const targetClass = isAgentClass ? "agent" : "landlord"
+  const availability = await assertEmailAvailableForRole(data.email, targetClass)
+  if (availability.available) return null
+
+  if (availability.reason === "in_use_elsewhere") {
+    return {
+      error: `This email is currently a member of ${availability.existingOrgName}. To use it for a new account, leave that organisation first.`,
+      errorType: "email_in_use_elsewhere",
+    }
+  }
+  return { error: "Agent accounts require an organisation email, not a personal address.", errorType: "agent_requires_org_domain" }
+}
 
 // ─── Auth resolution ──────────────────────────────────
 

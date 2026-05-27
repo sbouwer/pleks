@@ -15,6 +15,7 @@ import { Topbar } from "@/components/layout/TopBar"
 import { MobileNav } from "@/components/layout/MobileNav"
 import { PortalThemeProvider } from "@/components/layout/PortalThemeProvider"
 import { FeedbackButton } from "@/components/feedback/FeedbackButton"
+import { ConsentGate } from "@/components/legal/ConsentGate"
 import {
   LayoutDashboard,
   Briefcase,
@@ -41,6 +42,7 @@ export function SupplierShell({ children }: Readonly<{ children: React.ReactNode
 
   return (
     <PortalThemeProvider>
+      <ConsentGate />
       <aside
         className={cn(
           "sticky top-0 hidden h-screen shrink-0 flex-col border-r border-border lg:flex transition-all duration-200",

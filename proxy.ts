@@ -6,6 +6,9 @@
  *         portal-role enforcement via ROUTE_MANIFEST.
  * Notes:  WEBHOOK_PREFIXES bypass all gates — handlers must validate their own secrets.
  *         Apex domain (pleks.co.za) serves marketing; app subdomain serves the product.
+ *         ensureOrgCookies() now calls resolveUserMembership() for all portal classes
+ *         (not just user_orgs). ToS/Privacy consent is now handled via ConsentGateModal
+ *         mounted in destination layouts — no redirect to /accept-terms.
  */
 import { type NextRequest, NextResponse } from "next/server"
 import { updateSession } from "@/lib/supabase/middleware"
@@ -13,25 +16,19 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { AUTH_COOKIE_OPTS } from "@/lib/auth/cookie-config"
 import { ROUTE_MANIFEST, AGENT_ROLES, type SessionRole } from "@/lib/routing/manifest"
 import { resolveHostContext } from "@/lib/routing/hostname"
-import { resolveUserRoles, defaultRoleForMemberships } from "@/lib/auth/roles"
+import { resolveUserMembership } from "@/lib/auth/membership"
 import { verifyAdminToken } from "@/lib/auth/admin-token"
-import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import type { User } from "@supabase/supabase-js"
 
 // ── Bypass lists (checked before manifest) ───────────────────────────────────
-// /api/admin is NOT in this list — it gets its own middleware gate below.
-// /api/status is a fully-public, no-user-data health JSON endpoint (ISR-cached 60s) — safe to bypass.
 const WEBHOOK_PREFIXES = ["/api/webhooks", "/api/cron", "/api/waitlist", "/api/health", "/api/status", "/api/legal"]
 
 // ── Subdomain split ───────────────────────────────────────────────────────────
-// In production: pleks.co.za = marketing apex, app.pleks.co.za = product.
-// Paths served on the apex; all others redirect to the app subdomain.
 const APEX_PREFIXES = [
   "/pricing", "/for-agents", "/for-landlords", "/early-access", "/migrate",
   "/privacy", "/terms", "/credit-check-policy", "/cookie-policy", "/paia-manual",
   "/popia-register", "/features", "/contact", "/demo", "/marketing",
   "/api/paia-manual-pdf",
-  // /status intentionally excluded — only served via status.pleks.co.za (proxy rewrite below)
 ]
 
 function isApexPath(pathname: string): boolean {
@@ -45,8 +42,6 @@ const ADMIN_HOSTNAME     = "admin.pleks.co.za"
 const STATUS_HOSTNAME    = "status.pleks.co.za"
 
 function isAdminPath(pathname: string): boolean {
-  // Covers both the UI (/admin/*) and the API (/api/admin/*) so that both stay
-  // on admin.pleks.co.za and the login POST sets its cookie on the correct hostname.
   return pathname === "/admin"     || pathname.startsWith("/admin/") ||
          pathname === "/api/admin" || pathname.startsWith("/api/admin/")
 }
@@ -63,11 +58,6 @@ function matchManifest(pathname: string) {
 }
 
 // ── Admin page gate (/admin/* UI routes) ─────────────────────────────────────
-// KNOWN GAP: checkAdminAuth only fires inside handleSubdomainSplit, which is
-// wrapped in isProdLive. On Vercel preview deployments the HMAC gate is skipped —
-// /admin/* UI routes fall through to manifest auth (Supabase session only).
-// Vercel Deployment Protection mitigates this in practice. The API layer
-// (checkAdminApiAuth) runs before isProdLive and is always protected. ✓
 async function checkAdminAuth(pathname: string, request: NextRequest): Promise<NextResponse | null> {
   if (!pathname.startsWith("/admin")) return null
   if (pathname === "/admin/login") return NextResponse.next()
@@ -79,11 +69,6 @@ async function checkAdminAuth(pathname: string, request: NextRequest): Promise<N
 }
 
 // ── Admin API gate (/api/admin/* routes) ─────────────────────────────────────
-// Defense-in-depth: individual handlers also call verifyAdmin(), but this gate
-// ensures a handler that forgets the check is still blocked at the proxy level.
-// Exemption: /api/admin/auth is the login endpoint itself — it can't require a
-// valid token to be reachable, otherwise nobody could ever log in (chicken-and-egg).
-// The route's POST handler does its own raw-secret check.
 async function checkAdminApiAuth(pathname: string, request: NextRequest): Promise<NextResponse | null> {
   if (!pathname.startsWith("/api/admin")) return null
   if (pathname === "/api/admin/auth") return null
@@ -134,32 +119,12 @@ async function refreshOrgCookieParallel(
   }
 }
 
-async function setOrgCookiesFromDb(
-  service: Awaited<ReturnType<typeof createServiceClient>>,
-  user: User, hasOrgCookieRaw: string | undefined, supabaseResponse: NextResponse
-): Promise<boolean> {
-  const { data: orgs } = await service
-    .from("user_orgs").select("org_id, role").eq("user_id", user.id).is("deleted_at", null).limit(1)
-
-  if (!orgs?.length) return !hasOrgCookieRaw
-
-  const orgId = orgs[0].org_id
-  const [subData, orgData] = await Promise.all([
-    service.from("subscriptions").select("tier, status, trial_tier, trial_ends_at, trial_converted")
-      .eq("org_id", orgId).not("status", "eq", "purged").order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    service.from("organisations").select("type, name").eq("id", orgId).single(),
-  ])
-
-  supabaseResponse.cookies.set("pleks_has_org", JSON.stringify({ org_id: orgId, user_id: user.id }), { ...AUTH_COOKIE_OPTS, maxAge: 60 * 60 * 24 * 7 })
-  supabaseResponse.cookies.set("pleks_org", JSON.stringify({
-    org_id: orgId, role: orgs[0].role, tier: deriveTierFromSub(subData.data),
-    type: orgData.data?.type ?? "agency", name: orgData.data?.name ?? "",
-    sub_status: subData.data?.status ?? null,
-    user_id: user.id,
-  }), { ...AUTH_COOKIE_OPTS, maxAge: 300 })
-  return false
-}
-
+/**
+ * Hydrate org cookies from the database.
+ * Uses resolveUserMembership() so all portal classes (not just agent) get cookies set.
+ * When no membership is found, delegates to /auth/resolver instead of /onboarding
+ * directly — the resolver decides the correct state-based destination.
+ */
 async function ensureOrgCookies(
   user: User, request: NextRequest, supabaseResponse: NextResponse
 ): Promise<NextResponse | null> {
@@ -175,8 +140,52 @@ async function ensureOrgCookies(
     return null
   }
 
-  const shouldRedirect = await setOrgCookiesFromDb(service, user, hasOrgCookieRaw, supabaseResponse)
-  return shouldRedirect ? NextResponse.redirect(new URL("/onboarding", request.url)) : null
+  // No cached org — resolve membership across all classes
+  let membership
+  try {
+    membership = await resolveUserMembership(user.id)
+  } catch {
+    // SovereignMembershipViolation or unexpected error — send to resolver to handle
+    return NextResponse.redirect(new URL("/auth/resolver", request.url))
+  }
+
+  if (!membership) {
+    // No membership anywhere — resolver decides whether to send to /onboarding
+    return NextResponse.redirect(new URL("/auth/resolver", request.url))
+  }
+
+  // For agent-class: write pleks_org + pleks_has_org as before
+  if (membership.portalClass === "agent") {
+    const [subData, orgData] = await Promise.all([
+      service.from("subscriptions").select("tier, status, trial_tier, trial_ends_at, trial_converted")
+        .eq("org_id", membership.orgId).not("status", "eq", "purged")
+        .order("created_at", { ascending: false }).limit(1).maybeSingle(),
+      service.from("organisations").select("type, name").eq("id", membership.orgId).single(),
+    ])
+
+    supabaseResponse.cookies.set("pleks_has_org", JSON.stringify({ org_id: membership.orgId, user_id: user.id }), { ...AUTH_COOKIE_OPTS, maxAge: 60 * 60 * 24 * 7 })
+    supabaseResponse.cookies.set("pleks_org", JSON.stringify({
+      org_id: membership.orgId, role: membership.orgRole, tier: deriveTierFromSub(subData.data),
+      type: orgData.data?.type ?? "agency", name: orgData.data?.name ?? "",
+      sub_status: subData.data?.status ?? null,
+      user_id: user.id,
+    }), { ...AUTH_COOKIE_OPTS, maxAge: 300 })
+  } else {
+    // Non-agent portals: write a slim pleks_has_org to suppress future DB calls
+    // but leave pleks_org absent (portal routes don't gate on pleks_org content)
+    supabaseResponse.cookies.set("pleks_has_org", JSON.stringify({
+      org_id: membership.orgId, user_id: user.id, portal_class: membership.portalClass,
+    }), { ...AUTH_COOKIE_OPTS, maxAge: 60 * 60 * 24 * 7 })
+  }
+
+  return null
+}
+
+// Maps a resolved membership to the SessionRole written into pleks_active_role.
+function toSessionRole(m: Awaited<ReturnType<typeof resolveUserMembership>> & object): SessionRole {
+  if (m.portalClass === "agent") return m.orgRole ?? "owner"
+  if (m.portalClass === "supplier") return "supplier"
+  return m.portalClass
 }
 
 // ── Portal role gate (ADDENDUM_61B) ──────────────────────────────────────────
@@ -196,64 +205,34 @@ async function checkPortalRoleGate(
   if (raw) {
     try {
       const { role } = JSON.parse(raw) as { role?: string }
-      if (role && rule.roles.includes(role as SessionRole)) return null // active role matches
+      if (role && rule.roles.includes(role as SessionRole)) return null
       if (role) return NextResponse.redirect(new URL("/403", request.url))
     } catch { /* fall through to DB resolution */ }
   }
 
   // Cookie missing or unparseable — resolve from DB
-  const memberships = await resolveUserRoles(user.id)
-  if (memberships.length === 0) {
-    return NextResponse.redirect(new URL("/onboarding", request.url))
+  let membership
+  try {
+    membership = await resolveUserMembership(user.id)
+  } catch {
+    return NextResponse.redirect(new URL("/auth/resolver", request.url))
   }
 
-  const chosen = defaultRoleForMemberships(memberships)
-
-  if (chosen) {
-    // Auto-resolve: set cookie and check if it matches this route
-    supabaseResponse.cookies.set("pleks_active_role", JSON.stringify({
-      role: chosen.role, scope_id: chosen.scope_id, org_id: chosen.org_id,
-    }), { ...AUTH_COOKIE_OPTS, maxAge: 60 * 60 * 24 * 7 })
-    supabaseResponse.cookies.set("pleks_available_roles", JSON.stringify(memberships), {
-      ...AUTH_COOKIE_OPTS, maxAge: 60 * 5,
-    })
-    if (rule.roles.includes(chosen.role)) return null // matches — allow through
-    return NextResponse.redirect(new URL("/403", request.url))
+  if (!membership) {
+    return NextResponse.redirect(new URL("/auth/resolver", request.url))
   }
 
-  // Multiple roles, none auto-selected — send to role selector
-  supabaseResponse.cookies.set("pleks_available_roles", JSON.stringify(memberships), {
-    ...AUTH_COOKIE_OPTS, maxAge: 60 * 5,
-  })
-  return NextResponse.redirect(new URL("/select-role", request.url))
-}
+  const roleForCookie = toSessionRole(membership)
 
-// ── ToS version gate ─────────────────────────────────────────────────────────
-// Cookie pleks_tos_version is set when the user accepts the current ToS. If the
-// cookie is missing or stale (version mismatch), the user is sent to /accept-terms
-// before entering the agent workspace. Gate applies to agent-only routes only —
-// not portal routes, not /accept-terms itself (infinite-loop guard), not settings
-// (so users can still manage their account without accepting first).
-function checkTosGate(
-  rule: NonNullable<ReturnType<typeof matchManifest>>,
-  pathname: string,
-  request: NextRequest,
-): NextResponse | null {
-  if (!rule.roles?.every(r => (AGENT_ROLES as readonly string[]).includes(r))) return null
-  if (pathname === "/accept-terms" || pathname.startsWith("/accept-terms/")) return null
-  if (pathname === "/settings" || pathname.startsWith("/settings/")) return null
+  supabaseResponse.cookies.set("pleks_active_role", JSON.stringify({
+    role: roleForCookie, scope_id: membership.scopeId, org_id: membership.orgId,
+  }), { ...AUTH_COOKIE_OPTS, maxAge: 60 * 60 * 24 * 7 })
 
-  const accepted = request.cookies.get("pleks_tos_version")?.value
-  if (accepted === LEGAL_VERSIONS.terms) return null
-
-  const dest = request.nextUrl.clone()
-  dest.pathname = "/accept-terms"
-  dest.searchParams.set("next", pathname)
-  return NextResponse.redirect(dest)
+  if (rule.roles.includes(roleForCookie)) return null
+  return NextResponse.redirect(new URL("/403", request.url))
 }
 
 // ── Agent role gate ───────────────────────────────────────────────────────────
-// Only enforced when all allowed roles are agent roles.
 function checkAgentRoleGate(
   rule: NonNullable<ReturnType<typeof matchManifest>>,
   request: NextRequest
@@ -288,7 +267,6 @@ async function handleProtectedRoute(
   }
 
   // AAL2 enforcement — agent workspace routes require a completed MFA session.
-  // /settings is intentionally excluded so agents can enrol their first TOTP factor.
   if (rule.requiresAal2 && aal !== "aal2") {
     const url = request.nextUrl.clone()
     url.pathname = "/login/mfa"
@@ -296,9 +274,9 @@ async function handleProtectedRoute(
     return NextResponse.redirect(url)
   }
 
-  // ToS version gate — must accept current terms before entering the agent workspace
-  const tosRedirect = checkTosGate(rule, request.nextUrl.pathname, request)
-  if (tosRedirect) return tosRedirect
+  // ToS/Privacy consent is now handled via ConsentGateModal in destination layouts.
+  // The resolver appends ?pending_consent=1 when consent is outdated.
+  // The middleware no longer redirects to /accept-terms.
 
   const portalRedirect = await checkPortalRoleGate(rule, user, request, supabaseResponse)
   if (portalRedirect) return portalRedirect
@@ -315,14 +293,11 @@ async function handleProtectedRoute(
 }
 
 // ── Subdomain split (production only) ────────────────────────────────────────
-// Skipped in dev and Vercel preview — all traffic comes from a single origin
-// and resolveHostContext already returns "app" in those environments.
 function handleStatusSubdomain(pathname: string, request: NextRequest): NextResponse {
   if (pathname === "/") {
     const dest = request.nextUrl.clone(); dest.pathname = "/status"
     return NextResponse.rewrite(dest)
   }
-  // Nav links from the status subdomain — send to the right home
   const dest = request.nextUrl.clone()
   dest.host = isApexPath(pathname) ? MARKETING_HOSTNAME : APP_HOSTNAME
   return NextResponse.redirect(dest, 308)
@@ -335,7 +310,6 @@ async function handleSubdomainSplit(
 ): Promise<NextResponse | null> {
   if (hostCtx === "marketing" && !isApexPath(pathname)) {
     const dest = request.nextUrl.clone()
-    // /status on apex goes directly to status subdomain — avoids a double 308 via app subdomain
     if (pathname === "/status" || pathname.startsWith("/status/")) {
       dest.host = STATUS_HOSTNAME; dest.pathname = "/"
       return NextResponse.redirect(dest, 308)
@@ -372,10 +346,8 @@ async function handleSubdomainSplit(
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Webhooks / cron / waitlist — bypass everything
   if (WEBHOOK_PREFIXES.some((p) => pathname.startsWith(p))) return NextResponse.next()
 
-  // Admin API gate — defense-in-depth before individual handler auth checks
   const adminApiResponse = await checkAdminApiAuth(pathname, request)
   if (adminApiResponse) return adminApiResponse
 
@@ -388,10 +360,8 @@ export async function proxy(request: NextRequest) {
     if (splitResponse) return splitResponse
   }
 
-  // Manifest lookup (app / marketing subdomain only from here)
   const rule = matchManifest(pathname)
 
-  // No manifest entry (API self-auth or unknown path) or public route — refresh session + pass through
   if (!rule?.auth) {
     const { supabaseResponse } = await updateSession(request)
     return supabaseResponse
@@ -400,11 +370,6 @@ export async function proxy(request: NextRequest) {
   return handleProtectedRoute(rule, request)
 }
 
-// Matcher must be a literal string (or array of literals). Next.js 16 statically
-// analyzes the matcher value and rejects non-literal AST nodes (like String.raw
-// tagged templates) with "Invalid segment configuration export detected" — even
-// though the runtime value is a valid regex string. Backslashes for regex escapes
-// must be doubled here since this is a normal string literal, not a raw one.
 export const config = {
   matcher: "/((?!_next/static|_next/image|_next/data|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
 }

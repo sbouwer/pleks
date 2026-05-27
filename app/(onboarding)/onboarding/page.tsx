@@ -266,7 +266,7 @@ function OnboardingWizard() {
     })
     if (result?.error) {
       if (result.errorType === "already_exists") { globalThis.location.href = "/dashboard"; return }
-      if (result.errorType === "auth_required") { globalThis.location.href = `/login?redirect=/onboarding&email=${encodeURIComponent(emailToUse)}`; return }
+      if (result.errorType === "auth_required") { globalThis.location.href = `/login?redirect=/auth/resolver&email=${encodeURIComponent(emailToUse)}`; return }
       toast.error(result.error)
       setLoading(false)
       return
@@ -323,7 +323,7 @@ function OnboardingWizard() {
                   <p style={{ fontSize: 12, color: "var(--ink-soft)", margin: 0 }}>
                     Did you start setting up before?{" "}
                     <button type="button"
-                      onClick={() => { globalThis.location.href = `/login?redirect=/onboarding&email=${encodeURIComponent(acctEmail)}` }}
+                      onClick={() => { globalThis.location.href = `/login?redirect=/auth/resolver&email=${encodeURIComponent(acctEmail)}` }}
                       style={{ color: "var(--amber-ink)", textDecoration: "underline", background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: "inherit" }}>
                       Sign in to continue →
                     </button>

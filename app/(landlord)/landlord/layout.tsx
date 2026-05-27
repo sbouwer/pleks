@@ -14,6 +14,7 @@ import { Topbar } from "@/components/layout/TopBar"
 import { MobileNav } from "@/components/layout/MobileNav"
 import { PortalThemeProvider } from "@/components/layout/PortalThemeProvider"
 import { FeedbackButton } from "@/components/feedback/FeedbackButton"
+import { ConsentGate } from "@/components/legal/ConsentGate"
 
 export default function LandlordPortalLayout({
   children,
@@ -25,6 +26,7 @@ export default function LandlordPortalLayout({
 
   return (
     <PortalThemeProvider>
+      <ConsentGate />
       <LandlordSidebar />
       <MobileNav
         open={mobileNavOpen}

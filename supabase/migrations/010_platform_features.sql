@@ -2358,3 +2358,86 @@ CREATE POLICY "owners manage org capabilities" ON user_capabilities
         AND role IN ('owner', 'property_manager')
     )
   );
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §30  BUILD_AUTH_RESOLVER: onboarding_state + enforce_single_active_membership
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Adds user_profiles.onboarding_state to persist multi-step wizard progress.
+-- enforce_single_active_membership() trigger enforces I-4: one auth.uid() = one
+-- active membership across user_orgs (agent), user_orgs_tenants (tenant), and
+-- landlords (landlord, portal_access_enabled = true only). Raises SQLSTATE 23514.
+
+ALTER TABLE user_profiles
+  ADD COLUMN IF NOT EXISTS onboarding_state jsonb NULL;
+
+COMMENT ON COLUMN user_profiles.onboarding_state IS
+  'Persisted wizard state for multi-step onboarding. Null once onboarding is complete.';
+
+CREATE INDEX IF NOT EXISTS idx_user_profiles_onboarding_pending
+  ON user_profiles(id)
+  WHERE onboarding_state IS NOT NULL;
+
+-- Trigger function: raise if the incoming user already holds any active membership.
+-- Called BEFORE INSERT on user_orgs, user_orgs_tenants, and landlords.
+-- Mirrors the active-membership definition used by resolveUserMembership() in
+-- lib/auth/membership.ts — keep the two in sync if active-row criteria change.
+CREATE OR REPLACE FUNCTION enforce_single_active_membership()
+RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+  _user_id uuid;
+  _existing int;
+BEGIN
+  IF TG_TABLE_NAME = 'user_orgs' THEN
+    _user_id := NEW.user_id;
+  ELSIF TG_TABLE_NAME = 'user_orgs_tenants' THEN
+    _user_id := NEW.user_id;
+  ELSIF TG_TABLE_NAME = 'landlords' THEN
+    -- Enforce only when the row is portal-active (matches resolveUserMembership filter).
+    IF NOT NEW.portal_access_enabled OR NEW.auth_user_id IS NULL THEN
+      RETURN NEW;
+    END IF;
+    _user_id := NEW.auth_user_id;
+  ELSE
+    RETURN NEW;
+  END IF;
+
+  IF _user_id IS NULL THEN RETURN NEW; END IF;
+
+  SELECT COUNT(*) INTO _existing FROM (
+    SELECT 1 FROM user_orgs
+      WHERE user_id = _user_id AND deleted_at IS NULL
+    UNION ALL
+    SELECT 1 FROM user_orgs_tenants
+      WHERE user_id = _user_id
+    UNION ALL
+    SELECT 1 FROM landlords
+      WHERE auth_user_id = _user_id
+        AND deleted_at IS NULL
+        AND portal_access_enabled = true
+  ) combined;
+
+  IF _existing > 0 THEN
+    RAISE EXCEPTION
+      'sovereign_membership_violation: user % already holds an active membership',
+      _user_id
+      USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_enforce_single_membership ON user_orgs;
+CREATE TRIGGER trg_enforce_single_membership
+  BEFORE INSERT ON user_orgs
+  FOR EACH ROW EXECUTE FUNCTION enforce_single_active_membership();
+
+DROP TRIGGER IF EXISTS trg_enforce_single_membership ON user_orgs_tenants;
+CREATE TRIGGER trg_enforce_single_membership
+  BEFORE INSERT ON user_orgs_tenants
+  FOR EACH ROW EXECUTE FUNCTION enforce_single_active_membership();
+
+DROP TRIGGER IF EXISTS trg_enforce_single_membership ON landlords;
+CREATE TRIGGER trg_enforce_single_membership
+  BEFORE INSERT ON landlords
+  FOR EACH ROW EXECUTE FUNCTION enforce_single_active_membership();

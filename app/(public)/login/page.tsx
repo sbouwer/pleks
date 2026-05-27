@@ -4,9 +4,10 @@
  * app/(public)/login/page.tsx — Email + password login with passkey conditional UI
  *
  * Route:  /login
- * Auth:   unauthenticated (redirects to dashboard if already logged in)
+ * Auth:   unauthenticated (redirects to /auth/resolver if already logged in)
  * Notes:  ?redirect= is sanitised via safeRedirect() to block open-redirect.
- *         All sign-in failures return a generic message to prevent user enumeration.
+ *         Post-login routing is delegated entirely to /auth/resolver (I-1 invariant).
+ *         email_exists check before sign-in failure enables S-02 UX flow.
  */
 
 import { useState, useEffect, Suspense } from "react"
@@ -16,7 +17,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import Link from "next/link"
-import { Eye, EyeOff, KeyRound, Loader2 } from "lucide-react"
+import { Eye, EyeOff, KeyRound, Loader2, Info } from "lucide-react"
 import { usePasskeyLogin } from "@/lib/auth/passkeys/usePasskeyLogin"
 import { canUsePasskeys } from "@/lib/auth/passkeys/capability"
 import { AccentBracket } from "@/components/ui/AccentBracket"
@@ -50,44 +51,6 @@ const BTN_GHOST: React.CSSProperties = {
   transition: "background .15s, border-color .15s, color .15s",
 }
 
-async function routeAfterLogin(
-  supabase: ReturnType<typeof createClient>,
-  userId: string,
-  redirectParam: string | null,
-  router: ReturnType<typeof useRouter>
-) {
-  const [agentRes, tenantRes, landlordRes] = await Promise.all([
-    supabase.from("user_orgs").select("role, org_id").eq("user_id", userId).is("deleted_at", null),
-    supabase.from("user_orgs_tenants").select("tenant_id, org_id").eq("user_id", userId),
-    supabase.from("landlords").select("id, org_id").eq("auth_user_id", userId).is("deleted_at", null).eq("portal_access_enabled", true),
-  ])
-
-  const roleCount = (agentRes.data?.length ?? 0)
-    + (tenantRes.data?.length ?? 0)
-    + (landlordRes.data?.length ?? 0)
-
-  if (roleCount === 0) { router.push("/onboarding"); return }
-
-  if (roleCount > 1) {
-    router.push(redirectParam ? `/select-role?redirect=${encodeURIComponent(safeRedirect(redirectParam))}` : "/select-role")
-    return
-  }
-
-  if (redirectParam) { router.push(safeRedirect(redirectParam)); return }
-  if (agentRes.data?.[0]) {
-    const role = agentRes.data[0].role
-    if (role === "tenant") router.push("/tenant/dashboard")
-    else if (role === "contractor" || role === "supplier") router.push("/supplier/dashboard")
-    else router.push("/dashboard")
-  } else if (tenantRes.data?.[0]) {
-    router.push("/tenant/dashboard")
-  } else if (landlordRes.data?.[0]) {
-    router.push("/landlord/dashboard")
-  } else {
-    router.push("/dashboard")
-  }
-}
-
 function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -103,6 +66,7 @@ function LoginContent() {
   const [magicLinkSent, setMagicLinkSent] = useState(false)
   const [checking, setChecking] = useState(true)
   const [passkeyAvailable, setPasskeyAvailable] = useState(false)
+  const [emailNotFound, setEmailNotFound] = useState(false)
   const { login: passkeyLogin, state: passkeyState, errorMsg: passkeyError, reset: passkeyReset } = usePasskeyLogin()
 
   // Capability detection
@@ -110,25 +74,36 @@ function LoginContent() {
     canUsePasskeys().then(c => setPasskeyAvailable(c.available))
   }, [])
 
-  // If already authenticated, redirect
+  // Build the resolver URL (with optional redirect param) for post-auth routing
+  function resolverUrl(extra?: string) {
+    const base = "/auth/resolver"
+    const params = new URLSearchParams()
+    const safe = redirectParam ? safeRedirect(redirectParam) : null
+    if (safe && safe !== "/") params.set("redirect", safe)
+    if (extra) params.set(extra, "1")
+    const qs = params.toString()
+    return qs ? `${base}?${qs}` : base
+  }
+
+  // If already authenticated, send to resolver — no role decision here (I-1)
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser()
       .then(({ data }) => {
         if (data.user) {
-          router.replace(safeRedirect(redirectParam))
+          router.replace(resolverUrl())
         } else {
           setChecking(false)
         }
       })
-      .catch(() => {
-        setChecking(false)
-      })
-  }, [router, redirectParam])
+      .catch(() => { setChecking(false) })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function handleLogin(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
     setError(null)
+    setEmailNotFound(false)
     setLoading(true)
 
     const supabase = createClient()
@@ -137,7 +112,7 @@ function LoginContent() {
       const { error: otpError } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${globalThis.location.origin}/auth/callback?next=${safeRedirect(redirectParam)}`,
+          emailRedirectTo: `${globalThis.location.origin}/auth/callback?next=${encodeURIComponent(resolverUrl())}`,
         },
       })
       if (otpError) {
@@ -149,31 +124,44 @@ function LoginContent() {
       return
     }
 
+    // email_exists check before attempting password sign-in (S-02 flow).
+    // Accepted trade-off: leaks one bit of existence info to enable first-impression UX.
+    // Mitigated by rate-limiting on /api/auth/check-email (D-AUTH-RESOLVER-09).
+    const checkRes = await fetch("/api/auth/check-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.trim() }),
+    }).catch(() => null)
+    const emailExists = checkRes?.ok ? (await checkRes.json().catch(() => ({ exists: true }))).exists : true
+
     const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
 
     if (signInError) {
-      // Use a generic message for all sign-in failures — differentiated errors
-      // (e.g. "Email not confirmed") leak account existence and enable enumeration.
-      setError("Incorrect email or password")
+      if (!emailExists) {
+        setEmailNotFound(true)
+      } else {
+        setError("Incorrect email or password")
+      }
       setLoading(false)
       return
     }
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
-      router.push("/dashboard")
+      router.push(resolverUrl())
       return
     }
 
-    // Check MFA requirement before role routing
+    // MFA check — if elevation required, route through /login/mfa which re-fires resolver
     const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
     if (aalData?.nextLevel === "aal2" && aalData?.currentLevel === "aal1") {
-      const dest = redirectParam ? `/login/mfa?redirect=${encodeURIComponent(safeRedirect(redirectParam))}` : "/login/mfa"
+      const dest = `/login/mfa?redirect=${encodeURIComponent(resolverUrl())}`
       router.push(dest)
       return
     }
 
-    await routeAfterLogin(supabase, user.id, redirectParam, router)
+    // AAL satisfied — resolver decides destination
+    router.push(resolverUrl())
     setLoading(false)
   }
 
@@ -233,6 +221,24 @@ function LoginContent() {
             </div>
           )}
 
+          {emailNotFound && (
+            <div className="mb-4 rounded-md bg-amber-50 border border-amber-200 p-3 text-sm flex gap-2">
+              <Info size={14} style={{ color: "var(--amber-ink)", flexShrink: 0, marginTop: 1 }} />
+              <div>
+                <p style={{ fontWeight: 500, margin: "0 0 2px" }}>We don&apos;t recognise that email.</p>
+                <p style={{ margin: 0, color: "var(--ink-soft)" }}>
+                  Want to create an account?{" "}
+                  <Link
+                    href={`/onboarding?email=${encodeURIComponent(email)}`}
+                    style={{ color: "var(--amber-ink)", textDecoration: "underline" }}
+                  >
+                    Get started →
+                  </Link>
+                </p>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -243,7 +249,7 @@ function LoginContent() {
                 autoComplete="username webauthn"
                 disabled={loading}
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => { setEmail(e.target.value); setEmailNotFound(false) }}
                 required
               />
             </div>

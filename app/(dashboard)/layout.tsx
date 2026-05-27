@@ -21,6 +21,7 @@ import { MfaGuard } from "@/components/auth/MfaGuard"
 import { FeedbackButton } from "@/components/feedback/FeedbackButton"
 import { SubscriptionStateBanner } from "@/components/layout/SubscriptionStateBanner"
 import { PrivacyPolicyBanner } from "@/components/layout/PrivacyPolicyBanner"
+import { ConsentGate } from "@/components/legal/ConsentGate"
 
 export default function DashboardLayout({
   children,
@@ -30,6 +31,7 @@ export default function DashboardLayout({
   return (
     <PortalThemeProvider>
       <MfaGuard />
+      <ConsentGate />
       <NavigationProgress />
       <PortfolioPrefetcher />
       <Sidebar />

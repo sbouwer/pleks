@@ -5,8 +5,9 @@
  *
  * Route:  /login/mfa
  * Auth:   aal1 session required (password step already done)
- * Notes:  redirects to /settings/security/enrol-totp if user has no verified TOTP factors,
- *         closing the bypass window where a user could skip MFA by navigating directly.
+ * Notes:  Post-verification routes to /auth/resolver (not directly to destination).
+ *         Factors are filtered by current host claim (§5.4 ADDENDUM_AUTH_RESOLVER).
+ *         Redirects to enrol-totp if user has no verified TOTP factor for current host.
  */
 
 import { useState, useEffect, useRef, Suspense } from "react"
@@ -17,6 +18,8 @@ import Link from "next/link"
 import { Loader2, ShieldCheck } from "lucide-react"
 import { AccentBracket } from "@/components/ui/AccentBracket"
 import { safeRedirect } from "@/lib/auth/safe-redirect"
+import { filterFactorsByHost, resolveCurrentHost } from "@/lib/auth/mfa-host"
+import type { AllowedHost } from "@/lib/auth/mfa-host"
 
 const BTN_PRIMARY: React.CSSProperties = {
   width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
@@ -43,10 +46,16 @@ function MfaContent() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [checking, setChecking] = useState(true)
+  const [wrongHostMessage, setWrongHostMessage] = useState<string | null>(null)
+  const [currentHost, setCurrentHost] = useState<AllowedHost | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const supabase = createClient()
+    // Resolve current host for factor filtering
+    const host = resolveCurrentHost(new Request(globalThis.location.href)) as AllowedHost | null
+    setCurrentHost(host)
+
     ;(async () => {
       const { data: userData } = await supabase.auth.getUser()
       if (!userData.user) {
@@ -54,25 +63,36 @@ function MfaContent() {
         return
       }
 
-      // Already AAL2 — skip ahead to the destination
+      // Already AAL2 — skip ahead to resolver
       const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
       if (aal?.currentLevel === "aal2") {
         router.replace(safeRedirect(redirectParam))
         return
       }
 
-      // AAL1 — check whether the user has any verified TOTP factor to challenge against.
-      // If not, this is either a first-time enrolment or an existing user whose MFA was
-      // never set up. Either way, send them to enrol-totp instead of showing a verify
-      // form they cannot satisfy.
+      // Get all verified factors, then filter by current host
       const { data: factors } = await supabase.auth.mfa.listFactors()
-      const hasVerifiedTotp = (factors?.totp ?? []).some((f) => f.status === "verified")
-      if (!hasVerifiedTotp) {
+      const allVerified = (factors?.totp ?? []).filter((f) => f.status === "verified")
+
+      if (host) {
+        const hostFactors = filterFactorsByHost(allVerified, host)
+        if (hostFactors.length === 0 && allVerified.length > 0) {
+          // Has factors on a different host — show cross-environment message
+          const otherHost = allVerified[0].friendly_name?.split(" @ ")[1] ?? "another environment"
+          setWrongHostMessage(
+            `Your MFA codes were set up on ${otherHost}. For security, codes don't cross between environments. ` +
+            `Set up MFA on this environment from Settings → Security.`
+          )
+          setChecking(false)
+          return
+        }
+      }
+
+      if (allVerified.length === 0) {
         router.replace("/settings/security/enrol-totp?mandatory=true")
         return
       }
 
-      // AAL1 with a verified factor → show the verify form
       setChecking(false)
       setTimeout(() => inputRef.current?.focus(), 100)
     })()
@@ -86,15 +106,18 @@ function MfaContent() {
 
     const supabase = createClient()
     const { data: factors, error: factorsErr } = await supabase.auth.mfa.listFactors()
-    const verifiedFactor = (factors?.totp ?? []).find((f) => f.status === "verified")
+    const allVerified = (factors?.totp ?? []).filter((f) => f.status === "verified")
+
+    // Use host-filtered factor if available, fall back to first verified
+    const hostFiltered = currentHost ? filterFactorsByHost(allVerified, currentHost) : allVerified
+    const verifiedFactor = hostFiltered[0] ?? allVerified[0]
+
     if (factorsErr || !verifiedFactor) {
-      // No verified TOTP factor — useEffect should have caught this, but defend anyway
       router.push("/settings/security/enrol-totp?mandatory=true")
       return
     }
 
-    const factor = verifiedFactor
-    const { data: challenge, error: challengeErr } = await supabase.auth.mfa.challenge({ factorId: factor.id })
+    const { data: challenge, error: challengeErr } = await supabase.auth.mfa.challenge({ factorId: verifiedFactor.id })
     if (challengeErr || !challenge) {
       setError("Could not start verification. Please try again.")
       setLoading(false)
@@ -102,7 +125,7 @@ function MfaContent() {
     }
 
     const { error: verifyErr } = await supabase.auth.mfa.verify({
-      factorId: factor.id,
+      factorId: verifiedFactor.id,
       challengeId: challenge.id,
       code,
     })
@@ -115,9 +138,9 @@ function MfaContent() {
       return
     }
 
-    // Log via server (fire and forget)
     fetch("/api/auth/log-totp-verified", { method: "POST" }).catch(() => null)
 
+    // Route through resolver — not directly to redirectParam (I-1)
     router.push(safeRedirect(redirectParam))
   }
 
@@ -130,6 +153,35 @@ function MfaContent() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (wrongHostMessage) {
+    return (
+      <div className="flex items-center justify-center min-h-screen px-4">
+        <Card className="w-full max-w-sm">
+          <CardHeader className="text-center">
+            <CardTitle>
+              <Link href="/" className="pub-wordmark" aria-label="Pleks" style={{ justifyContent: "center" }}>
+                <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
+              </Link>
+            </CardTitle>
+            <div className="flex justify-center mt-2">
+              <ShieldCheck className="h-8 w-8 text-muted-foreground" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">{wrongHostMessage}</p>
+            <Link
+              href="/settings/security/enrol-totp"
+              className="block text-center text-sm underline"
+              style={{ color: "var(--amber-ink)" }}
+            >
+              Set up MFA on this environment →
+            </Link>
+          </CardContent>
+        </Card>
       </div>
     )
   }
