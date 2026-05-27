@@ -1,11 +1,12 @@
 /**
- * lib/extraction/uploadValidator.ts — Three-gate upload validation
+ * lib/extraction/uploadValidator.ts — Four-gate upload validation
  *
  * Gate 1: extension allow-list (pdf, jpeg/jpg, png)
  * Gate 2: MIME type allow-list
  * Gate 3: magic bytes match
+ * Gate 4: protected-PDF detection (PDFs only — /Encrypt token scan)
  *
- * Spec: ADDENDUM_14L §15.3, D-14L-22
+ * Spec: ADDENDUM_14L §15.3, D-14L-22, D-14L-27
  */
 
 export const ALLOWED_FORMATS = ["pdf", "jpeg", "png"] as const
@@ -14,7 +15,7 @@ export type AllowedFormat = (typeof ALLOWED_FORMATS)[number]
 export interface ValidationResult {
   valid: boolean
   format: AllowedFormat | null
-  rejectionReason: "extension-not-allowed" | "mime-not-allowed" | "magic-bytes-mismatch" | "empty-file" | null
+  rejectionReason: "extension-not-allowed" | "mime-not-allowed" | "magic-bytes-mismatch" | "empty-file" | "pdf-encrypted" | null
   userMessage: string | null
 }
 
@@ -30,6 +31,14 @@ const MIME_MAP: Record<string, AllowedFormat> = {
   "image/jpeg":      "jpeg",
   "image/jpg":       "jpeg",
   "image/png":       "png",
+}
+
+// Scan for /Encrypt token in the PDF trailer (last 4 KB covers the common case).
+// Uses latin1 so byte values map 1:1 to character codes — no UTF-8 mangling.
+function isProtectedPdf(bytes: Uint8Array): boolean {
+  const tail = bytes.slice(Math.max(0, bytes.length - 4096))
+  const ascii = new TextDecoder("latin1").decode(tail)
+  return /\/Encrypt\s/.test(ascii)
 }
 
 function checkMagicBytes(bytes: Uint8Array): AllowedFormat | null {
@@ -80,6 +89,15 @@ export function validateUpload(filename: string, mimeType: string, bytes: Uint8A
       format: null,
       rejectionReason: "magic-bytes-mismatch",
       userMessage: "The file content does not match its extension. Please re-export and try again.",
+    }
+  }
+
+  if (magicFormat === "pdf" && isProtectedPdf(bytes)) {
+    return {
+      valid: false,
+      format: null,
+      rejectionReason: "pdf-encrypted",
+      userMessage: "This PDF is password-protected.\n\nPleks can't process encrypted PDFs. Most online banking portals let you download an unprotected version directly:\n- FNB, Standard Bank, ABSA, Nedbank, Capitec: When downloading the statement, look for \"without password\" or untick the \"password-protect\" option.\n- If you only have the protected version: Open it in any PDF viewer, enter the password to unlock, then File → Save As / Export As → PDF (without protection).",
     }
   }
 
