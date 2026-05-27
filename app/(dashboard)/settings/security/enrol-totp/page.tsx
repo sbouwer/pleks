@@ -104,6 +104,7 @@ function EnrolTotpContent() {
       setError(null)
       const { data, error: enrolErr } = await supabase.auth.mfa.enroll({
         factorType: "totp",
+        issuer: "Pleks",
         friendlyName,
       })
       setLoading(false)
@@ -137,6 +138,7 @@ function EnrolTotpContent() {
     const h = currentHostRef.current
     const { data, error: enrolErr } = await supabase.auth.mfa.enroll({
       factorType: "totp",
+      issuer: "Pleks",
       friendlyName: h ? buildFactorFriendlyName(label, h) : label,
     })
     setLoading(false)
