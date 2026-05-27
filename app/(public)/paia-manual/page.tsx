@@ -236,8 +236,8 @@ export default function PAIAManualPage() {
               <td>
                 Contact details, employment information, income documentation, identity documents, bank statements, credit bureau reports (where explicit consent was obtained), FitScore assessment, application status.
                 <br /><br />
-                <strong>Successful applicants:</strong> retained as tenant records.{" "}
-                <strong>Unsuccessful applicants:</strong> 90 days after rejection, then purged automatically — including identity documents, bank statements, and income records in storage, not only database rows. This manual constitutes a public commitment to that window.
+                <strong>Successful applicants:</strong>{" "}retained as tenant records.{" "}
+                <strong>Unsuccessful applicants:</strong>{" "}90 days after rejection, then purged automatically — including identity documents, bank statements, and income records in storage, not only database rows. This manual constitutes a public commitment to that window.
               </td>
               <td>Successful: 5 years.<br />Unsuccessful: 90 days.</td>
             </tr>
@@ -305,25 +305,25 @@ export default function PAIAManualPage() {
         </p>
         <ul className="legal-list">
           <li>
-            <strong>Third-party personal information.</strong> Records containing personal information about a third party will not
+            <strong>Third-party personal information.</strong>{" "}Records containing personal information about a third party will not
             be disclosed without the consent of that third party, unless disclosure is required by law or is in the public interest.
             For example, a tenant may not access another tenant&rsquo;s personal information.
           </li>
           <li>
-            <strong>Commercially sensitive information.</strong> Records containing confidential commercial information, trade
+            <strong>Commercially sensitive information.</strong>{" "}Records containing confidential commercial information, trade
             secrets, or proprietary business information — including the Pleks platform source code, internal pricing models, and
             client-specific configurations — may be refused on the grounds of commercial confidentiality.
           </li>
           <li>
-            <strong>Legal professional privilege.</strong> Communications between Pleks and its legal advisors that attract legal
+            <strong>Legal professional privilege.</strong>{" "}Communications between Pleks and its legal advisors that attract legal
             professional privilege will not be disclosed.
           </li>
           <li>
-            <strong>Internal deliberative records.</strong> Internal records relating to deliberative processes, including draft
+            <strong>Internal deliberative records.</strong>{" "}Internal records relating to deliberative processes, including draft
             documents, internal strategic discussions, and product development records not yet published, may be refused.
           </li>
           <li>
-            <strong>Records harmful to law enforcement.</strong> Records whose disclosure would prejudice a pending investigation,
+            <strong>Records harmful to law enforcement.</strong>{" "}Records whose disclosure would prejudice a pending investigation,
             legal proceeding, or law enforcement operation may be refused.
           </li>
         </ul>
@@ -369,8 +369,8 @@ export default function PAIAManualPage() {
           change. As at the date of this manual:
         </p>
         <ul className="legal-list">
-          <li><strong>Request fee:</strong> R140.00 (the regulated maximum under the 2021 PAIA Regulations for private bodies; payable before the request is processed, unless waived)</li>
-          <li><strong>Access fee:</strong> Calculated based on the form and volume of records, per the PAIA regulations</li>
+          <li><strong>Request fee:</strong>{" "}R140.00 (the regulated maximum under the 2021 PAIA Regulations for private bodies; payable before the request is processed, unless waived)</li>
+          <li><strong>Access fee:</strong>{" "}Calculated based on the form and volume of records, per the PAIA regulations</li>
         </ul>
         <p>
           No request fee is charged where a data subject requests access to their own personal information, in accordance with
@@ -396,12 +396,12 @@ export default function PAIAManualPage() {
           Data subjects have the following rights under POPIA which may be exercised directly, without a formal PAIA request:
         </p>
         <ul className="legal-list">
-          <li><strong>Access (s23)</strong> — request a copy of personal information held, including the right to receive it in a usable form. The platform&rsquo;s bulk-export feature provides a structured archive as a voluntary product commitment.</li>
-          <li><strong>Correction (s24)</strong> — request correction or deletion of inaccurate, misleading, outdated, incomplete, or unlawfully obtained personal information</li>
-          <li><strong>Deletion / restriction (s25)</strong> — request destruction or deletion of personal information no longer authorised to be retained, subject to statutory retention obligations</li>
-          <li><strong>Objection (s11(3))</strong> — object to processing based on legitimate interests on grounds relating to your particular situation</li>
-          <li><strong>Automated-decision reconsideration (s71)</strong> — Pleks does not make automated decisions about applicants; if you believe an automated decision was nonetheless made, you may request reconsideration and the underlying logic of the decision</li>
-          <li><strong>Withdraw consent</strong> — withdraw consent where it is the lawful basis; withdrawal does not affect lawfulness of prior processing</li>
+          <li><strong>Access (s23)</strong>{" "}— request a copy of personal information held, including the right to receive it in a usable form. The platform&rsquo;s bulk-export feature provides a structured archive as a voluntary product commitment.</li>
+          <li><strong>Correction (s24)</strong>{" "}— request correction or deletion of inaccurate, misleading, outdated, incomplete, or unlawfully obtained personal information</li>
+          <li><strong>Deletion / restriction (s25)</strong>{" "}— request destruction or deletion of personal information no longer authorised to be retained, subject to statutory retention obligations</li>
+          <li><strong>Objection (s11(3))</strong>{" "}— object to processing based on legitimate interests on grounds relating to your particular situation</li>
+          <li><strong>Automated-decision reconsideration (s71)</strong>{" "}— Pleks does not make automated decisions about applicants; if you believe an automated decision was nonetheless made, you may request reconsideration and the underlying logic of the decision</li>
+          <li><strong>Withdraw consent</strong>{" "}— withdraw consent where it is the lawful basis; withdrawal does not affect lawfulness of prior processing</li>
         </ul>
         <p>
           Registered Pleks users may exercise most of these rights directly in Settings &rarr; Data &amp; Privacy within the

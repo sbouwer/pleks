@@ -78,12 +78,12 @@ export default function TermsOfServicePage() {
         </p>
         <p><strong>Key definitions used in these terms:</strong></p>
         <ul className="legal-list">
-          <li><strong>Platform</strong> — the Pleks software-as-a-service application, APIs, and associated tooling.</li>
-          <li><strong>Subscriber / Agency</strong> — includes estate agencies, property practitioners, landlords, and any juristic or natural person subscribing to Pleks. Where an individual landlord subscribes, references to &ldquo;Agency&rdquo; apply to that individual.</li>
-          <li><strong>Tenant / Applicant</strong> — a natural person who applies for or occupies a rental property managed through the platform.</li>
-          <li><strong>Personal Information</strong> — as defined in POPIA s1 — information relating to an identifiable, living, natural person and, where applicable, an identifiable, existing juristic person.</li>
-          <li><strong>Responsible Party</strong> — the party that determines the purpose and means of processing personal information; for Part B agency-management data, this is the Agency.</li>
-          <li><strong>Operator</strong> — a party that processes personal information on behalf of a Responsible Party; Pleks is the Operator for Part B data.</li>
+          <li><strong>Platform</strong>{" "}— the Pleks software-as-a-service application, APIs, and associated tooling.</li>
+          <li><strong>Subscriber / Agency</strong>{" "}— includes estate agencies, property practitioners, landlords, and any juristic or natural person subscribing to Pleks. Where an individual landlord subscribes, references to &ldquo;Agency&rdquo; apply to that individual.</li>
+          <li><strong>Tenant / Applicant</strong>{" "}— a natural person who applies for or occupies a rental property managed through the platform.</li>
+          <li><strong>Personal Information</strong>{" "}— as defined in POPIA s1 — information relating to an identifiable, living, natural person and, where applicable, an identifiable, existing juristic person.</li>
+          <li><strong>Responsible Party</strong>{" "}— the party that determines the purpose and means of processing personal information; for Part B agency-management data, this is the Agency.</li>
+          <li><strong>Operator</strong>{" "}— a party that processes personal information on behalf of a Responsible Party; Pleks is the Operator for Part B data.</li>
         </ul>
       </section>
 
@@ -104,7 +104,7 @@ export default function TermsOfServicePage() {
           is not required to hold, a Fidelity Fund Certificate.
         </p>
         <p>
-          <strong>Trust funds.</strong> Pleks does not hold client funds. Trust money for rental management is held in the Agency&rsquo;s
+          <strong>Trust funds.</strong>{" "}Pleks does not hold client funds. Trust money for rental management is held in the Agency&rsquo;s
           own Section 86 trust account at the Agency&rsquo;s own bank. Pleks is not a trustee and does not initiate or control
           payments on behalf of any party.
         </p>
@@ -150,13 +150,13 @@ export default function TermsOfServicePage() {
           continues uninterrupted. The 12-month read-only access period begins only upon confirmed cancellation.
         </p>
         <p>
-          After cancellation, you will retain <strong>read-only access</strong> to your data for 12 months. During this period you
+          After cancellation, you will retain <strong>read-only access</strong>{" "}to your data for 12 months. During this period you
           can use the bulk-export feature to download all leases, inspection reports, financial records, and tenant documents in a
           single archive. After the 12-month grace period, operational data is permanently deleted unless continued retention is required by law, active legal hold, dispute preservation obligations, or another lawful basis. Pleks is not responsible for data loss that results from
           failure to export within the grace period.
         </p>
         <p>
-          <strong>Statutory retention after cancellation.</strong> Certain data categories are subject to mandatory retention
+          <strong>Statutory retention after cancellation.</strong>{" "}Certain data categories are subject to mandatory retention
           obligations that continue after the 12-month grace period regardless of cancellation. These include trust records (Property
           Practitioners Act s54 + Regulation 33 — 5 years from the end of the financial year), tax records (Tax Administration Act
           s29 — 5 years), FICA records (FICA s23 — 5 years), audit logs (7 years), and consent records (10 years). During the
@@ -187,12 +187,12 @@ export default function TermsOfServicePage() {
           including unlawful discrimination against prospective tenants on any protected ground.
         </p>
         <p>
-          <strong>Your indemnity to Pleks.</strong> You indemnify Pleks (Pty) Ltd against any claim, penalty, legal cost, or loss
+          <strong>Your indemnity to Pleks.</strong>{" "}You indemnify Pleks (Pty) Ltd against any claim, penalty, legal cost, or loss
           arising from unlawful collection, processing, or sharing of personal information by you as Responsible Party, or from any
           discriminatory practice, carried out through your use of the platform.
         </p>
         <p>
-          <strong>Pleks&rsquo;s indemnity to you.</strong> Pleks indemnifies you against direct losses arising from Pleks&rsquo;s
+          <strong>Pleks&rsquo;s indemnity to you.</strong>{" "}Pleks indemnifies you against direct losses arising from Pleks&rsquo;s
           proven breach of its obligations as Operator under POPIA s20–s21 and §09 of these terms, subject to the limitation of
           liability in §06 (total liability capped at 12 months of fees paid), except that the cap does not apply to losses
           arising from Pleks&rsquo;s gross negligence or wilful breach.
@@ -222,7 +222,7 @@ export default function TermsOfServicePage() {
           applicable law including the <span className="act-pill">CPA</span>.
         </p>
         <p>
-          <strong>Consumer subscribers (CPA).</strong> If you are a consumer within the meaning of the CPA, the limitations in this
+          <strong>Consumer subscribers (CPA).</strong>{" "}If you are a consumer within the meaning of the CPA, the limitations in this
           section apply only to the extent permitted by the CPA, and your statutory rights under sections 55, 56, and 61 of the CPA
           are not limited or excluded by anything in this clause.
         </p>
@@ -325,7 +325,7 @@ export default function TermsOfServicePage() {
 
         <p><strong>09.4 — Breach notification</strong></p>
         <p>
-          Pleks will notify the Agency <strong>without undue delay</strong> — targeting notification within 72 hours where
+          Pleks will notify the Agency <strong>without undue delay</strong>{" "}— targeting notification within 72 hours where
           reasonably practicable, subject to reasonable verification and containment activities, as a commitment exceeding
           the POPIA s21 statutory baseline — of any personal information breach affecting
           Part B data. For the purposes of this clause, &ldquo;becoming aware&rdquo; means the moment Pleks&rsquo;s
@@ -374,14 +374,14 @@ export default function TermsOfServicePage() {
         <p className="sec-num"><span className="bar" /><span>10 · General provisions</span></p>
         <h2 className="sec-h">General <span className="hl">provisions</span></h2>
         <ul className="legal-list">
-          <li><strong>Entire agreement.</strong> These terms — including the data-processing obligations in §09, which constitute the written Operator agreement required by POPIA s20–s21 — together with the Privacy Policy and the POPIA processing register (each incorporated by reference), constitute the entire agreement between the parties with respect to Pleks and supersede all prior agreements and understandings.</li>
-          <li><strong>Severability.</strong> If any provision of these terms is found to be unenforceable or invalid under applicable law, that provision will be modified to the minimum extent necessary to make it enforceable, or severed if modification is not possible, and the remaining provisions will continue in full force.</li>
-          <li><strong>Assignment.</strong> You may not assign or transfer your rights or obligations under these terms without Pleks&rsquo;s prior written consent. Pleks may assign these terms to a successor entity in connection with a merger, acquisition, or sale of all or substantially all of its assets, with notice to you.</li>
-          <li><strong>Force majeure.</strong> Neither party will be liable for failure or delay in performance caused by circumstances beyond reasonable control, including acts of God, government action, internet infrastructure failure, or third-party service outages, except where the failure was caused or materially contributed to by Pleks&rsquo;s own act or omission. The affected party must give prompt notice and use reasonable efforts to resume performance.</li>
-          <li><strong>Notices.</strong> Legal notices to Pleks must be sent to <a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a>. Notices from Pleks to you will be sent to your registered email address and are deemed delivered when sent.</li>
-          <li><strong>Amendments.</strong> Pleks may update these terms from time to time. Material changes will be communicated by email at least 30 days before they take effect. Material changes include any change to fee structure, data-processing terms, limitation of liability, governing law, or termination rights. Non-material changes (typographical corrections, link updates, structural clarifications) take effect on publication and do not trigger the 30-day window. Continued use of the platform after the effective date of a material change constitutes acceptance of the updated terms.</li>
+          <li><strong>Entire agreement.</strong>{" "}These terms — including the data-processing obligations in §09, which constitute the written Operator agreement required by POPIA s20–s21 — together with the Privacy Policy and the POPIA processing register (each incorporated by reference), constitute the entire agreement between the parties with respect to Pleks and supersede all prior agreements and understandings.</li>
+          <li><strong>Severability.</strong>{" "}If any provision of these terms is found to be unenforceable or invalid under applicable law, that provision will be modified to the minimum extent necessary to make it enforceable, or severed if modification is not possible, and the remaining provisions will continue in full force.</li>
+          <li><strong>Assignment.</strong>{" "}You may not assign or transfer your rights or obligations under these terms without Pleks&rsquo;s prior written consent. Pleks may assign these terms to a successor entity in connection with a merger, acquisition, or sale of all or substantially all of its assets, with notice to you.</li>
+          <li><strong>Force majeure.</strong>{" "}Neither party will be liable for failure or delay in performance caused by circumstances beyond reasonable control, including acts of God, government action, internet infrastructure failure, or third-party service outages, except where the failure was caused or materially contributed to by Pleks&rsquo;s own act or omission. The affected party must give prompt notice and use reasonable efforts to resume performance.</li>
+          <li><strong>Notices.</strong>{" "}Legal notices to Pleks must be sent to <a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a>. Notices from Pleks to you will be sent to your registered email address and are deemed delivered when sent.</li>
+          <li><strong>Amendments.</strong>{" "}Pleks may update these terms from time to time. Material changes will be communicated by email at least 30 days before they take effect. Material changes include any change to fee structure, data-processing terms, limitation of liability, governing law, or termination rights. Non-material changes (typographical corrections, link updates, structural clarifications) take effect on publication and do not trigger the 30-day window. Continued use of the platform after the effective date of a material change constitutes acceptance of the updated terms.</li>
           <li>
-            <strong>Survival.</strong> The following sections survive termination of these terms and any cancellation of your
+            <strong>Survival.</strong>{" "}The following sections survive termination of these terms and any cancellation of your
             subscription: §04 (statutory retention obligations), §05 (indemnities), §06 (limitation of liability), §09 (data
             processing obligations, until all Part B data has been deleted or the applicable statutory retention window has closed),
             and §10 (general provisions).

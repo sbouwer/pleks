@@ -102,12 +102,12 @@ export default function CreditCheckPolicyPage() {
           </tbody>
         </table>
         <p>
-          The results of these checks form part of your <strong>FitScore</strong> — a weighted applicant rating that the agency uses
+          The results of these checks form part of your <strong>FitScore</strong>{" "}— a weighted applicant rating that the agency uses
           to evaluate your suitability for the property. FitScore combines bureau data with income affordability and employment
           verification. No single factor is automatically disqualifying.
         </p>
         <p>
-          <strong>Automated decisions:</strong> Pleks does not make automated decisions about applicants. FitScore is assistive only
+          <strong>Automated decisions:</strong>{" "}Pleks does not make automated decisions about applicants. FitScore is assistive only
           — the agency or landlord reviews the underlying data and makes the final tenancy decision. No outcome is triggered
           automatically by any score threshold. POPIA s71(1) prohibits automated decisions with legal or material consequences
           except in limited circumstances; Pleks does not rely on any of those exceptions. If you believe an automated decision was
@@ -115,7 +115,7 @@ export default function CreditCheckPolicyPage() {
           the agency and request the underlying logic of the decision. Contact our Information Officer.
         </p>
         <p>
-          <strong>Minors:</strong> Credit checks are not performed on minors. If your application includes household members under 18,
+          <strong>Minors:</strong>{" "}Credit checks are not performed on minors. If your application includes household members under 18,
           no bureau query is run for them.
         </p>
       </section>
@@ -173,7 +173,7 @@ export default function CreditCheckPolicyPage() {
         <p className="sec-num"><span className="bar" /><span>04 · Legal basis</span></p>
         <h2 className="sec-h">Legal basis <span className="hl">under POPIA</span></h2>
         <p>
-          Credit checks are processed on the basis of your <strong>explicit consent</strong> under{" "}
+          Credit checks are processed on the basis of your <strong>explicit consent</strong>{" "}under{" "}
           <span className="act-pill">POPIA · S11(1)(a)</span> and the Credit Bureau Code of Conduct issued under POPIA (October 2020).
           Before any check is initiated, you will be asked to read this policy and provide your informed consent via a signed digital
           consent form — no check will be performed without it. The NCA establishes the regulatory framework for credit bureaus (ss 43–46)
@@ -182,7 +182,7 @@ export default function CreditCheckPolicyPage() {
           National Register of Credit Agreements and is not the basis for bureau enquiries.
         </p>
         <p>
-          <strong>Consequences of not consenting:</strong> If you do not consent to the credit check, your application cannot proceed to
+          <strong>Consequences of not consenting:</strong>{" "}If you do not consent to the credit check, your application cannot proceed to
           Stage 2. The agency may decline your application on that basis. You retain the right to apply through another channel that
           does not require a bureau check, including agencies that use different screening methods. Under <span className="act-pill">POPIA · S18</span>,
           you are entitled to know these consequences before deciding whether to consent.
@@ -200,13 +200,13 @@ export default function CreditCheckPolicyPage() {
         <h2 className="sec-h">Your <span className="hl">rights</span></h2>
         <p>As the subject of a credit check, you have the following rights under South African law:</p>
         <ul className="legal-list">
-          <li><strong>Right of access (POPIA s23).</strong> Request a copy of the personal information Pleks holds about you, including the credit report and FitScore generated for your application. A free copy of the report is available on request — contact our Information Officer.</li>
-          <li><strong>Right to correction (POPIA s24).</strong> Request correction or deletion of inaccurate, misleading, outdated, or incomplete personal information held by Pleks. Contact our Information Officer or use the in-platform subject-rights dashboard.</li>
-          <li><strong>Right to deletion / restriction (POPIA s25).</strong> Request destruction or deletion of personal information Pleks is no longer authorised to retain. Statutory retention obligations (see §07) may prevent immediate deletion; Pleks will explain any basis for retention that continues after a request.</li>
-          <li><strong>Right to object (POPIA s11(3)).</strong> Where any processing relies on legitimate interest, you may object on grounds relating to your particular situation. Credit check processing relies on s11(1)(a) consent — so withdrawal of consent (§06) is the primary mechanism; objection under s11(3) applies to any downstream legitimate-interest processing such as the AI-assisted rationale narrative generated alongside FitScore.</li>
-          <li><strong>Bureau dispute (NCA s72).</strong> If you believe information in the report is inaccurate, you may lodge a dispute directly with the relevant bureau. Bureaus are required to investigate and respond within 20 business days. Contact details: TransUnion 0861 482 482; Experian 0861 105 665; Compuscan 0861 514 131; XDS 0860 937 000; TPN 0861 876 000.</li>
-          <li><strong>Automated-decision rights (POPIA s71(2)).</strong> Pleks does not make automated decisions about applicants (see §01). If you believe an automated decision was nonetheless taken, you may make representations to the agency and request the underlying logic of the decision. Contact our Information Officer to initiate this.</li>
-          <li><strong>Complaint to the Information Regulator.</strong> You may lodge a complaint about data handling with the <ExtLink href={EXTERNAL_LINKS.informationRegulator}>Information Regulator</ExtLink> under POPIA s74, or apply to court under s99, at any time — independently of any response from Pleks or the agency.</li>
+          <li><strong>Right of access (POPIA s23).</strong>{" "}Request a copy of the personal information Pleks holds about you, including the credit report and FitScore generated for your application. A free copy of the report is available on request — contact our Information Officer.</li>
+          <li><strong>Right to correction (POPIA s24).</strong>{" "}Request correction or deletion of inaccurate, misleading, outdated, or incomplete personal information held by Pleks. Contact our Information Officer or use the in-platform subject-rights dashboard.</li>
+          <li><strong>Right to deletion / restriction (POPIA s25).</strong>{" "}Request destruction or deletion of personal information Pleks is no longer authorised to retain. Statutory retention obligations (see §07) may prevent immediate deletion; Pleks will explain any basis for retention that continues after a request.</li>
+          <li><strong>Right to object (POPIA s11(3)).</strong>{" "}Where any processing relies on legitimate interest, you may object on grounds relating to your particular situation. Credit check processing relies on s11(1)(a) consent — so withdrawal of consent (§06) is the primary mechanism; objection under s11(3) applies to any downstream legitimate-interest processing such as the AI-assisted rationale narrative generated alongside FitScore.</li>
+          <li><strong>Bureau dispute (NCA s72).</strong>{" "}If you believe information in the report is inaccurate, you may lodge a dispute directly with the relevant bureau. Bureaus are required to investigate and respond within 20 business days. Contact details: TransUnion 0861 482 482; Experian 0861 105 665; Compuscan 0861 514 131; XDS 0860 937 000; TPN 0861 876 000.</li>
+          <li><strong>Automated-decision rights (POPIA s71(2)).</strong>{" "}Pleks does not make automated decisions about applicants (see §01). If you believe an automated decision was nonetheless taken, you may make representations to the agency and request the underlying logic of the decision. Contact our Information Officer to initiate this.</li>
+          <li><strong>Complaint to the Information Regulator.</strong>{" "}You may lodge a complaint about data handling with the <ExtLink href={EXTERNAL_LINKS.informationRegulator}>Information Regulator</ExtLink> under POPIA s74, or apply to court under s99, at any time — independently of any response from Pleks or the agency.</li>
         </ul>
         <div className="officer-card">
           <span className="l">Information<br />officer</span>
@@ -227,7 +227,7 @@ export default function CreditCheckPolicyPage() {
           bureau query process, not a choice made by Pleks.
         </p>
         <p>
-          You may, however, <strong>withdraw consent for any future checks or processing of your information</strong> by contacting
+          You may, however, <strong>withdraw consent for any future checks or processing of your information</strong>{" "}by contacting
           us at <a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a>. Withdrawal of consent for future processing will not
           affect the lawfulness of processing that occurred before withdrawal. Withdrawal of consent will:
         </p>
@@ -278,7 +278,7 @@ export default function CreditCheckPolicyPage() {
           prevail unless mandatory law requires otherwise.
         </p>
         <p>
-          <strong>NCA intermediary records:</strong> The licensed credit bureau intermediary is subject to
+          <strong>NCA intermediary records:</strong>{" "}The licensed credit bureau intermediary is subject to
           bureau-industry retention obligations under the National Credit Regulations. This obligation rests with the service provider.
           Our 10-year consent audit log (above) satisfies any parallel accountability obligation on Pleks&rsquo;s side. The
           90-day deletion period for declined-application results applies to the credit report data held by Pleks — it does

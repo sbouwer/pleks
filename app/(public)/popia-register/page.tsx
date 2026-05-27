@@ -54,9 +54,9 @@ export default function ProcessingRegisterPage() {
         <p className="sc-eyebrow">Plain-language summary</p>
         <h2 className="sc-h">What this register covers</h2>
         <ul className="summary-list">
-          <li><span className="b" /><span>Pleks operates in two roles: as <strong>Responsible Party</strong> for {MARKETING_FACTS.popiaPurposes.partA} platform purposes (authentication, billing, support — Part A) and as <strong>Operator</strong> for {MARKETING_FACTS.popiaPurposes.partB} agency-side purposes (tenant data, leases, inspections, credit and criminal screening, property-intelligence — Part B).</span></li>
+          <li><span className="b" /><span>Pleks operates in two roles: as <strong>Responsible Party</strong>{" "}for {MARKETING_FACTS.popiaPurposes.partA} platform purposes (authentication, billing, support — Part A) and as <strong>Operator</strong>{" "}for {MARKETING_FACTS.popiaPurposes.partB} agency-side purposes (tenant data, leases, inspections, credit and criminal screening, property-intelligence — Part B).</span></li>
           <li><span className="b" /><span>For Part B data, the <strong>agency is the Responsible Party</strong>. Data-subject requests about tenant or lease records must be directed to the agency, not to Pleks.</span></li>
-          <li><span className="b" /><span>Credit checks (B4) require the applicant&rsquo;s <strong>explicit consent</strong> under <span className="act-pill">POPIA · S11(1)(a)</span> and the Credit Bureau Code of Conduct (issued under POPIA, October 2020) before any bureau query is submitted.</span></li>
+          <li><span className="b" /><span>Credit checks (B4) require the applicant&rsquo;s <strong>explicit consent</strong>{" "}under <span className="act-pill">POPIA · S11(1)(a)</span> and the Credit Bureau Code of Conduct (issued under POPIA, October 2020) before any bureau query is submitted.</span></li>
           <li><span className="b" /><span>AI processing (B22) is <strong>assistive only</strong>. Pleks does not make automated decisions about tenants or applicants — all decisions remain with the agency or landlord.</span></li>
           <li><span className="b" /><span>All cross-border transfers to US/international vendors are governed by Standard Contractual Clauses under <span className="act-pill">POPIA · S72(1)(a)</span>.</span></li>
         </ul>
@@ -75,14 +75,14 @@ export default function ProcessingRegisterPage() {
           platform does with personal information before they commit.
         </p>
         <p>
-          <strong>If you are an agency or property practitioner using Pleks:</strong> under POPIA you are the <strong>Responsible
-          Party</strong> for every natural person whose personal information you collect — tenants, applicants, landlords, contractors,
+          <strong>If you are an agency or property practitioner using Pleks:</strong>{" "}under POPIA you are the <strong>Responsible
+          Party</strong>{" "}for every natural person whose personal information you collect — tenants, applicants, landlords, contractors,
           references, household members. Pleks is your <strong>Operator</strong>, processing data on your behalf under the Pleks Operator
           Agreement. This document describes what Pleks does as your Operator; your own register must describe what your agency does,
           with Pleks listed as one of your Operators.
         </p>
         <p>
-          <strong>If you are a data subject</strong> (tenant, applicant, landlord, supplier): this document tells you what the platform
+          <strong>If you are a data subject</strong>{" "}(tenant, applicant, landlord, supplier): this document tells you what the platform
           does and who the actors are. For Part B data, your rights under POPIA are exercised against the agency — the Responsible Party
           for that data. For Part A data (your Pleks account), your rights are exercised against Pleks directly. Under{" "}
           <span className="act-pill">PAIA</span>, requests for access to records held by Pleks on behalf of a client agency must be
@@ -91,7 +91,7 @@ export default function ProcessingRegisterPage() {
           30-calendar-day response clock under s23(1) (per PAIA s25, extendable under s26) is not materially eroded.
         </p>
         <p>
-          Purposes prefixed <strong>A</strong> are Pleks as Responsible Party. Purposes prefixed <strong>B</strong> are Pleks as
+          Purposes prefixed <strong>A</strong>{" "}are Pleks as Responsible Party. Purposes prefixed <strong>B</strong>{" "}are Pleks as
           Operator for agencies. This distinction is preserved throughout the register and is load-bearing for all data-subject rights
           and accountability obligations.
         </p>
@@ -105,12 +105,12 @@ export default function ProcessingRegisterPage() {
           Pleks&rsquo;s processing activities fall into two distinct controller relationships:
         </p>
         <p>
-          <strong>Pleks as Responsible Party (Part A)</strong> — for data arising from the platform itself: authentication, security
+          <strong>Pleks as Responsible Party (Part A)</strong>{" "}— for data arising from the platform itself: authentication, security
           telemetry, error monitoring, product feedback, uptime probes, cost observability, billing, marketing, and support communications.
           Pleks is the sole decision-maker about this processing and is accountable under POPIA for it.
         </p>
         <p>
-          <strong>Pleks as Operator (Part B)</strong> — for data arising from agency use of the platform: tenant profiles, leases,
+          <strong>Pleks as Operator (Part B)</strong>{" "}— for data arising from agency use of the platform: tenant profiles, leases,
           inspections, maintenance, communications, trust transactions, deposits, applications, credit checks, owner statements, and every
           other artefact of property management. The agency is the Responsible Party; Pleks processes this data on the agency&rsquo;s
           behalf under section 09 of the Pleks Terms of Service (&ldquo;ToS §09&rdquo;), which constitutes the mandatory written-contract
@@ -124,7 +124,7 @@ export default function ProcessingRegisterPage() {
           are triggered. The breach-notification obligation is given contractual force in ToS §09.4.
         </p>
         <p>
-          <strong>Agency audit rights over Pleks as Operator.</strong> Under{" "}
+          <strong>Agency audit rights over Pleks as Operator.</strong>{" "}Under{" "}
           <span className="act-pill">POPIA · S21</span>, agencies as Responsible Parties have the right to verify Pleks&rsquo;s compliance
           with ToS §09. Pleks supports this right through: (a) this publicly available processing-purpose register;
           (b) provision of a completed security questionnaire or equivalent on written request (at no cost, once per 12 months); and
@@ -133,12 +133,12 @@ export default function ProcessingRegisterPage() {
           <Link href="/terms#dataprocessing">ToS §09.5</Link>.
         </p>
         <p>
-          <strong>Sovereign-trust invariant.</strong> Pleks holds no client funds. Client funds reside in the agency&rsquo;s own
+          <strong>Sovereign-trust invariant.</strong>{" "}Pleks holds no client funds. Client funds reside in the agency&rsquo;s own
           Section 86 trust account at the agency&rsquo;s own bank. Pleks does not initiate payments and is not the trustee. This
           is the financial expression of the same principle: Pleks is an Operator, not a custodian.
         </p>
         <p>
-          <strong>Mixed-role processing.</strong> Purpose B9 (application fee processing) and all Part A observability purposes operate
+          <strong>Mixed-role processing.</strong>{" "}Purpose B9 (application fee processing) and all Part A observability purposes operate
           at the Pleks-RP layer even where initiated within an agency workflow. These are structurally separated from Part B processing
           and are listed under their correct controller in this register.
         </p>
@@ -198,14 +198,14 @@ export default function ProcessingRegisterPage() {
           Pleks implements appropriate technical and organisational measures consistent with <span className="act-pill">POPIA · S19</span>:
         </p>
         <ul className="legal-list">
-          <li><strong>Encryption in transit:</strong> TLS 1.3 for all connections; HSTS enforced; no plaintext fallback.</li>
-          <li><strong>Encryption at rest:</strong> AES-256 at the database layer via the database and storage provider (see §C); sensitive fields (bank account numbers, TOTP secrets, passkey credentials) additionally encrypted at the column level.</li>
-          <li><strong>Row-Level Security:</strong> Postgres RLS enforced on every table carrying personal information; service-role access restricted to server-side only with org-scoped gateway helper; no broad-access admin views.</li>
-          <li><strong>Authentication:</strong> magic-link auth for tenant/landlord/supplier roles; password + mandatory MFA for agent roles; MFA step-up required for fiduciary-class actions.</li>
-          <li><strong>Immutable audit logging:</strong> every state-changing operation recorded in <code>audit_log</code> with actor, target, event type, timestamp, and change payload; no UPDATE or DELETE policies on the log.</li>
-          <li><strong>PII scrubbing for observability:</strong> error monitoring and log aggregation tools receive PII-scrubbed events only; scrubber runs pre-transmission and strips request bodies from sensitive routes and PII patterns from all payloads.</li>
-          <li><strong>Signed URLs with TTL:</strong> all sensitive downloads use time-limited signed URLs; no public bucket access to customer data.</li>
-          <li><strong>Operator contractual controls:</strong> every third-party Operator operates under a Data Processing Addendum with SCCs where cross-border, and documented retention and breach-notification terms.</li>
+          <li><strong>Encryption in transit:</strong>{" "}TLS 1.3 for all connections; HSTS enforced; no plaintext fallback.</li>
+          <li><strong>Encryption at rest:</strong>{" "}AES-256 at the database layer via the database and storage provider (see §C); sensitive fields (bank account numbers, TOTP secrets, passkey credentials) additionally encrypted at the column level.</li>
+          <li><strong>Row-Level Security:</strong>{" "}Postgres RLS enforced on every table carrying personal information; service-role access restricted to server-side only with org-scoped gateway helper; no broad-access admin views.</li>
+          <li><strong>Authentication:</strong>{" "}magic-link auth for tenant/landlord/supplier roles; password + mandatory MFA for agent roles; MFA step-up required for fiduciary-class actions.</li>
+          <li><strong>Immutable audit logging:</strong>{" "}every state-changing operation recorded in <code>audit_log</code> with actor, target, event type, timestamp, and change payload; no UPDATE or DELETE policies on the log.</li>
+          <li><strong>PII scrubbing for observability:</strong>{" "}error monitoring and log aggregation tools receive PII-scrubbed events only; scrubber runs pre-transmission and strips request bodies from sensitive routes and PII patterns from all payloads.</li>
+          <li><strong>Signed URLs with TTL:</strong>{" "}all sensitive downloads use time-limited signed URLs; no public bucket access to customer data.</li>
+          <li><strong>Operator contractual controls:</strong>{" "}every third-party Operator operates under a Data Processing Addendum with SCCs where cross-border, and documented retention and breach-notification terms.</li>
         </ul>
         <p>
           <strong>Data quality (<span className="act-pill">POPIA · S16</span> / <span className="act-pill">S11(2)</span>).</strong>{" "}
@@ -236,7 +236,7 @@ export default function ProcessingRegisterPage() {
           its Operator oversight function.
         </p>
         <p>
-          <strong>DPIA programme.</strong> Pleks conducts a Data Protection Impact Assessment before deploying or materially changing
+          <strong>DPIA programme.</strong>{" "}Pleks conducts a Data Protection Impact Assessment before deploying or materially changing
           any processing purpose that involves: (a) credit data or financial scores about natural persons (currently B4, B5);
           (b) special personal information (s26); (c) AI-derived assessments of natural persons (B22); (d) persistent or precise location
           data, including EXIF GPS metadata in inspection photography (B14); or (e) systematic processing of children&rsquo;s personal
@@ -244,7 +244,7 @@ export default function ProcessingRegisterPage() {
           for the life of the purpose.
         </p>
         <p>
-          <strong>Sub-processor authorisation and change notification.</strong> Pleks uses general written authorisation from agencies
+          <strong>Sub-processor authorisation and change notification.</strong>{" "}Pleks uses general written authorisation from agencies
           for the sub-processors listed in Section C of this register (consistent with POPIA s21(2) and industry practice). When Pleks
           changes a sub-processor in a way that materially affects agencies&rsquo; data, Pleks will notify agencies by email to their
           registered Information Officer address at least 30 days before the change takes effect, giving agencies a reasonable right to
@@ -265,18 +265,18 @@ export default function ProcessingRegisterPage() {
         </p>
         <ul className="legal-list">
           <li>
-            <strong>Right of access (s23).</strong> Request a copy of the personal information Pleks holds about you, the categories
+            <strong>Right of access (s23).</strong>{" "}Request a copy of the personal information Pleks holds about you, the categories
             of recipients, the source, and the purpose. <em>Channel:</em> submit Form 2 to our Information Officer
             at <a href="mailto:legal@pleks.co.za">legal@pleks.co.za</a> or via the in-platform subject-rights dashboard.
             Response within 30 calendar days, extendable per PAIA s26.
           </li>
           <li>
-            <strong>Right to correction (s24).</strong> Request correction or deletion of inaccurate, misleading, outdated, incomplete,
+            <strong>Right to correction (s24).</strong>{" "}Request correction or deletion of inaccurate, misleading, outdated, incomplete,
             or unlawfully obtained personal information, and notification to third parties to whom it was disclosed.{" "}
             <em>Channel:</em> in-platform settings (immediate self-serve for profile data) or Information Officer for other records.
           </li>
           <li>
-            <strong>Right to deletion / restriction (s25).</strong> Request destruction or deletion of personal information Pleks is
+            <strong>Right to deletion / restriction (s25).</strong>{" "}Request destruction or deletion of personal information Pleks is
             no longer authorised to retain. Note: statutory retention obligations (s29 Tax Administration Act, PPRA, audit logs) may
             prevent deletion during the applicable retention window; Pleks will explain the basis for any retention that continues
             after a deletion request. If you are not satisfied with Pleks&rsquo;s response, you may apply to the Information Regulator
@@ -284,25 +284,25 @@ export default function ProcessingRegisterPage() {
             <em>Channel:</em> Information Officer.
           </li>
           <li>
-            <strong>Right to object (s11(3)).</strong> Where Pleks&rsquo;s lawful basis is legitimate interest
+            <strong>Right to object (s11(3)).</strong>{" "}Where Pleks&rsquo;s lawful basis is legitimate interest
             (<span className="act-pill">POPIA · S11(1)(f)</span>) — purposes A3, A5, A6, A10, A12, B11, B16 — you have the right to
             object to processing on reasonable grounds relating to your particular situation. Pleks will cease processing unless it can
             demonstrate compelling legitimate grounds that override your interests, or processing is necessary for the exercise or
             defence of legal claims. <em>Channel:</em> Information Officer or the in-platform subject-rights dashboard.
           </li>
           <li>
-            <strong>Automated-decision rights (s71).</strong> Pleks does not make automated decisions about data subjects that produce
+            <strong>Automated-decision rights (s71).</strong>{" "}Pleks does not make automated decisions about data subjects that produce
             legal or similarly significant effects. FitScore (B5) is assistive only — final tenancy decisions remain with the agency.
             If this changes, affected data subjects will have the right to request human review, to express their point of view, and
             to receive an explanation of the decision. <em>Channel:</em> Information Officer.
           </li>
           <li>
-            <strong>Direct-marketing opt-out (s69 / s11(3)).</strong> Where Pleks sends any direct marketing (A7 waitlist communications,
+            <strong>Direct-marketing opt-out (s69 / s11(3)).</strong>{" "}Where Pleks sends any direct marketing (A7 waitlist communications,
             any future B25 agency marketing), you may opt out at any time via the unsubscribe link in every message or by contacting the
             Information Officer. Opt-outs are honoured within 5 business days. <em>Channel:</em> unsubscribe link or Information Officer.
           </li>
           <li>
-            <strong>Right to complain (POPIA s74).</strong> You may lodge a complaint with the Information Regulator at any time,
+            <strong>Right to complain (POPIA s74).</strong>{" "}You may lodge a complaint with the Information Regulator at any time,
             independently of Pleks&rsquo;s or the agency&rsquo;s response. See §02 for the Regulator&rsquo;s contact details.
           </li>
         </ul>
@@ -382,11 +382,11 @@ export default function ProcessingRegisterPage() {
         <p className="sec-num"><span className="bar" /><span>B · Pleks as Operator</span></p>
         <h2 className="sec-h">Operator <span className="hl">purposes</span></h2>
         <p>
-          These {MARKETING_FACTS.popiaPurposes.partB} purposes are those for which an agency using Pleks is the <strong>Responsible Party</strong> and Pleks is the
+          These {MARKETING_FACTS.popiaPurposes.partB} purposes are those for which an agency using Pleks is the <strong>Responsible Party</strong>{" "}and Pleks is the
           Operator. Every purpose here is processed on behalf of the agency, under the lawful basis the agency holds for the processing,
           under ToS §09. <strong>Lawful basis caution: the basis shown for each purpose is the basis typically
           applied by agencies in the SA rental property management sector. It is not a determination by Pleks, and it does not bind
-          any individual agency.</strong> An agency may operate on a different basis (e.g., relying on s11(1)(f) legitimate interest
+          any individual agency.</strong>{" "}An agency may operate on a different basis (e.g., relying on s11(1)(f) legitimate interest
           rather than s11(1)(b) contract for a given purpose). Each agency must confirm and document its own lawful basis in its own
           register. Where the agency relies on s11(1)(f) legitimate interest, it must conduct and retain a balancing test.
         </p>

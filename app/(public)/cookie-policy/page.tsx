@@ -65,7 +65,7 @@ export default function CookiePolicyPage() {
           information between page loads — such as whether you are signed in, your language preference, or how you arrived at the site.
         </p>
         <p>
-          In addition to cookies, Pleks may use <strong>local storage</strong> and <strong>session storage</strong> — browser-based
+          In addition to cookies, Pleks may use <strong>local storage</strong>{" "}and <strong>session storage</strong>{" "}— browser-based
           key-value stores that behave similarly to cookies but are not sent to the server with every request. The same rules apply to
           these technologies as to cookies under this policy.
         </p>
@@ -123,13 +123,13 @@ export default function CookiePolicyPage() {
           </tbody>
         </table>
         <p>
-          <strong>A note on storage type:</strong> Supabase session tokens are stored in <strong>localStorage</strong> (not as HTTP
+          <strong>A note on storage type:</strong>{" "}Supabase session tokens are stored in <strong>localStorage</strong>{" "}(not as HTTP
           cookies) in the Pleks configuration. This means they are accessible via JavaScript and are not automatically sent with every
           server request. They are cleared when you sign out or clear your browser data. The same POPIA obligations apply regardless
           of whether data is stored in a cookie or in localStorage.
         </p>
         <p>
-          Session tokens are held in <strong>localStorage</strong> on your device. Session validation and the underlying user record
+          Session tokens are held in <strong>localStorage</strong>{" "}on your device. Session validation and the underlying user record
           are stored at our database and storage provider&rsquo;s US infrastructure (see the operators directory in the{" "}
           <a href="/popia-register">POPIA processing register</a>) under Standard Contractual Clauses per{" "}
           <span className="act-pill">POPIA · S72(1)(a)</span>.
@@ -141,7 +141,7 @@ export default function CookiePolicyPage() {
         <p className="sec-num"><span className="bar" /><span>03 · Analytics cookies</span></p>
         <h2 className="sec-h">Analytics <span className="hl">cookies</span></h2>
         <p>
-          Pleks uses <strong>Vercel Analytics</strong> to measure page performance and visitor counts on the marketing site. Vercel
+          Pleks uses <strong>Vercel Analytics</strong>{" "}to measure page performance and visitor counts on the marketing site. Vercel
           Analytics does not set cookies. IP addresses and user agents are converted to a daily-rotating one-way hash by Vercel; raw
           values are not retained and no individual user profiles are built.
         </p>
@@ -204,7 +204,7 @@ export default function CookiePolicyPage() {
           <li>Set the browser to warn you before a cookie is placed.</li>
         </ul>
         <p>
-          <strong>Be aware:</strong> blocking or deleting the essential cookies listed in section 02 will sign you out of Pleks and
+          <strong>Be aware:</strong>{" "}blocking or deleting the essential cookies listed in section 02 will sign you out of Pleks and
           prevent the platform from working correctly. You will need to sign in again after clearing session cookies.
         </p>
         <p>
