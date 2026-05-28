@@ -2,10 +2,12 @@
  * lib/tier/canActivateLease.ts — Guard lease activation against the org's tier lease cap
  *
  * Auth:   Server-only; called from lease activation actions
- * Data:   getOrgTier (cookie fast-path + DB fallback), getActiveLeaseCount
+ * Data:   getOrgTierCanonical (always reads subscriptions — not the forgeable cookie),
+ *         getActiveLeaseCount (service client, counts active+notice leases)
  * Notes:  Returns ok:false with an upgrade prompt when the cap is reached — no overages.
+ *         Both data sources are canonical; forgeable cookie tier cannot bypass this gate.
  */
-import { getOrgTier } from "./getOrgTier"
+import { getOrgTierCanonical } from "./getOrgTier"
 import { getActiveLeaseCount } from "./getActiveLeaseCount"
 
 const LEASE_LIMITS: Record<string, number> = {
@@ -25,7 +27,7 @@ export async function canActivateLease(
   orgId: string,
 ): Promise<{ ok: boolean; reason?: string }> {
   const [tier, count] = await Promise.all([
-    getOrgTier(orgId),
+    getOrgTierCanonical(orgId),
     getActiveLeaseCount(orgId),
   ])
 

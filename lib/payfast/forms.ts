@@ -17,6 +17,11 @@ interface SubscriptionFormData {
   tier: Exclude<Tier, "owner" | "bespoke">
 }
 
+// DOWNGRADE GUARD: when a plan-change action is built, call canDowngradeTo(orgId, targetTier)
+// BEFORE invoking this function for any downgrade. An over-cap downgrade must be refused
+// before the PayFast form is submitted — once PayFast processes the change, rolling it back
+// requires a webhook reconciliation and leaves the org in an over-cap state.
+// See lib/tier/canDowngradeTo.ts.
 export function buildSubscriptionForm({ orgId, tier }: SubscriptionFormData) {
   const pricing = TIER_PRICING[tier]
   const amountCents = pricing.monthly
