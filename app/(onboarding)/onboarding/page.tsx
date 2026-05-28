@@ -444,7 +444,7 @@ function OnboardingWizard() {
                 onChange={(e) => { const u = [...invites]; u[i] = { ...u[i], role: e.target.value }; setInvites(u) }}
               >
                 <option value="property_manager">Property Manager</option>
-                <option value="letting_agent">Letting Agent</option>
+                <option value="agent">Letting Agent</option>
                 <option value="accountant">Accountant</option>
                 <option value="maintenance_manager">Maintenance</option>
               </select>
