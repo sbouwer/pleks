@@ -16,14 +16,21 @@ export type AllowedHost = typeof ALLOWED_HOSTS[number]
 const HOST_SEPARATOR = " @ "
 
 /**
- * Resolves the current host from a request URL.
+ * Resolves the current host from a request.
+ * Reads the Host header first — authoritative on Vercel where request.url carries
+ * an internal routing address, not the public hostname. Falls back to the URL hostname
+ * for client-side constructed requests (new Request(globalThis.location.href)) that
+ * carry no Host header.
  * Returns null for unknown hosts (including *.vercel.app preview deploys).
  */
 export function resolveCurrentHost(req: Request): AllowedHost | null {
   try {
-    const url = new URL(req.url)
-    const hostname = url.hostname.toLowerCase()
-    if ((ALLOWED_HOSTS as readonly string[]).includes(hostname)) return hostname as AllowedHost
+    const fromHeader = req.headers.get("host")?.split(":")[0]?.toLowerCase()
+    if (fromHeader && (ALLOWED_HOSTS as readonly string[]).includes(fromHeader)) {
+      return fromHeader as AllowedHost
+    }
+    const fromUrl = new URL(req.url).hostname.toLowerCase()
+    if ((ALLOWED_HOSTS as readonly string[]).includes(fromUrl)) return fromUrl as AllowedHost
   } catch {
     // malformed URL
   }
@@ -65,10 +72,13 @@ export function parseFactorHost(friendlyName: string | null | undefined): Allowe
 
 /**
  * Filters a list of factors to those enrolled on the current host.
- * Factors with no host claim (legacy) are treated as unscoped and excluded —
- * the migration script (scripts/migrate-totp-host-claims.ts) should default them
- * to 'localhost' before this filter is run in production.
+ * Factors with no host claim (legacy, enrolled before host-scoping landed) are treated
+ * as matching the current host for backwards compatibility — they are not excluded.
+ * Only factors with an explicit claim that doesn't match are excluded.
  */
 export function filterFactorsByHost(factors: Factor[], currentHost: AllowedHost): Factor[] {
-  return factors.filter((f) => parseFactorHost(f.friendly_name) === currentHost)
+  return factors.filter((f) => {
+    const claimed = parseFactorHost(f.friendly_name)
+    return claimed === null || claimed === currentHost
+  })
 }
