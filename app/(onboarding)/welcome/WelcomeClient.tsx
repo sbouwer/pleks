@@ -69,11 +69,8 @@ export default function WelcomeClient({
 
   async function handleAddPasskey() {
     reset()
-    await enrol()
-    // enrol() resolves regardless of success/error — proceed to dashboard either way
-    if (passkeyState !== "error") {
-      toast.success("Passkey added — sign in with Face ID or Touch ID next time")
-    }
+    const ok = await enrol()
+    if (ok) toast.success("Passkey added — sign in with Face ID or Touch ID next time")
     await handleFinish()
   }
 

@@ -1,13 +1,13 @@
 "use client"
 
 /**
- * lib/auth/passkeys/useEnrolPasskey.ts — FILL: one-line purpose
+ * lib/auth/passkeys/useEnrolPasskey.ts — React hook for inline passkey registration
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   caller-scoped (used from authenticated client components only)
+ * Data:   POST /api/auth/passkeys/registration-options → WebAuthn browser ceremony →
+ *         POST /api/auth/passkeys/registration-verify
+ * Notes:  enrol() returns true on success, false on error, so callers can gate
+ *         imperative logic without reading stale state from the render closure.
  */
 
 import { useState } from "react"
@@ -20,7 +20,7 @@ export function useEnrolPasskey() {
   const [state, setState] = useState<EnrolState>("idle")
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-  async function enrol(label?: string) {
+  async function enrol(label?: string): Promise<boolean> {
     setState("in_progress")
     setErrorMsg(null)
     try {
@@ -48,10 +48,12 @@ export function useEnrolPasskey() {
       }
 
       setState("success")
+      return true
     } catch (e: unknown) {
       const err = e as Error
       setErrorMsg(err.message ?? "Enrolment failed")
       setState("error")
+      return false
     }
   }
 
