@@ -17,6 +17,7 @@
     "security:ci": "node scripts/security/audit.mjs --ci",
     "test": "vitest run",
     "test:watch": "vitest",
+    "nuke-user": "node scripts/nuke-user.mjs",
     "fitscore:replay": "node scripts/fitscore-replay.mjs",
     "render:fitscore-e1": "cross-env FITSCORE_FONT_SOURCE=local tsx scripts/render-e1-chrome-test.ts",
     "render:fitscore-samples": "cross-env FITSCORE_FONT_SOURCE=local tsx scripts/render-fitscore-samples.ts",
