@@ -14,8 +14,8 @@ import Link from "next/link"
 import { getTenantSession } from "@/lib/portal/getTenantSession"
 import { createServiceClient } from "@/lib/supabase/server"
 import { getTemplate } from "@/lib/comms/template-registry"
-import { ChevronLeft, Download } from "lucide-react"
-import { ActionButton } from "@/components/ui/actions"
+import { ChevronLeft } from "lucide-react"
+import { PrintButton } from "./PrintButton"
 
 function templateLabel(key: string | null): string {
   if (!key) return "Communication"
@@ -66,10 +66,7 @@ export default async function DataExportPage() {
               Use <strong>File → Print → Save as PDF</strong> to download a copy.
             </p>
           </div>
-          <ActionButton tone="secondary" onClick={() => { /* print handled by browser */ }}>
-            <Download className="h-4 w-4 mr-1.5" />
-            Print / Save PDF
-          </ActionButton>
+          <PrintButton />
         </div>
       </div>
 

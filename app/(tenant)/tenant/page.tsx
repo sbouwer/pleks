@@ -7,8 +7,8 @@
  */
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import { InlineLink } from "@/components/ui/actions"
 import { getTenantSession } from "@/lib/portal/getTenantSession"
+import { ReportIssueLink } from "./_components/ReportIssueLink"
 import { createServiceClient } from "@/lib/supabase/server"
 import { formatZAR } from "@/lib/constants"
 import { StatusBadge } from "@/components/shared/StatusBadge"
@@ -280,13 +280,7 @@ export default async function PortalDashboard() {
                 <Wrench className="h-3.5 w-3.5" />
                 Maintenance
               </div>
-              <InlineLink
-                href="/tenant/maintenance/new"
-                withArrow={false}
-                onClick={(e: React.MouseEvent) => e.stopPropagation()}
-              >
-                Report issue
-              </InlineLink>
+              <ReportIssueLink />
             </div>
             {maintenance.length === 0 ? (
               <p className="text-sm text-muted-foreground">No requests logged</p>
