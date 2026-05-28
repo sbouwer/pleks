@@ -1,0 +1,288 @@
+/* app/(onboarding)/onboarding-shell.css — chrome for /welcome and /onboarding
+   Scoped inside .pleks-public (set by PublicThemeProvider in the group layout).
+   All colours via CSS custom properties — no raw hex. */
+
+/* ── Shell ──────────────────────────────────────────────────────────────── */
+.ob-shell {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  background: var(--paper-sunk);
+}
+
+/* ── Backdrop layers (static, position: absolute inset: 0) ──────────────── */
+/* Layer 1: warm vertical gradient */
+.ob-bd-gradient {
+  position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    var(--paper) 0%,
+    oklch(0.96 0.012 75) 60%,
+    oklch(0.94 0.014 75) 100%
+  );
+}
+/* Layer 2: amber glow radial (upper third) */
+.ob-bd-glow {
+  position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(
+    ellipse 70% 50% at 50% 28%,
+    oklch(0.93 0.05 70 / 0.55),
+    transparent 70%
+  );
+}
+/* Layer 3: diagonal hatch at 4% opacity */
+.ob-bd-hatch {
+  position: absolute; inset: 0; pointer-events: none;
+  opacity: 0.04;
+  background: repeating-linear-gradient(
+    135deg,
+    var(--ink) 0 1px,
+    transparent 1px 11px
+  );
+}
+/* Layer 4: edge vignette */
+.ob-bd-vignette {
+  position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(
+    ellipse 90% 80% at 50% 50%,
+    transparent 50%,
+    oklch(0.22 0.012 260 / 0.10) 100%
+  );
+}
+
+/* ── Content layer (above backdrop) ────────────────────────────────────── */
+.ob-content {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column; align-items: center;
+  min-height: 100vh;
+  padding: 36px 20px 80px;
+}
+
+/* ── Brand wordmark — non-interactive, centered ─────────────────────────── */
+.ob-wordmark {
+  display: inline-flex; align-items: baseline; gap: 3px;
+  line-height: 1; margin-bottom: 40px;
+  text-decoration: none; color: inherit;
+}
+.ob-wm-name {
+  font-family: var(--pub-sans);
+  font-weight: 600; font-size: 16px; letter-spacing: -0.04em;
+  color: var(--ink);
+}
+.ob-wm-tld {
+  font-family: var(--pub-mono);
+  font-size: 9px; letter-spacing: 0.04em;
+  color: var(--ink-mute); font-weight: 400;
+}
+
+/* ── Panel wrap (centering container) ──────────────────────────────────── */
+.ob-panel-wrap {
+  width: 100%; max-width: 520px;
+}
+
+/* ── Panel — the "door" (ink 3-side border, amber baseline + amber knob) ── */
+.ob-panel {
+  position: relative;
+  background: var(--paper-raised);
+  border: 2px solid var(--ink); border-bottom: 0;
+  padding: 38px 44px 42px;
+  box-shadow:
+    0 1px 1px oklch(0.2 0.01 260 / 0.04),
+    0 18px 50px oklch(0.2 0.01 260 / 0.08);
+}
+/* Amber baseline (doorsill) */
+.ob-panel::after {
+  content: ""; position: absolute;
+  left: -2px; right: -2px; bottom: -6px;
+  height: 6px; background: var(--amber);
+}
+/* Amber knob top-right */
+.ob-knob {
+  position: absolute; right: 26px; top: 30px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--amber); pointer-events: none;
+}
+
+/* ── Step indicator (mono eyebrow + segment bars) ───────────────────────── */
+.ob-step {
+  display: flex; align-items: center; gap: 14px;
+  margin-bottom: 26px;
+}
+.ob-step-eyebrow {
+  font-family: var(--pub-mono); font-size: 10.5px;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--ink-mute); white-space: nowrap;
+}
+.ob-step-bars { display: flex; gap: 6px; align-items: center; }
+.ob-step-bar  { display: block; height: 2px; width: 28px; }
+.ob-step-bar--done    { background: var(--ink); }
+.ob-step-bar--current { background: var(--amber); }
+.ob-step-bar--future  { background: var(--rule-strong); }
+
+/* ── WelcomeLine (display heading) ─────────────────────────────────────── */
+.ob-heading {
+  font-family: var(--pub-sans); font-weight: 500;
+  font-size: 30px; line-height: 1.12; letter-spacing: -0.022em;
+  color: var(--ink); margin: 0 0 12px; max-width: 22ch;
+  text-wrap: balance;
+}
+.ob-heading-soft { color: var(--ink-soft); }
+
+/* ── Delegation preview strip ───────────────────────────────────────────── */
+.ob-delegation {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; margin-top: 4px;
+  background: var(--amber-wash);
+  border: 1px solid oklch(0.86 0.06 70);
+  border-left: 3px solid var(--amber);
+  font-family: var(--pub-sans); font-size: 13.5px;
+  color: var(--amber-ink); line-height: 1.45;
+}
+.ob-delegation-badge {
+  font-family: var(--pub-mono); font-size: 11px; font-weight: 600;
+  background: var(--amber); color: var(--paper);
+  padding: 2px 6px; border-radius: 2px;
+  letter-spacing: 0.04em; flex-shrink: 0;
+}
+
+/* ── Security module (icon + headline + rationale) ──────────────────────── */
+.ob-security {
+  display: flex; align-items: flex-start; gap: 18px;
+  padding: 20px 0;
+  border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
+  margin: 28px 0 24px;
+}
+.ob-security-icon {
+  flex: 0 0 auto; width: 44px; height: 44px;
+  display: grid; place-items: center;
+}
+.ob-security-body { flex: 1; min-width: 0; }
+.ob-security-head {
+  font-family: var(--pub-sans); font-weight: 600; font-size: 15px;
+  letter-spacing: -0.005em; color: var(--ink); margin-bottom: 4px;
+}
+.ob-security-desc {
+  font-family: var(--pub-sans); font-size: 13.5px;
+  line-height: 1.55; color: var(--ink-soft);
+}
+
+/* ── CTA — ink fill, amber bar, mono arrow ─────────────────────────────── */
+.ob-cta {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%; box-sizing: border-box;
+  background: var(--ink); color: var(--paper);
+  border: none; border-radius: 4px;
+  padding: 14px 22px 14px 18px;
+  font-family: var(--pub-sans); font-weight: 600; font-size: 14.5px;
+  letter-spacing: -0.005em; cursor: pointer;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+  text-decoration: none;
+}
+.ob-cta:hover:not(:disabled) {
+  background: var(--amber); color: var(--ink);
+  box-shadow: 0 0 0 3px oklch(0.68 0.14 65 / 0.22);
+}
+.ob-cta:hover:not(:disabled) .ob-cta-bar { background: var(--ink); }
+.ob-cta:disabled { opacity: 0.55; cursor: not-allowed; }
+.ob-cta-bar {
+  width: 3px; height: 16px; background: var(--amber);
+  flex-shrink: 0; transition: background 0.15s;
+}
+.ob-cta-label { flex: 1; text-align: left; }
+.ob-cta-arrow { font-family: var(--pub-mono); font-size: 13px; opacity: 0.7; flex-shrink: 0; }
+
+/* ── Skip link ──────────────────────────────────────────────────────────── */
+.ob-skip {
+  display: block; width: 100%; box-sizing: border-box;
+  padding: 12px 16px; background: transparent; color: var(--ink-mute);
+  border: none; border-bottom: 2px solid var(--rule);
+  font-family: var(--pub-sans); font-weight: 500; font-size: 13.5px;
+  letter-spacing: -0.005em; cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  text-align: center;
+}
+.ob-skip:hover:not(:disabled) { color: var(--ink); border-color: var(--rule-strong); }
+.ob-skip:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* ── Escape row (sign out / get help) ───────────────────────────────────── */
+.ob-escape {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 22px;
+  font-family: var(--pub-mono); font-size: 11px;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-mute);
+}
+.ob-escape a,
+.ob-escape button,
+.ob-escape span {
+  background: none; border: none; padding: 0;
+  font-family: inherit; font-size: inherit; letter-spacing: inherit;
+  text-transform: inherit; color: inherit; cursor: pointer;
+  text-decoration: none;
+  border-bottom: 1px solid var(--rule-strong); padding-bottom: 2px;
+  transition: color 0.1s, border-color 0.1s;
+}
+.ob-escape a:hover,
+.ob-escape button:hover { color: var(--ink); border-color: var(--ink); }
+
+/* ── Factor chips (passkey success state) ───────────────────────────────── */
+.ob-factors { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 28px; }
+.ob-factor-chip {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 14px 16px 14px 18px;
+  background: var(--paper-sunk);
+  border: 1px solid var(--rule); border-left: 3px solid var(--ink);
+}
+.ob-factor-chip--accent { border-left-color: var(--amber); }
+.ob-factor-chip-icon { flex: 0 0 auto; margin-top: 1px; }
+.ob-factor-chip-label {
+  font-family: var(--pub-mono); font-size: 10px; color: var(--ink-mute);
+  letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 4px;
+}
+.ob-factor-chip-status {
+  font-family: var(--pub-sans); font-weight: 500; font-size: 13px;
+  color: var(--ink); letter-spacing: -0.005em; line-height: 1.3;
+}
+
+/* ── Passkey failure notice ─────────────────────────────────────────────── */
+.ob-notice {
+  display: flex; align-items: flex-start; gap: 14px;
+  padding: 16px 18px;
+  margin-top: 20px; margin-bottom: 4px;
+  background: var(--paper);
+  border: 1px solid var(--rule); border-left: 3px solid var(--ink-soft);
+}
+.ob-notice-icon { flex: 0 0 auto; margin-top: 2px; }
+.ob-notice-head {
+  font-family: var(--pub-sans); font-weight: 600; font-size: 14px;
+  color: var(--ink); margin-bottom: 3px;
+}
+.ob-notice-body {
+  font-family: var(--pub-sans); font-size: 13px;
+  line-height: 1.55; color: var(--ink-soft);
+}
+
+/* ── Secured payoff (transitional shield animation state) ───────────────── */
+.ob-secured {
+  display: flex; flex-direction: column; align-items: center;
+  text-align: center; padding: 20px 0 12px;
+}
+.ob-secured-title {
+  font-family: var(--pub-sans); font-weight: 500; font-size: 28px;
+  color: var(--ink); letter-spacing: -0.018em; margin-top: 22px;
+}
+.ob-secured-sub {
+  font-family: var(--pub-sans); font-size: 13.5px;
+  color: var(--ink-soft); line-height: 1.55;
+  margin-top: 8px; max-width: 36ch;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 560px) {
+  .ob-panel      { padding: 28px 24px 32px; }
+  .ob-panel-wrap { max-width: 100%; }
+  .ob-content    { padding: 28px 14px 60px; }
+  .ob-heading    { font-size: 24px; }
+  .ob-wordmark   { margin-bottom: 24px; }
+  .ob-factors    { grid-template-columns: 1fr; }
+}

@@ -1,16 +1,14 @@
 "use client"
 
 /**
- * app/(public)/PublicThemeProvider.tsx — FILL: one-line purpose
+ * app/(public)/PublicThemeProvider.tsx — Light/dark theme context for public and onboarding routes
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Wraps children in div.pleks-public, applies data-theme, exposes usePublicTheme().
+ *         Server renders "light"; client hydrates from localStorage. suppressHydrationWarning
+ *         silences the expected data-theme mismatch on first paint.
  */
 
-import { createContext, useContext, useSyncExternalStore } from "react"
+import { createContext, useContext, useMemo, useSyncExternalStore } from "react"
 
 type Theme = "light" | "dark"
 
@@ -53,8 +51,11 @@ export function PublicThemeProvider({ children }: Readonly<{ children: React.Rea
     globalThis.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY, newValue: next }))
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const ctx = useMemo(() => ({ theme, toggle }), [theme])
+
   return (
-    <Ctx.Provider value={{ theme, toggle }}>
+    <Ctx.Provider value={ctx}>
       <div className="pleks-public" data-theme={theme} suppressHydrationWarning>
         {children}
       </div>

@@ -3,8 +3,8 @@
  *
  * Route:  /welcome
  * Auth:   authenticated agent (AAL1 island — requiresAal2 not set; TOTP not yet enrolled)
- * Data:   user_profiles (welcome_seen, full_name), user_orgs + organisations (role, org name),
- *         activation_delegations (delegation preview for invited staff)
+ * Data:   user_profiles (welcome_seen, full_name), user_orgs + organisations (role, org name,
+ *         management_scope, user_type), activation_delegations (delegation preview)
  * Notes:  §B/§F.3 — two entry points: onboarding completion + agent-class invite acceptance.
  *         welcome_seen is per-user; founder and invited letting agent in same org each see it once.
  *         welcome_seen set on "Continue" click (markWelcomeSeen action) — not on first render —
@@ -21,7 +21,7 @@ interface PageProps {
   searchParams: Promise<{ step?: string }>
 }
 
-export default async function WelcomePage({ searchParams }: PageProps) {
+export default async function WelcomePage({ searchParams }: Readonly<PageProps>) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
@@ -45,7 +45,7 @@ export default async function WelcomePage({ searchParams }: PageProps) {
 
   const { data: membership, error: memberErr } = await service
     .from("user_orgs")
-    .select("role, org_id, organisations(name)")
+    .select("role, org_id, organisations(name, management_scope, user_type)")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
@@ -55,8 +55,14 @@ export default async function WelcomePage({ searchParams }: PageProps) {
   }
 
   const orgId = membership?.org_id ?? null
-  const orgName = (membership?.organisations as unknown as { name: string } | null)?.name ?? ""
+  const org = membership?.organisations as unknown as {
+    name: string; management_scope: string | null; user_type: string | null
+  } | null
+  const orgName = org?.name ?? ""
   const role = membership?.role ?? "agent"
+  const handlesClientFunds = org?.management_scope === "others_only"
+    || org?.user_type === "agent"
+    || org?.user_type === "agency"
   const firstName = profile?.full_name?.split(" ")[0] ?? user.email?.split("@")[0] ?? ""
 
   // Delegation preview for invited staff — §C owns the writes; here we read for orientation
@@ -91,6 +97,7 @@ export default async function WelcomePage({ searchParams }: PageProps) {
       delegationCount={delegationCount}
       delegatedByName={delegatedByName}
       initialStep={step === "passkey" ? "passkey" : "orient"}
+      handlesClientFunds={handlesClientFunds}
     />
   )
 }
