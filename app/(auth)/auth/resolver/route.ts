@@ -39,6 +39,11 @@ function execute(dest: Destination, origin: string): NextResponse {
       return NextResponse.redirect(u)
     }
     case "mfa_enrol": {
+      // Welcome-flow users get the focused shell at /welcome/secure (no dashboard nav).
+      // That page hardcodes mandatory + redirectTo=/welcome?step=passkey.
+      if (dest.redirect?.startsWith("/welcome")) {
+        return NextResponse.redirect(url("/welcome/secure"))
+      }
       const u = url("/settings/security/enrol-totp")
       u.searchParams.set("mandatory", "true")
       if (dest.redirect) u.searchParams.set("redirect", dest.redirect)
