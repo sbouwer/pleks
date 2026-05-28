@@ -853,6 +853,77 @@ Source: ADDENDUM_LEGAL_DOCS_SPACING_2026-05-27.
 
 ---
 
+## Data access in pages, server components, and server actions
+
+**Cookie client (`createClient()`) is for `auth.getUser()` ONLY.** Never call `.from(...)` on its result. RLS does not reliably propagate `auth.uid()` to Postgres from the cookie client in Next.js server components; queries through this client return empty for new users whose session state has not warmed.
+
+**Server components and pages: use `gatewaySSR()`.** Returns `{ db, userId, orgId, role }`. Every query through `db` MUST include `.eq("org_id", orgId)` explicitly. The service-role client bypasses RLS; the explicit filter IS the org boundary.
+
+**Server actions: use `gateway()` or `requireAgentWriteAccess(action)`.** Same shape, same rules. `requireAgentWriteAccess` additionally enforces the subscription lockdown gate.
+
+**Reference:** `app/(dashboard)/dashboard/page.tsx` (Pattern A). Every `supabase.from(...)` call in it includes `.eq("org_id", orgId)`.
+
+**Anti-pattern (do NOT do this):**
+
+```tsx
+const supabase = await createClient()
+const { data } = await supabase.from("properties").select("*").is("deleted_at", null)
+```
+
+**Correct pattern:**
+
+```tsx
+const gw = await gatewaySSR()
+if (!gw) redirect("/login")
+const { data } = await gw.db.from("properties").select("*").eq("org_id", gw.orgId).is("deleted_at", null)
+```
+
+Even though the RLS policies in `pg_policies` are structurally correct (verified 2026-05-27), don't rely on them when the data path goes through the cookie client. Explicit filter is the only deterministic option.
+
+Source: ADDENDUM_DATA_ACCESS_DOCTRINE_2026-05-27.
+
+---
+
+## Single-Pass Auth Doctrine (ADDENDUM_AUTH_RESOLVER_SELF_REFERENCE_FIX_2026-05-27)
+
+**Rule:** `/auth/resolver` produces exactly ONE routing decision per call. Every URL it returns redirects to the user's actual final destination (or a transient auth state with the final destination preserved in `?redirect=`). The resolver MUST NOT appear in any `?redirect=` value it forwards. The transient auth states (`/login/mfa`, `/settings/security/enrol-totp`, `/onboarding`) MUST navigate directly to the final destination on success — never back through the resolver.
+
+**Rationale:** Resolver self-references create infinite loops when AAL2 cookies don't propagate on post-MFA navigation, or when the user is in a cross-host MFA state (factor enrolled on host A, currently at host B).
+
+Membership and consent are NOT the resolver's job after the first call. They are handled by `ensureOrgCookies` in proxy.ts and `ConsentGateModal` in destination layouts.
+
+**Factor scoping:** Any code path that ROUTES based on "does the user have an MFA factor?" MUST use the host-scoped check (`filterFactorsByHost` from `lib/auth/mfa-host`). Global factor presence is meaningless for routing — only host-scoped presence determines whether the user can MFA-verify on the current host.
+
+**Anti-pattern (creates loops):**
+
+```ts
+// Wrapping resolver URL inside another transient state's redirect param
+mfaUrl.searchParams.set("redirect", "/auth/resolver?redirect=" + safeNext)
+// ↑ Post-MFA navigation re-enters the resolver — loop if AAL2 cookie is stale
+
+// Routing based on global factor presence
+const hasVerifiedFactor = factors.some(f => f.status === "verified")
+if (hasVerifiedFactor) return NextResponse.redirect("/login/mfa")
+// ↑ Cross-host user has factors elsewhere — /login/mfa sees no host match — stranded
+```
+
+**Correct pattern:**
+
+```ts
+// MFA redirect with original destination (not resolver)
+const mfaUrl = new URL("/login/mfa", origin)
+if (safeNext) mfaUrl.searchParams.set("redirect", safeNext)
+
+// Host-scoped routing decision
+const hostFactors = filterFactorsByHost(allVerified, currentHost)
+if (hostFactors.length > 0) return NextResponse.redirect(mfaUrl)    // verify
+else return NextResponse.redirect(enrolUrl)                          // enrol
+```
+
+Source: ADDENDUM_AUTH_RESOLVER_SELF_REFERENCE_FIX_2026-05-27.
+
+---
+
 ## DO NOT DO
 
 - Do not deploy without running `npm run security:quick` first

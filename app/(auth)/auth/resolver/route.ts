@@ -12,8 +12,10 @@ import { NextResponse, type NextRequest } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { safeRedirect } from "@/lib/auth/safe-redirect"
 import { resolveUserMembership, SovereignMembershipViolation } from "@/lib/auth/membership"
+import { filterFactorsByHost, resolveCurrentHost } from "@/lib/auth/mfa-host"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import type { PortalClass } from "@/lib/auth/membership"
+
 
 // ── Portal-class default destinations ────────────────────────────────────────
 const PORTAL_DEFAULTS: Record<PortalClass, string> = {
@@ -72,6 +74,51 @@ async function logResolverDecision(opts: {
   }
 }
 
+// ── AAL elevation — extracted so GET stays within cognitive complexity budget ──
+// Single-Pass Auth Doctrine: host-scoped factor check determines verify vs. enrol.
+// The resolver NEVER appears in any redirect param it forwards (see CLAUDE.md doctrine).
+async function handleAalElevation(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  request: NextRequest,
+  origin: string,
+  host: string,
+  userId: string,
+  safeNext: string | null,
+  redirectParam: string | null,
+): Promise<NextResponse | null> {
+  const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+  if (aalData?.currentLevel !== "aal1" || aalData?.nextLevel !== "aal2") return null
+
+  const { data: factors } = await supabase.auth.mfa.listFactors()
+  const allVerified = (factors?.totp ?? []).filter((f) => f.status === "verified")
+
+  const currentHost = resolveCurrentHost(request)
+  const hostFactors = currentHost ? filterFactorsByHost(allVerified, currentHost) : allVerified
+
+  if (hostFactors.length > 0) {
+    const mfaUrl = new URL(`${origin}/login/mfa`)
+    if (safeNext) mfaUrl.searchParams.set("redirect", safeNext)
+    await logResolverDecision({
+      userId, orgId: null, state: "needs_aal2_verify",
+      destination: mfaUrl.pathname, redirectParamPresent: !!redirectParam,
+      redirectParamHonoured: !!safeNext, host,
+    })
+    return NextResponse.redirect(mfaUrl)
+  }
+
+  const enrolUrl = new URL(`${origin}/settings/security/enrol-totp`)
+  enrolUrl.searchParams.set("mandatory", "true")
+  if (allVerified.length > 0) enrolUrl.searchParams.set("cross_host", "true")
+  if (safeNext) enrolUrl.searchParams.set("redirect", safeNext)
+  await logResolverDecision({
+    userId, orgId: null,
+    state: allVerified.length > 0 ? "needs_aal2_enrol_cross_host" : "needs_aal2_enrol_first",
+    destination: enrolUrl.pathname, redirectParamPresent: !!redirectParam,
+    redirectParamHonoured: !!safeNext, host,
+  })
+  return NextResponse.redirect(enrolUrl)
+}
+
 // ── Main resolver ─────────────────────────────────────────────────────────────
 export async function GET(request: NextRequest) {
   const { searchParams, origin, host } = new URL(request.url)
@@ -89,31 +136,8 @@ export async function GET(request: NextRequest) {
   }
 
   // ── Step 1: Check AAL (MFA elevation) ────────────────────────────────────
-  const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-  if (
-    aalData?.currentLevel === "aal1" &&
-    aalData?.nextLevel === "aal2"
-  ) {
-    // Check that user actually has at least one enrolled factor — otherwise
-    // nextLevel === aal2 but there is nothing to challenge against.
-    const { data: factors } = await supabase.auth.mfa.listFactors()
-    const hasVerifiedFactor = (factors?.totp ?? []).some((f) => f.status === "verified")
-
-    if (hasVerifiedFactor) {
-      // Build redirect param that points back to this resolver (preserving original redirect)
-      const resolverUrl = new URL(`${origin}/auth/resolver`)
-      if (safeNext) resolverUrl.searchParams.set("redirect", safeNext)
-      const mfaUrl = new URL(`${origin}/login/mfa`)
-      mfaUrl.searchParams.set("redirect", resolverUrl.pathname + resolverUrl.search)
-
-      await logResolverDecision({
-        userId: user.id, orgId: null, state: "authenticated",
-        destination: mfaUrl.pathname, redirectParamPresent: !!redirectParam,
-        redirectParamHonoured: false, host,
-      })
-      return NextResponse.redirect(mfaUrl)
-    }
-  }
+  const aalResponse = await handleAalElevation(supabase, request, origin, host, user.id, safeNext, redirectParam)
+  if (aalResponse) return aalResponse
 
   // ── Step 2: Resolve membership ────────────────────────────────────────────
   let membership

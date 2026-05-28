@@ -5,9 +5,9 @@
  *
  * Route:  /login/mfa
  * Auth:   aal1 session required (password step already done)
- * Notes:  Post-verification routes to /auth/resolver (not directly to destination).
+ * Notes:  Post-verification hard-navigates directly to ?redirect= destination (Single-Pass Doctrine).
  *         Factors are filtered by current host claim (§5.4 ADDENDUM_AUTH_RESOLVER).
- *         Redirects to enrol-totp if user has no verified TOTP factor for current host.
+ *         Wrong-host link routes to enrol-totp with cross_host=true and redirect preserved.
  */
 
 import { useState, useEffect, useRef, Suspense } from "react"
@@ -181,7 +181,9 @@ function MfaContent() {
           <CardContent>
             <p className="text-sm text-muted-foreground mb-4">{wrongHostMessage}</p>
             <Link
-              href="/settings/security/enrol-totp"
+              href={`/settings/security/enrol-totp?mandatory=true&cross_host=true${
+                redirectParam ? `&redirect=${encodeURIComponent(redirectParam)}` : ""
+              }`}
               className="block text-center text-sm underline"
               style={{ color: "var(--amber-ink)" }}
             >

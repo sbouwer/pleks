@@ -4,15 +4,18 @@
  * app/(dashboard)/settings/security/enrol-totp/page.tsx — TOTP MFA enrolment wizard (primary + backup)
  *
  * Route:  /settings/security/enrol-totp
- * Auth:   Authenticated; AAL2 required when user already has a verified factor (adding backup)
+ * Auth:   Authenticated; AAL2 required only when user already has a HOST-SCOPED factor (adding backup)
  * Notes:  Encodes host in factor friendly_name (S-40, ADDENDUM_AUTH_RESOLVER §5.4).
  *         Refuses enrolment on *.vercel.app preview deploys — no stable host = no factor.
+ *         Reads ?redirect= and navigates there on enrolment success (Single-Pass Doctrine).
+ *         cross_host=true: user has factors on another host; skip AAL2 check, enrol fresh.
  */
 
 import { useState, useEffect, useRef, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
-import { buildFactorFriendlyName, resolveCurrentHost, isPreviewHost } from "@/lib/auth/mfa-host"
+import { buildFactorFriendlyName, filterFactorsByHost, resolveCurrentHost, isPreviewHost } from "@/lib/auth/mfa-host"
+import { safeRedirect } from "@/lib/auth/safe-redirect"
 import type { AllowedHost } from "@/lib/auth/mfa-host"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -47,6 +50,9 @@ function EnrolTotpContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const mandatory = searchParams.get("mandatory") === "true"
+  const crossHost = searchParams.get("cross_host") === "true"
+  const redirectParam = searchParams.get("redirect")
+  const safeNext = redirectParam ? safeRedirect(redirectParam) : "/dashboard"
 
   const [phase, setPhase] = useState<Phase>("enrol1")
   const [loading, setLoading] = useState(false)
@@ -73,18 +79,25 @@ function EnrolTotpContent() {
 
     const supabase = createClient()
     supabase.auth.mfa.listFactors().then(async ({ data: factors }) => {
-      const verifiedTotps = (factors?.totp ?? []).filter(f => f.status === "verified")
-      const verifiedCount = verifiedTotps.length
+      const allVerified = (factors?.totp ?? []).filter(f => f.status === "verified")
 
-      if (verifiedCount > 0) {
+      // Host-scope the check — only bounce to /login/mfa if there's a CURRENT-HOST factor.
+      // Cross-host users (allVerified > 0 but no host match) fall through to enrolment.
+      const currentHost = currentHostRef.current
+      const hostFactors = currentHost ? filterFactorsByHost(allVerified, currentHost) : allVerified
+
+      if (hostFactors.length > 0) {
         const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
         if (aal?.currentLevel !== "aal2") {
-          router.replace(`/login/mfa?redirect=${encodeURIComponent("/settings/security/enrol-totp")}`)
+          const returnTo = redirectParam ? safeRedirect(redirectParam) : "/settings/security/enrol-totp"
+          router.replace(`/login/mfa?redirect=${encodeURIComponent(returnTo)}`)
           return
         }
-        // AAL2 + already enrolled — user is adding a backup factor
+        // AAL2 + host-scoped factor verified — user is adding a backup
         setPhase("enrol2")
       }
+
+      const verifiedCount = allVerified.length
 
       // Clear any leftover unverified TOTP factors from previous incomplete attempts.
       const unverified = (factors?.totp ?? []).filter(f => f.status !== "verified")
@@ -128,7 +141,7 @@ function EnrolTotpContent() {
       setLoading(false)
       setError("Something went wrong starting MFA setup. Open DevTools console for details.")
     })
-  }, [router])
+  }, [router, redirectParam])
 
   async function enrolFactor(factorNum: 1 | 2) {
     setLoading(true)
@@ -206,7 +219,7 @@ function EnrolTotpContent() {
         <p className="text-muted-foreground text-sm mb-8">
           Two-factor authentication is active on your account.
         </p>
-        <button style={BTN_PRIMARY} onClick={() => { globalThis.location.href = "/dashboard" }}>
+        <button style={BTN_PRIMARY} onClick={() => { globalThis.location.href = safeNext }}>
           Go to dashboard
         </button>
       </div>
@@ -239,7 +252,7 @@ function EnrolTotpContent() {
               authenticator entries are already synced across your devices — you may not need this at all.
             </p>
             <div className="flex flex-col gap-2">
-              <button style={BTN_PRIMARY} onClick={() => { globalThis.location.href = "/dashboard" }}>
+              <button style={BTN_PRIMARY} onClick={() => { globalThis.location.href = safeNext }}>
                 I&apos;ve saved it — go to dashboard
               </button>
               <button
@@ -259,9 +272,14 @@ function EnrolTotpContent() {
   const secret = phase === "enrol1" ? secret1 : secret2
   const factorNum: 1 | 2 = phase === "enrol1" ? 1 : 2
 
-  let cardDescription = mandatory
-    ? "Your account requires two-factor authentication before accessing the dashboard."
-    : "Protect your account with an authenticator app."
+  let cardDescription: string
+  if (mandatory && crossHost) {
+    cardDescription = "You have MFA set up on another environment. For security, codes don't cross between environments — set up a new authenticator entry here."
+  } else if (mandatory) {
+    cardDescription = "Your account requires two-factor authentication before accessing the dashboard."
+  } else {
+    cardDescription = "Protect your account with an authenticator app."
+  }
   if (phase === "enrol2") cardDescription = "Add a second authenticator entry as an extra backup."
 
   return (
