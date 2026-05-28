@@ -27,7 +27,7 @@ export interface OnboardingData {
   vatNumber?: string
   contactName?: string
   email: string
-  phone: string
+  mobile: string
   address?: string
   managementScope: string
   ppraStatus?: string
@@ -71,7 +71,7 @@ export async function createAccountAndOrg(data: OnboardingData): Promise<{
       reg_number: data.regNumber || null,
       vat_number: data.vatNumber || null,
       email: data.email,
-      phone: data.phone,
+      phone: data.mobile,
       address: data.address || null,
       management_scope: data.managementScope,
       ppra_status: data.ppraStatus || null,
@@ -124,7 +124,7 @@ export async function createAccountAndOrg(data: OnboardingData): Promise<{
   const { error: profileError } = await service.from("user_profiles").upsert({
     id: userId,
     full_name: data.contactName || data.name,
-    phone: data.phone || null,
+    mobile: data.mobile || null,
     onboarding_state: "complete",
   }, { onConflict: "id" })
   if (profileError) {

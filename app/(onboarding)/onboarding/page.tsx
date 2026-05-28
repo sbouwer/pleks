@@ -79,7 +79,7 @@ function OnboardingWizard() {
 
   // Shared
   const [name, setName] = useState("")
-  const [phone, setPhone] = useState("")
+  const [mobile, setMobile] = useState("")
   const [address, setAddress] = useState("")
   const [tradingAs, setTradingAs] = useState("")
   const [regNumber, setRegNumber] = useState("")
@@ -173,7 +173,7 @@ function OnboardingWizard() {
       vatNumber: vatNumber || undefined,
       contactName: name,
       email: acctEmail || email,
-      phone,
+      mobile,
       address: address || undefined,
       managementScope: getManagementScope(),
       ppraStatus: ppraStatus || undefined,
@@ -197,7 +197,7 @@ function OnboardingWizard() {
       name: name ? `${name.split(" ")[0]}'s Properties` : "My Properties",
       contactName: name || emailToUse.split("@")[0],
       email: emailToUse,
-      phone: phone || "—",
+      mobile: mobile || "—",
       managementScope: "own_only",
       tosAccepted,
       onboardingComplete: true,
@@ -334,9 +334,9 @@ function OnboardingWizard() {
         <p className="pub-small" style={{ margin: "0 0 28px" }}>Just the basics — no company details needed.</p>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <Field label="Your name *"><input className="ob-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" /></Field>
-          <Field label="Phone number *"><input className="ob-input" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="082 000 0000" /></Field>
+          <Field label="Mobile number *"><input className="ob-input" type="tel" value={mobile} onChange={(e) => setMobile(e.target.value)} placeholder="082 000 0000" /></Field>
           <Field label="City & Province"><input className="ob-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Cape Town, WC" /></Field>
-          <Btn onClick={() => setStep(2)} disabled={!name.trim() || !phone.trim()}>Continue →</Btn>
+          <Btn onClick={() => setStep(2)} disabled={!name.trim() || !mobile.trim()}>Continue →</Btn>
         </div>
       </div>
     )
@@ -392,10 +392,10 @@ function OnboardingWizard() {
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <Field label="Your full name *"><input className="ob-input" value={name} onChange={(e) => setName(e.target.value)} /></Field>
           <Field label="Trading name *"><input className="ob-input" value={tradingAs} onChange={(e) => setTradingAs(e.target.value)} placeholder="e.g. Smith Property Management" /></Field>
-          <Field label="Phone number *"><input className="ob-input" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} /></Field>
+          <Field label="Mobile number *"><input className="ob-input" type="tel" value={mobile} onChange={(e) => setMobile(e.target.value)} /></Field>
           <Field label="City & Province"><input className="ob-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Cape Town, WC" /></Field>
           <Field label="Company reg number"><input className="ob-input" value={regNumber} onChange={(e) => setRegNumber(e.target.value)} placeholder="Optional" /></Field>
-          <Btn onClick={() => setStep(2)} disabled={!name.trim() || !tradingAs.trim() || !phone.trim()}>Continue →</Btn>
+          <Btn onClick={() => setStep(2)} disabled={!name.trim() || !tradingAs.trim() || !mobile.trim()}>Continue →</Btn>
         </div>
       </div>
     )
@@ -419,9 +419,9 @@ function OnboardingWizard() {
           <Field label="Trading as"><input className="ob-input" value={tradingAs} onChange={(e) => setTradingAs(e.target.value)} placeholder="If different from company name" /></Field>
           <Field label="Registration number *"><input className="ob-input" value={regNumber} onChange={(e) => setRegNumber(e.target.value)} /></Field>
           <Field label="VAT number"><input className="ob-input" value={vatNumber} onChange={(e) => setVatNumber(e.target.value)} placeholder="Optional" /></Field>
-          <Field label="Phone number *"><input className="ob-input" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} /></Field>
+          <Field label="Mobile number *"><input className="ob-input" type="tel" value={mobile} onChange={(e) => setMobile(e.target.value)} /></Field>
           <Field label="City & Province"><input className="ob-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Cape Town, WC" /></Field>
-          <Btn onClick={() => setStep(2)} disabled={!name.trim() || !regNumber.trim() || !phone.trim()}>Continue →</Btn>
+          <Btn onClick={() => setStep(2)} disabled={!name.trim() || !regNumber.trim() || !mobile.trim()}>Continue →</Btn>
         </div>
       </div>
     )
@@ -490,7 +490,7 @@ function OnboardingWizard() {
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <Field label="Your name"><input className="ob-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name (optional)" /></Field>
-          <Field label="Phone number"><input className="ob-input" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="082 000 0000" /></Field>
+          <Field label="Mobile number"><input className="ob-input" type="tel" value={mobile} onChange={(e) => setMobile(e.target.value)} placeholder="082 000 0000" /></Field>
           {tosCheckbox}
           <Btn onClick={handleQuickFinish} disabled={loading || !name.trim() || !tosAccepted}>
             {loading ? "Setting up…" : "Go to dashboard →"}
@@ -554,7 +554,7 @@ function OnboardingWizard() {
       <p className="pub-small" style={{ margin: "0 0 28px" }}>That&apos;s all we need to get you started.</p>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <Field label="Your name *"><input className="ob-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" /></Field>
-        <Field label="Phone number"><input className="ob-input" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Optional" /></Field>
+        <Field label="Mobile number"><input className="ob-input" type="tel" value={mobile} onChange={(e) => setMobile(e.target.value)} placeholder="Optional" /></Field>
         {tosCheckbox}
         <Btn onClick={handleComplete} disabled={!name.trim() || loading || !tosAccepted}>
           {loading ? "Setting up…" : "Explore Pleks →"}
