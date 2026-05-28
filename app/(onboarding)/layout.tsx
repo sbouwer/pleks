@@ -7,6 +7,7 @@
  *         Sub-routes render their own card (ob-panel or .pa-modal) inside ob-panel-wrap.
  *         No backdrop-filter — works on mid-range Android / 3G; ~6KB CSS budget.
  */
+import Link from "next/link"
 import { PublicThemeProvider } from "../(public)/PublicThemeProvider"
 import "../(public)/public.css"
 import "./onboarding-shell.css"
@@ -33,6 +34,10 @@ export default function OnboardingGroupLayout({
           <div className="ob-panel-wrap">
             {children}
           </div>
+
+          <Link href="/" className="ob-back-home">
+            ← Back to homepage
+          </Link>
         </div>
       </div>
     </PublicThemeProvider>

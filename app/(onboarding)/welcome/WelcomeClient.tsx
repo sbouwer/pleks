@@ -43,12 +43,12 @@ export default function WelcomeClient({
   const { enrol, state: passkeyState, errorMsg, reset } = useEnrolPasskey()
 
   const isFounder = role === "owner"
-  const enrolTotpUrl = `/settings/security/enrol-totp?mandatory=true&redirect=${encodeURIComponent("/welcome?step=passkey")}`
+  const enrolTotpUrl = "/welcome/secure"
 
   // Play secured payoff animation, then advance to passkey step
   useEffect(() => {
     if (step !== "secured") return
-    const reduced = typeof globalThis.window === "undefined"
+    const reduced = globalThis.window === undefined
       ? false
       : globalThis.window.matchMedia("(prefers-reduced-motion: reduce)").matches
     if (reduced) {

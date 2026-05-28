@@ -541,3 +541,77 @@ table.ledger tr.paid td:first-child::before {
   --shadow-1: 0 1px 0 oklch(0 0 0 / 0.25);
   --shadow-2: 0 1px 3px oklch(0 0 0 / 0.18), 0 1px 0 oklch(0 0 0 / 0.25);
 }
+
+/* ── EnrolTotp — TOTP enrolment wizard (shared: /welcome/secure + /settings) ─
+   Tokens resolve to dark values inside .pleks-portal (Settings/dashboard) and
+   warm-light values inside .pleks-public (Welcome/onboarding). Same class set
+   works in both — same pattern as .pa-* / .ob-* components.
+   ────────────────────────────────────────────────────────────────────────── */
+.et-wrap {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; flex: 1; padding: 48px 16px;
+}
+.et-card {
+  position: relative; width: 100%; max-width: 440px;
+  background: var(--paper-raised); border: 2px solid var(--ink); border-bottom: 0;
+  padding: 28px 28px 32px;
+}
+.et-card::after {
+  content: ""; position: absolute;
+  left: -2px; right: -2px; bottom: -6px;
+  height: 6px; background: var(--amber);
+}
+.et-header { text-align: center; margin-bottom: 20px; }
+.et-icon { display: flex; justify-content: center; margin-bottom: 10px; }
+.et-title {
+  font-family: var(--pub-sans); font-size: 17px; font-weight: 600;
+  letter-spacing: -0.01em; color: var(--ink); margin: 0 0 5px;
+}
+.et-desc {
+  font-family: var(--pub-sans); font-size: 13.5px; line-height: 1.5;
+  color: var(--ink-soft); margin: 0;
+}
+.et-badge {
+  font-family: var(--pub-mono); font-size: 10.5px; font-weight: 500;
+  letter-spacing: 0.09em; text-transform: uppercase; color: var(--ink-mute);
+  margin-bottom: 16px;
+}
+.et-label {
+  display: block; font-family: var(--pub-mono); font-size: 10px; font-weight: 500;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-mute);
+  margin-bottom: 6px;
+}
+.et-secret {
+  border: 1px solid var(--rule); border-radius: var(--r-sm);
+  background: var(--paper-sunk); padding: 14px 16px; margin-bottom: 4px;
+}
+.et-secret-text {
+  font-family: var(--pub-mono); font-size: 12px;
+  word-break: break-all; text-align: center; color: var(--ink);
+  user-select: all;
+}
+.et-error {
+  background: var(--critical-wash, var(--danger-bg));
+  border: 1px solid color-mix(in oklch, var(--critical, var(--danger)) 30%, transparent);
+  color: var(--critical, var(--danger));
+  padding: 12px; border-radius: var(--r-sm);
+  font-family: var(--pub-sans); font-size: 13px; line-height: 1.4;
+}
+.et-actions { display: flex; flex-direction: column; gap: 8px; }
+.et-done {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; flex: 1; padding: 64px 16px; text-align: center;
+}
+.et-done-icon { margin-bottom: 14px; }
+.et-done-title {
+  font-family: var(--pub-sans); font-size: 22px; font-weight: 500;
+  letter-spacing: -0.015em; color: var(--ink); margin: 0 0 8px;
+}
+.et-done-desc {
+  font-family: var(--pub-sans); font-size: 13.5px; line-height: 1.5;
+  color: var(--ink-soft); margin: 0 0 24px; max-width: 34ch;
+}
+@media (max-width: 480px) {
+  .et-wrap { padding: 24px 12px; }
+  .et-card { padding: 22px 18px 26px; }
+}
