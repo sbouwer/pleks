@@ -1069,7 +1069,7 @@ async function main() {
 
   let appUp = true
   try {
-    await fetch(APP_URL, { signal: AbortSignal.timeout(3000) })
+    await fetch(APP_URL, { signal: AbortSignal.timeout(15000) })
   } catch {
     console.warn(`⚠️  Cannot reach ${APP_URL} — API route tests will be skipped`)
     appUp = false
