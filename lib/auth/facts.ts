@@ -121,7 +121,7 @@ export function collectGateFacts(
       current:          aal === "aal2" ? "aal2" : "aal1",
       hasVerifiedFactor: false, // gate never reads factors (§7)
     },
-    onboarding: { complete: false }, // gate doesn't branch on onboarding
+    onboarding: { complete: false, welcomeSeen: false }, // gate doesn't branch on onboarding/welcome
     consent:    { current: consentCurrent(request), everAccepted: true },
     route: {
       path:         request.nextUrl.pathname,
@@ -152,12 +152,24 @@ export async function collectResolverFacts(
       isAuthenticated: false,
       membership:  { exists: false },
       assurance:   { current: "aal1", hasVerifiedFactor: false },
-      onboarding:  { complete: false },
+      onboarding:  { complete: false, welcomeSeen: false },
       consent:     { current: consentCurrent(request) },
       route: { path: safeNext ?? "/dashboard", isPublic: false, requiresAal2: false, allowedRoles: null },
       safeNext,
     }
   }
+
+  // ── Profile (always read — onboarding state + welcome gate) ───────────────
+  // Hoisted above membership so welcomeSeen is available regardless of whether
+  // membership resolves — welcome branch only fires when membership exists, but
+  // reading here avoids a second createServiceClient() call later for consent.
+  const service = await createServiceClient()
+  const { data: profile } = await service
+    .from("user_profiles")
+    .select("onboarding_state, welcome_seen")
+    .eq("id", user.id)
+    .maybeSingle()
+  const welcomeSeen = profile?.welcome_seen ?? false  // default false → show Welcome rather than skip
 
   // ── Membership (canonical DB) ─────────────────────────────────────────────
   let membership: AuthFacts["membership"] = { exists: false }
@@ -177,12 +189,6 @@ export async function collectResolverFacts(
         orgId:      m.orgId,
       }
     } else {
-      const service = await createServiceClient()
-      const { data: profile } = await service
-        .from("user_profiles")
-        .select("onboarding_state")
-        .eq("id", user.id)
-        .maybeSingle()
       onboardingComplete = profile?.onboarding_state === "complete"
     }
   } catch (err) {
@@ -202,8 +208,7 @@ export async function collectResolverFacts(
   const hasVerifiedFactor  = (factors?.totp ?? []).some((f) => f.status === "verified")
 
   // ── Consent — has user ever accepted any ToS version? ─────────────────────
-  const serviceForConsent = await createServiceClient()
-  const { data: anyAcceptance } = await serviceForConsent
+  const { data: anyAcceptance } = await service
     .from("tos_acceptances")
     .select("id")
     .eq("user_id", user.id)
@@ -216,7 +221,7 @@ export async function collectResolverFacts(
     userId: user.id,
     membership,
     assurance: { current: currentAal, hasVerifiedFactor },
-    onboarding: { complete: onboardingComplete },
+    onboarding: { complete: onboardingComplete, welcomeSeen },
     consent:    { current: consentCurrent(request), everAccepted },
     route: {
       path:         safeNext ?? "/dashboard",

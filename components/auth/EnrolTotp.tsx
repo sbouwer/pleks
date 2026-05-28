@@ -31,7 +31,7 @@ type Phase = "enrol1" | "backup" | "enrol2" | "done"
 export function EnrolTotp({ redirectTo, mandatory = false, variant = "settings" }: Readonly<EnrolTotpProps>) {
   const router = useRouter()
   const safeNext = redirectTo ? safeRedirect(redirectTo) : "/dashboard"
-  const fallbackSelf = variant === "welcome" ? "/welcome/secure" : "/settings/security/enrol-totp"
+  const fallbackSelf = "/settings/security/enrol-totp"
 
   const [phase, setPhase] = useState<Phase>("enrol1")
   const [loading, setLoading] = useState(false)

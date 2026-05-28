@@ -27,12 +27,13 @@ interface WelcomeClientProps {
   delegatedByName: string
   initialStep: "orient" | "passkey"
   handlesClientFunds: boolean
+  redirect: string
 }
 
 export default function WelcomeClient({
   firstName, orgName, role,
   delegationCount, delegatedByName,
-  initialStep, handlesClientFunds,
+  initialStep, handlesClientFunds, redirect,
 }: Readonly<WelcomeClientProps>) {
   const router = useRouter()
   const [step, setStep] = useState<Step>(
@@ -43,7 +44,11 @@ export default function WelcomeClient({
   const { enrol, state: passkeyState, errorMsg, reset } = useEnrolPasskey()
 
   const isFounder = role === "owner"
-  const enrolTotpUrl = "/welcome/secure"
+  // Double-encoded: inner redirect= encodes /welcome?step=passkey&redirect=<dest> so it survives
+  // enrol-totp's own redirect= param, lands back on /welcome?step=passkey with dest intact.
+  const enrolTotpUrl =
+    `/settings/security/enrol-totp?mandatory=true` +
+    `&redirect=${encodeURIComponent(`/welcome?step=passkey&redirect=${encodeURIComponent(redirect)}`)}`
 
   // Play secured payoff animation, then advance to passkey step
   useEffect(() => {
@@ -75,7 +80,7 @@ export default function WelcomeClient({
   async function handleFinish() {
     setFinishing(true)
     await markWelcomeSeen()
-    router.push("/auth/resolver")
+    router.push(`/auth/resolver?redirect=${encodeURIComponent(redirect)}`)
   }
 
   async function handleAddPasskey() {

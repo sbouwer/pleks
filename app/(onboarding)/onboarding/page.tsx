@@ -169,10 +169,10 @@ function OnboardingWizard() {
   async function handleCompleteResult(result: Awaited<ReturnType<typeof createAccountAndOrg>>, submitData: OnboardingData) {
     if (result?.error) {
       if (result.errorType === "already_exists") {
-        console.info("[onboarding] already_exists branch → redirecting to /welcome", {
+        console.info("[onboarding] already_exists branch → /auth/resolver", {
           userType: submitData.userType, isAlreadyAuthenticated: submitData.isAlreadyAuthenticated,
         })
-        globalThis.location.href = "/welcome"; return
+        globalThis.location.href = "/auth/resolver?redirect=/dashboard"; return
       }
       if (result.errorType === "email_exists") setEmailExists(true)
       toast.error(result.error)
@@ -183,8 +183,8 @@ function OnboardingWizard() {
       const supabase = createClient()
       await supabase.auth.signInWithPassword({ email: submitData.email, password: submitData.password })
     }
-    console.info("[onboarding] success → /welcome", { userType: submitData.userType })
-    globalThis.location.href = "/welcome"
+    console.info("[onboarding] success → /auth/resolver", { userType: submitData.userType })
+    globalThis.location.href = "/auth/resolver?redirect=/dashboard"
   }
 
   async function handleComplete() {
@@ -236,17 +236,17 @@ function OnboardingWizard() {
     })
     if (result?.error) {
       if (result.errorType === "already_exists") {
-        console.info("[onboarding] already_exists branch → redirecting to /welcome", {
+        console.info("[onboarding] already_exists branch → /auth/resolver", {
           userType: "owner", isAlreadyAuthenticated: true,
         })
-        globalThis.location.href = "/welcome"; return
+        globalThis.location.href = "/auth/resolver?redirect=/dashboard"; return
       }
       if (result.errorType === "auth_required") { globalThis.location.href = `/login?redirect=/auth/resolver&email=${encodeURIComponent(emailToUse)}`; return }
       toast.error(result.error)
       setLoading(false)
       return
     }
-    globalThis.location.href = "/welcome"
+    globalThis.location.href = "/auth/resolver?redirect=/dashboard"
   }
 
   async function checkEmailExists(emailToCheck: string) {

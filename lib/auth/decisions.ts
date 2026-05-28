@@ -31,6 +31,7 @@ export interface AuthFacts {
 
   onboarding: {
     complete: boolean            // resolver branches only on complete-vs-not
+    welcomeSeen: boolean         // ADDENDUM_RESOLVER_OWNED_WELCOME §4 — resolver gates welcome on this
   }
 
   consent: {
@@ -88,11 +89,13 @@ export function requiredAssurance(f: AuthFacts): Aal {
   return "aal1"
 }
 
+// Destination union — added "welcome" per ADDENDUM_RESOLVER_OWNED_WELCOME_2026-05-28 §4.
 export type Destination =
   | { kind: "login";       redirect: string | null }
   | { kind: "onboarding" }
   | { kind: "severed" }
   | { kind: "first_login"; redirect: string | null }
+  | { kind: "welcome";     redirect: string | null }
   | { kind: "mfa_verify";  redirect: string | null }
   | { kind: "mfa_enrol";   redirect: string | null }
   | { kind: "app"; path: string; pendingConsent: boolean }
@@ -111,6 +114,15 @@ export function resolveAuthDestination(f: AuthFacts): Destination {
   // Show the first-login wizard before forcing MFA enrolment.
   if (f.consent.everAccepted === false && !f.assurance.hasVerifiedFactor) {
     return { kind: "first_login", redirect: f.safeNext }
+  }
+
+  // Resolver-owned Welcome (ADDENDUM_RESOLVER_OWNED_WELCOME §4):
+  // - Agent-class only (Phase 1; portal welcome is Phase 2).
+  // - Gates on !welcomeSeen && current !== "aal2".
+  // - Factor presence doesn't matter — orient first, then verify or enrol.
+  // - Order is load-bearing: must precede the AAL2 gate.
+  if (rc === "agent" && !f.onboarding.welcomeSeen && f.assurance.current !== "aal2") {
+    return { kind: "welcome", redirect: f.safeNext }
   }
 
   if (requiredAssurance(f) === "aal2" && f.assurance.current !== "aal2") {

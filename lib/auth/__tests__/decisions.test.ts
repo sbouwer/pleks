@@ -14,7 +14,7 @@ const base: AuthFacts = {
   isAuthenticated: true,
   membership: { exists: true, roleClass: "agent", sessionRole: "owner", orgId: "org_1" },
   assurance:  { current: "aal2", hasVerifiedFactor: true },
-  onboarding: { complete: false },
+  onboarding: { complete: false, welcomeSeen: false },
   consent:    { current: true },
   route: { path: "/dashboard", isPublic: false, requiresAal2: true, allowedRoles: ["owner"] },
   safeNext: null,
@@ -36,18 +36,20 @@ describe("resolveAuthDestination — §3 contract", () => {
     expect(resolveAuthDestination(f({ isAuthenticated: false, safeNext: "/properties" })))
       .toEqual({ kind: "login", redirect: "/properties" }))
   it("3: no membership, never onboarded → onboarding", () =>
-    expect(resolveAuthDestination(f({ membership: { exists: false }, onboarding: { complete: false } })))
+    expect(resolveAuthDestination(f({ membership: { exists: false }, onboarding: { complete: false, welcomeSeen: false } })))
       .toEqual({ kind: "onboarding" }))
   it("4: no membership, was onboarded → severed", () =>
-    expect(resolveAuthDestination(f({ membership: { exists: false }, onboarding: { complete: true } })))
+    expect(resolveAuthDestination(f({ membership: { exists: false }, onboarding: { complete: true, welcomeSeen: false } })))
       .toEqual({ kind: "severed" }))
-  it("5: agent, aal1, NO factor → enrol (no-factor loop fix)", () =>
+  it("5: agent, aal1, NO factor, past welcome → enrol", () =>
     expect(resolveAuthDestination(f({
       assurance: { current: "aal1", hasVerifiedFactor: false }, safeNext: "/dashboard",
+      onboarding: { complete: false, welcomeSeen: true },
     }))).toEqual({ kind: "mfa_enrol", redirect: "/dashboard" }))
-  it("6: agent, aal1, has factor → verify", () =>
+  it("6: agent, aal1, has factor, past welcome → verify", () =>
     expect(resolveAuthDestination(f({
       assurance: { current: "aal1", hasVerifiedFactor: true }, safeNext: "/dashboard",
+      onboarding: { complete: false, welcomeSeen: true },
     }))).toEqual({ kind: "mfa_verify", redirect: "/dashboard" }))
   it("7: agent, aal2, consent current → destination", () =>
     expect(resolveAuthDestination(f({ safeNext: "/dashboard", consent: { current: true } })))
@@ -93,18 +95,98 @@ describe("resolveAuthDestination — §3 contract", () => {
       consent:   { current: false, everAccepted: false },
       safeNext:  "/dashboard",
     }))).toEqual({ kind: "first_login", redirect: "/dashboard" }))
-  it("17: everAccepted=true, stale consent, no factor → still mfa_enrol (not first_login)", () =>
+  it("17: everAccepted=true, stale consent, no factor, past welcome → still mfa_enrol (not first_login)", () =>
     expect(resolveAuthDestination(f({
       assurance: { current: "aal1", hasVerifiedFactor: false },
       consent:   { current: false, everAccepted: true },
+      onboarding: { complete: false, welcomeSeen: true },
       safeNext:  "/dashboard",
     }))).toEqual({ kind: "mfa_enrol", redirect: "/dashboard" }))
-  it("18: no factor, everAccepted=undefined (gate default) → not first_login", () =>
+  it("18: no factor, everAccepted=undefined (gate default), past welcome → not first_login", () =>
     expect(resolveAuthDestination(f({
       assurance: { current: "aal1", hasVerifiedFactor: false },
       consent:   { current: false },
+      onboarding: { complete: false, welcomeSeen: true },
       safeNext:  "/dashboard",
     }))).toEqual({ kind: "mfa_enrol", redirect: "/dashboard" }))
+})
+
+// ADDENDUM_RESOLVER_OWNED_WELCOME §7 — branch-order matrix
+describe("resolveAuthDestination — welcome branch (ADDENDUM_RESOLVER_OWNED_WELCOME §7)", () => {
+  it("W1: agent + welcomeSeen=false + AAL1 + no factor → welcome", () =>
+    expect(resolveAuthDestination(f({
+      assurance: { current: "aal1", hasVerifiedFactor: false },
+      onboarding: { complete: false, welcomeSeen: false },
+      safeNext: null,
+    }))).toEqual({ kind: "welcome", redirect: null }))
+
+  it("W2: agent + welcomeSeen=false + AAL1 + verified factor → welcome (factor presence irrelevant)", () =>
+    expect(resolveAuthDestination(f({
+      assurance: { current: "aal1", hasVerifiedFactor: true },
+      onboarding: { complete: false, welcomeSeen: false },
+      safeNext: null,
+    }))).toEqual({ kind: "welcome", redirect: null }))
+
+  it("W3: agent + welcomeSeen=true + AAL1 + no factor → mfa_enrol (past welcome)", () =>
+    expect(resolveAuthDestination(f({
+      assurance: { current: "aal1", hasVerifiedFactor: false },
+      onboarding: { complete: false, welcomeSeen: true },
+      safeNext: "/dashboard",
+    }))).toEqual({ kind: "mfa_enrol", redirect: "/dashboard" }))
+
+  it("W4: agent + welcomeSeen=true + AAL1 + verified factor → mfa_verify (past welcome)", () =>
+    expect(resolveAuthDestination(f({
+      assurance: { current: "aal1", hasVerifiedFactor: true },
+      onboarding: { complete: false, welcomeSeen: true },
+      safeNext: "/dashboard",
+    }))).toEqual({ kind: "mfa_verify", redirect: "/dashboard" }))
+
+  it("W5: agent + welcomeSeen=true + AAL2 → app", () =>
+    expect(resolveAuthDestination(f({
+      assurance: { current: "aal2", hasVerifiedFactor: true },
+      onboarding: { complete: false, welcomeSeen: true },
+      safeNext: "/dashboard",
+    }))).toEqual({ kind: "app", path: "/dashboard", pendingConsent: false }))
+
+  it("W6: agent + welcomeSeen=false + AAL2 → app (welcome bypassed — retrograde at AAL2)", () =>
+    expect(resolveAuthDestination(f({
+      assurance: { current: "aal2", hasVerifiedFactor: true },
+      onboarding: { complete: false, welcomeSeen: false },
+      safeNext: "/dashboard",
+    }))).toEqual({ kind: "app", path: "/dashboard", pendingConsent: false }))
+
+  it("W7a: tenant + welcomeSeen=false + AAL1 → app, never welcome (Phase 2 carve-out)", () =>
+    expect(resolveAuthDestination(f({
+      membership: { exists: true, roleClass: "tenant", sessionRole: "tenant" },
+      assurance:  { current: "aal1", hasVerifiedFactor: false },
+      onboarding: { complete: false, welcomeSeen: false },
+      route:      { ...base.route, requiresAal2: false },
+      safeNext: "/tenant/dashboard",
+    })).kind).not.toBe("welcome"))
+
+  it("W7b: landlord + welcomeSeen=false + AAL1 → never welcome", () =>
+    expect(resolveAuthDestination(f({
+      membership: { exists: true, roleClass: "landlord", sessionRole: "landlord" },
+      assurance:  { current: "aal1", hasVerifiedFactor: false },
+      onboarding: { complete: false, welcomeSeen: false },
+      route:      { ...base.route, requiresAal2: false },
+      safeNext: null,
+    })).kind).not.toBe("welcome"))
+
+  it("W8: everAccepted=false + welcomeSeen=false → first_login wins (precedence)", () =>
+    expect(resolveAuthDestination(f({
+      assurance: { current: "aal1", hasVerifiedFactor: false },
+      consent:   { current: false, everAccepted: false },
+      onboarding: { complete: false, welcomeSeen: false },
+      safeNext: "/dashboard",
+    }))).toEqual({ kind: "first_login", redirect: "/dashboard" }))
+
+  it("W9: redirect param threads through welcome destination", () =>
+    expect(resolveAuthDestination(f({
+      assurance: { current: "aal1", hasVerifiedFactor: false },
+      onboarding: { complete: false, welcomeSeen: false },
+      safeNext: "/dashboard",
+    }))).toEqual({ kind: "welcome", redirect: "/dashboard" }))
 })
 
 describe("requiredAssurance — purely route-driven (no class override)", () => {

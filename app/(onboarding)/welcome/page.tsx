@@ -18,7 +18,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server"
 import WelcomeClient from "./WelcomeClient"
 
 interface PageProps {
-  searchParams: Promise<{ step?: string }>
+  searchParams: Promise<{ step?: string; redirect?: string }>
 }
 
 export default async function WelcomePage({ searchParams }: Readonly<PageProps>) {
@@ -87,7 +87,7 @@ export default async function WelcomePage({ searchParams }: Readonly<PageProps>)
     }
   }
 
-  const { step } = await searchParams
+  const { step, redirect: redirectParam } = await searchParams
 
   return (
     <WelcomeClient
@@ -98,6 +98,7 @@ export default async function WelcomePage({ searchParams }: Readonly<PageProps>)
       delegatedByName={delegatedByName}
       initialStep={step === "passkey" ? "passkey" : "orient"}
       handlesClientFunds={handlesClientFunds}
+      redirect={redirectParam ?? "/dashboard"}
     />
   )
 }

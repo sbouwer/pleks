@@ -18,6 +18,7 @@ import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { acceptInviteNewUser, acceptInviteExistingUser } from "@/lib/actions/invite"
+import { PORTAL_DEFAULTS, type RoleClass } from "@/lib/auth/decisions"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -44,10 +45,17 @@ interface Invite {
   organisations: { name: string }
 }
 
+const AGENT_INVITE_ROLES = new Set(["owner", "property_manager", "agent", "accountant", "maintenance_manager"])
+
+function inviteRoleClass(role: string): RoleClass {
+  if (AGENT_INVITE_ROLES.has(role)) return "agent"
+  if (role === "tenant") return "tenant"
+  return "supplier"
+}
+
 function redirectForRole(role: string, router: ReturnType<typeof useRouter>) {
-  if (role === "tenant") router.push("/tenant")
-  else if (role === "contractor") router.push("/supplier")
-  else router.push("/welcome")
+  const rc = inviteRoleClass(role)
+  router.push(`/auth/resolver?redirect=${encodeURIComponent(PORTAL_DEFAULTS[rc])}`)
 }
 
 export default function InvitePage() {
