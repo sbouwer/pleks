@@ -175,9 +175,9 @@ function OnboardingWizard() {
         })
         globalThis.location.href = "/auth/resolver?redirect=/dashboard"; return
       }
-      if (result.errorType === "email_exists" || result.errorType === "email_in_use_elsewhere") {
-        setEmailExists(true)
-        setLoading(false)
+      if (result.errorType === "email_exists") { setEmailExists(true); setLoading(false); return }
+      if (result.errorType === "email_in_use_elsewhere") {
+        globalThis.location.href = `/login?redirect=/auth/resolver&email=${encodeURIComponent(acctEmail)}`
         return
       }
       toast.error(result.error)
