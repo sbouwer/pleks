@@ -9,17 +9,31 @@
 //   • Tables in one side but not the other (views excluded — listed separately)
 //   • Columns in migrations missing from DB
 //   • Columns in DB with no ADD COLUMN in migrations (→ suggests backport SQL)
-//   • CHECK constraints in DB that no migration explicitly names
+//   • CHECK constraints in DB that no migration names (extra)
+//   • CHECK constraints whose name IS in migrations but whose value set differs
+//     from what the migration defines — catches stale IN/ANY enum constraints
+//     (e.g. auth_events_event_type_check missing new event types after §30.2)
+//   • Triggers expected by migrations (CREATE TRIGGER) but absent from live DB
+//   • Triggers in live DB not named in any migration
+//   • Triggers present but DISABLED
+//   • Functions named in migrations (CREATE [OR REPLACE] FUNCTION) but absent
+//     from the live public schema
 //   • Indexes in DB that no migration explicitly names
 //   • RLS policies in DB that no migration explicitly names
 //
+// Known blind spots (not resolvable without full SQL parsing):
+//   • Column attribute drift (nullability, type, default) for columns that
+//     exist on both sides — the tool only checks column existence, not content.
+//     For nullability specifically, look at ALTER COLUMN DROP/SET NOT NULL in
+//     migrations and compare manually if suspect.
+//
 // Noise filters (aggressive by design):
 //   • Auto-generated inline CHECK constraints ({table}_{col}_check where col is
-//     present in migrations) are suppressed — they come from inline CHECK in
-//     CREATE TABLE or ALTER TABLE ADD COLUMN
-//   • Auto-generated UNIQUE indexes ending in `_key` are suppressed — they
-//     come from inline UNIQUE constraints
+//     present in migrations) are suppressed
+//   • Auto-generated UNIQUE indexes ending in `_key` are suppressed (unless
+//     --loose is passed)
 //   • Primary key indexes ending in `_pkey` are suppressed
+//   • Internal Postgres triggers (tgisinternal) are suppressed
 //
 // Credentials (from .env.local):
 //   SUPABASE_PROJECT_ID    project ref (e.g. noexjtlrffkzzclibvbq)
@@ -104,21 +118,13 @@ function parseMigrations(migrations) {
   }
 
   for (const mig of migrations) {
-    // normalise whitespace for pattern matching
     const clean = mig.searchable.replace(/\s+/g, " ")
 
     // ── CREATE TABLE [IF NOT EXISTS] tname ( body ) ──
-    // Body extraction handles nested parens via greedy-backtrack on final `)`
     const createRe = /create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?(\w+)\s*\(([^;]+)\)/g
     let m
     while ((m = createRe.exec(clean)) !== null) {
       const entry = ensure(m[1], mig.name)
-      // Split on commas — inline CHECK bodies may contain commas but
-      // our column-name extraction only reads the first \w+ token of each
-      // chunk, which is still correct as long as CHECK doesn't start a chunk.
-      // We already filter CHECK/CONSTRAINT/UNIQUE/PRIMARY/FOREIGN as the
-      // first token so stray commas inside CHECK only create noise that
-      // gets filtered naturally.
       for (const line of splitTopLevel(m[2])) {
         const t = line.trim()
         if (!t) continue
@@ -130,9 +136,6 @@ function parseMigrations(migrations) {
     }
 
     // ── ALTER TABLE sections ──
-    // Grab every "alter table <t> ... ;" section, then scan the whole
-    // section for ADD COLUMN occurrences. This handles inline CHECK
-    // constraints with commas inside (IN ('a', 'b')) without breaking.
     const alterRe = /alter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?(?:public\.)?(\w+)([^;]*);/g
     while ((m = alterRe.exec(clean)) !== null) {
       const tname = m[1]
@@ -148,6 +151,101 @@ function parseMigrations(migrations) {
   }
 
   return tables
+}
+
+// ── Trigger + function parsers ────────────────────────────────────────────────
+
+/**
+ * Returns Map<tableName, Set<triggerName>> for all CREATE TRIGGER statements.
+ * Matches: CREATE TRIGGER name BEFORE/AFTER/INSTEAD OF ... ON [public.]table
+ */
+function parseMigrationTriggers(migrations) {
+  const byTable = new Map()
+  for (const mig of migrations) {
+    // Multiline-safe: match CREATE TRIGGER name up to ON tablename
+    // {1,300}? prevents crossing trigger definition boundaries
+    const re = /create\s+trigger\s+(\w+)[\s\S]{1,300}?\bon\s+(?:public\.)?(\w+)/gi
+    let m
+    while ((m = re.exec(mig.content)) !== null) {
+      const tgname = m[1].toLowerCase()
+      const tname  = m[2].toLowerCase()
+      // Skip false-positives where ON is part of INSERT/UPDATE/DELETE clause
+      // Real table names follow "FOR EACH" later — if tname is a DML keyword, skip
+      if (/^(insert|update|delete|each|row|statement)$/.test(tname)) continue
+      if (!byTable.has(tname)) byTable.set(tname, new Set())
+      byTable.get(tname).add(tgname)
+    }
+  }
+  return byTable
+}
+
+/**
+ * Returns Set<functionName> for all CREATE [OR REPLACE] FUNCTION statements
+ * in the public schema.
+ */
+function parseMigrationFunctions(migrations) {
+  const names = new Set()
+  for (const mig of migrations) {
+    const re = /create\s+(?:or\s+replace\s+)?function\s+(?:public\.)?(\w+)\s*\(/gi
+    let m
+    while ((m = re.exec(mig.content)) !== null) {
+      names.add(m[1].toLowerCase())
+    }
+  }
+  return names
+}
+
+// ── CHECK value-set helpers ───────────────────────────────────────────────────
+
+/** Extract all single-quoted string values from a CHECK definition. */
+function extractQuotedValues(text) {
+  const vals = new Set()
+  const re = /'([^']+)'/g
+  let m
+  while ((m = re.exec(text)) !== null) vals.add(m[1])
+  return vals
+}
+
+function setsEqual(a, b) {
+  if (a.size !== b.size) return false
+  for (const v of a) if (!b.has(v)) return false
+  return true
+}
+
+/**
+ * Find the CHECK definition for a named constraint in the migration files
+ * and return the set of single-quoted values inside it.
+ * Returns null if the constraint definition cannot be located.
+ */
+function getMigrationCheckValues(constraintName, migrations) {
+  const nameLower = constraintName.toLowerCase()
+  for (const mig of migrations) {
+    const lower = mig.searchable  // already lowercased + comments stripped
+    const idx = lower.indexOf(nameLower)
+    if (idx === -1) continue
+
+    // Find the opening paren of CHECK ( after the constraint name, within 512 chars
+    const window = lower.slice(idx, idx + 512)
+    const checkIdx = window.indexOf("check")
+    if (checkIdx === -1) continue
+
+    // Walk forward from the CHECK keyword in the original content to find opening paren
+    let absStart = idx + checkIdx
+    while (absStart < mig.content.length && mig.content[absStart] !== "(") absStart++
+    if (absStart >= mig.content.length) continue
+
+    // Extract balanced parens
+    let depth = 0
+    let end = absStart
+    for (let i = absStart; i < mig.content.length; i++) {
+      if (mig.content[i] === "(")      depth++
+      else if (mig.content[i] === ")") { depth--; if (depth === 0) { end = i; break } }
+    }
+
+    const vals = extractQuotedValues(mig.content.slice(absStart, end + 1))
+    if (vals.size > 0) return vals
+  }
+  return null
 }
 
 // Split a string on commas that are at depth 0 (ignoring commas inside parens).
@@ -177,7 +275,6 @@ function findOrigin(name, migrations) {
 // ── Query live DB ─────────────────────────────────────────────────────────────
 const sleep = (ms) => new Promise(r => setTimeout(r, ms))
 
-// Errors worth retrying: transient timeouts, 5xx, connection drops.
 function isRetryable(err) {
   const msg = String(err?.message ?? err)
   if (/HTTP 5\d\d/.test(msg)) return true
@@ -205,7 +302,6 @@ async function query(sql, { retries = 3 } = {}) {
       const data = await res.json()
       if (!Array.isArray(data)) {
         if (res.status === 401) {
-          // Auth error — don't retry
           throw new Error(
             "401 Unauthorized — the SUPABASE_ACCESS_TOKEN in .env.local is invalid or expired.\n" +
             "Generate a new one at https://supabase.com/dashboard/account/tokens"
@@ -217,7 +313,7 @@ async function query(sql, { retries = 3 } = {}) {
     } catch (err) {
       lastErr = err
       if (attempt > retries || !isRetryable(err)) throw err
-      const backoffMs = 800 * attempt  // 800ms, 1600ms, 2400ms
+      const backoffMs = 800 * attempt
       const snippet = String(err.message ?? err).slice(0, 80)
       process.stdout.write(`${C.dim}  ↪ retry ${attempt}/${retries} after ${backoffMs}ms (${snippet})${C.reset}\n`)
       await sleep(backoffMs)
@@ -227,8 +323,7 @@ async function query(sql, { retries = 3 } = {}) {
 }
 
 async function getLiveSchema() {
-  // Sequential (not Promise.all) — gentler on the Supabase management API,
-  // which is noticeably flakier under concurrent load. Still sub-second total.
+  // Sequential — gentler on the Supabase management API under concurrent load.
   const tables = await query(`
     SELECT table_name, table_type
     FROM information_schema.tables
@@ -260,7 +355,31 @@ async function getLiveSchema() {
     FROM pg_policies WHERE schemaname = 'public'
     ORDER BY tablename, policyname
   `)
-  return { tables, columns, checks, indexes, policies }
+  // Triggers: user-defined only (tgisinternal excludes system triggers like
+  // deferred constraint triggers). Status: O=enabled, D=disabled.
+  const triggers = await query(`
+    SELECT tgname, relname AS table_name,
+           CASE tgenabled
+             WHEN 'O' THEN 'enabled'
+             WHEN 'D' THEN 'disabled'
+             ELSE tgenabled::text
+           END AS status
+    FROM pg_trigger t
+    JOIN pg_class c ON c.oid = t.tgrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND NOT tgisinternal
+    ORDER BY relname, tgname
+  `)
+  // Functions in the public schema only (excludes pg_catalog builtins and
+  // extension functions installed into other schemas).
+  const functions = await query(`
+    SELECT proname
+    FROM pg_proc
+    WHERE pronamespace = 'public'::regnamespace
+      AND prokind = 'f'
+    ORDER BY proname
+  `)
+  return { tables, columns, checks, indexes, policies, triggers, functions }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -274,13 +393,10 @@ function columnTypeString(col) {
   return `${type}${nn}${def}`
 }
 
-// Given a constraint name like "foo_bar_baz_check" and table "foo", return
-// the inferred column name "bar_baz" if it matches the auto-generated pattern,
-// otherwise null.
 function inlineCheckColumn(cname, tname) {
   if (!cname.startsWith(`${tname}_`)) return null
   if (!cname.endsWith("_check")) return null
-  return cname.slice(tname.length + 1, -6)  // strip "{t}_" and "_check"
+  return cname.slice(tname.length + 1, -6)
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -288,6 +404,8 @@ function inlineCheckColumn(cname, tname) {
   process.stdout.write(`${C.dim}Loading migrations…${C.reset}\n`)
   const migrations = loadMigrations()
   const expected = parseMigrations(migrations)
+  const expectedTrigsByTable = parseMigrationTriggers(migrations)
+  const expectedFunctions    = parseMigrationFunctions(migrations)
 
   process.stdout.write(`${C.dim}Querying live database…${C.reset}\n`)
   const live = await getLiveSchema()
@@ -303,7 +421,7 @@ function inlineCheckColumn(cname, tname) {
   // Index live schema by table
   const liveColsByTable = new Map()
   for (const c of live.columns) {
-    if (!liveBaseTables.has(c.table_name)) continue  // skip views
+    if (!liveBaseTables.has(c.table_name)) continue
     if (!liveColsByTable.has(c.table_name)) liveColsByTable.set(c.table_name, new Map())
     liveColsByTable.get(c.table_name).set(c.column_name, c)
   }
@@ -325,6 +443,12 @@ function inlineCheckColumn(cname, tname) {
     if (!livePolByTable.has(p.tablename)) livePolByTable.set(p.tablename, new Map())
     livePolByTable.get(p.tablename).set(p.policyname, p)
   }
+  const liveTrigsByTable = new Map()
+  for (const tg of live.triggers) {
+    if (!liveTrigsByTable.has(tg.table_name)) liveTrigsByTable.set(tg.table_name, new Map())
+    liveTrigsByTable.get(tg.table_name).set(tg.tgname, tg)
+  }
+  const liveFunctions = new Set(live.functions.map(f => f.proname.toLowerCase()))
 
   const allTableNames = new Set([...expected.keys(), ...liveBaseTables])
 
@@ -334,7 +458,10 @@ function inlineCheckColumn(cname, tname) {
   const counts = {
     missingTables: 0, extraTables: 0,
     colMissing: 0, colExtra: 0,
-    checkExtra: 0, idxExtra: 0, polExtra: 0,
+    checkStale: 0, checkExtra: 0,
+    triggerMissing: 0, triggerExtra: 0, triggerDisabled: 0,
+    idxExtra: 0, polExtra: 0,
+    functionMissing: 0,
   }
 
   function add(table, item) {
@@ -370,9 +497,7 @@ function inlineCheckColumn(cname, tname) {
       }
     }
 
-    // Track extra columns so we can suppress their auto-generated inline CHECKs
     const extraColsHere = new Set()
-
     for (const [colname, coldata] of liveCols) {
       if (!expectedCols.has(colname)) {
         extraColsHere.add(colname)
@@ -386,15 +511,36 @@ function inlineCheckColumn(cname, tname) {
       }
     }
 
+    // ── CHECK constraints ────────────────────────────────────────────────────
     const liveChecks = liveChecksByTable.get(t) ?? new Map()
     for (const [cname, cdata] of liveChecks) {
-      // Skip auto-generated inline CHECKs whose column is known (in migrations OR
-      // already flagged as a drift column — in which case its backport will
-      // include the CHECK via the column ALTER)
       const inferredCol = inlineCheckColumn(cname, t)
       if (inferredCol && (expectedCols.has(inferredCol) || extraColsHere.has(inferredCol))) continue
-      // Skip if the constraint name appears verbatim in any migration
-      if (findOrigin(cname, migrations).length > 0) continue
+
+      const origins = findOrigin(cname, migrations)
+      if (origins.length > 0) {
+        // Constraint name is in migrations — compare value sets to detect stale content.
+        // Only compare constraints that use IN/ANY value enumeration (extractQuotedValues
+        // returns a non-empty set). Pure expression checks (e.g. col > 0) are skipped.
+        const liveVals = extractQuotedValues(cdata.definition)
+        if (liveVals.size > 0) {
+          const migVals = getMigrationCheckValues(cname, migrations)
+          if (migVals && !setsEqual(liveVals, migVals)) {
+            const missingFromLive = [...migVals].filter(v => !liveVals.has(v))
+            const extraInLive     = [...liveVals].filter(v => !migVals.has(v))
+            const parts = []
+            if (missingFromLive.length) parts.push(`missing from live: ${missingFromLive.map(v => `'${v}'`).join(", ")}`)
+            if (extraInLive.length)     parts.push(`extra in live: ${extraInLive.map(v => `'${v}'`).join(", ")}`)
+            add(t, {
+              kind: "check-stale",
+              msg: `CHECK **${cname}** content differs from migration definition`,
+              detail: parts.join(" | "),
+            })
+            counts.checkStale++
+          }
+        }
+        continue
+      }
 
       add(t, {
         kind: "check-extra",
@@ -405,11 +551,10 @@ function inlineCheckColumn(cname, tname) {
       counts.checkExtra++
     }
 
+    // ── Indexes ──────────────────────────────────────────────────────────────
     const liveIdx = liveIdxByTable.get(t) ?? new Map()
     for (const [iname, idata] of liveIdx) {
       if (iname.endsWith("_pkey")) continue
-      // _key suffix indicates auto-generated UNIQUE constraint index — always skip
-      // unless --loose is passed
       if (!loose && iname.endsWith("_key")) continue
       if (findOrigin(iname, migrations).length > 0) continue
 
@@ -422,11 +567,42 @@ function inlineCheckColumn(cname, tname) {
       counts.idxExtra++
     }
 
+    // ── Policies ─────────────────────────────────────────────────────────────
     const livePol = livePolByTable.get(t) ?? new Map()
     for (const [pname] of livePol) {
       if (findOrigin(pname, migrations).length > 0) continue
       add(t, { kind: "pol-extra", msg: `Policy **${pname}** in DB but name not in migrations` })
       counts.polExtra++
+    }
+
+    // ── Triggers ─────────────────────────────────────────────────────────────
+    const liveTriggers    = liveTrigsByTable.get(t) ?? new Map()
+    const expectedTrigers = expectedTrigsByTable.get(t) ?? new Set()
+
+    for (const tgname of expectedTrigers) {
+      if (!liveTriggers.has(tgname)) {
+        add(t, { kind: "trigger-missing", msg: `Trigger **${tgname}** expected in migrations but missing from DB` })
+        counts.triggerMissing++
+      }
+    }
+    for (const [tgname, tgdata] of liveTriggers) {
+      if (!expectedTrigers.has(tgname) && findOrigin(tgname, migrations).length === 0) {
+        add(t, { kind: "trigger-extra", msg: `Trigger **${tgname}** in DB but not named in migrations` })
+        counts.triggerExtra++
+      }
+      if (tgdata.status === "disabled") {
+        add(t, { kind: "trigger-disabled", msg: `Trigger **${tgname}** is DISABLED in DB` })
+        counts.triggerDisabled++
+      }
+    }
+  }
+
+  // ── Function drift (global — not per-table) ─────────────────────────────────
+  const functionIssues = []
+  for (const fname of expectedFunctions) {
+    if (!liveFunctions.has(fname)) {
+      functionIssues.push(fname)
+      counts.functionMissing++
     }
   }
 
@@ -453,9 +629,14 @@ function inlineCheckColumn(cname, tname) {
   md.push(`| Tables in DB but not in migrations | ${counts.extraTables} |`)
   md.push(`| Columns missing in DB | ${counts.colMissing} |`)
   md.push(`| Columns extra in DB (ad-hoc) | ${counts.colExtra} |`)
+  md.push(`| CHECK constraints stale (name matches, content differs) | ${counts.checkStale} |`)
   md.push(`| CHECK constraints extra in DB | ${counts.checkExtra} |`)
+  md.push(`| Triggers missing from DB | ${counts.triggerMissing} |`)
+  md.push(`| Triggers extra in DB | ${counts.triggerExtra} |`)
+  md.push(`| Triggers disabled | ${counts.triggerDisabled} |`)
   md.push(`| Indexes extra in DB | ${counts.idxExtra} |`)
   md.push(`| Policies extra in DB | ${counts.polExtra} |`)
+  md.push(`| Functions missing from DB | ${counts.functionMissing} |`)
   md.push(`| **Total drift items** | **${totalDrift}** |`)
   md.push(`| Tables affected | ${tablesWithDrift} |`)
   md.push("")
@@ -465,55 +646,73 @@ function inlineCheckColumn(cname, tname) {
     md.push("")
     md.push(`These are views, not base tables — not tracked for drift.`)
     md.push("")
-    for (const v of [...liveViews].sort()) {
-      md.push(`- \`${v}\``)
-    }
+    for (const v of [...liveViews].sort()) md.push(`- \`${v}\``)
     md.push("")
   }
 
-  if (totalDrift === 0) {
+  if (totalDrift === 0 && functionIssues.length === 0) {
     md.push(`✅ **No drift detected — migrations match the live database.**`)
   } else {
-    md.push(`## Per-table detail`)
-    md.push("")
-    md.push(`Legend:`)
-    md.push(`- ❌ expected in migrations but missing in DB`)
-    md.push(`- ⚠️ exists in DB but no migration introduces it (likely ad-hoc SQL)`)
-    md.push("")
-
-    const sortedTables = [...perTable.keys()].sort()
-    for (const t of sortedTables) {
-      const items = perTable.get(t)
-      md.push(`### \`${t}\``)
+    if (perTable.size > 0) {
+      md.push(`## Per-table detail`)
+      md.push("")
+      md.push(`Legend:`)
+      md.push(`- ❌ expected in migrations but missing in DB`)
+      md.push(`- ⚠️ exists in DB but no migration introduces it (likely ad-hoc SQL)`)
+      md.push(`- 🔄 name matches a migration but content differs`)
       md.push("")
 
-      for (const item of items) {
-        const icon = item.kind.includes("missing") ? "❌" : "⚠️"
-        md.push(`${icon} ${item.msg}`)
-        if (item.detail) md.push(`  > \`${item.detail}\``)
-        if (item.fix) {
-          md.push("")
-          md.push(`  \`\`\`sql`)
-          md.push(`  ${item.fix}`)
-          md.push(`  \`\`\``)
-        }
+      const sortedTables = [...perTable.keys()].sort()
+      for (const t of sortedTables) {
+        const items = perTable.get(t)
+        md.push(`### \`${t}\``)
         md.push("")
+
+        for (const item of items) {
+          const icon =
+            item.kind.includes("missing") ? "❌" :
+            item.kind.includes("stale")   ? "🔄" :
+            item.kind === "trigger-disabled" ? "⚠️" :
+            "⚠️"
+          md.push(`${icon} ${item.msg}`)
+          if (item.detail) md.push(`  > ${item.detail}`)
+          if (item.fix) {
+            md.push("")
+            md.push(`  \`\`\`sql`)
+            md.push(`  ${item.fix}`)
+            md.push(`  \`\`\``)
+          }
+          md.push("")
+        }
       }
     }
 
-    md.push(`## Backport all (copy-paste ready)`)
-    md.push("")
-    md.push(`Every suggested fix concatenated. Paste into a new migration file to bring migrations back in sync with the live DB:`)
-    md.push("")
-    md.push("```sql")
-    for (const [t, items] of [...perTable.entries()].sort()) {
-      const fixes = items.filter(i => i.fix)
-      if (fixes.length === 0) continue
-      md.push(`-- ── ${t} ──`)
-      for (const item of fixes) md.push(item.fix)
+    if (functionIssues.length > 0) {
+      md.push(`## Function drift`)
+      md.push("")
+      md.push(`Functions named in migrations but absent from the live public schema:`)
+      md.push("")
+      for (const fname of functionIssues.sort()) {
+        md.push(`- ❌ \`${fname}\``)
+      }
       md.push("")
     }
-    md.push("```")
+
+    if ([...perTable.values()].some(items => items.some(i => i.fix))) {
+      md.push(`## Backport all (copy-paste ready)`)
+      md.push("")
+      md.push(`Every suggested fix concatenated. Paste into a migration file to bring live DB back in sync:`)
+      md.push("")
+      md.push("```sql")
+      for (const [t, items] of [...perTable.entries()].sort()) {
+        const fixes = items.filter(i => i.fix)
+        if (fixes.length === 0) continue
+        md.push(`-- ── ${t} ──`)
+        for (const item of fixes) md.push(item.fix)
+        md.push("")
+      }
+      md.push("```")
+    }
   }
 
   writeFileSync(outPath, md.join("\n") + "\n", "utf8")
@@ -524,7 +723,7 @@ function inlineCheckColumn(cname, tname) {
   console.log(`  ${C.dim}Project ${PROJECT_REF}${C.reset}`)
   console.log()
 
-  if (totalDrift === 0) {
+  if (totalDrift === 0 && functionIssues.length === 0) {
     console.log(`  ${C.green}✓ No drift — migrations match the live database.${C.reset}`)
     if (liveViews.size > 0) {
       console.log(`  ${C.dim}(${liveViews.size} views in DB — not tracked for drift)${C.reset}`)
@@ -537,15 +736,25 @@ function inlineCheckColumn(cname, tname) {
     const c = n === 0 ? C.dim : colour
     console.log(`  ${c}${String(n).padStart(4)}${C.reset}  ${label}`)
   }
-  row("tables in migrations, missing in DB", counts.missingTables, C.red)
-  row("tables in DB, not in any migration",  counts.extraTables,   C.yellow)
-  row("columns missing in DB",                counts.colMissing,    C.red)
-  row("columns extra in DB (ad-hoc)",         counts.colExtra,      C.yellow)
-  row("CHECK constraints extra in DB",        counts.checkExtra,    C.yellow)
-  row("indexes extra in DB",                  counts.idxExtra,      C.yellow)
-  row("RLS policies extra in DB",             counts.polExtra,      C.yellow)
+  row("tables in migrations, missing in DB",          counts.missingTables,   C.red)
+  row("tables in DB, not in any migration",           counts.extraTables,     C.yellow)
+  row("columns missing in DB",                        counts.colMissing,      C.red)
+  row("columns extra in DB (ad-hoc)",                 counts.colExtra,        C.yellow)
+  row("CHECK constraints stale (content differs)",    counts.checkStale,      C.red)
+  row("CHECK constraints extra in DB",                counts.checkExtra,      C.yellow)
+  row("triggers missing from DB",                     counts.triggerMissing,  C.red)
+  row("triggers extra in DB",                         counts.triggerExtra,    C.yellow)
+  row("triggers disabled",                            counts.triggerDisabled, C.yellow)
+  row("indexes extra in DB",                          counts.idxExtra,        C.yellow)
+  row("RLS policies extra in DB",                     counts.polExtra,        C.yellow)
+  row("functions missing from DB",                    counts.functionMissing, C.red)
   console.log()
-  console.log(`  ${C.bold}${totalDrift}${C.reset} total drift items across ${C.bold}${tablesWithDrift}${C.reset} tables`)
+
+  const grandTotal = totalDrift
+  console.log(`  ${C.bold}${grandTotal}${C.reset} total drift items across ${C.bold}${tablesWithDrift}${C.reset} tables`)
+  if (functionIssues.length > 0) {
+    console.log(`  ${C.red}+ ${functionIssues.length} function(s) missing from live DB${C.reset}`)
+  }
   if (liveViews.size > 0) {
     console.log(`  ${C.dim}${liveViews.size} views in DB (not tracked)${C.reset}`)
   }
