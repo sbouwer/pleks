@@ -4,10 +4,11 @@
  * lib/actions/onboarding.ts — createAccountAndOrg() server action for new agency signup
  *
  * Auth:   public (called before any org exists); new user created via service client admin API
- * Data:   organisations, user_orgs, subscriptions, user_profiles, bank_accounts, consent_log, tos_acceptances
+ * Data:   organisations, user_orgs, subscriptions, user_profiles, consent_log, tos_acceptances
  * Notes:  isAlreadyAuthenticated path handles agents who log in first then complete onboarding.
- *         recordTosAcceptance() is called after org row exists (FK constraint on tos_acceptances).
+ *         recordTosAcceptance() is gated on data.tosAccepted — never fires without explicit consent.
  *         assertEmailAvailableForRole() enforces I-4 and I-5 before any auth mutation (§4.2–4.3).
+ *         Bank/deposit account removed from onboarding (§E) — captured later via dashboard checklist.
  */
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
@@ -31,13 +32,7 @@ export interface OnboardingData {
   managementScope: string
   ppraStatus?: string
   ppraFfcNumber?: string
-  hasBankAccount: boolean
-  bankName?: string
-  accountHolder?: string
-  accountNumber?: string
-  branchCode?: string
-  accountType?: string
-  bankAccountType?: "trust" | "deposit_holding" | "ppra_trust"
+  tosAccepted: boolean
   invites?: Array<{ email: string; role: string }>
   onboardingComplete: boolean
   // Auth fields (only when creating a new account)
@@ -50,6 +45,11 @@ export async function createAccountAndOrg(data: OnboardingData): Promise<{
   error?: string
   errorType?: string
 }> {
+  // §A: explicit ToS consent is required on every path — never silent-accept
+  if (!data.tosAccepted) {
+    return { error: "You must accept the Terms to continue", errorType: "tos_required" }
+  }
+
   const headersList = await headers()
   const ip = headersList.get("x-forwarded-for") || "unknown"
   const ua = headersList.get("user-agent") ?? null
@@ -116,17 +116,6 @@ export async function createAccountAndOrg(data: OnboardingData): Promise<{
     return { error: subError.message, errorType: "sub_failed" }
   }
 
-  // Save bank account / consent / invites
-  if (data.hasBankAccount && data.bankName) {
-    const bankError = await saveBankAccount(service, orgId, data)
-    if (bankError) {
-      console.error("[onboarding] bank_accounts insert failed:", bankError)
-      return { error: bankError.message, errorType: "bank_failed" }
-    }
-  }
-  if (!data.hasBankAccount && data.userType !== "exploring") {
-    await logBankDeferred(service, orgId, userId, ip, data.userType)
-  }
   if (data.invites?.length) {
     await sendInvites(service, orgId, userId, data.invites)
   }
@@ -158,7 +147,7 @@ export async function createAccountAndOrg(data: OnboardingData): Promise<{
     },
   })
 
-  // Record ToS acceptance — evidentiary obligation for cancellation clause enforceability.
+  // Record ToS acceptance — gated above on data.tosAccepted; never fires without explicit consent.
   // Also set the cookie so proxy.ts checkTosGate passes without a redirect on first login.
   try {
     await recordTosAcceptance(service, orgId, userId, data.email, ip, ua, "signup")
@@ -274,35 +263,6 @@ async function resolveUserId(
 }
 
 // ─── Helpers ──────────────────────────────────────────
-
-async function saveBankAccount(db: ServiceClient, orgId: string, data: OnboardingData) {
-  const { error } = await db.from("bank_accounts").insert({
-    org_id: orgId,
-    type: data.bankAccountType || "deposit_holding",
-    bank_name: data.bankName!,
-    account_holder: data.accountHolder || "",
-    account_number: data.accountNumber || null,
-    branch_code: data.branchCode || null,
-    account_type: data.accountType || null,
-  })
-  return error ?? null
-}
-
-async function logBankDeferred(db: ServiceClient, orgId: string, userId: string, ip: string, userType: string) {
-  const { createHash } = await import("node:crypto")
-  const noticeText = "Acknowledged deposit/trust account requirement — will set up later"
-  const noticeHash = createHash("sha256").update(noticeText).digest("hex")
-  await db.from("consent_log").insert({
-    org_id: orgId,
-    user_id: userId,
-    consent_type: "bank_account_deferred",
-    consent_given: true,
-    consent_version: "1.0",
-    ip_address: ip,
-    user_agent: "",
-    metadata: { notice_hash: noticeHash, user_type: userType },
-  })
-}
 
 async function sendInvites(db: ServiceClient, orgId: string, userId: string, invites: Array<{ email: string; role: string }>) {
   for (const invite of invites) {

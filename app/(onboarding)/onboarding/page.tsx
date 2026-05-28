@@ -6,6 +6,8 @@
  * Route:  /onboarding
  * Auth:   authenticated (manifest: skipOrgCheck — org does not exist yet)
  * Data:   createAccountAndOrg() server action; writes org, user_orgs, subscription, tos_acceptances
+ * Notes:  §A — ToS checkbox required on every completion surface; CTA disabled until ticked.
+ *         §E — bank/deposit step removed from all paths; trust-account setup moves to dashboard checklist.
  */
 
 import { useState, useEffect, Suspense } from "react"
@@ -17,11 +19,6 @@ import { createClient } from "@/lib/supabase/client"
 import Link from "next/link"
 
 type UserType = "owner" | "agent" | "agency" | "family" | "exploring"
-
-const SA_BANKS = [
-  "ABSA", "Capitec", "FNB", "Investec", "Nedbank", "Standard Bank",
-  "African Bank", "Discovery Bank", "TymeBank", "Other",
-]
 
 // ── Micro-components ─────────────────────────────────────────────────────────
 
@@ -50,49 +47,6 @@ function Btn({
     >
       {children}
     </button>
-  )
-}
-
-// ── Bank fields ───────────────────────────────────────────────────────────────
-
-interface BankFieldsProps {
-  bankName: string; setBankName: (v: string) => void
-  accountHolder: string; setAccountHolder: (v: string) => void
-  accountNumber: string; setAccountNumber: (v: string) => void
-  branchCode: string; setBranchCode: (v: string) => void
-  accountType: string; setAccountType: (v: string) => void
-}
-
-function BankFields({
-  bankName, setBankName, accountHolder, setAccountHolder,
-  accountNumber, setAccountNumber, branchCode, setBranchCode,
-  accountType, setAccountType,
-}: Readonly<BankFieldsProps>) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 16 }}>
-      <Field label="Bank name *">
-        <select className="ob-input ob-select" value={bankName} onChange={(e) => setBankName(e.target.value)}>
-          <option value="">Select bank</option>
-          {SA_BANKS.map((b) => <option key={b} value={b}>{b}</option>)}
-        </select>
-      </Field>
-      <Field label="Account holder name">
-        <input className="ob-input" value={accountHolder} onChange={(e) => setAccountHolder(e.target.value)} />
-      </Field>
-      <Field label="Account number">
-        <input className="ob-input" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} placeholder="Optional" />
-      </Field>
-      <Field label="Branch code">
-        <input className="ob-input" value={branchCode} onChange={(e) => setBranchCode(e.target.value)} placeholder="Optional" />
-      </Field>
-      <Field label="Account type">
-        <select className="ob-input ob-select" value={accountType} onChange={(e) => setAccountType(e.target.value)}>
-          <option value="savings">Savings</option>
-          <option value="cheque">Cheque</option>
-          <option value="transmission">Transmission</option>
-        </select>
-      </Field>
-    </div>
   )
 }
 
@@ -134,15 +88,6 @@ function OnboardingWizard() {
   const [ppraStatus, setPpraStatus] = useState<string | null>(null)
   const [ppraFfc, setPpraFfc] = useState("")
 
-  // Bank account
-  const [hasBankAccount, setHasBankAccount] = useState<boolean | null>(null)
-  const [bankName, setBankName] = useState("")
-  const [accountHolder, setAccountHolder] = useState("")
-  const [accountNumber, setAccountNumber] = useState("")
-  const [branchCode, setBranchCode] = useState("")
-  const [accountType, setAccountType] = useState("savings")
-  const [bankDeclineAck, setBankDeclineAck] = useState(false)
-
   // Team invites
   const [invites, setInvites] = useState<Array<{ email: string; role: string }>>([{ email: "", role: "property_manager" }])
 
@@ -153,6 +98,9 @@ function OnboardingWizard() {
   const [emailExists, setEmailExists] = useState(false)
   const [isAlreadyAuthenticated, setIsAlreadyAuthenticated] = useState(false)
   const [skipQuickFinish, setSkipQuickFinish] = useState(false)
+
+  // §A — explicit ToS consent; CTA disabled until ticked on every completion surface
+  const [tosAccepted, setTosAccepted] = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
@@ -169,13 +117,14 @@ function OnboardingWizard() {
       .catch(() => {})
   }, [])
 
+  // §E: bank step removed — owner/family 3→2, agent 4→3, agency 5→4
   function getTotalSteps(): number {
     if (!userType) return 0
     if (userType === "exploring") return 1
     const acctStep = isAlreadyAuthenticated ? 0 : 1
-    if (userType === "owner" || userType === "family") return 3 + acctStep
-    if (userType === "agent") return 4 + acctStep
-    return 5 + acctStep
+    if (userType === "owner" || userType === "family") return 2 + acctStep
+    if (userType === "agent") return 3 + acctStep
+    return 4 + acctStep
   }
 
   function handleTypeSelect(type: UserType) {
@@ -184,12 +133,6 @@ function OnboardingWizard() {
   }
 
   function getManagementScope() { return (userType === "agent" || userType === "agency") ? "others_only" : "own_only" }
-
-  function getBankAccountType(): "trust" | "deposit_holding" | "ppra_trust" {
-    if (ppraStatus === "registered") return "ppra_trust"
-    if (userType === "agent" || userType === "agency") return "trust"
-    return "deposit_holding"
-  }
 
   function buildOrgName(): string {
     if (userType === "owner" || userType === "family") return name ? `${name.split(" ")[0]}'s Properties` : "My Properties"
@@ -233,13 +176,7 @@ function OnboardingWizard() {
       managementScope: getManagementScope(),
       ppraStatus: ppraStatus || undefined,
       ppraFfcNumber: ppraFfc || undefined,
-      hasBankAccount: hasBankAccount === true,
-      bankName: hasBankAccount ? bankName : undefined,
-      accountHolder: hasBankAccount ? accountHolder : undefined,
-      accountNumber: hasBankAccount ? accountNumber : undefined,
-      branchCode: hasBankAccount ? branchCode : undefined,
-      accountType: hasBankAccount ? accountType : undefined,
-      bankAccountType: hasBankAccount ? getBankAccountType() : undefined,
+      tosAccepted,
       invites: userType === "agency" ? invites.filter((i) => i.email.trim()) : undefined,
       onboardingComplete: true,
       password: isAlreadyAuthenticated ? undefined : acctPassword,
@@ -260,7 +197,7 @@ function OnboardingWizard() {
       email: emailToUse,
       phone: phone || "—",
       managementScope: "own_only",
-      hasBankAccount: false,
+      tosAccepted,
       onboardingComplete: true,
       isAlreadyAuthenticated: true,
     })
@@ -296,6 +233,19 @@ function OnboardingWizard() {
         <span style={{ fontSize: 12, color: "var(--ink-faint)" }}>Step {step} of {totalSteps}</span>
       </div>
     </div>
+  )
+
+  // §A — ToS checkbox rendered immediately above each final CTA
+  const tosCheckbox = (
+    <label className="ob-check-row" style={{ marginBottom: 12 }}>
+      <input type="checkbox" checked={tosAccepted} onChange={(e) => setTosAccepted(e.target.checked)} />
+      <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>
+        I have read and agree to the{" "}
+        <Link href="/terms" target="_blank" style={{ color: "var(--amber-ink)" }}>Terms of Service</Link>
+        {" "}and{" "}
+        <Link href="/privacy" target="_blank" style={{ color: "var(--amber-ink)" }}>Privacy Policy</Link>
+      </span>
+    </label>
   )
 
   // ── Shared steps ───────────────────────────────────────────────────────────
@@ -349,15 +299,10 @@ function OnboardingWizard() {
               </button>
             </div>
           </Field>
-          <Btn onClick={handleComplete} disabled={loading || !acctEmail.trim() || acctPassword.length < 8}>
+          {tosCheckbox}
+          <Btn onClick={handleComplete} disabled={loading || !acctEmail.trim() || acctPassword.length < 8 || !tosAccepted}>
             {loading ? "Creating account…" : "Create account →"}
           </Btn>
-          <p style={{ textAlign: "center", fontSize: 12, color: "var(--ink-mute)", margin: 0 }}>
-            By creating an account you agree to our{" "}
-            <Link href="/terms" style={{ color: "var(--ink-soft)", textDecoration: "underline" }}>Terms</Link>{" "}
-            and{" "}
-            <Link href="/privacy" style={{ color: "var(--ink-soft)", textDecoration: "underline" }}>Privacy Policy</Link>
-          </p>
         </div>
       </div>
     )
@@ -369,14 +314,15 @@ function OnboardingWizard() {
         {progressBar}
         <h2 style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.015em", margin: "0 0 8px" }}>You&apos;re all set</h2>
         <p className="pub-small" style={{ margin: "0 0 28px" }}>{subtitle ?? "Your free Owner account is ready."}</p>
-        <Btn onClick={handleComplete} disabled={loading}>
+        {tosCheckbox}
+        <Btn onClick={handleComplete} disabled={loading || !tosAccepted}>
           {loading ? "Setting up…" : "Go to dashboard →"}
         </Btn>
       </div>
     )
   }
 
-  // ── Owner / Family ─────────────────────────────────────────────────────────
+  // ── Owner / Family — §E: step 2 (deposit) removed; account/all-set moves from 3→2 ──
 
   function renderOwnerFamilyStep() {
     if (step === 1) return (
@@ -393,46 +339,11 @@ function OnboardingWizard() {
       </div>
     )
 
-    if (step === 2) return (
-      <div>
-        {progressBar}
-        <h2 style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.015em", margin: "0 0 6px" }}>Deposit account</h2>
-        <p className="pub-small" style={{ margin: "0 0 16px" }}>Do you have a separate account for holding tenant deposits?</p>
-        <div className="ob-notice ob-notice-info" style={{ marginBottom: 20 }}>
-          The Rental Housing Act requires deposits to be held in a separate interest-bearing account. This can be a savings account at any SA bank.
-        </div>
-        {hasBankAccount === null && (
-          <div style={{ display: "flex", gap: 10 }}>
-            <Btn variant="ghost" style={{ flex: 1, width: "auto" }} onClick={() => setHasBankAccount(true)}>Yes, I have one</Btn>
-            <Btn variant="ghost" style={{ flex: 1, width: "auto" }} onClick={() => setHasBankAccount(false)}>Not yet</Btn>
-          </div>
-        )}
-        {hasBankAccount === true && (
-          <>
-            <BankFields bankName={bankName} setBankName={setBankName} accountHolder={accountHolder} setAccountHolder={setAccountHolder} accountNumber={accountNumber} setAccountNumber={setAccountNumber} branchCode={branchCode} setBranchCode={setBranchCode} accountType={accountType} setAccountType={setAccountType} />
-            <Btn style={{ marginTop: 16 }} onClick={() => setStep(3)} disabled={!bankName}>Continue →</Btn>
-          </>
-        )}
-        {hasBankAccount === false && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 4 }}>
-            <div className="ob-notice ob-notice-warn">
-              Deposit receipts and Tribunal documentation will be restricted until you add this. You can add it later in Settings.
-            </div>
-            <label className="ob-check-row">
-              <input type="checkbox" checked={bankDeclineAck} onChange={(e) => setBankDeclineAck(e.target.checked)} />
-              <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>I understand — I&apos;ll set this up later</span>
-            </label>
-            <Btn onClick={() => setStep(3)} disabled={!bankDeclineAck}>Continue →</Btn>
-          </div>
-        )}
-      </div>
-    )
-
-    if (step === 3) return isAlreadyAuthenticated ? renderAllSetStep("Your free Owner account is ready.") : renderAccountStep()
+    if (step === 2) return isAlreadyAuthenticated ? renderAllSetStep("Your free Owner account is ready.") : renderAccountStep()
     return null
   }
 
-  // ── Agent / Agency shared ──────────────────────────────────────────────────
+  // ── Agent / Agency shared — §E: step 3 (trust account) removed entirely ──
 
   function renderAgentAgencyStep() {
     if (step === 2) return (
@@ -466,44 +377,10 @@ function OnboardingWizard() {
       </div>
     )
 
-    if (step === 3) return (
-      <div>
-        {progressBar}
-        <h2 style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.015em", margin: "0 0 6px" }}>Trust account</h2>
-        <p className="pub-small" style={{ margin: "0 0 16px" }}>
-          {ppraStatus === "registered" ? "Do you have a PPRA-registered trust account?" : "Do you have a separate account for holding tenant funds?"}
-        </p>
-        {hasBankAccount === null && (
-          <div style={{ display: "flex", gap: 10 }}>
-            <Btn variant="ghost" style={{ flex: 1, width: "auto" }} onClick={() => setHasBankAccount(true)}>Yes</Btn>
-            <Btn variant="ghost" style={{ flex: 1, width: "auto" }} onClick={() => setHasBankAccount(false)}>Not yet</Btn>
-          </div>
-        )}
-        {hasBankAccount === true && (
-          <>
-            <BankFields bankName={bankName} setBankName={setBankName} accountHolder={accountHolder} setAccountHolder={setAccountHolder} accountNumber={accountNumber} setAccountNumber={setAccountNumber} branchCode={branchCode} setBranchCode={setBranchCode} accountType={accountType} setAccountType={setAccountType} />
-            <Btn style={{ marginTop: 16 }} onClick={() => setStep(4)} disabled={!bankName}>Continue →</Btn>
-          </>
-        )}
-        {hasBankAccount === false && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 4 }}>
-            <div className="ob-notice ob-notice-warn">
-              Owner statements and deposit management will be restricted until you add banking details. You can add them later in Settings.
-            </div>
-            <label className="ob-check-row">
-              <input type="checkbox" checked={bankDeclineAck} onChange={(e) => setBankDeclineAck(e.target.checked)} />
-              <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>I understand — I&apos;ll set this up later</span>
-            </label>
-            <Btn onClick={() => setStep(4)} disabled={!bankDeclineAck}>Continue →</Btn>
-          </div>
-        )}
-      </div>
-    )
-
     return null
   }
 
-  // ── Agent ──────────────────────────────────────────────────────────────────
+  // ── Agent — §E: account/all-set moves from step 4→3 ──
 
   function renderAgentStep() {
     if (step === 1) return (
@@ -522,13 +399,13 @@ function OnboardingWizard() {
     )
     const shared = renderAgentAgencyStep()
     if (shared) return shared
-    if (step === 4) return isAlreadyAuthenticated
+    if (step === 3) return isAlreadyAuthenticated
       ? renderAllSetStep("Your account is ready. Upgrade to Steward or Portfolio anytime from Settings.")
       : renderAccountStep()
     return null
   }
 
-  // ── Agency ─────────────────────────────────────────────────────────────────
+  // ── Agency — §E: invites moves from step 4→3; account/all-set from step 5→4 ──
 
   function renderAgencyStep() {
     if (step === 1) return (
@@ -548,7 +425,7 @@ function OnboardingWizard() {
     )
     const shared = renderAgentAgencyStep()
     if (shared) return shared
-    if (step === 4) return (
+    if (step === 3) return (
       <div>
         {progressBar}
         <h2 style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.015em", margin: "0 0 6px" }}>Invite your team</h2>
@@ -585,12 +462,12 @@ function OnboardingWizard() {
           </button>
         </div>
         <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
-          <Btn variant="ghost" style={{ flex: 1, width: "auto" }} onClick={() => { setInvites([]); setStep(5) }}>Skip for now</Btn>
-          <Btn style={{ flex: 1, width: "auto" }} onClick={() => setStep(5)}>Send invites &amp; continue →</Btn>
+          <Btn variant="ghost" style={{ flex: 1, width: "auto" }} onClick={() => { setInvites([]); setStep(4) }}>Skip for now</Btn>
+          <Btn style={{ flex: 1, width: "auto" }} onClick={() => setStep(4)}>Send invites &amp; continue →</Btn>
         </div>
       </div>
     )
-    if (step === 5) return isAlreadyAuthenticated
+    if (step === 4) return isAlreadyAuthenticated
       ? renderAllSetStep("Your account is ready. Upgrade to Steward or Portfolio anytime from Settings.")
       : renderAccountStep()
     return null
@@ -612,7 +489,8 @@ function OnboardingWizard() {
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <Field label="Your name"><input className="ob-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name (optional)" /></Field>
           <Field label="Phone number"><input className="ob-input" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="082 000 0000" /></Field>
-          <Btn onClick={handleQuickFinish} disabled={loading || !name.trim()}>
+          {tosCheckbox}
+          <Btn onClick={handleQuickFinish} disabled={loading || !name.trim() || !tosAccepted}>
             {loading ? "Setting up…" : "Go to dashboard →"}
           </Btn>
           <button type="button" onClick={() => setSkipQuickFinish(true)}
@@ -675,7 +553,8 @@ function OnboardingWizard() {
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <Field label="Your name *"><input className="ob-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" /></Field>
         <Field label="Phone number"><input className="ob-input" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Optional" /></Field>
-        <Btn onClick={handleComplete} disabled={!name.trim() || loading}>
+        {tosCheckbox}
+        <Btn onClick={handleComplete} disabled={!name.trim() || loading || !tosAccepted}>
           {loading ? "Setting up…" : "Explore Pleks →"}
         </Btn>
       </div>
