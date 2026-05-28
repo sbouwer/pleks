@@ -285,15 +285,18 @@ export function StepUnits() {
       </div>
 
       <div className="space-y-1.5">
-        {state.units.map((unit, i) => (
+        {state.units
+          .map((unit, stateIdx) => ({ unit, stateIdx }))
+          .filter(({ unit }) => unit.is_lettable !== false)
+          .map(({ unit, stateIdx }, displayIdx) => (
           <UnitRow
-            key={`${i}-${unit.unit_number}`}
+            key={`${stateIdx}-${unit.unit_number}`}
             unit={unit}
-            index={i}
+            index={displayIdx}
             segment={segment}
             canRemove={isCounted && state.units.length > 1}
-            onPatch={(delta) => patchUnit(i, delta)}
-            onRemove={() => removeUnit(i)}
+            onPatch={(delta) => patchUnit(stateIdx, delta)}
+            onRemove={() => removeUnit(stateIdx)}
           />
         ))}
       </div>
