@@ -18,6 +18,7 @@ import { createAccountAndOrg, type OnboardingData } from "@/lib/actions/onboardi
 import { toast } from "sonner"
 import { ArrowLeft, ArrowRight, Plus, X, Building2, User, Users, Heart, Eye, EyeOff, Info } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { Skeleton } from "@/components/ui/skeleton"
 import Link from "next/link"
 
 type UserType = "owner" | "agent" | "agency" | "family" | "exploring"
@@ -49,6 +50,29 @@ function Btn({
     >
       {children}
     </button>
+  )
+}
+
+function OnboardingSkeleton() {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      style={{ display: "flex", flexDirection: "column", gap: 28 }}
+    >
+      <div style={{ textAlign: "center" }}>
+        <Skeleton style={{ height: 28, width: "62%", margin: "0 auto 12px" }} />
+        <Skeleton style={{ height: 14, width: "46%", margin: "0 auto" }} />
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <Skeleton style={{ height: 56 }} />
+        <Skeleton style={{ height: 56 }} />
+        <Skeleton style={{ height: 56 }} />
+        <Skeleton style={{ height: 56 }} />
+      </div>
+      <span className="sr-only">Loading your account</span>
+    </div>
   )
 }
 
@@ -100,6 +124,7 @@ function OnboardingWizard() {
   const [emailExists, setEmailExists] = useState(false)
   const [isAlreadyAuthenticated, setIsAlreadyAuthenticated] = useState(false)
   const [skipQuickFinish, setSkipQuickFinish] = useState(false)
+  const [authChecked, setAuthChecked] = useState(false)
 
   // §A — explicit ToS consent; CTA disabled until ticked on every completion surface
   const [tosAccepted, setTosAccepted] = useState(false)
@@ -117,6 +142,7 @@ function OnboardingWizard() {
         }
       })
       .catch(() => {})
+      .finally(() => setAuthChecked(true))
   }, [])
 
   function getTotalSteps(): number {
@@ -476,6 +502,8 @@ function OnboardingWizard() {
   }
 
   // ── Main dispatch ──────────────────────────────────────────────────────────
+
+  if (!authChecked) return <OnboardingSkeleton />
 
   // Returning user quick-finish
   if (step === 0 && isAlreadyAuthenticated && !isSetup && !skipQuickFinish) {
