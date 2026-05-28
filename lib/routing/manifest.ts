@@ -42,6 +42,7 @@ export const ROUTE_MANIFEST: Record<string, RouteRule> = {
   "/":                      { auth: false },
   "/login":                 { auth: false },
   "/login/mfa":             { auth: true,  skipOrgCheck: true },
+  "/login/first-setup":     { auth: true,  skipOrgCheck: true },
   "/forgot-password":       { auth: false },
   "/reset-password":        { auth: false },
   "/register":              { auth: false },

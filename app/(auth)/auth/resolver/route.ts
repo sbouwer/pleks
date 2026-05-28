@@ -28,6 +28,11 @@ function execute(dest: Destination, origin: string): NextResponse {
       return NextResponse.redirect(url("/onboarding"))
     case "severed":
       return NextResponse.redirect(url("/onboarding/severed"))
+    case "first_login": {
+      const u = url("/login/first-setup")
+      if (dest.redirect) u.searchParams.set("redirect", dest.redirect)
+      return NextResponse.redirect(u)
+    }
     case "mfa_verify": {
       const u = url("/login/mfa")
       if (dest.redirect) u.searchParams.set("redirect", dest.redirect)

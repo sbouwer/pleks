@@ -35,6 +35,7 @@ export interface AuthFacts {
 
   consent: {
     current: boolean             // accepted ToS + Privacy versions match LEGAL_VERSIONS
+    everAccepted?: boolean       // has the user ever accepted any version? (resolver only — DB truth)
   }
 
   route: {
@@ -88,11 +89,12 @@ export function requiredAssurance(f: AuthFacts): Aal {
 }
 
 export type Destination =
-  | { kind: "login";      redirect: string | null }
+  | { kind: "login";       redirect: string | null }
   | { kind: "onboarding" }
   | { kind: "severed" }
-  | { kind: "mfa_verify"; redirect: string | null }
-  | { kind: "mfa_enrol";  redirect: string | null }
+  | { kind: "first_login"; redirect: string | null }
+  | { kind: "mfa_verify";  redirect: string | null }
+  | { kind: "mfa_enrol";   redirect: string | null }
   | { kind: "app"; path: string; pendingConsent: boolean }
 
 /** ADDENDUM_AUTH_CONTRACT §3. The whole routing contract. */
@@ -104,6 +106,12 @@ export function resolveAuthDestination(f: AuthFacts): Destination {
   }
 
   const rc = f.membership.roleClass as RoleClass   // exists ⇒ present
+
+  // First-time users: never accepted terms AND no MFA factor yet.
+  // Show the first-login wizard before forcing MFA enrolment.
+  if (f.consent.everAccepted === false && !f.assurance.hasVerifiedFactor) {
+    return { kind: "first_login", redirect: f.safeNext }
+  }
 
   if (requiredAssurance(f) === "aal2" && f.assurance.current !== "aal2") {
     return f.assurance.hasVerifiedFactor

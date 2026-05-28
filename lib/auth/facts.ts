@@ -122,7 +122,7 @@ export function collectGateFacts(
       hasVerifiedFactor: false, // gate never reads factors (§7)
     },
     onboarding: { complete: false }, // gate doesn't branch on onboarding
-    consent:    { current: consentCurrent(request) },
+    consent:    { current: consentCurrent(request), everAccepted: true },
     route: {
       path:         request.nextUrl.pathname,
       isPublic:     !rule.auth,
@@ -201,13 +201,23 @@ export async function collectResolverFacts(
   const { data: factors } = await supabase.auth.mfa.listFactors()
   const hasVerifiedFactor  = (factors?.totp ?? []).some((f) => f.status === "verified")
 
+  // ── Consent — has user ever accepted any ToS version? ─────────────────────
+  const serviceForConsent = await createServiceClient()
+  const { data: anyAcceptance } = await serviceForConsent
+    .from("tos_acceptances")
+    .select("id")
+    .eq("user_id", user.id)
+    .limit(1)
+    .maybeSingle()
+  const everAccepted = !!anyAcceptance
+
   return {
     isAuthenticated: true,
     userId: user.id,
     membership,
     assurance: { current: currentAal, hasVerifiedFactor },
     onboarding: { complete: onboardingComplete },
-    consent:    { current: consentCurrent(request) },
+    consent:    { current: consentCurrent(request), everAccepted },
     route: {
       path:         safeNext ?? "/dashboard",
       isPublic:     false,

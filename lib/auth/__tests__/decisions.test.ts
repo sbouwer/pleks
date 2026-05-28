@@ -80,6 +80,31 @@ describe("resolveAuthDestination — §3 contract", () => {
   it("14: agent honours deep in-class redirect", () =>
     expect(resolveAuthDestination(f({ safeNext: "/finance/trust-ledger" })))
       .toEqual({ kind: "app", path: "/finance/trust-ledger", pendingConsent: false }))
+
+  // first_login: fires when everAccepted === false (explicitly) AND no MFA factor
+  it("15: first-time agent — no terms ever, no factor → first_login", () =>
+    expect(resolveAuthDestination(f({
+      assurance: { current: "aal1", hasVerifiedFactor: false },
+      consent:   { current: false, everAccepted: false },
+    }))).toEqual({ kind: "first_login", redirect: null }))
+  it("16: first_login preserves redirect target", () =>
+    expect(resolveAuthDestination(f({
+      assurance: { current: "aal1", hasVerifiedFactor: false },
+      consent:   { current: false, everAccepted: false },
+      safeNext:  "/dashboard",
+    }))).toEqual({ kind: "first_login", redirect: "/dashboard" }))
+  it("17: everAccepted=true, stale consent, no factor → still mfa_enrol (not first_login)", () =>
+    expect(resolveAuthDestination(f({
+      assurance: { current: "aal1", hasVerifiedFactor: false },
+      consent:   { current: false, everAccepted: true },
+      safeNext:  "/dashboard",
+    }))).toEqual({ kind: "mfa_enrol", redirect: "/dashboard" }))
+  it("18: no factor, everAccepted=undefined (gate default) → not first_login", () =>
+    expect(resolveAuthDestination(f({
+      assurance: { current: "aal1", hasVerifiedFactor: false },
+      consent:   { current: false },
+      safeNext:  "/dashboard",
+    }))).toEqual({ kind: "mfa_enrol", redirect: "/dashboard" }))
 })
 
 describe("requiredAssurance — purely route-driven (no class override)", () => {
