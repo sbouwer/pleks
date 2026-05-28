@@ -1,22 +1,20 @@
 "use client"
 
 /**
- * app/(dashboard)/settings/security/enrol-totp/page.tsx — TOTP MFA enrolment wizard (primary + backup)
+ * app/(dashboard)/settings/security/enrol-totp/page.tsx — TOTP MFA enrolment wizard
  *
  * Route:  /settings/security/enrol-totp
- * Auth:   Authenticated; AAL2 required only when user already has a HOST-SCOPED factor (adding backup)
- * Notes:  Encodes host in factor friendly_name (S-40, ADDENDUM_AUTH_RESOLVER §5.4).
+ * Auth:   Authenticated; AAL2 required only when user already has a verified factor (adding backup)
+ * Notes:  D1 (ADDENDUM_AUTH_CONTRACT): host-scoping deleted. hasVerifiedFactor is a global check.
  *         Refuses enrolment on *.vercel.app preview deploys — no stable host = no factor.
- *         Reads ?redirect= and navigates there on enrolment success (Single-Pass Doctrine).
- *         cross_host=true: user has factors on another host; skip AAL2 check, enrol fresh.
+ *         Reads ?redirect= and navigates there on success (Single-Pass Doctrine).
  */
 
 import { useState, useEffect, useRef, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
-import { buildFactorFriendlyName, filterFactorsByHost, resolveCurrentHost, isPreviewHost } from "@/lib/auth/mfa-host"
+import { isPreviewHost } from "@/lib/auth/mfa-host"
 import { safeRedirect } from "@/lib/auth/safe-redirect"
-import type { AllowedHost } from "@/lib/auth/mfa-host"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -50,7 +48,6 @@ function EnrolTotpContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const mandatory = searchParams.get("mandatory") === "true"
-  const crossHost = searchParams.get("cross_host") === "true"
   const redirectParam = searchParams.get("redirect")
   const safeNext = redirectParam ? safeRedirect(redirectParam) : "/dashboard"
 
@@ -64,7 +61,6 @@ function EnrolTotpContent() {
   const [secret2, setSecret2] = useState<string | null>(null)
   const [factorId2, setFactorId2] = useState<string | null>(null)
   const [code, setCode] = useState("")
-  const currentHostRef = useRef<AllowedHost | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -75,25 +71,18 @@ function EnrolTotpContent() {
       return
     }
 
-    currentHostRef.current = resolveCurrentHost(req)
-
     const supabase = createClient()
     supabase.auth.mfa.listFactors().then(async ({ data: factors }) => {
       const allVerified = (factors?.totp ?? []).filter(f => f.status === "verified")
 
-      // Host-scope the check — only bounce to /login/mfa if there's a CURRENT-HOST factor.
-      // Cross-host users (allVerified > 0 but no host match) fall through to enrolment.
-      const currentHost = currentHostRef.current
-      const hostFactors = currentHost ? filterFactorsByHost(allVerified, currentHost) : allVerified
-
-      if (hostFactors.length > 0) {
+      if (allVerified.length > 0) {
         const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
         if (aal?.currentLevel !== "aal2") {
           const returnTo = redirectParam ? safeRedirect(redirectParam) : "/settings/security/enrol-totp"
           router.replace(`/login/mfa?redirect=${encodeURIComponent(returnTo)}`)
           return
         }
-        // AAL2 + host-scoped factor verified — user is adding a backup
+        // AAL2 + verified factor — user is adding a backup
         setPhase("enrol2")
       }
 
@@ -108,17 +97,14 @@ function EnrolTotpContent() {
         }
       }
 
-      // Embed host in friendly_name so filterFactorsByHost() scopes verification correctly.
       const label = verifiedCount === 0 ? "Primary device" : `Backup device ${verifiedCount}`
-      const h = currentHostRef.current
-      const friendlyName = h ? buildFactorFriendlyName(label, h) : label
 
       setLoading(true)
       setError(null)
       const { data, error: enrolErr } = await supabase.auth.mfa.enroll({
         factorType: "totp",
         issuer: "Pleks",
-        friendlyName,
+        friendlyName: label,
       })
       setLoading(false)
       if (enrolErr || !data) {
@@ -148,11 +134,10 @@ function EnrolTotpContent() {
     setError(null)
     const supabase = createClient()
     const label = factorNum === 1 ? "Primary device" : "Backup device"
-    const h = currentHostRef.current
     const { data, error: enrolErr } = await supabase.auth.mfa.enroll({
       factorType: "totp",
       issuer: "Pleks",
-      friendlyName: h ? buildFactorFriendlyName(label, h) : label,
+      friendlyName: label,
     })
     setLoading(false)
     if (enrolErr || !data) {
@@ -200,8 +185,6 @@ function EnrolTotpContent() {
     }
 
     await fetch("/api/auth/log-totp-enrolled", { method: "POST" }).catch(() => null)
-    // router.refresh() flushes Next.js's client route cache so the next navigation
-    // carries the freshest AAL2 cookies — prevents the middleware seeing stale AAL1.
     router.refresh()
     setCode("")
     if (factorNum === 1) {
@@ -273,14 +256,13 @@ function EnrolTotpContent() {
   const factorNum: 1 | 2 = phase === "enrol1" ? 1 : 2
 
   let cardDescription: string
-  if (mandatory && crossHost) {
-    cardDescription = "You have MFA set up on another environment. For security, codes don't cross between environments — set up a new authenticator entry here."
+  if (phase === "enrol2") {
+    cardDescription = "Add a second authenticator entry as an extra backup."
   } else if (mandatory) {
     cardDescription = "Your account requires two-factor authentication before accessing the dashboard."
   } else {
     cardDescription = "Protect your account with an authenticator app."
   }
-  if (phase === "enrol2") cardDescription = "Add a second authenticator entry as an extra backup."
 
   return (
     <div className="flex flex-col items-center justify-center flex-1 px-4 py-12">

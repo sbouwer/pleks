@@ -4,6 +4,7 @@
  * Route:  /403
  * Auth:   public (no session required; shown after proxy gate)
  * Notes:  Routes back to /auth/resolver which owns all workspace routing decisions.
+ *         Reads role from pleks_org (agent class) or portal_class from pleks_has_org.
  *         Does not read ROLE_DEFAULT_ROUTES — resolver handles destination logic.
  */
 import { cookies } from "next/headers"
@@ -30,9 +31,15 @@ export default async function ForbiddenPage() {
   let activeRole: string | null = null
 
   try {
-    const raw = cookieStore.get("pleks_active_role")?.value
-    if (raw) {
-      activeRole = (JSON.parse(raw) as { role?: string }).role ?? null
+    const orgRaw = cookieStore.get("pleks_org")?.value
+    if (orgRaw) {
+      activeRole = (JSON.parse(orgRaw) as { role?: string }).role ?? null
+    }
+    if (!activeRole) {
+      const hasOrgRaw = cookieStore.get("pleks_has_org")?.value
+      if (hasOrgRaw) {
+        activeRole = (JSON.parse(hasOrgRaw) as { portal_class?: string }).portal_class ?? null
+      }
     }
   } catch { /* cookies malformed */ }
 

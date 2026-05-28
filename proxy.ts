@@ -14,10 +14,12 @@ import { type NextRequest, NextResponse } from "next/server"
 import { updateSession } from "@/lib/supabase/middleware"
 import { createServiceClient } from "@/lib/supabase/server"
 import { AUTH_COOKIE_OPTS } from "@/lib/auth/cookie-config"
-import { ROUTE_MANIFEST, AGENT_ROLES, type SessionRole } from "@/lib/routing/manifest"
+import { ROUTE_MANIFEST } from "@/lib/routing/manifest"
 import { resolveHostContext } from "@/lib/routing/hostname"
 import { resolveUserMembership } from "@/lib/auth/membership"
 import { verifyAdminToken } from "@/lib/auth/admin-token"
+import { collectGateFacts } from "@/lib/auth/facts"
+import { routeGateDecision } from "@/lib/auth/decisions"
 import type { User } from "@supabase/supabase-js"
 
 // ── Bypass lists (checked before manifest) ───────────────────────────────────
@@ -190,90 +192,8 @@ async function ensureOrgCookies(
   return null
 }
 
-// Maps a resolved membership to the SessionRole written into pleks_active_role.
-function toSessionRole(m: Awaited<ReturnType<typeof resolveUserMembership>> & object): SessionRole {
-  if (m.portalClass === "agent") return m.orgRole ?? "owner"
-  if (m.portalClass === "supplier") return "supplier"
-  return m.portalClass
-}
-
-// ── Portal role gate (ADDENDUM_61B) ──────────────────────────────────────────
-// Enforced when the route has any non-agent role in its allowed list.
-// Reads pleks_active_role; if missing, resolves from DB and sets cookie.
-async function checkPortalRoleGate(
-  rule: NonNullable<ReturnType<typeof matchManifest>>,
-  user: User,
-  request: NextRequest
-): Promise<NextResponse | null> {
-  if (!rule.roles) return null
-  const hasPortalRole = rule.roles.some(r => !(AGENT_ROLES as readonly string[]).includes(r))
-  if (!hasPortalRole) return null
-
-  // pleks_active_role: deprecated 2026-05-27 per D-AUTH-RESOLVER-22.
-  // Reading preserved for backward-compat with sessions still carrying the cookie.
-  // Writing intentionally stopped — existing cookies expire naturally (7-day TTL).
-  // Delete this entire function 2026-06-27.
-  const raw = request.cookies.get("pleks_active_role")?.value
-  if (raw) {
-    try {
-      const { role } = JSON.parse(raw) as { role?: string }
-      if (role && rule.roles.includes(role as SessionRole)) return null
-      if (role) {
-        // Wrong role — clear stale deprecated cookie and route through resolver
-        const rr = resolverRedirect(request)
-        rr.cookies.delete("pleks_active_role")
-        return rr
-      }
-    } catch { /* fall through to DB resolution */ }
-  }
-
-  // Cookie missing or unparseable — resolve from DB
-  let membership
-  try {
-    membership = await resolveUserMembership(user.id)
-  } catch {
-    return resolverRedirect(request)
-  }
-
-  if (!membership) {
-    return resolverRedirect(request)
-  }
-
-  const roleForCookie = toSessionRole(membership)
-
-  if (rule.roles.includes(roleForCookie)) return null
-  // Wrong role resolved from DB — route through resolver
-  return resolverRedirect(request)
-}
-
-// ── Agent role gate ───────────────────────────────────────────────────────────
-function checkAgentRoleGate(
-  rule: NonNullable<ReturnType<typeof matchManifest>>,
-  request: NextRequest
-): NextResponse | null {
-  if (!rule.roles) return null
-  if (!rule.roles.every(r => (AGENT_ROLES as readonly string[]).includes(r))) return null
-
-  const raw = request.cookies.get("pleks_org")?.value
-  if (!raw) {
-    // Cookie absent on an agent-only route — could be non-agent user or stale session.
-    // Fail-closed: route through resolver which re-derives the correct destination.
-    return resolverRedirect(request)
-  }
-
-  try {
-    const { role } = JSON.parse(raw) as { role?: string }
-    if (role && !rule.roles.includes(role as SessionRole)) {
-      return NextResponse.redirect(new URL("/403", request.url))
-    }
-  } catch {
-    // Malformed cookie — route through resolver to re-derive state
-    return resolverRedirect(request)
-  }
-  return null
-}
-
 // ── Protected-route handler ───────────────────────────────────────────────────
+// collect → decide → execute. No policy in this handler.
 async function handleProtectedRoute(
   rule: NonNullable<ReturnType<typeof matchManifest>>,
   request: NextRequest
@@ -287,30 +207,32 @@ async function handleProtectedRoute(
     return NextResponse.redirect(url)
   }
 
-  // AAL2 enforcement — route through resolver so audit trail + consent gate fire.
-  // Resolver handles AAL elevation internally and routes to /login/mfa when needed.
-  if (rule.requiresAal2 && aal !== "aal2") return resolverRedirect(request)
-
-  // ToS/Privacy consent is now handled via ConsentGateModal in destination layouts.
-  // The resolver appends ?pending_consent=1 when consent is outdated.
-  // The middleware no longer redirects to /accept-terms.
-
-  // Cookie population runs before role gates so gates can rely on populated cookies.
-  // Previously this was after the gates — that let tenant users with no pleks_org
-  // cookie pass checkAgentRoleGate (which returned null on cookie-miss), reaching
-  // agent-only routes. Now the gate can trust the cookie is fresh or a redirect fired.
+  // Hydrate org cookies before fact collection so the gate can read them.
+  // ensureOrgCookies sets cookies on supabaseResponse (browser-side); they are
+  // not yet in request.cookies on this request — gate falls through to resolver
+  // on the first hit, which is the correct fail-closed behaviour.
   if (!rule.skipOrgCheck) {
     const orgRedirect = await ensureOrgCookies(user, request, supabaseResponse)
     if (orgRedirect) return orgRedirect
   }
 
-  const portalRedirect = await checkPortalRoleGate(rule, user, request)
-  if (portalRedirect) return portalRedirect
+  const facts   = collectGateFacts(request, rule, { isAuthenticated: true, aal })
+  const outcome = routeGateDecision(facts)
 
-  const roleRedirect = checkAgentRoleGate(rule, request)
-  if (roleRedirect) return roleRedirect
-
-  return supabaseResponse
+  switch (outcome.action) {
+    case "allow":
+      return supabaseResponse
+    case "to_login": {
+      const url = request.nextUrl.clone()
+      url.pathname = "/login"
+      url.searchParams.set("redirect", request.nextUrl.pathname)
+      return NextResponse.redirect(url)
+    }
+    case "to_resolver":
+      return resolverRedirect(request)
+    case "forbidden":
+      return NextResponse.redirect(new URL("/403", request.url))
+  }
 }
 
 // ── Subdomain split (production only) ────────────────────────────────────────

@@ -720,7 +720,6 @@ async function cat8_serverActionAbuse() {
     { path: "/api/auth/passkeys/registration-options", body: {} },
     { path: "/api/auth/passkeys/registration-verify", body: { response: {}, label: "test" } },
     { path: "/api/auth/passkeys/revoke", body: { passkeyId: "x" } },
-    { path: "/api/switch-role", body: { role: "agent", orgId: "x" } },
   ]
 
   for (const { path, body } of MUTATION_ROUTES) {

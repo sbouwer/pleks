@@ -5,9 +5,8 @@
  *
  * Route:  /login/mfa
  * Auth:   aal1 session required (password step already done)
- * Notes:  Post-verification hard-navigates directly to ?redirect= destination (Single-Pass Doctrine).
- *         Factors are filtered by current host claim (§5.4 ADDENDUM_AUTH_RESOLVER).
- *         Wrong-host link routes to enrol-totp with cross_host=true and redirect preserved.
+ * Notes:  D1 (ADDENDUM_AUTH_CONTRACT): host-scoping deleted. Uses first verified factor globally.
+ *         Post-verification hard-navigates directly to ?redirect= destination (Single-Pass Doctrine).
  */
 
 import { useState, useEffect, useRef, Suspense } from "react"
@@ -18,8 +17,6 @@ import Link from "next/link"
 import { Loader2, ShieldCheck } from "lucide-react"
 import { AccentBracket } from "@/components/ui/AccentBracket"
 import { safeRedirect } from "@/lib/auth/safe-redirect"
-import { filterFactorsByHost, resolveCurrentHost } from "@/lib/auth/mfa-host"
-import type { AllowedHost } from "@/lib/auth/mfa-host"
 
 const BTN_PRIMARY: React.CSSProperties = {
   width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
@@ -46,15 +43,10 @@ function MfaContent() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [checking, setChecking] = useState(true)
-  const [wrongHostMessage, setWrongHostMessage] = useState<string | null>(null)
-  const [currentHost, setCurrentHost] = useState<AllowedHost | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const supabase = createClient()
-    // Resolve current host for factor filtering
-    const host = resolveCurrentHost(new Request(globalThis.location.href)) as AllowedHost | null
-    setCurrentHost(host)
 
     ;(async () => {
       try {
@@ -64,31 +56,15 @@ function MfaContent() {
           return
         }
 
-        // Already AAL2 — skip ahead to resolver
+        // Already AAL2 — skip ahead to destination
         const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
         if (aal?.currentLevel === "aal2") {
-          // Hard navigation — ensures the server sees the latest AAL2 cookies.
           globalThis.location.href = safeRedirect(redirectParam)
           return
         }
 
-        // Get all verified factors, then filter by current host
         const { data: factors } = await supabase.auth.mfa.listFactors()
         const allVerified = (factors?.totp ?? []).filter((f) => f.status === "verified")
-
-        if (host) {
-          const hostFactors = filterFactorsByHost(allVerified, host)
-          if (hostFactors.length === 0 && allVerified.length > 0) {
-            // Has factors on a different host — show cross-environment message
-            const otherHost = allVerified[0].friendly_name?.split(" @ ")[1] ?? "another environment"
-            setWrongHostMessage(
-              `Your MFA codes were set up on ${otherHost}. For security, codes don't cross between environments. ` +
-              `Set up MFA on this environment from Settings → Security.`
-            )
-            setChecking(false)
-            return
-          }
-        }
 
         if (allVerified.length === 0) {
           router.replace("/settings/security/enrol-totp?mandatory=true")
@@ -114,10 +90,7 @@ function MfaContent() {
     const supabase = createClient()
     const { data: factors, error: factorsErr } = await supabase.auth.mfa.listFactors()
     const allVerified = (factors?.totp ?? []).filter((f) => f.status === "verified")
-
-    // Use host-filtered factor if available, fall back to first verified
-    const hostFiltered = currentHost ? filterFactorsByHost(allVerified, currentHost) : allVerified
-    const verifiedFactor = hostFiltered[0] ?? allVerified[0]
+    const verifiedFactor = allVerified[0]
 
     if (factorsErr || !verifiedFactor) {
       router.push("/settings/security/enrol-totp?mandatory=true")
@@ -160,37 +133,6 @@ function MfaContent() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
-
-  if (wrongHostMessage) {
-    return (
-      <div className="flex items-center justify-center min-h-screen px-4">
-        <Card className="w-full max-w-sm">
-          <CardHeader className="text-center">
-            <CardTitle>
-              <Link href="/" className="pub-wordmark" aria-label="Pleks" style={{ justifyContent: "center" }}>
-                <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
-              </Link>
-            </CardTitle>
-            <div className="flex justify-center mt-2">
-              <ShieldCheck className="h-8 w-8 text-muted-foreground" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground mb-4">{wrongHostMessage}</p>
-            <Link
-              href={`/settings/security/enrol-totp?mandatory=true&cross_host=true${
-                redirectParam ? `&redirect=${encodeURIComponent(redirectParam)}` : ""
-              }`}
-              className="block text-center text-sm underline"
-              style={{ color: "var(--amber-ink)" }}
-            >
-              Set up MFA on this environment →
-            </Link>
-          </CardContent>
-        </Card>
       </div>
     )
   }
