@@ -169,7 +169,12 @@ function OnboardingWizard() {
 
   async function handleCompleteResult(result: Awaited<ReturnType<typeof createAccountAndOrg>>, submitData: OnboardingData) {
     if (result?.error) {
-      if (result.errorType === "already_exists") { globalThis.location.href = "/dashboard"; return }
+      if (result.errorType === "already_exists") {
+        console.info("[onboarding] already_exists branch → redirecting to /welcome", {
+          userType: submitData.userType, isAlreadyAuthenticated: submitData.isAlreadyAuthenticated,
+        })
+        globalThis.location.href = "/welcome"; return
+      }
       if (result.errorType === "email_exists") setEmailExists(true)
       toast.error(result.error)
       setLoading(false)
@@ -179,6 +184,7 @@ function OnboardingWizard() {
       const supabase = createClient()
       await supabase.auth.signInWithPassword({ email: submitData.email, password: submitData.password })
     }
+    console.info("[onboarding] success → /welcome", { userType: submitData.userType })
     globalThis.location.href = "/welcome"
   }
 
@@ -230,7 +236,12 @@ function OnboardingWizard() {
       isAlreadyAuthenticated: true,
     })
     if (result?.error) {
-      if (result.errorType === "already_exists") { globalThis.location.href = "/dashboard"; return }
+      if (result.errorType === "already_exists") {
+        console.info("[onboarding] already_exists branch → redirecting to /welcome", {
+          userType: "owner", isAlreadyAuthenticated: true,
+        })
+        globalThis.location.href = "/welcome"; return
+      }
       if (result.errorType === "auth_required") { globalThis.location.href = `/login?redirect=/auth/resolver&email=${encodeURIComponent(emailToUse)}`; return }
       toast.error(result.error)
       setLoading(false)
