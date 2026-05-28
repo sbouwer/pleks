@@ -78,6 +78,9 @@ export const ROUTE_MANIFEST: Record<string, RouteRule> = {
   "/landlord":              { auth: true, roles: ["landlord"],                        skipOrgCheck: true },
   "/supplier":              { auth: true, roles: ["supplier", "contractor"],           skipOrgCheck: true },
 
+  // ── Post-onboarding / invite Welcome interstitial (AAL1 island — TOTP not yet enrolled) ──
+  "/welcome":               { auth: true, roles: AGENT_ROLES, skipOrgCheck: true },
+
   // ── Auth utility routes ──
   "/select-role":           { auth: true,  skipOrgCheck: true },
   "/403":                   { auth: false },

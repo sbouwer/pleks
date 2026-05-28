@@ -2591,3 +2591,64 @@ DROP TRIGGER IF EXISTS trg_enforce_single_membership ON landlords;
 CREATE TRIGGER landlords_single_membership
   BEFORE INSERT OR UPDATE ON landlords
   FOR EACH ROW EXECUTE FUNCTION enforce_landlords_single_active();
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §31  ADDENDUM_ACTIVATION_2026-05-28 §B+§C: welcome_seen + activation_delegations
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Spec: ADDENDUM_ACTIVATION_2026-05-28.md §B (Welcome interstitial) + §C (delegation model)
+
+-- ── §31.1  user_profiles.welcome_seen — per-user first-run gate ──────────────
+-- Tracks whether the /welcome interstitial has been completed by this user.
+-- Per-user, NOT per-org: founder + each invited agent-class member each see it once.
+-- Set to true when the user clicks "Continue to Pleks" at the end of the Welcome flow.
+ALTER TABLE user_profiles
+  ADD COLUMN IF NOT EXISTS welcome_seen BOOLEAN NOT NULL DEFAULT false;
+
+-- ── §31.2  activation_delegations — owner → member advisory task pointers ────
+-- Owner can delegate specific activation checklist items to org members.
+-- §B reads this for delegation previews at Welcome; §C owns writes (Owner "delegate" action).
+-- Delegable items: operational setup only. Legal items (information_officer, trust_account,
+-- billing) are non-delegable and enforced by the §C server action allowlist.
+CREATE TABLE IF NOT EXISTS activation_delegations (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id        uuid NOT NULL REFERENCES organisations(id) ON DELETE CASCADE,
+  item_key      text NOT NULL,
+  delegated_to  uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  delegated_by  uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  delegated_at  timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (org_id, item_key)
+);
+
+CREATE INDEX IF NOT EXISTS activation_delegations_org_delegated_to_idx
+  ON activation_delegations(org_id, delegated_to);
+
+ALTER TABLE activation_delegations ENABLE ROW LEVEL SECURITY;
+
+-- Org members can read delegations scoped to their org
+DROP POLICY IF EXISTS "activation_delegations_org_members_select" ON activation_delegations;
+CREATE POLICY "activation_delegations_org_members_select" ON activation_delegations
+  FOR SELECT USING (
+    org_id IN (
+      SELECT org_id FROM user_orgs
+      WHERE user_id = auth.uid() AND deleted_at IS NULL
+    )
+  );
+
+-- Only owners may write delegations; §C server action enforces the delegable-item allowlist
+DROP POLICY IF EXISTS "activation_delegations_owner_insert" ON activation_delegations;
+CREATE POLICY "activation_delegations_owner_insert" ON activation_delegations
+  FOR INSERT WITH CHECK (
+    org_id IN (
+      SELECT org_id FROM user_orgs
+      WHERE user_id = auth.uid() AND role = 'owner' AND deleted_at IS NULL
+    )
+  );
+
+DROP POLICY IF EXISTS "activation_delegations_owner_delete" ON activation_delegations;
+CREATE POLICY "activation_delegations_owner_delete" ON activation_delegations
+  FOR DELETE USING (
+    org_id IN (
+      SELECT org_id FROM user_orgs
+      WHERE user_id = auth.uid() AND role = 'owner' AND deleted_at IS NULL
+    )
+  );

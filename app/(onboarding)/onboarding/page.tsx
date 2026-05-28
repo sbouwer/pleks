@@ -8,6 +8,8 @@
  * Data:   createAccountAndOrg() server action; writes org, user_orgs, subscription, tos_acceptances
  * Notes:  §A — ToS checkbox required on every completion surface; CTA disabled until ticked.
  *         §E — bank/deposit step removed from all paths; trust-account setup moves to dashboard checklist.
+ *         §B — on success, redirects to /welcome (not /dashboard) for the guided MFA + passkey interstitial.
+ *              exploring path redirects to /demo (no account created, no welcome).
  */
 
 import { useState, useEffect, Suspense } from "react"
@@ -151,7 +153,7 @@ function OnboardingWizard() {
       const supabase = createClient()
       await supabase.auth.signInWithPassword({ email: submitData.email, password: submitData.password })
     }
-    globalThis.location.href = "/dashboard?onboarding=complete"
+    globalThis.location.href = "/welcome"
   }
 
   async function handleComplete() {
@@ -208,7 +210,7 @@ function OnboardingWizard() {
       setLoading(false)
       return
     }
-    globalThis.location.href = "/dashboard?onboarding=complete"
+    globalThis.location.href = "/welcome"
   }
 
   async function checkEmailExists(emailToCheck: string) {

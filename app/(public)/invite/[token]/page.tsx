@@ -1,13 +1,14 @@
 "use client"
 
 /**
- * app/(public)/invite/[token]/page.tsx — FILL: one-line purpose
+ * app/(public)/invite/[token]/page.tsx — Agent-class invite acceptance (token-gated)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /invite/[token]
+ * Auth:   public (token-gated) — creates account or accepts for existing user
+ * Data:   invites table (token lookup), user_orgs (membership insert), auth (signup/signin)
+ * Notes:  Agent-class roles (owner/property_manager/agent/accountant/maintenance_manager)
+ *         redirect to /welcome on acceptance so the first-run MFA + passkey interstitial fires.
+ *         Portal roles (tenant → /tenant, contractor → /supplier) bypass Welcome.
  */
 
 import { useEffect, useState } from "react"
@@ -83,18 +84,16 @@ export default function InvitePage() {
     loadInvite()
   }, [token, router])
 
-  async function handleAccept(e: React.FormEvent<HTMLFormElement>) {
+  async function handleAccept(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
     if (!invite) return
     setSubmitting(true)
 
     const supabase = createClient()
 
-    // Check if user already exists
     const { data: { user: existingUser } } = await supabase.auth.getUser()
 
-    if (existingUser && existingUser.email === invite.email) {
-      // Existing user — just accept
+    if (existingUser?.email === invite.email) {
       await acceptInvite(supabase, invite, existingUser.id)
       return
     }
@@ -141,13 +140,14 @@ export default function InvitePage() {
 
     toast.success("Invitation accepted!")
 
-    // Redirect based on role
+    // Agent-class → /welcome (first-run MFA + passkey interstitial)
+    // Portal roles → their respective portals directly
     if (inv.role === "tenant") {
       router.push("/tenant")
     } else if (inv.role === "contractor") {
       router.push("/supplier")
     } else {
-      router.push("/dashboard")
+      router.push("/welcome")
     }
   }
 
