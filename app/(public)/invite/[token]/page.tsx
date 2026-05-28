@@ -9,11 +9,15 @@
  * Notes:  Agent-class roles (owner/property_manager/agent/accountant/maintenance_manager)
  *         redirect to /welcome on acceptance so the first-run MFA + passkey interstitial fires.
  *         Portal roles (tenant → /tenant, contractor → /supplier) bypass Welcome.
+ *         New-user path calls acceptInviteNewUser (server action) which uses admin.createUser
+ *         with email_confirm:true + signInWithPassword so the session exists for /welcome
+ *         regardless of the project's email-confirm setting (INV-1 fix).
  */
 
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
+import { acceptInviteNewUser, acceptInviteExistingUser } from "@/lib/actions/invite"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -38,6 +42,12 @@ interface Invite {
   accepted_at: string | null
   expires_at: string
   organisations: { name: string }
+}
+
+function redirectForRole(role: string, router: ReturnType<typeof useRouter>) {
+  if (role === "tenant") router.push("/tenant")
+  else if (role === "contractor") router.push("/supplier")
+  else router.push("/welcome")
 }
 
 export default function InvitePage() {
@@ -90,65 +100,20 @@ export default function InvitePage() {
     setSubmitting(true)
 
     const supabase = createClient()
-
     const { data: { user: existingUser } } = await supabase.auth.getUser()
 
-    if (existingUser?.email === invite.email) {
-      await acceptInvite(supabase, invite, existingUser.id)
-      return
-    }
+    const result = existingUser?.email?.toLowerCase() === invite.email.toLowerCase()
+      ? await acceptInviteExistingUser(token)
+      : await acceptInviteNewUser(token, fullName, password)
 
-    // New user — sign up
-    const { data: signupData, error: signupError } = await supabase.auth.signUp({
-      email: invite.email,
-      password,
-      options: { data: { full_name: fullName } },
-    })
-
-    if (signupError || !signupData.user) {
-      toast.error(signupError?.message || "Failed to create account")
+    if (result.error || !result.role) {
+      toast.error(result.error ?? "Something went wrong.")
       setSubmitting(false)
       return
     }
-
-    await acceptInvite(supabase, invite, signupData.user.id)
-  }
-
-  async function acceptInvite(
-    supabase: ReturnType<typeof createClient>,
-    inv: Invite,
-    userId: string
-  ) {
-    // Create user_orgs membership
-    const { error: orgError } = await supabase.from("user_orgs").insert({
-      user_id: userId,
-      org_id: inv.org_id,
-      role: inv.role,
-    })
-
-    if (orgError) {
-      toast.error("Failed to join organisation")
-      setSubmitting(false)
-      return
-    }
-
-    // Mark invite accepted
-    await supabase
-      .from("invites")
-      .update({ accepted_at: new Date().toISOString() })
-      .eq("id", inv.id)
 
     toast.success("Invitation accepted!")
-
-    // Agent-class → /welcome (first-run MFA + passkey interstitial)
-    // Portal roles → their respective portals directly
-    if (inv.role === "tenant") {
-      router.push("/tenant")
-    } else if (inv.role === "contractor") {
-      router.push("/supplier")
-    } else {
-      router.push("/welcome")
-    }
+    redirectForRole(result.role, router)
   }
 
   if (loading) {
