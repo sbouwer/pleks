@@ -1,15 +1,12 @@
 /**
- * app/(dashboard)/properties/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/page.tsx — Properties list/dashboard page
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties
+ * Auth:   gatewaySSR (service-role client + explicit org_id filter — Pattern A)
+ * Data:   properties, units, leases via service client with .eq("org_id", orgId)
  */
 import { redirect } from "next/navigation"
-import { createClient } from "@/lib/supabase/server"
-import { getServerOrgMembership } from "@/lib/auth/server"
+import { gatewaySSR } from "@/lib/supabase/gateway"
 import { getOrgTier } from "@/lib/tier/getOrgTier"
 import { SinglePropertyView, NoPropertyYet } from "@/components/properties/SinglePropertyView"
 import { PropertyCards } from "@/components/properties/PropertyCards"
@@ -22,16 +19,15 @@ export default async function PropertiesPage({
 }: Readonly<{
   searchParams: Record<string, string>
 }>) {
-  const membership = await getServerOrgMembership()
-  if (!membership) redirect("/login")
+  const gw = await gatewaySSR()
+  if (!gw) redirect("/login")
 
-  const { org_id: orgId } = membership
+  const { db, orgId } = gw
   const tier = await getOrgTier(orgId)
-  const supabase = await createClient()
 
   // ── Owner tier: single property dashboard ──────────────────────────────────
   if (tier === "owner") {
-    const { data: rawProperty } = await supabase
+    const { data: rawProperty } = await db
       .from("properties")
       .select(`
         id, name, type, address_line1, address_line2, suburb, city, province, postal_code,
@@ -52,6 +48,7 @@ export default async function PropertiesPage({
           )
         )
       `)
+      .eq("org_id", orgId)
       .is("deleted_at", null)
       .maybeSingle()
 
@@ -75,13 +72,13 @@ export default async function PropertiesPage({
 
     const [invoiceRes, prospTenantRes, ...coTenantResults] = await Promise.all([
       activeUnit
-        ? supabase.from("rent_invoices").select("total_amount_cents, amount_paid_cents, due_date").eq("unit_id", activeUnit.id).gte("period_from", monthStart).maybeSingle()
+        ? db.from("rent_invoices").select("total_amount_cents, amount_paid_cents, due_date").eq("unit_id", activeUnit.id).gte("period_from", monthStart).maybeSingle()
         : Promise.resolve({ data: null }),
       prospTenantId
-        ? supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", prospTenantId).single()
+        ? db.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", prospTenantId).single()
         : Promise.resolve({ data: null }),
       ...prospCoTenantIds.map((id) =>
-        supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", id).single()
+        db.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", id).single()
           .then((res) => ({ id, data: res.data }))
       ),
     ])
@@ -105,12 +102,13 @@ export default async function PropertiesPage({
 
   // ── Steward tier: enriched card grid ──────────────────────────────────────
   if (tier === "steward") {
-    const { data: rawProperties } = await supabase
+    const { data: rawProperties } = await db
       .from("properties")
       .select(`
         id, name, type, address_line1, city, province,
         units(id, status, is_archived, leases(id, status, rent_amount_cents))
       `)
+      .eq("org_id", orgId)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
 
@@ -127,12 +125,13 @@ export default async function PropertiesPage({
   const statusFilter = searchParams.status ?? ""
   const view = (searchParams.view ?? "list") as "list" | "cards"
 
-  const { data: rawProperties } = await supabase
+  const { data: rawProperties } = await db
     .from("properties")
     .select(`
       id, name, type, address_line1, city, province,
       units(id, status, is_archived, leases(id, status, rent_amount_cents))
     `)
+    .eq("org_id", orgId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
 

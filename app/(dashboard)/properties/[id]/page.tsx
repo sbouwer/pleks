@@ -5,7 +5,7 @@
  * Auth:   gateway (dashboard layout)
  * Data:   properties, units, leases, inspections, insurance, scheme via service client; tab-specific fetchers
  */
-import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/server"
 import { getServerOrgMembership } from "@/lib/auth/server"
 import { hasFeature } from "@/lib/tier/gates"
 import { redirect, notFound } from "next/navigation"
@@ -49,7 +49,6 @@ type TabId = (typeof VALID_TABS)[number]
 // ── Tab-specific fetchers ─────────────────────────────────────────────────────
 
 type ServiceClient = Awaited<ReturnType<typeof createServiceClient>>
-type CookieClient  = Awaited<ReturnType<typeof createClient>>
 
 interface UnitsData {
   activeUnits: UnitTabData[]
@@ -62,7 +61,6 @@ interface UnitsData {
 }
 
 async function fetchUnitsTabData(
-  supabase: CookieClient,
   service: ServiceClient,
   propertyId: string,
   orgId: string,
@@ -74,17 +72,19 @@ async function fetchUnitsTabData(
     { data: teamMemberRows },
     { data: buildings },
   ] = await Promise.all([
-    supabase.from("units").select("*").eq("property_id", propertyId).is("deleted_at", null).order("unit_number"),
-    supabase
+    service.from("units").select("*").eq("property_id", propertyId).eq("org_id", orgId).is("deleted_at", null).order("unit_number"),
+    service
       .from("leases")
       .select("unit_id, id, tenant_id, tenants(id, contacts(id, first_name, last_name, company_name))")
       .eq("property_id", propertyId)
+      .eq("org_id", orgId)
       .in("status", ["active", "notice"])
       .is("deleted_at", null),
-    supabase
+    service
       .from("maintenance_requests")
       .select("unit_id")
       .eq("property_id", propertyId)
+      .eq("org_id", orgId)
       .in("status", ["pending_review", "approved", "pending_landlord", "landlord_approved", "work_order_sent", "acknowledged", "in_progress", "pending_completion"]),
     service.from("user_orgs").select("user_id, role, user_profiles(id, full_name)").eq("org_id", orgId).is("deleted_at", null),
     service
@@ -158,7 +158,6 @@ interface OverviewData {
 }
 
 async function fetchOverviewData(
-  supabase: CookieClient,
   service: ServiceClient,
   propertyId: string,
   orgId: string,
@@ -179,16 +178,17 @@ async function fetchOverviewData(
     { data: latestDeedsRaw },
     { data: latestLightstoneRaw },
   ] = await Promise.all([
-    supabase.from("units").select("id, status, asking_rent_cents").eq("property_id", propertyId).is("deleted_at", null).eq("is_archived", false),
+    service.from("units").select("id, status, asking_rent_cents").eq("property_id", propertyId).eq("org_id", orgId).is("deleted_at", null).eq("is_archived", false),
     landlordId
-      ? supabase.from("landlord_view").select("id, first_name, last_name, company_name, entity_type, email, phone, registration_number").eq("id", landlordId).single()
+      ? service.from("landlord_view").select("id, first_name, last_name, company_name, entity_type, email, phone, registration_number").eq("id", landlordId).single()
       : Promise.resolve({ data: null }),
     service.from("landlord_view").select("id, first_name, last_name, company_name, email, phone").eq("org_id", orgId).is("deleted_at", null).order("first_name"),
     service.from("buildings").select("id").eq("property_id", propertyId).is("deleted_at", null).eq("is_visible_in_ui", true),
-    supabase
+    service
       .from("rent_invoices")
       .select("total_amount_cents, amount_paid_cents")
       .eq("property_id", propertyId)
+      .eq("org_id", orgId)
       .in("status", ["pending", "partial", "overdue"]),
     service
       .from("inspections")
@@ -364,7 +364,6 @@ function buildDocCompliance(docs: DocRow[]): ComplianceItem[] {
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function fetchOperationsData(
-  supabase: CookieClient,
   service: ServiceClient,
   propertyId: string,
   orgId: string,
@@ -615,7 +614,6 @@ export default async function PropertyDetailPage({
   const rawTab   = sp.tab ?? "overview"
   const activeTab: TabId = VALID_TABS.includes(rawTab as TabId) ? (rawTab as TabId) : "overview"
 
-  const supabase   = await createClient()
   const membership = await getServerOrgMembership()
   if (!membership) redirect("/login")
   const { org_id: orgId } = membership
@@ -623,22 +621,24 @@ export default async function PropertyDetailPage({
   // Owners are always admin; other roles (admin, manager) gated server-side on action submit.
   const isAdminUi         = membership.role === "owner"
 
-  const { data: property } = await supabase
+  const service = await createServiceClient()
+
+  const { data: property } = await service
     .from("properties")
     .select("*")
     .eq("id", id)
+    .eq("org_id", orgId)
     .is("deleted_at", null)
     .single()
 
   if (!property) notFound()
 
-  const service = await createServiceClient()
-
   // Always fetch base units for mobile view + header stats
-  const { data: baseUnits } = await supabase
+  const { data: baseUnits } = await service
     .from("units")
     .select("id, status, asking_rent_cents, unit_number")
     .eq("property_id", id)
+    .eq("org_id", orgId)
     .is("deleted_at", null)
     .eq("is_archived", false)
 
@@ -665,13 +665,13 @@ export default async function PropertyDetailPage({
   // Tab-specific data fetching
   const [overviewData, unitsData, operationsData, insuranceData, schemeData] = await Promise.all([
     activeTab === "overview"
-      ? fetchOverviewData(supabase, service, id, orgId, property.landlord_id ?? null, property.managing_agent_id ?? null)
+      ? fetchOverviewData(service, id, orgId, property.landlord_id ?? null, property.managing_agent_id ?? null)
       : Promise.resolve(null),
     activeTab === "units" || activeTab === "documents"
-      ? fetchUnitsTabData(supabase, service, id, orgId)
+      ? fetchUnitsTabData(service, id, orgId)
       : Promise.resolve(null),
     activeTab === "operations"
-      ? fetchOperationsData(supabase, service, id, orgId)
+      ? fetchOperationsData(service, id, orgId)
       : Promise.resolve(null),
     activeTab === "insurance"
       ? fetchInsuranceData(service, id, orgId, propRaw)

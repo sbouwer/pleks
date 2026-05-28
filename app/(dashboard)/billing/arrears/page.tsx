@@ -1,13 +1,11 @@
 /**
- * app/(dashboard)/billing/arrears/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/billing/arrears/page.tsx — Arrears cases list with summary KPIs.
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /billing/arrears
+ * Auth:   gatewaySSR
+ * Data:   arrears_cases via service client with explicit org_id filter (Pattern A)
  */
-import { createClient } from "@/lib/supabase/server"
+import { gatewaySSR } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
@@ -28,13 +26,14 @@ const STATUS_MAP: Record<string, "arrears" | "pending" | "active" | "completed">
 }
 
 export default async function ArrearsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const gw = await gatewaySSR()
+  if (!gw) redirect("/login")
 
-  const { data: cases } = await supabase
+  const { db, orgId } = gw
+  const { data: cases } = await db
     .from("arrears_cases")
     .select("id, status, total_arrears_cents, months_in_arrears, current_step, lease_type, tenant_view(first_name, last_name, company_name, entity_type), units(unit_number, properties(name))")
+    .eq("org_id", orgId)
     .order("total_arrears_cents", { ascending: false })
 
   const list = cases || []
@@ -70,7 +69,7 @@ export default async function ArrearsPage() {
                       <p className="font-medium">{tenantName || "—"}</p>
                       <p className="text-sm text-muted-foreground">
                         {unit ? `${unit.unit_number}, ${unit.properties.name}` : ""}
-                        {` · ${arrearsCase.months_in_arrears} month${arrearsCase.months_in_arrears !== 1 ? "s" : ""}`}
+                        {` · ${arrearsCase.months_in_arrears} month${arrearsCase.months_in_arrears === 1 ? "" : "s"}`}
                         {` · Step ${arrearsCase.current_step}`}
                         {` · ${arrearsCase.lease_type}`}
                       </p>

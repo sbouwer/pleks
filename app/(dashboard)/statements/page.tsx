@@ -2,12 +2,11 @@
  * app/(dashboard)/statements/page.tsx — Owner statements list: generated monthly per property.
  *
  * Route:  /statements
- * Auth:   getServerOrgMembership (redirects to /login)
- * Data:   owner_statements with nested properties via Supabase server client
+ * Auth:   gatewaySSR
+ * Data:   owner_statements via service client with explicit org_id filter (Pattern A)
  */
-import { createClient } from "@/lib/supabase/server"
+import { gatewaySSR } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
-import { getServerOrgMembership } from "@/lib/auth/server"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
@@ -24,13 +23,14 @@ const STATUS_MAP: Record<string, "draft" | "scheduled" | "active" | "completed">
 }
 
 export default async function StatementsPage() {
-  const membership = await getServerOrgMembership()
-  if (!membership) redirect("/login")
+  const gw = await gatewaySSR()
+  if (!gw) redirect("/login")
 
-  const supabase = await createClient()
-  const { data: statements } = await supabase
+  const { db, orgId } = gw
+  const { data: statements } = await db
     .from("owner_statements")
     .select("id, period_month, gross_income_cents, total_expenses_cents, management_fee_cents, net_to_owner_cents, status, owner_payment_status, properties(name)")
+    .eq("org_id", orgId)
     .order("period_month", { ascending: false })
     .limit(50)
 
