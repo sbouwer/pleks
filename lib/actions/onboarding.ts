@@ -120,12 +120,14 @@ export async function createAccountAndOrg(data: OnboardingData): Promise<{
     await sendInvites(service, orgId, userId, data.invites)
   }
 
-  // Create user profile
+  // Create user profile — welcome_seen reset to false so a returning-user path (auth.users
+  // exists from a prior test/nuke) always sees /welcome for their new org entry.
   const { error: profileError } = await service.from("user_profiles").upsert({
     id: userId,
     full_name: data.contactName || data.name,
     mobile: data.mobile || null,
     onboarding_state: "complete",
+    welcome_seen: false,
   }, { onConflict: "id" })
   if (profileError) {
     console.error("[onboarding] user_profiles upsert failed:", profileError)
@@ -157,7 +159,11 @@ export async function createAccountAndOrg(data: OnboardingData): Promise<{
       maxAge: 60 * 60 * 24 * 365,
     })
     cookieStore.set("pleks_privacy_version", LEGAL_VERSIONS.privacy, {
-      ...AUTH_COOKIE_OPTS,
+      // NOT httpOnly — PrivacyPolicyBanner reads this via document.cookie client-side.
+      // Version string is not sensitive (no XSS exfil concern). DO NOT spread AUTH_COOKIE_OPTS here.
+      sameSite: "lax",
+      path: "/",
+      secure: process.env.NODE_ENV === "production",
       maxAge: 60 * 60 * 24 * 365,
     })
   } catch (tosErr) {
