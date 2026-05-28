@@ -57,12 +57,9 @@ async function logResolverDecision(
     const service = await createServiceClient()
     await service.from("auth_events").insert({
       org_id:     facts.membership.orgId ?? null,
+      user_id:    facts.userId ?? null,
       event_type: "resolver_decision",
-      metadata: {
-        facts,
-        dest,
-        host,
-      },
+      metadata: { facts, dest, host },
     })
   } catch {
     // Non-fatal — log failure never breaks the redirect

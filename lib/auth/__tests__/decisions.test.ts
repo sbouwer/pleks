@@ -82,9 +82,11 @@ describe("resolveAuthDestination — §3 contract", () => {
       .toEqual({ kind: "app", path: "/finance/trust-ledger", pendingConsent: false }))
 })
 
-describe("requiredAssurance — derived policy", () => {
-  it("agent always needs aal2", () =>
-    expect(requiredAssurance(f({ route: { ...base.route, requiresAal2: false } }))).toBe("aal2"))
+describe("requiredAssurance — purely route-driven (no class override)", () => {
+  it("aal2 route → aal2 regardless of class", () =>
+    expect(requiredAssurance(f({}))).toBe("aal2"))  // base.route.requiresAal2 = true
+  it("agent on non-aal2 route (e.g. /settings for enrolment) → aal1", () =>
+    expect(requiredAssurance(f({ route: { ...base.route, requiresAal2: false } }))).toBe("aal1"))
   it("tenant on non-aal2 route → aal1", () =>
     expect(requiredAssurance(f({
       membership: { exists: true, roleClass: "tenant", sessionRole: "tenant" },

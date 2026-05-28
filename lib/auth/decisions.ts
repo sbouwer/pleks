@@ -14,6 +14,7 @@ export type SessionRole = AgentRole | "tenant" | "landlord" | "supplier" | "cont
 
 export interface AuthFacts {
   isAuthenticated: boolean
+  userId?: string            // set when isAuthenticated; used for audit logging
 
   membership: {
     exists: boolean
@@ -74,9 +75,14 @@ export function mfaMandatoryFor(rc: RoleClass): boolean {
   return rc === "agent"
 }
 
-/** Derived policy. AAL is a requirement of the destination context, never a collected fact. */
+/**
+ * Derived policy — purely route-driven. AAL is a property of the destination, not the class.
+ * Agent workspace routes have requiresAal2:true in the manifest; enrolment islands (/settings)
+ * do not, so an unenrolled agent can reach them. collectResolverFacts sets route.requiresAal2
+ * from the effective destination manifest rule, so the resolver correctly pushes agents into
+ * enrolment when their default destination (/dashboard) requires AAL2.
+ */
 export function requiredAssurance(f: AuthFacts): Aal {
-  if (f.membership.roleClass && mfaMandatoryFor(f.membership.roleClass)) return "aal2"
   if (f.route.requiresAal2) return "aal2"
   return "aal1"
 }

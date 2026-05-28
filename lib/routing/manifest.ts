@@ -108,3 +108,18 @@ export const ROUTE_MANIFEST: Record<string, RouteRule> = {
   // ── Marketing (apex-only in production; /marketing/* prefix in dev/preview) ──
   "/marketing":             { auth: false },
 } as const
+
+/**
+ * Longest-prefix lookup — same logic as matchManifest in proxy.ts, exported for
+ * use in fact collectors so the resolver can derive route.requiresAal2 from the
+ * destination manifest rule without duplicating the matching algorithm.
+ */
+export function lookupManifestRule(path: string): RouteRule | null {
+  let best: string | null = null
+  for (const prefix of Object.keys(ROUTE_MANIFEST)) {
+    if (path === prefix || path.startsWith(prefix + "/")) {
+      if (!best || prefix.length > best.length) best = prefix
+    }
+  }
+  return best ? ROUTE_MANIFEST[best] : null
+}

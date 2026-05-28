@@ -7,7 +7,9 @@
  */
 import type { NextRequest } from "next/server"
 import type { AuthFacts, Aal, RoleClass, SessionRole } from "@/lib/auth/decisions"
+import { canAccessPath, PORTAL_DEFAULTS } from "@/lib/auth/decisions"
 import type { RouteRule } from "@/lib/routing/manifest"
+import { lookupManifestRule } from "@/lib/routing/manifest"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import { resolveUserMembership, SovereignMembershipViolation } from "@/lib/auth/membership"
 import { safeRedirect } from "@/lib/auth/safe-redirect"
@@ -25,6 +27,24 @@ interface ResolverSupabase {
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
+
+/**
+ * Computes whether the resolver's effective destination requires AAL2.
+ * Looks up the manifest rule for the path the resolver would actually land on:
+ * safeNext (if the user can access it) or the portal default. This is what makes
+ * requiredAssurance purely route-driven — the collector bakes in the manifest flag
+ * so the decision core never needs to know which class drives what.
+ */
+function resolverRouteRequiresAal2(
+  membership: AuthFacts["membership"],
+  safeNext: string | null
+): boolean {
+  if (!membership.exists || !membership.roleClass) return false
+  const rc = membership.roleClass as RoleClass
+  const effectivePath = safeNext && canAccessPath(rc, safeNext) ? safeNext : PORTAL_DEFAULTS[rc]
+  return lookupManifestRule(effectivePath)?.requiresAal2 ?? false
+}
+
 const AGENT_ROLE_VALUES = new Set<string>([
   "owner", "property_manager", "agent", "accountant", "maintenance_manager",
 ])
@@ -183,6 +203,7 @@ export async function collectResolverFacts(
 
   return {
     isAuthenticated: true,
+    userId: user.id,
     membership,
     assurance: { current: currentAal, hasVerifiedFactor },
     onboarding: { complete: onboardingComplete },
@@ -190,7 +211,7 @@ export async function collectResolverFacts(
     route: {
       path:         safeNext ?? "/dashboard",
       isPublic:     false,
-      requiresAal2: false, // class drives assurance via requiredAssurance() (D3)
+      requiresAal2: resolverRouteRequiresAal2(membership, safeNext),
       allowedRoles: null,
     },
     safeNext,

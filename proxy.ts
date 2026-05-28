@@ -113,7 +113,7 @@ function extractCachedOrgId(raw: string): string | null {
 
 async function refreshOrgCookieParallel(
   service: Awaited<ReturnType<typeof createServiceClient>>,
-  userId: string, orgId: string, supabaseResponse: NextResponse
+  userId: string, orgId: string, request: NextRequest, supabaseResponse: NextResponse
 ) {
   const [orgsRes, subRes, orgRes] = await Promise.all([
     service.from("user_orgs").select("role").eq("user_id", userId).eq("org_id", orgId).is("deleted_at", null).single(),
@@ -121,12 +121,14 @@ async function refreshOrgCookieParallel(
     service.from("organisations").select("type, name").eq("id", orgId).single(),
   ])
   if (orgsRes.data) {
-    supabaseResponse.cookies.set("pleks_org", JSON.stringify({
+    const orgValue = JSON.stringify({
       org_id: orgId, role: orgsRes.data.role, tier: deriveTierFromSub(subRes.data),
       type: orgRes.data?.type ?? "agency", name: orgRes.data?.name ?? "",
       sub_status: subRes.data?.status ?? null,
       user_id: userId,
-    }), { ...AUTH_COOKIE_OPTS, maxAge: 300 })
+    })
+    supabaseResponse.cookies.set("pleks_org", orgValue, { ...AUTH_COOKIE_OPTS, maxAge: 300 })
+    request.cookies.set("pleks_org", orgValue)
   }
 }
 
@@ -147,7 +149,7 @@ async function ensureOrgCookies(
   const cachedOrgId = hasOrgCookieRaw ? extractCachedOrgId(hasOrgCookieRaw) : null
 
   if (cachedOrgId) {
-    await refreshOrgCookieParallel(service, user.id, cachedOrgId, supabaseResponse)
+    await refreshOrgCookieParallel(service, user.id, cachedOrgId, request, supabaseResponse)
     return null
   }
 
@@ -174,19 +176,25 @@ async function ensureOrgCookies(
       service.from("organisations").select("type, name").eq("id", membership.orgId).single(),
     ])
 
-    supabaseResponse.cookies.set("pleks_has_org", JSON.stringify({ org_id: membership.orgId, user_id: user.id }), { ...AUTH_COOKIE_OPTS, maxAge: 60 * 60 * 24 * 7 })
-    supabaseResponse.cookies.set("pleks_org", JSON.stringify({
+    const hasOrgValue = JSON.stringify({ org_id: membership.orgId, user_id: user.id })
+    const orgValue    = JSON.stringify({
       org_id: membership.orgId, role: membership.orgRole, tier: deriveTierFromSub(subData.data),
       type: orgData.data?.type ?? "agency", name: orgData.data?.name ?? "",
       sub_status: subData.data?.status ?? null,
       user_id: user.id,
-    }), { ...AUTH_COOKIE_OPTS, maxAge: 300 })
+    })
+    supabaseResponse.cookies.set("pleks_has_org", hasOrgValue, { ...AUTH_COOKIE_OPTS, maxAge: 60 * 60 * 24 * 7 })
+    supabaseResponse.cookies.set("pleks_org", orgValue, { ...AUTH_COOKIE_OPTS, maxAge: 300 })
+    request.cookies.set("pleks_has_org", hasOrgValue)
+    request.cookies.set("pleks_org", orgValue)
   } else {
     // Non-agent portals: write a slim pleks_has_org to suppress future DB calls
     // but leave pleks_org absent (portal routes don't gate on pleks_org content)
-    supabaseResponse.cookies.set("pleks_has_org", JSON.stringify({
+    const hasOrgValue = JSON.stringify({
       org_id: membership.orgId, user_id: user.id, portal_class: membership.portalClass,
-    }), { ...AUTH_COOKIE_OPTS, maxAge: 60 * 60 * 24 * 7 })
+    })
+    supabaseResponse.cookies.set("pleks_has_org", hasOrgValue, { ...AUTH_COOKIE_OPTS, maxAge: 60 * 60 * 24 * 7 })
+    request.cookies.set("pleks_has_org", hasOrgValue)
   }
 
   return null
