@@ -277,6 +277,19 @@
   margin-top: 8px; max-width: 36ch;
 }
 
+/* ── Auth-check skeleton (shown during getUser() round-trip) ───────────────── */
+/* Warm mid-tone so bars read as intentional placeholders on the amber backdrop, */
+/* not as broken/empty elements. border-radius: 2 matches the angular panel. */
+.ob-skel {
+  border-radius: 2px;
+  background: oklch(0.86 0.014 72 / 0.7);
+  animation: ob-skel-pulse 1.4s ease-in-out infinite;
+}
+@keyframes ob-skel-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+
 /* ── Back-to-homepage link (below panel, shared across all onboarding routes) ─ */
 .ob-back-home {
   display: inline-block; margin-top: 28px;

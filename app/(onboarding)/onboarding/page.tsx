@@ -18,7 +18,6 @@ import { createAccountAndOrg, type OnboardingData } from "@/lib/actions/onboardi
 import { toast } from "sonner"
 import { ArrowLeft, ArrowRight, Plus, X, Building2, User, Users, Heart, Eye, EyeOff, Info } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
-import { Skeleton } from "@/components/ui/skeleton"
 import Link from "next/link"
 
 type UserType = "owner" | "agent" | "agency" | "family" | "exploring"
@@ -62,14 +61,14 @@ function OnboardingSkeleton() {
       style={{ display: "flex", flexDirection: "column", gap: 28 }}
     >
       <div style={{ textAlign: "center" }}>
-        <Skeleton style={{ height: 28, width: "62%", margin: "0 auto 12px" }} />
-        <Skeleton style={{ height: 14, width: "46%", margin: "0 auto" }} />
+        <div className="ob-skel" style={{ height: 28, width: "62%", margin: "0 auto 12px" }} />
+        <div className="ob-skel" style={{ height: 14, width: "46%", margin: "0 auto" }} />
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <Skeleton style={{ height: 56 }} />
-        <Skeleton style={{ height: 56 }} />
-        <Skeleton style={{ height: 56 }} />
-        <Skeleton style={{ height: 56 }} />
+        <div className="ob-skel" style={{ height: 56 }} />
+        <div className="ob-skel" style={{ height: 56 }} />
+        <div className="ob-skel" style={{ height: 56 }} />
+        <div className="ob-skel" style={{ height: 56 }} />
       </div>
       <span className="sr-only">Loading your account</span>
     </div>
