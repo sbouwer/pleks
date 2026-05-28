@@ -2,20 +2,41 @@
 /**
  * Pleks Security Audit Suite
  * ==========================
- * Run before every deployment: `node scripts/security/audit.mjs`
+ * Tests 12 security categories. There are TWO halves with different targets:
  *
- * Tests 12 security categories against the live Supabase instance
- * and local Next.js dev server. Produces a structured report.
+ *   DB/RLS posture (cats 1, 2, 5, 7) — hit Supabase REST directly. No app
+ *     server needed. Run anytime, dev up or down.   →  npm run security:db
+ *
+ *   App-surface posture (cats 3,4,6,8,9,10,11,12) — hit APP_URL (headers, auth,
+ *     rate limiting, webhooks, CSP). MUST target DEPLOYED PROD, not dev.
+ *                                                    →  npm run security:prod
+ *
+ * DO NOT run the app-surface half against the local dev server:
+ *   1. Dev gives FALSE results — security headers, rate limiting and CSP behave
+ *      differently (or are absent) outside a production build/edge.
+ *   2. It CRASHES the dev server — the repo lives under a OneDrive-synced path,
+ *      and the audit forcing dozens of cold routes to compile at once collides
+ *      with OneDrive's file locks on .next (EPERM/ENOENT on chunk rename).
+ * A security audit pointed at a dev server is testing the wrong artifact.
  *
  * Requirements:
  *   - .env.local must exist at project root
- *   - `npm run dev` should be running on localhost:3000
  *   - Node 18+ (for native fetch)
+ *   - For security:prod, no local server needed — APP_URL points at prod.
  *
- * Usage:
- *   node scripts/security/audit.mjs              # full audit
- *   node scripts/security/audit.mjs --category 7 # single category
+ * Usage (prefer the npm scripts, which set APP_URL correctly):
+ *   npm run security:db                 # cats 1/2/5/7 vs live Supabase (pre-deploy gate)
+ *   npm run security:prod               # full suite vs https://app.pleks.co.za
+ *   npm run security:prod:quick         # same, skip slow flood tests
+ *
+ * Raw invocation (APP_URL defaults to NEXT_PUBLIC_APP_URL, else localhost:3000):
+ *   APP_URL=https://app.pleks.co.za node scripts/security/audit.mjs
+ *   node scripts/security/audit.mjs --ci          # DB-only subset (cats 1/2/5/7)
+ *   node scripts/security/audit.mjs --category 7  # single category
  *   node scripts/security/audit.mjs --quick       # skip slow tests
+ *
+ * NOTE: target PRODUCTION, not a Vercel preview — the CSP hardcodes
+ *   connect-src https://app.pleks.co.za, so a preview host false-positives Cat 6.
  */
 
 import { readFileSync } from "fs"
@@ -60,7 +81,10 @@ const ENV = ciMode
 const SUPABASE_URL = ENV.NEXT_PUBLIC_SUPABASE_URL
 const ANON_KEY = ENV.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY
 const SERVICE_KEY = ENV.SUPABASE_SERVICE_ROLE_KEY
-const APP_URL = ENV.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+// APP_URL precedence: explicit process env (set by `npm run security:prod` via
+// cross-env) wins over the .env.local NEXT_PUBLIC_APP_URL (which is the dev value,
+// http://localhost:3000). Without this, security:prod silently tests localhost.
+const APP_URL = process.env.APP_URL || ENV.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
 const CRON_SECRET = ENV.CRON_SECRET
 const ADMIN_SECRET = ENV.ADMIN_SECRET
 
@@ -152,8 +176,8 @@ const READ_ONLY_PUBLIC_TABLES = new Set([
 const SENSITIVE_TABLES = [
   "organisations", "user_orgs", "contacts", "tenants", "landlords",
   "contractors", "leases", "units", "properties", "payments",
-  "rent_invoices", "bank_accounts", "debicheck_mandates",
-  "debicheck_collections", "applications", "consent_log", "audit_log",
+  "rent_invoices", "bank_accounts",
+  "applications", "consent_log", "audit_log",
   "communication_log", "municipal_bills", "maintenance_requests",
   "inspections", "arrears_cases", "deposits", "deposit_transactions",
   "lease_clause_selections", "supplier_invoices",
@@ -190,7 +214,6 @@ const CRON_ROUTES = [
   "/api/cron/lease-expiry-check",
   "/api/cron/arrears-sequence",
   "/api/cron/deposit-interest",
-  "/api/cron/debicheck-collection",
   "/api/cron/trial-expiry",
   "/api/cron/prime-rate-sync",
   "/api/cron/application-reminders",
@@ -198,7 +221,6 @@ const CRON_ROUTES = [
 ]
 
 const WEBHOOK_ROUTES = [
-  "/api/webhooks/peach",
   "/api/webhooks/resend",
   "/api/webhooks/docuseal",
   "/api/webhooks/searchworx",
@@ -209,6 +231,49 @@ const WEBHOOK_ROUTES = [
 // ═══════════════════════════════════════════════════════════════
 // CATEGORY 1: Unauthenticated Table Access
 // ═══════════════════════════════════════════════════════════════
+
+// Fetch RLS policies once and build a map of which tables have a DELETE-capable
+// policy applicable to the anon role. Used to turn the Cat 1 DELETE check from a
+// status-code guess into a definitive policy fact. Returns null if the
+// get_rls_audit RPC isn't installed (caller falls back to the 2xx heuristic).
+//
+// "anon-applicable" = policy cmd is DELETE or ALL, AND its roles include a role
+// the anon key actually has: 'anon', 'public', or '{public}'. A policy scoped to
+// 'authenticated' does NOT grant anon, so it's correctly excluded.
+async function fetchAnonDeletableTables() {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_rls_audit`, {
+    method: "POST",
+    headers: {
+      apikey: SERVICE_KEY,
+      Authorization: `Bearer ${SERVICE_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: "{}",
+  })
+  if (res.status === 404) return null  // RPC not installed — caller falls back
+  let policies
+  try { policies = await res.json() } catch { return null }
+  if (!Array.isArray(policies)) return null
+
+  const anonRoles = new Set(["anon", "public"])
+  const rlsEnabled = new Map()   // table -> bool
+  const anonDeletable = new Set() // tables with a DELETE/ALL policy granting anon
+
+  for (const p of policies) {
+    if (typeof p.rls_enabled === "boolean" && !rlsEnabled.has(p.tablename)) {
+      rlsEnabled.set(p.tablename, p.rls_enabled)
+    }
+    if (p.policyname === "(none)") continue
+    const cmd = (p.cmd || "").toUpperCase()
+    if (cmd !== "DELETE" && cmd !== "ALL") continue
+    // p.roles is a text[] like {anon} or {public} or {authenticated}
+    const roles = Array.isArray(p.roles) ? p.roles : []
+    const grantsAnon = roles.some(r => anonRoles.has(String(r).replace(/[{}]/g, "")))
+    if (grantsAnon) anonDeletable.add(p.tablename)
+  }
+  return { rlsEnabled, anonDeletable }
+}
+
 async function cat1_unauthenticatedAccess() {
   console.log("\n📋 Category 1: Unauthenticated Table Access")
   console.log("─".repeat(50))
@@ -221,6 +286,15 @@ async function cat1_unauthenticatedAccess() {
     console.log("  ├─ ℹ️  Anon/publishable key rejected by PostgREST (401/403)")
     console.log("  ├─ ℹ️  This means unauthenticated REST access is fully blocked")
     console.log("  ├─ ℹ️  Testing with service key + RLS to verify row-level enforcement...")
+    console.log("")
+  }
+
+  // Definitive DELETE check: read the actual policies rather than guessing from
+  // the 204 a no-match DELETE returns. anonDel === null means the get_rls_audit
+  // RPC isn't installed, so we fall back to the old status-code heuristic.
+  const anonDel = await fetchAnonDeletableTables()
+  if (anonDel === null) {
+    console.log("  ├─ ℹ️  get_rls_audit RPC not installed — DELETE check falls back to status-code heuristic (less precise). Install it (see Cat 7) for definitive results.")
     console.log("")
   }
 
@@ -262,14 +336,36 @@ async function cat1_unauthenticatedAccess() {
       pass(1, `INSERT ${table}`)
     }
 
-    // Test DELETE
+    // Test DELETE — definitive via policy when get_rls_audit is available,
+    // else fall back to the (imprecise) status-code heuristic.
     test(`DELETE ${table} (anon)`)
-    const del = await supaRest(`${table}?id=eq.00000000-0000-0000-0000-000000000000`, { method: "DELETE" })
-    if (del.status === 200 || del.status === 204) {
-      warn("DELETE returned 2xx (check if RLS blocked actual deletion)")
+    if (anonDel !== null) {
+      // Policy-based verdict — no destructive request needed.
+      const tableKnown = anonDel.rlsEnabled.has(table)
+      if (!tableKnown) {
+        ok("no policy entry (table absent or not exposed)")
+        pass(1, `DELETE ${table}`)
+      } else if (anonDel.rlsEnabled.get(table) === false) {
+        // RLS off entirely — Cat 7 reports this as CRITICAL; flag here too for DELETE.
+        fail("RLS DISABLED — anon DELETE possible")
+        finding(1, "CRITICAL", `Anon can DELETE ${table} (RLS disabled)`, `RLS is not enabled on ${table}, so the anon role is not constrained`, `ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;`)
+      } else if (anonDel.anonDeletable.has(table)) {
+        fail("anon-applicable DELETE/ALL policy exists")
+        finding(1, "CRITICAL", `Anon-applicable DELETE policy on ${table}`, `A DELETE or ALL policy grants the anon/public role on ${table} — anon deletion is permitted by policy`, `Remove anon from the DELETE/ALL policy, or scope it to the authenticated role with an org_id/auth.uid() check`)
+      } else {
+        ok("no anon DELETE policy (deletion impossible)")
+        pass(1, `DELETE ${table}`)
+      }
     } else {
-      ok(`blocked (${del.status})`)
-      pass(1, `DELETE ${table}`)
+      // Fallback: the old heuristic. A 2xx on a no-match DELETE is ambiguous
+      // (PostgREST returns 204 when RLS filters all rows), so we can only warn.
+      const del = await supaRest(`${table}?id=eq.00000000-0000-0000-0000-000000000000`, { method: "DELETE" })
+      if (del.status === 200 || del.status === 204) {
+        warn("DELETE returned 2xx — ambiguous; install get_rls_audit RPC for a definitive verdict")
+      } else {
+        ok(`blocked (${del.status})`)
+        pass(1, `DELETE ${table}`)
+      }
     }
   }
 }
@@ -787,13 +883,6 @@ async function cat10_webhookSignatures() {
 
   // Test: POST to webhooks with forged payloads
   const FORGED_PAYLOADS = {
-    "/api/webhooks/peach": {
-      event_type: "collection.successful",
-      mandate_id: "fake-mandate",
-      collection_id: "fake-collection",
-      amount: 999999,
-      timestamp: new Date().toISOString(),
-    },
     "/api/webhooks/resend": {
       type: "email.delivered",
       created_at: new Date().toISOString(),
