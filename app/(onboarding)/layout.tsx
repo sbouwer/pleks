@@ -8,6 +8,7 @@
  *         No backdrop-filter — works on mid-range Android / 3G; ~6KB CSS budget.
  */
 import Link from "next/link"
+import { AccentBracket } from "@/components/ui/AccentBracket"
 import { PublicThemeProvider } from "../(public)/PublicThemeProvider"
 import "../(public)/public.css"
 import "./onboarding-shell.css"
@@ -25,11 +26,9 @@ export default function OnboardingGroupLayout({
         <div className="ob-bd-vignette" aria-hidden="true"/>
 
         <div className="ob-content">
-          {/* Brand wordmark — non-interactive */}
-          <span className="ob-wordmark" aria-label="Pleks">
-            <span className="ob-wm-name">pleks</span>
-            <span className="ob-wm-tld">.co.za</span>
-          </span>
+          <Link href="/" className="pub-wordmark" aria-label="Pleks" style={{ marginBottom: 40 }}>
+            <span className="pub-wm-name">plek<AccentBracket>s</AccentBracket></span>
+          </Link>
 
           <div className="ob-panel-wrap">
             {children}

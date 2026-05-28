@@ -1,11 +1,8 @@
 /**
- * components/ui/AccentBracket.tsx — FILL: one-line purpose
+ * components/ui/AccentBracket.tsx — Amber top-right corner bracket accent for wordmark and headings
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Wraps a letter with .accent-bracket + .accent-bracket-mark (CSS in globals.css).
+ *         Works in any context where --amber is defined (app dark, public light/dark, portal).
  */
 import type { ReactNode } from "react"
 
