@@ -157,6 +157,10 @@ async function main() {
         SELECT array_agg(c.table_name ORDER BY c.table_name)
         INTO   v_tables
         FROM   information_schema.columns c
+        JOIN   information_schema.tables t
+               ON  t.table_schema = c.table_schema
+               AND t.table_name   = c.table_name
+               AND t.table_type   = 'BASE TABLE'
         WHERE  c.table_schema = 'public'
           AND  c.column_name  = 'org_id'
           AND  c.table_name  NOT IN (
