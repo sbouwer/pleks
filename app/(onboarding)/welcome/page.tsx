@@ -38,9 +38,12 @@ export default async function WelcomePage({ searchParams }: Readonly<PageProps>)
     console.error("[welcome] profile fetch failed:", profileErr.message)
   }
 
-  // Already completed Welcome → go straight to resolver
+  const { step, redirect: redirectParam } = await searchParams
+
+  // Already completed Welcome → thread redirect param through to resolver
   if (profile?.welcome_seen) {
-    redirect("/auth/resolver")
+    const next = redirectParam ?? "/dashboard"
+    redirect(`/auth/resolver?redirect=${encodeURIComponent(next)}`)
   }
 
   const { data: membership, error: memberErr } = await service
@@ -86,8 +89,6 @@ export default async function WelcomePage({ searchParams }: Readonly<PageProps>)
       delegatedByName = ownerProfile?.full_name?.split(" ")[0] ?? "Your manager"
     }
   }
-
-  const { step, redirect: redirectParam } = await searchParams
 
   return (
     <WelcomeClient

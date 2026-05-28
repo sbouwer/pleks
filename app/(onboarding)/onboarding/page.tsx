@@ -8,7 +8,8 @@
  * Data:   createAccountAndOrg() server action; writes org, user_orgs, subscription, tos_acceptances
  * Notes:  §A — ToS checkbox required on every completion surface; CTA disabled until ticked.
  *         §E — bank/deposit step removed from all paths; trust-account setup moves to dashboard checklist.
- *         §B — on success, redirects to /welcome (not /dashboard) for the guided MFA + passkey interstitial.
+ *         §B — on success, redirects to /auth/resolver?redirect=/dashboard; resolver routes through
+ *              Welcome or directly depending on welcome_seen + assurance state.
  *              exploring path redirects to /demo (no account created, no welcome).
  */
 
