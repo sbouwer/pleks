@@ -157,9 +157,7 @@ export async function createAccountAndOrg(data: OnboardingData): Promise<{
       maxAge: 60 * 60 * 24 * 365,
     })
     cookieStore.set("pleks_privacy_version", LEGAL_VERSIONS.privacy, {
-      sameSite: "lax",
-      path: "/",
-      secure: process.env.NODE_ENV === "production",
+      ...AUTH_COOKIE_OPTS,
       maxAge: 60 * 60 * 24 * 365,
     })
   } catch (tosErr) {

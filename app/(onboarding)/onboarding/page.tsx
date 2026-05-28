@@ -117,14 +117,14 @@ function OnboardingWizard() {
       .catch(() => {})
   }, [])
 
-  // §E: bank step removed — owner/family 3→2, agent 4→3, agency 5→4
   function getTotalSteps(): number {
     if (!userType) return 0
     if (userType === "exploring") return 1
-    const acctStep = isAlreadyAuthenticated ? 0 : 1
-    if (userType === "owner" || userType === "family") return 2 + acctStep
-    if (userType === "agent") return 3 + acctStep
-    return 4 + acctStep
+    // Account and all-set are one final step slot with two render states —
+    // not two separate steps — so the count is independent of auth state.
+    if (userType === "owner" || userType === "family") return 2
+    if (userType === "agent") return 3
+    return 4 // agency
   }
 
   function handleTypeSelect(type: UserType) {
