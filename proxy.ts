@@ -277,7 +277,9 @@ async function handleSubdomainSplit(
     return NextResponse.redirect(dest, 308)
   }
   if (hostCtx === "admin" && !isAdminPath(pathname)) {
-    const dest = request.nextUrl.clone(); dest.host = APP_HOSTNAME
+    // Redirect to /admin on the same subdomain — bouncing to APP_HOSTNAME would
+    // chain into the apex redirect (app → pleks.co.za) and land on marketing.
+    const dest = request.nextUrl.clone(); dest.pathname = "/admin"
     return NextResponse.redirect(dest, 308)
   }
   if (hostCtx === "status") return handleStatusSubdomain(pathname, request)
