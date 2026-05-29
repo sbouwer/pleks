@@ -1,13 +1,11 @@
 "use client"
 
 /**
- * components/layout/InstallPrompt.tsx — FILL: one-line purpose
+ * components/layout/InstallPrompt.tsx — PWA install banner for mobile devices
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Only activates on touch devices with a viewport < 1024px.
+ *         Dismissal persists to localStorage (not sessionStorage) so it
+ *         doesn't reappear after every browser session.
  */
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -24,8 +22,10 @@ export function InstallPrompt() {
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
-    // Don't show if user already dismissed
-    if (sessionStorage.getItem(DISMISSED_KEY)) return
+    // Only show on mobile — desktop Chrome also fires beforeinstallprompt
+    if (window.innerWidth >= 1024 || navigator.maxTouchPoints === 0) return
+    // Persist dismissal across sessions
+    if (localStorage.getItem(DISMISSED_KEY)) return
 
     function handleBeforeInstall(e: Event) {
       e.preventDefault()
@@ -48,7 +48,7 @@ export function InstallPrompt() {
   }
 
   function handleDismiss() {
-    sessionStorage.setItem(DISMISSED_KEY, "1")
+    localStorage.setItem(DISMISSED_KEY, "1")
     setVisible(false)
   }
 
