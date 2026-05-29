@@ -551,14 +551,6 @@
 .pleks-public[data-theme="dark"] .pub-gap { background: var(--paper-sunk); }
 
 /* ── Onboarding wizard ───────────────────────────────────────────────────── */
-.ob-progress-track {
-  height: 2px; background: var(--rule); border-radius: 99px; overflow: hidden;
-}
-.ob-progress-fill {
-  height: 100%; background: var(--amber);
-  border-radius: 99px; transition: width 300ms ease;
-}
-
 .ob-label {
   font-size: 13px; font-weight: 500; color: var(--ink); display: block;
 }

@@ -43,15 +43,19 @@ function Btn({
   children: React.ReactNode; onClick?: () => void; disabled?: boolean
   variant?: "primary" | "ghost"; style?: React.CSSProperties
 }) {
+  if (variant === "ghost") {
+    return (
+      <button type="button" className="ob-cta-ghost" style={style} onClick={onClick} disabled={disabled}>
+        {children}
+      </button>
+    )
+  }
+  // Primary — brand-signature amber-bar CTA (ink fill, amber bar, mono arrow)
   return (
-    <button
-      type="button"
-      className={`pub-btn ${variant === "primary" ? "pub-btn-primary" : "pub-btn-ghost"}`}
-      style={{ width: "100%", justifyContent: "center", ...style }}
-      onClick={onClick}
-      disabled={disabled}
-    >
-      {children}
+    <button type="button" className="ob-cta" style={style} onClick={onClick} disabled={disabled}>
+      <span className="ob-cta-bar" aria-hidden="true" />
+      <span className="ob-cta-label">{children}</span>
+      <span className="ob-cta-arrow" aria-hidden="true">→</span>
     </button>
   )
 }
@@ -82,13 +86,18 @@ function OnboardingSkeleton() {
 // ── Page shell ────────────────────────────────────────────────────────────────
 
 export default function OnboardingPage() {
+  // Single "door" panel wraps every wizard step — matches the welcome flow + login/admin.
   return (
     <Suspense fallback={
-      <div style={{ textAlign: "center", paddingTop: 40, color: "var(--ink-mute)", fontSize: 14 }}>
-        Loading…
+      <div className="ob-panel">
+        <span className="ob-knob" aria-hidden="true" />
+        <div style={{ textAlign: "center", color: "var(--ink-mute)", fontSize: 14 }}>Loading…</div>
       </div>
     }>
-      <OnboardingWizard />
+      <div className="ob-panel">
+        <span className="ob-knob" aria-hidden="true" />
+        <OnboardingWizard />
+      </div>
     </Suspense>
   )
 }
@@ -283,20 +292,27 @@ function OnboardingWizard() {
   }
 
   const totalSteps = getTotalSteps()
-  const progress = totalSteps > 0 ? (step / totalSteps) * 100 : 0
 
   const progressBar = (
-    <div style={{ marginBottom: 36 }}>
-      <div className="ob-progress-track">
-        <div className="ob-progress-fill" style={{ width: `${progress}%` }} />
+    <div style={{ marginBottom: 26 }}>
+      <div className="ob-step">
+        <span className="ob-step-eyebrow">
+          Step {String(step).padStart(2, "0")} of {String(totalSteps).padStart(2, "0")}
+        </span>
+        <div className="ob-step-bars">
+          {Array.from({ length: totalSteps }).map((_, i) => {
+            const idx = i + 1
+            let cls = "ob-step-bar--future"
+            if (idx < step) cls = "ob-step-bar--done"
+            else if (idx === step) cls = "ob-step-bar--current"
+            return <span key={`seg-${idx}`} className={`ob-step-bar ${cls}`} />
+          })}
+        </div>
       </div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
-        <button type="button" onClick={() => setStep(step === 1 ? 0 : step - 1)}
-          style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, color: "var(--ink-mute)", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-          <ArrowLeft size={12} /> Back
-        </button>
-        <span style={{ fontSize: 12, color: "var(--ink-faint)" }}>Step {step} of {totalSteps}</span>
-      </div>
+      <button type="button" onClick={() => setStep(step === 1 ? 0 : step - 1)}
+        style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12.5, color: "var(--ink-mute)", background: "none", border: "none", cursor: "pointer", padding: 0, marginTop: 14 }}>
+        <ArrowLeft size={12} /> Back
+      </button>
     </div>
   )
 
@@ -319,11 +335,12 @@ function OnboardingWizard() {
     return (
       <div>
         {progressBar}
-        <h2 style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.015em", margin: "0 0 6px" }}>Almost there</h2>
+        <h2 className="ob-heading">Almost there</h2>
         <p className="pub-small" style={{ margin: "0 0 28px" }}>Create your account to save your setup.</p>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <Field label="Email address *">
             <input
+              id="ob-email" name="email"
               className="ob-input" type="email" autoComplete="email"
               value={acctEmail}
               onChange={(e) => { setAcctEmail(e.target.value); setEmailExists(false); setFormHint("") }}
@@ -350,6 +367,7 @@ function OnboardingWizard() {
           <Field label="Password *">
             <div style={{ position: "relative" }}>
               <input
+                id="ob-password" name="new-password"
                 className="ob-input"
                 type={showPassword ? "text" : "password"}
                 autoComplete="new-password"
@@ -366,7 +384,7 @@ function OnboardingWizard() {
           </Field>
           {tosCheckbox}
           <Btn onClick={handleCreateAccount} disabled={loading}>
-            {loading ? "Creating account…" : "Create account →"}
+            {loading ? "Creating account…" : "Create account"}
           </Btn>
           {formHint && !loading && (
             <p className="ob-hint" role="status" aria-live="polite">{formHint}</p>
@@ -380,11 +398,11 @@ function OnboardingWizard() {
     return (
       <div>
         {progressBar}
-        <h2 style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.015em", margin: "0 0 8px" }}>You&apos;re all set</h2>
+        <h2 className="ob-heading">You&apos;re all set</h2>
         <p className="pub-small" style={{ margin: "0 0 28px" }}>{subtitle ?? "Your free Owner account is ready."}</p>
         {tosCheckbox}
         <Btn onClick={handleComplete} disabled={loading || !tosAccepted}>
-          {loading ? "Setting up…" : "Go to dashboard →"}
+          {loading ? "Setting up…" : "Go to dashboard"}
         </Btn>
         {!loading && !tosAccepted && (
           <p className="ob-hint">Tick the checkbox above to accept the terms.</p>
@@ -399,13 +417,13 @@ function OnboardingWizard() {
     if (step === 1) return (
       <div>
         {progressBar}
-        <h2 style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.015em", margin: "0 0 6px" }}>Tell us about yourself</h2>
+        <h2 className="ob-heading">Tell us about yourself</h2>
         <p className="pub-small" style={{ margin: "0 0 28px" }}>Just the basics — no company details needed.</p>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <Field label="Your name *"><input className="ob-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" /></Field>
-          <Field label="Mobile number *"><input className="ob-input" type="tel" value={mobile} onChange={(e) => setMobile(e.target.value)} placeholder="082 000 0000" /></Field>
-          <Field label="City & Province"><input className="ob-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Cape Town, WC" /></Field>
-          <Btn onClick={() => setStep(2)} disabled={!name.trim() || !mobile.trim()}>Continue →</Btn>
+          <Field label="Your name *"><input className="ob-input" name="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" /></Field>
+          <Field label="Mobile number *"><input className="ob-input" type="tel" name="mobile" value={mobile} onChange={(e) => setMobile(e.target.value)} placeholder="082 000 0000" /></Field>
+          <Field label="City & Province"><input className="ob-input" name="address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Cape Town, WC" /></Field>
+          <Btn onClick={() => setStep(2)} disabled={!name.trim() || !mobile.trim()}>Continue</Btn>
         </div>
       </div>
     )
@@ -420,7 +438,7 @@ function OnboardingWizard() {
     if (step === 2) return (
       <div>
         {progressBar}
-        <h2 style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.015em", margin: "0 0 16px" }}>Are you registered with the PPRA?</h2>
+        <h2 className="ob-heading">Are you registered with the PPRA?</h2>
         <div className="ob-notice ob-notice-info" style={{ marginBottom: 20 }}>
           The Property Practitioners Act 22 of 2019 requires anyone managing property for others to register with the PPRA and hold a valid Fidelity Fund Certificate (FFC).
         </div>
@@ -433,8 +451,8 @@ function OnboardingWizard() {
         )}
         {ppraStatus === "registered" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <Field label="FFC Number (optional)"><input className="ob-input" value={ppraFfc} onChange={(e) => setPpraFfc(e.target.value)} placeholder="Your FFC number" /></Field>
-            <Btn onClick={() => setStep(3)}>Continue →</Btn>
+            <Field label="FFC Number (optional)"><input className="ob-input" name="ffc-number" value={ppraFfc} onChange={(e) => setPpraFfc(e.target.value)} placeholder="Your FFC number" /></Field>
+            <Btn onClick={() => setStep(3)}>Continue</Btn>
           </div>
         )}
         {ppraStatus !== null && ppraStatus !== "registered" && (
@@ -442,7 +460,7 @@ function OnboardingWizard() {
             <div className="ob-notice ob-notice-warn">
               You can still use Pleks. Note that managing property for others without PPRA registration may have legal implications.
             </div>
-            <Btn onClick={() => setStep(3)}>Continue →</Btn>
+            <Btn onClick={() => setStep(3)}>Continue</Btn>
           </div>
         )}
       </div>
@@ -457,14 +475,14 @@ function OnboardingWizard() {
     if (step === 1) return (
       <div>
         {progressBar}
-        <h2 style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.015em", margin: "0 0 24px" }}>Tell us about yourself</h2>
+        <h2 className="ob-heading">Tell us about yourself</h2>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <Field label="Your full name *"><input className="ob-input" value={name} onChange={(e) => setName(e.target.value)} /></Field>
-          <Field label="Trading name *"><input className="ob-input" value={tradingAs} onChange={(e) => setTradingAs(e.target.value)} placeholder="e.g. Smith Property Management" /></Field>
-          <Field label="Mobile number *"><input className="ob-input" type="tel" value={mobile} onChange={(e) => setMobile(e.target.value)} /></Field>
-          <Field label="City & Province"><input className="ob-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Cape Town, WC" /></Field>
-          <Field label="Company reg number"><input className="ob-input" value={regNumber} onChange={(e) => setRegNumber(e.target.value)} placeholder="Optional" /></Field>
-          <Btn onClick={() => setStep(2)} disabled={!name.trim() || !tradingAs.trim() || !mobile.trim()}>Continue →</Btn>
+          <Field label="Your full name *"><input className="ob-input" name="name" value={name} onChange={(e) => setName(e.target.value)} /></Field>
+          <Field label="Trading name *"><input className="ob-input" name="trading-name" value={tradingAs} onChange={(e) => setTradingAs(e.target.value)} placeholder="e.g. Smith Property Management" /></Field>
+          <Field label="Mobile number *"><input className="ob-input" type="tel" name="mobile" value={mobile} onChange={(e) => setMobile(e.target.value)} /></Field>
+          <Field label="City & Province"><input className="ob-input" name="address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Cape Town, WC" /></Field>
+          <Field label="Company reg number"><input className="ob-input" name="reg-number" value={regNumber} onChange={(e) => setRegNumber(e.target.value)} placeholder="Optional" /></Field>
+          <Btn onClick={() => setStep(2)} disabled={!name.trim() || !tradingAs.trim() || !mobile.trim()}>Continue</Btn>
         </div>
       </div>
     )
@@ -482,15 +500,15 @@ function OnboardingWizard() {
     if (step === 1) return (
       <div>
         {progressBar}
-        <h2 style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.015em", margin: "0 0 24px" }}>Tell us about your agency</h2>
+        <h2 className="ob-heading">Tell us about your agency</h2>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <Field label="Agency / company name *"><input className="ob-input" value={name} onChange={(e) => setName(e.target.value)} /></Field>
-          <Field label="Trading as"><input className="ob-input" value={tradingAs} onChange={(e) => setTradingAs(e.target.value)} placeholder="If different from company name" /></Field>
-          <Field label="Registration number *"><input className="ob-input" value={regNumber} onChange={(e) => setRegNumber(e.target.value)} /></Field>
-          <Field label="VAT number"><input className="ob-input" value={vatNumber} onChange={(e) => setVatNumber(e.target.value)} placeholder="Optional" /></Field>
-          <Field label="Mobile number *"><input className="ob-input" type="tel" value={mobile} onChange={(e) => setMobile(e.target.value)} /></Field>
-          <Field label="City & Province"><input className="ob-input" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Cape Town, WC" /></Field>
-          <Btn onClick={() => setStep(2)} disabled={!name.trim() || !regNumber.trim() || !mobile.trim()}>Continue →</Btn>
+          <Field label="Agency / company name *"><input className="ob-input" name="name" value={name} onChange={(e) => setName(e.target.value)} /></Field>
+          <Field label="Trading as"><input className="ob-input" name="trading-name" value={tradingAs} onChange={(e) => setTradingAs(e.target.value)} placeholder="If different from company name" /></Field>
+          <Field label="Registration number *"><input className="ob-input" name="reg-number" value={regNumber} onChange={(e) => setRegNumber(e.target.value)} /></Field>
+          <Field label="VAT number"><input className="ob-input" name="vat-number" value={vatNumber} onChange={(e) => setVatNumber(e.target.value)} placeholder="Optional" /></Field>
+          <Field label="Mobile number *"><input className="ob-input" type="tel" name="mobile" value={mobile} onChange={(e) => setMobile(e.target.value)} /></Field>
+          <Field label="City & Province"><input className="ob-input" name="address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Cape Town, WC" /></Field>
+          <Btn onClick={() => setStep(2)} disabled={!name.trim() || !regNumber.trim() || !mobile.trim()}>Continue</Btn>
         </div>
       </div>
     )
@@ -499,17 +517,19 @@ function OnboardingWizard() {
     if (step === 3) return (
       <div>
         {progressBar}
-        <h2 style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.015em", margin: "0 0 6px" }}>Invite your team</h2>
+        <h2 className="ob-heading">Invite your team</h2>
         <p className="pub-small" style={{ margin: "0 0 24px" }}>Add team members now or skip and invite later from Settings.</p>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {invites.map((invite, i) => (
             <div key={`invite-${i}`} style={{ display: "flex", gap: 8 }}>
               <input
+                name={`invite-email-${i}`}
                 className="ob-input" type="email" placeholder="Email" style={{ flex: 1, width: "auto" }}
                 value={invite.email}
                 onChange={(e) => { const u = [...invites]; u[i] = { ...u[i], email: e.target.value }; setInvites(u) }}
               />
               <select
+                name={`invite-role-${i}`}
                 className="ob-input ob-select" style={{ width: 148, flexShrink: 0 }}
                 value={invite.role}
                 onChange={(e) => { const u = [...invites]; u[i] = { ...u[i], role: e.target.value }; setInvites(u) }}
@@ -534,7 +554,7 @@ function OnboardingWizard() {
         </div>
         <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
           <Btn variant="ghost" style={{ flex: 1, width: "auto" }} onClick={() => { setInvites([]); setStep(4) }}>Skip for now</Btn>
-          <Btn style={{ flex: 1, width: "auto" }} onClick={() => setStep(4)}>Send invites &amp; continue →</Btn>
+          <Btn style={{ flex: 1, width: "auto" }} onClick={() => setStep(4)}>Send invites &amp; continue</Btn>
         </div>
       </div>
     )
@@ -554,17 +574,17 @@ function OnboardingWizard() {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
         <div style={{ textAlign: "center" }}>
-          <h1 style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.02em", margin: "0 0 8px" }}>
+          <h1 className="ob-heading" style={{ margin: "0 0 8px" }}>
             Welcome back{displayName ? `, ${displayName}` : ""}
           </h1>
           <p className="pub-small" style={{ margin: 0 }}>You started setting up before. Let&apos;s finish your account.</p>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <Field label="Your name"><input className="ob-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name (optional)" /></Field>
-          <Field label="Mobile number"><input className="ob-input" type="tel" value={mobile} onChange={(e) => setMobile(e.target.value)} placeholder="082 000 0000" /></Field>
+          <Field label="Your name"><input className="ob-input" name="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name (optional)" /></Field>
+          <Field label="Mobile number"><input className="ob-input" type="tel" name="mobile" value={mobile} onChange={(e) => setMobile(e.target.value)} placeholder="082 000 0000" /></Field>
           {tosCheckbox}
           <Btn onClick={handleQuickFinish} disabled={loading || !name.trim() || !tosAccepted}>
-            {loading ? "Setting up…" : "Go to dashboard →"}
+            {loading ? "Setting up…" : "Go to dashboard"}
           </Btn>
           {!loading && !tosAccepted && (
             <p className="ob-hint">Tick the checkbox above to accept the terms.</p>
@@ -591,7 +611,7 @@ function OnboardingWizard() {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
         <div style={{ textAlign: "center" }}>
-          <h1 style={{ fontSize: 26, fontWeight: 500, letterSpacing: "-0.02em", margin: "0 0 8px" }}>
+          <h1 className="ob-heading" style={{ margin: "0 0 8px" }}>
             {isSetup ? "Choose your account type" : "How will you be using Pleks?"}
           </h1>
           <p className="pub-small" style={{ margin: 0 }}>
@@ -624,14 +644,14 @@ function OnboardingWizard() {
   if (userType === "exploring") return (
     <div>
       {progressBar}
-      <h2 style={{ fontSize: 22, fontWeight: 500, letterSpacing: "-0.015em", margin: "0 0 6px" }}>What&apos;s your name?</h2>
+      <h2 className="ob-heading">What&apos;s your name?</h2>
       <p className="pub-small" style={{ margin: "0 0 28px" }}>That&apos;s all we need to get you started.</p>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <Field label="Your name *"><input className="ob-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" /></Field>
-        <Field label="Mobile number"><input className="ob-input" type="tel" value={mobile} onChange={(e) => setMobile(e.target.value)} placeholder="Optional" /></Field>
+        <Field label="Your name *"><input className="ob-input" name="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" /></Field>
+        <Field label="Mobile number"><input className="ob-input" type="tel" name="mobile" value={mobile} onChange={(e) => setMobile(e.target.value)} placeholder="Optional" /></Field>
         {tosCheckbox}
         <Btn onClick={handleComplete} disabled={!name.trim() || loading || !tosAccepted}>
-          {loading ? "Setting up…" : "Explore Pleks →"}
+          {loading ? "Setting up…" : "Explore Pleks"}
         </Btn>
       </div>
     </div>
