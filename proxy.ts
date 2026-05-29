@@ -167,6 +167,17 @@ function extractCachedOrgId(raw: string): string | null {
   }
 }
 
+// The user_id the cookie was written for — used to detect a different user on the
+// same browser (agency shared desk) so we never authorise B with A's org cookie.
+function cookieUserId(raw: string | undefined): string | null {
+  if (!raw) return null
+  try {
+    return (JSON.parse(raw) as { user_id?: string }).user_id ?? null
+  } catch {
+    return null
+  }
+}
+
 async function refreshOrgCookieParallel(
   service: Awaited<ReturnType<typeof createServiceClient>>,
   userId: string, orgId: string, request: NextRequest, supabaseResponse: NextResponse
@@ -197,8 +208,24 @@ async function refreshOrgCookieParallel(
 async function ensureOrgCookies(
   user: User, request: NextRequest, supabaseResponse: NextResponse
 ): Promise<NextResponse | null> {
-  const hasOrgCookieRaw = request.cookies.get("pleks_has_org")?.value
-  const orgDetailCookieRaw = request.cookies.get("pleks_org")?.value
+  const rawHasOrg = request.cookies.get("pleks_has_org")?.value
+  const rawOrgDetail = request.cookies.get("pleks_org")?.value
+
+  // Shared-desk safety: if the cached org cookies were written for a DIFFERENT user
+  // (e.g. an agency shared browser where someone else was just logged in), discard
+  // them and re-hydrate for the current session user — never authorise B with A's org.
+  const wrongUser =
+    (cookieUserId(rawHasOrg)   !== null && cookieUserId(rawHasOrg)   !== user.id) ||
+    (cookieUserId(rawOrgDetail) !== null && cookieUserId(rawOrgDetail) !== user.id)
+  if (wrongUser) {
+    supabaseResponse.cookies.set("pleks_org", "", { path: "/", maxAge: 0 })
+    supabaseResponse.cookies.set("pleks_has_org", "", { path: "/", maxAge: 0 })
+    request.cookies.delete("pleks_org")
+    request.cookies.delete("pleks_has_org")
+  }
+  const hasOrgCookieRaw    = wrongUser ? undefined : rawHasOrg
+  const orgDetailCookieRaw = wrongUser ? undefined : rawOrgDetail
+
   // Trust the cached cookies only if pleks_org actually parses WITH a role. A stale or
   // malformed pleks_org (e.g. left over from an older format / a half-finished flow)
   // would otherwise be trusted here, leave the gate unable to read a role on a

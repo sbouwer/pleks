@@ -34,6 +34,29 @@ export interface EnrolTotpProps {
 
 type Phase = "enrol1" | "backup" | "enrol2" | "done"
 
+// Idempotent TOTP enrol. GoTrue rejects a duplicate friendly name (422) — which
+// happens when a prior incomplete attempt left an unverified factor of the same name.
+// On that error we clear the colliding UNVERIFIED factor and retry once. A *verified*
+// same-name factor is left untouched (we never silently destroy working MFA).
+async function enrollTotp(supabase: ReturnType<typeof createClient>, friendlyName: string) {
+  const opts = { factorType: "totp" as const, issuer: "Pleks", friendlyName }
+  const first = await supabase.auth.mfa.enroll(opts)
+  if (!first.error && first.data) return first.data
+  if (first.error && /already exists/i.test(first.error.message)) {
+    const { data: f } = await supabase.auth.mfa.listFactors()
+    const dup = (f?.totp ?? []).find(x => x.friendly_name === friendlyName && x.status !== "verified")
+    if (dup) {
+      await supabase.auth.mfa.unenroll({ factorId: dup.id }).catch(() => null)
+      const retry = await supabase.auth.mfa.enroll(opts)
+      if (!retry.error && retry.data) return retry.data
+      console.error("[enrol-totp] retry enroll failed", retry.error)
+      return null
+    }
+  }
+  console.error("[enrol-totp] mfa.enroll failed", first.error)
+  return null
+}
+
 export function EnrolTotp({ redirectTo, mandatory = false, variant = "settings", embedded = false, onVerified }: Readonly<EnrolTotpProps>) {
   const router = useRouter()
   const safeNext = redirectTo ? safeRedirect(redirectTo) : "/dashboard"
@@ -50,6 +73,10 @@ export function EnrolTotp({ redirectTo, mandatory = false, variant = "settings",
   const [factorId2, setFactorId2] = useState<string | null>(null)
   const [code, setCode] = useState("")
   const inputRef = useRef<HTMLInputElement>(null)
+  // Latest onVerified, read inside the mount-once effect without making it a dep
+  // (the welcome flow passes a fresh closure each render).
+  const onVerifiedRef = useRef(onVerified)
+  useEffect(() => { onVerifiedRef.current = onVerified }, [onVerified])
 
   useEffect(() => {
     const req = new Request(globalThis.location.href)
@@ -64,6 +91,13 @@ export function EnrolTotp({ redirectTo, mandatory = false, variant = "settings",
       const allVerified = (factors?.totp ?? []).filter(f => f.status === "verified")
 
       if (allVerified.length > 0) {
+        // Already has a verified factor. In the embedded welcome flow they're already
+        // secured — skip re-enrolment (which would 422 on the duplicate name) and hand
+        // back to the host to play the "Secured" payoff.
+        if (embedded && onVerifiedRef.current) {
+          onVerifiedRef.current()
+          return
+        }
         const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
         if (aal?.currentLevel !== "aal2") {
           const returnTo = redirectTo ? safeRedirect(redirectTo) : fallbackSelf
@@ -89,15 +123,10 @@ export function EnrolTotp({ redirectTo, mandatory = false, variant = "settings",
 
       setLoading(true)
       setError(null)
-      const { data, error: enrolErr } = await supabase.auth.mfa.enroll({
-        factorType: "totp",
-        issuer: "Pleks",
-        friendlyName: label,
-      })
+      const data = await enrollTotp(supabase, label)
       setLoading(false)
-      if (enrolErr || !data) {
-        console.error("[enrol-totp] mfa.enroll failed", enrolErr)
-        setError(enrolErr?.message ?? "Enrolment failed. Open DevTools console for details.")
+      if (!data) {
+        setError("Enrolment failed. Open DevTools console for details.")
         return
       }
       if (verifiedCount === 0) {
@@ -115,7 +144,7 @@ export function EnrolTotp({ redirectTo, mandatory = false, variant = "settings",
       setLoading(false)
       setError("Something went wrong starting MFA setup. Open DevTools console for details.")
     })
-  }, [router, redirectTo, fallbackSelf])
+  }, [router, redirectTo, fallbackSelf, embedded])
 
   async function enrolFactor(factorNum: 1 | 2) {
     setLoading(true)
