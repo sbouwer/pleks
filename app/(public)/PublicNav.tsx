@@ -18,6 +18,10 @@ import { createClient } from "@/lib/supabase/client"
 import { usePublicTheme } from "./PublicThemeProvider"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 
+// Cross-subdomain links use absolute URLs — relative paths would be RSC-prefetched
+// as same-origin, hit the apex→app redirect, and fail the browser's CORS preflight.
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? ""
+
 const NAV_LINKS = [
   { href: "/#why",       label: "Why Pleks" },
   { href: "/#artefact",  label: "The work" },
@@ -142,9 +146,9 @@ export function PublicNav() {
       )
     }
     return (
-      <Link href="/login" className="pub-icon-btn hidden md:flex" aria-label="Sign in">
+      <a href={`${APP_URL}/login`} className="pub-icon-btn hidden md:flex" aria-label="Sign in">
         <LogIn size={15} />
-      </Link>
+      </a>
     )
   })()
 
@@ -175,12 +179,12 @@ export function PublicNav() {
     }
     return (
       <>
-        <Link href="/login" className="btn-pleks ghost" style={{ justifyContent: "center" }}>
+        <a href={`${APP_URL}/login`} className="btn-pleks ghost" style={{ justifyContent: "center" }}>
           <LogIn size={15} /> Sign in
-        </Link>
-        <Link href="/onboarding" className="btn-pleks" style={{ justifyContent: "center" }}>
+        </a>
+        <a href={`${APP_URL}/onboarding`} className="btn-pleks" style={{ justifyContent: "center" }}>
           Start free
-        </Link>
+        </a>
       </>
     )
   })()
@@ -232,13 +236,13 @@ export function PublicNav() {
           })}
           {/* Start free CTA — only shown when confirmed logged out, not while checking */}
           {user === null && (
-            <Link
-              href="/onboarding"
+            <a
+              href={`${APP_URL}/onboarding`}
               className="btn-pleks"
               style={{ fontSize: 13, marginLeft: 8 }}
             >
               Start free
-            </Link>
+            </a>
           )}
         </nav>
 

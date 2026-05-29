@@ -47,6 +47,9 @@ function c(content: Record<string, string>, key: string): string {
 }
 
 
+// Cross-subdomain links — absolute URLs prevent RSC prefetch CORS failures
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? ""
+
 const AUDIT_ROWS = [
   { line: "Platform · per-user fee",            min: 400,   max: 800,   unit: "per user / mo",            pleks: "Included",            pleksNote: "whole team, no per-user fee"          },
   { line: "Credit & background checks",         min: 70,    max: 200,   unit: "per applicant",            pleks: "Applicant pays",      pleksNote: "never lands on your account"          },
@@ -114,7 +117,7 @@ export default async function HomePage() {
           </div>
           <div style={{ display: "flex", gap: 18, alignItems: "center" }}>
             <span style={{ color: "var(--ink-faint)" }}>Pleks · Western Cape, ZA</span>
-            <Link href="/onboarding">Claim a seat →</Link>
+            <a href={`${APP_URL}/onboarding`}>Claim a seat →</a>
           </div>
         </div>
       </div>
@@ -146,12 +149,12 @@ export default async function HomePage() {
           </p>
 
           <div className="pub-hero-ctas">
-            <Link href="/onboarding" className="btn-pleks">
+            <a href={`${APP_URL}/onboarding`} className="btn-pleks">
               {c(content, "hero_cta_primary")}
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                 <path d="M3 8h10m0 0L8.5 3.5M13 8l-4.5 4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="square"/>
               </svg>
-            </Link>
+            </a>
             <Link href="/demo" className="btn-pleks ghost">
               {c(content, "hero_cta_secondary")}
             </Link>
@@ -303,7 +306,7 @@ export default async function HomePage() {
           <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 20px", border: "1px solid var(--rule)", borderRadius: "var(--r-md)", background: "var(--paper-sunk)", marginBottom: 20, flexWrap: "wrap", fontSize: 14, color: "var(--ink-soft)" }}>
             <span style={{ fontFamily: "var(--pub-mono)", fontSize: 10.5, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", border: "1px solid var(--amber)", color: "var(--amber-ink)", padding: "4px 12px", borderRadius: 3, flexShrink: 0 }}>Owner · free</span>
             <span>Managing your own rental? Pleks is free for a single lease, forever. No card, no trial clock.</span>
-            <Link href="/onboarding" style={{ marginLeft: "auto", color: "var(--amber-ink)", borderBottom: "1px solid var(--amber)", paddingBottom: 1, fontSize: 13, whiteSpace: "nowrap" }}>Start as an owner →</Link>
+            <a href={`${APP_URL}/onboarding`} style={{ marginLeft: "auto", color: "var(--amber-ink)", borderBottom: "1px solid var(--amber)", paddingBottom: 1, fontSize: 13, whiteSpace: "nowrap" }}>Start as an owner →</a>
           </div>
 
           <TierGrid tiers={TIERS} />
@@ -441,9 +444,9 @@ export default async function HomePage() {
               </div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <Link href="/onboarding" className="btn-pleks" style={{ "--btn-bg": "var(--amber)", "--btn-fg": "var(--ink)", "--btn-bar": "var(--ink)", justifyContent: "center" } as React.CSSProperties}>
+              <a href={`${APP_URL}/onboarding`} className="btn-pleks" style={{ "--btn-bg": "var(--amber)", "--btn-fg": "var(--ink)", "--btn-bar": "var(--ink)", justifyContent: "center" } as React.CSSProperties}>
                 Claim a founding seat
-              </Link>
+              </a>
               <Link href="/demo" className="btn-pleks ghost" style={{ color: "oklch(0.95 0.005 85)", borderColor: "oklch(1 0 0 / 0.18)", justifyContent: "center" }}>
                 View the demo
               </Link>

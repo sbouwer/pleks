@@ -12,6 +12,9 @@ import { useState } from "react"
 import Link from "next/link"
 import type { TierData } from "@/lib/marketing/tiers"
 
+// Absolute URL to avoid RSC prefetch CORS failures across subdomain boundary
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? ""
+
 export type { TierData }
 
 function getSuggestedTier(count: number, tiers: readonly TierData[]): string {
@@ -93,9 +96,9 @@ export function TierGrid({ tiers }: Readonly<{ tiers: readonly TierData[] }>) {
 
               {/* Row 6 — CTA */}
               {tier.price ? (
-                <Link href="/onboarding" className="pub-tier-cta">
+                <a href={`${APP_URL}/onboarding`} className="pub-tier-cta">
                   Start as {tier.name} →
-                </Link>
+                </a>
               ) : (
                 <Link href="/contact" className="pub-tier-cta pub-tier-cta-amber">
                   Email the founder →

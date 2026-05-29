@@ -14,6 +14,10 @@ import { AccentBracket } from "@/components/ui/AccentBracket"
 import "./public.css"
 import "@/components/ui/actions/action-language.css"
 
+// PWA manifest is app.pleks.co.za only — suppress on marketing pages to avoid
+// the "start_url ignored, should be same origin" browser console warning.
+export const metadata = { manifest: null }
+
 export default function PublicLayout({
   children,
 }: Readonly<{
