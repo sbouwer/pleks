@@ -26,6 +26,7 @@ const h = vi.hoisted(() => ({
     welcomeSeen: true,
     onboardingState: "complete",
     everAccepted: true,
+    getUserThrows: false,                  // model an expired-token gotrue throw in the resolver's getUser
   },
 }))
 
@@ -68,7 +69,10 @@ vi.mock("@/lib/supabase/server", () => ({
   createServiceClient: vi.fn(async () => serviceClient),
   createClient: vi.fn(async () => ({
     auth: {
-      getUser: async () => ({ data: { user: h.state.user } }),
+      getUser: async () => {
+        if (h.state.getUserThrows) throw new TypeError("Error in input stream")
+        return { data: { user: h.state.user } }
+      },
       mfa: {
         getAuthenticatorAssuranceLevel: async () => ({ data: { currentLevel: h.state.aal } }),
         listFactors: async () => ({ data: { totp: h.state.hasVerifiedFactor ? [{ status: "verified" }] : [] } }),
@@ -150,6 +154,7 @@ beforeEach(() => {
   h.state = {
     user: { id: "u1" }, aal: "aal2", hasVerifiedFactor: true, membership: AGENT,
     userOrgRole: "owner", welcomeSeen: true, onboardingState: "complete", everAccepted: true,
+    getUserThrows: false,
   }
 })
 
@@ -233,5 +238,14 @@ describe("gate ↔ resolver convergence (termination invariant)", () => {
     const jar: Jar = { pleks_org: orgCookie("u1", "owner"), pleks_has_org: hasOrgCookie("u1", "owner") }
     const res = await proxy(mkReq("/dashboard", jar))
     expect(res.cookies.get("pleks_trace")?.value).toMatch(/^[a-z0-9]{8}$/)
+  })
+
+  it("resolver: getUser THROWS (expired token mid-flow) → redirect to /login, not a 500", async () => {
+    // collectResolverFacts → getUser() can throw "Error in input stream" when the access
+    // token expired and its refresh fetch fails. The GET guard must recover to /login, never
+    // bubble the throw into a 500 — /welcome's expired-session recovery bounces here.
+    h.state.getUserThrows = true
+    const rres = await resolverGET(mkReq("/auth/resolver?redirect=/dashboard", {}))
+    expect(rres.headers.get("location")).toContain("/login")
   })
 })
