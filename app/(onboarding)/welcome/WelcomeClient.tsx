@@ -15,8 +15,9 @@ import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { useEnrolPasskey } from "@/lib/auth/passkeys/useEnrolPasskey"
 import { markWelcomeSeen } from "@/lib/actions/welcome"
+import { EnrolTotp } from "@/components/auth/EnrolTotp"
 
-type Step = "orient" | "secured" | "passkey"
+type Step = "orient" | "authenticator" | "secured" | "passkey"
 type ShieldPhase = 0 | 1 | 2  // idle → filling → done
 
 interface WelcomeClientProps {
@@ -44,11 +45,6 @@ export default function WelcomeClient({
   const { enrol, state: passkeyState, errorMsg, reset } = useEnrolPasskey()
 
   const isFounder = role === "owner"
-  // Double-encoded: inner redirect= encodes /welcome?step=passkey&redirect=<dest> so it survives
-  // enrol-totp's own redirect= param, lands back on /welcome?step=passkey with dest intact.
-  const enrolTotpUrl =
-    `/settings/security/enrol-totp?mandatory=true` +
-    `&redirect=${encodeURIComponent(`/welcome?step=passkey&redirect=${encodeURIComponent(redirect)}`)}`
 
   // Play secured payoff animation, then advance to passkey step
   useEffect(() => {
@@ -111,7 +107,7 @@ export default function WelcomeClient({
       {step !== "secured" && (
         <div className="ob-step">
           <span className="ob-step-eyebrow">
-            Step {step === "orient" ? "01" : "02"} of 02
+            Step {step === "passkey" ? "02" : "01"} of 02
           </span>
           <div className="ob-step-bars">
             <span className={`ob-step-bar ${step === "passkey" ? "ob-step-bar--done" : "ob-step-bar--current"}`}/>
@@ -124,10 +120,24 @@ export default function WelcomeClient({
         <OrientContent
           firstName={firstName} orgName={orgName} isFounder={isFounder}
           delegationCount={delegationCount} delegatedByName={delegatedByName}
-          enrolTotpUrl={enrolTotpUrl}
+          onSetupAuth={() => setStep("authenticator")}
           securityHeadline={securityHeadline} securityRationale={securityRationale}
           onSignOut={handleSignOut}
         />
+      )}
+
+      {step === "authenticator" && (
+        <>
+          <h1 className="ob-heading">Add Pleks to your authenticator app.</h1>
+          <p style={{ fontFamily: "var(--pub-sans)", fontSize: "13.5px", lineHeight: 1.6, color: "var(--ink-soft)", margin: "4px 0 20px", maxWidth: "52ch" }}>
+            Scan the code with Google Authenticator, 1Password, Authy, or any app you already use, then enter the six-digit code to confirm.
+          </p>
+          <EnrolTotp embedded mandatory variant="welcome" onVerified={() => setStep("secured")} />
+          <div className="ob-escape">
+            <button type="button" onClick={handleSignOut}>Sign out</button>
+            <a href="mailto:support@pleks.co.za">Get help</a>
+          </div>
+        </>
       )}
 
       {step === "secured" && (
@@ -156,7 +166,7 @@ export default function WelcomeClient({
 interface OrientProps {
   firstName: string; orgName: string; isFounder: boolean
   delegationCount: number; delegatedByName: string
-  enrolTotpUrl: string
+  onSetupAuth: () => void
   securityHeadline: string; securityRationale: string
   onSignOut: () => void
 }
@@ -164,7 +174,7 @@ interface OrientProps {
 function OrientContent({
   firstName, orgName, isFounder,
   delegationCount, delegatedByName,
-  enrolTotpUrl, securityHeadline, securityRationale, onSignOut,
+  onSetupAuth, securityHeadline, securityRationale, onSignOut,
 }: Readonly<OrientProps>) {
   const welcomeText = firstName ? `Welcome to Pleks, ${firstName}.` : "Welcome to Pleks."
   const firmText = isFounder
@@ -196,11 +206,11 @@ function OrientContent({
         </div>
       </div>
 
-      <a href={enrolTotpUrl} className="ob-cta">
+      <button type="button" className="ob-cta" onClick={onSetupAuth}>
         <span className="ob-cta-bar"/>
         <span className="ob-cta-label">Set up authenticator</span>
         <span className="ob-cta-arrow">{"→"}</span>
-      </a>
+      </button>
 
       <div className="ob-escape">
         <button type="button" onClick={onSignOut}>Sign out</button>

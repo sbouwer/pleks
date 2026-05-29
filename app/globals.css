@@ -561,6 +561,8 @@ table.ledger tr.paid td:first-child::before {
   left: -2px; right: -2px; bottom: -6px;
   height: 6px; background: var(--amber);
 }
+/* Embedded mode — no card chrome (host welcome panel provides the door) */
+.et-embedded { width: 100%; }
 .et-header { text-align: center; margin-bottom: 20px; }
 .et-icon { display: flex; justify-content: center; margin-bottom: 10px; }
 .et-title {

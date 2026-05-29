@@ -24,11 +24,17 @@ export interface EnrolTotpProps {
   redirectTo?: string
   mandatory?: boolean
   variant?: "settings" | "welcome"
+  /** Embedded mode: render chrome-less (no et-wrap/et-card, no header) so it sits
+   *  inside the welcome door panel. Pair with onVerified to keep the flow in-page. */
+  embedded?: boolean
+  /** Called after the primary factor is verified. When provided, EnrolTotp does NOT
+   *  advance to the backup screen or redirect — the host (welcome flow) takes over. */
+  onVerified?: () => void
 }
 
 type Phase = "enrol1" | "backup" | "enrol2" | "done"
 
-export function EnrolTotp({ redirectTo, mandatory = false, variant = "settings" }: Readonly<EnrolTotpProps>) {
+export function EnrolTotp({ redirectTo, mandatory = false, variant = "settings", embedded = false, onVerified }: Readonly<EnrolTotpProps>) {
   const router = useRouter()
   const safeNext = redirectTo ? safeRedirect(redirectTo) : "/dashboard"
   const fallbackSelf = "/settings/security/enrol-totp"
@@ -167,8 +173,14 @@ export function EnrolTotp({ redirectTo, mandatory = false, variant = "settings" 
     }
 
     await fetch("/api/auth/log-totp-enrolled", { method: "POST" }).catch(() => null)
-    router.refresh()
     setCode("")
+    // Embedded welcome flow: hand control back to the host (→ secured animation),
+    // skip the backup screen and the router.refresh (resolver re-reads AAL on finish).
+    if (factorNum === 1 && onVerified) {
+      onVerified()
+      return
+    }
+    router.refresh()
     if (factorNum === 1) {
       setPhase("backup")
     } else {
@@ -251,16 +263,17 @@ export function EnrolTotp({ redirectTo, mandatory = false, variant = "settings" 
     cardDescription = "Protect your account with an authenticator app."
   }
 
-  return (
-    <div className="et-wrap">
-      <div className="et-card">
-        <div className="et-header">
-          <div className="et-icon">
-            <ShieldCheck size={32} color="var(--ink-mute)" aria-hidden="true" />
+  const body = (
+    <>
+        {!embedded && (
+          <div className="et-header">
+            <div className="et-icon">
+              <ShieldCheck size={32} color="var(--ink-mute)" aria-hidden="true" />
+            </div>
+            <p className="et-title">Set up two-factor authentication</p>
+            <p className="et-desc">{cardDescription}</p>
           </div>
-          <p className="et-title">Set up two-factor authentication</p>
-          <p className="et-desc">{cardDescription}</p>
-        </div>
+        )}
 
         {phase === "enrol2" && (
           <p className="et-badge">Optional — Backup authenticator entry</p>
@@ -337,7 +350,13 @@ export function EnrolTotp({ redirectTo, mandatory = false, variant = "settings" 
             </div>
           </>
         )}
-      </div>
+    </>
+  )
+
+  if (embedded) return <div className="et-embedded">{body}</div>
+  return (
+    <div className="et-wrap">
+      <div className="et-card">{body}</div>
     </div>
   )
 }
