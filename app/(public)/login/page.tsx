@@ -23,6 +23,8 @@ import { canUsePasskeys } from "@/lib/auth/passkeys/capability"
 import { AccentBracket } from "@/components/ui/AccentBracket"
 import { safeRedirect } from "@/lib/auth/safe-redirect"
 
+const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
+
 function getButtonLabel(isMagicLink: boolean, isLoading: boolean) {
   if (isMagicLink) return isLoading ? "Sending link..." : "Send login link"
   return isLoading ? "Signing in..." : "Sign in"
@@ -182,9 +184,9 @@ function LoginContent() {
         <Card className="w-full max-w-sm">
           <CardHeader className="text-center">
             <CardTitle>
-              <Link href="/" className="pub-wordmark" aria-label="Pleks" style={{ justifyContent: "center" }}>
+              <a href={MARKETING_URL} className="pub-wordmark" aria-label="Pleks" style={{ justifyContent: "center" }}>
                 <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
-              </Link>
+              </a>
             </CardTitle>
             <CardDescription>Check your email for a login link.</CardDescription>
           </CardHeader>
@@ -211,9 +213,9 @@ function LoginContent() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle>
-              <Link href="/" className="pub-wordmark" aria-label="Pleks" style={{ justifyContent: "center" }}>
+              <a href={MARKETING_URL} className="pub-wordmark" aria-label="Pleks" style={{ justifyContent: "center" }}>
                 <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
-              </Link>
+              </a>
             </CardTitle>
           <CardDescription>Sign in to your account</CardDescription>
         </CardHeader>

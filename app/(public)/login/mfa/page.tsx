@@ -18,6 +18,8 @@ import { Loader2, ShieldCheck } from "lucide-react"
 import { AccentBracket } from "@/components/ui/AccentBracket"
 import { safeRedirect } from "@/lib/auth/safe-redirect"
 
+const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
+
 const BTN_PRIMARY: React.CSSProperties = {
   width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
   gap: 8, padding: "9px 18px", borderRadius: 5, fontSize: 14, fontWeight: 600,
@@ -142,9 +144,9 @@ function MfaContent() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle>
-            <Link href="/" className="pub-wordmark" aria-label="Pleks" style={{ justifyContent: "center" }}>
+            <a href={MARKETING_URL} className="pub-wordmark" aria-label="Pleks" style={{ justifyContent: "center" }}>
               <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
-            </Link>
+            </a>
           </CardTitle>
           <div className="flex justify-center mt-2">
             <ShieldCheck className="h-8 w-8 text-muted-foreground" />
