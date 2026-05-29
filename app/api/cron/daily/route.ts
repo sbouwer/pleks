@@ -2,11 +2,13 @@
  * app/api/cron/daily/route.ts — Daily cron orchestrator — runs all scheduled jobs sequentially
  *
  * Route:  GET /api/cron/daily
- * Auth:   x-cron-secret header (CRON_SECRET env var) — called by Vercel Cron at 05:00 UTC
- * Notes:  Vercel free tier allows 1 cron job; monthly jobs gated by day-of-month check.
- *         High-frequency jobs run via cPanel curl crons and are NOT included here:
- *         mandatory-retry (every 1h), bank-feed-sync, arrears-sequence,
- *         maintenance-delay-check, check-links (all every 4h).
+ * Auth:   x-cron-secret header (CRON_SECRET env var) — triggered by a cPanel curl cron
+ *         at 05:00 UTC (Vercel Cron removed: its Authorization-injection was the fragile
+ *         link; cPanel's explicit x-cron-secret to app.pleks.co.za is what works reliably).
+ * Notes:  Orchestrates every truly-daily job sequentially; monthly jobs gated by
+ *         day-of-month check. High-frequency jobs run via their own cPanel curl crons and
+ *         are NOT included here: mandatory-retry (1h), bank-feed-sync, arrears-sequence,
+ *         maintenance-delay-check, check-links (4h).
  */
 import { NextRequest } from "next/server"
 import * as Sentry from "@sentry/nextjs"
@@ -41,6 +43,9 @@ import { GET as consentCleanup } from "../consent-cleanup/route"
 import { GET as popiaRetentionPurge } from "../popia-retention-purge/route"
 import { runLegalArchiveStep } from "@/lib/legal/archive"
 import { runRulesEngine, type EngineRuleSummary } from "@/lib/rules/engine"
+
+export const runtime     = "nodejs"
+export const maxDuration = 90   // Hobby caps at 60s; honoured on Pro. ~11s typical run.
 
 type CronHandler = (req: NextRequest) => Promise<Response>
 
