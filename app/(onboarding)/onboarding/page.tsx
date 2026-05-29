@@ -83,6 +83,25 @@ function OnboardingSkeleton() {
   )
 }
 
+// Branded handoff loader — shown after account creation while we navigate to the
+// welcome flow, so the jump reads as "things are happening" rather than a freeze.
+function TransitionLoader() {
+  return (
+    <div className="ob-transition" role="status" aria-live="polite">
+      <svg className="ob-transition-mark" width={48} height={48} viewBox="0 0 36 36" fill="none" aria-hidden="true">
+        <path d="M18 3 L31 7 L31 17 C31 24 26 30 18 33 C10 30 5 24 5 17 L5 7 Z"
+          stroke="var(--ink)" strokeWidth="1.6" strokeLinejoin="round" fill="none" />
+        <circle cx="18" cy="17" r="1.6" fill="var(--amber)" />
+        <line x1="18" y1="18.6" x2="18" y2="22.5" stroke="var(--ink)" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+      <p className="ob-transition-title">Setting up your workspace</p>
+      <p className="ob-transition-sub">Creating your account and securing your space — just a moment.</p>
+      <div className="ob-transition-bar" aria-hidden="true" />
+      <span className="sr-only">Setting up your account, please wait</span>
+    </div>
+  )
+}
+
 // ── Page shell ────────────────────────────────────────────────────────────────
 
 export default function OnboardingPage() {
@@ -144,6 +163,14 @@ function OnboardingWizard() {
   // Inline validation message shown when a completion CTA is clicked with missing fields
   const [formHint, setFormHint] = useState("")
 
+  // Branded handoff: show the transition loader, then navigate to the resolver →
+  // welcome. The short delay lets the loader paint so the jump isn't abrupt.
+  const [transitioning, setTransitioning] = useState(false)
+  function transitionToResolver() {
+    setTransitioning(true)
+    setTimeout(() => { globalThis.location.href = "/auth/resolver?redirect=/dashboard" }, 700)
+  }
+
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser()
@@ -188,7 +215,7 @@ function OnboardingWizard() {
         console.info("[onboarding] already_exists branch → /auth/resolver", {
           userType: submitData.userType, isAlreadyAuthenticated: submitData.isAlreadyAuthenticated,
         })
-        globalThis.location.href = "/auth/resolver?redirect=/dashboard"; return
+        transitionToResolver(); return
       }
       if (result.errorType === "email_exists") { setEmailExists(true); setLoading(false); return }
       if (result.errorType === "email_in_use_elsewhere") {
@@ -204,7 +231,7 @@ function OnboardingWizard() {
       await supabase.auth.signInWithPassword({ email: submitData.email, password: submitData.password })
     }
     console.info("[onboarding] success → /auth/resolver", { userType: submitData.userType })
-    globalThis.location.href = "/auth/resolver?redirect=/dashboard"
+    transitionToResolver()
   }
 
   // Account step — validate on click so a click ALWAYS gives feedback (never a
@@ -275,14 +302,14 @@ function OnboardingWizard() {
         console.info("[onboarding] already_exists branch → /auth/resolver", {
           userType: "owner", isAlreadyAuthenticated: true,
         })
-        globalThis.location.href = "/auth/resolver?redirect=/dashboard"; return
+        transitionToResolver(); return
       }
       if (result.errorType === "auth_required") { globalThis.location.href = `/login?redirect=/auth/resolver&email=${encodeURIComponent(emailToUse)}`; return }
       toast.error(result.error)
       setLoading(false)
       return
     }
-    globalThis.location.href = "/auth/resolver?redirect=/dashboard"
+    transitionToResolver()
   }
 
   async function checkEmailExists(emailToCheck: string) {
@@ -567,6 +594,7 @@ function OnboardingWizard() {
   // ── Main dispatch ──────────────────────────────────────────────────────────
 
   if (!authChecked) return <OnboardingSkeleton />
+  if (transitioning) return <TransitionLoader />
 
   // Returning user quick-finish
   if (step === 0 && isAlreadyAuthenticated && !isSetup && !skipQuickFinish) {

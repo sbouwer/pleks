@@ -312,6 +312,35 @@
   50%       { opacity: 0.45; }
 }
 
+/* ── Transition loader (create-account → welcome handoff) ──────────────────── */
+.ob-transition {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  padding: 18px 0 8px;
+}
+.ob-transition-title {
+  font-family: var(--pub-sans); font-weight: 500; font-size: 20px;
+  letter-spacing: -0.015em; color: var(--ink); margin: 22px 0 6px;
+}
+.ob-transition-sub {
+  font-family: var(--pub-sans); font-size: 13.5px; line-height: 1.5;
+  color: var(--ink-soft); margin: 0 0 24px; max-width: 36ch;
+}
+.ob-transition-bar {
+  width: 100%; height: 3px; background: var(--rule);
+  border-radius: 99px; overflow: hidden; position: relative;
+}
+.ob-transition-bar::after {
+  content: ""; position: absolute; inset: 0;
+  width: 40%; background: var(--amber); border-radius: 99px;
+  animation: ob-transition-slide 1.1s ease-in-out infinite;
+}
+@keyframes ob-transition-slide {
+  0%   { left: -40%; }
+  100% { left: 100%; }
+}
+/* Pulsing brand shield above the copy */
+.ob-transition-mark { animation: ob-skel-pulse 1.4s ease-in-out infinite; }
+
 /* ── Back-to-homepage link (below panel, shared across all onboarding routes) ─ */
 .ob-back-home {
   display: inline-block; margin-top: 28px;
