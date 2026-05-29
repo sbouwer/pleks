@@ -11,6 +11,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { Resend } from "resend";
 
+const MARKETING = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -201,7 +203,7 @@ export async function POST(req: NextRequest) {
       html: `
         <p>Hi,</p>
         <p>Ownership of <strong>${orgName}</strong> has been transferred to you. You are now the owner of this organisation on Pleks.</p>
-        <p>You can manage your organisation settings by logging in to <a href="https://pleks.co.za">pleks.co.za</a>.</p>
+        <p>You can manage your organisation settings by logging in to <a href="${MARKETING}">pleks.co.za</a>.</p>
         <p>The Pleks Team</p>
       `,
     });

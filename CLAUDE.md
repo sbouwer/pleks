@@ -185,16 +185,137 @@ a versioning decision, not just a label.
 - Is this internal cleanup with no behaviour change? → `refactor` / `chore` (no release)
 - Does it break existing behaviour or URLs? → add `!` and a `BREAKING CHANGE:` footer
 
-**Commit discipline:**
-- One logical change per commit — don't bundle unrelated fixes
-- Subject line must be meaningful in a changelog: "fix contact form submit" not "fix stuff"
-- Include scope when it narrows the blast radius: `fix(auth):`, `feat(billing):`
-- Branch commits are squash-merged, so each branch PR = one changelog entry; write the
-  PR title as the changelog line you want users to see
+**Commit message discipline:**
+- Subject line must be meaningful in a changelog: "fix contact form submit"
+  not "fix stuff"
+- Include scope when it narrows the blast radius: `fix(auth):`,
+  `feat(billing):`
+- Imperative mood: "add resolver-owned welcome" not "added" or "adds"
+- Branch commits are squash-merged, so each branch PR = one changelog entry;
+  write the PR title as the changelog line you want users to see
 
-**GitHub Releases are the changelog.** Consumers of this repo (and Stéan reviewing
-releases) read GitHub Releases to understand what shipped. Make every commit title
-worth reading there.
+**GitHub Releases are the changelog.** Consumers of this repo (and Stéan
+reviewing releases) read GitHub Releases to understand what shipped. Make
+every commit title worth reading there.
+
+---
+
+## Git rhythm — when to commit, when to push
+
+The remote history is documentation, not a save game. Each commit on `main`
+should represent a complete, testable unit of work — not a stream of
+micro-checkpoints. Each push should be a batch of commits that has been
+locally verified green.
+
+### What counts as one commit
+
+A commit groups all the file changes needed for ONE coherent change to behave
+correctly. The test:
+
+- Could I revert this single commit and leave the repo in a working state?
+- Does the message describe a real behavioural delta, or just "wip" / "more
+  changes"?
+
+**Interdependent files belong in ONE commit.** A type change in `decisions.ts`
+that requires updates to `facts.ts` and `decisions.test.ts` is one commit, not
+three. Splitting interdependent changes produces commits that don't typecheck
+individually — useless for `git bisect` and noisy in review.
+
+**Unrelated concerns in one file = multiple commits.** If a single file change
+contains an auth fix AND a JSDoc tidy AND a style nit, stage them separately
+with `git add -p` and commit them as three.
+
+### What's NOT a commit
+
+- Mid-implementation, code written but not tested. Not a commit yet.
+- A fix attempt that hasn't been verified. Not a commit.
+- "Just in case I lose my changes." Use `git stash` or a local WIP branch.
+- Same logical change as the previous commit, with a tweak. **AMEND**
+  (`git commit --amend`) — do not pile on `fix: oops` and `fix: oops again`.
+
+### Push is a separate verb
+
+Commit and push are different gates with different bars.
+
+- Do not push after every commit. Push when a logical unit of work — usually
+  one or several related commits — is COMPLETE and TESTED locally.
+- Multiple commits pushed together is normal and good. Related work arrives
+  on the remote as a coherent unit.
+
+### Mandatory pre-push checklist
+
+Before every `git push`, in order:
+
+1. `npm run check:full` (typecheck + lint + architecture audit + security:db) — **must be green**
+2. `npm test` — **must be green**
+3. For behavioural changes (routing, auth, UI, data): manually walk the
+   affected flow in dev. Console errors count as failures.
+4. Each commit message describes the actual change in imperative mood
+
+If any step fails, fix it locally and **AMEND** the relevant commit before
+pushing. Don't pile fix commits on top of broken commits — squash them in.
+
+The current anti-pattern this kills: commit → push → see error → commit fix →
+push → see error → commit fix → push. Each cycle is a partial deploy that
+Vercel/Sentry/CI react to. The local gate is supposed to catch what the remote
+was catching.
+
+### Amend vs new commit
+
+- **Amend** when fixing the SAME logical change you just committed but
+  haven't pushed yet: typo in code you just wrote, missed a file, test
+  failure that's clearly part of the change.
+- **New commit** when the change is a different concern, even if it touches
+  the same file.
+
+Once a commit is pushed, treat it as immutable. Do not force-push to `main`.
+A pushed commit with a problem is fixed forward with a new commit.
+
+### Announce push intentions
+
+For non-trivial work — anything spanning multiple commits, or any change
+touching auth/routing/data — state the push intention in chat before
+pushing:
+
+> "Ready to push 3 commits: A, B, C. Verified locally: `npm run check`
+> green, `npm test` green, walked the signup flow end-to-end with no
+> console errors. OK to push?"
+
+This gives Stéan a chance to say "hold, I want to walk it first" without
+the work already being on the remote. Trivial commits (typo fixes, doc
+tweaks, JSDoc-only changes) can skip this step.
+
+### When tests genuinely can't run before push
+
+Rare but real:
+- Vercel preview deploys (env-specific endpoints, prod-only integrations)
+- Supabase migrations that need to land remotely before code that uses them
+- DNS / CSP / cookie behaviour that's domain-dependent
+
+For these:
+- Document in the commit body WHY local testing wasn't possible
+- Mention in chat before pushing
+- Never use "can't test locally" as a general escape hatch — 95%+ of changes
+  can and should be tested before push
+
+### What this looks like
+
+Bad — current pattern:
+fix: welcome_seen
+fix: also reset on upsert
+fix: privacy cookie httpOnly
+fix: privacy cookie actually fix
+fix: skeleton flicker
+fix: skeleton wrong colour
+
+Good — same work, properly batched and amended:
+fix(auth): reset welcome_seen on upsert + privacy cookie client-readable
+fix(onboarding): gate wizard on authChecked to kill type-selection flicker
+fix(onboarding): replace bg-muted skeleton with warm-toned ob-skel
+
+Three coherent commits, each testable and revertable, each describing a
+real change. Pushed together as one batch after the pre-push checklist
+came back green.
 
 ---
 

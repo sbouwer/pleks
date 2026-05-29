@@ -8,6 +8,8 @@ import * as React from "react"
 import { Text, Link, Hr } from "@react-email/components"
 import { EmailLayout, type OrgBranding } from "../layout"
 
+const MARKETING = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
+
 export interface PopiaPolicyUpdateEmailProps {
   branding: OrgBranding
   recipientName: string
@@ -51,7 +53,7 @@ export function PopiaPolicyUpdateEmail({
 
       <Text style={footer}>
         The previous version ({oldVersion}) remains available at{" "}
-        <Link href={`https://pleks.co.za/privacy/versions/${oldVersion}`} style={{ color: "#6b7280" }}>
+        <Link href={`${MARKETING}/privacy/versions/${oldVersion}`} style={{ color: "#6b7280" }}>
           pleks.co.za/privacy/versions/{oldVersion}
         </Link>{" "}
         for your reference.

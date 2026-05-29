@@ -12,6 +12,8 @@ import { PublicThemeProvider } from "@/app/(public)/PublicThemeProvider"
 import { AccentBracket } from "@/components/ui/AccentBracket"
 import "@/app/(public)/public.css"
 
+const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
+
 export default function StatusLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -23,7 +25,7 @@ export default function StatusLayout({
         display: "flex",
         alignItems: "center",
       }}>
-        <a href="https://pleks.co.za" className="pub-wordmark" aria-label="Pleks">
+        <a href={MARKETING_URL} className="pub-wordmark" aria-label="Pleks">
           <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
         </a>
       </header>

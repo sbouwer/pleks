@@ -12,7 +12,7 @@ describe("safeRedirect — open-redirect guard", () => {
 
   it("no leading slash → /dashboard",   () => expect(safeRedirect("evil.com")).toBe("/dashboard"))
   it("protocol-relative → /dashboard", () => expect(safeRedirect("//evil.com")).toBe("/dashboard"))
-  it("backslash quirk → /dashboard",   () => expect(safeRedirect("/\\evil.com")).toBe("/dashboard"))
+  it("backslash quirk → /dashboard",   () => expect(safeRedirect(String.raw`/\evil.com`)).toBe("/dashboard"))
   // eslint-disable-next-line sonarjs/no-clear-text-protocols
   it("http absolute → /dashboard",     () => expect(safeRedirect("http://evil.com")).toBe("/dashboard"))
   it("https absolute → /dashboard",    () => expect(safeRedirect("https://evil.com/path")).toBe("/dashboard"))
@@ -28,6 +28,9 @@ describe("safeRedirect — open-redirect guard", () => {
   it("rejects /login",                     () => expect(safeRedirect("/login")).toBe("/dashboard"))
   it("rejects /login/mfa subpath",         () => expect(safeRedirect("/login/mfa")).toBe("/dashboard"))
   it("rejects /onboarding",               () => expect(safeRedirect("/onboarding")).toBe("/dashboard"))
+  it("rejects /403 (forbidden transient page)", () => expect(safeRedirect("/403")).toBe("/dashboard"))
+  it("rejects /accept-terms (auth transient)", () => expect(safeRedirect("/accept-terms")).toBe("/dashboard"))
+  it("rejects /select-role (deprecated transient)", () => expect(safeRedirect("/select-role")).toBe("/dashboard"))
   it("boundary: /welcomers is not /welcome", () => expect(safeRedirect("/welcomers")).toBe("/welcomers"))
   it("boundary: /loginpage is not /login",   () => expect(safeRedirect("/loginpage")).toBe("/loginpage"))
 })

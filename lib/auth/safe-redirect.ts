@@ -16,6 +16,9 @@ const AUTH_INTERNAL_PREFIXES = [
   "/auth/verify",
   "/login",
   "/onboarding",
+  "/403",
+  "/accept-terms",
+  "/select-role",
 ] as const
 
 function isAuthInternal(path: string): boolean {
