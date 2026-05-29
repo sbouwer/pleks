@@ -9,9 +9,9 @@
  *         admin.pleks.co.za, HttpOnly, SameSite=Strict). No Supabase involved.
  */
 import { useState } from "react"
-import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { AccentBracket } from "@/components/ui/AccentBracket"
 
 export default function AdminLoginPage() {
   const [secret, setSecret] = useState("")
@@ -41,7 +41,9 @@ export default function AdminLoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <form onSubmit={handleSubmit} className="w-full max-w-xs space-y-6 text-center">
-        <Image src="/logo-mark.svg" alt="Pleks" width={40} height={40} className="h-10 w-auto mx-auto opacity-60" />
+        <span className="pub-wordmark" aria-label="Pleks" style={{ fontSize: 28 }}>
+          <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
+        </span>
         <p className="text-xs text-muted-foreground uppercase tracking-widest">Admin Access</p>
         <Input
           type="password"
