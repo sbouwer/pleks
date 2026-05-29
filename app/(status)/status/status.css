@@ -8,13 +8,23 @@
   border-bottom: 1px solid var(--rule, #ddd9d0);
 }
 
-.st-hero-svg {
+/* Static, calm backdrop — warm gradient + amber glow + faint hatch (matches the
+   onboarding/welcome backdrop language). No animation; the heart is the only motion. */
+.st-hero-bg {
   position: absolute;
   inset: 0;
-  width: 100%;
-  height: 100%;
   pointer-events: none;
   user-select: none;
+  background:
+    radial-gradient(ellipse 60% 70% at 82% -10%, oklch(0.93 0.05 70 / 0.40), transparent 70%),
+    linear-gradient(180deg, var(--paper, #faf8f3) 0%, var(--paper-sunk, #f0ece3) 100%);
+}
+.st-hero-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.04;
+  background: repeating-linear-gradient(135deg, var(--ink, #1a1a18) 0 1px, transparent 1px 11px);
 }
 
 .st-hero-inner {
@@ -49,29 +59,23 @@
   margin-bottom: 12px;
 }
 
-.st-dot {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--positive, #2d7d52);
-  flex-shrink: 0;
-  position: relative;
+/* Heartbeat mark — status-tinted fill rises and settles, then empties and repeats.
+   transform-box: fill-box makes the % translate relative to the rect's own bbox. */
+.st-heart { flex-shrink: 0; }
+.st-heart-fill {
+  transform-box: fill-box;
+  transform: translateY(100%);            /* empty */
+  animation: st-heart-fill 2.8s ease-in-out infinite;
+  opacity: 0.9;
 }
-.st-dot::after {
-  content: '';
-  position: absolute;
-  inset: -4px;
-  border-radius: 50%;
-  background: inherit;
-  opacity: 0.2;
-  animation: st-pulse 2.4s ease-in-out infinite;
+@keyframes st-heart-fill {
+  0%   { transform: translateY(100%); }   /* empty */
+  45%  { transform: translateY(0); }       /* filled */
+  68%  { transform: translateY(0); }       /* hold */
+  100% { transform: translateY(100%); }    /* empties back */
 }
-.st-dot.degraded { background: #c97c2a; }
-.st-dot.outage   { background: var(--critical, #b93a3a); }
-
-@keyframes st-pulse {
-  0%, 100% { transform: scale(1);   opacity: 0.2; }
-  50%       { transform: scale(2.2); opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .st-heart-fill { animation: none; transform: translateY(35%); }  /* static partial fill */
 }
 
 .st-hero h1 {
@@ -207,6 +211,33 @@
 .st-inc-time  { font-family: var(--pub-mono, monospace); font-size: 10px; color: var(--ink-faint, #8a8a84); white-space: nowrap; }
 
 .st-resolved-header { padding: 20px 0 10px; font-family: var(--pub-mono, monospace); font-size: 11px; color: var(--ink-faint, #8a8a84); letter-spacing: 0.5px; }
+
+/* Active-incident dot pulse (also used by .st-inc-dot--active) */
+@keyframes st-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+
+/* ── "Show earlier incidents" disclosure ── */
+.st-incidents-more { margin-top: 10px; }
+.st-incidents-more > summary {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; cursor: pointer; list-style: none;
+  padding: 12px 20px; border: 1px solid var(--rule, #ddd9d0); border-radius: 4px;
+  background: var(--paper, #faf8f3);
+  font-family: var(--pub-mono, monospace); font-size: 11px; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--ink-mute, #6a6a64);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.st-incidents-more > summary::-webkit-details-marker { display: none; }
+.st-incidents-more > summary:hover {
+  background: var(--amber-wash, #f7efe2); color: var(--amber-ink, #c9832a);
+  border-color: var(--amber, #c9832a);
+}
+.st-more-arrow { transition: transform 0.2s; }
+.st-incidents-more[open] > summary { margin-bottom: 8px; }
+.st-incidents-more[open] .st-more-arrow { transform: rotate(90deg); }
+.st-incidents-more-list { margin-top: 0; }
 
 /* ── Footer note ── */
 .st-footer-note { border-top: 1px solid var(--rule, #ddd9d0); padding-top: 24px; margin-top: 8px; font-size: 12px; color: var(--ink-faint, #8a8a84); font-family: var(--pub-mono, monospace); }
