@@ -115,6 +115,17 @@ function deriveTierFromSub(sub: {
   return sub.tier ?? "owner"
 }
 
+// True only if pleks_org parses and carries a non-empty role — what the gate needs to
+// authorise an agent-class route. A present-but-role-less cookie returns false so
+// ensureOrgCookies re-hydrates instead of trusting it (prevents the redirect loop).
+function orgCookieHasRole(raw: string): boolean {
+  try {
+    return !!(JSON.parse(raw) as { role?: string }).role
+  } catch {
+    return false
+  }
+}
+
 function extractCachedOrgId(raw: string): string | null {
   try {
     return (JSON.parse(raw) as { org_id?: string }).org_id ?? null
@@ -155,7 +166,12 @@ async function ensureOrgCookies(
 ): Promise<NextResponse | null> {
   const hasOrgCookieRaw = request.cookies.get("pleks_has_org")?.value
   const orgDetailCookieRaw = request.cookies.get("pleks_org")?.value
-  if (hasOrgCookieRaw && orgDetailCookieRaw) return null
+  // Trust the cached cookies only if pleks_org actually parses WITH a role. A stale or
+  // malformed pleks_org (e.g. left over from an older format / a half-finished flow)
+  // would otherwise be trusted here, leave the gate unable to read a role on a
+  // role-gated route, and loop /dashboard ↔ resolver forever. If it's unusable we fall
+  // through and re-hydrate from the DB below.
+  if (hasOrgCookieRaw && orgDetailCookieRaw && orgCookieHasRole(orgDetailCookieRaw)) return null
 
   const service = await createServiceClient()
   const cachedOrgId = hasOrgCookieRaw ? extractCachedOrgId(hasOrgCookieRaw) : null

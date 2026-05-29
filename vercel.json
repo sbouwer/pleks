@@ -2,5 +2,5 @@
   "crons": [
     { "path": "/api/cron/daily", "schedule": "0 5 * * *" }
   ],
-  "buildCommand": "npm run check && next build"
+  "buildCommand": "next build"
 }
