@@ -19,4 +19,15 @@ describe("safeRedirect — open-redirect guard", () => {
 
   it("custom fallback used",     () => expect(safeRedirect(null, "/login")).toBe("/login"))
   it("custom fallback with bad input", () => expect(safeRedirect("//evil.com", "/login")).toBe("/login"))
+
+  // Auth-flow internals are machinery, never valid post-auth destinations
+  it("rejects /welcome",                   () => expect(safeRedirect("/welcome")).toBe("/dashboard"))
+  it("rejects /welcome/secure subpath",    () => expect(safeRedirect("/welcome/secure")).toBe("/dashboard"))
+  it("rejects /auth/resolver",             () => expect(safeRedirect("/auth/resolver")).toBe("/dashboard"))
+  it("rejects /auth/callback",             () => expect(safeRedirect("/auth/callback")).toBe("/dashboard"))
+  it("rejects /login",                     () => expect(safeRedirect("/login")).toBe("/dashboard"))
+  it("rejects /login/mfa subpath",         () => expect(safeRedirect("/login/mfa")).toBe("/dashboard"))
+  it("rejects /onboarding",               () => expect(safeRedirect("/onboarding")).toBe("/dashboard"))
+  it("boundary: /welcomers is not /welcome", () => expect(safeRedirect("/welcomers")).toBe("/welcomers"))
+  it("boundary: /loginpage is not /login",   () => expect(safeRedirect("/loginpage")).toBe("/loginpage"))
 })

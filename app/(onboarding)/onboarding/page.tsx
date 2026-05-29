@@ -346,6 +346,12 @@ function OnboardingWizard() {
           <Btn onClick={handleComplete} disabled={loading || !acctEmail.trim() || acctPassword.length < 8 || !tosAccepted}>
             {loading ? "Creating account…" : "Create account →"}
           </Btn>
+          {!loading && acctPassword.length > 0 && acctPassword.length < 8 && (
+            <p className="ob-hint">Password needs at least 8 characters.</p>
+          )}
+          {!loading && acctEmail.trim() && acctPassword.length >= 8 && !tosAccepted && (
+            <p className="ob-hint">Tick the checkbox above to accept the terms.</p>
+          )}
         </div>
       </div>
     )
@@ -361,6 +367,9 @@ function OnboardingWizard() {
         <Btn onClick={handleComplete} disabled={loading || !tosAccepted}>
           {loading ? "Setting up…" : "Go to dashboard →"}
         </Btn>
+        {!loading && !tosAccepted && (
+          <p className="ob-hint">Tick the checkbox above to accept the terms.</p>
+        )}
       </div>
     )
   }
@@ -538,6 +547,9 @@ function OnboardingWizard() {
           <Btn onClick={handleQuickFinish} disabled={loading || !name.trim() || !tosAccepted}>
             {loading ? "Setting up…" : "Go to dashboard →"}
           </Btn>
+          {!loading && !tosAccepted && (
+            <p className="ob-hint">Tick the checkbox above to accept the terms.</p>
+          )}
           <button type="button" onClick={() => setSkipQuickFinish(true)}
             style={{ fontSize: 12.5, color: "var(--ink-mute)", background: "none", border: "none", cursor: "pointer", textAlign: "center" }}>
             I want to choose a different account type

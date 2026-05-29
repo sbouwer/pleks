@@ -15,6 +15,7 @@
  */
 import { redirect } from "next/navigation"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { safeRedirect } from "@/lib/auth/safe-redirect"
 import WelcomeClient from "./WelcomeClient"
 
 interface PageProps {
@@ -39,11 +40,11 @@ export default async function WelcomePage({ searchParams }: Readonly<PageProps>)
   }
 
   const { step, redirect: redirectParam } = await searchParams
+  const safeNext = safeRedirect(redirectParam, "/dashboard")
 
   // Already completed Welcome → thread redirect param through to resolver
   if (profile?.welcome_seen) {
-    const next = redirectParam ?? "/dashboard"
-    redirect(`/auth/resolver?redirect=${encodeURIComponent(next)}`)
+    redirect(`/auth/resolver?redirect=${encodeURIComponent(safeNext)}`)
   }
 
   const { data: membership, error: memberErr } = await service
@@ -99,7 +100,7 @@ export default async function WelcomePage({ searchParams }: Readonly<PageProps>)
       delegatedByName={delegatedByName}
       initialStep={step === "passkey" ? "passkey" : "orient"}
       handlesClientFunds={handlesClientFunds}
-      redirect={redirectParam ?? "/dashboard"}
+      redirect={safeNext}
     />
   )
 }
