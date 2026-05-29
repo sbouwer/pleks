@@ -72,13 +72,10 @@ export default function AdminLoginPage() {
                   {error}
                 </p>
               )}
-              <button
-                type="submit"
-                className="pub-btn pub-btn-primary"
-                style={{ width: "100%", justifyContent: "center" }}
-                disabled={loading || !secret}
-              >
-                {loading ? "…" : "Enter"}
+              <button type="submit" className="fs-cta" disabled={loading || !secret}>
+                <span className="fs-cta-bar" aria-hidden="true" />
+                <span className="fs-cta-label">{loading ? "Verifying…" : "Enter"}</span>
+                <span className="fs-cta-arrow" aria-hidden="true">→</span>
               </button>
             </div>
           </form>

@@ -15,7 +15,6 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import Link from "next/link"
 import { Eye, EyeOff, KeyRound, Loader2, Info } from "lucide-react"
 import { usePasskeyLogin } from "@/lib/auth/passkeys/usePasskeyLogin"
@@ -48,21 +47,6 @@ export default function LoginPage() {
       <LoginContent />
     </Suspense>
   )
-}
-
-const BTN_PRIMARY: React.CSSProperties = {
-  width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
-  gap: 8, padding: "9px 18px", borderRadius: 5, fontSize: 14, fontWeight: 600,
-  lineHeight: 1.5, cursor: "pointer", border: "none",
-  background: "oklch(0.68 0.14 65)", color: "oklch(0.18 0.012 260)",
-  transition: "background .15s, box-shadow .15s",
-}
-const BTN_GHOST: React.CSSProperties = {
-  width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
-  gap: 8, padding: "9px 18px", borderRadius: 5, fontSize: 14, fontWeight: 600,
-  lineHeight: 1.5, cursor: "pointer", border: "1px solid oklch(0.78 0.008 85)",
-  background: "transparent", color: "oklch(0.18 0.012 260)",
-  transition: "background .15s, border-color .15s, color .15s",
 }
 
 function LoginContent() {
@@ -196,7 +180,21 @@ function LoginContent() {
   if (checking) {
     return (
       <FocusShell>
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="fs-panel" style={{ maxWidth: 400 }} role="status" aria-busy="true">
+          <span className="fs-knob" aria-hidden="true" />
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            <div style={{ textAlign: "center" }}>
+              <div className="fs-skel" style={{ height: 24, width: "55%", margin: "0 auto 10px" }} />
+              <div className="fs-skel" style={{ height: 13, width: "44%", margin: "0 auto" }} />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div className="fs-skel" style={{ height: 44 }} />
+              <div className="fs-skel" style={{ height: 44 }} />
+              <div className="fs-skel" style={{ height: 48 }} />
+            </div>
+          </div>
+          <span className="sr-only">Checking your session</span>
+        </div>
       </FocusShell>
     )
   }
@@ -204,45 +202,39 @@ function LoginContent() {
   if (magicLinkSent) {
     return (
       <FocusShell>
-        <Card className="w-full max-w-sm">
-          <CardHeader className="text-center">
-            <CardTitle>
-              <a href={MARKETING_URL} className="pub-wordmark" aria-label="Pleks" style={{ justifyContent: "center" }}>
-                <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
-              </a>
-            </CardTitle>
-            <CardDescription>Check your email for a login link.</CardDescription>
-          </CardHeader>
-          <CardContent className="text-center">
-            <p className="text-sm text-muted-foreground mb-4">
-              We sent a link to <strong>{email}</strong>
-            </p>
-            <button
-              id="pleks-login-back"
-              type="button"
-              style={BTN_GHOST}
-              onClick={() => { setMagicLinkSent(false); setMagicLinkMode(false) }}
-            >
-              Back to login
-            </button>
-          </CardContent>
-        </Card>
+        <div className="fs-panel" style={{ maxWidth: 400, textAlign: "center" }}>
+          <span className="fs-knob" aria-hidden="true" />
+          <a href={MARKETING_URL} className="pub-wordmark" aria-label="Pleks" style={{ justifyContent: "center", fontSize: 22 }}>
+            <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
+          </a>
+          <p className="fs-subhead" style={{ margin: "10px 0 20px" }}>Check your email for a login link.</p>
+          <p className="text-sm text-muted-foreground mb-4">
+            We sent a link to <strong>{email}</strong>
+          </p>
+          <button
+            id="pleks-login-back"
+            type="button"
+            className="fs-cta-ghost"
+            onClick={() => { setMagicLinkSent(false); setMagicLinkMode(false) }}
+          >
+            Back to login
+          </button>
+        </div>
       </FocusShell>
     )
   }
 
   return (
     <FocusShell>
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <CardTitle>
-              <a href={MARKETING_URL} className="pub-wordmark" aria-label="Pleks" style={{ justifyContent: "center" }}>
-                <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
-              </a>
-            </CardTitle>
-          <CardDescription>Sign in to your account</CardDescription>
-        </CardHeader>
-        <CardContent>
+      <div className="fs-panel" style={{ maxWidth: 400 }}>
+        <span className="fs-knob" aria-hidden="true" />
+        <div style={{ textAlign: "center", marginBottom: 24 }}>
+          <a href={MARKETING_URL} className="pub-wordmark" aria-label="Pleks" style={{ justifyContent: "center", fontSize: 22 }}>
+            <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
+          </a>
+          <p className="fs-subhead" style={{ margin: "10px 0 0" }}>Sign in to your account</p>
+        </div>
+        <div>
           {error && (
             <div className="mb-4 rounded-md bg-danger-bg border border-danger/20 p-3 text-sm text-danger">
               {error}
@@ -320,14 +312,10 @@ function LoginContent() {
                 </div>
               </div>
             )}
-            <button
-              id="pleks-login-submit"
-              type="submit"
-              style={BTN_PRIMARY}
-              disabled={loading}
-            >
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {getButtonLabel(magicLinkMode, loading)}
+            <button id="pleks-login-submit" type="submit" className="fs-cta" disabled={loading}>
+              <span className="fs-cta-bar" aria-hidden="true" />
+              <span className="fs-cta-label">{getButtonLabel(magicLinkMode, loading)}</span>
+              <span className="fs-cta-arrow" aria-hidden="true">→</span>
             </button>
           </form>
 
@@ -343,7 +331,8 @@ function LoginContent() {
               )}
               <button
                 type="button"
-                style={{ ...BTN_GHOST, marginTop: 8 }}
+                className="fs-cta-ghost"
+                style={{ marginTop: 8 }}
                 disabled={passkeyState === "in_progress"}
                 onClick={() => {
                   passkeyReset()
@@ -375,8 +364,8 @@ function LoginContent() {
               Create one free
             </Link>
           </p>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </FocusShell>
   )
 }
