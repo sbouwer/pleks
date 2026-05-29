@@ -17,6 +17,8 @@ import { FocusBackdrop } from "@/components/layout/FocusBackdrop"
 import "@/app/(public)/public.css"
 import "@/components/layout/focus-shell.css"
 
+const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://www.pleks.co.za"
+
 export default function AdminLoginPage() {
   const [secret, setSecret] = useState("")
   const [error, setError] = useState("")
@@ -80,6 +82,10 @@ export default function AdminLoginPage() {
               </button>
             </div>
           </form>
+
+          <a href={MARKETING_URL} className="fs-back-home">
+            ← Back to homepage
+          </a>
         </div>
       </div>
     </PublicThemeProvider>
