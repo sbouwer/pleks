@@ -102,6 +102,39 @@ function resolverRedirect(request: NextRequest, from?: NextResponse): NextRespon
   return carryCookies(NextResponse.redirect(url), from)
 }
 
+// ── Loop-breaker + structured gate logging ────────────────────────────────────
+// Auth loops historically surfaced only as opaque ERR_TOO_MANY_REDIRECTS. The
+// counter cookie turns a runaway gate↔resolver cycle into a graceful, logged
+// failure; the structured log line surfaces the exact route + facts in Vercel
+// runtime logs and the local terminal so a loop is diagnosable at a glance.
+const LOOP_LIMIT = 4
+const RDR_COOKIE = "pleks_rdr"
+
+function readRdr(request: NextRequest): number {
+  const n = Number.parseInt(request.cookies.get(RDR_COOKIE)?.value ?? "", 10)
+  return Number.isFinite(n) && n > 0 ? n : 0
+}
+
+function logGate(
+  request: NextRequest,
+  facts: ReturnType<typeof collectGateFacts>,
+  action: string,
+  rdr: number,
+): void {
+  // PII-free: path + decision drivers only, never email/token.
+  console.warn("[gate] " + JSON.stringify({
+    path:         request.nextUrl.pathname,
+    authed:       facts.isAuthenticated,
+    aal:          facts.assurance.current,
+    role:         facts.membership.sessionRole ?? null,
+    hasOrg:       facts.membership.exists,
+    requiresAal2: facts.route.requiresAal2,
+    roleGated:    !!(facts.route.allowedRoles && facts.route.allowedRoles.length),
+    action,
+    rdr,
+  }))
+}
+
 // ── Org cookie helpers ────────────────────────────────────────────────────────
 function deriveTierFromSub(sub: {
   tier: string; status: string
@@ -255,18 +288,49 @@ async function handleProtectedRoute(
 
   const facts   = collectGateFacts(request, rule, { isAuthenticated: true, aal })
   const outcome = routeGateDecision(facts)
+  const rdr     = readRdr(request)
+
+  if (outcome.action !== "allow") logGate(request, facts, outcome.action, rdr)
 
   switch (outcome.action) {
-    case "allow":
+    case "allow": {
+      // Clear the loop counter on any successful pass-through.
+      if (rdr > 0) supabaseResponse.cookies.set(RDR_COOKIE, "", { path: "/", maxAge: 0 })
       return supabaseResponse
+    }
     case "to_login": {
       const url = request.nextUrl.clone()
       url.pathname = "/login"
       url.searchParams.set("redirect", request.nextUrl.pathname)
-      return carryCookies(NextResponse.redirect(url), supabaseResponse)
+      const res = carryCookies(NextResponse.redirect(url), supabaseResponse)
+      res.cookies.set(RDR_COOKIE, "", { path: "/", maxAge: 0 })
+      return res
     }
-    case "to_resolver":
-      return resolverRedirect(request, supabaseResponse)
+    case "to_resolver": {
+      // Loop-breaker: too many consecutive gate→resolver bounces means the resolver
+      // keeps sending the user to a route the gate keeps rejecting (e.g. a role the
+      // gate can't read). Stop looping — send to /login with a diagnostic instead.
+      if (rdr >= LOOP_LIMIT) {
+        console.error("[gate] redirect loop broken after " + rdr + " bounces — sending to /login", JSON.stringify({
+          path: request.nextUrl.pathname, aal: facts.assurance.current,
+          role: facts.membership.sessionRole ?? null, hasOrg: facts.membership.exists,
+        }))
+        const url = request.nextUrl.clone()
+        url.pathname = "/login"
+        url.search = ""
+        url.searchParams.set("err", "loop")
+        const res = carryCookies(NextResponse.redirect(url), supabaseResponse)
+        // Purge the loop counter + the (httpOnly) org cookies so the user gets a clean
+        // slate — a poisoned pleks_org can't be cleared client-side.
+        res.cookies.set(RDR_COOKIE, "", { path: "/", maxAge: 0 })
+        res.cookies.set("pleks_org", "", { path: "/", maxAge: 0 })
+        res.cookies.set("pleks_has_org", "", { path: "/", maxAge: 0 })
+        return res
+      }
+      const res = resolverRedirect(request, supabaseResponse)
+      res.cookies.set(RDR_COOKIE, String(rdr + 1), { path: "/", maxAge: 15 })
+      return res
+    }
     case "forbidden":
       return carryCookies(NextResponse.redirect(new URL("/403", request.url)), supabaseResponse)
   }

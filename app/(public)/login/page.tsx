@@ -54,12 +54,15 @@ function LoginContent() {
   const searchParams = useSearchParams()
   const redirectParam = searchParams.get("redirect")
   const emailParam = searchParams.get("email")
+  const loopReset = searchParams.get("err") === "loop"
 
   const [email, setEmail] = useState(emailParam ?? "")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(
+    loopReset ? "Your session got into a bad state and was reset. Please sign in again." : null
+  )
   const [magicLinkMode, setMagicLinkMode] = useState(false)
   const [magicLinkSent, setMagicLinkSent] = useState(false)
   const [checking, setChecking] = useState(true)
@@ -91,6 +94,14 @@ function LoginContent() {
   useEffect(() => {
     const supabase = createClient()
     void (async () => {
+      // Loop-reset: the gate broke a redirect loop and purged the org cookies. Clear
+      // any client session remnant and show the form — do NOT auto-redirect back into
+      // the resolver, or we'd risk re-entering the loop we just escaped.
+      if (loopReset) {
+        await supabase.auth.signOut({ scope: "local" }).catch(() => {})
+        setChecking(false)
+        return
+      }
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) { setChecking(false); return }
       try {
