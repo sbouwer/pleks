@@ -32,10 +32,16 @@ const ACCENT = {
 // A calm resting pulse when healthy; elevated when the system is unwell.
 const BPM = { operational: 62, degraded: 78, outage: 92 }
 
+// SLA target is 99% uptime — at or above it the day is GREEN (meets SLA), full stop.
+// 99.5% is green, not degraded. Amber only flags a day that actually dipped below 99%;
+// red marks a materially bad day (<95%). (The hero headline/accent is driven by live
+// monitor up/down via overallStatus, not by this percentage.)
+const SLA_GREEN_PCT = 99
+const SLA_AMBER_PCT = 95
 function tickFor(v: number | null): StatusComponent["ticks"][number] {
-  if (v === null) return "none"
-  if (v >= 99)    return "ok"
-  if (v >= 95)    return "warn"
+  if (v === null)            return "none"
+  if (v >= SLA_GREEN_PCT)    return "ok"
+  if (v >= SLA_AMBER_PCT)    return "warn"
   return "down"
 }
 
