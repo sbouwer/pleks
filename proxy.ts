@@ -262,6 +262,11 @@ async function handleSubdomainSplit(
   pathname: string,
   request: NextRequest,
 ): Promise<NextResponse | null> {
+  // API routes are one deployment — serve them same-origin on whatever host calls
+  // them. Redirecting (e.g. www → app) turns a fetch() cross-origin and CORS-fails.
+  // Admin/webhook/cron APIs are already handled before this in the main proxy.
+  if (pathname.startsWith("/api/")) return null
+
   if (hostCtx === "marketing" && !isApexPath(pathname)) {
     const dest = request.nextUrl.clone()
     if (pathname === "/status" || pathname.startsWith("/status/")) {

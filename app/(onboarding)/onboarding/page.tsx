@@ -319,7 +319,7 @@ function OnboardingWizard() {
   // §A — ToS checkbox rendered immediately above each final CTA
   const tosCheckbox = (
     <label className="ob-check-row" style={{ marginBottom: 12 }}>
-      <input type="checkbox" checked={tosAccepted} onChange={(e) => { setTosAccepted(e.target.checked); setFormHint("") }} />
+      <input type="checkbox" id="ob-tos" name="tos-accepted" checked={tosAccepted} onChange={(e) => { setTosAccepted(e.target.checked); setFormHint("") }} />
       <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>
         I have read and agree to the{" "}
         <a href={`${MARKETING_URL}/terms`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--amber-ink)" }}>Terms of Service</a>
