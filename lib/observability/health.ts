@@ -48,22 +48,37 @@ function withTimeout<T>(p: PromiseLike<T>, ms: number): Promise<T> {
   ])
 }
 
+// Slow-on-cold-start ≠ down. A real outage returns a query ERROR; a cold-start (this
+// is a force-dynamic function idle between BetterStack's 5-min polls) makes the FIRST
+// DB call after boot exceed the timeout. So: a query error → "down" (genuine outage);
+// a timeout → retry once warm, and if it times out again, "degraded" (200, slowness
+// still visible in the body) rather than a false 503. This is the BetterStack false-red fix.
 async function checkDb(supabase: SupabaseClient): Promise<HealthReport["components"]["db"]> {
+  const probe = () => withTimeout(
+    supabase.from("prime_rates").select("effective_date").limit(1),
+    COMPONENT_TIMEOUT_MS
+  )
   const start = Date.now()
   try {
-    const { error } = await withTimeout(
-      supabase.from("prime_rates").select("effective_date").limit(1),
-      COMPONENT_TIMEOUT_MS
-    )
-    if (error) {
+    const { error } = await probe()
+    if (error) {                                    // real DB error → down
       console.error("[health] db check failed:", error.message)
       return { status: "down", latency_ms: Date.now() - start, error: error.message }
     }
     return { status: "ok", latency_ms: Date.now() - start }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "unknown"
-    console.error("[health] db check exception:", msg)
-    return { status: "down", latency_ms: Date.now() - start, error: msg }
+  } catch {
+    // First attempt timed out (likely cold start). Retry once, warm.
+    try {
+      const { error } = await probe()
+      if (error) return { status: "down", latency_ms: Date.now() - start, error: error.message }
+      return { status: "ok", latency_ms: Date.now() - start }
+    } catch (error_) {
+      // Timed out twice → degrade, do NOT 503. A true outage returns an error
+      // (handled above), not a timeout. Slow ≠ down.
+      const msg = error_ instanceof Error ? error_.message : "unknown"
+      console.error("[health] db check timed out twice (degraded, not down):", msg)
+      return { status: "degraded", latency_ms: Date.now() - start, error: `slow: ${msg}` }
+    }
   }
 }
 
