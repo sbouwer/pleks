@@ -199,10 +199,10 @@
 .st-pill           { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; font-family: var(--pub-mono, monospace); padding: 4px 10px; border-radius: 20px; white-space: nowrap; }
 .st-pill-dot       { width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
 
-.st-pill--operational { background: #edf5f0; color: #2d7d52; }
-.st-pill--degraded    { background: #fdf4e7; color: #c97c2a; }
-.st-pill--outage      { background: var(--critical-wash, #fdf0f0); color: var(--critical, #b93a3a); }
-.st-pill--maintenance { background: #fdf4e7; color: #c97c2a; }
+.st-pill--operational { background: #edf5f0; color: #1c6040; }
+.st-pill--degraded    { background: #fdf4e7; color: #8f5710; }
+.st-pill--outage      { background: var(--critical-wash, #fdf0f0); color: #9a2b2b; }
+.st-pill--maintenance { background: #fdf4e7; color: #8f5710; }
 .st-pill--paused      { background: var(--paper-sunk, #e8e4db); color: var(--ink-faint, #8a8a84); }
 
 /* ── Incidents ── */
@@ -221,8 +221,8 @@
 
 .st-inc-meta  { text-align: right; display: flex; flex-direction: column; gap: 3px; align-items: flex-end; flex-shrink: 0; }
 .st-inc-badge { font-size: 11px; font-weight: 600; font-family: var(--pub-mono, monospace); padding: 2px 8px; border-radius: 12px; }
-.st-inc-badge--resolved { background: #edf5f0; color: #2d7d52; }
-.st-inc-badge--active   { background: var(--critical-wash, #fdf0f0); color: var(--critical, #b93a3a); }
+.st-inc-badge--resolved { background: #edf5f0; color: #1c6040; }
+.st-inc-badge--active   { background: var(--critical-wash, #fdf0f0); color: #9a2b2b; }
 .st-inc-time  { font-family: var(--pub-mono, monospace); font-size: 10px; color: var(--ink-faint, #8a8a84); white-space: nowrap; }
 
 .st-resolved-header { padding: 20px 0 10px; font-family: var(--pub-mono, monospace); font-size: 11px; color: var(--ink-faint, #8a8a84); letter-spacing: 0.5px; }

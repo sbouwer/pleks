@@ -68,10 +68,10 @@ function relPath(p) {
 // when there's a server-side redirect between origins.
 
 // Route groups that are exclusively marketing (apex) origin:
-const MARKETING_ONLY_GROUPS = ["(demo)"]  // /demo is an APEX_PREFIX
+const MARKETING_ONLY_GROUPS = new Set(["(demo)"])  // /demo is an APEX_PREFIX
 // Route groups that are exclusively app-subdomain origin:
-const APP_ONLY_GROUPS = ["(auth)", "(admin)", "(applicant)", "(dashboard)",
-                         "(landlord)", "(onboarding)", "(supplier)", "(tenant)", "(status)"]
+const APP_ONLY_GROUPS = new Set(["(auth)", "(admin)", "(applicant)", "(dashboard)",
+                                 "(landlord)", "(onboarding)", "(supplier)", "(tenant)", "(status)"])
 // (public) is mixed — some routes are apex (terms, pricing) and some are app (login).
 // Use APEX_PATH_PREFIXES to determine which.
 
@@ -95,8 +95,8 @@ function fileUrlPath(filePath) {
 }
 
 function originOf(group, filePath) {
-  if (MARKETING_ONLY_GROUPS.includes(group)) return "marketing"
-  if (APP_ONLY_GROUPS.includes(group)) return "app"
+  if (MARKETING_ONLY_GROUPS.has(group)) return "marketing"
+  if (APP_ONLY_GROUPS.has(group)) return "app"
   if (group === "(public)") {
     const rel = filePath ? relPath(filePath) : ""
     // Layouts wrap ALL routes in the group including app-subdomain ones (login etc.)
