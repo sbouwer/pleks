@@ -24,7 +24,10 @@ export function usePasskeyLogin() {
   const [state, setState] = useState<LoginState>("idle")
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-  async function login(email?: string, opts?: { conditional?: boolean }) {
+  // Returns true on success so the caller can navigate post-auth (e.g. to /auth/resolver,
+  // which routes to the right workspace and honours any ?redirect=). The hook does NOT
+  // navigate itself — going to "/" lands on the marketing home (logged-out chrome).
+  async function login(email?: string, opts?: { conditional?: boolean }): Promise<boolean> {
     setState("in_progress")
     setErrorMsg(null)
     try {
@@ -61,12 +64,12 @@ export function usePasskeyLogin() {
       await supabase.auth.setSession({ access_token: data.access_token, refresh_token: data.refresh_token })
 
       setState("success")
-      // Navigate to root — role-switching machinery resolves the right workspace
-      window.location.href = "/"
+      return true
     } catch (e: unknown) {
       const err = e as Error
       setErrorMsg(err.message ?? "Passkey login failed")
       setState("error")
+      return false
     }
   }
 

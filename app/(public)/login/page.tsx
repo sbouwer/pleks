@@ -348,9 +348,11 @@ function LoginContent() {
                 className="fs-cta-ghost"
                 style={{ marginTop: 8 }}
                 disabled={passkeyState === "in_progress"}
-                onClick={() => {
+                onClick={async () => {
                   passkeyReset()
-                  void passkeyLogin(email || undefined)
+                  // Modal passkey sign-in; on success route through the resolver (same as
+                  // password login) — NOT "/", which is the logged-out marketing home.
+                  if (await passkeyLogin(email || undefined)) globalThis.location.href = resolverUrl()
                 }}
               >
                 {passkeyState === "in_progress"
