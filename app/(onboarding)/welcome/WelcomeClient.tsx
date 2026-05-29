@@ -57,9 +57,11 @@ export default function WelcomeClient({
       const t = setTimeout(() => setStep("passkey"), 120)
       return () => clearTimeout(t)
     }
-    const t1 = setTimeout(() => setShieldPhase(1), 0)
-    const t2 = setTimeout(() => setShieldPhase(2), 250)
-    const t3 = setTimeout(() => setStep("passkey"), 700)
+    // Shield draws (0→250ms), check settles (250ms), then hold "Secured." so the
+    // payoff actually registers before advancing to the passkey step (~1.7s total).
+    const t1 = setTimeout(() => setShieldPhase(1), 60)
+    const t2 = setTimeout(() => setShieldPhase(2), 320)
+    const t3 = setTimeout(() => setStep("passkey"), 1700)
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
   }, [step])
 
@@ -76,7 +78,10 @@ export default function WelcomeClient({
   async function handleFinish() {
     setFinishing(true)
     await markWelcomeSeen()
-    router.push(`/auth/resolver?redirect=${encodeURIComponent(redirect)}`)
+    // Full-page navigation (NOT router.push): /auth/resolver is a route handler that
+    // returns a server redirect. Client RSC navigation can't follow it cleanly and
+    // loops (ERR_TOO_MANY_REDIRECTS). The browser must follow resolver → dashboard.
+    globalThis.location.href = `/auth/resolver?redirect=${encodeURIComponent(redirect)}`
   }
 
   async function handleAddPasskey() {
