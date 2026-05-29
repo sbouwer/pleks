@@ -259,14 +259,6 @@ async function handleSubdomainSplit(
   pathname: string,
   request: NextRequest,
 ): Promise<NextResponse | null> {
-  // Canonical redirect — www.pleks.co.za → pleks.co.za (strip www prefix).
-  // Prevents the manifest start_url mismatch warning and duplicate indexing.
-  const host = request.headers.get("host") ?? ""
-  if (host.startsWith("www.")) {
-    const dest = request.nextUrl.clone(); dest.host = MARKETING_HOSTNAME
-    return NextResponse.redirect(dest, 308)
-  }
-
   if (hostCtx === "marketing" && !isApexPath(pathname)) {
     const dest = request.nextUrl.clone()
     if (pathname === "/status" || pathname.startsWith("/status/")) {
