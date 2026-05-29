@@ -46,6 +46,7 @@ export function TierGrid({ tiers }: Readonly<{ tiers: readonly TierData[] }>) {
         }}>
           <input
             type="number" min={1} value={raw}
+            id="lease-count" name="lease-count"
             onChange={e => setRaw(e.target.value)}
             placeholder="—"
             className="pub-lease-input"

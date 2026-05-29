@@ -29,8 +29,10 @@ type UserType = "owner" | "agent" | "agency" | "family" | "exploring"
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="ob-field">
-      <label className="ob-label">{label}</label>
-      {children}
+      <label className="ob-label">
+        {label}
+        {children}
+      </label>
     </div>
   )
 }

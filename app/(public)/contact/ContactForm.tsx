@@ -135,10 +135,10 @@ export function ContactForm({ defaultIntent = "general" as ContactIntent }) {
         />
       </div>
 
-      <div className="contact-form-field">
-        <label htmlFor="contact-intent" className="contact-form-label">
+      <fieldset className="contact-form-field" style={{ border: "none", padding: 0, margin: 0 }}>
+        <legend className="contact-form-label">
           What&apos;s this about?
-        </label>
+        </legend>
         <div className="contact-form-intent">
           {INTENT_OPTIONS.map(opt => (
             <label
@@ -157,7 +157,7 @@ export function ContactForm({ defaultIntent = "general" as ContactIntent }) {
             </label>
           ))}
         </div>
-      </div>
+      </fieldset>
 
       <div className="contact-form-field">
         <label htmlFor="contact-message" className="contact-form-label">
