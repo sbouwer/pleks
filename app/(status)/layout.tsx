@@ -14,6 +14,10 @@ import "@/app/(public)/public.css"
 
 const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
 
+// Suppress manifest link — status.pleks.co.za is a different origin from
+// the manifest's start_url (app.pleks.co.za). Browser ignores start_url + logs warning.
+export const metadata = { manifest: null }
+
 export default function StatusLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {

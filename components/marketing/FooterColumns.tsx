@@ -7,9 +7,12 @@
  *         Product column links match NAV_LINKS in PublicNav.tsx — keep in sync.
  */
 import { useState } from "react"
-import Link from "next/link"
 import { Mail, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
+
+// Absolute URLs — footer renders on app.pleks.co.za/login (and other app-subdomain
+// pages via the public layout). Relative apex-path Links would RSC-prefetch cross-origin.
+const M = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
 
 interface TextItem { label: string; href: string; type?: "link" }
 interface MailItem { label: string; mailto: string; type: "mail" }
@@ -65,9 +68,9 @@ function FooterSection({ title, items }: SectionProps) {
           }
           return (
             <li key={item.href}>
-              <Link href={item.href} className="text-muted-foreground hover:text-foreground transition-colors">
+              <a href={item.href} className="text-muted-foreground hover:text-foreground transition-colors">
                 {item.label}
-              </Link>
+              </a>
             </li>
           )
         })}
@@ -82,24 +85,24 @@ export function FooterColumns() {
       <FooterSection
         title="Product"
         items={[
-          { label: "Why Pleks", href: "/#why" },
-          { label: "The work", href: "/#artefact" },
-          { label: "Charter", href: "/#charter" },
-          { label: "Pricing", href: "/#pricing" },
-          { label: "Founding agents", href: "/#founding" },
-          { label: "Contact", href: "/contact" },
+          { label: "Why Pleks",       href: `${M}/#why` },
+          { label: "The work",        href: `${M}/#artefact` },
+          { label: "Charter",         href: `${M}/#charter` },
+          { label: "Pricing",         href: `${M}/#pricing` },
+          { label: "Founding agents", href: `${M}/#founding` },
+          { label: "Contact",         href: `${M}/contact` },
         ]}
       />
       <FooterSection
         title="Legal"
         items={[
-          { label: "Cookie Policy", href: "/cookie-policy" },
-          { label: "Credit Check Policy", href: "/credit-check-policy" },
-          { label: "Definitions", href: "/definitions" },
-          { label: "PAIA Manual", href: "/paia-manual" },
-          { label: "POPIA Register", href: "/popia-register" },
-          { label: "Privacy Policy", href: "/privacy" },
-          { label: "Terms of Service", href: "/terms" },
+          { label: "Cookie Policy",        href: `${M}/cookie-policy` },
+          { label: "Credit Check Policy",  href: `${M}/credit-check-policy` },
+          { label: "Definitions",          href: `${M}/definitions` },
+          { label: "PAIA Manual",          href: `${M}/paia-manual` },
+          { label: "POPIA Register",       href: `${M}/popia-register` },
+          { label: "Privacy Policy",       href: `${M}/privacy` },
+          { label: "Terms of Service",     href: `${M}/terms` },
         ]}
       />
       <FooterSection

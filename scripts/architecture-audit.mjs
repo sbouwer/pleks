@@ -132,7 +132,13 @@ const CROSS_ORIGIN_REDIRECTS = {
 // on the marketing site. Either triggers RSC prefetch CORS failure.
 
 function checkCrossOriginLinks() {
-  const files = walk(join(ROOT, "app"))
+  // Also scan marketing components — they render inside the public layout which
+  // wraps app-subdomain pages (login, forgot-password etc.), so apex-path Links
+  // from these components produce the same CORS prefetch failure.
+  const files = [
+    ...walk(join(ROOT, "app")),
+    ...walk(join(ROOT, "components", "marketing")),
+  ]
 
   for (const file of files) {
     const group = routeGroupOf(file)

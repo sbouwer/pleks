@@ -20,14 +20,15 @@ function currentSAST(): string {
 }
 
 export function StatusClock() {
-  const router              = useRouter()
-  const [time, setTime]     = useState(currentSAST)
+  const router          = useRouter()
+  const [time, setTime] = useState("")  // empty on SSR — avoids server/client time mismatch
 
   useEffect(() => {
+    setTime(currentSAST())
     const tick    = setInterval(() => setTime(currentSAST()), 1000)
     const refresh = setInterval(() => router.refresh(), 60_000)
     return () => { clearInterval(tick); clearInterval(refresh) }
   }, [router])
 
-  return <strong>{time} SAST</strong>
+  return <strong suppressHydrationWarning>{time || " "} SAST</strong>
 }
