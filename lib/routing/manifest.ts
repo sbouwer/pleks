@@ -79,7 +79,10 @@ export const ROUTE_MANIFEST: Record<string, RouteRule> = {
   "/supplier":              { auth: true, roles: ["supplier", "contractor"],           skipOrgCheck: true },
 
   // ── Post-onboarding / invite Welcome interstitial (AAL1 island — TOTP not yet enrolled) ──
-  "/welcome":               { auth: true, roles: AGENT_ROLES, skipOrgCheck: true },
+  // No `roles` here: skipOrgCheck means the org cookie (which carries the role) is never
+  // hydrated, so a role-gated rule would fail closed and bounce to the resolver forever.
+  // The /welcome page reads membership itself and is benign for any authenticated user.
+  "/welcome":               { auth: true, skipOrgCheck: true },
 
   // ── Auth utility routes ──
   "/select-role":           { auth: true,  skipOrgCheck: true },

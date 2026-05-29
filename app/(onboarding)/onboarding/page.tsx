@@ -132,6 +132,9 @@ function OnboardingWizard() {
   // §A — explicit ToS consent; CTA disabled until ticked on every completion surface
   const [tosAccepted, setTosAccepted] = useState(false)
 
+  // Inline validation message shown when a completion CTA is clicked with missing fields
+  const [formHint, setFormHint] = useState("")
+
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser()
@@ -193,6 +196,22 @@ function OnboardingWizard() {
     }
     console.info("[onboarding] success → /auth/resolver", { userType: submitData.userType })
     globalThis.location.href = "/auth/resolver?redirect=/dashboard"
+  }
+
+  // Account step — validate on click so a click ALWAYS gives feedback (never a
+  // silent disabled button). Returns the first missing-field message, or "" if ready.
+  function accountStepError(): string {
+    if (!acctEmail.trim()) return "Enter your email address to continue."
+    if (acctPassword.length < 8) return "Choose a password with at least 8 characters."
+    if (!tosAccepted) return "Please tick the box to accept the Terms and Privacy Policy."
+    return ""
+  }
+
+  function handleCreateAccount() {
+    const err = accountStepError()
+    if (err) { setFormHint(err); return }
+    setFormHint("")
+    void handleComplete()
   }
 
   async function handleComplete() {
@@ -284,7 +303,7 @@ function OnboardingWizard() {
   // §A — ToS checkbox rendered immediately above each final CTA
   const tosCheckbox = (
     <label className="ob-check-row" style={{ marginBottom: 12 }}>
-      <input type="checkbox" checked={tosAccepted} onChange={(e) => setTosAccepted(e.target.checked)} />
+      <input type="checkbox" checked={tosAccepted} onChange={(e) => { setTosAccepted(e.target.checked); setFormHint("") }} />
       <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>
         I have read and agree to the{" "}
         <a href={`${MARKETING_URL}/terms`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--amber-ink)" }}>Terms of Service</a>
@@ -307,7 +326,7 @@ function OnboardingWizard() {
             <input
               className="ob-input" type="email" autoComplete="email"
               value={acctEmail}
-              onChange={(e) => { setAcctEmail(e.target.value); setEmailExists(false) }}
+              onChange={(e) => { setAcctEmail(e.target.value); setEmailExists(false); setFormHint("") }}
               onBlur={() => checkEmailExists(acctEmail)}
               placeholder="you@example.com"
             />
@@ -335,7 +354,7 @@ function OnboardingWizard() {
                 type={showPassword ? "text" : "password"}
                 autoComplete="new-password"
                 value={acctPassword}
-                onChange={(e) => setAcctPassword(e.target.value)}
+                onChange={(e) => { setAcctPassword(e.target.value); setFormHint("") }}
                 placeholder="At least 8 characters"
                 style={{ paddingRight: 40 }}
               />
@@ -346,14 +365,11 @@ function OnboardingWizard() {
             </div>
           </Field>
           {tosCheckbox}
-          <Btn onClick={handleComplete} disabled={loading || !acctEmail.trim() || acctPassword.length < 8 || !tosAccepted}>
+          <Btn onClick={handleCreateAccount} disabled={loading}>
             {loading ? "Creating account…" : "Create account →"}
           </Btn>
-          {!loading && acctPassword.length > 0 && acctPassword.length < 8 && (
-            <p className="ob-hint">Password needs at least 8 characters.</p>
-          )}
-          {!loading && acctEmail.trim() && acctPassword.length >= 8 && !tosAccepted && (
-            <p className="ob-hint">Tick the checkbox above to accept the terms.</p>
+          {formHint && !loading && (
+            <p className="ob-hint" role="status" aria-live="polite">{formHint}</p>
           )}
         </div>
       </div>

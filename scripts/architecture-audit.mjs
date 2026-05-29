@@ -372,7 +372,7 @@ function checkRouteManifest() {
     if (!segment) continue   // root
 
     const candidates = [
-      ...APP_GROUPS, ...MARKETING_GROUPS,
+      ...APP_ONLY_GROUPS, ...MARKETING_ONLY_GROUPS, "(public)",
     ].flatMap(group => [
       join(ROOT, "app", group, segment, "page.tsx"),
       join(ROOT, "app", group, segment, "route.ts"),
@@ -390,6 +390,34 @@ function checkRouteManifest() {
 }
 
 // ─────────────────────────────────────────────────────────────
+// CHECK 8 — agent-role-gated routes must not skipOrgCheck
+// ─────────────────────────────────────────────────────────────
+// Catches: a ROUTE_MANIFEST entry that is gated to AGENT roles AND has
+// skipOrgCheck:true. The agent role lives in the pleks_org cookie, which is
+// hydrated ONLY by ensureOrgCookies — and skipOrgCheck disables that. So the
+// gate sees no role, fails closed (→ to_resolver), the resolver routes back,
+// and it loops forever. (This is the /welcome ERR_TOO_MANY_REDIRECTS bug.)
+//
+// Portal routes (/tenant, /landlord, /supplier) are EXEMPT: their role comes
+// from the login-set pleks_active_role / portal_class cookie, not pleks_org,
+// so skipOrgCheck doesn't strand them.
+
+function checkSkipOrgCheckRoles() {
+  const manifest = readFile(join(ROOT, "lib/routing/manifest.ts"))
+  // Tokens that mark an entry as agent-role-gated
+  const AGENT_TOKENS = ["AGENT_ROLES", '"owner"', '"property_manager"', '"agent"',
+                        '"accountant"', '"maintenance_manager"']
+  for (const line of manifest.split("\n")) {
+    if (!/skipOrgCheck:\s*true/.test(line) || !/\broles:/.test(line)) continue
+    if (!AGENT_TOKENS.some(t => line.includes(t))) continue  // portal roles are exempt
+    const key = line.match(/["'](\/[^"']*)["']\s*:/)?.[1] ?? line.trim()
+    fail("skiporgcheck-roles",
+         `${key}: agent-role-gated entry has skipOrgCheck:true — the pleks_org cookie carrying the agent role is never hydrated, so the gate fails closed and loops to the resolver`,
+         `Drop 'roles' (page authorizes internally) OR remove skipOrgCheck so ensureOrgCookies hydrates the role`)
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 // MAIN
 // ─────────────────────────────────────────────────────────────
 
@@ -403,6 +431,7 @@ check("Destination kind exhaustiveness", checkDestinationExhaustiveness)
 check("PWA manifest origin", checkManifestOrigin)
 check("cookie httpOnly vs client-read consistency", checkCookieReadability)
 check("ROUTE_MANIFEST entries resolve to files", checkRouteManifest)
+check("skipOrgCheck routes are not role-gated", checkSkipOrgCheckRoles)
 
 console.log("─".repeat(50))
 console.log(`  ${checksRun - findings.length}/${checksRun} checks passed`)
