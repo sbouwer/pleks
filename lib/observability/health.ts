@@ -107,10 +107,23 @@ async function checkStorage(supabase: SupabaseClient): Promise<HealthReport["com
   }
 }
 
-// Jobs that write to cron_runs — must match actual job_name values in handlers.
-// "daily" is written by the orchestrator itself; others write their own entries.
-const TRACKED_DAILY_JOBS = ["daily", "insurance-renewals", "expire-info-requests", "cost-snapshots", "popia-retention-purge"]
-const TRACKED_MONTHLY_JOBS = ["trust-period-close", "levy-generate", "deposit-interest-statement", "owner-statement-gen"]
+// Top-level scheduled crons only. Child jobs invoked INSIDE the daily orchestrator are
+// NOT tracked separately — a completed "daily" row means they ran. Tracking a child name
+// is at best redundant and, for names that never self-insert a cron_runs row, actively
+// harmful: it reads stale forever and permanently degrades health.
+//
+// Verified 2026-05-29 against the actual job_name values handlers write:
+//   - "daily" is written by this orchestrator.                                  → track
+//   - insurance-renewals / cost-snapshots / expire-info-requests DO write rows, but run
+//     inside daily → redundant, dropped.
+//   - popia-retention-purge and ALL former monthly names (trust-period-close, levy-generate,
+//     deposit-interest-statement, owner-statement-gen) write NO cron_runs row → they were
+//     permanently "stale" and are the real source of the chronic "crons: degraded". Dropped.
+// Monthly jobs run inside the daily orchestrator (day-of-month gated), so a completed
+// "daily" already implies they fired on their day. Add a name here ONLY if a handler
+// actually writes that job_name to cron_runs.
+const TRACKED_DAILY_JOBS: string[] = ["daily"]
+const TRACKED_MONTHLY_JOBS: string[] = []
 
 const DAILY_STALE_MS   = 48 * 60 * 60 * 1000
 const MONTHLY_STALE_MS = 35 * 24 * 60 * 60 * 1000
