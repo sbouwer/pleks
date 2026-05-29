@@ -14,6 +14,7 @@
  *         Portal-class welcome (Phase 2): tenant/landlord/supplier not handled here.
  */
 import { redirect } from "next/navigation"
+import type { User } from "@supabase/supabase-js"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { safeRedirect } from "@/lib/auth/safe-redirect"
 import WelcomeClient from "./WelcomeClient"
@@ -23,9 +24,28 @@ interface PageProps {
 }
 
 export default async function WelcomePage({ searchParams }: Readonly<PageProps>) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const { step, redirect: redirectParam } = await searchParams
+  const safeNext = safeRedirect(redirectParam, "/dashboard")
+
+  // getUser() validates the token with gotrue, which can THROW (not just return
+  // {user:null}) when the access token has expired mid-flow and its refresh fetch
+  // fails — and a Server Component can't persist a refreshed cookie (createClient's
+  // setAll is a no-op here), so the page can't self-heal. Recover via the resolver:
+  // it re-runs updateSession server-side (fresh token) and re-decides. Never render
+  // /welcome with a dead session — that throws and trips the error boundary.
+  let user: User | null = null
+  let sessionFailed = false
+  try {
+    const supabase = await createClient()
+    const { data, error } = await supabase.auth.getUser()
+    if (!error && data.user) user = data.user
+    else sessionFailed = true
+  } catch {
+    sessionFailed = true
+  }
+  if (sessionFailed || !user) {
+    redirect(`/auth/resolver?redirect=${encodeURIComponent(safeNext)}`)
+  }
 
   const service = await createServiceClient()
 
@@ -38,9 +58,6 @@ export default async function WelcomePage({ searchParams }: Readonly<PageProps>)
   if (profileErr) {
     console.error("[welcome] profile fetch failed:", profileErr.message)
   }
-
-  const { step, redirect: redirectParam } = await searchParams
-  const safeNext = safeRedirect(redirectParam, "/dashboard")
 
   // Already completed Welcome → thread redirect param through to resolver
   if (profile?.welcome_seen) {
