@@ -10,7 +10,7 @@
  *         imperative logic without reading stale state from the render closure.
  */
 
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { startRegistration } from "@simplewebauthn/browser"
 import type { RegistrationResponseJSON } from "@simplewebauthn/browser"
 
@@ -20,9 +20,15 @@ export function useEnrolPasskey() {
   const [state, setState] = useState<EnrolState>("idle")
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
+  // The WebAuthn ceremony + verify fetch are long-lived awaits. If the host unmounts
+  // mid-flight (e.g. /welcome navigating away on Continue), a setState here would throw
+  // React #460. Gate every setState behind a mounted ref so a late resolve is a no-op.
+  // enrol() still returns its boolean so imperative callers are unaffected.
+  const mounted = useRef(true)
+  useEffect(() => () => { mounted.current = false }, [])
+
   async function enrol(label?: string): Promise<boolean> {
-    setState("in_progress")
-    setErrorMsg(null)
+    if (mounted.current) { setState("in_progress"); setErrorMsg(null) }
     try {
       const optionsRes = await fetch("/api/auth/passkeys/registration-options", { method: "POST" })
       if (!optionsRes.ok) throw new Error("Failed to get options")
@@ -47,19 +53,17 @@ export function useEnrolPasskey() {
         throw new Error(data.error ?? "Verification failed")
       }
 
-      setState("success")
+      if (mounted.current) setState("success")
       return true
     } catch (e: unknown) {
       const err = e as Error
-      setErrorMsg(err.message ?? "Enrolment failed")
-      setState("error")
+      if (mounted.current) { setErrorMsg(err.message ?? "Enrolment failed"); setState("error") }
       return false
     }
   }
 
   function reset() {
-    setState("idle")
-    setErrorMsg(null)
+    if (mounted.current) { setState("idle"); setErrorMsg(null) }
   }
 
   return { enrol, state, errorMsg, reset }

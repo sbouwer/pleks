@@ -65,14 +65,26 @@ export default function WelcomeClient({
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
   }, [step])
 
-  // On mount: if TOTP already enrolled, advance through secured payoff
+  // On mount: if TOTP already enrolled, advance through secured payoff.
+  // Guarded against post-unmount setState: gotrue's cross-tab Web Locks contention can
+  // delay listFactors until handleFinish's location.href teardown has begun — an
+  // unguarded setStep() then throws React #460 (Firefox loses this race). The active
+  // flag makes a late resolve a no-op; the catch keeps a rejected probe non-fatal.
   useEffect(() => {
     if (initialStep === "passkey") return
+    let active = true
     const supabase = createClient()
-    supabase.auth.mfa.listFactors().then(({ data }) => {
-      const verified = (data?.totp ?? []).filter(f => f.status === "verified")
-      if (verified.length > 0) setStep("secured")
-    })
+    supabase.auth.mfa.listFactors()
+      .then(({ data }) => {
+        if (!active) return
+        const verified = (data?.totp ?? []).filter(f => f.status === "verified")
+        if (verified.length > 0) setStep("secured")
+      })
+      .catch((e) => {
+        if (!active) return
+        console.warn("[welcome] listFactors failed on mount (non-fatal):", e instanceof Error ? e.message : "unknown")
+      })
+    return () => { active = false }
   }, [initialStep])
 
   async function handleFinish() {
