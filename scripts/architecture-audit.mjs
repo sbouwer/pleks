@@ -62,32 +62,66 @@ function relPath(p) {
 
 // ── Route-group origin mapping ───────────────────────────────
 // In production:
-//   pleks.co.za (apex)  serves: app/(public)/*
+//   pleks.co.za (apex)  serves: APEX_PREFIXES paths (see proxy.ts)
 //   app.pleks.co.za     serves: everything else
 // Same-origin Links across this boundary trigger CORS on RSC prefetch
 // when there's a server-side redirect between origins.
 
-const MARKETING_GROUPS = ["(public)"]
-const APP_GROUPS = ["(auth)", "(admin)", "(applicant)", "(dashboard)", "(demo)",
-                    "(landlord)", "(onboarding)", "(supplier)", "(tenant)", "(status)"]
+// Route groups that are exclusively marketing (apex) origin:
+const MARKETING_ONLY_GROUPS = ["(demo)"]  // /demo is an APEX_PREFIX
+// Route groups that are exclusively app-subdomain origin:
+const APP_ONLY_GROUPS = ["(auth)", "(admin)", "(applicant)", "(dashboard)",
+                         "(landlord)", "(onboarding)", "(supplier)", "(tenant)", "(status)"]
+// (public) is mixed — some routes are apex (terms, pricing) and some are app (login).
+// Use APEX_PATH_PREFIXES to determine which.
+
+// Paths served from pleks.co.za — mirrors APEX_PREFIXES in proxy.ts + root.
+// Keep in sync when APEX_PREFIXES changes.
+const APEX_PATH_PREFIXES = ["/", "/pricing", "/privacy", "/terms",
+  "/credit-check-policy", "/cookie-policy", "/paia-manual", "/popia-register",
+  "/definitions", "/contact", "/demo", "/marketing"]
 
 function routeGroupOf(filePath) {
-  const match = filePath.match(/app\/(\(\w+\))/)
+  // relPath normalises Windows backslashes to forward slashes
+  const match = relPath(filePath).match(/app\/(\(\w+\))/)
   return match ? match[1] : null
 }
 
-function originOf(group) {
-  if (MARKETING_GROUPS.includes(group)) return "marketing"
-  if (APP_GROUPS.includes(group)) return "app"
+function fileUrlPath(filePath) {
+  return relPath(filePath)
+    .replace(/^app\/\([^/]+\)/, "")
+    .replace(/\/(page|route)\.(tsx?|ts)$/, "")
+    || "/"
+}
+
+function originOf(group, filePath) {
+  if (MARKETING_ONLY_GROUPS.includes(group)) return "marketing"
+  if (APP_ONLY_GROUPS.includes(group)) return "app"
+  if (group === "(public)") {
+    const rel = filePath ? relPath(filePath) : ""
+    // Layouts wrap ALL routes in the group including app-subdomain ones (login etc.)
+    // → treat conservatively as app origin so cross-origin links get flagged
+    if (/\/layout\.(tsx?|ts)$/.test(rel)) return "app"
+    // page.tsx / route.ts: determine origin from the actual URL path
+    if (/(page|route)\.(tsx?|ts)$/.test(rel)) {
+      const urlPath = fileUrlPath(filePath)
+      const isApex = APEX_PATH_PREFIXES.some(
+        p => urlPath === p || urlPath.startsWith(p + "/")
+      )
+      return isApex ? "marketing" : "app"
+    }
+    // Component files: treat as marketing — primarily used from marketing pages;
+    // gaps at the component level are caught via layout/page checks
+    return "marketing"
+  }
   return null
 }
 
 // Paths whose production server-side redirect crosses origins.
-// Update this list whenever a new cross-origin redirect rule lands.
+// app-side list mirrors APEX_PATH_PREFIXES above (kept as a named alias for clarity).
+// marketing-side list: paths that redirect from pleks.co.za → app.pleks.co.za.
 const CROSS_ORIGIN_REDIRECTS = {
-  // From app subdomain, these paths redirect to marketing:
-  app: ["/"],
-  // From marketing, these paths redirect to app:
+  app: APEX_PATH_PREFIXES,
   marketing: ["/onboarding", "/login", "/dashboard", "/auth/resolver"],
 }
 
@@ -99,27 +133,34 @@ const CROSS_ORIGIN_REDIRECTS = {
 
 function checkCrossOriginLinks() {
   const files = walk(join(ROOT, "app"))
-  const linkRegex = /<Link\s+[^>]*href=["']([^"']+)["']/g
 
   for (const file of files) {
     const group = routeGroupOf(file)
-    const origin = originOf(group)
+    const origin = originOf(group, file)
     if (!origin) continue
 
-    const content = readFile(file)
+    const redirects = CROSS_ORIGIN_REDIRECTS[origin] || []
+    // Strip comment lines so JSDoc examples don't trigger false positives
+    const content = readFile(file).split("\n")
+      .filter(line => !/^\s*(\/\/|\*)/.test(line))
+      .join("\n")
+
+    // Create regex per-file so lastIndex never bleeds between files
+    const linkRegex = /<Link\s+[^>]*href=["']([^"']+)["']/g
     let m
     while ((m = linkRegex.exec(content)) !== null) {
       const href = m[1]
       if (!href.startsWith("/") || href.startsWith("//")) continue
 
-      // Same-origin Link — check if the destination redirects cross-origin
-      const redirects = CROSS_ORIGIN_REDIRECTS[origin] || []
       const justPath = href.split("?")[0]
       const triggers = redirects.some(r => justPath === r || justPath.startsWith(r + "?"))
 
       if (triggers) {
+        const suggestion = origin === "app"
+          ? `https://pleks.co.za${justPath}`
+          : `\${process.env.NEXT_PUBLIC_APP_URL}${justPath}`
         fail("cross-origin-link", `${relPath(file)}: <Link href="${href}"> triggers cross-origin redirect (RSC prefetch will CORS-fail)`,
-             `Use <a href="${origin === 'app' ? 'https://pleks.co.za' : '${process.env.NEXT_PUBLIC_APP_URL}'}${justPath}"> instead`)
+             `Use <a href="${suggestion}"> instead`)
       }
     }
   }
@@ -256,9 +297,11 @@ function checkManifestOrigin() {
     const group = routeGroupOf(layout)
     if (!group) continue   // root layout — separate concern
 
+    const origin = originOf(group, layout)
     const content = readFile(layout)
-    if (/<link[^>]+rel=["']manifest["']/i.test(content) || /manifest:/i.test(content)) {
-      if (MARKETING_GROUPS.includes(group)) {
+    // /manifest:\s*["'\/]/ matches manifest: "/path" or manifest: '/path' — not manifest: null
+    if (/<link[^>]+rel=["']manifest["']/i.test(content) || /manifest:\s*["'/]/.test(content)) {
+      if (origin === "marketing") {
         fail("manifest-origin", `${rel}: marketing route-group ${group} references a manifest`,
              `PWA manifest should only be linked from app-origin route-groups`)
       }

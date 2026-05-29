@@ -21,6 +21,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet"
 // Cross-subdomain links use absolute URLs — relative paths would be RSC-prefetched
 // as same-origin, hit the apex→app redirect, and fail the browser's CORS preflight.
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? ""
+const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
 
 const NAV_LINKS = [
   { href: "/#why",       label: "Why Pleks" },
@@ -130,11 +131,11 @@ export function PublicNav() {
                 <p className="pub-xs" style={{ padding: "8px 12px", borderBottom: "1px solid var(--rule)", margin: 0 }}>
                   {user.email}
                 </p>
-                <Link href="/dashboard"
+                <a href={`${APP_URL}/dashboard`}
                   style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", fontSize: 13, color: "var(--ink)" }}
                   onClick={() => setProfileOpen(false)}>
                   <LayoutDashboard size={14} style={{ color: "var(--ink-mute)" }} /> Dashboard
-                </Link>
+                </a>
                 <button type="button" onClick={handleLogout}
                   style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", fontSize: 13, color: "var(--critical)", width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer" }}>
                   <LogOut size={14} /> Log out
@@ -165,11 +166,11 @@ export function PublicNav() {
       return (
         <>
           <p className="pub-xs" style={{ padding: "0 8px", margin: 0 }}>{user.email}</p>
-          <Link href="/dashboard"
+          <a href={`${APP_URL}/dashboard`}
             style={{ padding: "10px 8px", fontSize: 14, color: "var(--ink)", display: "flex", alignItems: "center", gap: 8 }}
             onClick={() => setMobileOpen(false)}>
             <LayoutDashboard size={16} /> Dashboard
-          </Link>
+          </a>
           <button type="button" onClick={handleLogout}
             style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 8px", fontSize: 14, color: "var(--critical)", textAlign: "left", background: "none", border: "none", cursor: "pointer" }}>
             <LogOut size={16} /> Log out
@@ -203,11 +204,11 @@ export function PublicNav() {
       <div className="pub-wrap" style={{ height: 64, display: "flex", alignItems: "center", gap: 24 }}>
 
         {/* Wordmark */}
-        <Link href="/" className="pub-wordmark" aria-label="Pleks" style={{ flexShrink: 0 }}>
+        <a href={MARKETING_URL} className="pub-wordmark" aria-label="Pleks" style={{ flexShrink: 0 }}>
           <span className="pub-wm-name">
             {"plek"}<AccentBracket>{"s"}</AccentBracket>
           </span>
-        </Link>
+        </a>
 
         {/* Centre nav — desktop only */}
         <nav aria-label="Site sections" className="hidden md:flex" style={{ flex: 1, justifyContent: "center", gap: 2, alignItems: "center" }}>

@@ -11,7 +11,8 @@
  */
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
-import Link from "next/link"
+
+const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
 
 export default function SeveredPage() {
   const [email, setEmail] = useState<string | null>(null)
@@ -42,8 +43,8 @@ export default function SeveredPage() {
         </p>
       )}
       <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 280, margin: "0 auto" }}>
-        <Link
-          href="/contact"
+        <a
+          href={`${MARKETING_URL}/contact`}
           style={{
             display: "block", padding: "10px 20px", borderRadius: "var(--r-md)",
             border: "1px solid var(--rule)", fontSize: 14, color: "var(--ink)",
@@ -51,7 +52,7 @@ export default function SeveredPage() {
           }}
         >
           Contact support
-        </Link>
+        </a>
         <button
           type="button"
           onClick={() => { void handleSignOut() }}

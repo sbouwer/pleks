@@ -17,9 +17,10 @@ import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createAccountAndOrg, type OnboardingData } from "@/lib/actions/onboarding"
 import { toast } from "sonner"
+
+const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
 import { ArrowLeft, ArrowRight, Plus, X, Building2, User, Users, Heart, Eye, EyeOff, Info } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
-import Link from "next/link"
 
 type UserType = "owner" | "agent" | "agency" | "family" | "exploring"
 
@@ -284,9 +285,9 @@ function OnboardingWizard() {
       <input type="checkbox" checked={tosAccepted} onChange={(e) => setTosAccepted(e.target.checked)} />
       <span style={{ fontSize: 13, color: "var(--ink-soft)" }}>
         I have read and agree to the{" "}
-        <Link href="/terms" target="_blank" style={{ color: "var(--amber-ink)" }}>Terms of Service</Link>
+        <a href={`${MARKETING_URL}/terms`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--amber-ink)" }}>Terms of Service</a>
         {" "}and{" "}
-        <Link href="/privacy" target="_blank" style={{ color: "var(--amber-ink)" }}>Privacy Policy</Link>
+        <a href={`${MARKETING_URL}/privacy`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--amber-ink)" }}>Privacy Policy</a>
       </span>
     </label>
   )

@@ -5,7 +5,6 @@
  * Notes: Imports both public.css and action-language.css so ActionButton
  *        (pa-primary / pa-secondary) works on public pages.
  */
-import Link from "next/link"
 import { PublicNav } from "./PublicNav"
 import { PublicThemeProvider } from "./PublicThemeProvider"
 import { FooterColumns } from "@/components/marketing/FooterColumns"
@@ -17,6 +16,8 @@ import "@/components/ui/actions/action-language.css"
 // PWA manifest is app.pleks.co.za only — suppress on marketing pages to avoid
 // the "start_url ignored, should be same origin" browser console warning.
 export const metadata = { manifest: null }
+
+const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
 
 export default function PublicLayout({
   children,
@@ -40,9 +41,9 @@ export default function PublicLayout({
           }}>
             {/* Brand — wordmark matches nav */}
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <Link href="/" className="pub-wordmark" aria-label="Pleks" style={{ alignSelf: "flex-start" }}>
+              <a href={MARKETING_URL} className="pub-wordmark" aria-label="Pleks" style={{ alignSelf: "flex-start" }}>
                 <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
-              </Link>
+              </a>
               <p className="pub-small" style={{ maxWidth: "28ch", margin: 0 }}>
                 Built from the inside out.<br />
                 <span style={{ color: "var(--ink-soft)" }}>Every feature earned in the field.</span>

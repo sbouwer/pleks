@@ -18,6 +18,8 @@ import { Shield, CheckCircle2, Building2 } from "lucide-react"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import { safeRedirect } from "@/lib/auth/safe-redirect"
 
+const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
+
 // ── Shared button styles ──────────────────────────────────────────────────────
 
 const BTN_PRIMARY: React.CSSProperties = {
@@ -116,21 +118,23 @@ function TosStep({ onAccepted }: Readonly<{ onAccepted: () => void }>) {
         and privacy policy.
       </p>
       <div style={{ display: "flex", gap: 12, marginBottom: 24, fontSize: 13 }}>
-        <Link
-          href="/terms"
+        <a
+          href={`${MARKETING_URL}/terms`}
           target="_blank"
+          rel="noopener noreferrer"
           style={{ color: "var(--amber-ink, #c47600)", textDecoration: "underline" }}
         >
           Terms of Service {LEGAL_VERSIONS.terms}
-        </Link>
+        </a>
         <span style={{ color: "var(--ink-faint, #bbb)" }}>·</span>
-        <Link
-          href="/privacy"
+        <a
+          href={`${MARKETING_URL}/privacy`}
           target="_blank"
+          rel="noopener noreferrer"
           style={{ color: "var(--amber-ink, #c47600)", textDecoration: "underline" }}
         >
           Privacy Policy {LEGAL_VERSIONS.privacy}
-        </Link>
+        </a>
       </div>
       {error && (
         <p style={{ fontSize: 13, color: "var(--danger, #c00)", marginBottom: 12 }}>{error}</p>
