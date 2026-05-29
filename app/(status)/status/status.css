@@ -251,4 +251,7 @@
   .st-meta-divider     { display: none; }
   .st-incident-inner   { gap: 10px; padding: 12px 14px; }
   .st-inc-time         { display: none; }
+  .st-headline         { gap: 12px; align-items: flex-start; }
+  .st-heart            { width: 34px; height: 34px; margin-top: 2px; }
+  .st-incidents-more > summary { padding: 12px 14px; }
 }

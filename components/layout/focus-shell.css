@@ -176,3 +176,11 @@
   background: var(--amber-wash); color: var(--amber-ink); border-color: var(--amber);
 }
 .fs-cta-ghost:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* ── Mobile — full-bleed panel, tighter padding (matches onboarding shell) ── */
+@media (max-width: 560px) {
+  .fs-content { padding: 28px 14px 60px; }
+  .fs-panel   { padding: 30px 22px 34px; max-width: 100%; }
+  .fs-heading { font-size: 22px; }
+  .fs-knob    { right: 20px; top: 24px; }
+}
