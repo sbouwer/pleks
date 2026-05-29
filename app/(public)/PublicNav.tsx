@@ -10,7 +10,6 @@
  */
 
 import { useState, useEffect, useRef } from "react"
-import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Menu, User, LogIn, LogOut, LayoutDashboard, Sun, Moon } from "lucide-react"
 import { AccentBracket } from "@/components/ui/AccentBracket"
@@ -23,20 +22,24 @@ import { Sheet, SheetContent } from "@/components/ui/sheet"
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? ""
 const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
 
+// href is the absolute destination (always cross-origin-safe via MARKETING_URL);
+// section is the homepage anchor ID used for scroll-spy (null for non-hash routes).
+// Decoupled so we can render plain <a> with an absolute URL while still driving
+// the active-state highlight from the IntersectionObserver on the marketing page.
 const NAV_LINKS = [
-  { href: "/#why",       label: "Why Pleks" },
-  { href: "/#artefact",  label: "The work" },
-  { href: "/#charter",   label: "Charter" },
-  { href: "/#story",     label: "Who built this" },
-  { href: "/#pricing",   label: "Pricing" },
-  { href: "/#founding",  label: "Founding agents" },
-  { href: "/contact",    label: "Contact" },
+  { href: `${MARKETING_URL}/#why`,       section: "why",      label: "Why Pleks" },
+  { href: `${MARKETING_URL}/#artefact`,  section: "artefact", label: "The work" },
+  { href: `${MARKETING_URL}/#charter`,   section: "charter",  label: "Charter" },
+  { href: `${MARKETING_URL}/#story`,     section: "story",    label: "Who built this" },
+  { href: `${MARKETING_URL}/#pricing`,   section: "pricing",  label: "Pricing" },
+  { href: `${MARKETING_URL}/#founding`,  section: "founding", label: "Founding agents" },
+  { href: `${MARKETING_URL}/contact`,    section: null,       label: "Contact" },
 ]
 
-// Extract section IDs from hash links for scroll-spy
+// Section IDs for scroll-spy
 const SECTION_IDS = NAV_LINKS
-  .filter(l => l.href.startsWith("/#"))
-  .map(l => l.href.slice(2))
+  .map(l => l.section)
+  .filter((s): s is string => s !== null)
 
 // Shared style for all icon-only buttons in the nav lives in public.css as `.pub-icon-btn`
 // (theme toggle, sign-in, profile). Use `.pub-icon-btn--active` for the logged-in state.
@@ -213,10 +216,9 @@ export function PublicNav() {
         {/* Centre nav — desktop only */}
         <nav aria-label="Site sections" className="hidden md:flex" style={{ flex: 1, justifyContent: "center", gap: 2, alignItems: "center" }}>
           {NAV_LINKS.map(link => {
-            const sectionId = link.href.startsWith("/#") ? link.href.slice(2) : null
-            const isActive  = sectionId ? activeSection === sectionId : pathname === link.href
+            const isActive = link.section ? activeSection === link.section : pathname === "/contact"
             return (
-              <Link
+              <a
                 key={link.href}
                 href={link.href}
                 className={isActive ? "stoep" : undefined}
@@ -232,7 +234,7 @@ export function PublicNav() {
                 onMouseLeave={e => { e.currentTarget.style.color = isActive ? "var(--ink)" : "var(--ink-soft)"; e.currentTarget.style.background = "transparent" }}
               >
                 {link.label}
-              </Link>
+              </a>
             )
           })}
           {/* Start free CTA — only shown when confirmed logged out, not while checking */}
@@ -276,11 +278,11 @@ export function PublicNav() {
         <SheetContent side="bottom" className="rounded-t-xl pb-8">
           <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "16px 0" }}>
             {NAV_LINKS.map(link => (
-              <Link key={link.href} href={link.href}
+              <a key={link.href} href={link.href}
                 style={{ padding: "11px 8px", fontSize: 14, fontWeight: 500, color: "var(--ink-soft)", borderRadius: "var(--r-sm)" }}
                 onClick={() => setMobileOpen(false)}>
                 {link.label}
-              </Link>
+              </a>
             ))}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingTop: 12, borderTop: "1px solid var(--rule)" }}>

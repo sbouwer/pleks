@@ -39,7 +39,10 @@ function isApexPath(pathname: string): boolean {
 }
 
 const APP_HOSTNAME       = "app.pleks.co.za"
-const MARKETING_HOSTNAME = "pleks.co.za"
+// Canonical marketing host — Vercel 308-redirects bare pleks.co.za → www at the
+// infrastructure level. Point at www to avoid an extra redirect hop on every
+// cross-subdomain bounce. Do NOT add a www→bare redirect here (recreates a loop).
+const MARKETING_HOSTNAME = "www.pleks.co.za"
 const ADMIN_HOSTNAME     = "admin.pleks.co.za"
 const STATUS_HOSTNAME    = "status.pleks.co.za"
 

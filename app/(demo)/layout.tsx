@@ -7,6 +7,10 @@
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 
+// /demo is an APEX_PREFIX served from www.pleks.co.za — suppress the PWA manifest
+// (its start_url is on app.pleks.co.za) to avoid the cross-origin start_url warning.
+export const metadata = { manifest: null }
+
 export default async function DemoLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   // Guard: if user already has an org, redirect to real dashboard
   const supabase = await createClient()

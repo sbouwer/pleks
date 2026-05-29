@@ -49,6 +49,7 @@ function c(content: Record<string, string>, key: string): string {
 
 // Cross-subdomain links — absolute URLs prevent RSC prefetch CORS failures
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? ""
+const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://www.pleks.co.za"
 
 const AUDIT_ROWS = [
   { line: "Platform · per-user fee",            min: 400,   max: 800,   unit: "per user / mo",            pleks: "Included",            pleksNote: "whole team, no per-user fee"          },
@@ -399,9 +400,9 @@ export default async function HomePage() {
               <strong style={{ color: "var(--ink)" }}>If Pleks costs you more per month than what you&apos;re paying today, I want to know.</strong>{" "}
               I&apos;ll get on a call, walk the numbers with you, and if the maths doesn&apos;t land I&apos;ll tell you so myself — no form, no SDR.
             </p>
-            <Link href="/contact" className="btn-pleks ghost" style={{ whiteSpace: "nowrap" }}>
+            <a href={`${MARKETING_URL}/contact`} className="btn-pleks ghost" style={{ whiteSpace: "nowrap" }}>
               Get in touch →
-            </Link>
+            </a>
           </div>
         </div>
       </section>

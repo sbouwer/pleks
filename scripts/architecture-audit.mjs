@@ -119,10 +119,13 @@ function originOf(group, filePath) {
 
 // Paths whose production server-side redirect crosses origins.
 // app-side list mirrors APEX_PATH_PREFIXES above (kept as a named alias for clarity).
-// marketing-side list: paths that redirect from pleks.co.za → app.pleks.co.za.
+// marketing-side list: paths that redirect from www.pleks.co.za → app.pleks.co.za,
+// PLUS /contact — shared components default to "marketing" origin but also render on
+// app-subdomain pages (login etc.) via the public layout, where /contact crosses origin.
+// Forcing absolute URLs for /contact in those components is the safe, consistent fix.
 const CROSS_ORIGIN_REDIRECTS = {
   app: APEX_PATH_PREFIXES,
-  marketing: ["/onboarding", "/login", "/dashboard", "/auth/resolver"],
+  marketing: ["/onboarding", "/login", "/dashboard", "/auth/resolver", "/contact"],
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -162,8 +165,13 @@ function checkCrossOriginLinks() {
       const triggers = redirects.some(r => justPath === r || justPath.startsWith(r + "?"))
 
       if (triggers) {
-        const suggestion = origin === "app"
-          ? `https://pleks.co.za${justPath}`
+        // Suggest the correct target by destination, not source origin: apex paths
+        // resolve to the marketing host, everything else to the app subdomain.
+        const isApexDest = APEX_PATH_PREFIXES.some(
+          p => justPath === p || justPath.startsWith(p + "/")
+        )
+        const suggestion = isApexDest
+          ? `\${process.env.NEXT_PUBLIC_MARKETING_URL}${justPath}`
           : `\${process.env.NEXT_PUBLIC_APP_URL}${justPath}`
         fail("cross-origin-link", `${relPath(file)}: <Link href="${href}"> triggers cross-origin redirect (RSC prefetch will CORS-fail)`,
              `Use <a href="${suggestion}"> instead`)

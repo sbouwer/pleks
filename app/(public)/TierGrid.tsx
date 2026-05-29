@@ -9,11 +9,11 @@
  */
 
 import { useState } from "react"
-import Link from "next/link"
 import type { TierData } from "@/lib/marketing/tiers"
 
 // Absolute URL to avoid RSC prefetch CORS failures across subdomain boundary
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? ""
+const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://www.pleks.co.za"
 
 export type { TierData }
 
@@ -101,9 +101,9 @@ export function TierGrid({ tiers }: Readonly<{ tiers: readonly TierData[] }>) {
                   Start as {tier.name} →
                 </a>
               ) : (
-                <Link href="/contact" className="pub-tier-cta pub-tier-cta-amber">
+                <a href={`${MARKETING_URL}/contact`} className="pub-tier-cta pub-tier-cta-amber">
                   Email the founder →
-                </Link>
+                </a>
               )}
             </div>
           )
