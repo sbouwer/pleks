@@ -42,13 +42,15 @@ function fmtCents(cents: number): string {
   return cents === 0 ? "—" : formatZARAbbrev(cents)
 }
 
-function formatAction(action: string): string {
-  switch (action) {
-    case "payment_recorded": return "Payment recorded"
-    case "maintenance_completed": return "Maintenance completed"
-    case "lease_created": return "Lease created"
-    default: return action
-  }
+// audit_log.action is generic (INSERT/UPDATE/DELETE/NOTE/…) — there is no semantic
+// "payment_recorded" action. Derive a human label from (table_name, action) instead.
+function formatActivity(table: string, action: string): string {
+  if (table === "leases" && action === "INSERT") return "Lease created"
+  if (table === "payments" && action === "INSERT") return "Payment recorded"
+  if (table === "maintenance_requests") return action === "INSERT" ? "Maintenance logged" : "Maintenance updated"
+  if (table === "inspections" && action === "INSERT") return "Inspection scheduled"
+  const t = table.replaceAll("_", " ")
+  return `${t.charAt(0).toUpperCase()}${t.slice(1)} ${action.toLowerCase()}`
 }
 
 function formatTime(iso: string): string {
@@ -110,9 +112,9 @@ function AttentionSection() {
       const [arrearsRes, maintenanceRes] = await Promise.all([
         supabase
           .from("arrears_cases")
-          .select("id, tenant_name, balance_cents")
+          .select("id, total_arrears_cents")
           .eq("status", "open")
-          .order("balance_cents", { ascending: false })
+          .order("total_arrears_cents", { ascending: false })
           .limit(3),
         supabase
           .from("maintenance_requests")
@@ -124,9 +126,7 @@ function AttentionSection() {
       const arrears: AttentionItem[] = (arrearsRes.data ?? []).map((r) => ({
         id: `arrears-${r.id}`,
         type: "arrears" as const,
-        label: r.tenant_name
-          ? `Arrears — ${r.tenant_name}`
-          : `Arrears — ${formatZARAbbrev(r.balance_cents ?? 0)}`,
+        label: `Arrears — ${formatZARAbbrev(r.total_arrears_cents ?? 0)}`,
         href: "/payments?tab=arrears",
       }))
 
@@ -170,8 +170,8 @@ function AttentionSection() {
 interface AuditEntry {
   id: string
   action: string
+  table_name: string
   created_at: string
-  meta?: Record<string, unknown> | null
 }
 
 function RecentActivity() {
@@ -182,8 +182,8 @@ function RecentActivity() {
     queryFn: async () => {
       const { data } = await supabase
         .from("audit_log")
-        .select("id, action, created_at, meta")
-        .in("action", ["payment_recorded", "maintenance_completed", "lease_created"])
+        .select("id, action, table_name, created_at")
+        .in("table_name", ["leases", "payments", "maintenance_requests", "inspections"])
         .order("created_at", { ascending: false })
         .limit(5)
       return data ?? []
@@ -201,7 +201,7 @@ function RecentActivity() {
       </p>
       {entries.map((entry) => (
         <div key={entry.id} className="flex items-center justify-between px-4 py-3 border-b border-border/50 last:border-b-0">
-          <span className="text-sm">{formatAction(entry.action)}</span>
+          <span className="text-sm">{formatActivity(entry.table_name, entry.action)}</span>
           <span className="text-xs text-muted-foreground">{formatTime(entry.created_at)}</span>
         </div>
       ))}

@@ -43,7 +43,8 @@ export function useMobileHomeBadges(): MobileHomeBadges {
   const supabase = createClient()
 
   const now = new Date()
-  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  // payments.payment_date is a DATE column — compare against a YYYY-MM-DD string.
+  const firstOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`
 
   const results = useQueries({
     queries: [
@@ -123,9 +124,9 @@ export function useMobileHomeBadges(): MobileHomeBadges {
         queryFn: async () => {
           const { data } = await supabase
             .from("arrears_cases")
-            .select("balance_cents")
+            .select("total_arrears_cents")
             .eq("status", "open")
-          return (data ?? []).reduce((sum, r) => sum + (r.balance_cents ?? 0), 0)
+          return (data ?? []).reduce((sum, r) => sum + (r.total_arrears_cents ?? 0), 0)
         },
         staleTime: STALE,
         refetchInterval: REFETCH,
@@ -133,11 +134,17 @@ export function useMobileHomeBadges(): MobileHomeBadges {
       {
         queryKey: ["mobile-badge", "deposits_cents"],
         queryFn: async () => {
+          // No flat `deposits` table — deposits live in the deposit_transactions ledger.
+          // "Currently held" = net of credits (deposit_received, interest) minus debits
+          // (deductions, returns, forfeits). Clamp ≥ 0.
           const { data } = await supabase
-            .from("deposits")
-            .select("amount_cents")
-            .in("status", ["held", "invested"])
-          return (data ?? []).reduce((sum, r) => sum + (r.amount_cents ?? 0), 0)
+            .from("deposit_transactions")
+            .select("amount_cents, direction")
+          const net = (data ?? []).reduce(
+            (sum, r) => sum + (r.direction === "credit" ? (r.amount_cents ?? 0) : -(r.amount_cents ?? 0)),
+            0,
+          )
+          return Math.max(0, net)
         },
         staleTime: STALE,
         refetchInterval: REFETCH,
@@ -145,11 +152,12 @@ export function useMobileHomeBadges(): MobileHomeBadges {
       {
         queryKey: ["mobile-badge", "collected_cents", firstOfMonth],
         queryFn: async () => {
+          // payments has no status (every row is money received) and no paid_at — the date
+          // column is payment_date. "Collected this month" = sum since the 1st.
           const { data } = await supabase
             .from("payments")
             .select("amount_cents")
-            .eq("status", "completed")
-            .gte("paid_at", firstOfMonth)
+            .gte("payment_date", firstOfMonth)
           return (data ?? []).reduce((sum, r) => sum + (r.amount_cents ?? 0), 0)
         },
         staleTime: STALE,
