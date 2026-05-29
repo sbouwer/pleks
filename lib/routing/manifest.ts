@@ -88,6 +88,13 @@ export const ROUTE_MANIFEST: Record<string, RouteRule> = {
   "/select-role":           { auth: true,  skipOrgCheck: true },
   "/403":                   { auth: false },
 
+  // ── Enrolment island (longest-prefix beats /settings) ──
+  // Agents reach this at AAL1 to enrol their first factor. skipOrgCheck so the gate
+  // never needs pleks_org's role here: this is a resolver-targeted MFA destination and
+  // must be reachable whenever the resolver sends an AAL1 agent to enrol, regardless of
+  // org-cookie freshness (pleks_org is 300s; welcome→enrol→verify can exceed it). Loop-class fix.
+  "/settings/security/enrol-totp": { auth: true, skipOrgCheck: true, requiresAal2: false },
+
   // ── Agent workspace (unprefixed) — requiresAal2 blocks AAL1 sessions ──
   // /settings is intentionally AAL1-accessible so agents can enrol their first
   // TOTP factor before they have an AAL2 session.
