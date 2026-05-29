@@ -5,12 +5,16 @@
    or the app dark theme. No raw hex. */
 
 /* ── Shell ──────────────────────────────────────────────────────────────── */
+/* Fixed full-viewport overlay so the login surface reads as a focused full-page
+   shell (matching onboarding/welcome) — it covers the public nav/footer rather
+   than sitting below them. Admin renders standalone; this is harmless there. */
 .fs-shell {
-  position: relative;
-  min-height: 100vh;
+  position: fixed;
+  inset: 0;
   width: 100%;
-  overflow: hidden;
+  overflow-y: auto;
   background: var(--paper-sunk);
+  z-index: 50;
 }
 
 /* ── Backdrop layers (static, position: absolute inset: 0) ──────────────── */

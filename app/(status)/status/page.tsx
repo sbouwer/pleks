@@ -108,12 +108,13 @@ const HEART_PATH = "M18 31 C18 31 4.5 22.5 4.5 13 C4.5 8.4 8 5 12 5 C14.6 5 16.8
 
 function HeartPulse({ color }: Readonly<{ color: string }>) {
   return (
-    <svg className="st-heart" width={44} height={44} viewBox="0 0 36 36" fill="none" aria-hidden="true">
-      <clipPath id="st-heart-clip"><path d={HEART_PATH} /></clipPath>
-      <g clipPath="url(#st-heart-clip)">
-        <rect className="st-heart-fill" x="0" y="0" width="36" height="36" fill={color} />
-      </g>
-      <path d={HEART_PATH} stroke="var(--ink, #1a1a18)" strokeWidth="1.6" strokeLinejoin="round" fill="none" />
+    <svg className="st-heart" width={52} height={52} viewBox="0 0 36 36" fill="none" aria-hidden="true">
+      {/* faint track */}
+      <path d={HEART_PATH} stroke="var(--ink, #1a1a18)" strokeOpacity="0.12" strokeWidth="1.5" strokeLinejoin="round" fill="none" />
+      {/* completion pulse — rings outward then fades */}
+      <path className="st-heart-pulse" d={HEART_PATH} stroke={color} strokeWidth="1.5" strokeLinejoin="round" fill="none" />
+      {/* amber border draws around the heart perimeter */}
+      <path className="st-heart-draw" d={HEART_PATH} pathLength={100} stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
     </svg>
   )
 }

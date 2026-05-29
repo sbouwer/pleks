@@ -59,23 +59,38 @@
   margin-bottom: 12px;
 }
 
-/* Heartbeat mark — status-tinted fill rises and settles, then empties and repeats.
-   transform-box: fill-box makes the % translate relative to the rect's own bbox. */
+/* Heartbeat mark — an amber border draws around the heart, holds, then rings
+   outward in a pulse, resets, and repeats. Echoes the welcome shield's edge-sweep. */
 .st-heart { flex-shrink: 0; }
-.st-heart-fill {
-  transform-box: fill-box;
-  transform: translateY(100%);            /* empty */
-  animation: st-heart-fill 2.8s ease-in-out infinite;
-  opacity: 0.9;
+.st-heart-draw {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: st-heart-draw 3.2s ease-in-out infinite;
 }
-@keyframes st-heart-fill {
-  0%   { transform: translateY(100%); }   /* empty */
-  45%  { transform: translateY(0); }       /* filled */
-  68%  { transform: translateY(0); }       /* hold */
-  100% { transform: translateY(100%); }    /* empties back */
+@keyframes st-heart-draw {
+  0%   { stroke-dashoffset: 100; opacity: 1; }  /* empty */
+  50%  { stroke-dashoffset: 0;   opacity: 1; }  /* fully drawn */
+  62%  { stroke-dashoffset: 0;   opacity: 1; }  /* hold */
+  64%  { stroke-dashoffset: 0;   opacity: 0; }  /* hide as the pulse fires */
+  66%  { stroke-dashoffset: 100; opacity: 0; }  /* reset to empty */
+  68%  { opacity: 1; }                           /* show empty track again */
+  100% { stroke-dashoffset: 100; opacity: 1; }   /* breath, then loop */
+}
+.st-heart-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+  animation: st-heart-pulse 3.2s ease-out infinite;
+}
+@keyframes st-heart-pulse {
+  0%, 60% { transform: scale(1);    opacity: 0; }
+  64%     { transform: scale(1);    opacity: 0.65; }  /* fires on completion */
+  82%     { transform: scale(1.55); opacity: 0; }     /* rings outward */
+  100%    { transform: scale(1);    opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .st-heart-fill { animation: none; transform: translateY(35%); }  /* static partial fill */
+  .st-heart-draw  { animation: none; stroke-dashoffset: 0; }  /* statically drawn */
+  .st-heart-pulse { animation: none; opacity: 0; }
 }
 
 .st-hero h1 {
