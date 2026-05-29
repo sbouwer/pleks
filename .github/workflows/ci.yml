@@ -80,14 +80,13 @@ jobs:
       - name: Install dependencies
         run: npm ci --prefer-offline --no-audit
 
-      - name: Run security:ci (no-localhost subset)
-        run: npm run security:ci
+      - name: Run security:db (static Supabase-only subset)
+        run: npm run security:db
         env:
           SUPABASE_URL: ${{ secrets.CI_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.CI_SUPABASE_SERVICE_ROLE_KEY }}
-        # These secrets are optional. If not set, security:ci should
-        # short-circuit with a warning rather than failing the job.
-        # The full security audit remains a pre-deploy local step.
+        # Secrets are optional; security:db short-circuits gracefully if absent.
+        # The full localhost audit (security:prod) remains a pre-deploy local step.
         continue-on-error: false
 
   dependency-scan:
