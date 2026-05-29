@@ -29,6 +29,8 @@ export interface OnboardingData {
   email: string
   mobile: string
   address?: string
+  city?: string
+  province?: string
   managementScope: string
   ppraStatus?: string
   ppraFfcNumber?: string
@@ -73,6 +75,8 @@ export async function createAccountAndOrg(data: OnboardingData): Promise<{
       email: data.email,
       phone: data.mobile,
       address: data.address || null,
+      addr_city: data.city || null,
+      addr_province: data.province || null,
       management_scope: data.managementScope,
       ppra_status: data.ppraStatus || null,
       ppra_ffc_number: data.ppraFfcNumber || null,

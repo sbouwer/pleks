@@ -16,6 +16,7 @@
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createAccountAndOrg, type OnboardingData } from "@/lib/actions/onboarding"
+import { SA_PROVINCES } from "@/lib/constants"
 import { toast } from "sonner"
 
 const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
@@ -135,7 +136,8 @@ function OnboardingWizard() {
   // Shared
   const [name, setName] = useState("")
   const [mobile, setMobile] = useState("")
-  const [address, setAddress] = useState("")
+  const [city, setCity] = useState("")
+  const [province, setProvince] = useState("")
   const [tradingAs, setTradingAs] = useState("")
   const [regNumber, setRegNumber] = useState("")
   const [vatNumber, setVatNumber] = useState("")
@@ -273,7 +275,11 @@ function OnboardingWizard() {
       contactName: name,
       email: acctEmail || email,
       mobile,
-      address: address || undefined,
+      // Keep the legacy free-text address populated (read by invoices/statements/leases)
+      // by composing it, while also sending the structured city/province.
+      address: [city, province].filter(Boolean).join(", ") || undefined,
+      city: city || undefined,
+      province: province || undefined,
       managementScope: getManagementScope(),
       ppraStatus: ppraStatus || undefined,
       ppraFfcNumber: ppraFfc || undefined,
@@ -454,7 +460,8 @@ function OnboardingWizard() {
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <Field label="Your name *"><input className="ob-input" name="name" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" /></Field>
           <Field label="Mobile number *"><input className="ob-input" type="tel" name="mobile" autoComplete="tel" value={mobile} onChange={(e) => setMobile(e.target.value)} placeholder="082 000 0000" /></Field>
-          <Field label="City & Province"><input className="ob-input" name="address" autoComplete="address-level2" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Cape Town, WC" /></Field>
+          <Field label="City"><input className="ob-input" name="city" autoComplete="address-level2" value={city} onChange={(e) => setCity(e.target.value)} placeholder="Cape Town" /></Field>
+          <Field label="Province"><select className="ob-input" name="province" autoComplete="address-level1" value={province} onChange={(e) => setProvince(e.target.value)}><option value="">Select province…</option>{SA_PROVINCES.map((p) => <option key={p} value={p}>{p}</option>)}</select></Field>
           <Btn onClick={() => setStep(2)} disabled={!name.trim() || !mobile.trim()}>Continue</Btn>
         </div>
       </div>
@@ -512,7 +519,8 @@ function OnboardingWizard() {
           <Field label="Your full name *"><input className="ob-input" name="name" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} /></Field>
           <Field label="Trading name *"><input className="ob-input" name="trading-name" autoComplete="organization" value={tradingAs} onChange={(e) => setTradingAs(e.target.value)} placeholder="e.g. Smith Property Management" /></Field>
           <Field label="Mobile number *"><input className="ob-input" type="tel" name="mobile" autoComplete="tel" value={mobile} onChange={(e) => setMobile(e.target.value)} /></Field>
-          <Field label="City & Province"><input className="ob-input" name="address" autoComplete="address-level2" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Cape Town, WC" /></Field>
+          <Field label="City"><input className="ob-input" name="city" autoComplete="address-level2" value={city} onChange={(e) => setCity(e.target.value)} placeholder="Cape Town" /></Field>
+          <Field label="Province"><select className="ob-input" name="province" autoComplete="address-level1" value={province} onChange={(e) => setProvince(e.target.value)}><option value="">Select province…</option>{SA_PROVINCES.map((p) => <option key={p} value={p}>{p}</option>)}</select></Field>
           <Field label="Company reg number"><input className="ob-input" name="reg-number" autoComplete="off" value={regNumber} onChange={(e) => setRegNumber(e.target.value)} placeholder="Optional" /></Field>
           <Btn onClick={() => setStep(2)} disabled={!name.trim() || !tradingAs.trim() || !mobile.trim()}>Continue</Btn>
         </div>
@@ -539,7 +547,8 @@ function OnboardingWizard() {
           <Field label="Registration number *"><input className="ob-input" name="reg-number" autoComplete="off" value={regNumber} onChange={(e) => setRegNumber(e.target.value)} /></Field>
           <Field label="VAT number"><input className="ob-input" name="vat-number" autoComplete="off" value={vatNumber} onChange={(e) => setVatNumber(e.target.value)} placeholder="Optional" /></Field>
           <Field label="Mobile number *"><input className="ob-input" type="tel" name="mobile" autoComplete="tel" value={mobile} onChange={(e) => setMobile(e.target.value)} /></Field>
-          <Field label="City & Province"><input className="ob-input" name="address" autoComplete="address-level2" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Cape Town, WC" /></Field>
+          <Field label="City"><input className="ob-input" name="city" autoComplete="address-level2" value={city} onChange={(e) => setCity(e.target.value)} placeholder="Cape Town" /></Field>
+          <Field label="Province"><select className="ob-input" name="province" autoComplete="address-level1" value={province} onChange={(e) => setProvince(e.target.value)}><option value="">Select province…</option>{SA_PROVINCES.map((p) => <option key={p} value={p}>{p}</option>)}</select></Field>
           <Btn onClick={() => setStep(2)} disabled={!name.trim() || !regNumber.trim() || !mobile.trim()}>Continue</Btn>
         </div>
       </div>
