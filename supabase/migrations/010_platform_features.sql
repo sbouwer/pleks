@@ -2652,3 +2652,31 @@ CREATE POLICY "activation_delegations_owner_delete" ON activation_delegations
       WHERE user_id = auth.uid() AND role = 'owner' AND deleted_at IS NULL
     )
   );
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §32  PASSKEY_FIX: store WebAuthn binary fields as base64url TEXT, not bytea
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- supabase-js JSON-serialises a Node Buffer to {"type":"Buffer","data":[...]} on insert,
+-- so writing a Buffer into a bytea column persisted that JSON string's bytes (corrupt),
+-- and reading bytea back yields a "\x..."-hex string the route code then mis-decoded —
+-- so verifyRegistrationResponse/verifyAuthenticationResponse never matched (passkeys never
+-- enrolled: user_passkeys was empty). The canonical simplewebauthn-on-Supabase pattern is
+-- to store these as base64url TEXT and pass them straight through. Safe to convert in place:
+-- passkey_challenges are ephemeral (5-min TTL) and user_passkeys is empty. Guarded so it's
+-- a no-op once converted (idempotent re-runs). UNIQUE/index on credential_id rebuild on the
+-- new text column automatically.
+DO $$
+BEGIN
+  IF (SELECT data_type FROM information_schema.columns
+        WHERE table_name = 'passkey_challenges' AND column_name = 'challenge') = 'bytea' THEN
+    ALTER TABLE passkey_challenges ALTER COLUMN challenge TYPE text USING encode(challenge, 'base64');
+  END IF;
+  IF (SELECT data_type FROM information_schema.columns
+        WHERE table_name = 'user_passkeys' AND column_name = 'credential_id') = 'bytea' THEN
+    ALTER TABLE user_passkeys ALTER COLUMN credential_id TYPE text USING encode(credential_id, 'base64');
+  END IF;
+  IF (SELECT data_type FROM information_schema.columns
+        WHERE table_name = 'user_passkeys' AND column_name = 'public_key') = 'bytea' THEN
+    ALTER TABLE user_passkeys ALTER COLUMN public_key TYPE text USING encode(public_key, 'base64');
+  END IF;
+END $$;

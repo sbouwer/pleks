@@ -66,6 +66,17 @@ ARCHITECTURE" sections. When you change auth, re-read this and keep it true.
    fails closed and loops. Enforced by architecture-audit CHECK 8. (Portal routes are
    exempt — their role comes from the login-set cookie, not `pleks_org`.)
 
+9. **Passkey binary fields are base64url `text`, never `bytea`.** `passkey_challenges.challenge`,
+   `user_passkeys.credential_id`, `user_passkeys.public_key` are stored as base64url text.
+   `supabase-js` JSON-serialises a Node `Buffer` into a `bytea` column (`{"type":"Buffer",…}`)
+   and PostgREST returns `bytea` as a `\x…` hex string — both corrupt the value, which broke
+   passkey registration **and** login (they 400'd; 0 ever enrolled). All crossings go through
+   `lib/auth/passkeys/encoding.ts` (`bytesToB64url` / `b64urlToBytes`); the `as unknown as
+   Uint8Array` cast is banned in `**/passkeys/**` by architecture-audit CHECK 10. UV config is
+   symmetric (`required` on options + verify); challenges are single-use (consumed on every
+   attempt). (ADDENDUM_62C — implemented as text columns, not the bytea-codec the spec first
+   assumed, because production proved the write was corrupt too.)
+
 ## Observability
 
 - One `pleks_trace` id (8-char, 30s) is shared across a gate→resolver→gate hop chain.

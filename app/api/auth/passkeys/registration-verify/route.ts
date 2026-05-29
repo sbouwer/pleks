@@ -9,6 +9,7 @@ import { verifyRegistrationResponse } from "@simplewebauthn/server"
 import type { RegistrationResponseJSON } from "@simplewebauthn/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { getRpConfig } from "@/lib/auth/passkeys/rp-config"
+import { bytesToB64url } from "@/lib/auth/passkeys/encoding"
 import { logAuthEvent } from "@/lib/auth/events"
 
 export async function POST(req: Request) {
@@ -44,11 +45,16 @@ export async function POST(req: Request) {
     return new Response("No valid challenge", { status: 400 })
   }
 
+  // Consume-on-attempt (ADDENDUM_62C D-62C-05): WebAuthn challenges are single-use. Mark
+  // consumed BEFORE verifying so a failed/duplicate attempt can't be replayed against the
+  // same challenge within its 5-min TTL.
+  await serviceDb.from("passkey_challenges").update({ consumed_at: new Date().toISOString() }).eq("id", challenge.id)
+
   let verification
   try {
     verification = await verifyRegistrationResponse({
       response,
-      expectedChallenge: Buffer.from(challenge.challenge as unknown as Uint8Array).toString("base64url"),
+      expectedChallenge: challenge.challenge as string,  // stored as base64url text
       expectedOrigin: rp.origin,
       expectedRPID: rp.rpId,
       requireUserVerification: true,
@@ -67,8 +73,8 @@ export async function POST(req: Request) {
 
   await serviceDb.from("user_passkeys").insert({
     user_id: user.id,
-    credential_id: Buffer.from(credential.id, "base64url"),
-    public_key: Buffer.from(credential.publicKey),
+    credential_id: credential.id,                  // already base64url text from @simplewebauthn
+    public_key: bytesToB64url(credential.publicKey),
     counter: credential.counter,
     transports: response.response.transports ?? [],
     device_type: credentialDeviceType,
@@ -79,11 +85,6 @@ export async function POST(req: Request) {
     rp_id: rp.rpId,
     origin: rp.origin,
   })
-
-  await serviceDb
-    .from("passkey_challenges")
-    .update({ consumed_at: new Date().toISOString() })
-    .eq("id", challenge.id)
 
   await logAuthEvent({
     userId: user.id,

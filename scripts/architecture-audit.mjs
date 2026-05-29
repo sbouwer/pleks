@@ -482,6 +482,36 @@ function checkResolverTargetsAdmittable() {
 }
 
 // ─────────────────────────────────────────────────────────────
+// CHECK 10 — passkey columns must not be cast to Uint8Array (ADDENDUM_62C)
+// ─────────────────────────────────────────────────────────────
+// passkey_challenges.challenge / user_passkeys.credential_id / public_key are base64url
+// TEXT (NOT bytea): supabase-js JSON-serialises a Node Buffer into a bytea column, and
+// PostgREST returns bytea as a "\x…" hex string — both corrupted the values and broke
+// passkey registration AND login (they 400'd; 0 passkeys ever enrolled). The failure
+// vector was `x as unknown as Uint8Array`, a cast that lied to the type checker. Reads/
+// writes go through lib/auth/passkeys/encoding.ts now. Ban the cast in the passkey paths
+// so the class can't return.
+
+function checkPasskeyByteaCast() {
+  const files = [
+    ...walk(join(ROOT, "app", "api", "auth", "passkeys")),
+    ...walk(join(ROOT, "lib", "auth", "passkeys")),
+  ]
+  for (const file of files) {
+    if (/encoding\.ts$/.test(file)) continue   // the helper's doc comment names the banned cast
+    const lines = readFile(file).split("\n")
+    lines.forEach((line, i) => {
+      if (/\/\//.test(line) && /as unknown as Uint8Array/.test(line)) return  // a comment about it
+      if (/as unknown as Uint8Array/.test(line)) {
+        fail("passkey-bytea-cast",
+             `${relPath(file)}:${i + 1}: \`as unknown as Uint8Array\` on a passkey column`,
+             `These columns are base64url text — decode/encode via lib/auth/passkeys/encoding.ts, never cast`)
+      }
+    })
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 // MAIN
 // ─────────────────────────────────────────────────────────────
 
@@ -497,6 +527,7 @@ check("cookie httpOnly vs client-read consistency", checkCookieReadability)
 check("ROUTE_MANIFEST entries resolve to files", checkRouteManifest)
 check("skipOrgCheck routes are not role-gated", checkSkipOrgCheckRoles)
 check("resolver targets are gate-admittable", checkResolverTargetsAdmittable)
+check("passkey columns not cast to Uint8Array", checkPasskeyByteaCast)
 
 console.log("─".repeat(50))
 console.log(`  ${checksRun - findings.length}/${checksRun} checks passed`)

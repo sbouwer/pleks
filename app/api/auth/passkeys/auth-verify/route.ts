@@ -8,6 +8,7 @@ import { verifyAuthenticationResponse } from "@simplewebauthn/server"
 import type { AuthenticationResponseJSON, AuthenticatorTransportFuture } from "@simplewebauthn/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { getRpConfig } from "@/lib/auth/passkeys/rp-config"
+import { b64urlToBytes } from "@/lib/auth/passkeys/encoding"
 import { logAuthEvent } from "@/lib/auth/events"
 import { mintSupabaseSessionForUser } from "@/lib/auth/passkeys/mint-session"
 
@@ -24,16 +25,12 @@ export async function POST(req: Request) {
 
   const serviceDb = await createServiceClient()
 
-  const credentialIdBuf = Buffer.from(response.id, "base64url")
-  // Supabase PostgREST accepts bytea as \x<hex>
-  const credentialIdHex = String.raw`\x` + credentialIdBuf.toString("hex")
-
   const { data: cred, error: credErr } = await serviceDb
     .from("user_passkeys")
     .select("id, user_id, credential_id, public_key, counter, transports, device_type")
     .eq("rp_id", rp.rpId)
     .is("revoked_at", null)
-    .filter("credential_id", "eq", credentialIdHex)
+    .eq("credential_id", response.id)  // credential_id stored as base64url text == response.id
     .maybeSingle()
 
   if (credErr || !cred) {
@@ -45,6 +42,10 @@ export async function POST(req: Request) {
     .select("id, challenge")
     .eq("ceremony_type", "authentication")
     .eq("rp_id", rp.rpId)
+    // Bind to the resolving user, or a usernameless/discoverable-credential challenge
+    // (user_id null) — ADDENDUM_62C D-62C-07. Tightens cross-request challenge mixing
+    // without breaking discoverable-credential login.
+    .or(`user_id.eq.${cred.user_id},user_id.is.null`)
     .is("consumed_at", null)
     .gte("expires_at", new Date().toISOString())
     .order("created_at", { ascending: false })
@@ -55,17 +56,20 @@ export async function POST(req: Request) {
     return new Response("No valid challenge", { status: 400 })
   }
 
+  // Consume-on-attempt (ADDENDUM_62C D-62C-05): single-use, even on failure.
+  await serviceDb.from("passkey_challenges").update({ consumed_at: new Date().toISOString() }).eq("id", challenge.id)
+
   let verification
   try {
     verification = await verifyAuthenticationResponse({
       response,
-      expectedChallenge: Buffer.from(challenge.challenge as unknown as Uint8Array).toString("base64url"),
+      expectedChallenge: challenge.challenge as string,  // base64url text
       expectedOrigin: rp.origin,
       expectedRPID: rp.rpId,
       requireUserVerification: true,
       credential: {
-        id: Buffer.from(cred.credential_id as unknown as Uint8Array).toString("base64url"),
-        publicKey: cred.public_key as unknown as Uint8Array<ArrayBuffer>,
+        id: cred.credential_id as string,                // base64url text
+        publicKey: b64urlToBytes(cred.public_key as string),
         counter: cred.counter as number,
         transports: (cred.transports ?? []) as AuthenticatorTransportFuture[],
       },
@@ -100,10 +104,7 @@ export async function POST(req: Request) {
     .update({ counter: newCounter, last_used_at: new Date().toISOString(), last_used_ip_hash: ipHash })
     .eq("id", cred.id)
 
-  await serviceDb
-    .from("passkey_challenges")
-    .update({ consumed_at: new Date().toISOString() })
-    .eq("id", challenge.id)
+  // challenge already consumed-on-attempt above (D-62C-05)
 
   const session = await mintSupabaseSessionForUser(cred.user_id as string)
 

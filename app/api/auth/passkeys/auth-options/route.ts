@@ -39,7 +39,7 @@ export async function POST(req: Request) {
         .is("revoked_at", null)
 
       allowCredentials = (creds ?? []).map(c => ({
-        id: Buffer.from(c.credential_id as unknown as Uint8Array).toString("base64url"),
+        id: c.credential_id as string,  // base64url text
         transports: (c.transports ?? []) as AuthenticatorTransportFuture[],
       }))
     }
@@ -48,14 +48,15 @@ export async function POST(req: Request) {
   const options = await generateAuthenticationOptions({
     rpID: rp.rpId,
     timeout: 60_000,
-    userVerification: "preferred",
+    // UV symmetry (ADDENDUM_62C D-62C-06): auth-verify passes requireUserVerification:true.
+    userVerification: "required",
     allowCredentials,
   })
 
   const ipHash = await hashIp(req)
   await serviceDb.from("passkey_challenges").insert({
     user_id: userId ?? null,
-    challenge: Buffer.from(options.challenge, "base64url"),
+    challenge: options.challenge,  // base64url text — store straight through
     ceremony_type: "authentication",
     rp_id: rp.rpId,
     origin: rp.origin,

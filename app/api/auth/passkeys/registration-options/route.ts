@@ -40,10 +40,13 @@ export async function POST(req: Request) {
     attestationType: "none",
     authenticatorSelection: {
       residentKey: "preferred",
-      userVerification: "preferred",
+      // UV symmetry (ADDENDUM_62C D-62C-06): verify passes requireUserVerification:true,
+      // so options must REQUIRE it too — "preferred" here let a no-UV authenticator through
+      // that verify then rejected (a spurious 400). Trust-account posture → UV mandatory.
+      userVerification: "required",
     },
     excludeCredentials: (existing ?? []).map(c => ({
-      id: Buffer.from(c.credential_id as unknown as Uint8Array).toString("base64url"),
+      id: c.credential_id as string,  // base64url text
       transports: (c.transports ?? []) as AuthenticatorTransportFuture[],
     })),
   })
@@ -51,7 +54,7 @@ export async function POST(req: Request) {
   const ipHash = await hashIp(req)
   await serviceDb.from("passkey_challenges").insert({
     user_id: user.id,
-    challenge: Buffer.from(options.challenge, "base64url"),
+    challenge: options.challenge,  // base64url text — store straight through
     ceremony_type: "registration",
     rp_id: rp.rpId,
     origin: rp.origin,
