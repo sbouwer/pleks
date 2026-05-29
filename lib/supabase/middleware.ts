@@ -6,6 +6,7 @@
  */
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
+import type { User } from "@supabase/supabase-js"
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -31,15 +32,31 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  // Refresh the session cookie if needed — getSession() reads the JWT locally
-  // (zero network). The setAll handler above handles token refresh automatically.
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  const user = session?.user ?? null
+  // getSession() reads the JWT locally (zero network) and we extract AAL from its
+  // access_token — getUser() would not return the token and would add a gotrue call to
+  // every gated request. The setAll handler above persists any cookies the client
+  // rotates onto BOTH request and response, so a same-request page read sees them.
+  //
+  // NOTE (expired-token class): because this is getSession() (local), middleware does
+  // not proactively force a refresh the way the canonical getUser() pattern does — so a
+  // token that expired mid-flow is first hit by the destination page's own getUser(),
+  // whose refresh fetch can THROW. That is handled at the edges (the /welcome page and
+  // /auth/resolver guards recover to resolver/login instead of 500ing). Here we only
+  // make middleware itself resilient: if getSession ever throws (a refresh attempt
+  // failing in-flight), treat it as no session — the gate sends to /login cleanly
+  // rather than crashing every route with a 500.
+  let user: User | null = null
+  let accessToken: string | undefined
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    user = session?.user ?? null
+    accessToken = session?.access_token
+  } catch (err) {
+    console.error("[updateSession] getSession threw — treating as no session:", err instanceof Error ? err.message : "unknown")
+  }
 
   // Extract AAL from the JWT payload — not exposed directly on the Session type.
-  const aal = extractAalFromJwt(session?.access_token)
+  const aal = extractAalFromJwt(accessToken)
 
   return { supabase, user, supabaseResponse, aal }
 }
