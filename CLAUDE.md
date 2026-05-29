@@ -246,9 +246,8 @@ Commit and push are different gates with different bars.
 
 Before every `git push`, in order:
 
-1. `npm run check:full` (typecheck + lint + architecture audit + security:db) — **must be green**
-2. `npm test` — **must be green**
-3. For behavioural changes (routing, auth, UI, data): manually walk the
+1. `npm run check:full` (typecheck + lint + tests + architecture audit + security:db) — **must be green**
+2. For behavioural changes (routing, auth, UI, data): manually walk the
    affected flow in dev. Console errors count as failures.
 4. Each commit message describes the actual change in imperative mood
 
