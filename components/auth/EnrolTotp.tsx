@@ -263,6 +263,70 @@ export function EnrolTotp({ redirectTo, mandatory = false, variant = "settings",
     cardDescription = "Protect your account with an authenticator app."
   }
 
+  // Embedded (welcome) layout — matches the welcome brief: QR left, code right,
+  // mono eyebrows, sunk secret box, 6 underline cells, amber-bar "Confirm" CTA.
+  if (embedded) {
+    return (
+      <div className="et-embedded">
+        {loading && !qrCode && (
+          <div className="et-embed-loading">
+            <Loader2 className="animate-spin" size={22} color="var(--ink-mute)" aria-label="Loading" />
+          </div>
+        )}
+        {qrCode && (
+          <>
+            <div className="et-embed-grid">
+              <div className="et-embed-qr">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={qrCode} alt="TOTP QR code" width={138} height={138} />
+                <span className="et-embed-qr-knob" aria-hidden="true" />
+              </div>
+              <div className="et-embed-right">
+                {secret && (
+                  <div className="et-embed-field">
+                    <span className="et-embed-eyebrow">Or type this code</span>
+                    <p className="et-embed-secret">{secret}</p>
+                  </div>
+                )}
+                <div className="et-embed-field">
+                  <span className="et-embed-eyebrow">Verification code</span>
+                  <button type="button" className="et-embed-codewrap" onClick={() => inputRef.current?.focus()} aria-label="Enter verification code">
+                    <input
+                      ref={inputRef}
+                      className="et-embed-codeinput"
+                      type="text" inputMode="numeric" autoComplete="one-time-code"
+                      maxLength={6} value={code}
+                      onChange={(e) => setCode(e.target.value.replaceAll(/\D/g, "").slice(0, 6))}
+                      disabled={loading}
+                      aria-label="6-digit verification code"
+                    />
+                    <span className="et-embed-cells" aria-hidden="true">
+                      {Array.from({ length: 6 }).map((_, i) => {
+                        let cls = "et-embed-cell"
+                        if (code[i]) cls += " et-embed-cell--filled"
+                        else if (i === code.length) cls += " et-embed-cell--active"
+                        return <span key={`cell-${i}`} className={cls}>{code[i] ?? ""}</span>
+                      })}
+                    </span>
+                  </button>
+                  <span className="et-embed-refresh">Code refreshes every 30 seconds</span>
+                </div>
+              </div>
+            </div>
+
+            {error && <div className="et-error" style={{ margin: "0 0 16px" }}>{error}</div>}
+
+            <button type="button" className="ob-cta" disabled={code.length < 6 || loading} onClick={() => void verifyFactor(factorNum)}>
+              <span className="ob-cta-bar" aria-hidden="true" />
+              <span className="ob-cta-label">{loading ? "Verifying…" : "Confirm and continue"}</span>
+              <span className="ob-cta-arrow" aria-hidden="true">→</span>
+            </button>
+          </>
+        )}
+      </div>
+    )
+  }
+
   const body = (
     <>
         {!embedded && (
@@ -353,7 +417,6 @@ export function EnrolTotp({ redirectTo, mandatory = false, variant = "settings",
     </>
   )
 
-  if (embedded) return <div className="et-embedded">{body}</div>
   return (
     <div className="et-wrap">
       <div className="et-card">{body}</div>
