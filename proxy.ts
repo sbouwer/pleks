@@ -209,6 +209,15 @@ async function refreshOrgCookieParallel(
     })
     supabaseResponse.cookies.set("pleks_org", orgValue, { ...AUTH_COOKIE_OPTS, maxAge: 300 })
     request.cookies.set("pleks_org", orgValue)
+
+    // Durable role: pleks_org expires after 300s, but the 7-day pleks_has_org carries the
+    // role too so the gate can still admit role-gated routes after pleks_org lapses mid-flow
+    // (welcome→enrol→verify can exceed 300s). collectGateFacts falls back to this. Loop-class fix.
+    const hasOrgValue = JSON.stringify({
+      org_id: orgId, user_id: userId, role: orgsRes.data.role, portal_class: "agent",
+    })
+    supabaseResponse.cookies.set("pleks_has_org", hasOrgValue, { ...AUTH_COOKIE_OPTS, maxAge: 60 * 60 * 24 * 7 })
+    request.cookies.set("pleks_has_org", hasOrgValue)
   }
 }
 
@@ -277,7 +286,9 @@ async function ensureOrgCookies(
       service.from("organisations").select("type, name").eq("id", membership.orgId).single(),
     ])
 
-    const hasOrgValue = JSON.stringify({ org_id: membership.orgId, user_id: user.id })
+    const hasOrgValue = JSON.stringify({
+      org_id: membership.orgId, user_id: user.id, role: membership.orgRole, portal_class: "agent",
+    })
     const orgValue    = JSON.stringify({
       org_id: membership.orgId, role: membership.orgRole, tier: deriveTierFromSub(subData.data),
       type: orgData.data?.type ?? "agency", name: orgData.data?.name ?? "",

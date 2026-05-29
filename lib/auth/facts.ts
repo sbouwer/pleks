@@ -62,6 +62,41 @@ function consentCurrent(request: NextRequest): boolean {
 }
 
 // ── Gate collector — cheap, no DB ─────────────────────────────────────────────
+
+function membershipWithRole(orgId: string, sessionRole: SessionRole): AuthFacts["membership"] {
+  return { exists: true, roleClass: deriveRoleClass(sessionRole), sessionRole, orgId }
+}
+
+/**
+ * Resolves gate membership purely from the two org cookies, in priority order:
+ *   1. pleks_org.role     — freshest (300s); authoritative role for the current org
+ *   2. pleks_has_org.role — durable (7d); survives pleks_org lapsing mid-flow (loop-class fix)
+ *   3. pleks_has_org.portal_class — non-agent portals carry class instead of a role
+ *   4. org_id only        — last resort: membership exists but role unknown (gate fails closed)
+ * Never throws — malformed cookies yield { exists: false }.
+ */
+function membershipFromCookies(
+  hasOrgRaw: string | undefined,
+  orgRaw: string | undefined
+): AuthFacts["membership"] {
+  if (!hasOrgRaw) return { exists: false }
+  let hasOrg: { org_id?: string; role?: string; portal_class?: string }
+  try {
+    hasOrg = JSON.parse(hasOrgRaw)
+  } catch { return { exists: false } }
+  if (!hasOrg.org_id) return { exists: false }
+
+  if (orgRaw) {
+    try {
+      const org = JSON.parse(orgRaw) as { role?: string }
+      if (org.role) return membershipWithRole(hasOrg.org_id, org.role as SessionRole)
+    } catch { /* malformed pleks_org — fall through to durable fallbacks */ }
+  }
+  if (hasOrg.role)         return membershipWithRole(hasOrg.org_id, hasOrg.role as SessionRole)
+  if (hasOrg.portal_class) return membershipWithRole(hasOrg.org_id, hasOrg.portal_class as SessionRole)
+  return { exists: true, orgId: hasOrg.org_id }
+}
+
 /**
  * Builds AuthFacts from cookies + JWT aal claim.
  * Called from middleware after updateSession() and ensureOrgCookies().
@@ -74,45 +109,10 @@ export function collectGateFacts(
 ): AuthFacts {
   const { isAuthenticated, aal } = session
 
-  let membership: AuthFacts["membership"] = { exists: false }
-
-  const hasOrgRaw = request.cookies.get("pleks_has_org")?.value
-  const orgRaw    = request.cookies.get("pleks_org")?.value
-
-  if (hasOrgRaw) {
-    try {
-      const hasOrg = JSON.parse(hasOrgRaw) as { org_id?: string; portal_class?: string }
-
-      if (orgRaw) {
-        try {
-          const org = JSON.parse(orgRaw) as { role?: string }
-          if (org.role && hasOrg.org_id) {
-            const sessionRole = org.role as SessionRole
-            membership = {
-              exists: true,
-              roleClass:   deriveRoleClass(sessionRole),
-              sessionRole,
-              orgId: hasOrg.org_id,
-            }
-          }
-        } catch { /* malformed pleks_org — fall through */ }
-      }
-
-      if (!membership.exists && hasOrg.portal_class && hasOrg.org_id) {
-        const sessionRole = hasOrg.portal_class as SessionRole
-        membership = {
-          exists: true,
-          roleClass:   deriveRoleClass(sessionRole),
-          sessionRole,
-          orgId: hasOrg.org_id,
-        }
-      }
-
-      if (!membership.exists && hasOrg.org_id) {
-        membership = { exists: true, orgId: hasOrg.org_id }
-      }
-    } catch { /* malformed pleks_has_org */ }
-  }
+  const membership = membershipFromCookies(
+    request.cookies.get("pleks_has_org")?.value,
+    request.cookies.get("pleks_org")?.value,
+  )
 
   return {
     isAuthenticated,
