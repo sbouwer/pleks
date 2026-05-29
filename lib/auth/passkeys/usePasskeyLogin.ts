@@ -1,13 +1,16 @@
 "use client"
 
 /**
- * lib/auth/passkeys/usePasskeyLogin.ts — FILL: one-line purpose
+ * lib/auth/passkeys/usePasskeyLogin.ts — Client hook for passkey sign-in
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   public — POSTs /api/auth/passkeys/auth-options → WebAuthn get() → auth-verify,
+ *         then sets the returned Supabase session and navigates to /.
+ * Notes:  `conditional` selects the WebAuthn UI mode. An explicit "Sign in with passkey"
+ *         BUTTON must use MODAL mode (conditional:false) — it opens the picker immediately.
+ *         `useBrowserAutofill:true` is conditional UI: it shows NO modal and waits for the
+ *         user to pick a passkey from an input's autofill dropdown — if invoked from a
+ *         button (no autofill surface) it just spins forever with no error. Only pass
+ *         conditional:true from a mount-time effect on a field with autoComplete="webauthn".
  */
 
 import { useState } from "react"
@@ -21,7 +24,7 @@ export function usePasskeyLogin() {
   const [state, setState] = useState<LoginState>("idle")
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-  async function login(email?: string) {
+  async function login(email?: string, opts?: { conditional?: boolean }) {
     setState("in_progress")
     setErrorMsg(null)
     try {
@@ -37,7 +40,8 @@ export function usePasskeyLogin() {
       try {
         authResponse = await startAuthentication({
           optionsJSON: options as unknown as Parameters<typeof startAuthentication>[0]["optionsJSON"],
-          useBrowserAutofill: !email,
+          // Modal by default (explicit button). Autofill/conditional UI only when asked for.
+          useBrowserAutofill: opts?.conditional ?? false,
         })
       } catch (e: unknown) {
         const err = e as Error
