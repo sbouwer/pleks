@@ -16,6 +16,7 @@ import { createClient } from "@/lib/supabase/client"
 import { useEnrolPasskey } from "@/lib/auth/passkeys/useEnrolPasskey"
 import { markWelcomeSeen } from "@/lib/actions/welcome"
 import { EnrolTotp } from "@/components/auth/EnrolTotp"
+import { TransitionLoader } from "@/components/onboarding/TransitionLoader"
 
 type Step = "orient" | "authenticator" | "secured" | "passkey"
 type ShieldPhase = 0 | 1 | 2  // idle → filling → done
@@ -116,6 +117,20 @@ export default function WelcomeClient({
   const securityRationale = handlesClientFunds
     ? "Your authenticator app keeps client data and trust funds protected. You'll use it each time you sign in — one secure code, a few seconds."
     : "Pleks holds rent and trust funds for the people you'll work with. Your authenticator keeps that protected — you'll use it each time you sign in."
+
+  // The instant Continue/Skip is clicked (finishing=true), cover the whole panel with the
+  // branded loader BEFORE handleFinish fires location.href. The resolver→dashboard hop
+  // (~1s) tears down this React tree; without the cover, /welcome's error boundary paints
+  // a ~2s "Something went wrong" flash over the teardown. The loader is what's mounted
+  // during teardown, so the boundary has nothing to flash over. (Mirrors OnboardingWizard.)
+  if (finishing) {
+    return (
+      <div className="ob-panel">
+        <div className="ob-knob"/>
+        <TransitionLoader title="Taking you in" sub="Loading your dashboard — just a moment." />
+      </div>
+    )
+  }
 
   return (
     <div className="ob-panel">

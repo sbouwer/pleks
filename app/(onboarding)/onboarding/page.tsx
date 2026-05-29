@@ -17,6 +17,7 @@ import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createAccountAndOrg, type OnboardingData } from "@/lib/actions/onboarding"
 import { SA_PROVINCES } from "@/lib/constants"
+import { TransitionLoader } from "@/components/onboarding/TransitionLoader"
 import { toast } from "sonner"
 
 const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
@@ -80,25 +81,6 @@ function OnboardingSkeleton() {
         <div className="ob-skel" style={{ height: 56 }} />
       </div>
       <span className="sr-only">Loading your account</span>
-    </div>
-  )
-}
-
-// Branded handoff loader — shown after account creation while we navigate to the
-// welcome flow, so the jump reads as "things are happening" rather than a freeze.
-function TransitionLoader() {
-  return (
-    <div className="ob-transition" role="status" aria-live="polite">
-      <svg className="ob-transition-mark" width={48} height={48} viewBox="0 0 36 36" fill="none" aria-hidden="true">
-        <path d="M18 3 L31 7 L31 17 C31 24 26 30 18 33 C10 30 5 24 5 17 L5 7 Z"
-          stroke="var(--ink)" strokeWidth="1.6" strokeLinejoin="round" fill="none" />
-        <circle cx="18" cy="17" r="1.6" fill="var(--amber)" />
-        <line x1="18" y1="18.6" x2="18" y2="22.5" stroke="var(--ink)" strokeWidth="1.6" strokeLinecap="round" />
-      </svg>
-      <p className="ob-transition-title">Setting up your workspace</p>
-      <p className="ob-transition-sub">Creating your account and securing your space — just a moment.</p>
-      <div className="ob-transition-bar" aria-hidden="true" />
-      <span className="sr-only">Setting up your account, please wait</span>
     </div>
   )
 }
