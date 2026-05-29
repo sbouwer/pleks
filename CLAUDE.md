@@ -757,18 +757,27 @@ middleware layer. Never split this into a separate `middleware.ts`.
 
 ---
 
-## CRON ARCHITECTURE — SPLIT BETWEEN VERCEL AND CPANEL
+## CRON ARCHITECTURE — ALL CRONS TRIGGERED FROM CPANEL
 
-**Not all cron jobs run from `vercel.json`.** The Vercel Hobby plan allows only 1 cron
-entry, so high-frequency jobs are triggered externally via cPanel curl crons on the
-Yoros hosting account (`yoroscoz` user).
+**No cron runs from `vercel.json`.** Vercel Cron was removed (2026-05-29): its auth model
+injects `Authorization: Bearer <CRON_SECRET>` and that injection did not arrive reliably,
+so scheduled runs 401'd before the handler executed. cPanel curl crons (explicit
+`x-cron-secret` header, hitting `app.pleks.co.za` directly — no redirect to strip the
+header) are what work, so EVERY cron is now triggered from cPanel on the Yoros hosting
+account (`yoroscoz` user). `vercel.json` is just `{ "buildCommand": "next build" }` — do
+NOT re-add a `crons` array, and do NOT put `npm run check` in `buildCommand` (it broke
+deploys; check belongs in CI + pre-push).
 
-### vercel.json (once daily, 05:00 UTC)
-Single entry: `/api/cron/daily` — orchestrates all truly-daily jobs sequentially.
+### The daily orchestrator (cPanel, 05:00 UTC)
+`/api/cron/daily` — orchestrates all truly-daily jobs sequentially (~11s, mostly I/O
+wait). cPanel entry:
+```
+0 5 * * *  /usr/bin/curl -s -m 90 -X GET "https://app.pleks.co.za/api/cron/daily" -H "x-cron-secret: <CRON_SECRET>" > /dev/null 2>&1
+```
+The route declares `runtime="nodejs"` + `maxDuration=90` (Hobby caps at 60s regardless;
+honoured on Pro). Monthly jobs run INSIDE this orchestrator, gated by a day-of-month check.
 
-### cPanel external crons (yoroscoz hosting)
-These jobs were moved out of the daily orchestrator to run at higher frequency:
-
+### cPanel high-frequency crons (yoroscoz hosting)
 | Job | Endpoint | Cadence | HTTP method |
 |-----|----------|---------|-------------|
 | mandatory-retry | `/api/cron/tenant-comms/mandatory-retry` | Every 1h | POST |
@@ -778,14 +787,24 @@ These jobs were moved out of the daily orchestrator to run at higher frequency:
 | maintenance-delay-check | `/api/cron/maintenance-delay-check` | Every 4h | GET |
 | check-links | `/api/cron/check-links` | Every 4h | GET |
 
-All use the same `x-cron-secret` header auth as Vercel-triggered jobs.
+All use the same `x-cron-secret` header auth.
 
 **When adding a new cron job**, decide:
 - Once daily is fine → add to `app/api/cron/daily/route.ts` orchestrator
 - Needs higher frequency → add a cPanel curl entry AND document it in this table
 - Monthly → add to the `dayOfMonth === N` gate in `daily/route.ts`
 
-**Do not add a second entry to `vercel.json`** — Hobby plan only supports 1.
+**Health-check tracking:** `lib/observability/health.ts` `checkCrons` tracks only
+top-level scheduled `job_name`s that ACTUALLY write a `cron_runs` row (currently just
+`["daily"]`). Adding a name that no handler writes makes it read permanently stale and
+falsely degrades deep-health — this was the chronic "crons: degraded" cause. A completed
+"daily" row implies its in-orchestrator child + monthly jobs ran.
+
+**Post-launch (Pro) plan:** split the daily orchestrator into grouped endpoints
+(daily-financial / daily-comms / daily-engine, etc.) once on Pro — unnecessary on Hobby
+(the 60s cap + I/O-not-CPU billing make the monolith correct for now). Queued separately:
+monthly jobs self-reporting `cron_runs` (only when they fire) so silent month-end
+non-execution becomes observable before the first pilot month-end.
 
 ---
 
