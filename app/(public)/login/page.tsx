@@ -99,18 +99,29 @@ function LoginContent() {
     return qs ? `${base}?${qs}` : base
   }
 
-  // If already authenticated, send to resolver — no role decision here (I-1)
+  // If already authenticated, send to resolver — no role decision here (I-1).
+  // Gate the getUser() validation on a LOCAL session check first: a clean visitor
+  // with no token makes zero network calls (no spurious 403 on /auth/v1/user). If a
+  // token exists but gotrue rejects it (stale/expired → 403), purge it locally so it
+  // doesn't 403 on every subsequent page load.
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser()
-      .then(({ data }) => {
-        if (data.user) {
-          router.replace(resolverUrl())
-        } else {
+    void (async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { setChecking(false); return }
+      try {
+        const { data, error } = await supabase.auth.getUser()
+        if (error || !data.user) {
+          await supabase.auth.signOut({ scope: "local" }).catch(() => {})
           setChecking(false)
+          return
         }
-      })
-      .catch(() => { setChecking(false) })
+        router.replace(resolverUrl())
+      } catch {
+        await supabase.auth.signOut({ scope: "local" }).catch(() => {})
+        setChecking(false)
+      }
+    })()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
