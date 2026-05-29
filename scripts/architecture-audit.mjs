@@ -246,6 +246,9 @@ const ALLOWED_HARDCODE = [
   // PAIA PDF font loader: intentionally falls back to production URL when running on
   // localhost because the dev server doesn't always serve font files in PDF context.
   "app/api/paia-manual-pdf/route",
+  // Test files never ship URLs to users — a literal host is just a fixture for building
+  // request objects (NextRequest needs an absolute URL), not a navigation target.
+  ".test.",
 ]
 
 const HARDCODED_URL_RE = /https:\/\/(app\.)?pleks\.co\.za/
@@ -418,6 +421,67 @@ function checkSkipOrgCheckRoles() {
 }
 
 // ─────────────────────────────────────────────────────────────
+// CHECK 9 — resolver targets must be gate-admittable (termination invariant)
+// ─────────────────────────────────────────────────────────────
+// The gate↔resolver loop CLASS (not a single instance): the resolver redirects to a
+// route the gate then rejects, so it bounces back to the resolver forever. The
+// structural invariant that prevents the whole class: every route the resolver can
+// redirect to must be admittable by the gate in the state the resolver sends the user
+// in. A role-gated route that is neither skipOrgCheck (so ensureOrgCookies always
+// hydrates the role) NOR requiresAal2 (so it's only reached post-MFA, when org cookies
+// are warm) can strand an AAL1 agent whose 300s pleks_org has lapsed mid-flow — the gate
+// can't read the role, fails closed → to_resolver → the resolver sends them right back.
+// /settings/security/enrol-totp inheriting role-gated /settings was exactly this loop.
+
+function parseManifestRules() {
+  const manifest = readFile(join(ROOT, "lib/routing/manifest.ts"))
+  const rules = []
+  const re = /["'](\/[^"']*)["']\s*:\s*\{([^}]*)\}/g
+  let m
+  while ((m = re.exec(manifest)) !== null) {
+    const [, key, body] = m
+    rules.push({
+      key,
+      roleGated:    /\broles:/.test(body),
+      skipOrgCheck: /skipOrgCheck:\s*true/.test(body),
+      requiresAal2: /requiresAal2:\s*true/.test(body),
+    })
+  }
+  return rules
+}
+
+function longestPrefixRule(rules, path) {
+  let best = null
+  for (const r of rules) {
+    if (path === r.key || path.startsWith(r.key + "/")) {
+      if (!best || r.key.length > best.key.length) best = r
+    }
+  }
+  return best
+}
+
+function checkResolverTargetsAdmittable() {
+  const resolver = readFile(join(ROOT, "app/(auth)/auth/resolver/route.ts"))
+  const rules = parseManifestRules()
+  // Static redirect targets in execute(): url("/literal"). The "app" case uses a dynamic
+  // url(dest.path) (safeNext / portal default) — not a literal, so not statically checkable
+  // here; its admittance is covered by the requiresAal2 agent routes + the convergence test.
+  const targets = [...resolver.matchAll(/\burl\(\s*["'](\/[^"']*)["']\s*\)/g)].map(mm => mm[1])
+  const seen = new Set()
+  for (const target of targets) {
+    if (seen.has(target)) continue
+    seen.add(target)
+    const rule = longestPrefixRule(rules, target)
+    if (!rule) continue   // no manifest entry → treated as public by the gate → not role-gated
+    if (rule.roleGated && !rule.skipOrgCheck && !rule.requiresAal2) {
+      fail("resolver-target-admittable",
+           `resolver redirects to "${target}" → resolves to role-gated manifest rule "${rule.key}" with neither skipOrgCheck nor requiresAal2 — an AAL1 agent whose pleks_org has lapsed is bounced back to the resolver (loop class)`,
+           `Add an explicit "${target}" entry with skipOrgCheck:true (enrolment-island pattern), or gate the route with requiresAal2`)
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 // MAIN
 // ─────────────────────────────────────────────────────────────
 
@@ -432,6 +496,7 @@ check("PWA manifest origin", checkManifestOrigin)
 check("cookie httpOnly vs client-read consistency", checkCookieReadability)
 check("ROUTE_MANIFEST entries resolve to files", checkRouteManifest)
 check("skipOrgCheck routes are not role-gated", checkSkipOrgCheckRoles)
+check("resolver targets are gate-admittable", checkResolverTargetsAdmittable)
 
 console.log("─".repeat(50))
 console.log(`  ${checksRun - findings.length}/${checksRun} checks passed`)
