@@ -84,13 +84,22 @@ async function checkAdminApiAuth(pathname: string, request: NextRequest): Promis
   return NextResponse.next()
 }
 
+// Copy any cookies set on `from` (the supabaseResponse — refreshed session token,
+// freshly-hydrated pleks_org/pleks_has_org) onto a redirect response. Without this,
+// NextResponse.redirect() drops those Set-Cookie headers and the next request is
+// identical → infinite gate↔resolver loop (the @supabase/ssr redirect gotcha).
+function carryCookies(redirect: NextResponse, from?: NextResponse): NextResponse {
+  if (from) for (const c of from.cookies.getAll()) redirect.cookies.set(c)
+  return redirect
+}
+
 // ── Resolver redirect helper ──────────────────────────────────────────────────
 // Always carries ?redirect=<pathname> so resolver can route back to the correct
 // destination after MFA enrolment, org-cookie hydration, or role resolution.
-function resolverRedirect(request: NextRequest): NextResponse {
+function resolverRedirect(request: NextRequest, from?: NextResponse): NextResponse {
   const url = new URL("/auth/resolver", request.url)
   url.searchParams.set("redirect", request.nextUrl.pathname)
-  return NextResponse.redirect(url)
+  return carryCookies(NextResponse.redirect(url), from)
 }
 
 // ── Org cookie helpers ────────────────────────────────────────────────────────
@@ -162,12 +171,12 @@ async function ensureOrgCookies(
     membership = await resolveUserMembership(user.id)
   } catch {
     // SovereignMembershipViolation or unexpected error — send to resolver to handle
-    return resolverRedirect(request)
+    return resolverRedirect(request, supabaseResponse)
   }
 
   if (!membership) {
     // No membership anywhere — resolver decides whether to send to /onboarding
-    return resolverRedirect(request)
+    return resolverRedirect(request, supabaseResponse)
   }
 
   // For agent-class: write pleks_org + pleks_has_org as before
@@ -215,13 +224,14 @@ async function handleProtectedRoute(
     const url = request.nextUrl.clone()
     url.pathname = "/login"
     url.searchParams.set("redirect", request.nextUrl.pathname)
-    return NextResponse.redirect(url)
+    return carryCookies(NextResponse.redirect(url), supabaseResponse)
   }
 
   // Hydrate org cookies before fact collection so the gate can read them.
-  // ensureOrgCookies sets cookies on supabaseResponse (browser-side); they are
-  // not yet in request.cookies on this request — gate falls through to resolver
-  // on the first hit, which is the correct fail-closed behaviour.
+  // ensureOrgCookies writes pleks_org/pleks_has_org to BOTH request.cookies (so the
+  // gate reads the role this same request) and supabaseResponse (so the browser keeps
+  // them). Every redirect below carries supabaseResponse's cookies so the refreshed
+  // session + org cookie persist — otherwise the next request repeats and loops.
   if (!rule.skipOrgCheck) {
     const orgRedirect = await ensureOrgCookies(user, request, supabaseResponse)
     if (orgRedirect) return orgRedirect
@@ -237,12 +247,12 @@ async function handleProtectedRoute(
       const url = request.nextUrl.clone()
       url.pathname = "/login"
       url.searchParams.set("redirect", request.nextUrl.pathname)
-      return NextResponse.redirect(url)
+      return carryCookies(NextResponse.redirect(url), supabaseResponse)
     }
     case "to_resolver":
-      return resolverRedirect(request)
+      return resolverRedirect(request, supabaseResponse)
     case "forbidden":
-      return NextResponse.redirect(new URL("/403", request.url))
+      return carryCookies(NextResponse.redirect(new URL("/403", request.url)), supabaseResponse)
   }
 }
 

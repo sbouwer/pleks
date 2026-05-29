@@ -100,7 +100,10 @@ function LoginContent() {
           setChecking(false)
           return
         }
-        router.replace(resolverUrl())
+        // Full-page nav: /auth/resolver is a route handler returning a server
+        // redirect — client RSC navigation can't follow it (stuck skeleton / RSC
+        // payload failure). The browser must follow resolver → destination.
+        globalThis.location.href = resolverUrl()
       } catch {
         await supabase.auth.signOut({ scope: "local" }).catch(() => {})
         setChecking(false)
@@ -160,7 +163,7 @@ function LoginContent() {
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
-      router.push(resolverUrl())
+      globalThis.location.href = resolverUrl()
       return
     }
 
@@ -172,8 +175,8 @@ function LoginContent() {
       return
     }
 
-    // AAL satisfied — resolver decides destination
-    router.push(resolverUrl())
+    // AAL satisfied — resolver decides destination. Full-page nav (route handler).
+    globalThis.location.href = resolverUrl()
     setLoading(false)
   }
 
