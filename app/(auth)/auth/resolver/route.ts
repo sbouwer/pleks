@@ -76,6 +76,28 @@ async function logResolverDecision(
   }
 }
 
+// ── Structured runtime log — pairs with proxy.ts [gate] lines via the trace id ──
+// Same PII-free shape as logGate plus the resolver's chosen destination. Grepping a
+// single `trace` across [gate] and [resolver] lines reconstructs an entire hop chain,
+// so a gate↔resolver loop is visible as alternating lines sharing one trace id.
+function logResolver(
+  request: NextRequest,
+  facts: AuthFacts,
+  dest: Destination,
+): void {
+  const trace = request.cookies.get("pleks_trace")?.value ?? null
+  console.warn("[resolver] " + JSON.stringify({
+    trace,
+    path:         facts.route.path,
+    authed:       facts.isAuthenticated,
+    aal:          facts.assurance.current,
+    role:         facts.membership.sessionRole ?? null,
+    hasOrg:       facts.membership.exists,
+    requiresAal2: facts.route.requiresAal2,
+    dest:         dest.kind,
+  }))
+}
+
 // ── Main resolver ─────────────────────────────────────────────────────────────
 export async function GET(request: NextRequest) {
   const { origin, host } = new URL(request.url)
@@ -84,6 +106,7 @@ export async function GET(request: NextRequest) {
   const facts    = await collectResolverFacts(request, supabase)
   const dest     = resolveAuthDestination(facts)
 
+  logResolver(request, facts, dest)
   await logResolverDecision(facts, dest, host)
 
   return execute(dest, origin)

@@ -109,10 +109,21 @@ function resolverRedirect(request: NextRequest, from?: NextResponse): NextRespon
 // runtime logs and the local terminal so a loop is diagnosable at a glance.
 const LOOP_LIMIT = 4
 const RDR_COOKIE = "pleks_rdr"
+const TRACE_COOKIE = "pleks_trace"
 
 function readRdr(request: NextRequest): number {
   const n = Number.parseInt(request.cookies.get(RDR_COOKIE)?.value ?? "", 10)
   return Number.isFinite(n) && n > 0 ? n : 0
+}
+
+// Correlated tracing: one short-lived id shared across a gate→resolver→gate hop chain.
+// Re-read the existing cookie (within its 30s window) so every bounce of a single loop
+// logs the SAME trace — that's what makes a loop greppable end-to-end across both the
+// [gate] (proxy) and [resolver] (route handler) log lines. Mint a fresh one otherwise.
+function readOrMintTrace(request: NextRequest): string {
+  const existing = request.cookies.get(TRACE_COOKIE)?.value
+  if (existing && /^[a-z0-9]{8}$/.test(existing)) return existing
+  return crypto.randomUUID().replaceAll("-", "").slice(0, 8)
 }
 
 function logGate(
@@ -120,9 +131,11 @@ function logGate(
   facts: ReturnType<typeof collectGateFacts>,
   action: string,
   rdr: number,
+  trace: string,
 ): void {
   // PII-free: path + decision drivers only, never email/token.
   console.warn("[gate] " + JSON.stringify({
+    trace,
     path:         request.nextUrl.pathname,
     authed:       facts.isAuthenticated,
     aal:          facts.assurance.current,
@@ -288,11 +301,18 @@ async function ensureOrgCookies(
   return null
 }
 
+// Stamp the correlation id onto a response so the next hop reuses the same trace.
+function stampTrace(res: NextResponse, trace: string): NextResponse {
+  res.cookies.set(TRACE_COOKIE, trace, { path: "/", maxAge: 30 })
+  return res
+}
+
 // ── Protected-route handler ───────────────────────────────────────────────────
 // collect → decide → execute. No policy in this handler.
 async function handleProtectedRoute(
   rule: NonNullable<ReturnType<typeof matchManifest>>,
-  request: NextRequest
+  request: NextRequest,
+  trace: string,
 ): Promise<NextResponse> {
   const { user, supabaseResponse, aal } = await updateSession(request)
 
@@ -300,7 +320,7 @@ async function handleProtectedRoute(
     const url = request.nextUrl.clone()
     url.pathname = "/login"
     url.searchParams.set("redirect", request.nextUrl.pathname)
-    return carryCookies(NextResponse.redirect(url), supabaseResponse)
+    return stampTrace(carryCookies(NextResponse.redirect(url), supabaseResponse), trace)
   }
 
   // Hydrate org cookies before fact collection so the gate can read them.
@@ -310,20 +330,20 @@ async function handleProtectedRoute(
   // session + org cookie persist — otherwise the next request repeats and loops.
   if (!rule.skipOrgCheck) {
     const orgRedirect = await ensureOrgCookies(user, request, supabaseResponse)
-    if (orgRedirect) return orgRedirect
+    if (orgRedirect) return stampTrace(orgRedirect, trace)
   }
 
   const facts   = collectGateFacts(request, rule, { isAuthenticated: true, aal })
   const outcome = routeGateDecision(facts)
   const rdr     = readRdr(request)
 
-  if (outcome.action !== "allow") logGate(request, facts, outcome.action, rdr)
+  if (outcome.action !== "allow") logGate(request, facts, outcome.action, rdr, trace)
 
   switch (outcome.action) {
     case "allow": {
       // Clear the loop counter on any successful pass-through.
       if (rdr > 0) supabaseResponse.cookies.set(RDR_COOKIE, "", { path: "/", maxAge: 0 })
-      return supabaseResponse
+      return stampTrace(supabaseResponse, trace)
     }
     case "to_login": {
       const url = request.nextUrl.clone()
@@ -331,7 +351,7 @@ async function handleProtectedRoute(
       url.searchParams.set("redirect", request.nextUrl.pathname)
       const res = carryCookies(NextResponse.redirect(url), supabaseResponse)
       res.cookies.set(RDR_COOKIE, "", { path: "/", maxAge: 0 })
-      return res
+      return stampTrace(res, trace)
     }
     case "to_resolver": {
       // Loop-breaker: too many consecutive gate→resolver bounces means the resolver
@@ -339,6 +359,7 @@ async function handleProtectedRoute(
       // gate can't read). Stop looping — send to /login with a diagnostic instead.
       if (rdr >= LOOP_LIMIT) {
         console.error("[gate] redirect loop broken after " + rdr + " bounces — sending to /login", JSON.stringify({
+          trace,
           path: request.nextUrl.pathname, aal: facts.assurance.current,
           role: facts.membership.sessionRole ?? null, hasOrg: facts.membership.exists,
         }))
@@ -352,14 +373,14 @@ async function handleProtectedRoute(
         res.cookies.set(RDR_COOKIE, "", { path: "/", maxAge: 0 })
         res.cookies.set("pleks_org", "", { path: "/", maxAge: 0 })
         res.cookies.set("pleks_has_org", "", { path: "/", maxAge: 0 })
-        return res
+        return stampTrace(res, trace)
       }
       const res = resolverRedirect(request, supabaseResponse)
       res.cookies.set(RDR_COOKIE, String(rdr + 1), { path: "/", maxAge: 15 })
-      return res
+      return stampTrace(res, trace)
     }
     case "forbidden":
-      return carryCookies(NextResponse.redirect(new URL("/403", request.url)), supabaseResponse)
+      return stampTrace(carryCookies(NextResponse.redirect(new URL("/403", request.url)), supabaseResponse), trace)
   }
 }
 
@@ -445,7 +466,7 @@ export async function proxy(request: NextRequest) {
     return supabaseResponse
   }
 
-  return handleProtectedRoute(rule, request)
+  return handleProtectedRoute(rule, request, readOrMintTrace(request))
 }
 
 export const config = {
