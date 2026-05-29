@@ -100,14 +100,25 @@ function logResolver(
 
 // ── Main resolver ─────────────────────────────────────────────────────────────
 export async function GET(request: NextRequest) {
-  const { origin, host } = new URL(request.url)
+  try {
+    const { origin, host } = new URL(request.url)
 
-  const supabase = await createClient()
-  const facts    = await collectResolverFacts(request, supabase)
-  const dest     = resolveAuthDestination(facts)
+    const supabase = await createClient()
+    const facts    = await collectResolverFacts(request, supabase)
+    const dest     = resolveAuthDestination(facts)
 
-  logResolver(request, facts, dest)
-  await logResolverDecision(facts, dest, host)
+    logResolver(request, facts, dest)
+    await logResolverDecision(facts, dest, host)
 
-  return execute(dest, origin)
+    return execute(dest, origin)
+  } catch (err) {
+    // collectResolverFacts → getUser() can THROW on an expired/refreshing token (not
+    // just return {user:null}) — a transient gotrue refresh-fetch failure. Re-establish
+    // a session at /login rather than 500: this is also the recovery target for the
+    // /welcome guard, so it must not itself crash. Losing the redirect param is fine —
+    // login's own post-auth resolver pass routes them onward.
+    console.error("[resolver] failed, redirecting to login:", err instanceof Error ? err.message : "unknown")
+    const { origin } = new URL(request.url)
+    return NextResponse.redirect(new URL(`${origin}/login`))
+  }
 }
