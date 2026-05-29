@@ -1,0 +1,103 @@
+/* components/layout/focus-shell.css — shared "focused" chrome for auth surfaces
+   (admin login, public login). Mirrors the onboarding shell backdrop + door panel
+   so these standalone surfaces share the same warm look and feel.
+   All colours via CSS custom properties — resolves under .pleks-public (warm light)
+   or the app dark theme. No raw hex. */
+
+/* ── Shell ──────────────────────────────────────────────────────────────── */
+.fs-shell {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  background: var(--paper-sunk);
+}
+
+/* ── Backdrop layers (static, position: absolute inset: 0) ──────────────── */
+/* Layer 1: warm vertical gradient */
+.fs-bd-gradient {
+  position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    var(--paper) 0%,
+    oklch(0.96 0.012 75) 60%,
+    oklch(0.94 0.014 75) 100%
+  );
+}
+/* Layer 2: amber glow radial (upper third) */
+.fs-bd-glow {
+  position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(
+    ellipse 70% 50% at 50% 28%,
+    oklch(0.93 0.05 70 / 0.55),
+    transparent 70%
+  );
+}
+/* Layer 3: diagonal hatch at 4% opacity */
+.fs-bd-hatch {
+  position: absolute; inset: 0; pointer-events: none;
+  opacity: 0.04;
+  background: repeating-linear-gradient(
+    135deg,
+    var(--ink) 0 1px,
+    transparent 1px 11px
+  );
+}
+/* Layer 4: edge vignette */
+.fs-bd-vignette {
+  position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(
+    ellipse 90% 80% at 50% 50%,
+    transparent 50%,
+    oklch(0.22 0.012 260 / 0.10) 100%
+  );
+}
+
+/* ── Content layer (above backdrop) ────────────────────────────────────── */
+.fs-content {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 100vh;
+  padding: 36px 20px 80px;
+}
+
+/* ── Brand wordmark — centered above panel ──────────────────────────────── */
+.fs-wordmark {
+  display: inline-flex; align-items: baseline; gap: 0;
+  line-height: 1; margin-bottom: 32px;
+  text-decoration: none; color: inherit;
+  font-family: var(--pub-sans);
+  font-weight: 500; letter-spacing: -0.01em;
+}
+
+/* ── Panel — the "door" (ink 3-side border, amber baseline + amber knob) ── */
+.fs-panel {
+  position: relative;
+  width: 100%; max-width: 380px;
+  background: var(--paper-raised);
+  border: 2px solid var(--ink); border-bottom: 0;
+  padding: 38px 40px 42px;
+  box-shadow:
+    0 1px 1px oklch(0.2 0.01 260 / 0.04),
+    0 18px 50px oklch(0.2 0.01 260 / 0.08);
+}
+/* Amber baseline (doorsill) */
+.fs-panel::after {
+  content: ""; position: absolute;
+  left: -2px; right: -2px; bottom: -6px;
+  height: 6px; background: var(--amber);
+}
+/* Amber knob top-right */
+.fs-knob {
+  position: absolute; right: 26px; top: 30px;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--amber); pointer-events: none;
+}
+
+/* ── Eyebrow label (mono, uppercase) ────────────────────────────────────── */
+.fs-eyebrow {
+  font-family: var(--pub-mono); font-size: 10.5px;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--ink-mute); text-align: center;
+  margin: 0 0 22px;
+}

@@ -7,11 +7,15 @@
  * Auth:   none — this IS the login page; proxy exempts it from the HMAC gate
  * Notes:  POSTs to /api/admin/auth which sets pleks_admin_token (host-scoped to
  *         admin.pleks.co.za, HttpOnly, SameSite=Strict). No Supabase involved.
+ *         Wrapped in PublicThemeProvider + focus-shell so it shares the warm
+ *         "door" look and feel with the onboarding surface.
  */
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { AccentBracket } from "@/components/ui/AccentBracket"
+import { PublicThemeProvider } from "@/app/(public)/PublicThemeProvider"
+import { FocusBackdrop } from "@/components/layout/FocusBackdrop"
+import "@/app/(public)/public.css"
+import "@/components/layout/focus-shell.css"
 
 export default function AdminLoginPage() {
   const [secret, setSecret] = useState("")
@@ -35,29 +39,49 @@ export default function AdminLoginPage() {
       return
     }
 
-    window.location.href = "/admin"
+    globalThis.location.href = "/admin"
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <form onSubmit={handleSubmit} className="w-full max-w-xs space-y-6 text-center">
-        <span className="pub-wordmark" aria-label="Pleks" style={{ fontSize: 28 }}>
-          <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
-        </span>
-        <p className="text-xs text-muted-foreground uppercase tracking-widest">Admin Access</p>
-        <Input
-          type="password"
-          value={secret}
-          onChange={(e) => setSecret(e.target.value)}
-          placeholder="Secret"
-          className="h-12 text-center font-mono"
-          autoFocus
-        />
-        {error && <p className="text-xs text-destructive">{error}</p>}
-        <Button type="submit" className="w-full h-12" disabled={loading || !secret}>
-          {loading ? "..." : "Enter"}
-        </Button>
-      </form>
-    </div>
+    <PublicThemeProvider>
+      <div className="fs-shell">
+        <FocusBackdrop />
+        <div className="fs-content">
+          <span className="pub-wordmark" aria-label="Pleks" style={{ fontSize: 28, marginBottom: 32 }}>
+            <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
+          </span>
+
+          <form onSubmit={handleSubmit} className="fs-panel">
+            <span className="fs-knob" aria-hidden="true" />
+            <p className="fs-eyebrow">Admin Access</p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <input
+                type="password"
+                value={secret}
+                onChange={(e) => setSecret(e.target.value)}
+                placeholder="Secret"
+                className="ob-input"
+                style={{ textAlign: "center", fontFamily: "var(--pub-mono)", letterSpacing: "0.1em" }}
+                autoFocus
+              />
+              {error && (
+                <p style={{ fontSize: 12.5, color: "var(--danger, oklch(0.55 0.2 25))", textAlign: "center", margin: 0 }}>
+                  {error}
+                </p>
+              )}
+              <button
+                type="submit"
+                className="pub-btn pub-btn-primary"
+                style={{ width: "100%", justifyContent: "center" }}
+                disabled={loading || !secret}
+              >
+                {loading ? "…" : "Enter"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </PublicThemeProvider>
   )
 }

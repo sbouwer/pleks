@@ -22,8 +22,20 @@ import { usePasskeyLogin } from "@/lib/auth/passkeys/usePasskeyLogin"
 import { canUsePasskeys } from "@/lib/auth/passkeys/capability"
 import { AccentBracket } from "@/components/ui/AccentBracket"
 import { safeRedirect } from "@/lib/auth/safe-redirect"
+import { FocusBackdrop } from "@/components/layout/FocusBackdrop"
+import "@/components/layout/focus-shell.css"
 
-const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
+const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://www.pleks.co.za"
+
+// Warm onboarding-style backdrop behind the login card
+function FocusShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="fs-shell">
+      <FocusBackdrop />
+      <div className="fs-content">{children}</div>
+    </div>
+  )
+}
 
 function getButtonLabel(isMagicLink: boolean, isLoading: boolean) {
   if (isMagicLink) return isLoading ? "Sending link..." : "Send login link"
@@ -172,15 +184,15 @@ function LoginContent() {
 
   if (checking) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <FocusShell>
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
+      </FocusShell>
     )
   }
 
   if (magicLinkSent) {
     return (
-      <div className="flex items-center justify-center min-h-screen px-4">
+      <FocusShell>
         <Card className="w-full max-w-sm">
           <CardHeader className="text-center">
             <CardTitle>
@@ -204,12 +216,12 @@ function LoginContent() {
             </button>
           </CardContent>
         </Card>
-      </div>
+      </FocusShell>
     )
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen px-4">
+    <FocusShell>
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle>
@@ -354,6 +366,6 @@ function LoginContent() {
           </p>
         </CardContent>
       </Card>
-    </div>
+    </FocusShell>
   )
 }
