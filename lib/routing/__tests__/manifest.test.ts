@@ -20,9 +20,23 @@ describe("ROUTE_MANIFEST — structural invariants", () => {
     expect(rule.requiresAal2).toBeFalsy()
   })
 
+  it("/help is reachable by all authenticated roles (no role restriction) — BUILD_68 OQ1=A", () => {
+    const rule = ROUTE_MANIFEST["/help"]
+    expect(rule.auth).toBe(true)
+    expect(rule.roles).toBeUndefined()       // not agent-gated → tenant/landlord/supplier can reach it
+    expect(rule.skipOrgCheck).toBe(true)
+  })
+
+  it("/help/fitscore-report stays agent-only (its URL is stamped into screening PDFs)", () => {
+    const rule = ROUTE_MANIFEST["/help/fitscore-report"]
+    expect(rule).toBeDefined()
+    expect(rule.roles).toEqual(["owner", "property_manager", "agent", "accountant", "maintenance_manager"])
+    expect(rule.requiresAal2).toBeFalsy()    // AAL1, as it was under the old /help rule
+  })
+
   it("every other agent route requires AAL2", () => {
     const aal1AgentRoutes = AGENT_ONLY_ROUTES.filter(
-      p => p !== "/settings" && p !== "/help" && !ROUTE_MANIFEST[p]?.requiresAal2
+      p => p !== "/settings" && p !== "/help" && p !== "/help/fitscore-report" && !ROUTE_MANIFEST[p]?.requiresAal2
     )
     expect(aal1AgentRoutes).toEqual([])
   })

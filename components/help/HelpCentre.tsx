@@ -74,9 +74,10 @@ export function HelpCentre({ role, backHref }: Readonly<HelpCentreProps>) {
   }
 
   return (
-    <div className="mx-auto max-w-3xl pb-16">
+    <div className="min-h-screen bg-muted/30">
+     <div className="mx-auto max-w-3xl px-4 pb-16">
       {/* Sticky bar — "Back to dashboard" is always visible (D-HELP-09) */}
-      <div className="sticky top-0 z-10 -mx-6 mb-2 flex items-center justify-between gap-3 border-b border-border bg-surface/95 px-6 py-2.5 backdrop-blur">
+      <div className="sticky top-0 z-10 -mx-4 mb-2 flex items-center justify-between gap-3 border-b border-border bg-surface/95 px-4 py-2.5 backdrop-blur">
         <Link
           href={backHref}
           className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
@@ -129,6 +130,7 @@ export function HelpCentre({ role, backHref }: Readonly<HelpCentreProps>) {
           Email {HELP_SUPPORT_EMAIL}
         </a>
       </div>
+     </div>
     </div>
   )
 }

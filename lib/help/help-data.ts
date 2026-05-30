@@ -208,7 +208,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
   // ── Agent — Applications & screening ──────────────────────────────────────────────────────
   { id: "q-applications-fitscore", roles: ["agent"], category: "applications",
     q: "How does tenant screening / FitScore work?",
-    a: `When an applicant applies, Pleks compiles a screening report (FitScore) drawing on the information and checks for that application — including an income-affordability view (rent assessed against ${AFFORD} of gross income). The agent-facing result is a parallel rendering of the same evidence held in the archived report of record, so it's tribunal-defensible.`,
+    a: `When an applicant applies, Pleks compiles a screening report (FitScore) drawing on the information and checks for that application — including an income-affordability view (rent against income, guided by a ~${AFFORD} threshold rather than a hard cut-off). The agent-facing result is a parallel rendering of the same evidence held in the archived report of record, so it's tribunal-defensible.`,
     keywords: ["fitscore", "screening", "credit check", "vet tenant"] },
   { id: "q-applications-decline", roles: ["agent"], category: "applications",
     q: "Does a low FitScore automatically decline an applicant?",

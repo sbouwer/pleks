@@ -98,7 +98,13 @@ export const ROUTE_MANIFEST: Record<string, RouteRule> = {
   // ── Agent workspace (unprefixed) — requiresAal2 blocks AAL1 sessions ──
   // /settings is intentionally AAL1-accessible so agents can enrol their first
   // TOTP factor before they have an AAL2 session.
-  "/help":                  { auth: true, roles: AGENT_ROLES },
+  // /help (Help Centre index) serves ALL authenticated roles, AAL1 (read-only, low-sensitivity;
+  // tenants are aal1) — BUILD_68 OQ1=A. skipOrgCheck because non-agent roles have no agent org to
+  // hydrate (matches the portal routes). The more-specific /help/fitscore-report rule keeps the
+  // agent-only FitScore guide gated (longest-prefix wins) so widening /help can't expose it — its
+  // URL is stamped into generated screening PDFs and must keep resolving.
+  "/help":                  { auth: true, skipOrgCheck: true },
+  "/help/fitscore-report":  { auth: true, roles: AGENT_ROLES },
   "/settings":              { auth: true, roles: AGENT_ROLES },
   "/dashboard":             { auth: true, roles: AGENT_ROLES, requiresAal2: true },
   "/properties":            { auth: true, roles: AGENT_ROLES, requiresAal2: true },

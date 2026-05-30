@@ -4,7 +4,7 @@
  * components/feedback/FeedbackButton.tsx — Floating help trigger (feedback + bug report)
  *
  * Notes: Fixed bottom-right FAB — the quick door into help (BUILD_68). Opens a menu:
- *        "Browse help" (→ /help Help Centre, agent only for now), "Report a problem"
+ *        "Browse help" (→ /help Help Centre, all roles), "Report a problem"
  *        (BugReportDialog — auto-captured diagnostics, ADDENDUM_68) and "Send feedback"
  *        (the existing FeedbackDialog). Mounts in all four portal layouts; role prop
  *        indicates which user type is submitting.
@@ -34,12 +34,10 @@ export function FeedbackButton({ role }: Readonly<FeedbackButtonProps>) {
       <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2">
         {menuOpen && (
           <>
-            {role === "agent" && (
-              <Link href="/help" className={itemClass} onClick={() => setMenuOpen(false)}>
-                <LifeBuoy className="h-4 w-4 text-brand" />
-                Browse help
-              </Link>
-            )}
+            <Link href="/help" className={itemClass} onClick={() => setMenuOpen(false)}>
+              <LifeBuoy className="h-4 w-4 text-brand" />
+              Browse help
+            </Link>
             <button className={itemClass} onClick={() => { setMenuOpen(false); setBugOpen(true) }}>
               <Bug className="h-4 w-4 text-danger" />
               Report a problem
