@@ -3,14 +3,16 @@
 /**
  * components/feedback/FeedbackButton.tsx — Floating help trigger (feedback + bug report)
  *
- * Notes: Fixed bottom-right FAB. Clicking opens a two-choice menu: "Report a problem"
+ * Notes: Fixed bottom-right FAB — the quick door into help (BUILD_68). Opens a menu:
+ *        "Browse help" (→ /help Help Centre, agent only for now), "Report a problem"
  *        (BugReportDialog — auto-captured diagnostics, ADDENDUM_68) and "Send feedback"
  *        (the existing FeedbackDialog). Mounts in all four portal layouts; role prop
  *        indicates which user type is submitting.
  */
 
 import { useState } from "react"
-import { MessageSquarePlus, Bug, X } from "lucide-react"
+import Link from "next/link"
+import { MessageSquarePlus, Bug, X, LifeBuoy } from "lucide-react"
 import { FeedbackDialog } from "./FeedbackDialog"
 import { BugReportDialog } from "./BugReportDialog"
 import type { FeedbackRole } from "@/lib/feedback/queries"
@@ -32,6 +34,12 @@ export function FeedbackButton({ role }: Readonly<FeedbackButtonProps>) {
       <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2">
         {menuOpen && (
           <>
+            {role === "agent" && (
+              <Link href="/help" className={itemClass} onClick={() => setMenuOpen(false)}>
+                <LifeBuoy className="h-4 w-4 text-brand" />
+                Browse help
+              </Link>
+            )}
             <button className={itemClass} onClick={() => { setMenuOpen(false); setBugOpen(true) }}>
               <Bug className="h-4 w-4 text-danger" />
               Report a problem
