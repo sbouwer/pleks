@@ -14,6 +14,12 @@
 import { describe, it, expect, beforeEach, vi } from "vitest"
 import { NextRequest, NextResponse } from "next/server"
 import type { ActiveMembership } from "@/lib/auth/membership"
+import { mintPasskeyAal, verifyPasskeyAal, PASSKEY_AAL_COOKIE } from "@/lib/auth/passkey-aal"
+
+// ADDENDUM_69 Slice A: a real secret so the gate + resolver run the REAL passkey-AAL2
+// verifier. The whole point of states 8–11 is that both sides use the SAME verifier on the
+// SAME cookie+identity, so a forged/expired/foreign signal can never make them diverge (= a loop).
+process.env.PASSKEY_AAL_SECRET = "convergence-test-secret-at-least-32-bytes"
 
 // ── Hoisted mutable world the mocks read from (vi.mock factories are hoisted) ──
 const h = vi.hoisted(() => ({
@@ -27,6 +33,7 @@ const h = vi.hoisted(() => ({
     onboardingState: "complete",
     everAccepted: true,
     getUserThrows: false,                  // model an expired-token gotrue throw in the resolver's getUser
+    sessionId: "sess_1" as string,         // the live Supabase session_id the passkey-AAL2 signal binds to
   },
 }))
 
@@ -58,12 +65,25 @@ function queryBuilder(table: string) {
 const serviceClient = { from: (t: string) => queryBuilder(t) }
 
 vi.mock("@/lib/supabase/middleware", () => ({
-  updateSession: vi.fn(async () => ({
-    user: h.state.user,
-    aal: h.state.aal,
-    supabaseResponse: NextResponse.next(),
-  })),
+  // Runs the REAL passkey-AAL2 verifier on the request cookie + live identity, exactly like
+  // the production gate — so the gate and the (real) resolver consult the same logic.
+  updateSession: vi.fn(async (req: NextRequest) => {
+    const passkeyOk = h.state.user
+      ? verifyPasskeyAal(req.cookies.get(PASSKEY_AAL_COOKIE)?.value, {
+          userId: h.state.user.id, sessionId: h.state.sessionId,
+        })
+      : false
+    const aal = h.state.aal === "aal2" || passkeyOk ? "aal2" : h.state.aal
+    return { user: h.state.user, aal, supabaseResponse: NextResponse.next() }
+  }),
 }))
+
+// A crafted access_token whose payload carries the live session_id (what getSession returns to
+// the resolver) so collectResolverFacts can read it via jwtIdentity.
+function craftAccessToken(): string {
+  const payload = Buffer.from(JSON.stringify({ sub: h.state.user?.id, session_id: h.state.sessionId })).toString("base64url")
+  return `h.${payload}.s`
+}
 
 vi.mock("@/lib/supabase/server", () => ({
   createServiceClient: vi.fn(async () => serviceClient),
@@ -73,6 +93,9 @@ vi.mock("@/lib/supabase/server", () => ({
         if (h.state.getUserThrows) throw new TypeError("Error in input stream")
         return { data: { user: h.state.user } }
       },
+      getSession: async () => ({
+        data: { session: h.state.user ? { access_token: craftAccessToken() } : null },
+      }),
       mfa: {
         getAuthenticatorAssuranceLevel: async () => ({ data: { currentLevel: h.state.aal } }),
         listFactors: async () => ({ data: { totp: h.state.hasVerifiedFactor ? [{ status: "verified" }] : [] } }),
@@ -154,7 +177,7 @@ beforeEach(() => {
   h.state = {
     user: { id: "u1" }, aal: "aal2", hasVerifiedFactor: true, membership: AGENT,
     userOrgRole: "owner", welcomeSeen: true, onboardingState: "complete", everAccepted: true,
-    getUserThrows: false,
+    getUserThrows: false, sessionId: "sess_1",
   }
 })
 
@@ -219,6 +242,48 @@ describe("gate ↔ resolver convergence (termination invariant)", () => {
     const c = await converge("/settings/security/enrol-totp?mandatory=true&redirect=/dashboard", jar)
     expect(c.result).toBe("allow")
     expect(c.gateHops).toBe(1)
+  })
+
+  // ── ADDENDUM_69 Slice A — passkey-AAL2 signal, loop-safety ──────────────────────
+  it("8: agent, Supabase AAL1, VALID pleks_aal → allow in 1 hop (the point: no bounce)", async () => {
+    h.state.aal = "aal1"   // Supabase says aal1; the passkey signal lifts it to aal2
+    const aalCookie = mintPasskeyAal("u1", "sess_1")!.value
+    const jar: Jar = {
+      pleks_org: orgCookie("u1", "owner"), pleks_has_org: hasOrgCookie("u1", "owner"),
+      [PASSKEY_AAL_COOKIE]: aalCookie,
+    }
+    const c = await converge("/dashboard", jar)
+    expect(c.result).toBe("allow")
+    expect(c.gateHops).toBe(1)
+  })
+
+  it("9: FORGED pleks_aal → both sides AAL1 → mfa_verify, no loop, no bypass", async () => {
+    h.state.aal = "aal1"
+    const valid = mintPasskeyAal("u1", "sess_1")!.value
+    const forged = valid.slice(0, -1) + (valid.endsWith("a") ? "b" : "a")  // tamper the signature
+    const jar: Jar = { pleks_org: orgCookie("u1", "owner"), pleks_has_org: hasOrgCookie("u1", "owner"), [PASSKEY_AAL_COOKIE]: forged }
+    const c = await converge("/dashboard", jar)
+    expect(c.result).toBe("allow")  // lands on /login/mfa (transient) — NOT the dashboard
+    expect(c.trail.some(t => t.includes("/login/mfa"))).toBe(true)
+    expect(c.gateHops).toBeLessThanOrEqual(3)
+  })
+
+  it("10: EXPIRED pleks_aal → AAL1, no loop", async () => {
+    h.state.aal = "aal1"
+    const expired = mintPasskeyAal("u1", "sess_1", Date.now() - 13 * 60 * 60 * 1000)!.value  // exp 1h in the past
+    const jar: Jar = { pleks_org: orgCookie("u1", "owner"), pleks_has_org: hasOrgCookie("u1", "owner"), [PASSKEY_AAL_COOKIE]: expired }
+    const c = await converge("/dashboard", jar)
+    expect(c.trail.some(t => t.includes("/login/mfa"))).toBe(true)
+    expect(c.gateHops).toBeLessThanOrEqual(3)
+  })
+
+  it("11: pleks_aal bound to a DIFFERENT session id → AAL1 (replay defence), no loop", async () => {
+    h.state.aal = "aal1"   // live session is sess_1; the cookie was minted for another session
+    const foreign = mintPasskeyAal("u1", "someone-elses-session")!.value
+    const jar: Jar = { pleks_org: orgCookie("u1", "owner"), pleks_has_org: hasOrgCookie("u1", "owner"), [PASSKEY_AAL_COOKIE]: foreign }
+    const c = await converge("/dashboard", jar)
+    expect(c.trail.some(t => t.includes("/login/mfa"))).toBe(true)
+    expect(c.gateHops).toBeLessThanOrEqual(3)
   })
 
   it("loop-breaker still fires if a state ever does diverge (pleks_rdr at the limit)", async () => {

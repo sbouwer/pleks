@@ -6,6 +6,7 @@
  *        is never sent — it's consumed immediately on the server.
  */
 import { createServiceClient } from "@/lib/supabase/server"
+import { jwtIdentity } from "@/lib/auth/passkey-aal"
 
 function extractJti(accessToken: string): string {
   try {
@@ -39,5 +40,8 @@ export async function mintSupabaseSessionForUser(userId: string) {
     refresh_token: session.session.refresh_token,
     expires_at: session.session.expires_at,
     access_token_jti: extractJti(session.session.access_token),
+    // Supabase session_id claim — stable across token refresh; the passkey-AAL2 grant
+    // (ADDENDUM_69) binds to this, not the rotating jti.
+    session_id: jwtIdentity(session.session.access_token).sessionId,
   }
 }

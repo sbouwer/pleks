@@ -11,6 +11,7 @@ import { getRpConfig } from "@/lib/auth/passkeys/rp-config"
 import { b64urlToBytes } from "@/lib/auth/passkeys/encoding"
 import { logAuthEvent } from "@/lib/auth/events"
 import { mintSupabaseSessionForUser } from "@/lib/auth/passkeys/mint-session"
+import { issuePasskeyAal } from "@/lib/auth/passkey-aal-server"
 
 export async function POST(req: Request) {
   let rp
@@ -107,6 +108,10 @@ export async function POST(req: Request) {
   // challenge already consumed-on-attempt above (D-62C-05)
 
   const session = await mintSupabaseSessionForUser(cred.user_id as string)
+
+  // ADDENDUM_69 Slice A: a verified passkey grants the SESSION aal2 via a signed,
+  // session-bound cookie — so the resolver doesn't bounce the user to TOTP after login.
+  await issuePasskeyAal(cred.user_id as string, session.session_id)
 
   await logAuthEvent({
     userId: cred.user_id as string,

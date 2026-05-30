@@ -6,6 +6,7 @@
  */
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { logAuthEvent } from "@/lib/auth/events"
+import { revokePasskeyAalForUser } from "@/lib/auth/passkey-aal-server"
 
 export async function POST(req: Request) {
   const supabase = await createClient()
@@ -39,6 +40,10 @@ export async function POST(req: Request) {
     success: true,
     metadata: { label: pk.label, device_type: pk.device_type },
   })
+
+  // Removing a passkey revokes any passkey-derived session AAL2 (ADDENDUM_69 Slice A) —
+  // the authenticator that granted it is gone. Forces re-auth (TOTP fallback) for AAL2 routes.
+  await revokePasskeyAalForUser(user.id)
 
   return Response.json({ ok: true })
 }

@@ -14,11 +14,14 @@ import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import { resolveUserMembership, SovereignMembershipViolation } from "@/lib/auth/membership"
 import { safeRedirect } from "@/lib/auth/safe-redirect"
 import { createServiceClient } from "@/lib/supabase/server"
+import { verifyPasskeyAal, jwtIdentity, PASSKEY_AAL_COOKIE } from "@/lib/auth/passkey-aal"
+import { passkeyAalRevoked } from "@/lib/auth/passkey-aal-db"
 
 // ── Minimal Supabase interface — only what the resolver needs ─────────────────
 interface ResolverSupabase {
   auth: {
     getUser(): Promise<{ data: { user: { id: string } | null } }>
+    getSession(): Promise<{ data: { session: { access_token?: string } | null } }>
     mfa: {
       getAuthenticatorAssuranceLevel(): Promise<{ data: { currentLevel: string | null } | null }>
       listFactors(): Promise<{ data: { totp: Array<{ status: string }> } | null }>
@@ -201,7 +204,21 @@ export async function collectResolverFacts(
 
   // ── AAL ───────────────────────────────────────────────────────────────────
   const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-  const currentAal: Aal   = aalData?.currentLevel === "aal2" ? "aal2" : "aal1"
+  const supabaseAal: Aal  = aalData?.currentLevel === "aal2" ? "aal2" : "aal1"
+
+  // Passkey-AAL2 (ADDENDUM_69 Slice A): OR-in the signed signal, bound to the LIVE session,
+  // then confirm the grant isn't revoked (the resolver can afford the DB read; the gate runs
+  // the same verifier minus this check). Same verifier as the gate ⇒ no gate↔resolver divergence.
+  let passkeyAal2 = false
+  const aalCookie = request.cookies.get(PASSKEY_AAL_COOKIE)?.value
+  if (aalCookie) {
+    const { data: { session } } = await supabase.auth.getSession()
+    const sessionId = jwtIdentity(session?.access_token).sessionId
+    if (verifyPasskeyAal(aalCookie, { userId: user.id, sessionId })) {
+      passkeyAal2 = !(await passkeyAalRevoked(sessionId))
+    }
+  }
+  const currentAal: Aal = supabaseAal === "aal2" || passkeyAal2 ? "aal2" : "aal1"
 
   // ── Factor check (global — no host filter, D1) ────────────────────────────
   const { data: factors } = await supabase.auth.mfa.listFactors()

@@ -9,6 +9,8 @@
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { createClient } from "@/lib/supabase/server"
+import { jwtIdentity } from "@/lib/auth/passkey-aal"
+import { revokePasskeyAalForSession, clearPasskeyAalCookie } from "@/lib/auth/passkey-aal-server"
 
 /**
  * POST /api/auth/logout
@@ -19,11 +21,20 @@ import { createClient } from "@/lib/supabase/server"
  */
 export async function POST() {
   const supabase = await createClient()
+
+  // Capture the session id BEFORE signOut so we can revoke this session's passkey-AAL2 grant
+  // (ADDENDUM_69 Slice A). The httpOnly pleks_aal cookie is cleared here too.
+  const { data: { session } } = await supabase.auth.getSession()
+  const sessionId = session ? jwtIdentity(session.access_token).sessionId : null
+
   await supabase.auth.signOut()
 
   const cookieStore = await cookies()
   cookieStore.delete("pleks_org")
   cookieStore.delete("pleks_has_org")
+
+  if (sessionId) await revokePasskeyAalForSession(sessionId)
+  else await clearPasskeyAalCookie()
 
   return NextResponse.json({ ok: true })
 }

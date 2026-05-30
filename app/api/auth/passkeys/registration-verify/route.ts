@@ -10,6 +10,8 @@ import type { RegistrationResponseJSON } from "@simplewebauthn/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { getRpConfig } from "@/lib/auth/passkeys/rp-config"
 import { bytesToB64url } from "@/lib/auth/passkeys/encoding"
+import { jwtIdentity } from "@/lib/auth/passkey-aal"
+import { issuePasskeyAal } from "@/lib/auth/passkey-aal-server"
 import { logAuthEvent } from "@/lib/auth/events"
 
 export async function POST(req: Request) {
@@ -92,6 +94,11 @@ export async function POST(req: Request) {
     success: true,
     metadata: { label, device_type: credentialDeviceType },
   })
+
+  // ADDENDUM_69 Slice A (OQ-A4): grant the CURRENT session aal2 on enrol, so a user who
+  // just set up a passkey isn't immediately bounced to TOTP.
+  const { data: { session } } = await supabase.auth.getSession()
+  await issuePasskeyAal(user.id, jwtIdentity(session?.access_token).sessionId)
 
   return Response.json({ ok: true })
 }

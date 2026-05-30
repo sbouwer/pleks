@@ -155,6 +155,17 @@ describe("resolveAuthDestination — welcome branch (ADDENDUM_RESOLVER_OWNED_WEL
       safeNext: "/dashboard",
     }))).toEqual({ kind: "app", path: "/dashboard", pendingConsent: false }))
 
+  it("P1: passkey-AAL2 user (AAL2 but NO Supabase factor) on an AAL2 route → app, NOT mfa_enrol", () =>
+    // ADDENDUM_69 Slice A: a passkey grants the session AAL2 without a Supabase TOTP factor.
+    // The decision core is agnostic to HOW aal2 was reached (collectors populate current);
+    // the key invariant is that aal2 short-circuits the AAL2 branch so mfa_enrol never fires
+    // for a passkey-only user despite hasVerifiedFactor:false.
+    expect(resolveAuthDestination(f({
+      assurance: { current: "aal2", hasVerifiedFactor: false },
+      onboarding: { complete: false, welcomeSeen: true },
+      safeNext: "/dashboard",
+    }))).toEqual({ kind: "app", path: "/dashboard", pendingConsent: false }))
+
   it("W7a: tenant + welcomeSeen=false + AAL1 → app, never welcome (Phase 2 carve-out)", () =>
     expect(resolveAuthDestination(f({
       membership: { exists: true, roleClass: "tenant", sessionRole: "tenant" },

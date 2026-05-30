@@ -7,6 +7,7 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 import type { User } from "@supabase/supabase-js"
+import { verifyPasskeyAal, jwtIdentity, PASSKEY_AAL_COOKIE } from "@/lib/auth/passkey-aal"
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -56,7 +57,19 @@ export async function updateSession(request: NextRequest) {
   }
 
   // Extract AAL from the JWT payload — not exposed directly on the Session type.
-  const aal = extractAalFromJwt(accessToken)
+  // OR-in the passkey-AAL2 signal (ADDENDUM_69 Slice A): a verified passkey mints a
+  // signed, session-bound pleks_aal cookie that the gate verifies with zero network
+  // (HMAC + expiry, identity read from the JWT it already has). Fail-closed — a forged/
+  // expired/foreign token verifies false and the session stays at its Supabase AAL.
+  // The resolver runs the SAME verifier (plus a DB revocation check); both seeing the
+  // same result is what keeps gate↔resolver loop-safe.
+  const aalFromJwt = extractAalFromJwt(accessToken)
+  const identity = jwtIdentity(accessToken)
+  const passkeyAal2 = verifyPasskeyAal(
+    request.cookies.get(PASSKEY_AAL_COOKIE)?.value,
+    { userId: identity.sub ?? undefined, sessionId: identity.sessionId },
+  )
+  const aal = aalFromJwt === "aal2" || passkeyAal2 ? "aal2" : aalFromJwt
 
   return { supabase, user, supabaseResponse, aal }
 }

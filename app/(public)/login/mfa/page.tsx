@@ -152,7 +152,7 @@ function MfaContent() {
             <ShieldCheck className="h-8 w-8 text-muted-foreground" />
           </div>
           <CardDescription className="mt-2">
-            Enter the 6-digit code from your authenticator app to continue.
+            Finish signing in — enter the 6-digit code from your authenticator app.
           </CardDescription>
         </CardHeader>
         <CardContent>
