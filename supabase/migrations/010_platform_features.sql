@@ -2680,3 +2680,63 @@ BEGIN
     ALTER TABLE user_passkeys ALTER COLUMN public_key TYPE text USING encode(public_key, 'base64');
   END IF;
 END $$;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §33  ADDENDUM_68 (Slice 1): enriched bug-report context
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- 1:1 companion to feedback_submissions, written only for category='bug' reports.
+-- Holds auto-captured client diagnostics (route, device, console errors, failed
+-- requests) plus the correlation keys (pleks_trace → Supabase logs, x_vercel_id →
+-- Vercel logs) so the admin can pull the real server logs on demand. Kept in a
+-- separate table so praise/feature rows stay clean. No screenshot_path in Slice 1
+-- (deferred to Slice 2). RLS enabled (SECURITY RULE #2 — overrides the spec's "no
+-- RLS" note); reads/writes go via service role, policies mirror feedback_submissions
+-- through the parent so the Category-7 audit passes and a stray anon client can't leak.
+
+CREATE TABLE IF NOT EXISTS bug_context (
+  submission_id      uuid PRIMARY KEY REFERENCES feedback_submissions(id) ON DELETE CASCADE,
+  route_path         text,
+  full_url_scrubbed  text,
+  referrer_path      text,
+  pleks_trace        text,            -- → Supabase log join key
+  x_vercel_id        text,            -- → Vercel log join key
+  app_version        text,
+  user_agent_parsed  text,            -- "Android Chrome 148" (parsed, not raw UA)
+  viewport           text,            -- "412x915 @2x"
+  online_state       text,            -- "online/4g" | "offline"
+  pwa_mode           boolean,
+  console_errors     jsonb NOT NULL DEFAULT '[]'::jsonb,   -- [{ts,level,message}] scrubbed, cap 20
+  failed_requests    jsonb NOT NULL DEFAULT '[]'::jsonb,   -- [{method,path,status,at}] no bodies, cap 10
+  client_timestamp   timestamptz,
+  created_at         timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_bug_context_trace ON bug_context(pleks_trace) WHERE pleks_trace IS NOT NULL;
+
+ALTER TABLE bug_context ENABLE ROW LEVEL SECURITY;
+
+-- Submitter can read/insert their own bug context (parent owns submitter_id).
+DROP POLICY IF EXISTS "bug_context_submitter_select" ON bug_context;
+CREATE POLICY "bug_context_submitter_select" ON bug_context
+  FOR SELECT USING (
+    submission_id IN (SELECT id FROM feedback_submissions WHERE submitter_id = auth.uid())
+  );
+
+DROP POLICY IF EXISTS "bug_context_submitter_insert" ON bug_context;
+CREATE POLICY "bug_context_submitter_insert" ON bug_context
+  FOR INSERT WITH CHECK (
+    submission_id IN (SELECT id FROM feedback_submissions WHERE submitter_id = auth.uid())
+  );
+
+-- Org admin (role='owner' OR is_admin) can read bug context for their org's reports.
+DROP POLICY IF EXISTS "bug_context_org_admin_select" ON bug_context;
+CREATE POLICY "bug_context_org_admin_select" ON bug_context
+  FOR SELECT USING (
+    submission_id IN (
+      SELECT id FROM feedback_submissions
+      WHERE org_id IN (
+        SELECT org_id FROM user_orgs
+        WHERE user_id = auth.uid() AND (role = 'owner' OR is_admin = true)
+      )
+    )
+  );
