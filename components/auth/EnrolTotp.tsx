@@ -72,6 +72,10 @@ export function EnrolTotp({ redirectTo, mandatory = false, variant = "settings",
   const [secret2, setSecret2] = useState<string | null>(null)
   const [factorId2, setFactorId2] = useState<string | null>(null)
   const [code, setCode] = useState("")
+  // ADDENDUM_69 C.2.2: in mandatory enrolment the backup step is non-skippable — the user must
+  // explicitly confirm they saved the backup secret (or add a second authenticator) before
+  // continuing, so a forced-enrolment user always leaves with a recovery mechanism.
+  const [backupConfirmed, setBackupConfirmed] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   // Latest onVerified, read inside the mount-once effect without making it a dep
   // (the welcome flow passes a fresh closure each render).
@@ -263,8 +267,30 @@ export function EnrolTotp({ redirectTo, mandatory = false, variant = "settings",
             authenticator entries are already synced across your devices — you may not need this at all.
           </p>
 
+          {mandatory && (
+            <label
+              style={{
+                display: "flex", gap: 10, alignItems: "flex-start", margin: "0 0 18px", cursor: "pointer",
+                fontFamily: "var(--pub-sans)", fontSize: 13, lineHeight: 1.5, color: "var(--ink-soft)",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={backupConfirmed}
+                onChange={(e) => setBackupConfirmed(e.target.checked)}
+                style={{ marginTop: 2, flexShrink: 0 }}
+              />
+              <span>I&apos;ve saved my backup secret somewhere safe — or I&apos;ll add a second authenticator below.</span>
+            </label>
+          )}
+
           <div className="et-actions">
-            <ActionButton tone="primary" onClick={() => { globalThis.location.href = safeNext }}>
+            <ActionButton
+              tone="primary"
+              disabled={mandatory && !backupConfirmed}
+              style={{ opacity: mandatory && !backupConfirmed ? 0.6 : 1 }}
+              onClick={() => { globalThis.location.href = safeNext }}
+            >
               {savedContinueLabel}
             </ActionButton>
             <ActionButton
