@@ -207,6 +207,7 @@ const AUTHENTICATED_API_ROUTES = [
   "/api/org/notifications",
   "/api/auth/available-roles",
   "/api/feedback/bug",
+  "/api/auth/step-up/passkey",
 ]
 
 const CRON_ROUTES = [

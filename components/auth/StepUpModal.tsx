@@ -1,17 +1,18 @@
 "use client"
 
 /**
- * components/auth/StepUpModal.tsx — FILL: one-line purpose
+ * components/auth/StepUpModal.tsx — Fresh re-authentication for a sensitive action
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   Posts to /api/auth/step-up (TOTP) or /api/auth/step-up/passkey (passkey) to verify
+ *         a pending step_up_challenges token before a guarded action proceeds.
+ * Notes:  ADDENDUM_69 Slice B added the passkey path — offered when the user has an enrolled
+ *         passkey and the browser supports WebAuthn; TOTP is always available as fallback.
+ *         A passkey at LOGIN does not satisfy step-up: this triggers a FRESH assertion.
  */
 
 import { useState, useEffect, useRef } from "react"
-import { Loader2, ShieldAlert } from "lucide-react"
+import { Loader2, ShieldAlert, KeyRound } from "lucide-react"
+import { canUsePasskeys } from "@/lib/auth/passkeys/capability"
 
 interface StepUpModalProps {
   open: boolean
@@ -38,11 +39,28 @@ function StepUpModalInner({ actionLabel, challengeToken, onSuccess, onCancel }: 
   const [code, setCode] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [passkeyOffered, setPasskeyOffered] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const id = setTimeout(() => inputRef.current?.focus(), 100)
     return () => clearTimeout(id)
+  }, [])
+
+  // Offer passkey step-up only if the browser supports it AND the user has one enrolled.
+  useEffect(() => {
+    let active = true
+    void (async () => {
+      try {
+        const cap = await canUsePasskeys()
+        if (!cap.available) return
+        const res = await fetch("/api/auth/passkeys/list")
+        if (!res.ok) return
+        const { passkeys } = await res.json() as { passkeys?: unknown[] }
+        if (active && (passkeys?.length ?? 0) > 0) setPasskeyOffered(true)
+      } catch { /* passkey just stays hidden */ }
+    })()
+    return () => { active = false }
   }, [])
 
   async function handleSubmit(e: React.FormEvent) {
@@ -68,6 +86,40 @@ function StepUpModalInner({ actionLabel, challengeToken, onSuccess, onCancel }: 
     }
   }
 
+  async function handlePasskey() {
+    setLoading(true)
+    setError(null)
+    try {
+      const optRes = await fetch("/api/auth/passkeys/auth-options", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      })
+      if (!optRes.ok) throw new Error("start_failed")
+      const options = await optRes.json() as Record<string, unknown>
+
+      const { startAuthentication } = await import("@simplewebauthn/browser")
+      const assertion = await startAuthentication({
+        optionsJSON: options as unknown as Parameters<typeof startAuthentication>[0]["optionsJSON"],
+        useBrowserAutofill: false,
+      })
+
+      const res = await fetch("/api/auth/step-up/passkey", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ challengeToken, assertion }),
+      })
+      if (res.ok) { onSuccess(); return }
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      setError(data.error ?? "Passkey verification failed.")
+    } catch (e: unknown) {
+      const err = e as Error
+      setError(err.name === "NotAllowedError" ? "Passkey cancelled." : "Couldn't verify with passkey.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div
       style={{
@@ -90,9 +142,33 @@ function StepUpModalInner({ actionLabel, challengeToken, onSuccess, onCancel }: 
         </div>
         <p style={{ fontSize: 13, color: "var(--ink-faint)", marginBottom: 20 }}>
           {actionLabel
-            ? `You're about to ${actionLabel}. Enter the code from your authenticator app to continue.`
-            : "Enter the 6-digit code from your authenticator app to continue."}
+            ? `You're about to ${actionLabel}. Re-confirm to continue.`
+            : "Re-confirm to continue."}
         </p>
+
+        {passkeyOffered && (
+          <>
+            <button
+              type="button"
+              onClick={handlePasskey}
+              disabled={loading}
+              style={{
+                width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
+                gap: 8, padding: "10px 16px", borderRadius: 6, fontSize: 14, fontWeight: 600,
+                cursor: loading ? "default" : "pointer", marginBottom: 14,
+                border: "1px solid var(--rule)", background: "var(--surface)", color: "var(--ink-base)",
+              }}
+            >
+              <KeyRound style={{ width: 16, height: 16 }} />
+              Use a passkey
+            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+              <div style={{ flex: 1, height: 1, background: "var(--rule)" }} />
+              <span style={{ fontSize: 11, color: "var(--ink-faint)" }}>or enter a code</span>
+              <div style={{ flex: 1, height: 1, background: "var(--rule)" }} />
+            </div>
+          </>
+        )}
 
         <form onSubmit={handleSubmit}>
           <input
