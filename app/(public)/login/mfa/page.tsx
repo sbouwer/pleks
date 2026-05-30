@@ -12,21 +12,13 @@
 import { useState, useEffect, useRef, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import Link from "next/link"
 import { Loader2, ShieldCheck } from "lucide-react"
 import { AccentBracket } from "@/components/ui/AccentBracket"
 import { safeRedirect } from "@/lib/auth/safe-redirect"
+import { FocusShell } from "@/components/layout/FocusShell"
 
 const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
-
-const BTN_PRIMARY: React.CSSProperties = {
-  width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
-  gap: 8, padding: "9px 18px", borderRadius: 5, fontSize: 14, fontWeight: 600,
-  lineHeight: 1.5, cursor: "pointer", border: "none",
-  background: "oklch(0.68 0.14 65)", color: "oklch(0.18 0.012 260)",
-  transition: "background .15s, box-shadow .15s",
-}
 
 export default function MfaPage() {
   return (
@@ -133,82 +125,75 @@ function MfaContent() {
 
   if (checking) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
+      <FocusShell>
+        <div className="fs-panel" style={{ maxWidth: 400, textAlign: "center" }} role="status" aria-busy="true">
+          <span className="fs-knob" aria-hidden="true" />
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" style={{ margin: "0 auto" }} />
+          <span className="sr-only">Checking your session</span>
+        </div>
+      </FocusShell>
     )
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen px-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <CardTitle>
-            <a href={MARKETING_URL} className="pub-wordmark" aria-label="Pleks" style={{ justifyContent: "center" }}>
-              <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
-            </a>
-          </CardTitle>
-          <div className="flex justify-center mt-2">
-            <ShieldCheck className="h-8 w-8 text-muted-foreground" />
+    <FocusShell>
+      <div className="fs-panel" style={{ maxWidth: 400, textAlign: "center" }}>
+        <span className="fs-knob" aria-hidden="true" />
+        <a href={MARKETING_URL} className="pub-wordmark" aria-label="Pleks" style={{ justifyContent: "center", fontSize: 22 }}>
+          <span className="pub-wm-name">{"plek"}<AccentBracket>{"s"}</AccentBracket></span>
+        </a>
+        <div style={{ display: "flex", justifyContent: "center", margin: "12px 0 2px" }}>
+          <ShieldCheck className="h-7 w-7 text-muted-foreground" />
+        </div>
+        <p className="fs-subhead" style={{ margin: "0 0 20px" }}>
+          Finish signing in — enter the 6-digit code from your authenticator app.
+        </p>
+
+        {error && (
+          <div className="mb-4 rounded-md bg-danger-bg border border-danger/20 p-3 text-sm text-danger" style={{ textAlign: "left" }}>
+            {error}
           </div>
-          <CardDescription className="mt-2">
-            Finish signing in — enter the 6-digit code from your authenticator app.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {error && (
-            <div className="mb-4 rounded-md bg-danger-bg border border-danger/20 p-3 text-sm text-danger">
-              {error}
-            </div>
-          )}
+        )}
 
-          <form onSubmit={handleVerify} className="space-y-4">
-            <div className="space-y-2">
-              <input
-                ref={inputRef}
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                placeholder="000000"
-                value={code}
-                onChange={(e) => handleCodeChange(e.target.value)}
-                disabled={loading}
-                maxLength={6}
-                style={{
-                  width: "100%", padding: "10px 14px", borderRadius: 6,
-                  border: "1px solid var(--rule)", background: "var(--surface-raised)",
-                  fontSize: 24, fontWeight: 600, textAlign: "center", letterSpacing: "0.3em",
-                  color: "var(--ink-base)", outline: "none",
-                }}
-              />
-            </div>
-            <button
-              type="submit"
-              style={{ ...BTN_PRIMARY, opacity: code.length < 6 ? 0.6 : 1 }}
-              disabled={loading || code.length < 6}
-            >
-              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-              Verify
-            </button>
-          </form>
+        <form onSubmit={handleVerify} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <input
+            ref={inputRef}
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            placeholder="000000"
+            value={code}
+            onChange={(e) => handleCodeChange(e.target.value)}
+            disabled={loading}
+            maxLength={6}
+            style={{
+              width: "100%", padding: "10px 14px", borderRadius: 6,
+              border: "1px solid var(--rule)", background: "var(--surface-raised)",
+              fontSize: 24, fontWeight: 600, textAlign: "center", letterSpacing: "0.3em",
+              color: "var(--ink-base)", outline: "none", boxSizing: "border-box",
+            }}
+          />
+          <button
+            type="submit"
+            className="fs-cta"
+            disabled={loading || code.length < 6}
+            style={{ opacity: code.length < 6 ? 0.6 : 1 }}
+          >
+            <span className="fs-cta-bar" aria-hidden="true" />
+            <span className="fs-cta-label">{loading ? "Verifying…" : "Verify"}</span>
+            <span className="fs-cta-arrow" aria-hidden="true">→</span>
+          </button>
+        </form>
 
-          <div className="mt-4 text-center">
-            <Link
-              href="/login"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Use a different account
-            </Link>
-          </div>
+        <div style={{ marginTop: 16 }}>
+          <Link href="/login" className="fs-cta-ghost">Use a different account</Link>
+        </div>
 
-          <p className="mt-3 text-center text-xs text-muted-foreground">
-            Lost access to your authenticator?{" "}
-            <a href="mailto:security@pleks.co.za" className="hover:underline">
-              Contact support
-            </a>
-          </p>
-        </CardContent>
-      </Card>
-    </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Lost access to your authenticator?{" "}
+          <a href="mailto:security@pleks.co.za" className="hover:underline">Contact support</a>
+        </p>
+      </div>
+    </FocusShell>
   )
 }

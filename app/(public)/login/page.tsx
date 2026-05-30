@@ -21,20 +21,9 @@ import { usePasskeyLogin } from "@/lib/auth/passkeys/usePasskeyLogin"
 import { canUsePasskeys } from "@/lib/auth/passkeys/capability"
 import { AccentBracket } from "@/components/ui/AccentBracket"
 import { safeRedirect } from "@/lib/auth/safe-redirect"
-import { FocusBackdrop } from "@/components/layout/FocusBackdrop"
-import "@/components/layout/focus-shell.css"
+import { FocusShell } from "@/components/layout/FocusShell"
 
 const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://www.pleks.co.za"
-
-// Warm onboarding-style backdrop behind the login card
-function FocusShell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="fs-shell">
-      <FocusBackdrop />
-      <div className="fs-content">{children}</div>
-    </div>
-  )
-}
 
 function getButtonLabel(isMagicLink: boolean, isLoading: boolean) {
   if (isMagicLink) return isLoading ? "Sending link..." : "Send login link"
