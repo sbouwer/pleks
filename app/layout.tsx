@@ -8,6 +8,7 @@ import type { Metadata, Viewport } from "next"
 import { Plus_Jakarta_Sans, DM_Sans, Inter_Tight, JetBrains_Mono } from "next/font/google"
 import { Toaster } from "sonner"
 import { QueryProvider } from "@/components/providers/QueryProvider"
+import { CaptureBufferProvider } from "@/components/providers/CaptureBufferProvider"
 import { OfflineIndicator } from "@/components/layout/OfflineIndicator"
 import { InstallPrompt } from "@/components/layout/InstallPrompt"
 import "./globals.css"
@@ -79,7 +80,9 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <OfflineIndicator />
         <QueryProvider>
-          {children}
+          <CaptureBufferProvider>
+            {children}
+          </CaptureBufferProvider>
         </QueryProvider>
         <InstallPrompt />
         <Toaster richColors position="top-right" />

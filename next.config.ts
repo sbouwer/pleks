@@ -39,6 +39,12 @@ const nextConfig: NextConfig = {
   // Remove X-Powered-By: Next.js header
   poweredByHeader: false,
 
+  // Expose the deploy commit to the client for bug-report correlation (ADDENDUM_68).
+  // Vercel sets VERCEL_GIT_COMMIT_SHA at build; defaults to "local" in dev.
+  env: {
+    NEXT_PUBLIC_BUILD_ID: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 8) ?? "local",
+  },
+
   // @react-pdf/renderer v4 uses yoga-wasm-web (WASM). Turbopack bundling breaks
   // WASM initialisation — exclude from bundling so it loads from node_modules at runtime.
   serverExternalPackages: ["@react-pdf/renderer"],
