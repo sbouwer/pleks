@@ -2740,3 +2740,35 @@ CREATE POLICY "bug_context_org_admin_select" ON bug_context
       )
     )
   );
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §34  ADDENDUM_69 Slice A: passkey → session-AAL2 grants (revocation mirror)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- A verified passkey mints a signed, session-bound `pleks_aal` cookie that lets the
+-- gate + resolver treat the session as AAL2 (Supabase AAL only counts TOTP/phone). This
+-- table mirrors each grant so it can be REVOKED (sign-out / passkey-revoke): the resolver
+-- checks it; the gate verifies HMAC+expiry only (revoked-but-unexpired passes the gate
+-- until exp/cookie-clear — bounded, and the gate routes AAL2 decisions to the resolver
+-- anyway). session_id = the Supabase JWT session_id claim the grant is bound to. RLS
+-- enabled (SECURITY RULE #2; the spec's "no RLS, matches auth_events" was wrong — auth_events
+-- DOES have RLS): self-select only, writes are service-role.
+
+CREATE TABLE IF NOT EXISTS passkey_aal_grants (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  session_id  text NOT NULL,
+  granted_at  timestamptz NOT NULL DEFAULT now(),
+  expires_at  timestamptz NOT NULL,
+  revoked_at  timestamptz,
+  src         text NOT NULL DEFAULT 'passkey'
+);
+
+CREATE INDEX IF NOT EXISTS idx_passkey_aal_session ON passkey_aal_grants(session_id) WHERE revoked_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_passkey_aal_user    ON passkey_aal_grants(user_id);
+
+ALTER TABLE passkey_aal_grants ENABLE ROW LEVEL SECURITY;
+
+-- A user may see their own grants; inserts/updates are service-role only (no policy → denied).
+DROP POLICY IF EXISTS "passkey_aal_grants_select_self" ON passkey_aal_grants;
+CREATE POLICY "passkey_aal_grants_select_self" ON passkey_aal_grants
+  FOR SELECT USING (user_id = auth.uid());
