@@ -11,8 +11,10 @@
  */
 
 import { useState, useEffect, useRef } from "react"
-import { Loader2, ShieldAlert, KeyRound } from "lucide-react"
+import { Loader2, ShieldAlert } from "lucide-react"
 import { canUsePasskeys } from "@/lib/auth/passkeys/capability"
+import { OtpCodeInput } from "@/components/auth/OtpCodeInput"
+import { PasskeyButton } from "@/components/auth/PasskeyButton"
 
 interface StepUpModalProps {
   open: boolean
@@ -148,20 +150,9 @@ function StepUpModalInner({ actionLabel, challengeToken, onSuccess, onCancel }: 
 
         {passkeyOffered && (
           <>
-            <button
-              type="button"
-              onClick={handlePasskey}
-              disabled={loading}
-              style={{
-                width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
-                gap: 8, padding: "10px 16px", borderRadius: 6, fontSize: 14, fontWeight: 600,
-                cursor: loading ? "default" : "pointer", marginBottom: 14,
-                border: "1px solid var(--rule)", background: "var(--surface)", color: "var(--ink-base)",
-              }}
-            >
-              <KeyRound style={{ width: 16, height: 16 }} />
-              Use a passkey
-            </button>
+            <div style={{ marginBottom: 14 }}>
+              <PasskeyButton onClick={handlePasskey} loading={loading} variant="modal" />
+            </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
               <div style={{ flex: 1, height: 1, background: "var(--rule)" }} />
               <span style={{ fontSize: 11, color: "var(--ink-faint)" }}>or enter a code</span>
@@ -171,23 +162,9 @@ function StepUpModalInner({ actionLabel, challengeToken, onSuccess, onCancel }: 
         )}
 
         <form onSubmit={handleSubmit}>
-          <input
-            ref={inputRef}
-            type="text"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            placeholder="000000"
-            maxLength={6}
-            value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-            disabled={loading}
-            style={{
-              width: "100%", padding: "10px 14px", borderRadius: 6,
-              border: "1px solid var(--rule)", background: "var(--surface)",
-              fontSize: 24, fontWeight: 600, textAlign: "center", letterSpacing: "0.3em",
-              color: "var(--ink-base)", marginBottom: 12, boxSizing: "border-box",
-            }}
-          />
+          <div style={{ marginBottom: 12 }}>
+            <OtpCodeInput value={code} onChange={setCode} disabled={loading} inputRef={inputRef} />
+          </div>
 
           {error && (
             <div style={{

@@ -13,12 +13,14 @@ import { useState, useEffect, useRef, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import Link from "next/link"
-import { Loader2, ShieldCheck, KeyRound } from "lucide-react"
+import { Loader2, ShieldCheck } from "lucide-react"
 import { AccentBracket } from "@/components/ui/AccentBracket"
 import { safeRedirect } from "@/lib/auth/safe-redirect"
 import { FocusShell } from "@/components/layout/FocusShell"
 import { usePasskeyLogin } from "@/lib/auth/passkeys/usePasskeyLogin"
 import { canUsePasskeys } from "@/lib/auth/passkeys/capability"
+import { OtpCodeInput } from "@/components/auth/OtpCodeInput"
+import { PasskeyButton } from "@/components/auth/PasskeyButton"
 
 const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
 
@@ -145,11 +147,6 @@ function MfaContent() {
     globalThis.location.href = safeRedirect(redirectParam)
   }
 
-  function handleCodeChange(value: string) {
-    const digits = value.replace(/\D/g, "").slice(0, 6)
-    setCode(digits)
-  }
-
   if (checking) {
     return (
       <FocusShell>
@@ -183,23 +180,7 @@ function MfaContent() {
         )}
 
         <form onSubmit={handleVerify} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <input
-            ref={inputRef}
-            type="text"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            placeholder="000000"
-            value={code}
-            onChange={(e) => handleCodeChange(e.target.value)}
-            disabled={loading}
-            maxLength={6}
-            style={{
-              width: "100%", padding: "10px 14px", borderRadius: 6,
-              border: "1px solid var(--rule)", background: "var(--surface-raised)",
-              fontSize: 24, fontWeight: 600, textAlign: "center", letterSpacing: "0.3em",
-              color: "var(--ink-base)", outline: "none", boxSizing: "border-box",
-            }}
-          />
+          <OtpCodeInput value={code} onChange={setCode} disabled={loading} inputRef={inputRef} />
           <button
             type="submit"
             className="fs-cta"
@@ -220,17 +201,11 @@ function MfaContent() {
               <div style={{ flex: 1, height: 1, background: "var(--rule)" }} />
             </div>
             {passkeyError && <div className="mb-2 text-xs text-danger">{passkeyError}</div>}
-            <button
-              type="button"
-              className="fs-cta-ghost"
-              disabled={passkeyState === "in_progress"}
+            <PasskeyButton
               onClick={handlePasskey}
-            >
-              {passkeyState === "in_progress"
-                ? <Loader2 className="h-4 w-4 animate-spin" />
-                : <KeyRound className="h-4 w-4" />}
-              Use a passkey instead
-            </button>
+              loading={passkeyState === "in_progress"}
+              label="Use a passkey instead"
+            />
           </>
         )}
 

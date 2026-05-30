@@ -16,9 +16,10 @@ import { createClient } from "@/lib/supabase/client"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
-import { Eye, EyeOff, KeyRound, Loader2, Info } from "lucide-react"
+import { Eye, EyeOff, Info } from "lucide-react"
 import { usePasskeyLogin } from "@/lib/auth/passkeys/usePasskeyLogin"
 import { canUsePasskeys } from "@/lib/auth/passkeys/capability"
+import { PasskeyButton } from "@/components/auth/PasskeyButton"
 import { AccentBracket } from "@/components/ui/AccentBracket"
 import { safeRedirect } from "@/lib/auth/safe-redirect"
 import { FocusShell } from "@/components/layout/FocusShell"
@@ -332,24 +333,20 @@ function LoginContent() {
               {passkeyError && (
                 <div className="mt-2 text-xs text-danger text-center">{passkeyError}</div>
               )}
-              <button
-                type="button"
-                className="fs-cta-ghost"
-                style={{ marginTop: 8 }}
-                disabled={passkeyState === "in_progress"}
-                onClick={async () => {
-                  passkeyReset()
-                  // Modal passkey sign-in; on success route through the resolver (same as
-                  // password login) — NOT "/", which is the logged-out marketing home.
-                  if (await passkeyLogin(email || undefined)) globalThis.location.href = resolverUrl()
-                }}
-              >
-                {passkeyState === "in_progress"
-                  ? <Loader2 className="h-4 w-4 animate-spin" />
-                  : <KeyRound className="h-4 w-4" />
-                }
-                Sign in with passkey
-              </button>
+              <div style={{ marginTop: 8 }}>
+                {/* Modal passkey sign-in; on success route through the resolver (same as
+                    password login) — NOT "/", which is the logged-out marketing home. */}
+                <PasskeyButton
+                  label="Sign in with passkey"
+                  loading={passkeyState === "in_progress"}
+                  onClick={() => {
+                    passkeyReset()
+                    void passkeyLogin(email || undefined).then((ok) => {
+                      if (ok) globalThis.location.href = resolverUrl()
+                    })
+                  }}
+                />
+              </div>
             </>
           )}
 
