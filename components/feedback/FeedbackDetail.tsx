@@ -19,6 +19,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { FeedbackSubmission, FeedbackReply, FeedbackStatus } from "@/lib/feedback/queries"
+import type { BugContext } from "@/lib/feedback/bug-context"
+import { BugDiagnosticsPanel } from "./BugDiagnosticsPanel"
 
 const STATUS_OPTIONS: { value: FeedbackStatus; label: string }[] = [
   { value: "open",        label: "Open" },
@@ -35,7 +37,7 @@ const STATUS_COLOURS: Record<string, string> = {
 }
 
 interface FeedbackDetailProps {
-  submission: FeedbackSubmission & { replies: FeedbackReply[] }
+  submission: FeedbackSubmission & { replies: FeedbackReply[]; bugContext?: BugContext | null }
   isAdmin:    boolean
 }
 
@@ -134,6 +136,11 @@ export function FeedbackDetail({ submission, isAdmin }: FeedbackDetailProps) {
             </Button>
           </div>
         </div>
+      )}
+
+      {/* Bug diagnostics (admin-only, bug reports only) */}
+      {isAdmin && submission.bugContext && (
+        <BugDiagnosticsPanel ctx={submission.bugContext} submitterId={submission.submitter_id} />
       )}
 
       {/* Reply thread */}

@@ -5,6 +5,7 @@
  * Data:   feedback_submissions + feedback_replies via service client (bypasses RLS)
  */
 import { createServiceClient } from "@/lib/supabase/server"
+import type { BugContext } from "@/lib/feedback/bug-context"
 
 export type FeedbackStatus   = "open" | "in_progress" | "resolved" | "wont_fix"
 export type FeedbackCategory = "bug" | "feature" | "general" | "billing" | "ux" | "praise"
@@ -32,6 +33,52 @@ export interface FeedbackReply {
   body:           string
   is_admin_reply: boolean
   created_at:     string
+}
+
+/**
+ * Resolves the org + role for a feedback/bug submitter from their auth user id.
+ * Shared by /api/feedback and /api/feedback/bug. Checks membership tables in
+ * priority order: agent (user_orgs) → tenant → landlord → supplier (contractor).
+ * Returns null if the user belongs to no org (caller should 403).
+ */
+export async function resolveSubmitterContext(
+  userId: string
+): Promise<{ orgId: string; role: FeedbackRole } | null> {
+  const service = await createServiceClient()
+
+  const { data: membership } = await service
+    .from("user_orgs")
+    .select("org_id")
+    .eq("user_id", userId)
+    .is("deleted_at", null)
+    .maybeSingle()
+  if (membership) return { orgId: (membership as { org_id: string }).org_id, role: "agent" }
+
+  const { data: tenant } = await service
+    .from("tenants")
+    .select("org_id")
+    .eq("auth_user_id", userId)
+    .is("deleted_at", null)
+    .maybeSingle()
+  if (tenant) return { orgId: (tenant as { org_id: string }).org_id, role: "tenant" }
+
+  const { data: landlord } = await service
+    .from("landlords")
+    .select("org_id")
+    .eq("auth_user_id", userId)
+    .is("deleted_at", null)
+    .maybeSingle()
+  if (landlord) return { orgId: (landlord as { org_id: string }).org_id, role: "landlord" }
+
+  const { data: contractor } = await service
+    .from("contractors")
+    .select("org_id")
+    .eq("auth_user_id", userId)
+    .eq("is_active", true)
+    .maybeSingle()
+  if (contractor) return { orgId: (contractor as { org_id: string }).org_id, role: "supplier" }
+
+  return null
 }
 
 export async function createFeedbackSubmission(data: {
@@ -89,20 +136,24 @@ export async function listFeedbackSubmissions(opts: {
 
 export async function getFeedbackSubmissionById(
   id: string
-): Promise<(FeedbackSubmission & { replies: FeedbackReply[] }) | null> {
+): Promise<(FeedbackSubmission & { replies: FeedbackReply[]; bugContext: BugContext | null }) | null> {
   const service = await createServiceClient()
   const { data, error } = await service
     .from("feedback_submissions")
-    .select("*, feedback_replies(*)")
+    .select("*, feedback_replies(*), bug_context(*)")
     .eq("id", id)
     .single()
   if (error) {
     console.error("getFeedbackSubmissionById failed:", error.message)
     return null
   }
-  const { feedback_replies: replies, ...submission } =
-    data as FeedbackSubmission & { feedback_replies: FeedbackReply[] }
-  return { ...submission, replies: replies ?? [] }
+  const { feedback_replies: replies, bug_context: bugCtx, ...submission } =
+    data as FeedbackSubmission & {
+      feedback_replies: FeedbackReply[]
+      bug_context: BugContext[] | BugContext | null
+    }
+  const bugContext = Array.isArray(bugCtx) ? (bugCtx[0] ?? null) : (bugCtx ?? null)
+  return { ...submission, replies: replies ?? [], bugContext }
 }
 
 export async function updateFeedbackStatus(

@@ -8,51 +8,11 @@
  *         Role is resolved server-side (user_orgs → tenants → landlords → contractors).
  */
 import { NextRequest } from "next/server"
-import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { isFeedbackRateLimited } from "@/lib/feedback/rate-limit"
-import { createFeedbackSubmission, type FeedbackCategory, type FeedbackRole } from "@/lib/feedback/queries"
+import { createFeedbackSubmission, resolveSubmitterContext, type FeedbackCategory } from "@/lib/feedback/queries"
 
 const VALID_CATEGORIES = new Set<FeedbackCategory>(["bug", "feature", "general", "billing", "ux", "praise"])
-
-async function resolveSubmitterContext(
-  userId: string
-): Promise<{ orgId: string; role: FeedbackRole } | null> {
-  const service = await createServiceClient()
-
-  const { data: membership } = await service
-    .from("user_orgs")
-    .select("org_id")
-    .eq("user_id", userId)
-    .is("deleted_at", null)
-    .maybeSingle()
-  if (membership) return { orgId: (membership as { org_id: string }).org_id, role: "agent" }
-
-  const { data: tenant } = await service
-    .from("tenants")
-    .select("org_id")
-    .eq("auth_user_id", userId)
-    .is("deleted_at", null)
-    .maybeSingle()
-  if (tenant) return { orgId: (tenant as { org_id: string }).org_id, role: "tenant" }
-
-  const { data: landlord } = await service
-    .from("landlords")
-    .select("org_id")
-    .eq("auth_user_id", userId)
-    .is("deleted_at", null)
-    .maybeSingle()
-  if (landlord) return { orgId: (landlord as { org_id: string }).org_id, role: "landlord" }
-
-  const { data: contractor } = await service
-    .from("contractors")
-    .select("org_id")
-    .eq("auth_user_id", userId)
-    .eq("is_active", true)
-    .maybeSingle()
-  if (contractor) return { orgId: (contractor as { org_id: string }).org_id, role: "supplier" }
-
-  return null
-}
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()

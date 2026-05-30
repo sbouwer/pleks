@@ -206,6 +206,7 @@ const AUTHENTICATED_API_ROUTES = [
   "/api/deposit-interest-config",
   "/api/org/notifications",
   "/api/auth/available-roles",
+  "/api/feedback/bug",
 ]
 
 const CRON_ROUTES = [
