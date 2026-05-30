@@ -29,8 +29,11 @@ export default function ForgotPasswordPage() {
     setLoading(true)
 
     const supabase = createClient()
+    // Reset link must point at the canonical app origin, never the current browser origin —
+    // a wrong/preview host would otherwise mint a reset link to the wrong place (ADDENDUM_69 C.1).
+    const appOrigin = process.env.NEXT_PUBLIC_APP_URL ?? globalThis.location.origin
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${globalThis.location.origin}/reset-password`,
+      redirectTo: `${appOrigin}/reset-password`,
     })
 
     if (error) {

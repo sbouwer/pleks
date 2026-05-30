@@ -13,10 +13,12 @@ import { useState, useEffect, useRef, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import Link from "next/link"
-import { Loader2, ShieldCheck } from "lucide-react"
+import { Loader2, ShieldCheck, KeyRound } from "lucide-react"
 import { AccentBracket } from "@/components/ui/AccentBracket"
 import { safeRedirect } from "@/lib/auth/safe-redirect"
 import { FocusShell } from "@/components/layout/FocusShell"
+import { usePasskeyLogin } from "@/lib/auth/passkeys/usePasskeyLogin"
+import { canUsePasskeys } from "@/lib/auth/passkeys/capability"
 
 const MARKETING_URL = process.env.NEXT_PUBLIC_MARKETING_URL ?? "https://pleks.co.za"
 
@@ -37,7 +39,32 @@ function MfaContent() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [checking, setChecking] = useState(true)
+  const [passkeyOffered, setPasskeyOffered] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const { login: passkeyLogin, state: passkeyState, errorMsg: passkeyError, reset: passkeyReset } = usePasskeyLogin()
+
+  // Lost-authenticator recovery (ADDENDUM_69 Slice C): if the user has a passkey, offer it as
+  // an escape hatch right here — a passkey logs them in at AAL2 (Slice A), bypassing the TOTP
+  // they can't produce. Shown only when WebAuthn is available AND they have an enrolled passkey.
+  useEffect(() => {
+    let active = true
+    void (async () => {
+      try {
+        const cap = await canUsePasskeys()
+        if (!cap.available) return
+        const res = await fetch("/api/auth/passkeys/list")
+        if (!res.ok) return
+        const { passkeys } = await res.json() as { passkeys?: unknown[] }
+        if (active && (passkeys?.length ?? 0) > 0) setPasskeyOffered(true)
+      } catch { /* passkey just stays hidden */ }
+    })()
+    return () => { active = false }
+  }, [])
+
+  async function handlePasskey() {
+    passkeyReset()
+    if (await passkeyLogin()) globalThis.location.href = safeRedirect(redirectParam)
+  }
 
   useEffect(() => {
     const supabase = createClient()
@@ -184,6 +211,28 @@ function MfaContent() {
             <span className="fs-cta-arrow" aria-hidden="true">→</span>
           </button>
         </form>
+
+        {passkeyOffered && (
+          <>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "16px 0 10px" }}>
+              <div style={{ flex: 1, height: 1, background: "var(--rule)" }} />
+              <span className="text-xs text-muted-foreground">or</span>
+              <div style={{ flex: 1, height: 1, background: "var(--rule)" }} />
+            </div>
+            {passkeyError && <div className="mb-2 text-xs text-danger">{passkeyError}</div>}
+            <button
+              type="button"
+              className="fs-cta-ghost"
+              disabled={passkeyState === "in_progress"}
+              onClick={handlePasskey}
+            >
+              {passkeyState === "in_progress"
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <KeyRound className="h-4 w-4" />}
+              Use a passkey instead
+            </button>
+          </>
+        )}
 
         <div style={{ marginTop: 16 }}>
           <Link href="/login" className="fs-cta-ghost">Use a different account</Link>
