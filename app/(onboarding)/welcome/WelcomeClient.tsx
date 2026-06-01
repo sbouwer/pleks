@@ -69,8 +69,11 @@ export default function WelcomeClient({
       ? false
       : globalThis.window.matchMedia("(prefers-reduced-motion: reduce)").matches
     if (reduced) {
+      // Reduced-motion = no DRAWING animation, but the payoff still gets its breathing beat:
+      // show the completed shield immediately and hold it for the same minimum (just static).
+      // (A 120ms flash here read as "no shield at all".)
       setShieldPhase(2)
-      const t = setTimeout(() => setStep("backup"), 120)
+      const t = setTimeout(() => setStep("backup"), SECURED_HOLD_MS)
       return () => clearTimeout(t)
     }
     // Shield draws (60→360ms), check settles (360ms), then HOLD "Secured." so the payoff lands
@@ -265,8 +268,10 @@ function OrientContent({
   onChoosePasskey, onChooseTotp, onSignOut,
 }: Readonly<OrientProps>) {
   const welcomeText = firstName ? `Welcome to Pleks, ${firstName}.` : "Welcome to Pleks."
+  // Founders get an auto-created org named after them/their company — calling that org "ready"
+  // reads oddly for a solo owner, so speak to their profile being set up instead.
   const firmText = isFounder
-    ? `${orgName} is ready — let's secure it.`
+    ? "Your profile is ready — let's secure it."
     : `You've joined ${orgName}.`
 
   return (

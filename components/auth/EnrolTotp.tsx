@@ -354,6 +354,7 @@ export function EnrolTotp({ redirectTo, mandatory = false, variant = "settings",
                       type="text" inputMode="numeric" autoComplete="one-time-code"
                       maxLength={6} value={code}
                       onChange={(e) => setCode(e.target.value.replaceAll(/\D/g, "").slice(0, 6))}
+                      onKeyDown={(e) => { if (e.key === "Enter" && code.length === 6 && !loading) { e.preventDefault(); void verifyFactor(factorNum) } }}
                       disabled={loading}
                       aria-label="6-digit verification code"
                     />
@@ -437,6 +438,7 @@ export function EnrolTotp({ redirectTo, mandatory = false, variant = "settings",
                 placeholder="000000"
                 value={code}
                 onChange={(e) => setCode(e.target.value.replaceAll(/\D/g, "").slice(0, 6))}
+                onKeyDown={(e) => { if (e.key === "Enter" && code.length === 6 && !loading) { e.preventDefault(); void verifyFactor(factorNum) } }}
                 disabled={loading}
                 style={{ marginTop: 6 }}
               />
