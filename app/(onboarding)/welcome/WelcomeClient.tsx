@@ -209,7 +209,7 @@ export default function WelcomeClient({
 
       {step === "backup" && primary && (
         <BackupContent
-          primary={primary}
+          primary={primary} isFounder={isFounder}
           selfRecovering={primary === "passkey" && passkey.lastBackedUp === true}
           isPasskeying={isPasskeying} passkeyFailed={passkeyFailed} passkeyError={passkey.errorMsg}
           riskAck={riskAck} setRiskAck={setRiskAck}
@@ -340,6 +340,7 @@ function FactorChoiceButton({
 
 interface BackupProps {
   primary: Primary
+  isFounder: boolean
   selfRecovering: boolean
   isPasskeying: boolean; passkeyFailed: boolean; passkeyError: string | null
   riskAck: boolean; setRiskAck: (v: boolean) => void
@@ -350,7 +351,7 @@ interface BackupProps {
 }
 
 function BackupContent({
-  primary, selfRecovering,
+  primary, isFounder, selfRecovering,
   isPasskeying, passkeyFailed, passkeyError,
   riskAck, setRiskAck,
   onAddPasskeyBackup, onAddTotpBackup, onSkip, onSignOut,
@@ -413,7 +414,7 @@ function BackupContent({
           <label className="ob-riskack-label">
             <input type="checkbox" checked={riskAck} onChange={(e) => setRiskAck(e.target.checked)} />
             <span>
-              I understand that without a backup, losing my {backupIsPasskey ? "phone" : "device"} could lock me out — and getting back in would need my agency or Pleks support to reset it.
+              I understand that without a backup, losing my {backupIsPasskey ? "phone" : "device"} could lock me out — and getting back in would need {isFounder ? "Pleks support" : "my agency or Pleks support"} to reset it.
             </span>
           </label>
           <button type="button" className="ob-skip" onClick={onSkip} disabled={!riskAck || isPasskeying}>
