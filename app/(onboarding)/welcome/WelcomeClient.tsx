@@ -34,6 +34,12 @@ type ShieldPhase = 0 | 1 | 2  // idle → filling → done
 // Give the user a beat to feel the account is locked before moving on.
 const SECURED_HOLD_MS = 2200
 
+// TEMP DIAGNOSTIC (ADDENDUM_70 round-2 shield bug hunt — REMOVE once resolved): breadcrumb every
+// step transition so an open DevTools console names exactly where the welcome flow stops. Lets one
+// run separate the three live suspects — reduced-motion flash vs cancelled-passkey-strand vs
+// never-reached-/welcome — instead of guessing again.
+function wlog(msg: string) { console.info(`[welcome-trace] ${msg}`) }
+
 interface WelcomeClientProps {
   firstName: string
   orgName: string
@@ -62,18 +68,26 @@ export default function WelcomeClient({
 
   const isFounder = role === "owner"
 
+  // TEMP DIAGNOSTIC: confirm /welcome actually mounted (suspect 3: never-arrived) and with what
+  // initial step. If NO [welcome-trace] line ever appears, the resolver didn't route here.
+  useEffect(() => {
+    wlog(`mounted (initialStep=${initialStep}, startStep=${initialStep === "passkey" ? "secured" : "orient"})`)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Play secured payoff animation, then advance to the backup offer
   useEffect(() => {
     if (step !== "secured") return
     const reduced = globalThis.window === undefined
       ? false
       : globalThis.window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    wlog(`entered secured (effect ran, reduced-motion=${reduced})`)
     if (reduced) {
       // Reduced-motion = no DRAWING animation, but the payoff still gets its breathing beat:
       // show the completed shield immediately and hold it for the same minimum (just static).
       // (A 120ms flash here read as "no shield at all".)
       setShieldPhase(2)
-      const t = setTimeout(() => setStep("backup"), SECURED_HOLD_MS)
+      const t = setTimeout(() => { wlog("secured → backup (reduced)"); setStep("backup") }, SECURED_HOLD_MS)
       return () => clearTimeout(t)
     }
     // Shield draws (60→360ms), check settles (360ms), then HOLD "Secured." so the payoff lands
@@ -81,7 +95,7 @@ export default function WelcomeClient({
     // the enrolment that preceded this step returned instantly — the beat is the point.
     const t1 = setTimeout(() => setShieldPhase(1), 60)
     const t2 = setTimeout(() => setShieldPhase(2), 360)
-    const t3 = setTimeout(() => setStep("backup"), SECURED_HOLD_MS)
+    const t3 = setTimeout(() => { wlog("secured → backup"); setStep("backup") }, SECURED_HOLD_MS)
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
   }, [step])
 
@@ -99,6 +113,7 @@ export default function WelcomeClient({
       .then(({ data }) => {
         if (!active) return
         const verified = (data?.totp ?? []).filter(f => f.status === "verified")
+        wlog(`mount listFactors: ${verified.length} verified TOTP factor(s)`)
         if (verified.length > 0) { setPrimary("totp"); setStep("secured") }
       })
       .catch((e) => {
@@ -109,6 +124,7 @@ export default function WelcomeClient({
   }, [initialStep])
 
   async function handleFinish() {
+    wlog(`handleFinish → /auth/resolver (leaving /welcome, primary=${primary})`)
     setFinishing(true)
     await markWelcomeSeen()
     // Full-page navigation (NOT router.push): /auth/resolver is a route handler that
@@ -119,21 +135,26 @@ export default function WelcomeClient({
 
   // Primary = passkey: run the ceremony inline, then play the secured payoff.
   async function choosePasskey() {
+    wlog("choosePasskey: ceremony start")
     setPrimary("passkey")
     passkey.reset()
     const ok = await passkey.enrol("Primary device")
+    wlog(`choosePasskey: enrol returned ${ok} (state=${passkey.state}, err=${passkey.errorMsg ?? "none"})`)
     if (ok) setStep("secured")
   }
 
   function chooseTotp() {
+    wlog("chooseTotp → enrol-totp")
     setPrimary("totp")
     setStep("enrol-totp")
   }
 
   // Backup = passkey (primary was TOTP): ceremony inline, then straight to the dashboard.
   async function addPasskeyBackup() {
+    wlog("addPasskeyBackup: ceremony start")
     passkey.reset()
     const ok = await passkey.enrol("Backup device")
+    wlog(`addPasskeyBackup: enrol returned ${ok}`)
     if (ok) await handleFinish()
   }
 
@@ -201,7 +222,7 @@ export default function WelcomeClient({
           <p style={{ fontFamily: "var(--pub-sans)", fontSize: "13.5px", lineHeight: 1.6, color: "var(--ink-soft)", margin: "4px 0 20px", maxWidth: "52ch" }}>
             Scan the code with Google Authenticator, 1Password, Authy, or any app you already use, then enter the six-digit code to confirm.
           </p>
-          <EnrolTotp embedded mandatory variant="welcome" onVerified={() => setStep("secured")} />
+          <EnrolTotp embedded mandatory variant="welcome" onVerified={() => { wlog("enrol-totp onVerified → secured"); setStep("secured") }} />
           <div className="ob-escape">
             <button type="button" onClick={handleSignOut}>Sign out</button>
             <a href="mailto:support@pleks.co.za">Get help</a>
@@ -226,7 +247,7 @@ export default function WelcomeClient({
           isPasskeying={isPasskeying} passkeyFailed={passkeyFailed} passkeyError={passkey.errorMsg}
           riskAck={riskAck} setRiskAck={setRiskAck}
           onAddPasskeyBackup={addPasskeyBackup}
-          onAddTotpBackup={() => setStep("enrol-totp-backup")}
+          onAddTotpBackup={() => { wlog("backup → enrol-totp-backup"); setStep("enrol-totp-backup") }}
           onSkip={handleFinish}
           onSignOut={handleSignOut}
         />
