@@ -6,14 +6,14 @@
  * Notes:  ADDENDUM_70 Slice B: pick-one-+-backup, in the bespoke welcome aesthetic.
  *         Step 1 (orient): choose a PRIMARY factor — passkey (recommended) OR authenticator.
  *           passkey → inline registration ceremony; authenticator → embedded EnrolTotp.
- *         Step 1.5 (secured): 700ms shield payoff animation, auto-advances to the backup offer.
+ *         Step 1.5 (secured): shield payoff held for SECURED_HOLD_MS, auto-advances to the backup offer.
  *         Step 2 (backup): offer the OTHER factor, gated on self-recovery (Option C, D-70-04/05).
  *           Synced passkey primary → skippable with a soft note; TOTP / device-bound passkey
  *           primary → firm (skip behind an explicit lockout acknowledgement). Copy informs the
  *           security reasoning, no step-counter framing on this screen (D-70-11).
  *         welcome_seen is written on "Continue" / "Skip" click via markWelcomeSeen().
  *         §F.3: TOTP + passkey only — magic-link and SMS never presented as MFA here.
- *         prefers-reduced-motion: secured step degrades to ~120ms cross-fade.
+ *         prefers-reduced-motion: secured step shows the completed shield (no draw) but still holds the full beat.
  *         All passkey/listFactors awaits are guarded against React #460 on teardown.
  */
 import { useEffect, useState } from "react"
