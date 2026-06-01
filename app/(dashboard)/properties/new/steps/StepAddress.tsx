@@ -160,6 +160,7 @@ function PlacesSearch({ onPlace }: Readonly<PlacesSearchProps>) {
         ref={inputRef}
         type="text"
         placeholder="Search address…"
+        autoComplete="off"
         className="w-full rounded-md border border-input bg-background pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-shadow"
       />
     </div>
@@ -193,6 +194,7 @@ function Field({ id, label, value, placeholder, required, inputMode, maxLength, 
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        autoComplete="off"
         className={cn(inputWidth, "rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-shadow")}
       />
     </div>
@@ -253,6 +255,7 @@ export function StepAddress() {
             value={local.street_number}
             onChange={(e) => update({ street_number: e.target.value })}
             aria-label="Street number"
+            autoComplete="off"
             className="w-14 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-shadow"
           />
           <input
@@ -261,6 +264,7 @@ export function StepAddress() {
             value={local.street_name}
             onChange={(e) => update({ street_name: e.target.value })}
             aria-label="Street name"
+            autoComplete="off"
             className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-shadow"
           />
         </div>
@@ -282,6 +286,7 @@ export function StepAddress() {
             id="addr-city" type="text" placeholder="Cape Town"
             value={local.city}
             onChange={(e) => update({ city: e.target.value })}
+            autoComplete="off"
             className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-shadow"
           />
           <input
@@ -289,6 +294,7 @@ export function StepAddress() {
             value={local.postal_code}
             onChange={(e) => update({ postal_code: e.target.value.replaceAll(/\D/g, "") })}
             aria-label="Postal code"
+            autoComplete="off"
             className="w-16 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-shadow"
           />
         </div>
