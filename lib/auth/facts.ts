@@ -221,8 +221,25 @@ export async function collectResolverFacts(
   const currentAal: Aal = supabaseAal === "aal2" || passkeyAal2 ? "aal2" : "aal1"
 
   // ── Factor check (global — no host filter, D1) ────────────────────────────
+  // hasVerifiedFactor is a durable factor-POSSESSION fact (does this user own any MFA factor to
+  // verify against?), distinct from the ephemeral pleks_aal *assurance* signal above — do NOT
+  // derive it from the cookie. It drives ONLY the resolver's mfa_verify-vs-mfa_enrol choice.
+  // Since ADDENDUM_69 made a passkey AAL2-granting, an enrolled passkey counts as a factor: a
+  // passkey-only user at aal1 (e.g. a password login) must be routed to VERIFY with their passkey,
+  // not force-enrolled into TOTP. Read user_passkeys directly (service client); fail-closed — a
+  // passkey read error falls back to the TOTP-only result.
   const { data: factors } = await supabase.auth.mfa.listFactors()
-  const hasVerifiedFactor  = (factors?.totp ?? []).some((f) => f.status === "verified")
+  const totpVerified = (factors?.totp ?? []).some((f) => f.status === "verified")
+  let passkeyExists = false
+  const { data: passkeys, error: passkeyErr } = await service
+    .from("user_passkeys")
+    .select("id")
+    .eq("user_id", user.id)
+    .is("revoked_at", null)
+    .limit(1)
+  if (passkeyErr) console.error("[facts] user_passkeys read failed:", passkeyErr.message)
+  else passkeyExists = (passkeys?.length ?? 0) > 0
+  const hasVerifiedFactor = totpVerified || passkeyExists
 
   // ── Consent — has user ever accepted any ToS version? ─────────────────────
   const { data: anyAcceptance } = await service

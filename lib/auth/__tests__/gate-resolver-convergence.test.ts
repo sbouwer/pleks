@@ -34,6 +34,7 @@ const h = vi.hoisted(() => ({
     everAccepted: true,
     getUserThrows: false,                  // model an expired-token gotrue throw in the resolver's getUser
     sessionId: "sess_1" as string,         // the live Supabase session_id the passkey-AAL2 signal binds to
+    hasPasskey: false,                     // does the user own an enrolled passkey (user_passkeys row)?
   },
 }))
 
@@ -45,6 +46,7 @@ function resolveTable(table: string) {
     case "organisations":   return { data: { type: "agency", name: "Test Co" }, error: null }
     case "user_profiles":   return { data: { onboarding_state: w.onboardingState, welcome_seen: w.welcomeSeen }, error: null }
     case "tos_acceptances": return { data: w.everAccepted ? { id: "tos_1" } : null, error: null }
+    case "user_passkeys":   return { data: w.hasPasskey ? [{ id: "pk_1" }] : null, error: null }
     default:                return { data: null, error: null }
   }
 }
@@ -177,7 +179,7 @@ beforeEach(() => {
   h.state = {
     user: { id: "u1" }, aal: "aal2", hasVerifiedFactor: true, membership: AGENT,
     userOrgRole: "owner", welcomeSeen: true, onboardingState: "complete", everAccepted: true,
-    getUserThrows: false, sessionId: "sess_1",
+    getUserThrows: false, sessionId: "sess_1", hasPasskey: false,
   }
 })
 
@@ -283,6 +285,19 @@ describe("gate ↔ resolver convergence (termination invariant)", () => {
     const jar: Jar = { pleks_org: orgCookie("u1", "owner"), pleks_has_org: hasOrgCookie("u1", "owner"), [PASSKEY_AAL_COOKIE]: foreign }
     const c = await converge("/dashboard", jar)
     expect(c.trail.some(t => t.includes("/login/mfa"))).toBe(true)
+    expect(c.gateHops).toBeLessThanOrEqual(3)
+  })
+
+  it("12: passkey-only agent at AAL1 → mfa_verify, NOT mfa_enrol (a passkey counts as a factor, ADDENDUM_69)", async () => {
+    // No verified Supabase TOTP factor, but the user owns an enrolled passkey. Pre-fix the resolver
+    // saw hasVerifiedFactor=false → force-enrolled them into TOTP; now collectResolverFacts reads
+    // user_passkeys, so they're routed to VERIFY (where /login/mfa offers "Use a passkey instead").
+    h.state.aal = "aal1"; h.state.hasVerifiedFactor = false; h.state.hasPasskey = true
+    const jar: Jar = { pleks_org: orgCookie("u1", "owner"), pleks_has_org: hasOrgCookie("u1", "owner") }
+    const c = await converge("/dashboard", jar)
+    expect(c.result).toBe("allow")
+    expect(c.trail.some(t => t.includes("/login/mfa"))).toBe(true)         // → verify
+    expect(c.trail.some(t => t.includes("enrol-totp"))).toBe(false)       // NOT force-enrolled
     expect(c.gateHops).toBeLessThanOrEqual(3)
   })
 
