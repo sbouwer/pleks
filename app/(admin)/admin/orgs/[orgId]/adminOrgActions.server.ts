@@ -1,16 +1,17 @@
 "use server"
 
 /**
- * app/(admin)/admin/orgs/[orgId]/adminOrgActions.server.ts — FILL: one-line purpose
+ * app/(admin)/admin/orgs/[orgId]/adminOrgActions.server.ts — admin server actions on a single org
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   Admin portal — (admin) route group is HMAC-token gated upstream; service client used here
+ * Data:   organisations, subscriptions, audit_log
+ * Notes:  changeTier fires onTierChanged (ADDENDUM_01C §4) AFTER the subscriptions write — the
+ *         Owner→Steward+ identity fork hangs off that hook.
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { startTrial } from "@/lib/trial/startTrial"
+import { onTierChanged } from "@/lib/tier/onTierChanged"
+import type { Tier } from "@/lib/constants"
 
 export async function activateFoundingAgent(orgId: string) {
   const supabase = await createServiceClient()
@@ -49,6 +50,15 @@ export async function activateFoundingAgent(orgId: string) {
 export async function changeTier(orgId: string, newTier: string) {
   const supabase = await createServiceClient()
 
+  // Read the raw tier we're replacing, for the tier-change hook (ADDENDUM_01C §4).
+  const { data: oldSub } = await supabase
+    .from("subscriptions")
+    .select("tier")
+    .eq("org_id", orgId)
+    .in("status", ["active", "trialing"])
+    .maybeSingle()
+  const oldTier = (oldSub?.tier ?? null) as Tier | null
+
   await supabase
     .from("subscriptions")
     .update({ tier: newTier, status: "active" })
@@ -61,6 +71,9 @@ export async function changeTier(orgId: string, newTier: string) {
     action: "UPDATE",
     new_values: { action: "tier_changed", tier: newTier },
   })
+
+  // Tier-change side-effects — the Owner→Steward+ identity fork is one (ADDENDUM_01C §5).
+  if (oldTier) await onTierChanged(orgId, oldTier, newTier as Tier)
 
   return { success: true }
 }
