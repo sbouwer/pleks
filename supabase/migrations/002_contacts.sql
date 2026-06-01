@@ -818,15 +818,18 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_user_profiles_self_landlord
 
 -- ── Mirror agent profile → bound landlord contact (loop-guarded) ──
 CREATE OR REPLACE FUNCTION sync_self_landlord_from_profile() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
 DECLARE
   v_contact_id uuid;
   v_first text;
   v_last  text;
+  v_phone text;
 BEGIN
   IF NEW.self_landlord_id IS NULL THEN RETURN NEW; END IF;
-  -- skip if no synced field actually changed (cheap exit)
+  -- skip if no synced field actually changed (cheap exit). The agent's primary number is
+  -- `mobile` (required); `phone` is an optional landline — fire on either (D-01C-09 superset).
   IF NEW.full_name IS NOT DISTINCT FROM OLD.full_name
+     AND NEW.mobile IS NOT DISTINCT FROM OLD.mobile
      AND NEW.phone  IS NOT DISTINCT FROM OLD.phone THEN
     RETURN NEW;
   END IF;
@@ -836,23 +839,24 @@ BEGIN
   v_first := NULLIF(split_part(COALESCE(NEW.full_name, ''), ' ', 1), '');
   v_last  := NULLIF(TRIM(SUBSTR(COALESCE(NEW.full_name, ''),
                LENGTH(split_part(COALESCE(NEW.full_name, ''), ' ', 1)) + 2)), '');
+  v_phone := COALESCE(NEW.mobile, NEW.phone);  -- primary contact number, mobile preferred
 
   -- loop-guard: only write (and thereby fire the reverse trigger) if the contact differs
   UPDATE contacts
      SET first_name = v_first,
          last_name  = v_last,
-         primary_phone = NEW.phone
+         primary_phone = v_phone
    WHERE id = v_contact_id
      AND (first_name    IS DISTINCT FROM v_first
        OR last_name     IS DISTINCT FROM v_last
-       OR primary_phone IS DISTINCT FROM NEW.phone);
+       OR primary_phone IS DISTINCT FROM v_phone);
   RETURN NEW;
 END;
 $$;
 
 -- ── Mirror landlord contact → bound agent profile (loop-guarded) ──
 CREATE OR REPLACE FUNCTION sync_profile_from_self_landlord() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
 DECLARE
   v_profile_id uuid;
   v_full text;
@@ -871,12 +875,14 @@ BEGIN
 
   v_full := NULLIF(TRIM(CONCAT_WS(' ', NEW.first_name, NEW.last_name)), '');
 
+  -- contact primary_phone reflects the agent's primary number, which is `mobile` (not the
+  -- optional `phone` landline). Write to mobile; leave the landline (agent-only) untouched.
   UPDATE user_profiles
      SET full_name = v_full,
-         phone     = NEW.primary_phone
+         mobile    = NEW.primary_phone
    WHERE id = v_profile_id
      AND (full_name IS DISTINCT FROM v_full
-       OR phone     IS DISTINCT FROM NEW.primary_phone);
+       OR mobile    IS DISTINCT FROM NEW.primary_phone);
   RETURN NEW;
 END;
 $$;
@@ -895,7 +901,7 @@ CREATE TRIGGER trg_sync_profile_from_self_landlord
 -- Safety net for any divergence (a bypassing write, a partial update). Returns rows repaired.
 -- Callable by a cron or on-load. (D-01C-04 reconcile.)
 CREATE OR REPLACE FUNCTION reconcile_self_landlord_bindings() RETURNS integer
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
 DECLARE
   v_count integer;
 BEGIN
@@ -903,14 +909,14 @@ BEGIN
      SET first_name = NULLIF(split_part(COALESCE(up.full_name, ''), ' ', 1), ''),
          last_name  = NULLIF(TRIM(SUBSTR(COALESCE(up.full_name, ''),
                         LENGTH(split_part(COALESCE(up.full_name, ''), ' ', 1)) + 2)), ''),
-         primary_phone = up.phone
+         primary_phone = COALESCE(up.mobile, up.phone)
     FROM landlords l
     JOIN user_profiles up ON up.self_landlord_id = l.id
    WHERE c.id = l.contact_id
      AND (c.first_name    IS DISTINCT FROM NULLIF(split_part(COALESCE(up.full_name, ''), ' ', 1), '')
        OR c.last_name     IS DISTINCT FROM NULLIF(TRIM(SUBSTR(COALESCE(up.full_name, ''),
                             LENGTH(split_part(COALESCE(up.full_name, ''), ' ', 1)) + 2)), '')
-       OR c.primary_phone IS DISTINCT FROM up.phone);
+       OR c.primary_phone IS DISTINCT FROM COALESCE(up.mobile, up.phone));
   GET DIAGNOSTICS v_count = ROW_COUNT;
   RETURN v_count;
 END;
@@ -922,9 +928,14 @@ $$;
 -- ─────────────────────────────────────────────────────────────
 -- When an Owner→Steward+ upgrade forks a bound self-managed identity (§5), we stamp the agent's
 -- profile so a banner explains "your details now update per-role" (D-01C-06). Shown once per
--- surface (agent settings / landlord record); dismissal persists per surface. Pure user_profiles
--- columns (no FK) — grouped here with §13 to keep the 01C identity work in one place.
+-- surface (agent settings / landlord record); dismissal persists per surface. Grouped here with
+-- §13 to keep the 01C identity work in one place.
+--   forked_landlord_id: the landlord that WAS this agent's self-managed identity. The fork clears
+--   self_landlord_id (the live binding), so this captures which landlord record to surface the
+--   landlord-side banner on. ON DELETE SET NULL — if that landlord is later deleted, the pointer
+--   just clears (the banner has nowhere to show, which is correct).
 ALTER TABLE user_profiles
   ADD COLUMN IF NOT EXISTS identity_forked_at              timestamptz,
+  ADD COLUMN IF NOT EXISTS forked_landlord_id              uuid REFERENCES landlords(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS fork_banner_dismissed_agent     boolean NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS fork_banner_dismissed_landlord  boolean NOT NULL DEFAULT false;

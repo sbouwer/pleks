@@ -78,6 +78,44 @@ export const getServerOrgMembership = cache(async () => {
   return data ? { ...data, tier: null } : null
 })
 
+export interface IdentityForkState {
+  /** True once an Owner→Steward+ upgrade has decoupled this user's self-managed identity. */
+  forked: boolean
+  /** The landlord record that WAS this user — scopes the landlord-surface banner. */
+  forkedLandlordId: string | null
+  dismissedAgent: boolean
+  dismissedLandlord: boolean
+}
+
+/**
+ * Identity-fork banner state for the current user (ADDENDUM_01C §6) — cached per render tree.
+ * Reads the fork stamp + per-surface dismissal from user_profiles. Returns null when not signed in
+ * or the profile row is missing. Used by the agent-settings + landlord-record banner surfaces.
+ */
+export const getIdentityForkState = cache(async (): Promise<IdentityForkState | null> => {
+  const user = await getServerUser()
+  if (!user) return null
+
+  const service = await createServiceClient()
+  const { data, error } = await service
+    .from("user_profiles")
+    .select("identity_forked_at, forked_landlord_id, fork_banner_dismissed_agent, fork_banner_dismissed_landlord")
+    .eq("id", user.id)
+    .maybeSingle()
+  if (error) {
+    console.error("[getIdentityForkState] query failed:", error.message)
+    return null
+  }
+  if (!data) return null
+
+  return {
+    forked: data.identity_forked_at != null,
+    forkedLandlordId: (data.forked_landlord_id as string | null) ?? null,
+    dismissedAgent: data.fork_banner_dismissed_agent === true,
+    dismissedLandlord: data.fork_banner_dismissed_landlord === true,
+  }
+})
+
 /**
  * Org capabilities — cached per render tree (ADDENDUM_61A).
  * Resolves org type + name from DB, derives the full capability object.

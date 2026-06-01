@@ -3,14 +3,15 @@
  *
  * Route:  /settings/profile
  * Auth:   getServerUser (Supabase auth)
- * Data:   getServerUser for email; gatewaySSR for org membership check
+ * Data:   getServerUser for email; gatewaySSR for org membership check; getIdentityForkState for the fork banner
  */
 import { redirect } from "next/navigation"
-import { getServerUser } from "@/lib/auth/server"
+import { getServerUser, getIdentityForkState } from "@/lib/auth/server"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { InlineLink } from "@/components/ui/actions"
+import { IdentityForkBanner } from "@/components/identity/IdentityForkBanner"
 
 export const metadata = { title: "My Profile" }
 
@@ -19,9 +20,11 @@ export default async function ProfilePage() {
   if (!user) redirect("/login")
 
   const gw = await gatewaySSR()
+  const forkState = await getIdentityForkState()
 
   return (
     <div className="max-w-lg space-y-6">
+      {forkState?.forked && !forkState.dismissedAgent && <IdentityForkBanner surface="agent" />}
       <div>
         <h1 className="text-xl font-semibold">My Profile</h1>
         <p className="text-sm text-muted-foreground mt-1">Your personal account details.</p>

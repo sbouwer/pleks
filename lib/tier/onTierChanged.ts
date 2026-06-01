@@ -48,31 +48,51 @@ export async function onTierChanged(
   const landlordIds = (landlords ?? []).map((l) => l.id)
   if (landlordIds.length === 0) return { forked: 0 }
 
-  // Atomic fork (D-01C-03): one UPDATE clears the binding, stamps the fork time, and re-arms
-  // the banner. A family-managed Owner (no binding) matches 0 rows here → no-op, as intended.
-  const { data: forked, error: forkErr } = await service
+  // Find the bound self-managed identity (≤1 per org — self_landlord_id is uniquely indexed).
+  // We capture self_landlord_id first because the fork must preserve which landlord WAS us
+  // (forked_landlord_id) so the landlord-surface banner can find its record after the binding clears.
+  const { data: bound, error: boundErr } = await service
     .from("user_profiles")
-    .update({
-      self_landlord_id: null,
-      identity_forked_at: new Date().toISOString(),
-      fork_banner_dismissed_agent: false,
-      fork_banner_dismissed_landlord: false,
-    })
+    .select("id, self_landlord_id")
     .in("self_landlord_id", landlordIds)
-    .select("id")
-  if (forkErr) {
-    console.error("[onTierChanged] identity fork failed:", forkErr.message)
+  if (boundErr) {
+    console.error("[onTierChanged] bound-profile lookup failed:", boundErr.message)
     return { forked: 0 }
   }
+  if (!bound || bound.length === 0) return { forked: 0 } // family-managed Owner: nothing coupled
 
-  const count = forked?.length ?? 0
-  if (count > 0) {
+  const forkedAt = new Date().toISOString()
+  let count = 0
+  for (const profile of bound) {
+    // Atomic fork (D-01C-03): one UPDATE per profile — capture forked_landlord_id, clear the
+    // binding, stamp the fork time, re-arm the banner. Clearing self_landlord_id makes the §13
+    // sync trigger early-return, so no sync side-effect fires.
+    const { error: forkErr } = await service
+      .from("user_profiles")
+      .update({
+        self_landlord_id: null,
+        forked_landlord_id: profile.self_landlord_id,
+        identity_forked_at: forkedAt,
+        fork_banner_dismissed_agent: false,
+        fork_banner_dismissed_landlord: false,
+      })
+      .eq("id", profile.id)
+    if (forkErr) {
+      console.error("[onTierChanged] identity fork failed:", forkErr.message)
+      continue
+    }
+    count += 1
     await service.from("audit_log").insert({
       org_id: orgId,
       table_name: "user_profiles",
-      record_id: forked![0].id,
+      record_id: profile.id,
       action: "UPDATE",
-      new_values: { action: "identity_forked", old_tier: oldTier, new_tier: newTier, count },
+      new_values: {
+        action: "identity_forked",
+        old_tier: oldTier,
+        new_tier: newTier,
+        forked_landlord_id: profile.self_landlord_id,
+      },
     })
   }
   return { forked: count }

@@ -20,6 +20,8 @@ import { ActivityTimeline } from "@/components/contacts/ActivityTimeline"
 import { LandlordIdentitySection, LandlordContactSection, LandlordAddressSection, LandlordBankingSection } from "./LandlordSections"
 import { LandlordPortalSection } from "@/components/portal/LandlordPortalSection"
 import { WelcomePackBanner } from "@/components/reports/WelcomePackBanner"
+import { IdentityForkBanner } from "@/components/identity/IdentityForkBanner"
+import { getIdentityForkState } from "@/lib/auth/server"
 import { LandlordVerificationCard, type LinkedDeedsPull } from "./LandlordVerificationCard"
 import type { LatestPull } from "../../properties/[id]/PropertyVerificationCard"
 import { hasFeature } from "@/lib/tier/gates"
@@ -95,6 +97,10 @@ export default async function LandlordDetailPage({ params }: Props) {
   if (!user) redirect("/login")
 
   const service = await createServiceClient()
+
+  // Identity-fork banner (ADDENDUM_01C §6): shown only on the landlord record that WAS this
+  // agent's self-managed identity (forkedLandlordId === id), once, until dismissed.
+  const forkState = await getIdentityForkState()
 
   const { data: membership } = await service
     .from("user_orgs")
@@ -289,6 +295,9 @@ export default async function LandlordDetailPage({ params }: Props) {
         </ContactSidebar>
       }
     >
+      {forkState?.forked && !forkState.dismissedLandlord && forkState.forkedLandlordId === id && (
+        <IdentityForkBanner surface="landlord" />
+      )}
       <WelcomePackBanner orgId={membership.org_id} landlordId={id} landlordName={displayName} />
       <SectionCard title="Properties" count={(properties || []).length} action={{ label: "View all", href: "/properties" }}>
         {(properties || []).length === 0 ? (
