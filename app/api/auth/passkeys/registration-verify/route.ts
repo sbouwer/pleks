@@ -73,6 +73,14 @@ export async function POST(req: Request) {
 
   const { credential, credentialDeviceType, credentialBackedUp, aaguid } = verification.registrationInfo
 
+  // ADDENDUM_70 D-70-12: BE (backup-eligible — credential CAN sync) and BS (backup-state —
+  // credential currently IS synced) are distinct WebAuthn flags; do not conflate them.
+  // @simplewebauthn surfaces BE as credentialDeviceType ("multiDevice" ⇒ eligible) and BS as
+  // credentialBackedUp. Option C's self-recovery decision keys off BS ("synced right now"),
+  // not BE ("could be"). Unknown BS falls back to false → treated as not-self-recovering.
+  const backupEligible = credentialDeviceType === "multiDevice"
+  const backupState = credentialBackedUp
+
   await serviceDb.from("user_passkeys").insert({
     user_id: user.id,
     credential_id: credential.id,                  // already base64url text from @simplewebauthn
@@ -80,8 +88,8 @@ export async function POST(req: Request) {
     counter: credential.counter,
     transports: response.response.transports ?? [],
     device_type: credentialDeviceType,
-    backup_eligible: credentialBackedUp,
-    backup_state: credentialBackedUp,
+    backup_eligible: backupEligible,
+    backup_state: backupState,
     label: label ?? deriveLabel(req),
     aaguid: aaguid ?? null,
     rp_id: rp.rpId,
@@ -100,10 +108,10 @@ export async function POST(req: Request) {
   const { data: { session } } = await supabase.auth.getSession()
   await issuePasskeyAal(user.id, jwtIdentity(session?.access_token).sessionId)
 
-  // backedUp = the WebAuthn backup-state flag — true means the credential is synced (iCloud /
+  // backedUp = BS (the WebAuthn backup-state flag) — true means the credential is synced (iCloud /
   // Google Password Manager) and therefore self-recovering. The enrolment chooser uses this to
   // soften the backup-factor nudge for synced passkeys (ADDENDUM_70 D-70-05).
-  return Response.json({ ok: true, backedUp: credentialBackedUp })
+  return Response.json({ ok: true, backedUp: backupState })
 }
 
 function deriveLabel(req: Request): string {
