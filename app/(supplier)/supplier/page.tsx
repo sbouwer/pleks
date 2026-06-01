@@ -1,42 +1,30 @@
 /**
- * app/(supplier)/supplier/page.tsx — FILL: one-line purpose
+ * app/(supplier)/supplier/page.tsx — Supplier dashboard: job counts, needs-action list, invoice summary
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /supplier
+ * Auth:   getSupplierSession (Supabase-auth contractor — ADDENDUM_00M)
+ * Data:   maintenance_requests + supplier_invoices via service, scoped to session.contractorId
  */
-﻿import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { getSupplierSession } from "@/lib/portal/getSupplierSession"
 
 export default async function ContractorDashboard() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const session = await getSupplierSession()
+  if (!session) redirect("/login?role=supplier")
 
-  // Get contractor records (may work for multiple orgs)
-  const { data: contractors } = await supabase
-    .from("contractor_view")
-    .select("id, name, company_name, org_id, organisations(name)")
-    .eq("auth_user_id", user.id)
-    .eq("portal_access_enabled", true)
+  const service = await createServiceClient()
+  const contractorName = session.displayName
 
-  const contractorIds = (contractors ?? []).map((c) => c.id)
-
-  if (contractorIds.length === 0) redirect("/login")
-
-  const contractorName = contractors?.[0]?.company_name ?? contractors?.[0]?.name ?? "Contractor"
-
-  // Get job counts
-  const { data: jobs } = await supabase
+  // Get job counts (scoped to this supplier)
+  const { data: jobs } = await service
     .from("maintenance_requests")
     .select("id, status, title, urgency, created_at, properties(name), units(unit_number)")
-    .in("contractor_id", contractorIds)
+    .eq("contractor_id", session.contractorId)
     .not("status", "in", '("cancelled","closed")')
     .order("created_at", { ascending: false })
 
@@ -46,10 +34,10 @@ export default async function ContractorDashboard() {
   const inProgress = allJobs.filter((j) => ["acknowledged", "in_progress", "quote_approved"].includes(j.status))
 
   // Pending invoices
-  const { data: pendingInvoices } = await supabase
+  const { data: pendingInvoices } = await service
     .from("supplier_invoices")
     .select("id")
-    .in("contractor_id", contractorIds)
+    .eq("contractor_id", session.contractorId)
     .eq("status", "pending")
 
   const urgencyColors: Record<string, string> = {
@@ -62,14 +50,6 @@ export default async function ContractorDashboard() {
     <div className="space-y-6">
       <div>
         <h1 className="font-heading text-2xl">Welcome back, {contractorName}</h1>
-        {(contractors ?? []).length > 1 && (
-          <p className="text-xs text-muted-foreground mt-1">
-            Working with: {(contractors ?? []).map((c) => {
-              const org = c.organisations as unknown as { name: string } | null
-              return org?.name
-            }).filter(Boolean).join(", ")}
-          </p>
-        )}
       </div>
 
       {/* Stats */}

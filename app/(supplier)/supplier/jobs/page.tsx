@@ -1,33 +1,25 @@
 /**
- * app/(supplier)/supplier/jobs/page.tsx — FILL: one-line purpose
+ * app/(supplier)/supplier/jobs/page.tsx — Supplier jobs list (all assigned maintenance requests)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /supplier/jobs
+ * Auth:   getSupplierSession (Supabase-auth contractor — ADDENDUM_00M)
+ * Data:   maintenance_requests via service, scoped to session.contractorId
  */
-﻿import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { getSupplierSession } from "@/lib/portal/getSupplierSession"
 
 export default async function ContractorJobsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const session = await getSupplierSession()
+  if (!session) redirect("/login?role=supplier")
 
-  const { data: contractors } = await supabase
-    .from("contractor_view")
-    .select("id")
-    .eq("auth_user_id", user.id)
-    .eq("portal_access_enabled", true)
+  const service = await createServiceClient()
 
-  const contractorIds = (contractors ?? []).map((c) => c.id)
-
-  const { data: jobs } = await supabase
+  const { data: jobs } = await service
     .from("maintenance_requests")
     .select(`
       id, title, status, urgency, category, created_at,
@@ -35,7 +27,7 @@ export default async function ContractorJobsPage() {
       properties(name, address_line1),
       units(unit_number)
     `)
-    .in("contractor_id", contractorIds)
+    .eq("contractor_id", session.contractorId)
     .not("status", "in", '("cancelled")')
     .order("created_at", { ascending: false })
 

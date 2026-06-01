@@ -1,19 +1,19 @@
 /**
- * app/(supplier)/supplier/jobs/[requestId]/page.tsx — FILL: one-line purpose
+ * app/(supplier)/supplier/jobs/[requestId]/page.tsx — Supplier job detail (incl. tenant contact)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /supplier/jobs/[requestId]
+ * Auth:   getSupplierSession (Supabase-auth contractor — ADDENDUM_00M)
+ * Data:   maintenance_requests (joins tenant_view) + quotes + photos via service; the request is
+ *         scoped to session.contractorId so a supplier can only open their OWN assigned jobs.
  */
-﻿import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { formatZAR } from "@/lib/constants"
 import { JobStatusActions } from "./JobStatusActions"
+import { getSupplierSession } from "@/lib/portal/getSupplierSession"
 
 export default async function ContractorJobDetailPage({
   params,
@@ -21,9 +21,10 @@ export default async function ContractorJobDetailPage({
   params: Promise<{ requestId: string }>
 }) {
   const { requestId } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const session = await getSupplierSession()
+  if (!session) redirect("/login?role=supplier")
+
+  const supabase = await createServiceClient()
 
   const { data: job } = await supabase
     .from("maintenance_requests")
@@ -37,7 +38,8 @@ export default async function ContractorJobDetailPage({
       tenant_view(first_name, last_name, phone)
     `)
     .eq("id", requestId)
-    .single()
+    .eq("contractor_id", session.contractorId)
+    .maybeSingle()
 
   if (!job) redirect("/supplier/jobs")
 

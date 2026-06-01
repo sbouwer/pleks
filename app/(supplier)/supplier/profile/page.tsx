@@ -1,30 +1,28 @@
 /**
- * app/(supplier)/supplier/profile/page.tsx — FILL: one-line purpose
+ * app/(supplier)/supplier/profile/page.tsx — Supplier profile (details, specialities, notif prefs)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /supplier/profile
+ * Auth:   getSupplierSession (Supabase-auth contractor — ADDENDUM_00M)
+ * Data:   contractor_view via service, scoped to session.contractorId
  */
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { getSupplierSession } from "@/lib/portal/getSupplierSession"
 
 export default async function ContractorProfilePage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const session = await getSupplierSession()
+  if (!session) redirect("/login?role=supplier")
 
-  const { data: contractors } = await supabase
+  const service = await createServiceClient()
+  const { data: primary } = await service
     .from("contractor_view")
     .select("*, organisations(name)")
-    .eq("auth_user_id", user.id)
-    .eq("portal_access_enabled", true)
+    .eq("id", session.contractorId)
+    .maybeSingle()
 
-  const primary = (contractors ?? [])[0]
-  if (!primary) redirect("/login")
+  if (!primary) redirect("/login?role=supplier")
 
   return (
     <div className="space-y-6">
@@ -82,24 +80,6 @@ export default async function ContractorProfilePage() {
         </CardContent>
       </Card>
 
-      {(contractors ?? []).length > 1 && (
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Organisations</CardTitle></CardHeader>
-          <CardContent>
-            <ul className="space-y-2 text-sm">
-              {(contractors ?? []).map((c) => {
-                const org = c.organisations as unknown as { name: string } | null
-                return (
-                  <li key={c.id} className="flex items-center justify-between">
-                    <span>{org?.name ?? "Unknown"}</span>
-                    <Badge variant="secondary">Active</Badge>
-                  </li>
-                )
-              })}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
     </div>
   )
 }

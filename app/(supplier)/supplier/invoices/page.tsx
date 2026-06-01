@@ -1,38 +1,30 @@
 /**
- * app/(supplier)/supplier/invoices/page.tsx — FILL: one-line purpose
+ * app/(supplier)/supplier/invoices/page.tsx — Supplier invoices list + totals
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /supplier/invoices
+ * Auth:   getSupplierSession (Supabase-auth contractor — ADDENDUM_00M)
+ * Data:   supplier_invoices via service, scoped to session.contractorId
  */
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { formatZAR } from "@/lib/constants"
+import { getSupplierSession } from "@/lib/portal/getSupplierSession"
 
 export default async function ContractorInvoicesPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect("/login")
+  const session = await getSupplierSession()
+  if (!session) redirect("/login?role=supplier")
 
-  const { data: contractors } = await supabase
-    .from("contractor_view")
-    .select("id")
-    .eq("auth_user_id", user.id)
-    .eq("portal_access_enabled", true)
+  const service = await createServiceClient()
 
-  const contractorIds = (contractors ?? []).map((c) => c.id)
-
-  const { data: invoices } = await supabase
+  const { data: invoices } = await service
     .from("supplier_invoices")
     .select(`
       id, invoice_number, amount_incl_vat_cents, status, invoice_date,
       maintenance_requests(title, work_order_number)
     `)
-    .in("contractor_id", contractorIds)
+    .eq("contractor_id", session.contractorId)
     .order("invoice_date", { ascending: false })
 
   const allInvoices = invoices ?? []

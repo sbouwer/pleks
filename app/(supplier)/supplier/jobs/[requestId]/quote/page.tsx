@@ -1,13 +1,11 @@
 ﻿"use client"
 
 /**
- * app/(supplier)/supplier/jobs/[requestId]/quote/page.tsx — FILL: one-line purpose
+ * app/(supplier)/supplier/jobs/[requestId]/quote/page.tsx — Supplier quote submission form
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /supplier/jobs/[requestId]/quote
+ * Auth:   submitSupplierQuote server action (getSupplierSession) — ADDENDUM_00M
+ * Data:   submits via the server action (no browser-client DB read of contractor_view / write)
  */
 
 import { useState } from "react"
@@ -19,7 +17,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Trash2 } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
+import { submitSupplierQuote } from "@/lib/actions/supplierQuote"
 import { formatZAR } from "@/lib/constants"
 import { toast } from "sonner"
 
@@ -73,57 +71,24 @@ export default function QuoteSubmissionPage() {
     }
 
     setSubmitting(true)
-    const supabase = createClient()
-
-    // Get contractor ID
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    const { data: contractor } = await supabase
-      .from("contractor_view")
-      .select("id, org_id")
-      .eq("auth_user_id", user.id)
-      .limit(1)
-      .single()
-
-    if (!contractor) { toast.error("Contractor not found"); setSubmitting(false); return }
-
-    // Create quote
-    const { error } = await supabase.from("maintenance_quotes").insert({
-      org_id: contractor.org_id,
-      request_id: requestId,
-      contractor_id: contractor.id,
-      quote_type: quoteType,
-      line_items: lineItems.map((item) => ({
-        description: item.description,
-        quantity: item.quantity,
-        unit_price_cents: item.unit_price_cents,
-        vat_applicable: item.vat_applicable,
-        line_total_cents: item.quantity * item.unit_price_cents,
-      })),
-      subtotal_excl_vat_cents: subtotal,
-      vat_amount_cents: vatAmount,
-      total_incl_vat_cents: total,
-      scope_of_work: scopeOfWork,
-      exclusions: exclusions || null,
-      estimated_duration: estimatedDuration || null,
-      materials_included: materialsIncluded,
-      call_out_included: callOutIncluded,
-      contractor_notes: notes || null,
-      status: "submitted",
-      submitted_at: new Date().toISOString(),
+    const result = await submitSupplierQuote({
+      requestId,
+      quoteType,
+      lineItems,
+      scopeOfWork,
+      exclusions:        exclusions || null,
+      estimatedDuration: estimatedDuration || null,
+      materialsIncluded,
+      callOutIncluded,
+      notes:             notes || null,
+      isVatRegistered,
     })
 
-    if (error) {
-      toast.error("Failed to submit quote")
+    if (!result.ok) {
+      toast.error(result.error ?? "Failed to submit quote")
       setSubmitting(false)
       return
     }
-
-    // Update request status
-    await supabase.from("maintenance_requests").update({
-      status: "quote_submitted",
-    }).eq("id", requestId)
 
     toast.success("Quote submitted")
     router.push(`/supplier/jobs/${requestId}`)
