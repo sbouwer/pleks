@@ -228,6 +228,9 @@ function OnboardingWizard() {
   function accountStepError(): string {
     if (!acctEmail.trim()) return "Enter your email address to continue."
     if (acctPassword.length < 8) return "Choose a password with at least 8 characters."
+    if (!/[a-zA-Z]/.test(acctPassword) || !/\d/.test(acctPassword)) {
+      return "Add at least one letter and one number — a string of digits alone is too easy to guess."
+    }
     if (!tosAccepted) return "Please tick the box to accept the Terms and Privacy Policy."
     return ""
   }
@@ -393,7 +396,7 @@ function OnboardingWizard() {
                 autoComplete="new-password"
                 value={acctPassword}
                 onChange={(e) => { setAcctPassword(e.target.value); setFormHint("") }}
-                placeholder="At least 8 characters"
+                placeholder="At least 8 characters, with a letter and a number"
                 style={{ paddingRight: 40 }}
               />
               <button type="button" onClick={() => setShowPassword((v) => !v)} tabIndex={-1}

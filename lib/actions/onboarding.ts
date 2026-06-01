@@ -249,6 +249,12 @@ async function resolveUserId(
     return { error: "Email and password are required", errorType: "validation" }
   }
 
+  // Strength floor — admin.createUser() bypasses the project's password policy, so enforce it
+  // here too (the client checks the same rule, but client checks can be bypassed).
+  if (data.password.length < 8 || !/[a-zA-Z]/.test(data.password) || !/\d/.test(data.password)) {
+    return { error: "Password must be at least 8 characters and include a letter and a number", errorType: "validation" }
+  }
+
   const { data: signUpData, error: signUpError } = await service.auth.admin.createUser({
     email: data.email,
     password: data.password,
