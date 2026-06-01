@@ -1,20 +1,17 @@
 "use client"
 
 /**
- * components/feedback/FeedbackButton.tsx — Floating help trigger (feedback + bug report)
+ * components/feedback/FeedbackButton.tsx — Floating help launcher (ADDENDUM_68A B9)
  *
- * Notes: Fixed bottom-right FAB — the quick door into help (BUILD_68). Opens a menu:
- *        "Browse help" (→ /help Help Centre, all roles), "Report a problem"
- *        (BugReportDialog — auto-captured diagnostics, ADDENDUM_68) and "Send feedback"
- *        (the existing FeedbackDialog). Mounts in all four portal layouts; role prop
- *        indicates which user type is submitting.
+ * Notes: A single "Feedback" pill, fixed bottom-right — icon-only at rest, expands on hover/focus
+ *        to reveal the word "Feedback". Click/tap opens the unified "How can we help?" modal
+ *        (HelpModal: feedback / bug / support). The label expansion is a hover nicety only — the
+ *        whole pill is always the click target, so it works on touch without a hover state
+ *        (D-68A-03). Mounts in all four portal layouts; the `role` prop scopes feedback submission.
  */
-
 import { useState } from "react"
-import Link from "next/link"
-import { MessageSquarePlus, Bug, X, LifeBuoy } from "lucide-react"
-import { FeedbackDialog } from "./FeedbackDialog"
-import { BugReportDialog } from "./BugReportDialog"
+import { MessageSquarePlus } from "lucide-react"
+import { HelpModal } from "./HelpModal"
 import type { FeedbackRole } from "@/lib/feedback/queries"
 
 interface FeedbackButtonProps {
@@ -22,45 +19,23 @@ interface FeedbackButtonProps {
 }
 
 export function FeedbackButton({ role }: Readonly<FeedbackButtonProps>) {
-  const [menuOpen,     setMenuOpen]     = useState(false)
-  const [feedbackOpen, setFeedbackOpen] = useState(false)
-  const [bugOpen,      setBugOpen]      = useState(false)
-
-  const itemClass =
-    "flex items-center gap-2 rounded-full bg-surface px-3 py-2 text-xs font-medium text-foreground shadow-lg ring-1 ring-border transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+  const [open, setOpen] = useState(false)
 
   return (
     <>
-      <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-2">
-        {menuOpen && (
-          <>
-            <Link href="/help" className={itemClass} onClick={() => setMenuOpen(false)}>
-              <LifeBuoy className="h-4 w-4 text-brand" />
-              Browse help
-            </Link>
-            <button className={itemClass} onClick={() => { setMenuOpen(false); setBugOpen(true) }}>
-              <Bug className="h-4 w-4 text-danger" />
-              Report a problem
-            </button>
-            <button className={itemClass} onClick={() => { setMenuOpen(false); setFeedbackOpen(true) }}>
-              <MessageSquarePlus className="h-4 w-4 text-brand" />
-              Send feedback
-            </button>
-          </>
-        )}
-        <button
-          onClick={() => setMenuOpen((v) => !v)}
-          className="flex h-10 w-10 items-center justify-center rounded-full bg-brand text-white shadow-lg transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
-          aria-label={menuOpen ? "Close help menu" : "Help & feedback"}
-          aria-expanded={menuOpen}
-          title="Help & feedback"
-        >
-          {menuOpen ? <X className="h-4 w-4" /> : <MessageSquarePlus className="h-4 w-4" />}
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label="Help & feedback"
+        className="group fixed bottom-6 right-6 z-40 flex h-12 items-center rounded-full bg-primary px-3.5 text-primary-foreground shadow-lg transition-all hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2"
+      >
+        <MessageSquarePlus className="h-5 w-5 shrink-0" />
+        <span className="max-w-0 overflow-hidden whitespace-nowrap text-sm font-medium opacity-0 transition-all duration-200 group-hover:ml-2 group-hover:max-w-[6rem] group-hover:opacity-100 group-focus-visible:ml-2 group-focus-visible:max-w-[6rem] group-focus-visible:opacity-100">
+          Feedback
+        </span>
+      </button>
 
-      <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen} role={role} />
-      <BugReportDialog open={bugOpen} onOpenChange={setBugOpen} />
+      <HelpModal open={open} onOpenChange={setOpen} role={role} />
     </>
   )
 }

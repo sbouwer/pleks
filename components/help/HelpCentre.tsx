@@ -74,19 +74,16 @@ export function HelpCentre({ role, backHref }: Readonly<HelpCentreProps>) {
   }
 
   return (
-    <div className="min-h-screen bg-muted/30">
-     <div className="mx-auto max-w-3xl px-4 pb-16">
-      {/* Sticky bar — "Back to dashboard" is always visible (D-HELP-09) */}
-      <div className="sticky top-0 z-10 -mx-4 mb-2 flex items-center justify-between gap-3 border-b border-border bg-surface/95 px-4 py-2.5 backdrop-blur">
-        <Link
-          href={backHref}
-          className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          Back to dashboard
-        </Link>
-        <span className="text-xs font-semibold tracking-wide text-muted-foreground">Help Centre</span>
-      </div>
+     <div className="mx-auto max-w-3xl px-4 pb-16 pt-3">
+      {/* Role-aware back to the user's home (D-HELP-09). The branded header + theme are now in the
+          (help) layout (ADDENDUM_68A B11) — HelpCentre no longer self-rolls its shell. */}
+      <Link
+        href={backHref}
+        className="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ChevronLeft className="h-4 w-4" />
+        Back to dashboard
+      </Link>
 
       {/* Hero + search (= the future AI ask box, D-HELP-08) */}
       <div className="px-1 pt-6 text-center">
@@ -131,7 +128,6 @@ export function HelpCentre({ role, backHref }: Readonly<HelpCentreProps>) {
         </a>
       </div>
      </div>
-    </div>
   )
 }
 
