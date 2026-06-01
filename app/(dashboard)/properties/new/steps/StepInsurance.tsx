@@ -1,16 +1,17 @@
 "use client"
 
 /**
- * app/(dashboard)/properties/new/steps/StepInsurance.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/new/steps/StepInsurance.tsx — wizard step: insurance capture / defer
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties/new (insurance step)
+ * Data:   wizard client state (state.insurance); persisted on save by createPropertyFromWizard
+ * Notes:  ADDENDUM_60C §4 — "ask the owner" is an owner-CONTACT path, gated on ownerContactable()
+ *         (a separate, emailable owner), NEVER on managedMode. Self-owned / deferred-self / no-email
+ *         hide it, so the "we'll email them in 5 minutes" promise never shows with no owner to email.
  */
+import { useEffect } from "react"
 import { Info } from "lucide-react"
-import { useWizard, type InsuranceStub } from "../WizardContext"
+import { useWizard, ownerContactable, type InsuranceStub } from "../WizardContext"
 import { OptionRow } from "../OptionRow"
 
 // ── Option cards ──────────────────────────────────────────────────────────────
@@ -81,11 +82,22 @@ export function StepInsurance() {
 
   const option  = state.insurance?.option ?? null
 
-  // B5: "ask the owner" is meaningless when the user IS the owner (self_owned) — only offer it
-  // when managing for a separate owner.
-  const cards = state.managedMode === "managed_for_owner"
+  // ADDENDUM_60C §4: "ask the owner" is an owner-contact path — offer it only when there is a
+  // separate, emailable owner (ownerContactable), never on managedMode. Hidden for self-owned /
+  // deferred-self / owner-without-email.
+  const canAskOwner = ownerContactable(state.landlord)
+  const cards = canAskOwner
     ? OPTION_CARDS
     : OPTION_CARDS.filter((c) => c.value !== "ask_owner")
+
+  // If "ask the owner" was chosen and then the owner became non-contactable (relationship switched
+  // to self, owner email removed, etc.), drop the now-invalid choice so save can't fire an empty
+  // owner-email. Fall back to "later" (the safe no-action default).
+  useEffect(() => {
+    if (state.insurance?.option === "ask_owner" && !canAskOwner) {
+      patch({ insurance: { ...state.insurance, option: "later" } })
+    }
+  }, [canAskOwner, state.insurance, patch])
 
   // TODO(60A): when the insurance checklist lands, populate its 4 identification
   // items (insurer, policy number, renewal date, replacement value) in "confirmed"

@@ -16,6 +16,8 @@ import { useWizard, computeActiveStepIds, clearWizardDraft, type WizardState } f
 import { createPropertyFromWizard, type WizardSavePayload } from "@/lib/actions/createPropertyFromWizard"
 import { PropertyForm } from "../PropertyForm"
 import { createProperty } from "@/lib/actions/properties"
+import { StepRelationship }     from "./steps/StepRelationship"
+import { StepCheckDetails }     from "./steps/StepCheckDetails"
 import { StepPicker }           from "./steps/StepPicker"
 import { StepAddress }          from "./steps/StepAddress"
 import { StepUniversal }        from "./steps/StepUniversal"
@@ -32,6 +34,9 @@ import { StepSummary }          from "./steps/StepSummary"
 interface StepMeta { label: string; title: string; subtitle: string }
 
 const STEP_META: Record<string, StepMeta> = {
+  relationship:   { label: "Who for?",     title: "Who is this property for?",        subtitle: "Tell us whose property this is — yours, or one you manage for someone else." },
+  owner_details:  { label: "Your details", title: "Check your details",               subtitle: "A quick confirm of your role on this property." },
+  agent_details:  { label: "Your details", title: "Check your details",               subtitle: "A quick confirm of your role on this property." },
   picker:    { label: "Property type", title: "Let's set up your property",       subtitle: "A couple of quick choices and we'll tailor the setup to your scenario." },
   universal: { label: "Details",       title: "A few quick questions",            subtitle: "Applies to this property — helps us tailor leases, inspections, and maintenance." },
   address:   { label: "Address",       title: "Where is the property?",           subtitle: "Used to pre-fill lease clauses, route municipal info, and label statements." },
@@ -52,6 +57,9 @@ const STEP_LABELS: Record<string, string> = Object.fromEntries(
 
 function renderStep(stepId: string) {
   switch (stepId) {
+    case "relationship":  return <StepRelationship />
+    case "owner_details": return <StepCheckDetails variant="owner" />
+    case "agent_details": return <StepCheckDetails variant="agent" />
     case "picker":   return <StepPicker />
     case "address":  return <StepAddress />
     case "universal": return <StepUniversal />
@@ -168,6 +176,16 @@ export function WizardShell() {
 
   // Per-step "can continue" gates
   const canContinue = (() => {
+    // ADDENDUM_60C step-1 gates
+    if (currentStepId === "relationship") return state.relationship !== null
+    if (currentStepId === "owner_details" || currentStepId === "agent_details") return state.selfDetailsConfirmed
+    if (currentStepId === "landlord") {
+      const l = state.landlord
+      if (!l?.option) return false
+      if (l.option === "existing") return !!l.existing_id
+      if (l.option === "new")      return !!(l.company_name?.trim() || l.first_name?.trim())
+      return true   // "later" — deferring the owner is allowed
+    }
     if (currentStepId === "picker") return state.scenarioType !== null
     if (currentStepId === "address") {
       const a = state.address

@@ -1,13 +1,12 @@
 "use client"
 
 /**
- * app/(dashboard)/properties/new/steps/StepPicker.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/new/steps/StepPicker.tsx — wizard step 2: scenario + unit-count picker
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties/new (picker step)
+ * Data:   lib/properties/scenarios (segments + scenario meta); writes scenarioType/unitCount to state
+ * Notes:  ADDENDUM_60C — the self-vs-managed toggle was REMOVED (relationship is decided at step 1);
+ *         the advanced-setup escape lives on this step (in WizardShell's footer).
  */
 import { useState } from "react"
 import {
@@ -27,7 +26,7 @@ import {
 } from "@/lib/properties/scenarios"
 import { getScenarioEducation } from "@/lib/properties/scenarioEducation"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useWizard, type ManagedMode } from "../WizardContext"
+import { useWizard } from "../WizardContext"
 
 
 // ── Icon map ──────────────────────────────────────────────────────────────────
@@ -43,39 +42,6 @@ const ICON_MAP: Record<string, LucideIcon> = {
 function ScenarioIcon({ name, className }: { name: string; className?: string }) {
   const Icon = ICON_MAP[name] ?? Building
   return <Icon className={cn("shrink-0", className)} />
-}
-
-// ── Ownership radio ───────────────────────────────────────────────────────────
-
-interface OwnershipRadioProps {
-  value:    ManagedMode
-  onChange: (v: ManagedMode) => void
-}
-
-function OwnershipRadio({ value, onChange }: Readonly<OwnershipRadioProps>) {
-  return (
-    <div className="flex items-center gap-3">
-      <span className="text-sm font-medium shrink-0">Your role</span>
-      <div className="flex rounded-md border border-border overflow-hidden">
-        {(["self_owned", "managed_for_owner"] as ManagedMode[]).map((v, i) => (
-          <button
-            key={v}
-            type="button"
-            onClick={() => onChange(v)}
-            className={cn(
-              "px-3 py-1.5 text-xs font-medium transition-colors",
-              i > 0 && "border-l border-border",
-              value === v
-                ? "bg-primary text-primary-foreground"
-                : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
-            )}
-          >
-            {v === "self_owned" ? "I own it" : "I manage it for someone else"}
-          </button>
-        ))}
-      </div>
-    </div>
-  )
 }
 
 // ── Segment selector ──────────────────────────────────────────────────────────
@@ -287,11 +253,7 @@ export function StepPicker() {
 
   return (
     <div className="space-y-6">
-      <OwnershipRadio
-        value={state.managedMode}
-        onChange={(v) => patch({ managedMode: v })}
-      />
-
+      {/* Ownership (self vs managed) is now decided at step 1 (ADDENDUM_60C) — no toggle here. */}
       <div className="space-y-4">
         <p className="text-sm font-medium text-foreground">Which best describes this property?</p>
 

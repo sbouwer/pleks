@@ -1,13 +1,14 @@
 "use client"
 
 /**
- * app/(dashboard)/properties/new/WizardContext.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/new/WizardContext.tsx — property-wizard client state + step computation
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties/new (client context shared by WizardShell + step components)
+ * Auth:   client-only; the save path (createPropertyFromWizard) enforces requireAgentWriteAccess
+ * Data:   in-memory WizardState + localStorage draft (B12, DRAFT_KEY v2); no direct DB access
+ * Notes:  Owner-first ordering (ADDENDUM_60C): computeActiveStepIds resolves relationship+owner FIRST;
+ *         managedMode DERIVES from the step-1 relationship answer; ownerContactable() is the single
+ *         owner-dependency gate (never branch owner-contact paths on managedMode — D-60C-04).
  */
 import {
   createContext,
@@ -26,6 +27,8 @@ import type { SkeletonUnit } from "@/lib/properties/skeletonUnits"
 
 export type ManagedMode = "self_owned" | "managed_for_owner"
 export type WizardMode  = "wizard" | "advanced"
+/** Step-1 answer (ADDENDUM_60C): "self" = I'm the owner; "other" = I'm an agent for a landlord. */
+export type Relationship = "self" | "other"
 
 export interface WizardAddress {
   formatted:              string
@@ -88,7 +91,13 @@ export interface WizardState {
   mode:         WizardMode
   step:         number
 
-  // Step 0 — Picker
+  // Step 1 — Relationship & owner (ADDENDUM_60C). `relationship` is the source of truth for the
+  // step-1 answer; `managedMode` is DERIVED from it (set together at StepRelationship — D-60C-03).
+  relationship:  Relationship | null
+  // The user's own details, confirmed at the "check your details" sub-step (owner or agent variant).
+  selfDetailsConfirmed: boolean
+
+  // Step 2 — Picker
   scenarioType:  ScenarioType | null
   managedMode:   ManagedMode
   unitCount:     number
@@ -140,26 +149,54 @@ export interface WizardContextValue {
   totalSteps: number
 }
 
+// ── Owner-dependency invariant (ADDENDUM_60C §4 / D-60C-04) ────────────────────
+
+/**
+ * True only when there is a SEPARATE owner we can actually email. The single gate for every
+ * owner-contact path (e.g. insurance "ask the owner"). Gate on THIS, never on managedMode — that
+ * is what stops the bug class (an owner-email prompt with no owner to email) from regrowing as new
+ * owner-dependent questions are added. False for self-owned (you ARE the owner — you don't email
+ * yourself), deferred-self ("I'll handle it, no owner email"), or an owner with no email yet.
+ */
+export function ownerContactable(l: LandlordDraft | null): boolean {
+  if (!l) return false
+  if (l.option === "existing" && !!l.existing_id) return true        // existing owner has an email on file
+  if (l.option === "new" && !!l.email?.trim()) return true           // new owner with an email entered
+  if (l.option === "later" && l.later_track === "owner_email" && !!l.email?.trim()) return true
+  return false
+}
+
 // ── Step applicability ────────────────────────────────────────────────────────
 
 const COMMERCIAL_OR_MIXED: ScenarioType[] = ["c1", "c2", "c3", "c4", "c5", "c6", "m1", "m2", "m3", "m4"]
 
-/** Returns the ordered list of active step indices (0-based into STEP_IDS). */
-export function computeActiveStepIds(state: Pick<WizardState, "scenarioType" | "managedMode">): string[] {
-  // After picking the scenario, jump straight to universal property questions
-  // (managing scheme, WiFi, signal, backup power) — these apply to every
-  // scenario and benefit from the picker context being fresh. Address comes
-  // next, then scenario-specific follow-ups.
-  const ids = ["picker", "universal", "address", "followup"]
+/**
+ * Returns the ordered list of active step ids (ADDENDUM_60C — owner-first).
+ * Order: Relationship & Owner → Property → Housekeeping.
+ *
+ * Step 1 is unconditional and resolves who the property is for + the owner FIRST (D-60C-08), so
+ * every later owner-dependent question relies on a known owner instead of guessing from a mode flag:
+ *   - relationship "self"  → "owner_details"  (you ARE the landlord; just confirm your details)
+ *   - relationship "other" → "landlord" → "agent_details"  (add the landlord, then confirm yours)
+ *   - relationship null    → default to the self path; the relationship step gates Continue until chosen
+ */
+export function computeActiveStepIds(state: Pick<WizardState, "scenarioType" | "relationship">): string[] {
+  const ids = ["relationship"]
+  if (state.relationship === "other") {
+    ids.push("landlord", "agent_details")
+  } else {
+    ids.push("owner_details")
+  }
 
+  // Property phase
+  ids.push("picker", "universal", "address", "followup")
   if (state.scenarioType && COMMERCIAL_OR_MIXED.includes(state.scenarioType)) {
     ids.push("hours")
   }
-  if (state.managedMode === "managed_for_owner") {
-    ids.push("landlord")
-  }
+  ids.push("units")
 
-  ids.push("units", "insurance", "documents", "summary")
+  // Housekeeping phase
+  ids.push("insurance", "documents", "summary")
   return ids
 }
 
@@ -168,6 +205,8 @@ export function computeActiveStepIds(state: Pick<WizardState, "scenarioType" | "
 const DEFAULT_STATE: WizardState = {
   mode:          "wizard",
   step:          0,
+  relationship:  null,
+  selfDetailsConfirmed: false,
   scenarioType:  null,
   managedMode:   "self_owned",
   unitCount:     1,
@@ -191,7 +230,10 @@ const DEFAULT_STATE: WizardState = {
 // answer. We autosave to localStorage and rehydrate on mount. `pendingDocuments` is omitted —
 // it holds File objects that don't survive JSON (the user re-attaches files, which is fine; far
 // better than losing the whole property). Bump the key version if WizardState shape changes.
-const DRAFT_KEY = "pleks_property_wizard_draft_v1"
+// v2 (ADDENDUM_60C D-60C-05): the owner-first reorder changed what each numeric `step` index means,
+// so a v1 draft saved under the old order would restore to the WRONG step. The new key discards
+// stale v1 drafts cleanly. Bump this whenever the step order or WizardState shape changes.
+const DRAFT_KEY = "pleks_property_wizard_draft_v2"
 
 function loadDraft(): WizardState | null {
   if (typeof globalThis.localStorage === "undefined") return null
