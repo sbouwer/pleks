@@ -2875,3 +2875,119 @@ CREATE POLICY "org_isolation" ON deposit_interest_config
   USING (org_id = (
     SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL LIMIT 1
   ));
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §37  ADDENDUM_00K: SECURITY DEFINER EXECUTE-grant lockdown + search_path hardening
+--      CREATE FUNCTION + Supabase default privileges leave PUBLIC+anon+authenticated
+--      with EXECUTE; SECURITY DEFINER funcs run as owner → bypass RLS, so an
+--      over-granted definer fn is an RLS-bypass surface via /rest/v1/rpc/<fn>. Lock
+--      each to service_role (+ internal/trigger/owner callers). Callers verified —
+--      see ADDENDUM_00K §2. NB: revoking PUBLIC alone is insufficient — anon+
+--      authenticated are granted explicitly by Supabase defaults; name all three
+--      (the count_distinct_orgs lesson). REVOKE/GRANT/ALTER FUNCTION only — no
+--      defining site touched, so 007/008 stay byte-for-byte untouched even for
+--      functions defined there. Idempotent. Live-proacl verified pre/post (D-00K-08).
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- ── P0 (already shipped in §35; re-included idempotently to capture in source — D-00K-06) ──
+REVOKE EXECUTE ON FUNCTION public.purge_org_cascade(uuid, text) FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION public.purge_org_cascade(uuid, text) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.claim_purge_slot(uuid)        FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION public.claim_purge_slot(uuid)        TO service_role;
+REVOKE EXECUTE ON FUNCTION public.purge_old_auth_events()    FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.purge_old_ai_usage()       FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.purge_old_cost_snapshots() FROM PUBLIC, anon, authenticated;
+
+-- ── revoke 3 (keep postgres + service_role) — RLS-bypass definer fns, all callers service/trigger/internal ──
+REVOKE EXECUTE ON FUNCTION public.audit_applications_fitscore_changes()                  FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.check_email_exists(text)                               FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.count_active_memberships_for_user(uuid, text, uuid)    FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.enforce_landlords_single_active()                      FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.enforce_user_orgs_single_active()                      FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.enforce_user_orgs_tenants_single_active()              FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_ai_usage_agg_by_org(timestamptz, timestamptz)      FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_ai_usage_agg_by_purpose(uuid, timestamptz)         FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_current_org_id()                                   FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_current_tier()                                     FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_distinct_audit_tables()                            FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_org_member_by_email(uuid, text)                    FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_rls_audit()                                        FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.handle_new_user()                                      FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.org_has_trust_account()                                FROM PUBLIC, anon, authenticated;
+
+-- ── complete the partial 009 revoke (PUBLIC already gone; anon+auth remained) ──
+REVOKE EXECUTE ON FUNCTION public.count_distinct_orgs(text)                              FROM anon, authenticated;
+
+-- ── revoke PUBLIC + anon, KEEP authenticated (verified authenticated-ctx caller / intended client use) ──
+REVOKE EXECUTE ON FUNCTION public.get_active_unit_count(uuid)                            FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.is_mfa_fresh(integer)                                  FROM PUBLIC, anon;
+
+-- ── search_path hardening (ALTER FUNCTION … SET search_path — idempotent; closes function_search_path_mutable) ──
+-- auth-touching funcs (reference the auth schema → public, auth, pg_temp):
+ALTER FUNCTION public.get_current_org_id()                SET search_path = public, auth, pg_temp;
+ALTER FUNCTION public.get_current_tier()                  SET search_path = public, auth, pg_temp;
+ALTER FUNCTION public.get_org_member_by_email(uuid, text) SET search_path = public, auth, pg_temp;
+ALTER FUNCTION public.is_mfa_fresh(integer)               SET search_path = public, auth, pg_temp;
+
+-- SECURITY DEFINER set (public, pg_temp):
+ALTER FUNCTION public.audit_applications_fitscore_changes()               SET search_path = public, pg_temp;
+ALTER FUNCTION public.claim_purge_slot(uuid)                              SET search_path = public, pg_temp;
+ALTER FUNCTION public.count_active_memberships_for_user(uuid, text, uuid) SET search_path = public, pg_temp;
+ALTER FUNCTION public.count_distinct_orgs(text)                           SET search_path = public, pg_temp;
+ALTER FUNCTION public.enforce_landlords_single_active()                   SET search_path = public, pg_temp;
+ALTER FUNCTION public.enforce_user_orgs_single_active()                   SET search_path = public, pg_temp;
+ALTER FUNCTION public.enforce_user_orgs_tenants_single_active()           SET search_path = public, pg_temp;
+ALTER FUNCTION public.get_active_unit_count(uuid)                         SET search_path = public, pg_temp;
+ALTER FUNCTION public.get_ai_usage_agg_by_org(timestamptz, timestamptz)   SET search_path = public, pg_temp;
+ALTER FUNCTION public.get_ai_usage_agg_by_purpose(uuid, timestamptz)      SET search_path = public, pg_temp;
+ALTER FUNCTION public.get_distinct_audit_tables()                         SET search_path = public, pg_temp;
+ALTER FUNCTION public.get_rls_audit()                                     SET search_path = public, pg_temp;
+ALTER FUNCTION public.org_has_trust_account()                             SET search_path = public, pg_temp;
+ALTER FUNCTION public.purge_old_ai_usage()                                SET search_path = public, pg_temp;
+ALTER FUNCTION public.purge_old_auth_events()                             SET search_path = public, pg_temp;
+ALTER FUNCTION public.purge_old_cost_snapshots()                          SET search_path = public, pg_temp;
+ALTER FUNCTION public.purge_org_cascade(uuid, text)                       SET search_path = public, pg_temp;
+
+-- SECURITY INVOKER set (search_path only — grants left as-is; invoker funcs respect RLS):
+ALTER FUNCTION public.check_policy_version_immutable()                    SET search_path = public, pg_temp;
+ALTER FUNCTION public.check_trust_txn_insert_period_open()                SET search_path = public, pg_temp;
+ALTER FUNCTION public.check_trust_txn_period_open()                       SET search_path = public, pg_temp;
+ALTER FUNCTION public.compute_contact_dedup_hash()                        SET search_path = public, pg_temp;
+ALTER FUNCTION public.get_arrears_interest_total(uuid)                    SET search_path = public, pg_temp;
+ALTER FUNCTION public.get_prime_rate_on(date)                             SET search_path = public, pg_temp;
+ALTER FUNCTION public.is_landlord_membership_active(public.landlords)             SET search_path = public, pg_temp;
+ALTER FUNCTION public.is_tenant_membership_active(public.user_orgs_tenants)       SET search_path = public, pg_temp;
+ALTER FUNCTION public.is_user_org_active(public.user_orgs)                        SET search_path = public, pg_temp;
+ALTER FUNCTION public.prevent_tos_acceptance_mutation()                   SET search_path = public, pg_temp;
+ALTER FUNCTION public.reconcile_self_landlord_bindings()                  SET search_path = public, pg_temp;
+ALTER FUNCTION public.refresh_arrears_interest_total(uuid)                SET search_path = public, pg_temp;
+ALTER FUNCTION public.seed_default_retention_policies(uuid)               SET search_path = public, pg_temp;
+ALTER FUNCTION public.sync_profile_from_self_landlord()                   SET search_path = public, pg_temp;
+ALTER FUNCTION public.sync_property_has_managing_scheme()                 SET search_path = public, pg_temp;
+ALTER FUNCTION public.sync_self_landlord_from_profile()                   SET search_path = public, pg_temp;
+ALTER FUNCTION public.trigger_seed_retention_policies()                   SET search_path = public, pg_temp;
+ALTER FUNCTION public.update_updated_at_column()                          SET search_path = public, pg_temp;
+
+-- ── rls_enabled_no_policy (§5): explicit service-role-only deny policies (D-00K-04).
+--    RLS-on + no-policy already denies all client roles (service_role bypasses); these
+--    make the intent legible + clear the INFO linter. deny→deny, no behaviour change.
+--    All 9 confirmed: every app-code access path uses createServiceClient / the
+--    service-role key (no cookie/anon/authenticated read path) — verified 2026-06-01.
+DROP POLICY IF EXISTS "cron_runs_service_role_only" ON public.cron_runs;
+CREATE POLICY "cron_runs_service_role_only" ON public.cron_runs FOR ALL USING (false) WITH CHECK (false);
+DROP POLICY IF EXISTS "rule_runs_service_role_only" ON public.rule_runs;
+CREATE POLICY "rule_runs_service_role_only" ON public.rule_runs FOR ALL USING (false) WITH CHECK (false);
+DROP POLICY IF EXISTS "tos_acceptances_service_role_only" ON public.tos_acceptances;
+CREATE POLICY "tos_acceptances_service_role_only" ON public.tos_acceptances FOR ALL USING (false) WITH CHECK (false);
+DROP POLICY IF EXISTS "whatsapp_template_variants_service_role_only" ON public.whatsapp_template_variants;
+CREATE POLICY "whatsapp_template_variants_service_role_only" ON public.whatsapp_template_variants FOR ALL USING (false) WITH CHECK (false);
+DROP POLICY IF EXISTS "audit_exports_service_role_only" ON public.audit_exports;
+CREATE POLICY "audit_exports_service_role_only" ON public.audit_exports FOR ALL USING (false) WITH CHECK (false);
+DROP POLICY IF EXISTS "consent_verification_rate_limits_service_role_only" ON public.consent_verification_rate_limits;
+CREATE POLICY "consent_verification_rate_limits_service_role_only" ON public.consent_verification_rate_limits FOR ALL USING (false) WITH CHECK (false);
+DROP POLICY IF EXISTS "consent_verifications_service_role_only" ON public.consent_verifications;
+CREATE POLICY "consent_verifications_service_role_only" ON public.consent_verifications FOR ALL USING (false) WITH CHECK (false);
+DROP POLICY IF EXISTS "contact_leads_service_role_only" ON public.contact_leads;
+CREATE POLICY "contact_leads_service_role_only" ON public.contact_leads FOR ALL USING (false) WITH CHECK (false);
+DROP POLICY IF EXISTS "delivery_notice_tokens_service_role_only" ON public.delivery_notice_tokens;
+CREATE POLICY "delivery_notice_tokens_service_role_only" ON public.delivery_notice_tokens FOR ALL USING (false) WITH CHECK (false);
