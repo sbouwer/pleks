@@ -80,6 +80,13 @@ export function StepInsurance() {
   const { state, patch } = useWizard()
 
   const option  = state.insurance?.option ?? null
+
+  // B5: "ask the owner" is meaningless when the user IS the owner (self_owned) — only offer it
+  // when managing for a separate owner.
+  const cards = state.managedMode === "managed_for_owner"
+    ? OPTION_CARDS
+    : OPTION_CARDS.filter((c) => c.value !== "ask_owner")
+
   // TODO(60A): when the insurance checklist lands, populate its 4 identification
   // items (insurer, policy number, renewal date, replacement value) in "confirmed"
   // state; the rest default to "unknown". Broker is captured separately on the
@@ -100,7 +107,7 @@ export function StepInsurance() {
       <div className="space-y-2">
         <p className="text-sm font-medium">Got the policy details handy?</p>
         <div className="space-y-1.5">
-          {OPTION_CARDS.map((card) => (
+          {cards.map((card) => (
             <OptionRow
               key={card.value}
               selected={option === card.value}
@@ -143,17 +150,20 @@ export function StepInsurance() {
               <span className="text-sm text-muted-foreground">R</span>
               <input
                 id="ins-value"
-                type="number"
-                min={0}
+                type="text"
+                inputMode="numeric"
                 placeholder="2 500 000"
-                value={stub?.replacement_value_cents != null ? stub.replacement_value_cents / 100 : ""}
+                // B7: group with spaces (en-ZA) so a missing zero is easy to spot; parse digits→cents.
+                value={stub?.replacement_value_cents != null
+                  ? Math.round(stub.replacement_value_cents / 100).toLocaleString("en-ZA")
+                  : ""}
                 onChange={(e) => {
-                  const n = Number.parseFloat(e.target.value)
+                  const digits = e.target.value.replaceAll(/\D/g, "")
                   patch({
                     insurance: {
                       ...stub,
                       option: "now",
-                      replacement_value_cents: Number.isNaN(n) ? undefined : Math.round(n * 100),
+                      replacement_value_cents: digits ? Number(digits) * 100 : undefined,
                     },
                   })
                 }}
