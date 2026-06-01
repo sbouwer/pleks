@@ -31,10 +31,11 @@ function unitSegment(unit: SkeletonUnit): "residential" | "commercial" {
   return unit.unit_type?.startsWith("residential") ? "residential" : "commercial"
 }
 
+// B4: labels match the scenario step (scenarios.ts) so the same value reads the same everywhere.
 const FURNISHING_OPTIONS = [
   { value: "unfurnished",    label: "Unfurnished" },
-  { value: "semi_furnished", label: "Semi-furnished" },
-  { value: "furnished",      label: "Furnished" },
+  { value: "semi_furnished", label: "Partly furnished" },
+  { value: "furnished",      label: "Fully furnished" },
 ]
 
 // ── Small inline input ─────────────────────────────────────────────────────────
@@ -117,7 +118,10 @@ function UnitRow({ unit, index, segment, canRemove, onPatch, onRemove }: Readonl
               onValueChange={(v) => onPatch({ furnishing_status: v })}
             >
               <SelectTrigger className="h-7 w-32 text-xs">
-                <SelectValue />
+                {/* B4: Base UI <SelectValue> renders the raw value unless given a render fn → map to label */}
+                <SelectValue>
+                  {(v: string) => FURNISHING_OPTIONS.find((o) => o.value === v)?.label ?? "Unfurnished"}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {FURNISHING_OPTIONS.map((o) => (
