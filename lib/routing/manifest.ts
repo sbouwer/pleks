@@ -94,6 +94,10 @@ export const ROUTE_MANIFEST: Record<string, RouteRule> = {
   // must be reachable whenever the resolver sends an AAL1 agent to enrol, regardless of
   // org-cookie freshness (pleks_org is 300s; welcome→enrol→verify can exceed it). Loop-class fix.
   "/settings/security/enrol-totp": { auth: true, skipOrgCheck: true, requiresAal2: false },
+  // Factor-choice enrolment (ADDENDUM_70) — the resolver's mfa_enrol destination. AAL1-reachable
+  // (you enrol your first factor here before you have AAL2). Distinct prefix from enrol-totp
+  // (matcher requires prefix + "/", so it never swallows /settings/security/enrol-totp).
+  "/settings/security/enrol":      { auth: true, skipOrgCheck: true, requiresAal2: false },
 
   // ── Agent workspace (unprefixed) — requiresAal2 blocks AAL1 sessions ──
   // /settings is intentionally AAL1-accessible so agents can enrol their first

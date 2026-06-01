@@ -19,6 +19,9 @@ type EnrolState = "idle" | "in_progress" | "success" | "error"
 export function useEnrolPasskey() {
   const [state, setState] = useState<EnrolState>("idle")
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  // The enrolled credential's backup-state (synced vs device-bound), read from registration-verify.
+  // Drives the chooser's Option-C backup nudge (ADDENDUM_70 D-70-05). null until a successful enrol.
+  const [lastBackedUp, setLastBackedUp] = useState<boolean | null>(null)
 
   // The WebAuthn ceremony + verify fetch are long-lived awaits. If the host unmounts
   // mid-flight (e.g. /welcome navigating away on Continue), a setState here would throw
@@ -48,12 +51,10 @@ export function useEnrolPasskey() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ response: registration, label }),
       })
-      if (!verifyRes.ok) {
-        const data = await verifyRes.json().catch(() => ({})) as { error?: string }
-        throw new Error(data.error ?? "Verification failed")
-      }
+      const data = await verifyRes.json().catch(() => ({})) as { error?: string; backedUp?: boolean }
+      if (!verifyRes.ok) throw new Error(data.error ?? "Verification failed")
 
-      if (mounted.current) setState("success")
+      if (mounted.current) { setLastBackedUp(data.backedUp ?? null); setState("success") }
       return true
     } catch (e: unknown) {
       const err = e as Error
@@ -63,8 +64,8 @@ export function useEnrolPasskey() {
   }
 
   function reset() {
-    if (mounted.current) { setState("idle"); setErrorMsg(null) }
+    if (mounted.current) { setState("idle"); setErrorMsg(null); setLastBackedUp(null) }
   }
 
-  return { enrol, state, errorMsg, reset }
+  return { enrol, state, errorMsg, reset, lastBackedUp }
 }

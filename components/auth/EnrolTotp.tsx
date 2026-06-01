@@ -72,9 +72,11 @@ export function EnrolTotp({ redirectTo, mandatory = false, variant = "settings",
   const [secret2, setSecret2] = useState<string | null>(null)
   const [factorId2, setFactorId2] = useState<string | null>(null)
   const [code, setCode] = useState("")
-  // ADDENDUM_69 C.2.2: in mandatory enrolment the backup step is non-skippable — the user must
-  // explicitly confirm they saved the backup secret (or add a second authenticator) before
-  // continuing, so a forced-enrolment user always leaves with a recovery mechanism.
+  // ADDENDUM_69 C.2.2 (refined by ADDENDUM_70 D-70-06): the backup step is non-skippable in
+  // mandatory enrolment — confirm a saved backup secret (or add a second authenticator) first.
+  // D-70-06 makes that firmness CONDITIONAL on self-recovery: a TOTP factor does NOT self-recover,
+  // so this standalone TOTP-primary path stays firm; the *softening* (skippable for a synced,
+  // self-recovering passkey primary) lives in the SecureAccount chooser, not here.
   const [backupConfirmed, setBackupConfirmed] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   // Latest onVerified, read inside the mount-once effect without making it a dep

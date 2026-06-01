@@ -205,7 +205,7 @@ describe("gate ↔ resolver convergence (termination invariant)", () => {
     const jar: Jar = { pleks_org: orgCookie("u1", "owner"), pleks_has_org: hasOrgCookie("u1", "owner") }
     const c = await converge("/dashboard", jar)
     expect(c.result).toBe("allow")
-    expect(c.trail.some(t => t.includes("/settings/security/enrol-totp"))).toBe(true)
+    expect(c.trail.some(t => t.includes("/settings/security/enrol?mandatory"))).toBe(true)  // ADDENDUM_70: chooser, not enrol-totp
     expect(c.gateHops).toBeLessThanOrEqual(3)
   })
 
@@ -238,10 +238,10 @@ describe("gate ↔ resolver convergence (termination invariant)", () => {
     expect(c.gateHops).toBeLessThanOrEqual(3)
   })
 
-  it("7: deep-link straight to enrol-totp at AAL1 (expired pleks_org) → admitted in 1 hop", async () => {
+  it("7: deep-link straight to the enrol chooser at AAL1 (expired pleks_org) → admitted in 1 hop", async () => {
     h.state.aal = "aal1"; h.state.hasVerifiedFactor = false
     const jar: Jar = { pleks_has_org: hasOrgCookie("u1", "owner") }   // pleks_org expired away
-    const c = await converge("/settings/security/enrol-totp?mandatory=true&redirect=/dashboard", jar)
+    const c = await converge("/settings/security/enrol?mandatory=true&redirect=/dashboard", jar)
     expect(c.result).toBe("allow")
     expect(c.gateHops).toBe(1)
   })
@@ -297,7 +297,7 @@ describe("gate ↔ resolver convergence (termination invariant)", () => {
     const c = await converge("/dashboard", jar)
     expect(c.result).toBe("allow")
     expect(c.trail.some(t => t.includes("/login/mfa"))).toBe(true)         // → verify
-    expect(c.trail.some(t => t.includes("enrol-totp"))).toBe(false)       // NOT force-enrolled
+    expect(c.trail.some(t => t.includes("/settings/security/enrol"))).toBe(false)  // NOT force-enrolled (neither chooser nor TOTP)
     expect(c.gateHops).toBeLessThanOrEqual(3)
   })
 

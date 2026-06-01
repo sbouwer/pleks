@@ -100,7 +100,10 @@ export async function POST(req: Request) {
   const { data: { session } } = await supabase.auth.getSession()
   await issuePasskeyAal(user.id, jwtIdentity(session?.access_token).sessionId)
 
-  return Response.json({ ok: true })
+  // backedUp = the WebAuthn backup-state flag — true means the credential is synced (iCloud /
+  // Google Password Manager) and therefore self-recovering. The enrolment chooser uses this to
+  // soften the backup-factor nudge for synced passkeys (ADDENDUM_70 D-70-05).
+  return Response.json({ ok: true, backedUp: credentialBackedUp })
 }
 
 function deriveLabel(req: Request): string {

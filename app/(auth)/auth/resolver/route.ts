@@ -44,7 +44,9 @@ function execute(dest: Destination, origin: string): NextResponse {
       return NextResponse.redirect(u)
     }
     case "mfa_enrol": {
-      const u = url("/settings/security/enrol-totp")
+      // ADDENDUM_70 Slice B: the factor chooser (pick passkey OR authenticator), not the
+      // hardwired TOTP page — a passkey is now a co-equal AAL2 primary.
+      const u = url("/settings/security/enrol")
       u.searchParams.set("mandatory", "true")
       if (dest.redirect) u.searchParams.set("redirect", dest.redirect)
       return NextResponse.redirect(u)
