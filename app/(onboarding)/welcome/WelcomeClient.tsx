@@ -6,14 +6,15 @@
  * Notes:  ADDENDUM_70 Slice B: pick-one-+-backup, in the bespoke welcome aesthetic.
  *         Step 1 (orient): choose a PRIMARY factor — passkey (recommended) OR authenticator.
  *           passkey → inline registration ceremony; authenticator → embedded EnrolTotp.
- *         Step 1.5 (secured): shield payoff held for SECURED_HOLD_MS, auto-advances to the backup offer.
+ *         Step 1.5 (secured): the shield draws in amber → morphs to green + ticks (pure-CSS ceremony,
+ *           ~SECURED_TOTAL_MS), then auto-advances to the backup offer.
  *         Step 2 (backup): offer the OTHER factor, gated on self-recovery (Option C, D-70-04/05).
  *           Synced passkey primary → skippable with a soft note; TOTP / device-bound passkey
  *           primary → firm (skip behind an explicit lockout acknowledgement). Copy informs the
  *           security reasoning, no step-counter framing on this screen (D-70-11).
  *         welcome_seen is written on "Continue" / "Skip" click via markWelcomeSeen().
  *         §F.3: TOTP + passkey only — magic-link and SMS never presented as MFA here.
- *         prefers-reduced-motion: secured step shows the completed shield (no draw) but still holds the full beat.
+ *         prefers-reduced-motion: secured ceremony cross-fades amber → green (no stroke-draw/scale), in CSS.
  *         All passkey/listFactors awaits are guarded against React #460 on teardown.
  */
 import { useEffect, useState } from "react"
@@ -26,13 +27,17 @@ import { TransitionLoader } from "@/components/onboarding/TransitionLoader"
 
 type Step = "orient" | "enrol-totp" | "secured" | "backup" | "enrol-totp-backup"
 type Primary = "passkey" | "totp"
-type ShieldPhase = 0 | 1 | 2  // idle → filling → done
 
-// Deliberate minimum "breathing space" for the secured payoff. The shield always plays its full
-// reveal-and-hold even when enrolment resolved instantly — this is a floor on how long the moment
-// lasts, not a loader tied to background timing (we only enter "secured" once the factor verifies).
-// Give the user a beat to feel the account is locked before moving on.
-const SECURED_HOLD_MS = 2200
+// Total duration of the secured ceremony before auto-advancing to the backup offer. The motion is
+// pure CSS (.ob-secured in onboarding-shell.css); this owns ONLY the hand-off timing and must stay
+// in sync with the CSS --ob-sec-* timeline (idle + draw + pulse×0.34 + tick + copy + rest ≈ 3393ms).
+// prefers-reduced-motion is handled entirely in the CSS, so there is no JS motion branch here.
+const SECURED_TOTAL_MS = 3400
+
+// Shield + tick geometry shared by <SecuredShield/> (viewBox 0 0 120 120). pathLength=1 on each path
+// lets the CSS draw run stroke-dashoffset 1→0 without measuring the path at runtime.
+const SECURED_SHIELD_PATH = "M60 13 L104 27 L104 57 C104 83 86 101 60 111 C34 101 16 83 16 57 L16 27 Z"
+const SECURED_TICK_PATH = "M41 61 L54 75 L81 45"
 
 interface WelcomeClientProps {
   firstName: string
@@ -55,34 +60,19 @@ export default function WelcomeClient({
   // the secured payoff with TOTP as the chosen primary, so the backup offer is the passkey.
   const [step, setStep] = useState<Step>(initialStep === "passkey" ? "secured" : "orient")
   const [primary, setPrimary] = useState<Primary | null>(initialStep === "passkey" ? "totp" : null)
-  const [shieldPhase, setShieldPhase] = useState<ShieldPhase>(0)
   const [finishing, setFinishing] = useState(false)
   const [riskAck, setRiskAck] = useState(false)
   const passkey = useEnrolPasskey()
 
   const isFounder = role === "owner"
 
-  // Play secured payoff animation, then advance to the backup offer
+  // Play the secured payoff, then advance to the backup offer once it has fully landed. The shield
+  // ceremony is pure CSS (.ob-secured in onboarding-shell.css) and prefers-reduced-motion is handled
+  // there too — so all we own here is the hand-off timing (kept in sync with SECURED_TOTAL_MS).
   useEffect(() => {
     if (step !== "secured") return
-    const reduced = globalThis.window === undefined
-      ? false
-      : globalThis.window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    if (reduced) {
-      // Reduced-motion = no DRAWING animation, but the payoff still gets its breathing beat:
-      // show the completed shield immediately and hold it for the same minimum (just static).
-      // (A 120ms flash here read as "no shield at all".)
-      setShieldPhase(2)
-      const t = setTimeout(() => setStep("backup"), SECURED_HOLD_MS)
-      return () => clearTimeout(t)
-    }
-    // Shield draws (60→360ms), check settles (360ms), then HOLD "Secured." so the payoff lands
-    // before advancing to the backup step. Total = SECURED_HOLD_MS, enforced as a minimum even if
-    // the enrolment that preceded this step returned instantly — the beat is the point.
-    const t1 = setTimeout(() => setShieldPhase(1), 60)
-    const t2 = setTimeout(() => setShieldPhase(2), 360)
-    const t3 = setTimeout(() => setStep("backup"), SECURED_HOLD_MS)
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
+    const t = setTimeout(() => setStep("backup"), SECURED_TOTAL_MS)
+    return () => clearTimeout(t)
   }, [step])
 
   // On mount: if TOTP already enrolled, treat it as the chosen primary and advance through the
@@ -211,11 +201,9 @@ export default function WelcomeClient({
 
       {step === "secured" && (
         <div className="ob-secured">
-          <BigShieldSvg phase={shieldPhase}/>
-          <div className="ob-secured-title">Secured.</div>
-          <div className="ob-secured-sub">
-            Your account is protected. One more layer to keep you covered — or head straight in.
-          </div>
+          <SecuredShield/>
+          <div className="ob-secured-title">You&apos;re now secured.</div>
+          <div className="ob-secured-sub">Your account is protected.</div>
         </div>
       )}
 
@@ -486,30 +474,27 @@ function FingerprintSvg({ size = 36, ok = false }: Readonly<{ size?: number; ok?
   )
 }
 
-function BigShieldSvg({ phase }: Readonly<{ phase: 0 | 1 | 2 }>) {
+// Animated secured shield. The whole ceremony is driven by CSS (.ob-secured + .ob-sec-* in
+// onboarding-shell.css): the amber outline draws from the top notch, pulses outward and morphs
+// amber → green, the tick draws, the copy reveals. This component just lays out the layers;
+// mounting it (entering the "secured" step) starts the animation — no props, no timers.
+function SecuredShield() {
   return (
-    <svg width={76} height={76} viewBox="0 0 76 76" fill="none" aria-hidden="true">
-      <path d="M38 6 L66 14 L66 36 C66 52 56 64 38 70 C20 64 10 52 10 36 L10 14 Z"
-        stroke="var(--ink)" strokeWidth="2.2" strokeLinejoin="round" fill="none"/>
-      {phase === 1 && (
-        <path d="M38 6 L66 14 L66 36 C66 47 60 56 52 62"
-          stroke="var(--amber)" strokeWidth="3" strokeLinecap="round" fill="none"/>
-      )}
-      {phase === 2 && (
-        <>
-          <path d="M38 6 L66 14 L66 36 C66 52 56 64 38 70 C20 64 10 52 10 36 L10 14 Z"
-            fill="var(--amber-wash)" stroke="var(--amber)" strokeWidth="2.2" strokeLinejoin="round"/>
-          <path d="M22 38 L34 50 L54 28"
-            stroke="var(--ink)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-        </>
-      )}
-      {phase === 0 && (
-        <>
-          <circle cx="38" cy="36" r="3" fill="var(--amber)"/>
-          <line x1="38" y1="39" x2="38" y2="47"
-            stroke="var(--ink)" strokeWidth="2.4" strokeLinecap="round"/>
-        </>
-      )}
+    <svg className="ob-sec-svg" width={120} height={120} viewBox="0 0 120 120" fill="none" aria-hidden="true">
+      {/* faint track — the shield "to be drawn" */}
+      <path className="ob-sec-track" d={SECURED_SHIELD_PATH} pathLength={1}/>
+      {/* pulse ring — a second shield that scales out and fades on completion */}
+      <path className="ob-sec-ring" d={SECURED_SHIELD_PATH} pathLength={1}/>
+      <g className="ob-sec-pop">
+        {/* green fill blooms in */}
+        <path className="ob-sec-fill" d={SECURED_SHIELD_PATH}/>
+        {/* amber loading stroke — draws from the top notch, then fades as green settles */}
+        <path className="ob-sec-amber" d={SECURED_SHIELD_PATH} pathLength={1}/>
+        {/* green settled stroke */}
+        <path className="ob-sec-green" d={SECURED_SHIELD_PATH} pathLength={1}/>
+        {/* the tick — draws in as the shield closes */}
+        <path className="ob-sec-tick" d={SECURED_TICK_PATH} pathLength={1}/>
+      </g>
     </svg>
   )
 }

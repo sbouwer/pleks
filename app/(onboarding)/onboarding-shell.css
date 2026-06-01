@@ -328,19 +328,122 @@
   line-height: 1.55; color: var(--ink-soft);
 }
 
-/* ── Secured payoff (transitional shield animation state) ───────────────── */
+/* ── Secured ceremony (the shield draws amber → morphs green → ticks → copy) ──
+   ALL timing lives here as --ob-sec-* vars; phase delays are calc()-composed from them so
+   changing one duration shifts everything after it. ⚠ One coupling: SECURED_TOTAL_MS in
+   WelcomeClient.tsx owns WHEN the step advances and must equal idle + draw + pulse×0.34 + tick
+   + copy + rest (≈ 3393 → 3400). The motion is 100% CSS — mounting the step starts it. */
 .ob-secured {
   display: flex; flex-direction: column; align-items: center;
   text-align: center; padding: 20px 0 12px;
+
+  --ob-sec-idle:  220ms;   /* beat before the border starts drawing            */
+  --ob-sec-draw:  1150ms;  /* amber outline draws from the top notch            */
+  --ob-sec-pulse: 480ms;   /* pulse-out + amber→green morph + fill bloom        */
+  --ob-sec-tick:  400ms;   /* the check draws in                                */
+  --ob-sec-copy:  460ms;   /* headline + subline rise/fade in                   */
+
+  /* phase start delays, composed from the durations above */
+  --ob-d-draw:  var(--ob-sec-idle);
+  --ob-d-pulse: calc(var(--ob-sec-idle) + var(--ob-sec-draw));
+  --ob-d-tick:  calc(var(--ob-sec-idle) + var(--ob-sec-draw) + var(--ob-sec-pulse) * 0.34);
+  --ob-d-copy:  calc(var(--ob-sec-idle) + var(--ob-sec-draw) + var(--ob-sec-pulse) * 0.34 + var(--ob-sec-tick));
+
+  /* secured colour — your --positive token, with a literal fallback if the onboarding theme
+     doesn't expose it. amber = securing, green = secured. */
+  --ob-sec-green: var(--positive, oklch(0.52 0.12 150));
+
+  --ob-ease-draw: cubic-bezier(0.65, 0, 0.35, 1);
+  --ob-ease-out:  cubic-bezier(0.22, 1, 0.36, 1);
 }
+
 .ob-secured-title {
   font-family: var(--pub-sans); font-weight: 500; font-size: 28px;
   color: var(--ink); letter-spacing: -0.018em; margin-top: 22px;
+  opacity: 0;
+  animation: ob-sec-copy var(--ob-sec-copy) var(--ob-ease-out) var(--ob-d-copy) both;
 }
 .ob-secured-sub {
   font-family: var(--pub-sans); font-size: 13.5px;
   color: var(--ink-soft); line-height: 1.55;
   margin-top: 8px; max-width: 36ch;
+  opacity: 0;
+  animation: ob-sec-copy var(--ob-sec-copy) var(--ob-ease-out) calc(var(--ob-d-copy) + 80ms) both;
+}
+
+/* ── Secured shield SVG layers (driven entirely by the vars above) ────────── */
+.ob-sec-svg { overflow: visible; display: block; }
+
+/* faint always-on track the amber draws over */
+.ob-sec-track {
+  stroke: var(--ink); stroke-opacity: 0.1; stroke-width: 3.4;
+  stroke-linejoin: round; fill: none;
+}
+/* pulse ring: a second shield that scales out + fades when the outline closes */
+.ob-sec-ring {
+  stroke: var(--ob-sec-green); stroke-width: 3; fill: none; stroke-linejoin: round;
+  transform-box: fill-box; transform-origin: center; opacity: 0;
+  animation: ob-sec-ring var(--ob-sec-pulse) var(--ob-ease-out) var(--ob-d-pulse) forwards;
+}
+/* the whole shield "breathes" once on completion */
+.ob-sec-pop {
+  transform-box: fill-box; transform-origin: center;
+  animation: ob-sec-pop var(--ob-sec-pulse) ease-in-out var(--ob-d-pulse) both;
+}
+/* green fill blooms in during the morph */
+.ob-sec-fill {
+  fill: var(--ob-sec-green); stroke: none; fill-opacity: 0;
+  animation: ob-sec-fill var(--ob-sec-pulse) var(--ob-ease-out) var(--ob-d-pulse) both;
+}
+/* amber loading stroke — draws (dashoffset 1→0), then fades as green settles */
+.ob-sec-amber {
+  stroke: var(--amber); stroke-width: 3.6; fill: none;
+  stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 1; stroke-dashoffset: 0;
+  animation:
+    ob-sec-draw var(--ob-sec-draw) var(--ob-ease-draw) var(--ob-d-draw) both,
+    ob-sec-fade-out var(--ob-sec-pulse) var(--ob-ease-out) var(--ob-d-pulse) both;
+}
+/* green settled stroke — fades up as the morph completes */
+.ob-sec-green {
+  stroke: var(--ob-sec-green); stroke-width: 3.6; fill: none; stroke-linejoin: round;
+  opacity: 0;
+  animation: ob-sec-fade-in var(--ob-sec-pulse) var(--ob-ease-out) var(--ob-d-pulse) both;
+}
+/* the tick — draws in once the shield is closing */
+.ob-sec-tick {
+  stroke: var(--ob-sec-green); stroke-width: 5; fill: none;
+  stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 1; stroke-dashoffset: 0;
+  animation: ob-sec-tick var(--ob-sec-tick) var(--ob-ease-out) var(--ob-d-tick) both;
+}
+
+@keyframes ob-sec-draw     { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes ob-sec-tick     { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes ob-sec-fade-in  { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ob-sec-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes ob-sec-fill     { from { fill-opacity: 0; } to { fill-opacity: 0.13; } }
+@keyframes ob-sec-ring     { from { transform: scale(1); opacity: 0.5; } to { transform: scale(1.55); opacity: 0; } }
+@keyframes ob-sec-pop      { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+@keyframes ob-sec-copy     { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes ob-sec-rm-amber { 0% { opacity: 0; } 30% { opacity: 1; } 65% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes ob-sec-copy-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* Reduced motion: keep the same four beats, but deliver them with opacity + colour only —
+   no perimeter draw, no scaling ring/breath, no slide-in. The moment still sequences
+   (amber → green + bloom → tick → copy) instead of blinking in at once. */
+@media (prefers-reduced-motion: reduce) {
+  .ob-sec-amber {
+    stroke-dashoffset: 0;
+    animation: ob-sec-rm-amber calc(var(--ob-sec-draw) + var(--ob-sec-pulse)) ease var(--ob-d-draw) both;
+  }
+  .ob-sec-green { animation: ob-sec-fade-in 300ms ease var(--ob-d-pulse) both; }
+  .ob-sec-fill  { animation: ob-sec-fill 300ms ease var(--ob-d-pulse) both; }
+  .ob-sec-ring  { display: none; }
+  .ob-sec-pop   { animation: none; }
+  .ob-sec-tick  { stroke-dashoffset: 0; animation: ob-sec-fade-in 300ms ease var(--ob-d-tick) both; }
+  .ob-secured-title { animation: ob-sec-copy-fade 300ms ease var(--ob-d-copy) both; }
+  .ob-secured-sub   { animation: ob-sec-copy-fade 300ms ease calc(var(--ob-d-copy) + 80ms) both; }
 }
 
 /* ── Form completion hints (shown when required fields aren't yet satisfied) ── */
