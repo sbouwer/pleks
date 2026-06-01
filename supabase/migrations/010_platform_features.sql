@@ -2772,3 +2772,25 @@ ALTER TABLE passkey_aal_grants ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "passkey_aal_grants_select_self" ON passkey_aal_grants;
 CREATE POLICY "passkey_aal_grants_select_self" ON passkey_aal_grants
   FOR SELECT USING (user_id = auth.uid());
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §35  SECURITY (P0, 2026-06-01): lock down SECURITY DEFINER purge functions
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- purge_org_cascade / claim_purge_slot are SECURITY DEFINER with no caller-auth check and were
+-- EXECUTE-granted to PUBLIC/anon/authenticated — so a POST /rest/v1/rpc/purge_org_cascade carrying
+-- the public anon key could purge ANY org (RLS bypassed by the definer). Their only caller is
+-- lib/subscriptions/purge.ts via createServiceClient(), so service_role-only EXECUTE closes the hole
+-- with zero blast radius. The 3 retention purges are pg_cron-only (belt-and-suspenders revoke).
+--
+-- LESSON (apply everywhere — see ADDENDUM_00K): Supabase default privileges grant anon + authenticated
+-- EXECUTE *explicitly*, separate from PUBLIC, so `REVOKE … FROM PUBLIC` ALONE IS INSUFFICIENT — name
+-- all three. (count_distinct_orgs / 009 looked locked down but wasn't.) Verify LIVE proacl, not source.
+-- Applied to prod 2026-06-01.
+REVOKE EXECUTE ON FUNCTION public.purge_org_cascade(uuid, text) FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION public.purge_org_cascade(uuid, text) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.claim_purge_slot(uuid)        FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION public.claim_purge_slot(uuid)        TO service_role;
+REVOKE EXECUTE ON FUNCTION public.purge_old_auth_events()       FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.purge_old_ai_usage()          FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.purge_old_cost_snapshots()    FROM PUBLIC, anon, authenticated;
