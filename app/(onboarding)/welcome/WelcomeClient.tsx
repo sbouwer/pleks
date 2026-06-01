@@ -3,12 +3,18 @@
 /**
  * app/(onboarding)/welcome/WelcomeClient.tsx — Welcome interstitial interaction layer
  *
- * Notes:  Step 1 (orient): links to /settings/security/enrol-totp, returns as ?step=passkey.
- *         Step 1.5 (secured): 700ms shield payoff animation, auto-advances to step 2.
- *         Step 2 (passkey): inline registration via useEnrolPasskey — optional, skippable.
+ * Notes:  ADDENDUM_70 Slice B: pick-one-+-backup, in the bespoke welcome aesthetic.
+ *         Step 1 (orient): choose a PRIMARY factor — passkey (recommended) OR authenticator.
+ *           passkey → inline registration ceremony; authenticator → embedded EnrolTotp.
+ *         Step 1.5 (secured): 700ms shield payoff animation, auto-advances to the backup offer.
+ *         Step 2 (backup): offer the OTHER factor, gated on self-recovery (Option C, D-70-04/05).
+ *           Synced passkey primary → skippable with a soft note; TOTP / device-bound passkey
+ *           primary → firm (skip behind an explicit lockout acknowledgement). Copy informs the
+ *           security reasoning, no step-counter framing on this screen (D-70-11).
  *         welcome_seen is written on "Continue" / "Skip" click via markWelcomeSeen().
  *         §F.3: TOTP + passkey only — magic-link and SMS never presented as MFA here.
  *         prefers-reduced-motion: secured step degrades to ~120ms cross-fade.
+ *         All passkey/listFactors awaits are guarded against React #460 on teardown.
  */
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -18,8 +24,15 @@ import { markWelcomeSeen } from "@/lib/actions/welcome"
 import { EnrolTotp } from "@/components/auth/EnrolTotp"
 import { TransitionLoader } from "@/components/onboarding/TransitionLoader"
 
-type Step = "orient" | "authenticator" | "secured" | "passkey"
+type Step = "orient" | "enrol-totp" | "secured" | "backup" | "enrol-totp-backup"
+type Primary = "passkey" | "totp"
 type ShieldPhase = 0 | 1 | 2  // idle → filling → done
+
+// Deliberate minimum "breathing space" for the secured payoff. The shield always plays its full
+// reveal-and-hold even when enrolment resolved instantly — this is a floor on how long the moment
+// lasts, not a loader tied to background timing (we only enter "secured" once the factor verifies).
+// Give the user a beat to feel the account is locked before moving on.
+const SECURED_HOLD_MS = 2200
 
 interface WelcomeClientProps {
   firstName: string
@@ -38,16 +51,18 @@ export default function WelcomeClient({
   initialStep, handlesClientFunds, redirect,
 }: Readonly<WelcomeClientProps>) {
   const router = useRouter()
-  const [step, setStep] = useState<Step>(
-    initialStep === "passkey" ? "secured" : "orient"
-  )
+  // initialStep "passkey" = the primary (TOTP) was already enrolled on a prior pass → resume at
+  // the secured payoff with TOTP as the chosen primary, so the backup offer is the passkey.
+  const [step, setStep] = useState<Step>(initialStep === "passkey" ? "secured" : "orient")
+  const [primary, setPrimary] = useState<Primary | null>(initialStep === "passkey" ? "totp" : null)
   const [shieldPhase, setShieldPhase] = useState<ShieldPhase>(0)
   const [finishing, setFinishing] = useState(false)
-  const { enrol, state: passkeyState, errorMsg, reset } = useEnrolPasskey()
+  const [riskAck, setRiskAck] = useState(false)
+  const passkey = useEnrolPasskey()
 
   const isFounder = role === "owner"
 
-  // Play secured payoff animation, then advance to passkey step
+  // Play secured payoff animation, then advance to the backup offer
   useEffect(() => {
     if (step !== "secured") return
     const reduced = globalThis.window === undefined
@@ -55,18 +70,20 @@ export default function WelcomeClient({
       : globalThis.window.matchMedia("(prefers-reduced-motion: reduce)").matches
     if (reduced) {
       setShieldPhase(2)
-      const t = setTimeout(() => setStep("passkey"), 120)
+      const t = setTimeout(() => setStep("backup"), 120)
       return () => clearTimeout(t)
     }
-    // Shield draws (0→250ms), check settles (250ms), then hold "Secured." so the
-    // payoff actually registers before advancing to the passkey step (~1.7s total).
+    // Shield draws (60→360ms), check settles (360ms), then HOLD "Secured." so the payoff lands
+    // before advancing to the backup step. Total = SECURED_HOLD_MS, enforced as a minimum even if
+    // the enrolment that preceded this step returned instantly — the beat is the point.
     const t1 = setTimeout(() => setShieldPhase(1), 60)
-    const t2 = setTimeout(() => setShieldPhase(2), 320)
-    const t3 = setTimeout(() => setStep("passkey"), 1700)
+    const t2 = setTimeout(() => setShieldPhase(2), 360)
+    const t3 = setTimeout(() => setStep("backup"), SECURED_HOLD_MS)
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3) }
   }, [step])
 
-  // On mount: if TOTP already enrolled, advance through secured payoff.
+  // On mount: if TOTP already enrolled, treat it as the chosen primary and advance through the
+  // secured payoff to the (passkey) backup offer.
   // Guarded against post-unmount setState: gotrue's cross-tab Web Locks contention can
   // delay listFactors until handleFinish's location.href teardown has begun — an
   // unguarded setStep() then throws React #460 (Firefox loses this race). The active
@@ -79,7 +96,7 @@ export default function WelcomeClient({
       .then(({ data }) => {
         if (!active) return
         const verified = (data?.totp ?? []).filter(f => f.status === "verified")
-        if (verified.length > 0) setStep("secured")
+        if (verified.length > 0) { setPrimary("totp"); setStep("secured") }
       })
       .catch((e) => {
         if (!active) return
@@ -97,9 +114,24 @@ export default function WelcomeClient({
     globalThis.location.href = `/auth/resolver?redirect=${encodeURIComponent(redirect)}`
   }
 
-  async function handleAddPasskey() {
-    reset()
-    await enrol()
+  // Primary = passkey: run the ceremony inline, then play the secured payoff.
+  async function choosePasskey() {
+    setPrimary("passkey")
+    passkey.reset()
+    const ok = await passkey.enrol("Primary device")
+    if (ok) setStep("secured")
+  }
+
+  function chooseTotp() {
+    setPrimary("totp")
+    setStep("enrol-totp")
+  }
+
+  // Backup = passkey (primary was TOTP): ceremony inline, then straight to the dashboard.
+  async function addPasskeyBackup() {
+    passkey.reset()
+    const ok = await passkey.enrol("Backup device")
+    if (ok) await handleFinish()
   }
 
   async function handleSignOut() {
@@ -108,15 +140,13 @@ export default function WelcomeClient({
     router.push("/")
   }
 
-  const isPasskeying   = passkeyState === "in_progress"
-  const passkeySuccess = passkeyState === "success"
-  const passkeyFailed  = passkeyState === "error" && errorMsg !== "Cancelled"
-  const passkeyIdle    = passkeyState === "idle" || (passkeyState === "error" && errorMsg === "Cancelled")
+  const isPasskeying  = passkey.state === "in_progress"
+  const passkeyFailed = passkey.state === "error" && passkey.errorMsg !== "Cancelled"
 
   const securityHeadline = handlesClientFunds ? "Lock the front door." : "Secure your account first."
   const securityRationale = handlesClientFunds
-    ? "Your authenticator app keeps client data and trust funds protected. You'll use it each time you sign in — one secure code, a few seconds."
-    : "Pleks holds rent and trust funds for the people you'll work with. Your authenticator keeps that protected — you'll use it each time you sign in."
+    ? "Pleks holds rent and trust money for the people you work with. A second way to confirm it's you keeps that protected if your password is ever stolen."
+    : "Pleks holds rent and trust funds for the people you'll work with. A second way to confirm it's you keeps that protected if your password is ever stolen."
 
   // The instant Continue/Skip is clicked (finishing=true), cover the whole panel with the
   // branded loader BEFORE handleFinish fires location.href. The resolver→dashboard hop
@@ -132,18 +162,20 @@ export default function WelcomeClient({
     )
   }
 
+  // Step counter only on the PRIMARY-enrolment screens — the backup screen must not read like a
+  // mission/checklist (D-70-11), and the secured payoff is a beat, not a step.
+  const showSteps = step === "orient" || step === "enrol-totp"
+
   return (
     <div className="ob-panel">
       <div className="ob-knob"/>
 
-      {step !== "secured" && (
+      {showSteps && (
         <div className="ob-step">
-          <span className="ob-step-eyebrow">
-            Step {step === "passkey" ? "02" : "01"} of 02
-          </span>
+          <span className="ob-step-eyebrow">Step 01 of 02</span>
           <div className="ob-step-bars">
-            <span className={`ob-step-bar ${step === "passkey" ? "ob-step-bar--done" : "ob-step-bar--current"}`}/>
-            <span className={`ob-step-bar ${step === "passkey" ? "ob-step-bar--current" : "ob-step-bar--future"}`}/>
+            <span className="ob-step-bar ob-step-bar--current"/>
+            <span className="ob-step-bar ob-step-bar--future"/>
           </div>
         </div>
       )}
@@ -152,13 +184,15 @@ export default function WelcomeClient({
         <OrientContent
           firstName={firstName} orgName={orgName} isFounder={isFounder}
           delegationCount={delegationCount} delegatedByName={delegatedByName}
-          onSetupAuth={() => setStep("authenticator")}
           securityHeadline={securityHeadline} securityRationale={securityRationale}
+          isPasskeying={isPasskeying} passkeyFailed={passkeyFailed}
+          passkeyError={passkey.errorMsg}
+          onChoosePasskey={choosePasskey} onChooseTotp={chooseTotp}
           onSignOut={handleSignOut}
         />
       )}
 
-      {step === "authenticator" && (
+      {step === "enrol-totp" && (
         <>
           <h1 className="ob-heading">Add Pleks to your authenticator app.</h1>
           <p style={{ fontFamily: "var(--pub-sans)", fontSize: "13.5px", lineHeight: 1.6, color: "var(--ink-soft)", margin: "4px 0 20px", maxWidth: "52ch" }}>
@@ -177,17 +211,36 @@ export default function WelcomeClient({
           <BigShieldSvg phase={shieldPhase}/>
           <div className="ob-secured-title">Secured.</div>
           <div className="ob-secured-sub">
-            Your account is protected. One more small step — or skip straight to the dashboard.
+            Your account is protected. One more layer to keep you covered — or head straight in.
           </div>
         </div>
       )}
 
-      {step === "passkey" && (
-        <PasskeyContent
-          passkeySuccess={passkeySuccess} passkeyFailed={passkeyFailed} passkeyIdle={passkeyIdle}
-          isPasskeying={isPasskeying} finishing={finishing}
-          onFinish={handleFinish} onAddPasskey={handleAddPasskey} onSignOut={handleSignOut}
+      {step === "backup" && primary && (
+        <BackupContent
+          primary={primary}
+          selfRecovering={primary === "passkey" && passkey.lastBackedUp === true}
+          isPasskeying={isPasskeying} passkeyFailed={passkeyFailed} passkeyError={passkey.errorMsg}
+          riskAck={riskAck} setRiskAck={setRiskAck}
+          onAddPasskeyBackup={addPasskeyBackup}
+          onAddTotpBackup={() => setStep("enrol-totp-backup")}
+          onSkip={handleFinish}
+          onSignOut={handleSignOut}
         />
+      )}
+
+      {step === "enrol-totp-backup" && (
+        <>
+          <h1 className="ob-heading">Add your authenticator backup.</h1>
+          <p style={{ fontFamily: "var(--pub-sans)", fontSize: "13.5px", lineHeight: 1.6, color: "var(--ink-soft)", margin: "4px 0 20px", maxWidth: "52ch" }}>
+            Scan the code with Google Authenticator, 1Password, Authy, or any app you already use, then enter the six-digit code to confirm.
+          </p>
+          <EnrolTotp embedded variant="welcome" onVerified={handleFinish} />
+          <div className="ob-escape">
+            <button type="button" onClick={handleSignOut}>Sign out</button>
+            <a href="mailto:support@pleks.co.za">Get help</a>
+          </div>
+        </>
       )}
     </div>
   )
@@ -198,15 +251,18 @@ export default function WelcomeClient({
 interface OrientProps {
   firstName: string; orgName: string; isFounder: boolean
   delegationCount: number; delegatedByName: string
-  onSetupAuth: () => void
   securityHeadline: string; securityRationale: string
+  isPasskeying: boolean; passkeyFailed: boolean; passkeyError: string | null
+  onChoosePasskey: () => void; onChooseTotp: () => void
   onSignOut: () => void
 }
 
 function OrientContent({
   firstName, orgName, isFounder,
   delegationCount, delegatedByName,
-  onSetupAuth, securityHeadline, securityRationale, onSignOut,
+  securityHeadline, securityRationale,
+  isPasskeying, passkeyFailed, passkeyError,
+  onChoosePasskey, onChooseTotp, onSignOut,
 }: Readonly<OrientProps>) {
   const welcomeText = firstName ? `Welcome to Pleks, ${firstName}.` : "Welcome to Pleks."
   const firmText = isFounder
@@ -238,11 +294,22 @@ function OrientContent({
         </div>
       </div>
 
-      <button type="button" className="ob-cta" onClick={onSetupAuth}>
-        <span className="ob-cta-bar"/>
-        <span className="ob-cta-label">Set up authenticator</span>
-        <span className="ob-cta-arrow">{"→"}</span>
-      </button>
+      <p style={{ fontFamily: "var(--pub-sans)", fontSize: "13px", lineHeight: 1.5, color: "var(--ink-soft)", margin: "4px 0 10px" }}>
+        Choose how you&apos;ll confirm it&apos;s you — both are equally secure.
+      </p>
+
+      <FactorChoiceButton
+        kind="passkey" recommended busy={isPasskeying}
+        onClick={onChoosePasskey} disabled={isPasskeying}
+      />
+      <div style={{ height: 10 }}/>
+      <FactorChoiceButton kind="totp" onClick={onChooseTotp} disabled={isPasskeying} />
+
+      {passkeyFailed && (
+        <p style={{ fontFamily: "var(--pub-sans)", fontSize: "12.5px", color: "var(--danger)", margin: "12px 0 0" }}>
+          {passkeyError === "Cancelled" ? "Passkey setup was cancelled." : "That didn't take — try again, or use an authenticator app instead."}
+        </p>
+      )}
 
       <div className="ob-escape">
         <button type="button" onClick={onSignOut}>Sign out</button>
@@ -252,116 +319,120 @@ function OrientContent({
   )
 }
 
-interface PasskeyProps {
-  passkeySuccess: boolean; passkeyFailed: boolean; passkeyIdle: boolean
-  isPasskeying: boolean; finishing: boolean
-  onFinish: () => void; onAddPasskey: () => void; onSignOut: () => void
+function FactorChoiceButton({
+  kind, recommended = false, busy = false, onClick, disabled,
+}: Readonly<{ kind: "passkey" | "totp"; recommended?: boolean; busy?: boolean; onClick: () => void; disabled?: boolean }>) {
+  const isPasskey = kind === "passkey"
+  const title = isPasskey ? "Use a passkey" : "Use an authenticator app"
+  const desc = isPasskey
+    ? "Face ID, fingerprint, or your device PIN. Nothing to type, and it can't be phished."
+    : "A 6-digit code from Google Authenticator, 1Password, or Authy. Best if your device doesn't support passkeys."
+
+  return (
+    <button type="button" className="ob-choice" onClick={onClick} disabled={disabled}>
+      <span className="ob-choice-icon">
+        {isPasskey ? <FingerprintSvg size={26}/> : <ShieldSvg size={26} phase={0}/>}
+      </span>
+      <span className="ob-choice-body">
+        <span className="ob-choice-title">
+          {busy ? "Setting up…" : title}
+          {recommended && !busy && <span className="ob-choice-badge">Recommended</span>}
+        </span>
+        <span className="ob-choice-desc">{desc}</span>
+      </span>
+      <span className="ob-choice-arrow">{busy ? "" : "→"}</span>
+    </button>
+  )
 }
 
-function PasskeyContent({
-  passkeySuccess, passkeyFailed, passkeyIdle,
-  isPasskeying, finishing, onFinish, onAddPasskey, onSignOut,
-}: Readonly<PasskeyProps>) {
-  let passkeyHeading: React.ReactNode
-  if (passkeySuccess) {
-    passkeyHeading = "You’re set."
-  } else if (passkeyFailed) {
-    passkeyHeading = <>That didn&apos;t take &mdash;<br/><span className="ob-heading-soft">no harm done.</span></>
+interface BackupProps {
+  primary: Primary
+  selfRecovering: boolean
+  isPasskeying: boolean; passkeyFailed: boolean; passkeyError: string | null
+  riskAck: boolean; setRiskAck: (v: boolean) => void
+  onAddPasskeyBackup: () => void
+  onAddTotpBackup: () => void
+  onSkip: () => void
+  onSignOut: () => void
+}
+
+function BackupContent({
+  primary, selfRecovering,
+  isPasskeying, passkeyFailed, passkeyError,
+  riskAck, setRiskAck,
+  onAddPasskeyBackup, onAddTotpBackup, onSkip, onSignOut,
+}: Readonly<BackupProps>) {
+  const backupIsPasskey = primary === "totp"  // primary TOTP → backup is a passkey; primary passkey → backup is TOTP
+  const addLabel = backupIsPasskey ? "Add a passkey" : "Add an authenticator app"
+
+  // D-70-11: lead with the reason, grounded in what's true for Pleks; state the honest
+  // consequence scaled to the primary; frame the backup as protection, not a task owed.
+  let headline: string
+  let reason: string
+  if (selfRecovering) {
+    headline = "One more layer — your call."
+    reason = "Your passkey is already saved to your device's account (iCloud or Google), so it follows you to a new phone — you're largely covered. Adding an authenticator app is extra insurance, not a requirement."
+  } else if (primary === "passkey") {
+    headline = "Add a backup so a lost device can't lock you out."
+    reason = "This passkey lives on this device only. Pleks holds rent and trust money, so we never want you locked out — add an authenticator app and a lost or replaced device can't shut you out of your account."
   } else {
-    passkeyHeading = <>One tap to sign in,<br/><span className="ob-heading-soft">from now on.</span></>
+    headline = "Add a backup so a lost phone can't lock you out."
+    reason = "Your authenticator codes live on one phone. Pleks holds rent and trust money, so we never want you locked out — add a passkey and a lost phone can't shut you out, of your account or the people relying on you."
   }
 
   return (
     <>
-      <h1 className="ob-heading">{passkeyHeading}</h1>
+      <h1 className="ob-heading">{headline}</h1>
 
-      {passkeySuccess && (
-        <>
-          <div className="ob-factors">
-            <div className="ob-factor-chip">
-              <div className="ob-factor-chip-icon"><ShieldSvg size={20} phase={2}/></div>
-              <div>
-                <div className="ob-factor-chip-label">Authenticator</div>
-                <div className="ob-factor-chip-status">Active</div>
-              </div>
-            </div>
-            <div className="ob-factor-chip ob-factor-chip--accent">
-              <div className="ob-factor-chip-icon"><FingerprintSvg size={20} ok/></div>
-              <div>
-                <div className="ob-factor-chip-label">Passkey</div>
-                <div className="ob-factor-chip-status">This device</div>
-              </div>
-            </div>
-          </div>
-          <p style={{ fontFamily: "var(--pub-sans)", fontSize: "13.5px", lineHeight: 1.6, color: "var(--ink-soft)", margin: "20px 0 24px", maxWidth: "46ch" }}>
-            Next time, tap once with Face ID or Touch ID. Your authenticator stays available for when you&apos;re on another device.
-          </p>
-          <button type="button" className="ob-cta" onClick={onFinish} disabled={finishing}>
-            <span className="ob-cta-bar"/>
-            <span className="ob-cta-label">{finishing ? "Loading…" : "Continue to Pleks"}</span>
-            <span className="ob-cta-arrow">{"→"}</span>
-          </button>
-          <div className="ob-escape">
-            <button type="button" onClick={onSignOut}>Sign out</button>
-            <span>Manage devices</span>
-          </div>
-        </>
-      )}
+      <div className="ob-security">
+        <div className="ob-security-icon">
+          {backupIsPasskey ? <FingerprintSvg size={40}/> : <ShieldSvg size={40} phase={0}/>}
+        </div>
+        <div className="ob-security-body">
+          <div className="ob-security-desc" style={{ maxWidth: "48ch" }}>{reason}</div>
+        </div>
+      </div>
+
+      <button
+        type="button" className="ob-cta"
+        onClick={backupIsPasskey ? onAddPasskeyBackup : onAddTotpBackup}
+        disabled={isPasskeying}
+      >
+        <span className="ob-cta-bar"/>
+        <span className="ob-cta-label">{isPasskeying ? "Setting up…" : addLabel}</span>
+        <span className="ob-cta-arrow">{"→"}</span>
+      </button>
 
       {passkeyFailed && (
-        <>
-          <div className="ob-notice">
-            <div className="ob-notice-icon"><FingerprintSvg size={22}/></div>
-            <div>
-              <div className="ob-notice-head">Passkey wasn&apos;t added this time.</div>
-              <div className="ob-notice-body">
-                Your account is still fully secured by your authenticator. You can add a passkey any time from Settings &rarr; Security.
-              </div>
-            </div>
-          </div>
-          <div style={{ height: 24 }}/>
-          <button type="button" className="ob-cta" onClick={onFinish} disabled={finishing}>
-            <span className="ob-cta-bar"/>
-            <span className="ob-cta-label">{finishing ? "Loading…" : "Continue to Pleks"}</span>
-            <span className="ob-cta-arrow">{"→"}</span>
-          </button>
-          <div style={{ height: 12 }}/>
-          <button type="button" className="ob-skip" onClick={onAddPasskey} disabled={isPasskeying}>
-            Try the passkey again
-          </button>
-          <div className="ob-escape">
-            <button type="button" onClick={onSignOut}>Sign out</button>
-            <a href="mailto:support@pleks.co.za">Get help</a>
-          </div>
-        </>
+        <p style={{ fontFamily: "var(--pub-sans)", fontSize: "12.5px", color: "var(--danger)", margin: "12px 0 0" }}>
+          {passkeyError === "Cancelled" ? "Passkey setup was cancelled." : "That didn't take — give it another try."}
+        </p>
       )}
 
-      {passkeyIdle && (
-        <>
-          <div className="ob-security">
-            <div className="ob-security-icon"><FingerprintSvg size={40}/></div>
-            <div className="ob-security-body">
-              <div className="ob-security-head">Add Face ID or Touch ID.</div>
-              <div className="ob-security-desc">
-                Convenience that sits on top of the security you just set up. Your authenticator stays the anchor — this is just one tap, next time.
-              </div>
-            </div>
-          </div>
-          <button type="button" className="ob-cta" onClick={onAddPasskey} disabled={isPasskeying || finishing}>
-            <span className="ob-cta-bar"/>
-            <span className="ob-cta-label">{isPasskeying ? "Setting up…" : "Add passkey"}</span>
-            <span className="ob-cta-arrow">{"→"}</span>
+      <div style={{ height: 14 }}/>
+
+      {selfRecovering ? (
+        <button type="button" className="ob-skip" onClick={onSkip} disabled={isPasskeying}>
+          Skip for now — my passkey is backed up
+        </button>
+      ) : (
+        <div className="ob-riskack">
+          <label className="ob-riskack-label">
+            <input type="checkbox" checked={riskAck} onChange={(e) => setRiskAck(e.target.checked)} />
+            <span>
+              I understand that without a backup, losing my {backupIsPasskey ? "phone" : "device"} could lock me out — and getting back in would need my agency or Pleks support to reset it.
+            </span>
+          </label>
+          <button type="button" className="ob-skip" onClick={onSkip} disabled={!riskAck || isPasskeying}>
+            Continue without a backup
           </button>
-          <div style={{ height: 12 }}/>
-          <button type="button" className="ob-skip" onClick={onFinish} disabled={isPasskeying || finishing}>
-            {finishing ? "Loading…" : "Skip — I can add this later in Settings"}
-          </button>
-          <div className="ob-escape">
-            <button type="button" onClick={onSignOut}>Sign out</button>
-            <a href="mailto:support@pleks.co.za">Get help</a>
-          </div>
-        </>
+        </div>
       )}
+
+      <div className="ob-escape">
+        <button type="button" onClick={onSignOut}>Sign out</button>
+        <a href="mailto:support@pleks.co.za">Get help</a>
+      </div>
     </>
   )
 }
