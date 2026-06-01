@@ -12,7 +12,7 @@ import { useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { ActionButton, InlineLink } from "@/components/ui/actions"
 import { cn } from "@/lib/utils"
-import { useWizard, computeActiveStepIds, type WizardState } from "./WizardContext"
+import { useWizard, computeActiveStepIds, clearWizardDraft, type WizardState } from "./WizardContext"
 import { createPropertyFromWizard, type WizardSavePayload } from "@/lib/actions/createPropertyFromWizard"
 import { PropertyForm } from "../PropertyForm"
 import { createProperty } from "@/lib/actions/properties"
@@ -40,7 +40,7 @@ const STEP_META: Record<string, StepMeta> = {
   landlord:  { label: "Owner",         title: "Who owns this property?",          subtitle: "Link the owner now or add them after setup." },
   units:     { label: "Units",         title: "Units",                            subtitle: "Pre-filled from your earlier answers — adjust anything that differs." },
   insurance: { label: "Insurance",     title: "Insurance details",                subtitle: "Optional — you can always update this from the Insurance tab." },
-  documents: { label: "Documents",     title: "Upload documents",                 subtitle: "Title deed, compliance certificates — optional now, required before leasing." },
+  documents: { label: "Documents",     title: "Upload documents",                 subtitle: "Title deed, compliance certificates, and more — all optional. Add or update them anytime from the Documents tab." },
   summary:   { label: "Review",        title: "Review & save",                    subtitle: "Check everything before creating the property." },
 }
 
@@ -196,6 +196,7 @@ export function WizardShell() {
       const result = await createPropertyFromWizard(formData)
 
       if (result.ok && result.propertyId) {
+        clearWizardDraft()   // B12: created → discard the saved draft so the next run starts fresh
         router.push(`/properties/${result.propertyId}?tab=overview&first_visit=true`)
       } else {
         setSaveError(result.error ?? "Failed to save property")

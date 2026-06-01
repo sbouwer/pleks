@@ -13,6 +13,7 @@ import {
   createContext,
   useContext,
   useState,
+  useEffect,
   useCallback,
   useMemo,
   type ReactNode,
@@ -185,12 +186,62 @@ const DEFAULT_STATE: WizardState = {
   pendingDocuments: [],
 }
 
+// ── Draft persistence (B12 — survive navigating away mid-wizard) ───────────────
+// Without this, any navigation (e.g. the Browse-help link) unmounts the wizard and loses every
+// answer. We autosave to localStorage and rehydrate on mount. `pendingDocuments` is omitted —
+// it holds File objects that don't survive JSON (the user re-attaches files, which is fine; far
+// better than losing the whole property). Bump the key version if WizardState shape changes.
+const DRAFT_KEY = "pleks_property_wizard_draft_v1"
+
+function loadDraft(): WizardState | null {
+  if (typeof globalThis.localStorage === "undefined") return null
+  try {
+    const raw = globalThis.localStorage.getItem(DRAFT_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<WizardState>
+    return { ...DEFAULT_STATE, ...parsed, pendingDocuments: [] }
+  } catch {
+    return null   // corrupt / incompatible draft → start clean
+  }
+}
+
+function saveDraft(state: WizardState): void {
+  if (typeof globalThis.localStorage === "undefined") return
+  try {
+    // Drop File objects (pendingDocuments) — not JSON-serialisable; everything else persists.
+    const serialisable: WizardState = { ...state, pendingDocuments: [] }
+    globalThis.localStorage.setItem(DRAFT_KEY, JSON.stringify(serialisable))
+  } catch {
+    // quota exceeded / serialisation failure — non-fatal, just skip this save
+  }
+}
+
+/** Clear the saved wizard draft — call after a successful property create so the next run is fresh. */
+export function clearWizardDraft(): void {
+  try { globalThis.localStorage?.removeItem(DRAFT_KEY) } catch { /* ignore */ }
+}
+
 // ── Context ───────────────────────────────────────────────────────────────────
 
 const WizardCtx = createContext<WizardContextValue | null>(null)
 
 export function WizardProvider({ children }: Readonly<{ children: ReactNode }>) {
   const [state, setState] = useState<WizardState>(DEFAULT_STATE)
+  // Rehydrate in an effect (not a lazy initialiser) so server and first client render both use
+  // DEFAULT_STATE — avoids a hydration mismatch. Gate children on `hydrated` so we don't flash
+  // step 0 (and fire step-0 effects) before the saved step is restored.
+  const [hydrated, setHydrated] = useState(false)
+
+  useEffect(() => {
+    const draft = loadDraft()
+    if (draft) setState(draft)
+    setHydrated(true)
+  }, [])
+
+  useEffect(() => {
+    if (!hydrated) return   // don't clobber a saved draft with DEFAULT_STATE before rehydration
+    saveDraft(state)
+  }, [state, hydrated])
 
   const patch = useCallback((partial: Partial<WizardState>) => {
     setState((prev) => ({ ...prev, ...partial }))
@@ -217,7 +268,13 @@ export function WizardProvider({ children }: Readonly<{ children: ReactNode }>) 
     [state, patch, goNext, goBack, totalSteps],
   )
 
-  return <WizardCtx.Provider value={value}>{children}</WizardCtx.Provider>
+  // Hold render for the one tick until the draft is rehydrated, so steps mount against the
+  // restored state (not DEFAULT_STATE) — no step-0 flash, no wrong-step effects.
+  return (
+    <WizardCtx.Provider value={value}>
+      {hydrated ? children : null}
+    </WizardCtx.Provider>
+  )
 }
 
 export function useWizard(): WizardContextValue {
