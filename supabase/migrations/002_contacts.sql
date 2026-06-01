@@ -629,6 +629,9 @@ CREATE POLICY "own_tenant_link" ON user_orgs_tenants
 -- tenant_view: joins tenants + contacts for easy querying
 -- TypeScript code can SELECT * FROM tenant_view WHERE org_id = $1
 -- and get all identity + tenant-specific fields in one query.
+-- DROP-first so the WHOLE FILE re-runs cleanly: §12 redefines tenant_view with extra (CPA) columns,
+-- and CREATE OR REPLACE VIEW cannot change a view's column set (42P16). Nothing depends on the view.
+DROP VIEW IF EXISTS tenant_view;
 CREATE OR REPLACE VIEW tenant_view AS
 SELECT
   t.id,
@@ -745,7 +748,9 @@ COMMENT ON COLUMN contacts.size_bands_captured_at IS
   'When the size bands were last confirmed by the user. NULL or >12 months '
   'triggers a re-confirmation prompt in the lease wizard.';
 
--- Rebuild tenant_view to expose the new CPA classification fields
+-- Rebuild tenant_view to expose the new CPA classification fields. DROP-first for re-runnability —
+-- the §10 definition has fewer columns, so CREATE OR REPLACE alone 42P16's on the live view.
+DROP VIEW IF EXISTS tenant_view;
 CREATE OR REPLACE VIEW tenant_view AS
 SELECT
   t.id,
@@ -787,3 +792,139 @@ SELECT
   t.deleted_at
 FROM tenants t
 JOIN contacts c ON c.id = t.contact_id;
+
+
+-- ─────────────────────────────────────────────────────────────
+-- 13. SELF-MANAGED IDENTITY BINDING + SYNC (ADDENDUM_01C)
+-- ─────────────────────────────────────────────────────────────
+-- A landlord record is ALWAYS created, even when the agent IS the landlord (D-01C-01).
+-- When agent = landlord (60C "for myself") AND the org is on Owner tier, the agent identity
+-- (user_profiles) and the landlord identity (contacts) are bound 1:1 and kept identical so they
+-- read as one with no drift (Model B, D-01C-02). The binding is the marker of that coupling.
+--
+-- NOTE (CC, replay-ordering): the spec suggested 001_foundation §N, but this FK targets `landlords`
+-- (defined above in 002) — a fresh replay runs 001 before 002, so the column+FK must live AFTER
+-- landlords exists. Hence §13 here, not 001. The column is still on user_profiles (a 001 table).
+--
+-- Synced fields = shared human-identity only: name (full_name ↔ first_name/last_name) and phone
+-- (phone ↔ primary_phone). Banking/tax (landlord-only) + avatar (agent-only) are NOT synced (D-01C-09).
+-- The fork (upgrade Owner→Steward+) clears self_landlord_id in app code (lib/actions) — not here.
+
+-- ── Binding column (1:1; ON DELETE SET NULL so deleting the landlord just unbinds) ──
+ALTER TABLE user_profiles
+  ADD COLUMN IF NOT EXISTS self_landlord_id uuid REFERENCES landlords(id) ON DELETE SET NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_profiles_self_landlord
+  ON user_profiles(self_landlord_id) WHERE self_landlord_id IS NOT NULL;
+
+-- ── Mirror agent profile → bound landlord contact (loop-guarded) ──
+CREATE OR REPLACE FUNCTION sync_self_landlord_from_profile() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE
+  v_contact_id uuid;
+  v_first text;
+  v_last  text;
+BEGIN
+  IF NEW.self_landlord_id IS NULL THEN RETURN NEW; END IF;
+  -- skip if no synced field actually changed (cheap exit)
+  IF NEW.full_name IS NOT DISTINCT FROM OLD.full_name
+     AND NEW.phone  IS NOT DISTINCT FROM OLD.phone THEN
+    RETURN NEW;
+  END IF;
+  SELECT contact_id INTO v_contact_id FROM landlords WHERE id = NEW.self_landlord_id;
+  IF v_contact_id IS NULL THEN RETURN NEW; END IF;
+
+  v_first := NULLIF(split_part(COALESCE(NEW.full_name, ''), ' ', 1), '');
+  v_last  := NULLIF(TRIM(SUBSTR(COALESCE(NEW.full_name, ''),
+               LENGTH(split_part(COALESCE(NEW.full_name, ''), ' ', 1)) + 2)), '');
+
+  -- loop-guard: only write (and thereby fire the reverse trigger) if the contact differs
+  UPDATE contacts
+     SET first_name = v_first,
+         last_name  = v_last,
+         primary_phone = NEW.phone
+   WHERE id = v_contact_id
+     AND (first_name    IS DISTINCT FROM v_first
+       OR last_name     IS DISTINCT FROM v_last
+       OR primary_phone IS DISTINCT FROM NEW.phone);
+  RETURN NEW;
+END;
+$$;
+
+-- ── Mirror landlord contact → bound agent profile (loop-guarded) ──
+CREATE OR REPLACE FUNCTION sync_profile_from_self_landlord() RETURNS trigger
+LANGUAGE plpgsql AS $$
+DECLARE
+  v_profile_id uuid;
+  v_full text;
+BEGIN
+  SELECT up.id INTO v_profile_id
+    FROM landlords l
+    JOIN user_profiles up ON up.self_landlord_id = l.id
+   WHERE l.contact_id = NEW.id
+   LIMIT 1;
+  IF v_profile_id IS NULL THEN RETURN NEW; END IF;
+  IF NEW.first_name    IS NOT DISTINCT FROM OLD.first_name
+     AND NEW.last_name IS NOT DISTINCT FROM OLD.last_name
+     AND NEW.primary_phone IS NOT DISTINCT FROM OLD.primary_phone THEN
+    RETURN NEW;
+  END IF;
+
+  v_full := NULLIF(TRIM(CONCAT_WS(' ', NEW.first_name, NEW.last_name)), '');
+
+  UPDATE user_profiles
+     SET full_name = v_full,
+         phone     = NEW.primary_phone
+   WHERE id = v_profile_id
+     AND (full_name IS DISTINCT FROM v_full
+       OR phone     IS DISTINCT FROM NEW.primary_phone);
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_sync_self_landlord_from_profile ON user_profiles;
+CREATE TRIGGER trg_sync_self_landlord_from_profile
+  AFTER UPDATE ON user_profiles
+  FOR EACH ROW EXECUTE FUNCTION sync_self_landlord_from_profile();
+
+DROP TRIGGER IF EXISTS trg_sync_profile_from_self_landlord ON contacts;
+CREATE TRIGGER trg_sync_profile_from_self_landlord
+  AFTER UPDATE ON contacts
+  FOR EACH ROW EXECUTE FUNCTION sync_profile_from_self_landlord();
+
+-- ── Reconcile / repair: force every bound contact to match its agent profile (profile = SoT).
+-- Safety net for any divergence (a bypassing write, a partial update). Returns rows repaired.
+-- Callable by a cron or on-load. (D-01C-04 reconcile.)
+CREATE OR REPLACE FUNCTION reconcile_self_landlord_bindings() RETURNS integer
+LANGUAGE plpgsql AS $$
+DECLARE
+  v_count integer;
+BEGIN
+  UPDATE contacts c
+     SET first_name = NULLIF(split_part(COALESCE(up.full_name, ''), ' ', 1), ''),
+         last_name  = NULLIF(TRIM(SUBSTR(COALESCE(up.full_name, ''),
+                        LENGTH(split_part(COALESCE(up.full_name, ''), ' ', 1)) + 2)), ''),
+         primary_phone = up.phone
+    FROM landlords l
+    JOIN user_profiles up ON up.self_landlord_id = l.id
+   WHERE c.id = l.contact_id
+     AND (c.first_name    IS DISTINCT FROM NULLIF(split_part(COALESCE(up.full_name, ''), ' ', 1), '')
+       OR c.last_name     IS DISTINCT FROM NULLIF(TRIM(SUBSTR(COALESCE(up.full_name, ''),
+                            LENGTH(split_part(COALESCE(up.full_name, ''), ' ', 1)) + 2)), '')
+       OR c.primary_phone IS DISTINCT FROM up.phone);
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RETURN v_count;
+END;
+$$;
+
+
+-- ─────────────────────────────────────────────────────────────
+-- 14. IDENTITY-FORK BANNER FLAGS (ADDENDUM_01C §6)
+-- ─────────────────────────────────────────────────────────────
+-- When an Owner→Steward+ upgrade forks a bound self-managed identity (§5), we stamp the agent's
+-- profile so a banner explains "your details now update per-role" (D-01C-06). Shown once per
+-- surface (agent settings / landlord record); dismissal persists per surface. Pure user_profiles
+-- columns (no FK) — grouped here with §13 to keep the 01C identity work in one place.
+ALTER TABLE user_profiles
+  ADD COLUMN IF NOT EXISTS identity_forked_at              timestamptz,
+  ADD COLUMN IF NOT EXISTS fork_banner_dismissed_agent     boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS fork_banner_dismissed_landlord  boolean NOT NULL DEFAULT false;
