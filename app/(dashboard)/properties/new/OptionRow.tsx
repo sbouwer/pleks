@@ -1,23 +1,17 @@
 "use client"
 
 /**
- * app/(dashboard)/properties/new/OptionRow.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/new/OptionRow.tsx — Compact radio-style option row for wizard steps
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  Single line; if `sub` is provided, an info icon reveals it as a hover/focus TOOLTIP
+ *         (B6 — was click-to-expand, which read as tiny hidden text). Keyboard-accessible via the
+ *         tooltip trigger's focus. Used in StepInsurance / StepLandlord / StepOperatingHours /
+ *         StepScenarioFollowUp.
  */
-import { useState } from "react"
-import { Check, Info, ChevronUp } from "lucide-react"
+import { Check, Info } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
 
-/**
- * Compact option row used across wizard steps for radio-style picks.
- * Single-line by default; if `sub` is provided, an info icon reveals it
- * below on click — keeps the wizard short while preserving explanations.
- */
 interface OptionRowProps {
   selected:  boolean
   onSelect:  () => void
@@ -27,7 +21,6 @@ interface OptionRowProps {
 }
 
 export function OptionRow({ selected, onSelect, label, sub, disabled }: Readonly<OptionRowProps>) {
-  const [open, setOpen] = useState(false)
   const hasSub = !!sub
 
   return (
@@ -64,27 +57,21 @@ export function OptionRow({ selected, onSelect, label, sub, disabled }: Readonly
         </button>
 
         {hasSub && (
-          <button
-            type="button"
-            aria-label={open ? "Hide details" : "Show details"}
-            onClick={(e) => { e.stopPropagation(); setOpen((v) => !v) }}
-            className={cn(
-              "rounded-full p-0.5 mt-0.5 transition-colors shrink-0",
-              open
-                ? "text-primary bg-primary/10"
-                : "text-muted-foreground hover:text-primary hover:bg-primary/10",
-            )}
-          >
-            {open ? <ChevronUp className="w-3.5 h-3.5" /> : <Info className="w-3.5 h-3.5" />}
-          </button>
+          <TooltipProvider delay={0}>
+            <Tooltip>
+              <TooltipTrigger
+                aria-label="More details"
+                className="rounded-full p-0.5 mt-0.5 shrink-0 text-muted-foreground transition-colors hover:text-primary hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+              >
+                <Info className="w-3.5 h-3.5 cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs leading-relaxed">
+                {sub}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
       </div>
-
-      {hasSub && open && (
-        <p className="px-2.5 pb-2 pl-8 text-xs text-muted-foreground leading-relaxed">
-          {sub}
-        </p>
-      )}
     </div>
   )
 }
