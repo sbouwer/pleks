@@ -13,6 +13,7 @@ import { Plus, Trash2, Copy } from "lucide-react"
 import { ActionButton } from "@/components/ui/actions"
 import { buildSkeletonUnits, type SkeletonUnit } from "@/lib/properties/skeletonUnits"
 import { getScenario } from "@/lib/properties/scenarios"
+import { FURNISHING_OPTIONS } from "@/lib/properties/furnishing"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useWizard } from "../WizardContext"
 
@@ -31,12 +32,8 @@ function unitSegment(unit: SkeletonUnit): "residential" | "commercial" {
   return unit.unit_type?.startsWith("residential") ? "residential" : "commercial"
 }
 
-// B4: labels match the scenario step (scenarios.ts) so the same value reads the same everywhere.
-const FURNISHING_OPTIONS = [
-  { value: "unfurnished",    label: "Unfurnished" },
-  { value: "semi_furnished", label: "Partly furnished" },
-  { value: "furnished",      label: "Fully furnished" },
-]
+// Furnishing labels come from the single source (lib/properties/furnishing — D-60C-07) so the same
+// value reads identically here, in scenarios.ts, and anywhere else furnishing is displayed.
 
 // ── Small inline input ─────────────────────────────────────────────────────────
 
