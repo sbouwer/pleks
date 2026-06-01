@@ -70,8 +70,8 @@ ALTER TABLE user_signatures ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users manage own signatures" ON user_signatures;
 CREATE POLICY "Users manage own signatures" ON user_signatures
-  FOR ALL USING (user_id = auth.uid())
-  WITH CHECK (user_id = auth.uid());
+  FOR ALL USING (user_id = (SELECT auth.uid()))
+  WITH CHECK (user_id = (SELECT auth.uid()));
 
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -96,7 +96,7 @@ ALTER TABLE signature_sign_tokens ENABLE ROW LEVEL SECURITY;
 -- Users can read their own tokens; no INSERT via client (server-side only)
 DROP POLICY IF EXISTS "Users view own tokens" ON signature_sign_tokens;
 CREATE POLICY "Users view own tokens" ON signature_sign_tokens
-  FOR SELECT USING (user_id = auth.uid());
+  FOR SELECT USING (user_id = (SELECT auth.uid()));
 
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -159,7 +159,7 @@ DROP POLICY IF EXISTS "Org templates visible to org members" ON document_templat
 CREATE POLICY "Org templates visible to org members" ON document_templates
   FOR SELECT USING (
     scope = 'organisation'
-    AND org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid())
+    AND org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()))
   );
 
 DROP POLICY IF EXISTS "Only admins modify org templates" ON document_templates;
@@ -168,7 +168,7 @@ CREATE POLICY "Only admins modify org templates" ON document_templates
     scope = 'organisation'
     AND org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND is_admin = true
+      WHERE user_id = (SELECT auth.uid()) AND is_admin = true
     )
   );
 
@@ -188,8 +188,8 @@ ALTER TABLE user_template_favourites ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users manage own favourites" ON user_template_favourites;
 CREATE POLICY "Users manage own favourites" ON user_template_favourites
-  FOR ALL USING (user_id = auth.uid())
-  WITH CHECK (user_id = auth.uid());
+  FOR ALL USING (user_id = (SELECT auth.uid()))
+  WITH CHECK (user_id = (SELECT auth.uid()));
 
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -214,7 +214,7 @@ CREATE POLICY "Org admins manage WA preferences" ON org_whatsapp_template_prefer
   FOR ALL USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND is_admin = true
+      WHERE user_id = (SELECT auth.uid()) AND is_admin = true
     )
   );
 
@@ -256,13 +256,13 @@ ALTER TABLE document_generation_jobs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Org members view org doc jobs" ON document_generation_jobs;
 CREATE POLICY "Org members view org doc jobs" ON document_generation_jobs
   FOR SELECT USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid())
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()))
   );
 
 DROP POLICY IF EXISTS "Users modify own doc jobs" ON document_generation_jobs;
 CREATE POLICY "Users modify own doc jobs" ON document_generation_jobs
-  FOR ALL USING (user_id = auth.uid())
-  WITH CHECK (user_id = auth.uid());
+  FOR ALL USING (user_id = (SELECT auth.uid()))
+  WITH CHECK (user_id = (SELECT auth.uid()));
 
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -308,19 +308,19 @@ ALTER TABLE lease_documents ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "lease_docs_org_select" ON lease_documents;
 CREATE POLICY "lease_docs_org_select" ON lease_documents
   FOR SELECT USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 DROP POLICY IF EXISTS "lease_docs_org_insert" ON lease_documents;
 CREATE POLICY "lease_docs_org_insert" ON lease_documents
   FOR INSERT WITH CHECK (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 DROP POLICY IF EXISTS "lease_docs_org_delete" ON lease_documents;
 CREATE POLICY "lease_docs_org_delete" ON lease_documents
   FOR DELETE USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 
@@ -685,11 +685,11 @@ ALTER TABLE whatsapp_messages ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "wa_messages_select" ON whatsapp_messages;
 CREATE POLICY "wa_messages_select" ON whatsapp_messages
-  FOR SELECT USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid()));
+  FOR SELECT USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid())));
 
 DROP POLICY IF EXISTS "wa_messages_insert" ON whatsapp_messages;
 CREATE POLICY "wa_messages_insert" ON whatsapp_messages
-  FOR INSERT WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid()));
+  FOR INSERT WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid())));
 
 -- 11b. tenant_messaging_consent
 CREATE TABLE IF NOT EXISTS tenant_messaging_consent (
@@ -708,12 +708,12 @@ ALTER TABLE tenant_messaging_consent ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "consent_select" ON tenant_messaging_consent;
 CREATE POLICY "consent_select" ON tenant_messaging_consent
-  FOR SELECT USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid()));
+  FOR SELECT USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid())));
 
 DROP POLICY IF EXISTS "consent_all_admins" ON tenant_messaging_consent;
 CREATE POLICY "consent_all_admins" ON tenant_messaging_consent
   FOR ALL USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND is_admin = true)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND is_admin = true)
   );
 
 -- 11c. whatsapp_cs_windows (24-hour customer service windows)
@@ -736,7 +736,7 @@ DROP POLICY IF EXISTS "cs_windows_select" ON whatsapp_cs_windows;
 CREATE POLICY "cs_windows_select" ON whatsapp_cs_windows
   FOR SELECT USING (
     lease_id IN (
-      SELECT id FROM leases WHERE org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid())
+      SELECT id FROM leases WHERE org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()))
     )
   );
 
@@ -760,7 +760,7 @@ ALTER TABLE messaging_usage ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "usage_select" ON messaging_usage;
 CREATE POLICY "usage_select" ON messaging_usage
-  FOR SELECT USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid()));
+  FOR SELECT USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid())));
 
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -797,17 +797,17 @@ CREATE POLICY "signatures_user_access"
     bucket_id = 'signatures'
     AND (storage.foldername(name))[1] IN (
       SELECT org_id::text FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
-    AND (storage.foldername(name))[2] = auth.uid()::text
+    AND (storage.foldername(name))[2] = (SELECT auth.uid())::text
   )
   WITH CHECK (
     bucket_id = 'signatures'
     AND (storage.foldername(name))[1] IN (
       SELECT org_id::text FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
-    AND (storage.foldername(name))[2] = auth.uid()::text
+    AND (storage.foldername(name))[2] = (SELECT auth.uid())::text
   );
 
 -- 13b. Lease templates — path: {org_id}/{filename}
@@ -818,14 +818,14 @@ CREATE POLICY "lease_templates_org_access"
     bucket_id = 'lease-templates'
     AND (storage.foldername(name))[1] IN (
       SELECT org_id::text FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   )
   WITH CHECK (
     bucket_id = 'lease-templates'
     AND (storage.foldername(name))[1] IN (
       SELECT org_id::text FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -837,14 +837,14 @@ CREATE POLICY "property_documents_org_access"
     bucket_id = 'property-documents'
     AND (storage.foldername(name))[1] IN (
       SELECT org_id::text FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   )
   WITH CHECK (
     bucket_id = 'property-documents'
     AND (storage.foldername(name))[1] IN (
       SELECT org_id::text FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -868,7 +868,7 @@ CREATE POLICY "tenant_comms_read" ON communication_log
   FOR SELECT USING (
     tenant_id IN (
       SELECT id FROM tenants
-      WHERE auth_user_id = auth.uid()
+      WHERE auth_user_id = (SELECT auth.uid())
         AND deleted_at IS NULL
     )
   );

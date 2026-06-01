@@ -104,7 +104,7 @@ CREATE POLICY "org_contacts" ON contacts
   FOR ALL USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -174,7 +174,7 @@ CREATE POLICY "org_contact_phones" ON contact_phones
   FOR ALL USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -206,7 +206,7 @@ CREATE POLICY "org_contact_emails" ON contact_emails
   FOR ALL USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -251,7 +251,7 @@ CREATE POLICY "org_contact_addresses" ON contact_addresses
   FOR ALL USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -283,7 +283,7 @@ CREATE POLICY "org_contact_roles" ON contact_roles
   FOR ALL USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -331,7 +331,7 @@ CREATE POLICY "org_contact_employment" ON contact_employment
   FOR ALL USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -401,7 +401,7 @@ CREATE POLICY "org_tenants" ON tenants
   FOR ALL USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -459,7 +459,7 @@ CREATE POLICY "org_landlords" ON landlords
   FOR ALL USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -490,7 +490,7 @@ CREATE POLICY "org_tenant_next_of_kin" ON tenant_next_of_kin
   FOR ALL USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -525,7 +525,7 @@ CREATE POLICY "org_tenant_docs" ON tenant_documents
   FOR ALL USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -568,7 +568,7 @@ CREATE POLICY "org_comms_read" ON communication_log
   FOR SELECT USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 DROP POLICY IF EXISTS "org_comms_insert" ON communication_log;
@@ -576,7 +576,7 @@ CREATE POLICY "org_comms_insert" ON communication_log
   FOR INSERT WITH CHECK (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -603,7 +603,7 @@ CREATE POLICY "org_tenancy_history" ON tenancy_history
   FOR ALL USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -620,7 +620,7 @@ CREATE TABLE IF NOT EXISTS user_orgs_tenants (
 ALTER TABLE user_orgs_tenants ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "own_tenant_link" ON user_orgs_tenants;
 CREATE POLICY "own_tenant_link" ON user_orgs_tenants
-  FOR SELECT USING (user_id = auth.uid());
+  FOR SELECT USING (user_id = (SELECT auth.uid()));
 
 
 -- ─────────────────────────────────────────────────────────────

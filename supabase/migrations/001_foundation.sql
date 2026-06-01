@@ -319,7 +319,7 @@ CREATE POLICY "org_members_select" ON organisations
   FOR SELECT USING (
     id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -329,14 +329,14 @@ CREATE POLICY "org_owners_update" ON organisations
   FOR UPDATE USING (
     id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND role = 'owner' AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND role = 'owner' AND deleted_at IS NULL
     )
   );
 
 -- Organisations: any authenticated user can insert (signup flow)
 DROP POLICY IF EXISTS "org_insert" ON organisations;
 CREATE POLICY "org_insert" ON organisations
-  FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+  FOR INSERT WITH CHECK ((SELECT auth.uid()) IS NOT NULL);
 
 -- Subscriptions: org members can read
 DROP POLICY IF EXISTS "sub_members_select" ON subscriptions;
@@ -344,7 +344,7 @@ CREATE POLICY "sub_members_select" ON subscriptions
   FOR SELECT USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 -- Subscriptions: managed by service role only for writes
@@ -353,15 +353,15 @@ CREATE POLICY "sub_members_select" ON subscriptions
 -- User profiles: users can read/update their own profile
 DROP POLICY IF EXISTS "profile_own_select" ON user_profiles;
 CREATE POLICY "profile_own_select" ON user_profiles
-  FOR SELECT USING (id = auth.uid());
+  FOR SELECT USING (id = (SELECT auth.uid()));
 
 DROP POLICY IF EXISTS "profile_own_update" ON user_profiles;
 CREATE POLICY "profile_own_update" ON user_profiles
-  FOR UPDATE USING (id = auth.uid());
+  FOR UPDATE USING (id = (SELECT auth.uid()));
 
 DROP POLICY IF EXISTS "profile_own_insert" ON user_profiles;
 CREATE POLICY "profile_own_insert" ON user_profiles
-  FOR INSERT WITH CHECK (id = auth.uid());
+  FOR INSERT WITH CHECK (id = (SELECT auth.uid()));
 
 -- User profiles: org members can see other members' profiles
 DROP POLICY IF EXISTS "profile_org_members_select" ON user_profiles;
@@ -370,7 +370,7 @@ CREATE POLICY "profile_org_members_select" ON user_profiles
     id IN (
       SELECT uo2.user_id FROM user_orgs uo1
       JOIN user_orgs uo2 ON uo1.org_id = uo2.org_id
-      WHERE uo1.user_id = auth.uid()
+      WHERE uo1.user_id = (SELECT auth.uid())
         AND uo1.deleted_at IS NULL
         AND uo2.deleted_at IS NULL
     )
@@ -379,7 +379,7 @@ CREATE POLICY "profile_org_members_select" ON user_profiles
 -- User orgs: users can see their own memberships
 DROP POLICY IF EXISTS "user_orgs_own_select" ON user_orgs;
 CREATE POLICY "user_orgs_own_select" ON user_orgs
-  FOR SELECT USING (user_id = auth.uid());
+  FOR SELECT USING (user_id = (SELECT auth.uid()));
 
 -- NOTE: user_orgs_org_select policy intentionally omitted (recursive, dropped in 039)
 -- For viewing other org members (team page), use service client
@@ -388,7 +388,7 @@ CREATE POLICY "user_orgs_own_select" ON user_orgs
 -- User orgs: authenticated users can insert (signup/onboarding)
 DROP POLICY IF EXISTS "user_orgs_insert" ON user_orgs;
 CREATE POLICY "user_orgs_insert" ON user_orgs
-  FOR INSERT WITH CHECK (user_id = auth.uid());
+  FOR INSERT WITH CHECK (user_id = (SELECT auth.uid()));
 
 -- Audit log: insert only (via service role for most, but org members can insert)
 DROP POLICY IF EXISTS "audit_insert_only" ON audit_log;
@@ -396,7 +396,7 @@ CREATE POLICY "audit_insert_only" ON audit_log
   FOR INSERT WITH CHECK (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -406,14 +406,14 @@ CREATE POLICY "audit_org_select" ON audit_log
   FOR SELECT USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
 -- Consent log: insert by anyone authenticated
 DROP POLICY IF EXISTS "consent_insert" ON consent_log;
 CREATE POLICY "consent_insert" ON consent_log
-  FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+  FOR INSERT WITH CHECK ((SELECT auth.uid()) IS NOT NULL);
 
 -- Consent log: org members can read their org's consent records
 DROP POLICY IF EXISTS "consent_org_select" ON consent_log;
@@ -421,9 +421,9 @@ CREATE POLICY "consent_org_select" ON consent_log
   FOR SELECT USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
-    OR user_id = auth.uid()
+    OR user_id = (SELECT auth.uid())
   );
 
 -- Invites: org owners/PMs can read
@@ -432,7 +432,7 @@ CREATE POLICY "org_invites_select" ON invites
   FOR SELECT USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid()
+      WHERE user_id = (SELECT auth.uid())
       AND role IN ('owner', 'property_manager')
       AND deleted_at IS NULL
     )
@@ -444,7 +444,7 @@ CREATE POLICY "org_invites_insert" ON invites
   FOR INSERT WITH CHECK (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid()
+      WHERE user_id = (SELECT auth.uid())
       AND role IN ('owner', 'property_manager')
       AND deleted_at IS NULL
     )
@@ -456,7 +456,7 @@ CREATE POLICY "org_invites_update" ON invites
   FOR UPDATE USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid()
+      WHERE user_id = (SELECT auth.uid())
       AND role IN ('owner', 'property_manager')
       AND deleted_at IS NULL
     )
@@ -468,7 +468,7 @@ CREATE POLICY "bank_accounts_org_select" ON bank_accounts
   FOR SELECT USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -478,7 +478,7 @@ CREATE POLICY "bank_accounts_org_insert" ON bank_accounts
   FOR INSERT WITH CHECK (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND role IN ('owner', 'property_manager') AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND role IN ('owner', 'property_manager') AND deleted_at IS NULL
     )
   );
 
@@ -488,7 +488,7 @@ CREATE POLICY "bank_accounts_org_update" ON bank_accounts
   FOR UPDATE USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND role IN ('owner', 'property_manager') AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND role IN ('owner', 'property_manager') AND deleted_at IS NULL
     )
   );
 
@@ -498,7 +498,7 @@ CREATE POLICY "org_custom_lease_requests" ON custom_lease_requests
   FOR ALL USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -717,7 +717,7 @@ ALTER TABLE public.contractor_contacts ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_contractor_contacts" ON public.contractor_contacts;
 CREATE POLICY "org_contractor_contacts" ON public.contractor_contacts
   FOR ALL USING (org_id IN (
-    SELECT org_id FROM public.user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL
+    SELECT org_id FROM public.user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
   ));
 
 -- ═══════════════════════════════════════════════════════════════════════════════

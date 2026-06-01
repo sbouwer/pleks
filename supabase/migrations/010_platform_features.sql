@@ -70,8 +70,8 @@ ALTER TABLE tenant_portal_tokens ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_tenant_portal_tokens" ON tenant_portal_tokens;
 CREATE POLICY "org_tenant_portal_tokens" ON tenant_portal_tokens
   FOR ALL
-  USING  (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL))
-  WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL));
+  USING  (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL))
+  WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL));
 
 -- 1d. Inspection reschedule requests
 CREATE TABLE IF NOT EXISTS inspection_reschedule_requests (
@@ -101,8 +101,8 @@ ALTER TABLE inspection_reschedule_requests ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_reschedule_requests" ON inspection_reschedule_requests;
 CREATE POLICY "org_reschedule_requests" ON inspection_reschedule_requests
   FOR ALL
-  USING  (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL))
-  WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL));
+  USING  (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL))
+  WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL));
 
 -- 1e. Maintenance delay events
 CREATE TABLE IF NOT EXISTS maintenance_delay_events (
@@ -133,8 +133,8 @@ ALTER TABLE maintenance_delay_events ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_delay_events" ON maintenance_delay_events;
 CREATE POLICY "org_delay_events" ON maintenance_delay_events
   FOR ALL
-  USING  (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL))
-  WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL));
+  USING  (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL))
+  WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL));
 
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -190,15 +190,15 @@ ALTER TABLE bank_feed_connections ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS bank_feed_conn_select ON bank_feed_connections;
 CREATE POLICY bank_feed_conn_select ON bank_feed_connections
-  FOR SELECT USING (org_id = (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL LIMIT 1));
+  FOR SELECT USING (org_id = (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL LIMIT 1));
 
 DROP POLICY IF EXISTS bank_feed_conn_insert ON bank_feed_connections;
 CREATE POLICY bank_feed_conn_insert ON bank_feed_connections
-  FOR INSERT WITH CHECK (org_id = (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL LIMIT 1));
+  FOR INSERT WITH CHECK (org_id = (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL LIMIT 1));
 
 DROP POLICY IF EXISTS bank_feed_conn_update ON bank_feed_connections;
 CREATE POLICY bank_feed_conn_update ON bank_feed_connections
-  FOR UPDATE USING (org_id = (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL LIMIT 1));
+  FOR UPDATE USING (org_id = (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL LIMIT 1));
 
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -335,8 +335,8 @@ ALTER TABLE ownership_transfers ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_ownership_transfers" ON ownership_transfers;
 CREATE POLICY "org_ownership_transfers" ON ownership_transfers
   FOR ALL
-  USING  (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL))
-  WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL));
+  USING  (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL))
+  WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL));
 
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -362,10 +362,10 @@ DROP POLICY IF EXISTS "org lease notes access" ON lease_notes;
 CREATE POLICY "org lease notes access" ON lease_notes
   FOR ALL TO authenticated
   USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   )
   WITH CHECK (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 -- Commercial leases should never have cpa_applies = true.
@@ -512,12 +512,12 @@ ALTER TABLE device_fingerprints ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "device_fingerprints_self_select" ON device_fingerprints;
 CREATE POLICY "device_fingerprints_self_select" ON device_fingerprints
-  FOR SELECT USING (user_id = auth.uid());
+  FOR SELECT USING (user_id = (SELECT auth.uid()));
 
 DROP POLICY IF EXISTS "device_fingerprints_self_update" ON device_fingerprints;
 CREATE POLICY "device_fingerprints_self_update" ON device_fingerprints
-  FOR UPDATE USING (user_id = auth.uid())
-  WITH CHECK (user_id = auth.uid());
+  FOR UPDATE USING (user_id = (SELECT auth.uid()))
+  WITH CHECK (user_id = (SELECT auth.uid()));
 
 DROP POLICY IF EXISTS "device_fingerprints_insert_service" ON device_fingerprints;
 CREATE POLICY "device_fingerprints_insert_service" ON device_fingerprints
@@ -584,14 +584,14 @@ ALTER TABLE auth_events ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "auth_events_select_self" ON auth_events;
 CREATE POLICY "auth_events_select_self" ON auth_events
-  FOR SELECT USING (user_id = auth.uid());
+  FOR SELECT USING (user_id = (SELECT auth.uid()));
 
 DROP POLICY IF EXISTS "auth_events_select_org_admin" ON auth_events;
 CREATE POLICY "auth_events_select_org_admin" ON auth_events
   FOR SELECT USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid()
+      WHERE user_id = (SELECT auth.uid())
         AND role IN ('owner', 'property_manager')
         AND deleted_at IS NULL
     )
@@ -622,7 +622,7 @@ ALTER TABLE login_notifications_sent ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "login_notifications_self" ON login_notifications_sent;
 CREATE POLICY "login_notifications_self" ON login_notifications_sent
-  FOR SELECT USING (user_id = auth.uid());
+  FOR SELECT USING (user_id = (SELECT auth.uid()));
 
 DROP POLICY IF EXISTS "login_notifications_insert_service" ON login_notifications_sent;
 CREATE POLICY "login_notifications_insert_service" ON login_notifications_sent
@@ -664,7 +664,7 @@ ALTER TABLE step_up_challenges ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "step_up_challenges_self" ON step_up_challenges;
 CREATE POLICY "step_up_challenges_self" ON step_up_challenges
-  FOR SELECT USING (user_id = auth.uid());
+  FOR SELECT USING (user_id = (SELECT auth.uid()));
 
 DROP POLICY IF EXISTS "step_up_challenges_insert_service" ON step_up_challenges;
 CREATE POLICY "step_up_challenges_insert_service" ON step_up_challenges
@@ -729,12 +729,12 @@ ALTER TABLE user_passkeys ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "user_passkeys_self_select" ON user_passkeys;
 CREATE POLICY "user_passkeys_self_select" ON user_passkeys
-  FOR SELECT USING (user_id = auth.uid());
+  FOR SELECT USING (user_id = (SELECT auth.uid()));
 
 DROP POLICY IF EXISTS "user_passkeys_self_update" ON user_passkeys;
 CREATE POLICY "user_passkeys_self_update" ON user_passkeys
-  FOR UPDATE USING (user_id = auth.uid())
-  WITH CHECK (user_id = auth.uid());
+  FOR UPDATE USING (user_id = (SELECT auth.uid()))
+  WITH CHECK (user_id = (SELECT auth.uid()));
 
 DROP POLICY IF EXISTS "user_passkeys_insert_service" ON user_passkeys;
 CREATE POLICY "user_passkeys_insert_service" ON user_passkeys
@@ -822,7 +822,7 @@ CREATE TRIGGER trg_feedback_submissions_updated_at
 -- feedback_submissions: submitter can see and edit their own
 DROP POLICY IF EXISTS "feedback_submissions_submitter_select" ON feedback_submissions;
 CREATE POLICY "feedback_submissions_submitter_select" ON feedback_submissions
-  FOR SELECT USING (submitter_id = auth.uid());
+  FOR SELECT USING (submitter_id = (SELECT auth.uid()));
 
 -- Insert covers all four user types: agents (user_orgs), tenants, landlords, contractors.
 -- The API route uses service-role for inserts and validates org membership server-side,
@@ -830,19 +830,19 @@ CREATE POLICY "feedback_submissions_submitter_select" ON feedback_submissions
 DROP POLICY IF EXISTS "feedback_submissions_submitter_insert" ON feedback_submissions;
 CREATE POLICY "feedback_submissions_submitter_insert" ON feedback_submissions
   FOR INSERT WITH CHECK (
-    submitter_id = auth.uid()
+    submitter_id = (SELECT auth.uid())
     AND (
-      org_id IN (SELECT org_id FROM user_orgs  WHERE user_id      = auth.uid() AND deleted_at IS NULL)
-      OR org_id IN (SELECT org_id FROM tenants  WHERE auth_user_id = auth.uid() AND deleted_at IS NULL)
-      OR org_id IN (SELECT org_id FROM landlords WHERE auth_user_id = auth.uid() AND deleted_at IS NULL)
-      OR org_id IN (SELECT org_id FROM contractors WHERE auth_user_id = auth.uid())
+      org_id IN (SELECT org_id FROM user_orgs  WHERE user_id      = (SELECT auth.uid()) AND deleted_at IS NULL)
+      OR org_id IN (SELECT org_id FROM tenants  WHERE auth_user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
+      OR org_id IN (SELECT org_id FROM landlords WHERE auth_user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
+      OR org_id IN (SELECT org_id FROM contractors WHERE auth_user_id = (SELECT auth.uid()))
     )
   );
 
 DROP POLICY IF EXISTS "feedback_submissions_submitter_update" ON feedback_submissions;
 CREATE POLICY "feedback_submissions_submitter_update" ON feedback_submissions
-  FOR UPDATE USING (submitter_id = auth.uid())
-  WITH CHECK (submitter_id = auth.uid());
+  FOR UPDATE USING (submitter_id = (SELECT auth.uid()))
+  WITH CHECK (submitter_id = (SELECT auth.uid()));
 
 -- feedback_submissions: org admin — role='owner' OR is_admin flag (not role='admin', which doesn't exist)
 DROP POLICY IF EXISTS "feedback_submissions_org_admin_select" ON feedback_submissions;
@@ -850,7 +850,7 @@ CREATE POLICY "feedback_submissions_org_admin_select" ON feedback_submissions
   FOR SELECT USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid()
+      WHERE user_id = (SELECT auth.uid())
         AND (role = 'owner' OR is_admin = true)
         AND deleted_at IS NULL
     )
@@ -861,7 +861,7 @@ CREATE POLICY "feedback_submissions_org_admin_update" ON feedback_submissions
   FOR UPDATE USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid()
+      WHERE user_id = (SELECT auth.uid())
         AND (role = 'owner' OR is_admin = true)
         AND deleted_at IS NULL
     )
@@ -869,7 +869,7 @@ CREATE POLICY "feedback_submissions_org_admin_update" ON feedback_submissions
   WITH CHECK (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid()
+      WHERE user_id = (SELECT auth.uid())
         AND (role = 'owner' OR is_admin = true)
         AND deleted_at IS NULL
     )
@@ -882,7 +882,7 @@ CREATE POLICY "feedback_submissions_platform_admin_all" ON feedback_submissions
     EXISTS (
       SELECT 1 FROM organisations o
       JOIN user_orgs uo ON uo.org_id = o.id
-      WHERE uo.user_id = auth.uid()
+      WHERE uo.user_id = (SELECT auth.uid())
         AND o.settings->>'platform_admin' = 'true'
     )
   );
@@ -892,17 +892,17 @@ DROP POLICY IF EXISTS "feedback_replies_submitter_select" ON feedback_replies;
 CREATE POLICY "feedback_replies_submitter_select" ON feedback_replies
   FOR SELECT USING (
     submission_id IN (
-      SELECT id FROM feedback_submissions WHERE submitter_id = auth.uid()
+      SELECT id FROM feedback_submissions WHERE submitter_id = (SELECT auth.uid())
     )
   );
 
 DROP POLICY IF EXISTS "feedback_replies_submitter_insert" ON feedback_replies;
 CREATE POLICY "feedback_replies_submitter_insert" ON feedback_replies
   FOR INSERT WITH CHECK (
-    author_id = auth.uid()
+    author_id = (SELECT auth.uid())
     AND is_admin_reply = false
     AND submission_id IN (
-      SELECT id FROM feedback_submissions WHERE submitter_id = auth.uid()
+      SELECT id FROM feedback_submissions WHERE submitter_id = (SELECT auth.uid())
     )
   );
 
@@ -913,7 +913,7 @@ CREATE POLICY "feedback_replies_platform_admin_select" ON feedback_replies
     EXISTS (
       SELECT 1 FROM organisations o
       JOIN user_orgs uo ON uo.org_id = o.id
-      WHERE uo.user_id = auth.uid()
+      WHERE uo.user_id = (SELECT auth.uid())
         AND o.settings->>'platform_admin' = 'true'
     )
   );
@@ -921,11 +921,11 @@ CREATE POLICY "feedback_replies_platform_admin_select" ON feedback_replies
 DROP POLICY IF EXISTS "feedback_replies_platform_admin_insert" ON feedback_replies;
 CREATE POLICY "feedback_replies_platform_admin_insert" ON feedback_replies
   FOR INSERT WITH CHECK (
-    author_id = auth.uid()
+    author_id = (SELECT auth.uid())
     AND EXISTS (
       SELECT 1 FROM organisations o
       JOIN user_orgs uo ON uo.org_id = o.id
-      WHERE uo.user_id = auth.uid()
+      WHERE uo.user_id = (SELECT auth.uid())
         AND o.settings->>'platform_admin' = 'true'
     )
   );
@@ -977,7 +977,7 @@ CREATE POLICY "ai_usage_org_admin_select" ON ai_usage
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM user_orgs uo
-      WHERE uo.user_id = auth.uid()
+      WHERE uo.user_id = (SELECT auth.uid())
         AND uo.org_id = ai_usage.org_id
         AND uo.is_admin = true
         AND uo.deleted_at IS NULL
@@ -1208,7 +1208,7 @@ ALTER TABLE communication_delivery_events ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_delivery_read" ON communication_delivery_events;
 CREATE POLICY "org_delivery_read" ON communication_delivery_events
   FOR SELECT USING (org_id IN (
-    SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL
+    SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
   ));
 
 -- ── Mandatory-comm retry queue ─────────────────────────────────────────────
@@ -1236,7 +1236,7 @@ ALTER TABLE mandatory_comm_retries ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_mandatory_retries_read" ON mandatory_comm_retries;
 CREATE POLICY "org_mandatory_retries_read" ON mandatory_comm_retries
   FOR SELECT USING (org_id IN (
-    SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL
+    SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
   ));
 
 -- ── WhatsApp Meta template variant catalog (platform-level, no org_id) ────
@@ -1769,13 +1769,13 @@ DROP POLICY IF EXISTS "org_payment_tokens_delete"  ON organisation_payment_token
 
 CREATE POLICY "org_payment_tokens_read" ON organisation_payment_tokens
   FOR SELECT TO authenticated
-  USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid()));
+  USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid())));
 
 -- Soft-delete only (set deleted_at); no hard DELETE from client
 CREATE POLICY "org_payment_tokens_delete" ON organisation_payment_tokens
   FOR UPDATE TO authenticated
-  USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid()))
-  WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid()));
+  USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid())))
+  WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid())));
 
 -- Storage bucket: property-intelligence
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
@@ -1800,7 +1800,7 @@ BEGIN
       USING (
         bucket_id = 'property-intelligence'
         AND (storage.foldername(name))[1] IN (
-          SELECT org_id::text FROM user_orgs WHERE user_id = auth.uid()
+          SELECT org_id::text FROM user_orgs WHERE user_id = (SELECT auth.uid())
         )
       );
   END IF;
@@ -1856,7 +1856,7 @@ CREATE POLICY "privacy_policy_platform_admin_insert" ON privacy_policy_versions
     EXISTS (
       SELECT 1 FROM organisations o
       JOIN user_orgs uo ON uo.org_id = o.id
-      WHERE uo.user_id = auth.uid()
+      WHERE uo.user_id = (SELECT auth.uid())
         AND uo.deleted_at IS NULL
         AND (o.settings->>'platform_admin')::boolean = true
     )
@@ -1869,7 +1869,7 @@ CREATE POLICY "privacy_policy_platform_admin_update_supersede" ON privacy_policy
     EXISTS (
       SELECT 1 FROM organisations o
       JOIN user_orgs uo ON uo.org_id = o.id
-      WHERE uo.user_id = auth.uid()
+      WHERE uo.user_id = (SELECT auth.uid())
         AND uo.deleted_at IS NULL
         AND (o.settings->>'platform_admin')::boolean = true
     )
@@ -1956,30 +1956,30 @@ ALTER TABLE data_subject_requests ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "dsr_subject_select_own" ON data_subject_requests;
 CREATE POLICY "dsr_subject_select_own" ON data_subject_requests
   FOR SELECT USING (
-    subject_user_id = auth.uid()
-    OR lower(subject_email) = (SELECT lower(email) FROM auth.users WHERE id = auth.uid())
+    subject_user_id = (SELECT auth.uid())
+    OR lower(subject_email) = (SELECT lower(email) FROM auth.users WHERE id = (SELECT auth.uid()))
   );
 
 -- Org staff see their org's requests
 DROP POLICY IF EXISTS "dsr_org_select" ON data_subject_requests;
 CREATE POLICY "dsr_org_select" ON data_subject_requests
   FOR SELECT USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 -- Subject creates own request
 DROP POLICY IF EXISTS "dsr_subject_insert" ON data_subject_requests;
 CREATE POLICY "dsr_subject_insert" ON data_subject_requests
   FOR INSERT WITH CHECK (
-    subject_user_id = auth.uid()
-    OR lower(subject_email) = (SELECT lower(email) FROM auth.users WHERE id = auth.uid())
+    subject_user_id = (SELECT auth.uid())
+    OR lower(subject_email) = (SELECT lower(email) FROM auth.users WHERE id = (SELECT auth.uid()))
   );
 
 -- Org staff update their org's requests (status, assignment, resolution)
 DROP POLICY IF EXISTS "dsr_org_update" ON data_subject_requests;
 CREATE POLICY "dsr_org_update" ON data_subject_requests
   FOR UPDATE USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 -- No DELETE — requests are immutable history (resolution writes resolved_at, doesn't remove the row)
@@ -2042,15 +2042,15 @@ ALTER TABLE popia_exports ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "popia_exports_subject_select" ON popia_exports;
 CREATE POLICY "popia_exports_subject_select" ON popia_exports
   FOR SELECT USING (
-    subject_user_id = auth.uid()
-    OR lower(subject_email) = (SELECT lower(email) FROM auth.users WHERE id = auth.uid())
+    subject_user_id = (SELECT auth.uid())
+    OR lower(subject_email) = (SELECT lower(email) FROM auth.users WHERE id = (SELECT auth.uid()))
   );
 
 -- Org staff read their org's exports
 DROP POLICY IF EXISTS "popia_exports_org_select" ON popia_exports;
 CREATE POLICY "popia_exports_org_select" ON popia_exports
   FOR SELECT USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 -- INSERT via service role only (export generation is server-side)
@@ -2060,8 +2060,8 @@ CREATE POLICY "popia_exports_org_select" ON popia_exports
 DROP POLICY IF EXISTS "popia_exports_subject_update_download" ON popia_exports;
 CREATE POLICY "popia_exports_subject_update_download" ON popia_exports
   FOR UPDATE USING (
-    subject_user_id = auth.uid()
-    OR lower(subject_email) = (SELECT lower(email) FROM auth.users WHERE id = auth.uid())
+    subject_user_id = (SELECT auth.uid())
+    OR lower(subject_email) = (SELECT lower(email) FROM auth.users WHERE id = (SELECT auth.uid()))
   );
 -- Write permissions to individual columns enforced by explicit UPDATE statement shape in lib/popia/export.ts
 
@@ -2101,7 +2101,7 @@ ALTER TABLE retention_policies_snapshot ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "retention_policies_org_select" ON retention_policies_snapshot;
 CREATE POLICY "retention_policies_org_select" ON retention_policies_snapshot
   FOR SELECT USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 -- Subject-facing read via SECURITY DEFINER helper (subject isn't in user_orgs for that agency)
@@ -2134,7 +2134,7 @@ ALTER TABLE retention_purge_runs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "purge_runs_org_select" ON retention_purge_runs;
 CREATE POLICY "purge_runs_org_select" ON retention_purge_runs
   FOR SELECT USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 -- Service-role-only INSERT/UPDATE
@@ -2199,8 +2199,8 @@ BEGIN
                  OR pe.json_storage_path = storage.objects.name
                  OR pe.zip_storage_path = storage.objects.name)
             AND (
-              pe.subject_user_id = auth.uid()
-              OR lower(pe.subject_email) = (SELECT lower(email) FROM auth.users WHERE id = auth.uid())
+              pe.subject_user_id = (SELECT auth.uid())
+              OR lower(pe.subject_email) = (SELECT lower(email) FROM auth.users WHERE id = (SELECT auth.uid()))
             )
             AND pe.expires_at > now()
         )
@@ -2220,7 +2220,7 @@ BEGIN
           WHERE (pe.pdf_storage_path = storage.objects.name
                  OR pe.json_storage_path = storage.objects.name
                  OR pe.zip_storage_path = storage.objects.name)
-            AND pe.org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+            AND pe.org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
         )
       );
   END IF;
@@ -2338,7 +2338,7 @@ ALTER TABLE user_capabilities ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "agents read own capabilities" ON user_capabilities;
 CREATE POLICY "agents read own capabilities" ON user_capabilities
   FOR SELECT
-  USING (user_id = auth.uid());
+  USING (user_id = (SELECT auth.uid()));
 
 -- Org owners and property managers can manage capabilities within their org
 DROP POLICY IF EXISTS "owners manage org capabilities" ON user_capabilities;
@@ -2347,14 +2347,14 @@ CREATE POLICY "owners manage org capabilities" ON user_capabilities
   USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid()
+      WHERE user_id = (SELECT auth.uid())
         AND role IN ('owner', 'property_manager')
     )
   )
   WITH CHECK (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid()
+      WHERE user_id = (SELECT auth.uid())
         AND role IN ('owner', 'property_manager')
     )
   );
@@ -2630,7 +2630,7 @@ CREATE POLICY "activation_delegations_org_members_select" ON activation_delegati
   FOR SELECT USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -2640,7 +2640,7 @@ CREATE POLICY "activation_delegations_owner_insert" ON activation_delegations
   FOR INSERT WITH CHECK (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND role = 'owner' AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND role = 'owner' AND deleted_at IS NULL
     )
   );
 
@@ -2649,7 +2649,7 @@ CREATE POLICY "activation_delegations_owner_delete" ON activation_delegations
   FOR DELETE USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND role = 'owner' AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND role = 'owner' AND deleted_at IS NULL
     )
   );
 
@@ -2719,13 +2719,13 @@ ALTER TABLE bug_context ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "bug_context_submitter_select" ON bug_context;
 CREATE POLICY "bug_context_submitter_select" ON bug_context
   FOR SELECT USING (
-    submission_id IN (SELECT id FROM feedback_submissions WHERE submitter_id = auth.uid())
+    submission_id IN (SELECT id FROM feedback_submissions WHERE submitter_id = (SELECT auth.uid()))
   );
 
 DROP POLICY IF EXISTS "bug_context_submitter_insert" ON bug_context;
 CREATE POLICY "bug_context_submitter_insert" ON bug_context
   FOR INSERT WITH CHECK (
-    submission_id IN (SELECT id FROM feedback_submissions WHERE submitter_id = auth.uid())
+    submission_id IN (SELECT id FROM feedback_submissions WHERE submitter_id = (SELECT auth.uid()))
   );
 
 -- Org admin (role='owner' OR is_admin) can read bug context for their org's reports.
@@ -2736,7 +2736,7 @@ CREATE POLICY "bug_context_org_admin_select" ON bug_context
       SELECT id FROM feedback_submissions
       WHERE org_id IN (
         SELECT org_id FROM user_orgs
-        WHERE user_id = auth.uid() AND (role = 'owner' OR is_admin = true)
+        WHERE user_id = (SELECT auth.uid()) AND (role = 'owner' OR is_admin = true)
       )
     )
   );
@@ -2771,7 +2771,7 @@ ALTER TABLE passkey_aal_grants ENABLE ROW LEVEL SECURITY;
 -- A user may see their own grants; inserts/updates are service-role only (no policy → denied).
 DROP POLICY IF EXISTS "passkey_aal_grants_select_self" ON passkey_aal_grants;
 CREATE POLICY "passkey_aal_grants_select_self" ON passkey_aal_grants
-  FOR SELECT USING (user_id = auth.uid());
+  FOR SELECT USING (user_id = (SELECT auth.uid()));
 
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -2794,3 +2794,84 @@ GRANT  EXECUTE ON FUNCTION public.claim_purge_slot(uuid)        TO service_role;
 REVOKE EXECUTE ON FUNCTION public.purge_old_auth_events()       FROM PUBLIC, anon, authenticated;
 REVOKE EXECUTE ON FUNCTION public.purge_old_ai_usage()          FROM PUBLIC, anon, authenticated;
 REVOKE EXECUTE ON FUNCTION public.purge_old_cost_snapshots()    FROM PUBLIC, anon, authenticated;
+
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §36  ADDENDUM_00I: RLS initplan — re-create the 13 policies defined in PROTECTED
+--      007/008 with (SELECT auth.uid()) wrapping. 007/008 are amend-forbidden, so we
+--      DROP+CREATE here (this block loads after them; the later definition wins).
+--      Predicates are VERBATIM from 007/008, auth.uid() wrapped only — no logic change.
+--      The other 221 flagged policies are wrapped in situ in their own files.
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+-- 007: org-isolation (FOR ALL)
+DROP POLICY IF EXISTS "org_lease_co_tenants" ON lease_co_tenants;
+CREATE POLICY "org_lease_co_tenants" ON lease_co_tenants
+  FOR ALL USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL));
+
+DROP POLICY IF EXISTS "org_unit_clause_defaults" ON unit_clause_defaults;
+CREATE POLICY "org_unit_clause_defaults" ON unit_clause_defaults
+  FOR ALL USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL));
+
+DROP POLICY IF EXISTS "org_property_rules" ON property_rules;
+CREATE POLICY "org_property_rules" ON property_rules
+  FOR ALL USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL));
+
+DROP POLICY IF EXISTS "comm_log_org_select" ON communication_log;
+CREATE POLICY "comm_log_org_select" ON communication_log
+  FOR SELECT USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL));
+
+DROP POLICY IF EXISTS "comm_prefs_org" ON communication_preferences;
+CREATE POLICY "comm_prefs_org" ON communication_preferences
+  FOR ALL USING (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL));
+
+-- 007: landlord-portal (FOR SELECT)
+DROP POLICY IF EXISTS "landlord_portal_self" ON landlords;
+CREATE POLICY "landlord_portal_self" ON landlords
+  FOR SELECT USING (auth_user_id = (SELECT auth.uid()));
+
+DROP POLICY IF EXISTS "landlord_portal_properties" ON properties;
+CREATE POLICY "landlord_portal_properties" ON properties
+  FOR SELECT USING (landlord_id IN (SELECT id FROM landlords WHERE auth_user_id = (SELECT auth.uid())));
+
+DROP POLICY IF EXISTS "landlord_portal_units" ON units;
+CREATE POLICY "landlord_portal_units" ON units
+  FOR SELECT USING (
+    property_id IN (SELECT id FROM properties WHERE landlord_id IN (
+      SELECT id FROM landlords WHERE auth_user_id = (SELECT auth.uid())
+    ))
+  );
+
+DROP POLICY IF EXISTS "landlord_portal_maintenance" ON maintenance_requests;
+CREATE POLICY "landlord_portal_maintenance" ON maintenance_requests
+  FOR SELECT USING (
+    property_id IN (SELECT id FROM properties WHERE landlord_id IN (
+      SELECT id FROM landlords WHERE auth_user_id = (SELECT auth.uid())
+    ))
+  );
+
+DROP POLICY IF EXISTS "landlord_portal_statements" ON owner_statements;
+CREATE POLICY "landlord_portal_statements" ON owner_statements
+  FOR SELECT USING (landlord_id IN (SELECT id FROM landlords WHERE auth_user_id = (SELECT auth.uid())));
+
+DROP POLICY IF EXISTS "landlord_portal_leases" ON leases;
+CREATE POLICY "landlord_portal_leases" ON leases
+  FOR SELECT USING (
+    property_id IN (SELECT id FROM properties WHERE landlord_id IN (
+      SELECT id FROM landlords WHERE auth_user_id = (SELECT auth.uid())
+    ))
+  );
+
+-- 008: org-isolation. The two shapes DIFFER (verified on disk):
+--   maintenance_cost_allocations uses `org_id IN (...)`; deposit_interest_config uses `org_id = (... LIMIT 1)`.
+DROP POLICY IF EXISTS "org_isolation" ON maintenance_cost_allocations;
+CREATE POLICY "org_isolation" ON maintenance_cost_allocations
+  USING (org_id IN (
+    SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
+  ));
+
+DROP POLICY IF EXISTS "org_isolation" ON deposit_interest_config;
+CREATE POLICY "org_isolation" ON deposit_interest_config
+  USING (org_id = (
+    SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL LIMIT 1
+  ));

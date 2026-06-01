@@ -99,10 +99,10 @@ DROP POLICY IF EXISTS "org unit furnishings access" ON unit_furnishings;
 CREATE POLICY "org unit furnishings access" ON unit_furnishings
   FOR ALL TO authenticated
   USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   )
   WITH CHECK (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 -- Backfill unit_type for legacy units
@@ -132,10 +132,10 @@ DROP POLICY IF EXISTS "org unit inspection profiles access" ON unit_inspection_p
 CREATE POLICY "org unit inspection profiles access" ON unit_inspection_profiles
   FOR ALL TO authenticated
   USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   )
   WITH CHECK (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 CREATE TABLE IF NOT EXISTS unit_inspection_profile_rooms (
@@ -158,10 +158,10 @@ DROP POLICY IF EXISTS "org unit inspection profile rooms access" ON unit_inspect
 CREATE POLICY "org unit inspection profile rooms access" ON unit_inspection_profile_rooms
   FOR ALL TO authenticated
   USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   )
   WITH CHECK (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 
@@ -237,7 +237,7 @@ DROP POLICY IF EXISTS "org_property_brokers" ON property_brokers;
 CREATE POLICY "org_property_brokers" ON property_brokers
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs
-               WHERE user_id = auth.uid() AND deleted_at IS NULL)
+               WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 CREATE INDEX IF NOT EXISTS idx_property_brokers_broker ON property_brokers(broker_contact_id);
@@ -274,7 +274,7 @@ DROP POLICY IF EXISTS "org_managing_schemes" ON managing_schemes;
 CREATE POLICY "org_managing_schemes" ON managing_schemes
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs
-               WHERE user_id = auth.uid() AND deleted_at IS NULL)
+               WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 CREATE INDEX IF NOT EXISTS idx_managing_schemes_org     ON managing_schemes(org_id);
@@ -337,7 +337,7 @@ DROP POLICY IF EXISTS "org_incident_notifications" ON incident_notifications;
 CREATE POLICY "org_incident_notifications" ON incident_notifications
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs
-               WHERE user_id = auth.uid() AND deleted_at IS NULL)
+               WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 CREATE INDEX IF NOT EXISTS idx_incident_notif_request ON incident_notifications(maintenance_request_id);
@@ -533,7 +533,7 @@ ALTER TABLE insurance_checklist_items ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "auth_read_checklist_items" ON insurance_checklist_items;
 CREATE POLICY "auth_read_checklist_items" ON insurance_checklist_items
-  FOR SELECT USING (auth.uid() IS NOT NULL);
+  FOR SELECT USING ((SELECT auth.uid()) IS NOT NULL);
 
 CREATE INDEX IF NOT EXISTS idx_checklist_items_active_sort
   ON insurance_checklist_items(is_active, sort_order);
@@ -577,7 +577,7 @@ DROP POLICY IF EXISTS "org_property_insurance_checklists" ON property_insurance_
 CREATE POLICY "org_property_insurance_checklists" ON property_insurance_checklists
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs
-               WHERE user_id = auth.uid() AND deleted_at IS NULL)
+               WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 CREATE INDEX IF NOT EXISTS idx_checklist_property
@@ -624,7 +624,7 @@ CREATE POLICY "org_checklist_events" ON property_insurance_checklist_events
     checklist_id IN (
       SELECT id FROM property_insurance_checklists
       WHERE org_id IN (SELECT org_id FROM user_orgs
-                       WHERE user_id = auth.uid() AND deleted_at IS NULL)
+                       WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
     )
   );
 
@@ -647,5 +647,5 @@ DROP POLICY IF EXISTS "org_renewal_reminders" ON property_insurance_renewal_remi
 CREATE POLICY "org_renewal_reminders" ON property_insurance_renewal_reminders
   FOR ALL USING (
     org_id IN (SELECT org_id FROM user_orgs
-               WHERE user_id = auth.uid() AND deleted_at IS NULL)
+               WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );

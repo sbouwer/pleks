@@ -397,7 +397,7 @@ CREATE POLICY "org_properties" ON properties
   FOR ALL USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -408,7 +408,7 @@ CREATE POLICY "org_buildings" ON buildings
   FOR ALL USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -419,7 +419,7 @@ CREATE POLICY "org_units" ON units
   FOR ALL USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -430,7 +430,7 @@ CREATE POLICY "org_unit_status_history_select" ON unit_status_history
   FOR SELECT USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 DROP POLICY IF EXISTS "org_unit_status_history_insert" ON unit_status_history;
@@ -438,7 +438,7 @@ CREATE POLICY "org_unit_status_history_insert" ON unit_status_history
   FOR INSERT WITH CHECK (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -449,7 +449,7 @@ CREATE POLICY "org_property_documents" ON property_documents
   FOR ALL USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -460,7 +460,7 @@ CREATE POLICY "org_property_photos" ON property_photos
   FOR ALL USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -471,13 +471,13 @@ CREATE POLICY "org_inspections" ON inspections
   FOR ALL USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 DROP POLICY IF EXISTS "tenant_own_inspection" ON inspections;
 CREATE POLICY "tenant_own_inspection" ON inspections
   FOR SELECT USING (
-    tenant_id IN (SELECT tenant_id FROM user_orgs_tenants WHERE user_id = auth.uid())
+    tenant_id IN (SELECT tenant_id FROM user_orgs_tenants WHERE user_id = (SELECT auth.uid()))
     AND status IN ('awaiting_tenant_review', 'disputed', 'dispute_resolved', 'finalised')
   );
 
@@ -488,7 +488,7 @@ CREATE POLICY "org_inspection_rooms" ON inspection_rooms
   FOR ALL USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -499,7 +499,7 @@ CREATE POLICY "org_inspection_items" ON inspection_items
   FOR ALL USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -510,7 +510,7 @@ CREATE POLICY "org_inspection_photos_insert" ON inspection_photos
   FOR INSERT WITH CHECK (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 DROP POLICY IF EXISTS "org_inspection_photos_select" ON inspection_photos;
@@ -518,7 +518,7 @@ CREATE POLICY "org_inspection_photos_select" ON inspection_photos
   FOR SELECT USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 

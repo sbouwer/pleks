@@ -851,7 +851,7 @@ ALTER TABLE lease_templates ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_lease_templates" ON lease_templates;
 CREATE POLICY "org_lease_templates" ON lease_templates
   FOR ALL USING (
-    org_id IS NULL OR org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IS NULL OR org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 -- Leases
@@ -859,12 +859,12 @@ ALTER TABLE leases ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_leases" ON leases;
 CREATE POLICY "org_leases" ON leases
   FOR ALL USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 DROP POLICY IF EXISTS "tenant_own_lease" ON leases;
 CREATE POLICY "tenant_own_lease" ON leases
   FOR SELECT USING (
-    tenant_id IN (SELECT tenant_id FROM user_orgs_tenants WHERE user_id = auth.uid())
+    tenant_id IN (SELECT tenant_id FROM user_orgs_tenants WHERE user_id = (SELECT auth.uid()))
     AND status IN ('active', 'notice', 'month_to_month')
   );
 
@@ -873,7 +873,7 @@ ALTER TABLE lease_amendments ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_lease_amendments" ON lease_amendments;
 CREATE POLICY "org_lease_amendments" ON lease_amendments
   FOR ALL USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 -- Lease lifecycle events
@@ -881,12 +881,12 @@ ALTER TABLE lease_lifecycle_events ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_lifecycle_events_select" ON lease_lifecycle_events;
 CREATE POLICY "org_lifecycle_events_select" ON lease_lifecycle_events
   FOR SELECT USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 DROP POLICY IF EXISTS "org_lifecycle_events_insert" ON lease_lifecycle_events;
 CREATE POLICY "org_lifecycle_events_insert" ON lease_lifecycle_events
   FOR INSERT WITH CHECK (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 -- Lease renewal offers
@@ -894,7 +894,7 @@ ALTER TABLE lease_renewal_offers ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_renewal_offers" ON lease_renewal_offers;
 CREATE POLICY "org_renewal_offers" ON lease_renewal_offers
   FOR ALL USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 -- Org lease clause defaults
@@ -904,7 +904,7 @@ CREATE POLICY "org_clause_defaults" ON org_lease_clause_defaults
   FOR ALL USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -915,7 +915,7 @@ CREATE POLICY "org_lease_selections" ON lease_clause_selections
   FOR ALL USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -926,7 +926,7 @@ CREATE POLICY "org_lease_charges" ON lease_charges
   FOR ALL USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -935,12 +935,12 @@ ALTER TABLE trust_transactions ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_trust_tx_select" ON trust_transactions;
 CREATE POLICY "org_trust_tx_select" ON trust_transactions
   FOR SELECT USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 DROP POLICY IF EXISTS "org_trust_tx_insert" ON trust_transactions;
 CREATE POLICY "org_trust_tx_insert" ON trust_transactions
   FOR INSERT WITH CHECK (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 -- Rent invoices
@@ -948,12 +948,12 @@ ALTER TABLE rent_invoices ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_rent_invoices" ON rent_invoices;
 CREATE POLICY "org_rent_invoices" ON rent_invoices
   FOR ALL USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 DROP POLICY IF EXISTS "tenant_own_invoices" ON rent_invoices;
 CREATE POLICY "tenant_own_invoices" ON rent_invoices
   FOR SELECT USING (
-    tenant_id IN (SELECT tenant_id FROM user_orgs_tenants WHERE user_id = auth.uid())
+    tenant_id IN (SELECT tenant_id FROM user_orgs_tenants WHERE user_id = (SELECT auth.uid()))
   );
 
 -- Payments
@@ -961,12 +961,12 @@ ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_payments" ON payments;
 CREATE POLICY "org_payments" ON payments
   FOR ALL USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 DROP POLICY IF EXISTS "tenant_own_payments" ON payments;
 CREATE POLICY "tenant_own_payments" ON payments
   FOR SELECT USING (
-    tenant_id IN (SELECT tenant_id FROM user_orgs_tenants WHERE user_id = auth.uid())
+    tenant_id IN (SELECT tenant_id FROM user_orgs_tenants WHERE user_id = (SELECT auth.uid()))
   );
 
 -- Management fee invoices
@@ -974,7 +974,7 @@ ALTER TABLE management_fee_invoices ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_mgmt_fee_invoices" ON management_fee_invoices;
 CREATE POLICY "org_mgmt_fee_invoices" ON management_fee_invoices
   FOR ALL USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 -- Property annual summaries
@@ -982,7 +982,7 @@ ALTER TABLE property_annual_summaries ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_annual_summaries" ON property_annual_summaries;
 CREATE POLICY "org_annual_summaries" ON property_annual_summaries
   FOR ALL USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 -- Owner statements
@@ -990,7 +990,7 @@ ALTER TABLE owner_statements ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_owner_statements" ON owner_statements;
 CREATE POLICY "org_owner_statements" ON owner_statements
   FOR ALL USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 -- Deposit timers
@@ -998,7 +998,7 @@ ALTER TABLE deposit_timers ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_deposit_timers" ON deposit_timers;
 CREATE POLICY "org_deposit_timers" ON deposit_timers
   FOR ALL USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 -- Deposit deduction items
@@ -1006,7 +1006,7 @@ ALTER TABLE deposit_deduction_items ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_deduction_items" ON deposit_deduction_items;
 CREATE POLICY "org_deduction_items" ON deposit_deduction_items
   FOR ALL USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 -- Deposit transactions
@@ -1014,12 +1014,12 @@ ALTER TABLE deposit_transactions ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_deposit_txns_select" ON deposit_transactions;
 CREATE POLICY "org_deposit_txns_select" ON deposit_transactions
   FOR SELECT USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 DROP POLICY IF EXISTS "org_deposit_txns_insert" ON deposit_transactions;
 CREATE POLICY "org_deposit_txns_insert" ON deposit_transactions
   FOR INSERT WITH CHECK (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 -- Deposit reconciliations
@@ -1027,7 +1027,7 @@ ALTER TABLE deposit_reconciliations ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_deposit_recons" ON deposit_reconciliations;
 CREATE POLICY "org_deposit_recons" ON deposit_reconciliations
   FOR ALL USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 -- Arrears cases
@@ -1035,7 +1035,7 @@ ALTER TABLE arrears_cases ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_arrears" ON arrears_cases;
 CREATE POLICY "org_arrears" ON arrears_cases
   FOR ALL USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 -- Arrears sequences
@@ -1043,7 +1043,7 @@ ALTER TABLE arrears_sequences ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_arrears_sequences" ON arrears_sequences;
 CREATE POLICY "org_arrears_sequences" ON arrears_sequences
   FOR ALL USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 -- Arrears sequence steps
@@ -1051,7 +1051,7 @@ ALTER TABLE arrears_sequence_steps ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_arrears_steps" ON arrears_sequence_steps;
 CREATE POLICY "org_arrears_steps" ON arrears_sequence_steps
   FOR ALL USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 -- Arrears actions
@@ -1059,12 +1059,12 @@ ALTER TABLE arrears_actions ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_arrears_actions_read" ON arrears_actions;
 CREATE POLICY "org_arrears_actions_read" ON arrears_actions
   FOR SELECT USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 DROP POLICY IF EXISTS "org_arrears_actions_insert" ON arrears_actions;
 CREATE POLICY "org_arrears_actions_insert" ON arrears_actions
   FOR INSERT WITH CHECK (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 -- Arrears interest charges
@@ -1072,17 +1072,17 @@ ALTER TABLE arrears_interest_charges ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_interest_charges_select" ON arrears_interest_charges;
 CREATE POLICY "org_interest_charges_select" ON arrears_interest_charges
   FOR SELECT USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 DROP POLICY IF EXISTS "org_interest_charges_insert" ON arrears_interest_charges;
 CREATE POLICY "org_interest_charges_insert" ON arrears_interest_charges
   FOR INSERT WITH CHECK (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 DROP POLICY IF EXISTS "org_interest_charges_waive" ON arrears_interest_charges;
 CREATE POLICY "org_interest_charges_waive" ON arrears_interest_charges
   FOR UPDATE USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 -- Bank statement imports
@@ -1090,7 +1090,7 @@ ALTER TABLE bank_statement_imports ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_bank_imports" ON bank_statement_imports;
 CREATE POLICY "org_bank_imports" ON bank_statement_imports
   FOR ALL USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 -- Bank statement lines
@@ -1098,7 +1098,7 @@ ALTER TABLE bank_statement_lines ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_stmt_lines" ON bank_statement_lines;
 CREATE POLICY "org_stmt_lines" ON bank_statement_lines
   FOR ALL USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 -- Tenant bank accounts
@@ -1106,7 +1106,7 @@ ALTER TABLE tenant_bank_accounts ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_tenant_bank" ON tenant_bank_accounts;
 CREATE POLICY "org_tenant_bank" ON tenant_bank_accounts
   FOR ALL USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 
@@ -1336,10 +1336,10 @@ DROP POLICY IF EXISTS "org_deposit_charges" ON deposit_charges;
 CREATE POLICY "org_deposit_charges" ON deposit_charges
   FOR ALL
   USING (org_id IN (
-    SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL
+    SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
   ))
   WITH CHECK (org_id IN (
-    SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL
+    SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
   ));
 
 DROP TRIGGER IF EXISTS update_deposit_charges_updated_at ON deposit_charges;
@@ -1440,24 +1440,24 @@ ALTER TABLE trust_reconciliation_periods ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_trust_periods_select" ON trust_reconciliation_periods;
 CREATE POLICY "org_trust_periods_select" ON trust_reconciliation_periods
   FOR SELECT USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 DROP POLICY IF EXISTS "org_trust_periods_insert" ON trust_reconciliation_periods;
 CREATE POLICY "org_trust_periods_insert" ON trust_reconciliation_periods
   FOR INSERT WITH CHECK (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 -- Updates allowed ONLY while status != 'signed_off' (signed-off is immutable)
 DROP POLICY IF EXISTS "org_trust_periods_update_open" ON trust_reconciliation_periods;
 CREATE POLICY "org_trust_periods_update_open" ON trust_reconciliation_periods
   FOR UPDATE USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
     AND status != 'signed_off'
   )
   WITH CHECK (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
     AND status != 'signed_off'
   );
 
@@ -1502,13 +1502,13 @@ ALTER TABLE trust_audit_exports ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_trust_exports_select" ON trust_audit_exports;
 CREATE POLICY "org_trust_exports_select" ON trust_audit_exports
   FOR SELECT USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 DROP POLICY IF EXISTS "org_trust_exports_insert" ON trust_audit_exports;
 CREATE POLICY "org_trust_exports_insert" ON trust_audit_exports
   FOR INSERT WITH CHECK (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 -- No UPDATE, no DELETE
@@ -1576,23 +1576,23 @@ ALTER TABLE bank_recon_sessions ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "org_brs_select" ON bank_recon_sessions;
 CREATE POLICY "org_brs_select" ON bank_recon_sessions
   FOR SELECT USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 DROP POLICY IF EXISTS "org_brs_insert" ON bank_recon_sessions;
 CREATE POLICY "org_brs_insert" ON bank_recon_sessions
   FOR INSERT WITH CHECK (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
 
 DROP POLICY IF EXISTS "org_brs_update_open" ON bank_recon_sessions;
 CREATE POLICY "org_brs_update_open" ON bank_recon_sessions
   FOR UPDATE USING (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
     AND status != 'signed_off'
   )
   WITH CHECK (
-    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = auth.uid() AND deleted_at IS NULL)
+    org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
     AND status != 'signed_off'
   );
 
@@ -1693,7 +1693,7 @@ CREATE POLICY "trust_exports_storage_select"
     bucket_id = 'trust-audit-exports'
     AND (storage.foldername(name))[1] IN (
       SELECT org_id::text FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 

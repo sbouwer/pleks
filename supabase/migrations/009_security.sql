@@ -64,7 +64,7 @@ CREATE POLICY "ai_credit_purchases_org_read" ON ai_credit_purchases
   USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
@@ -79,7 +79,7 @@ CREATE POLICY "deposit_audit_org_read" ON deposit_interest_config_audit
   USING (
     org_id IN (
       SELECT org_id FROM user_orgs
-      WHERE user_id = auth.uid() AND deleted_at IS NULL
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
     )
   );
 
