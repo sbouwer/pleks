@@ -2025,7 +2025,11 @@ CREATE POLICY "screening_artifacts_no_delete" ON screening_artifacts
   FOR DELETE USING (false);
 
 -- ── v_application_screening_lines: orchestration view ────────────────────────
-CREATE OR REPLACE VIEW v_application_screening_lines AS
+-- ADDENDUM_00M Phase 1: security_invoker so the caller's RLS applies (the view no longer runs as
+-- its postgres owner and bypasses org-RLS). All readers are service-role → functional no-op, but it
+-- closes the direct-REST cross-org read path for any authenticated/anon JWT. Closes 1 of 3 ERRORs.
+CREATE OR REPLACE VIEW v_application_screening_lines
+  WITH (security_invoker = true) AS
 SELECT
   app.id AS application_id,
   app.org_id,
