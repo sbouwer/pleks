@@ -11,6 +11,7 @@
  */
 import { useWizard } from "../WizardContext"
 import { OptionRow } from "../OptionRow"
+import { WField, WInput } from "./fields"
 
 // ── Preset options ────────────────────────────────────────────────────────────
 
@@ -88,38 +89,34 @@ export function StepOperatingHours() {
       />
 
       {showNoticeFields && (
-        <div className="space-y-4 rounded-lg border bg-muted/20 p-4">
-          <div className="space-y-1.5">
-            <label htmlFor="notice-hours" className="text-sm font-medium block">
-              Notice period (hours before access)
-            </label>
-            <input
-              id="notice-hours"
-              type="number"
-              min={1}
-              max={168}
-              placeholder="24"
-              value={state.afterHoursNoticeHours ?? ""}
-              onChange={(e) => {
-                const n = parseInt(e.target.value, 10)
-                patch({ afterHoursNoticeHours: Number.isNaN(n) ? null : n })
-              }}
-              className="w-32 rounded-md border border-input bg-background px-3 py-2 text-sm"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <label htmlFor="after-hours-notes" className="text-sm font-medium block">
-              Notes <span className="text-muted-foreground font-normal">(optional)</span>
-            </label>
+        <div className="space-y-4 rounded-[var(--r-button)] border border-border bg-muted/20 p-4">
+          <WField label="Notice period (hours before access)" htmlFor="notice-hours">
+            <div className="w-32">
+              <WInput
+                id="notice-hours"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={168}
+                placeholder="24"
+                value={state.afterHoursNoticeHours === null ? "" : String(state.afterHoursNoticeHours)}
+                onChange={(v) => {
+                  const n = Number.parseInt(v, 10)
+                  patch({ afterHoursNoticeHours: Number.isNaN(n) ? null : n })
+                }}
+              />
+            </div>
+          </WField>
+          <WField label="Notes (optional)" htmlFor="after-hours-notes">
             <textarea
               id="after-hours-notes"
               rows={2}
               placeholder="e.g. Contact building manager at least 24 hours in advance"
               value={state.afterHoursNotes ?? ""}
               onChange={(e) => patch({ afterHoursNotes: e.target.value || null })}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none"
+              className="w-full resize-none rounded-[var(--r-button)] border border-border bg-card px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-primary"
             />
-          </div>
+          </WField>
         </div>
       )}
     </div>

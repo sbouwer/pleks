@@ -59,8 +59,8 @@ function NumInput({ value, onChange, min = 0, label, compact }: Readonly<NumInpu
       }}
       className={
         compact
-          ? "w-14 rounded border border-input bg-background px-1.5 py-1 text-center text-xs"
-          : "w-16 rounded border border-input bg-background px-2 py-1 text-center text-sm"
+          ? "w-14 rounded-[5px] border border-border bg-card px-1.5 py-1 text-center text-xs text-foreground outline-none transition-colors focus:border-primary"
+          : "w-16 rounded-[5px] border border-border bg-card px-2 py-1 text-center text-sm text-foreground outline-none transition-colors focus:border-primary"
       }
     />
   )
@@ -81,7 +81,7 @@ function UnitRow({ unit, index, segment, canRemove, onPatch, onRemove }: Readonl
   const seg = segment === "mixed" ? unitSegment(unit) : segment
 
   return (
-    <div className="grid items-center gap-2 rounded-lg border border-border bg-card px-3 py-2"
+    <div className="grid items-center gap-2 rounded-[var(--r-button)] border border-border bg-card px-3 py-2"
       style={{ gridTemplateColumns: "1fr auto" }}>
 
       {/* Name + fields */}
@@ -95,7 +95,7 @@ function UnitRow({ unit, index, segment, canRemove, onPatch, onRemove }: Readonl
           value={unit.unit_number}
           onChange={(e) => onPatch({ unit_number: e.target.value })}
           aria-label="Unit name"
-          className="w-28 rounded border border-input bg-background px-2 py-1 text-sm font-medium"
+          className="w-28 rounded-[5px] border border-border bg-card px-2 py-1 text-sm font-medium text-foreground outline-none transition-colors focus:border-primary"
           placeholder="Unit name"
         />
 
@@ -259,7 +259,7 @@ export function StepUnits() {
     <div className="space-y-4">
       {/* Fill all helper — C2/C3/R4 identical-layout scenarios */}
       {showFillAll && (
-        <div className="flex items-center gap-3 rounded-lg border border-dashed border-border px-3 py-2">
+        <div className="flex items-center gap-3 rounded-[var(--r-button)] border border-dashed border-border px-3 py-2">
           <p className="flex-1 text-xs text-muted-foreground">
             All units have the same layout? Fill remaining units from the first row.
           </p>

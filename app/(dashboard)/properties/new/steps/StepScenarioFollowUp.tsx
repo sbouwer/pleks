@@ -19,6 +19,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useWizard } from "../WizardContext"
 import { OptionRow } from "../OptionRow"
+import { WInput } from "./fields"
 
 // ── Group labels ──────────────────────────────────────────────────────────────
 
@@ -83,30 +84,32 @@ function SelectQuestion({ question, value, onChange }: QuestionProps) {
 
 function NumberQuestion({ question, value, onChange }: QuestionProps) {
   return (
-    <input
-      type="number"
-      min={question.min ?? 0}
-      max={question.max}
-      placeholder={question.placeholder}
-      value={typeof value === "number" ? value : ""}
-      onChange={(e) => {
-        const n = Number.parseFloat(e.target.value)
-        onChange(Number.isNaN(n) ? null : n)
-      }}
-      className="w-24 rounded-md border border-input bg-background px-2.5 py-1.5 text-sm shrink-0"
-    />
+    <div className="w-24 shrink-0">
+      <WInput
+        type="number"
+        inputMode="numeric"
+        min={question.min ?? 0}
+        max={question.max}
+        placeholder={question.placeholder}
+        value={typeof value === "number" ? String(value) : ""}
+        onChange={(v) => {
+          const n = Number.parseFloat(v)
+          onChange(Number.isNaN(n) ? null : n)
+        }}
+      />
+    </div>
   )
 }
 
 function TextQuestion({ question, value, onChange }: QuestionProps) {
   return (
-    <input
-      type="text"
-      placeholder={question.placeholder}
-      value={typeof value === "string" ? value : ""}
-      onChange={(e) => onChange(e.target.value)}
-      className="w-48 rounded-md border border-input bg-background px-2.5 py-1.5 text-sm shrink-0"
-    />
+    <div className="w-48 shrink-0">
+      <WInput
+        placeholder={question.placeholder}
+        value={typeof value === "string" ? value : ""}
+        onChange={(v) => onChange(v)}
+      />
+    </div>
   )
 }
 
@@ -115,17 +118,15 @@ function ToggleQuestion({ question, value, onChange }: QuestionProps) {
   const isNo  = value === false
 
   return (
-    <div className="inline-flex rounded-md border overflow-hidden shrink-0" role="radiogroup" aria-label={question.label}>
+    <div className="inline-flex shrink-0 gap-1 rounded-[var(--r-button)] border border-border bg-muted/40 p-1" role="radiogroup" aria-label={question.label}>
       <button
         type="button"
         role="radio"
         aria-checked={isYes}
         onClick={() => onChange(true)}
         className={cn(
-          "px-3 py-1 text-xs font-medium transition-colors min-w-12",
-          isYes
-            ? "bg-primary text-primary-foreground"
-            : "text-muted-foreground hover:bg-muted",
+          "min-w-12 rounded-[5px] px-3 py-1 text-xs font-medium transition-colors",
+          isYes ? "bg-card text-foreground shadow-sm ring-1 ring-border" : "text-muted-foreground hover:text-foreground",
         )}
       >
         Yes
@@ -136,10 +137,8 @@ function ToggleQuestion({ question, value, onChange }: QuestionProps) {
         aria-checked={isNo}
         onClick={() => onChange(false)}
         className={cn(
-          "px-3 py-1 text-xs font-medium transition-colors border-l min-w-12",
-          isNo
-            ? "bg-primary text-primary-foreground"
-            : "text-muted-foreground hover:bg-muted",
+          "min-w-12 rounded-[5px] px-3 py-1 text-xs font-medium transition-colors",
+          isNo ? "bg-card text-foreground shadow-sm ring-1 ring-border" : "text-muted-foreground hover:text-foreground",
         )}
       >
         No

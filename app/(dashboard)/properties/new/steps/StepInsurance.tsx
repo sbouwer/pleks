@@ -13,6 +13,7 @@ import { useEffect } from "react"
 import { Info } from "lucide-react"
 import { useWizard, ownerContactable, type InsuranceStub } from "../WizardContext"
 import { OptionRow } from "../OptionRow"
+import { WField, WInput } from "./fields"
 
 // ── Option cards ──────────────────────────────────────────────────────────────
 
@@ -35,17 +36,9 @@ interface FieldProps {
 
 function Field({ id, label, type = "text", placeholder, value, onChange }: FieldProps) {
   return (
-    <div className="space-y-1">
-      <label htmlFor={id} className="text-xs font-medium block">{label}</label>
-      <input
-        id={id}
-        type={type}
-        placeholder={placeholder}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-      />
-    </div>
+    <WField label={label} htmlFor={id}>
+      <WInput id={id} type={type} placeholder={placeholder} value={value} onChange={onChange} />
+    </WField>
   )
 }
 
@@ -53,7 +46,7 @@ function Field({ id, label, type = "text", placeholder, value, onChange }: Field
 
 function WhyInsurance() {
   return (
-    <div className="rounded-lg border bg-muted/30 px-4 py-3 space-y-2">
+    <div className="space-y-2 rounded-[var(--r-button)] border border-border bg-muted/30 px-4 py-3">
       <div className="flex items-center gap-2 text-sm font-medium">
         <Info className="w-4 h-4 text-primary shrink-0" />
         Why add this?
@@ -132,7 +125,7 @@ export function StepInsurance() {
       </div>
 
       {option === "now" && (
-        <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+        <div className="space-y-3 rounded-[var(--r-button)] border border-border bg-muted/20 p-4">
           <Field
             id="ins-insurer"
             label="Insurer"
@@ -154,35 +147,32 @@ export function StepInsurance() {
             value={stub?.renewal_date ?? ""}
             onChange={(v) => updateField("renewal_date", v)}
           />
-          <div className="space-y-1">
-            <label htmlFor="ins-value" className="text-xs font-medium block">
-              Replacement value
-            </label>
-            <div className="flex items-center gap-1.5">
+          <WField label="Replacement value" htmlFor="ins-value">
+            <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">R</span>
-              <input
-                id="ins-value"
-                type="text"
-                inputMode="numeric"
-                placeholder="2 500 000"
-                // B7: group with spaces (en-ZA) so a missing zero is easy to spot; parse digits→cents.
-                value={stub?.replacement_value_cents != null
-                  ? Math.round(stub.replacement_value_cents / 100).toLocaleString("en-ZA")
-                  : ""}
-                onChange={(e) => {
-                  const digits = e.target.value.replaceAll(/\D/g, "")
-                  patch({
-                    insurance: {
-                      ...stub,
-                      option: "now",
-                      replacement_value_cents: digits ? Number(digits) * 100 : undefined,
-                    },
-                  })
-                }}
-                className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
-              />
+              <div className="flex-1">
+                <WInput
+                  id="ins-value"
+                  inputMode="numeric"
+                  placeholder="2 500 000"
+                  // B7: group with spaces (en-ZA) so a missing zero is easy to spot; parse digits→cents.
+                  value={stub?.replacement_value_cents != null
+                    ? Math.round(stub.replacement_value_cents / 100).toLocaleString("en-ZA")
+                    : ""}
+                  onChange={(v) => {
+                    const digits = v.replaceAll(/\D/g, "")
+                    patch({
+                      insurance: {
+                        ...stub,
+                        option: "now",
+                        replacement_value_cents: digits ? Number(digits) * 100 : undefined,
+                      },
+                    })
+                  }}
+                />
+              </div>
             </div>
-          </div>
+          </WField>
           <p className="text-xs text-muted-foreground pt-1">
             Broker details are captured on the Insurance tab after creation — that&apos;s where
             the full coverage profile (sums insured per building, warranty tracking, broker
@@ -192,7 +182,7 @@ export function StepInsurance() {
       )}
 
       {option === "ask_owner" && (
-        <div className="rounded-lg border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+        <div className="rounded-[var(--r-button)] border border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
           The owner will receive an email within 5 minutes of saving the property. Their response
           is tracked from the property Overview tab — you can send a reminder or add details
           manually at any time.
@@ -200,7 +190,7 @@ export function StepInsurance() {
       )}
 
       {option === "later" && (
-        <div className="rounded-lg border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+        <div className="rounded-[var(--r-button)] border border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
           The setup widget will flag insurance as outstanding. You can fill it in from the
           Insurance tab whenever you&apos;re ready.
         </div>
