@@ -191,14 +191,14 @@ export function WizardModal({
                       </button>
                       {footerSlot}
                     </div>
-                    {/* mockup primary: dark fill + amber accent bar + light text */}
+                    {/* mockup primary: dark fill + amber bar + light text · hover: amber fill + dark bar */}
                     <button
                       type="button"
                       onClick={onPrimary}
                       disabled={primaryDisabled}
-                      className="inline-flex items-center gap-2.5 rounded-[var(--r-button)] bg-foreground py-2.5 pl-3 pr-4 text-sm font-semibold text-background transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="group inline-flex items-center gap-2.5 rounded-[var(--r-button)] bg-foreground py-2.5 pl-3 pr-4 text-sm font-semibold text-background transition-colors hover:bg-primary hover:text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-foreground disabled:hover:text-background"
                     >
-                      <span aria-hidden className="h-3.5 w-[3px] shrink-0 bg-primary" />
+                      <span aria-hidden className="h-3.5 w-[3px] shrink-0 bg-primary transition-colors group-hover:bg-primary-foreground" />
                       {primaryLabel}
                     </button>
                   </div>

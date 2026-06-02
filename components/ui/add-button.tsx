@@ -25,12 +25,14 @@ export function AddButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "inline-flex items-center gap-2.5 rounded-[var(--r-button)] bg-foreground font-semibold text-background transition hover:brightness-110",
+        "group inline-flex items-center gap-2.5 rounded-[var(--r-button)] font-semibold transition-colors",
+        // normal: dark fill + light text + amber bar · hover: amber fill + dark text + dark bar
+        "bg-foreground text-background hover:bg-primary hover:text-primary-foreground",
         variant === "hero" ? "px-5 py-3 text-sm" : "px-4 py-2.5 text-sm",
         className,
       )}
     >
-      <span aria-hidden className="h-3.5 w-[3px] shrink-0 bg-primary" />
+      <span aria-hidden className="h-3.5 w-[3px] shrink-0 bg-primary transition-colors group-hover:bg-primary-foreground" />
       {showPlus && <Plus className="h-4 w-4" strokeWidth={2.2} />}
       {label}
     </button>
