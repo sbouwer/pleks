@@ -13,6 +13,7 @@
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
 import { X, ChevronLeft } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { usePortalTheme } from "@/components/layout/PortalThemeProvider"
 
 interface ModalCardProps {
   open:          boolean
@@ -27,11 +28,13 @@ interface ModalCardProps {
 }
 
 export function ModalCard({ open, onOpenChange, eyebrow, title, onBack, className, children }: Readonly<ModalCardProps>) {
+  const { theme } = usePortalTheme()
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
-        {/* display:contents scopes CSS vars to the light theme (same pattern as ui/dialog) */}
-        <div className="pleks-portal" style={{ display: "contents" }}>
+        {/* display:contents keeps the element in the cascade for inherited CSS vars; data-theme
+            mirrors the dashboard theme so the slim door follows light/dark (same as ui/wizard-modal). */}
+        <div className="pleks-portal" style={{ display: "contents" }} data-theme={theme}>
           <DialogPrimitive.Backdrop className="fixed inset-0 z-50 bg-black/40 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0" />
           <DialogPrimitive.Popup
             className={cn(
@@ -40,7 +43,7 @@ export function ModalCard({ open, onOpenChange, eyebrow, title, onBack, classNam
               className,
             )}
           >
-            <div className="relative overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+            <div className="relative overflow-hidden border border-border bg-card shadow-2xl">
               {/* corner knob — the onboarding "door" cue */}
               <span aria-hidden className="pointer-events-none absolute right-5 top-5 h-1.5 w-1.5 rounded-full bg-primary" />
 

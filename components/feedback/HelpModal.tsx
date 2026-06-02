@@ -73,9 +73,9 @@ function Menu({ onPick }: Readonly<{ onPick: (s: Step) => void }>) {
           key={it.step}
           type="button"
           onClick={() => onPick(it.step)}
-          className="flex items-center gap-3.5 rounded-xl border border-border bg-card p-3.5 text-left transition-colors hover:border-primary/40 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+          className="flex items-center gap-3.5 rounded-[var(--r-button)] border border-border bg-card p-3.5 text-left transition-colors hover:border-primary/40 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
         >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">{it.icon}</span>
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--r-button)] bg-primary/10 text-primary">{it.icon}</span>
           <span className="min-w-0 flex-1">
             <span className="block text-sm font-semibold text-foreground">{it.title}</span>
             <span className="block text-[13px] leading-snug text-muted-foreground">{it.sub}</span>
@@ -148,7 +148,7 @@ function FeedbackStep({ role, onClose }: Readonly<{ role: FeedbackRole; onClose:
               key={c.value}
               type="button"
               onClick={() => setCategory(c.value)}
-              className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`rounded-[var(--r-button)] border px-3 py-1.5 text-xs font-medium transition-colors ${
                 category === c.value ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/40"
               }`}
             >
@@ -168,7 +168,7 @@ function FeedbackStep({ role, onClose }: Readonly<{ role: FeedbackRole; onClose:
           onChange={(e) => setBody(e.target.value.slice(0, 600))}
           rows={4}
           placeholder="e.g. It would help if I could schedule a payment in advance."
-          className="w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+          className="w-full resize-none rounded-[var(--r-button)] border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
         />
         <p className="mt-1 text-[11px] text-muted-foreground">A sentence or two is great.</p>
       </div>
@@ -181,7 +181,7 @@ function FeedbackStep({ role, onClose }: Readonly<{ role: FeedbackRole; onClose:
               key={m.rating}
               type="button"
               onClick={() => setRating(rating === m.rating ? null : m.rating)}
-              className={`rounded-lg border px-2 py-2.5 text-xs font-medium transition-colors ${
+              className={`rounded-[var(--r-button)] border px-2 py-2.5 text-xs font-medium transition-colors ${
                 rating === m.rating ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:border-primary/40"
               }`}
             >
@@ -196,8 +196,9 @@ function FeedbackStep({ role, onClose }: Readonly<{ role: FeedbackRole; onClose:
           type="button"
           onClick={submit}
           disabled={saving || body.trim().length < 10}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-opacity disabled:opacity-50"
+          className="group inline-flex items-center gap-2 rounded-[var(--r-button)] bg-foreground py-2 pl-2.5 pr-4 text-sm font-semibold text-background transition-colors hover:bg-primary hover:text-primary-foreground disabled:opacity-50"
         >
+          <span aria-hidden className="h-3.5 w-[3px] shrink-0 bg-primary transition-colors group-hover:bg-primary-foreground" />
           {saving ? "Sending…" : "Send feedback"} <ArrowRight className="h-4 w-4" />
         </button>
       </div>
@@ -259,7 +260,7 @@ function BugStep({ open, onClose }: Readonly<{ open: boolean; onClose: () => voi
           onChange={(e) => setMessage(e.target.value.slice(0, 500))}
           rows={3}
           placeholder="e.g. I tapped Pay and nothing happened."
-          className={`w-full resize-none rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 ${
+          className={`w-full resize-none rounded-[var(--r-button)] border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 ${
             tooShort && message.length > 0 ? "border-danger focus:ring-danger/30" : "border-input focus:ring-primary/30"
           }`}
         />
@@ -269,7 +270,7 @@ function BugStep({ open, onClose }: Readonly<{ open: boolean; onClose: () => voi
       </div>
 
       {/* Technical context — collapsed, transparent (POPIA) */}
-      <div className="rounded-lg border border-border bg-muted/30">
+      <div className="rounded-[var(--r-button)] border border-border bg-muted/30">
         <button
           type="button"
           onClick={() => setShowDetails((v) => !v)}
@@ -300,8 +301,9 @@ function BugStep({ open, onClose }: Readonly<{ open: boolean; onClose: () => voi
           type="button"
           onClick={submit}
           disabled={saving || tooShort}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-opacity disabled:opacity-50"
+          className="group inline-flex shrink-0 items-center gap-2 rounded-[var(--r-button)] bg-foreground py-2 pl-2.5 pr-4 text-sm font-semibold text-background transition-colors hover:bg-primary hover:text-primary-foreground disabled:opacity-50"
         >
+          <span aria-hidden className="h-3.5 w-[3px] shrink-0 bg-primary transition-colors group-hover:bg-primary-foreground" />
           {saving ? "Sending…" : "Send report"} <ArrowRight className="h-4 w-4" />
         </button>
       </div>
@@ -319,9 +321,9 @@ function SupportStep() {
         href="/help"
         target="_blank"
         rel="noopener noreferrer"
-        className="flex items-center gap-3 rounded-xl border border-border bg-card p-3.5 transition-colors hover:border-primary/40 hover:bg-muted/40"
+        className="flex items-center gap-3 rounded-[var(--r-button)] border border-border bg-card p-3.5 transition-colors hover:border-primary/40 hover:bg-muted/40"
       >
-        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary"><LifeBuoy className="h-4 w-4" /></span>
+        <span className="flex h-9 w-9 items-center justify-center rounded-[var(--r-button)] bg-primary/10 text-primary"><LifeBuoy className="h-4 w-4" /></span>
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold text-foreground">Browse the Help Centre</span>
           <span className="block text-[13px] text-muted-foreground">Opens in a new tab — your current work stays put</span>
@@ -330,9 +332,9 @@ function SupportStep() {
       </a>
       <a
         href="mailto:support@pleks.co.za"
-        className="flex items-center gap-3 rounded-xl border border-border bg-card p-3.5 transition-colors hover:border-primary/40 hover:bg-muted/40"
+        className="flex items-center gap-3 rounded-[var(--r-button)] border border-border bg-card p-3.5 transition-colors hover:border-primary/40 hover:bg-muted/40"
       >
-        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary"><Mail className="h-4 w-4" /></span>
+        <span className="flex h-9 w-9 items-center justify-center rounded-[var(--r-button)] bg-primary/10 text-primary"><Mail className="h-4 w-4" /></span>
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold text-foreground">Email the team</span>
           <span className="block text-[13px] text-muted-foreground">support@pleks.co.za</span>
@@ -354,8 +356,9 @@ function DoneState({ message, onClose }: Readonly<{ message: string; onClose: ()
       <button
         type="button"
         onClick={onClose}
-        className="mt-1 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+        className="group mt-1 inline-flex items-center gap-2 rounded-[var(--r-button)] bg-foreground py-2 pl-2.5 pr-4 text-sm font-semibold text-background transition-colors hover:bg-primary hover:text-primary-foreground"
       >
+        <span aria-hidden className="h-3.5 w-[3px] shrink-0 bg-primary transition-colors group-hover:bg-primary-foreground" />
         Done
       </button>
     </div>
