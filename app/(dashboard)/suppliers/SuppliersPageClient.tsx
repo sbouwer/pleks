@@ -89,6 +89,7 @@ export function SuppliersPageClient({ orgId }: Props) {
     <div>
       <ResourcePageHeader
         title="Suppliers"
+        headline={`Your ${tabInfo.plural}`}
         sub={`${contractors.length} ${contractors.length === 1 ? tabInfo.singular : tabInfo.plural}`}
         action={<AddContractorButton orgId={orgId} supplierType={activeTab} />}
       />

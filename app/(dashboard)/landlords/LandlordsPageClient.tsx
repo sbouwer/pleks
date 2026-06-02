@@ -77,6 +77,7 @@ export function LandlordsPageClient({ orgId }: Props) {
     <div>
       <ResourcePageHeader
         title="Landlords"
+        headline="Your landlords"
         sub={`${landlords.length} ${landlords.length === 1 ? "landlord" : "landlords"}`}
         action={<AddButton label="Add landlord" onClick={() => setAddOpen(true)} />}
       />

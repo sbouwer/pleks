@@ -104,6 +104,7 @@ export function LeasesPageClient({ orgId }: Props) {
     <div className="flex h-full flex-col gap-4">
       <ResourcePageHeader
         title="Leases"
+        headline="Your leases"
         sub={
           <>
             <span className="hidden lg:inline">Manage tenancy agreements and rental schedules.</span>

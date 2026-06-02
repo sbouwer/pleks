@@ -68,6 +68,7 @@ export function PropertyCards({ properties, tier, totalUnitCount }: Props) {
     <div>
       <ResourcePageHeader
         title="Properties"
+        headline="Your portfolio"
         sub={`${properties.length} ${properties.length === 1 ? "property" : "properties"} · ${totalUnits} active ${totalUnits === 1 ? "unit" : "units"} · ${occupancyPct}% occupied · ${rentRollLabel}/mo rent roll`}
         action={<AddPropertyButton />}
       />

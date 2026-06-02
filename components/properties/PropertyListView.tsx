@@ -60,6 +60,7 @@ export function PropertyListView({ properties, view, tier, totalUnitCount }: Rea
     <div>
       <ResourcePageHeader
         title="Properties"
+        headline="Your portfolio"
         sub={
           <>
             <span className="hidden lg:block">

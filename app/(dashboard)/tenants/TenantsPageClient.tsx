@@ -70,6 +70,7 @@ export function TenantsPageClient({ orgId }: Readonly<Props>) {
     <div>
       <ResourcePageHeader
         title="Tenants"
+        headline="Your tenants"
         sub={`${tenants.length} tenants`}
         action={<AddButton label="Add tenant" onClick={() => setAddOpen(true)} />}
       />

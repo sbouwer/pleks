@@ -14,8 +14,9 @@ export function ResourcePageHeader({
 }: Readonly<{
   eyebrow?:  string
   title:     ReactNode
-  /** bold lead line under the title (the "No properties yet" slot) — keep it present on every page */
-  headline?: ReactNode
+  /** bold lead line under the title (the "No properties yet" slot). REQUIRED — every page fills it,
+   *  so the empty-state and populated headers always carry a headline (the page template). */
+  headline:  ReactNode
   sub?:      ReactNode
   action?:   ReactNode
 }>) {
