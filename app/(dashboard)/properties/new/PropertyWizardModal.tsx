@@ -169,6 +169,7 @@ function PropertyWizardModalInner({ onClose }: Readonly<{ onClose: () => void }>
       const result = await createPropertyFromWizard(formData)
       if (result.ok && result.propertyId) {
         clearWizardDraft()   // B12: created → discard the saved draft so the next run starts fresh
+        router.refresh()     // bust the prefetched /properties (+ dashboard) router-cache so the new property shows
         router.push(`/properties/${result.propertyId}?tab=overview&first_visit=true`)
       } else {
         setSaveError(result.error ?? "Failed to save property")
