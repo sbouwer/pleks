@@ -1,15 +1,16 @@
 /**
- * app/api/offline/sync-manifest/route.ts — FILL: one-line purpose
+ * app/api/offline/sync-manifest/route.ts — offline sync manifest (hashed snapshots for field caching)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  GET /api/offline/sync-manifest
+ * Auth:   gateway (authenticated; org-scoped)
+ * Data:   contacts (top-level only) + properties + upcoming inspections + open maintenance
+ * Notes:  Contacts exclude company sub-people (organisation_contact_id IS NULL, ADDENDUM_25A §9) — the
+ *         manifest is for top-level contact lookup in the field, not org employees.
  */
 import { NextResponse } from "next/server"
 import { createHash } from "node:crypto"
 import { gateway } from "@/lib/supabase/gateway"
+import { SUB_PERSON_FK } from "@/lib/contacts/contactScope"
 
 function hashRow(obj: unknown): string {
   return createHash("sha256").update(JSON.stringify(obj)).digest("hex").slice(0, 16)
@@ -38,7 +39,8 @@ export async function GET() {
       .from("contacts")
       .select("id, first_name, last_name, company_name, primary_email, primary_phone, primary_role, updated_at")
       .eq("org_id", ctx.orgId)
-      .is("deleted_at", null),
+      .is("deleted_at", null)
+      .is(SUB_PERSON_FK, null), // top-level contacts only — exclude company sub-people (25A §9)
 
     ctx.db
       .from("properties")
