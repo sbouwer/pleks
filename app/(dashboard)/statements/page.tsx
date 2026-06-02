@@ -13,6 +13,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { FileText } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
+import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 
 const STATUS_MAP: Record<string, "draft" | "scheduled" | "active" | "completed"> = {
   draft: "draft",
@@ -38,10 +39,14 @@ export default async function StatementsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="font-heading text-3xl">Owner Statements</h1>
-        <button type="button" className="pa-secondary">Generate Statements</button>
-      </div>
+      <ResourcePageHeader
+        eyebrow="Finance"
+        title="Owner Statements"
+        headline="Monthly owner statements"
+        sub="Income, expenses, fees and net per property — generated on the 2nd each month."
+        action={<button type="button" className="pa-secondary">Generate Statements</button>}
+      />
+
 
       {list.length === 0 ? (
         <EmptyState icon={<FileText className="h-8 w-8 text-muted-foreground" />} title="No statements yet" description="Statements are generated automatically on the 2nd of each month." />

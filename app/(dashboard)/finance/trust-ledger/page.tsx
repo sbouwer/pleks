@@ -19,6 +19,7 @@ import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { FormSelect } from "@/components/ui/FormSelect"
 import { Download } from "lucide-react"
 import { SovereignBadge, type SovereignBadgeProps } from "@/components/trust/SovereignBadge"
+import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 
 const TYPE_FILTER_OPTIONS = [
   { value: "", label: "All types" },
@@ -146,28 +147,25 @@ export default function TrustLedgerPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 pb-12">
-      {/* Header */}
-      <div className="flex items-start justify-between flex-wrap gap-3">
-        <div>
-          <div className="mb-2">
-            <InlineLink href="/finance">← Finance</InlineLink>
+    <div className="space-y-6 pb-12">
+      <ResourcePageHeader
+        eyebrow="Finance"
+        title="Trust Account Ledger"
+        headline={summary ? `${formatZAR(summary.total_in_trust_cents)} in trust` : "Trust account ledger"}
+        sub={
+          summary?.last_recon_date
+            ? `Last reconciled ${new Date(summary.last_recon_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}`
+            : "Every trust movement with a running balance."
+        }
+        action={
+          <div className="flex items-center gap-2">
+            <ActionButton tone="secondary" icon={<Download className="h-3.5 w-3.5" />} onClick={handleCSVDownload}>
+              Export CSV
+            </ActionButton>
+            <InlineLink href="/billing/reconciliation" withArrow>Reconcile</InlineLink>
           </div>
-          <h1 className="font-heading text-2xl">Trust Account Ledger</h1>
-          {summary && (
-            <p className="text-sm text-muted-foreground mt-0.5">
-              {formatZAR(summary.total_in_trust_cents)} in trust
-              {summary.last_recon_date && ` · Last reconciled ${new Date(summary.last_recon_date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}`}
-            </p>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <ActionButton tone="secondary" icon={<Download className="h-3.5 w-3.5" />} onClick={handleCSVDownload}>
-            Export CSV
-          </ActionButton>
-          <InlineLink href="/billing/reconciliation" withArrow>Reconcile</InlineLink>
-        </div>
-      </div>
+        }
+      />
 
       {/* Sovereign trust badge */}
       {badgeProps && <SovereignBadge {...badgeProps} />}

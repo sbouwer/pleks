@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { InlineLink } from "@/components/ui/actions"
 import { formatZAR } from "@/lib/constants"
-import { BackLink } from "@/components/ui/BackLink"
+import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 
 export default async function DepositsPage() {
   const membership = await getServerOrgMembership()
@@ -72,8 +72,12 @@ export default async function DepositsPage() {
 
   return (
     <div className="space-y-6">
-      <BackLink href="/finance" label="Finance" />
-      <h1 className="font-heading text-3xl">Deposits</h1>
+      <ResourcePageHeader
+        eyebrow="Finance"
+        title="Deposits"
+        headline="Deposit reconciliation"
+        sub="Deposits held, pending reconciliations and refund timers."
+      />
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
