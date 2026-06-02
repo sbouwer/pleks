@@ -11,12 +11,13 @@
  */
 
 import { useCallback, useEffect, useState } from "react"
-import { Wifi, WifiOff, RefreshCw, ClipboardCheck, ImageUp, PencilLine, Loader2, CheckCircle2 } from "lucide-react"
+import { Wifi, WifiOff, RefreshCw, ClipboardCheck, ImageUp, PencilLine, Loader2, CheckCircle2, Users, Building2 } from "lucide-react"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { isOnline, onConnectivityChange } from "@/lib/offline/syncManager"
 import { isSyncing, onSyncStatusChange, runBackgroundSync } from "@/lib/offline/syncEngine"
 import { getAllPendingPhotos, listSavedInspectionIds } from "@/lib/offline/inspectionStore"
 import { getAllPendingWrites } from "@/lib/offline/pendingWrites"
+import { cacheReferenceData, getReferenceCounts, type ReferenceCounts } from "@/lib/offline/referenceCache"
 
 interface MobileOfflineSheetProps {
   readonly open: boolean
@@ -52,15 +53,18 @@ export function MobileOfflineSheet({ open, onOpenChange }: MobileOfflineSheetPro
   const [online, setOnline] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [counts, setCounts] = useState<Counts>({ cached: 0, photos: 0, writes: 0 })
+  const [reference, setReference] = useState<ReferenceCounts>({ contacts: 0, properties: 0, lastSynced: null })
 
   const refreshCounts = useCallback(async () => {
     try {
-      const [cachedIds, photos, writes] = await Promise.all([
+      const [cachedIds, photos, writes, ref] = await Promise.all([
         listSavedInspectionIds(),
         getAllPendingPhotos(),
         getAllPendingWrites(),
+        getReferenceCounts(),
       ])
       setCounts({ cached: cachedIds.length, photos: photos.length, writes: writes.length })
+      setReference(ref)
     } catch (e) {
       console.error("offline counts:", e)
     }
@@ -86,9 +90,13 @@ export function MobileOfflineSheet({ open, onOpenChange }: MobileOfflineSheetPro
   const pendingTotal = counts.photos + counts.writes
 
   async function handleSync() {
-    await runBackgroundSync()
+    await Promise.all([runBackgroundSync(), cacheReferenceData()])
     await refreshCounts()
   }
+
+  const lastSyncedLabel = reference.lastSynced
+    ? new Date(reference.lastSynced).toLocaleString("en-ZA", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+    : "never"
 
   let connectivitySub: string
   if (!online) connectivitySub = "Changes are saved on this device and sync when you're back online."
@@ -125,11 +133,24 @@ export function MobileOfflineSheet({ open, onOpenChange }: MobileOfflineSheetPro
             </div>
           </div>
 
-          {/* Queue stats */}
-          <div className="rounded-[var(--r-button)] border border-border bg-card overflow-hidden">
-            <StatRow icon={ClipboardCheck} label="Inspections saved offline" value={counts.cached} />
-            <StatRow icon={ImageUp} label="Photos waiting to upload" value={counts.photos} tone="amber" />
-            <StatRow icon={PencilLine} label="Changes waiting to sync" value={counts.writes} tone="amber" />
+          {/* Available offline (read cache) */}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">Available offline</p>
+            <div className="rounded-[var(--r-button)] border border-border bg-card overflow-hidden">
+              <StatRow icon={Users} label="Contacts" value={reference.contacts} />
+              <StatRow icon={Building2} label="Properties" value={reference.properties} />
+            </div>
+            <p className="mt-1.5 text-[11px] text-muted-foreground">Last updated {lastSyncedLabel} · search them anytime, even offline.</p>
+          </div>
+
+          {/* Pending capture queue */}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">Pending upload</p>
+            <div className="rounded-[var(--r-button)] border border-border bg-card overflow-hidden">
+              <StatRow icon={ClipboardCheck} label="Inspections saved offline" value={counts.cached} />
+              <StatRow icon={ImageUp} label="Photos waiting to upload" value={counts.photos} tone="amber" />
+              <StatRow icon={PencilLine} label="Changes waiting to sync" value={counts.writes} tone="amber" />
+            </div>
           </div>
 
           {/* Sync action */}

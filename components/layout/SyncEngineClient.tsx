@@ -29,6 +29,10 @@ export function SyncEngineClient() {
       import("@/lib/offline/syncEngine")
         .then(({ runBackgroundSync }) => { void runBackgroundSync() })
         .catch(() => {})
+      // Refresh the lightweight reference cache (contacts + properties) for offline lookup
+      import("@/lib/offline/referenceCache")
+        .then(({ cacheReferenceData }) => { void cacheReferenceData() })
+        .catch(() => {})
     }
 
     // Sync on app open

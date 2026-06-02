@@ -4,14 +4,18 @@
  * components/layout/MobileSearchSheet.tsx — full-width mobile search (bottom sheet)
  *
  * Auth:   dashboard layout (gateway)
- * Data:   GET /api/search?q= (debounced) — same endpoint as the desktop GlobalSearch
- * Notes:  Tall bottom sheet; the field autofocuses on open. Tapping a result navigates and closes.
+ * Data:   online → GET /api/search?q= (same endpoint as desktop GlobalSearch).
+ *         offline → local IndexedDB reference cache (contacts + properties) via searchReference.
+ * Notes:  Tall bottom sheet; field autofocuses on open. Online results navigate; offline contact results
+ *         expose tap-to-call / tap-to-email (which work with no signal) since detail pages are server-rendered.
  */
 
 import { useEffect, useRef, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { Search, Building2, User, Wrench, FileText, Loader2 } from "lucide-react"
+import { Search, Building2, User, Wrench, FileText, Loader2, WifiOff, Phone, Mail, ChevronRight } from "lucide-react"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { isOnline, onConnectivityChange } from "@/lib/offline/syncManager"
+import { searchReference, type RefSearchResult } from "@/lib/offline/referenceCache"
 
 interface MobileSearchSheetProps {
   readonly open: boolean
@@ -31,10 +35,18 @@ const GROUP_ORDER = ["property", "tenant", "maintenance", "invoice"]
 export function MobileSearchSheet({ open, onOpenChange }: MobileSearchSheetProps) {
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<SearchResult[]>([])
+  const [offlineResults, setOfflineResults] = useState<RefSearchResult[]>([])
   const [loading, setLoading] = useState(false)
+  const [online, setOnline] = useState(true)
   const inputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const router = useRouter()
+
+  // Track connectivity while the sheet is mounted.
+  useEffect(() => {
+    setOnline(isOnline())
+    return onConnectivityChange(setOnline)
+  }, [])
 
   // Autofocus the field shortly after the sheet animates in.
   useEffect(() => {
@@ -48,6 +60,7 @@ export function MobileSearchSheet({ open, onOpenChange }: MobileSearchSheetProps
     if (!open) {
       setQuery("")
       setResults([])
+      setOfflineResults([])
       setLoading(false)
     }
   }, [open])
@@ -59,14 +72,23 @@ export function MobileSearchSheet({ open, onOpenChange }: MobileSearchSheetProps
     if (debounceRef.current) clearTimeout(debounceRef.current)
     if (value.trim().length < 2) {
       setResults([])
+      setOfflineResults([])
       setLoading(false)
       return
     }
     setLoading(true)
     debounceRef.current = setTimeout(async () => {
-      const res = await fetch("/api/search?q=" + encodeURIComponent(value))
-      const data = (await res.json()) as { results: SearchResult[] }
-      setResults(data.results ?? [])
+      if (isOnline()) {
+        const res = await fetch("/api/search?q=" + encodeURIComponent(value))
+        const data = (await res.json()) as { results: SearchResult[] }
+        setResults(data.results ?? [])
+        setOfflineResults([])
+      } else {
+        // Offline — search the local reference cache.
+        const hits = await searchReference(value).catch(() => [])
+        setOfflineResults(hits)
+        setResults([])
+      }
       setLoading(false)
     }, 280)
   }, [])
@@ -82,6 +104,10 @@ export function MobileSearchSheet({ open, onOpenChange }: MobileSearchSheetProps
     groups[r.type].push(r)
   }
 
+  const queryReady = query.trim().length >= 2
+  const noOnlineHits = queryReady && !loading && online && results.length === 0
+  const noOfflineHits = queryReady && !loading && !online && offlineResults.length === 0
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" showCloseButton={false} className="rounded-t-2xl max-h-[88vh] h-[88vh] p-0">
@@ -96,22 +122,30 @@ export function MobileSearchSheet({ open, onOpenChange }: MobileSearchSheetProps
               ref={inputRef}
               value={query}
               onChange={(e) => runSearch(e.target.value)}
-              placeholder="Search properties, tenants, invoices…"
+              placeholder={online ? "Search properties, tenants, invoices…" : "Search saved contacts & properties…"}
               aria-label="Search"
               className="h-11 w-full rounded-[var(--r-button)] border border-border bg-card pl-10 pr-10 text-sm text-foreground outline-none placeholder:text-muted-foreground/70 focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
             />
             {loading && <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />}
           </div>
+          {!online && (
+            <div className="mt-2 flex items-center gap-1.5 text-[11px] text-orange-500">
+              <WifiOff className="size-3" />
+              Offline — searching saved contacts &amp; properties.
+            </div>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {query.trim().length < 2 && (
+          {!queryReady && (
             <p className="px-4 py-8 text-center text-sm text-muted-foreground">Type at least 2 characters to search.</p>
           )}
-          {query.trim().length >= 2 && !loading && results.length === 0 && (
+          {(noOnlineHits || noOfflineHits) && (
             <p className="px-4 py-8 text-center text-sm text-muted-foreground">No results for &ldquo;{query}&rdquo;</p>
           )}
-          {GROUP_ORDER.map((type) => {
+
+          {/* Online — grouped server results */}
+          {online && GROUP_ORDER.map((type) => {
             const group = groups[type]
             if (!group?.length) return null
             const { label, icon: Icon } = TYPE_CONFIG[type] ?? { label: type, icon: Search }
@@ -137,6 +171,41 @@ export function MobileSearchSheet({ open, onOpenChange }: MobileSearchSheetProps
               </div>
             )
           })}
+
+          {/* Offline — cached contacts (tap-to-call/email) + properties */}
+          {!online && offlineResults.map((r) =>
+            r.type === "contact" ? (
+              <div key={`c-${r.id}`} className="flex items-center gap-2 px-4 py-3 border-b border-border/50">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-foreground">{r.label}</p>
+                  {r.subtitle && <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{r.subtitle}</p>}
+                </div>
+                {r.phone && (
+                  <a href={`tel:${r.phone}`} aria-label={`Call ${r.label}`} className="h-9 w-9 grid place-items-center rounded-[var(--r-button)] border border-border text-brand active:scale-95 transition-transform">
+                    <Phone className="h-4 w-4" />
+                  </a>
+                )}
+                {r.email && (
+                  <a href={`mailto:${r.email}`} aria-label={`Email ${r.label}`} className="h-9 w-9 grid place-items-center rounded-[var(--r-button)] border border-border text-muted-foreground active:scale-95 transition-transform">
+                    <Mail className="h-4 w-4" />
+                  </a>
+                )}
+              </div>
+            ) : (
+              <button
+                key={`p-${r.id}`}
+                type="button"
+                onClick={() => navigate(r.href)}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left border-b border-border/50 active:bg-muted transition-colors"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-foreground">{r.label}</p>
+                  {r.subtitle && <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{r.subtitle}</p>}
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              </button>
+            ),
+          )}
         </div>
       </SheetContent>
     </Sheet>
