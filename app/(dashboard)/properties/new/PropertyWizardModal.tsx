@@ -21,7 +21,10 @@ import {
 } from "./WizardContext"
 import { createPropertyFromWizard, type WizardSavePayload } from "@/lib/actions/createPropertyFromWizard"
 import { createProperty } from "@/lib/actions/properties"
+import { addLandlordParty } from "@/lib/actions/parties"
+import { usePartyFlow } from "@/components/parties/usePartyFlow"
 import { PropertyForm } from "../PropertyForm"
+import { AddLandlordProvider } from "./addLandlordContext"
 import { StepRelationship }     from "./steps/StepRelationship"
 import { StepCheckDetails }     from "./steps/StepCheckDetails"
 import { StepPicker }           from "./steps/StepPicker"
@@ -129,6 +132,21 @@ function PropertyWizardModalInner({ onClose }: Readonly<{ onClose: () => void }>
   const [isSaving, startSaving] = useTransition()
   const [saveError, setSaveError] = useState<string | null>(null)
 
+  // ── Landlord sub-flow (Owner step → "add a landlord", in the same modal) ────
+  const [subflow, setSubflow] = useState<"add_landlord" | null>(null)
+  const [refreshNonce, setRefreshNonce] = useState(0)
+  const landlordFlow = usePartyFlow({
+    role: "landlord",
+    onSubmit: addLandlordParty,
+    onDone: (result) => {
+      // created → select it as the owner and return to the property flow (no success interstitial)
+      if (result.id) patch({ landlord: { option: "existing", existing_id: result.id } })
+      setRefreshNonce((n) => n + 1)   // StepLandlord re-fetches and highlights the new owner
+      setSubflow(null)
+    },
+  })
+  function openAddLandlord() { landlordFlow.reset(); setSubflow("add_landlord") }
+
   const stepIds       = useMemo(() => computeActiveStepIds(state), [state])
   const currentStepId = stepIds[state.step] ?? "picker"
   const isFirst       = state.step === 0
@@ -156,6 +174,29 @@ function PropertyWizardModalInner({ onClose }: Readonly<{ onClose: () => void }>
         setSaveError(result.error ?? "Failed to save property")
       }
     })
+  }
+
+  // ── Landlord sub-flow: same modal, swapped contents ─────────────────────────
+  if (subflow === "add_landlord") {
+    return (
+      <WizardModal
+        open
+        onOpenChange={(o) => { if (!o) setSubflow(null) }}   // close/Esc → back to property, never lose the wizard
+        eyebrow={landlordFlow.eyebrow}
+        steps={landlordFlow.steps}
+        current={landlordFlow.step}
+        onStepSelect={landlordFlow.goTo}
+        title={landlordFlow.title}
+        subtitle={landlordFlow.subtitle}
+        backLabel={landlordFlow.step === 0 ? "Back to property" : "Back"}
+        onBack={() => (landlordFlow.step === 0 ? setSubflow(null) : landlordFlow.back())}
+        primaryLabel={landlordFlow.primaryLabel}
+        onPrimary={landlordFlow.next}
+        primaryDisabled={landlordFlow.primaryDisabled}
+      >
+        {landlordFlow.body}
+      </WizardModal>
+    )
   }
 
   // ── Advanced setup fallback (PropertyForm in the same frame) ────────────────
@@ -213,7 +254,9 @@ function PropertyWizardModalInner({ onClose }: Readonly<{ onClose: () => void }>
       footerError={saveError}
       footerSlot={advancedLink}
     >
-      {renderStep(currentStepId)}
+      <AddLandlordProvider value={{ openAddLandlord, refreshNonce }}>
+        {renderStep(currentStepId)}
+      </AddLandlordProvider>
     </WizardModal>
   )
 }

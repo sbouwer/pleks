@@ -1,17 +1,20 @@
 "use client"
 
 /**
- * app/(dashboard)/properties/new/steps/StepLandlord.tsx — FILL: one-line purpose
+ * app/(dashboard)/properties/new/steps/StepLandlord.tsx — wizard Owner step: pick / add / defer the landlord
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties/new (Owner step — relationship="other")
+ * Data:   /api/landlords for the existing-owner picker; writes LandlordDraft to WizardContext
+ * Notes:  "Add new owner" launches the shared add-party sub-flow in the SAME modal (full FICA via
+ *         addLandlordParty) when hosted in PropertyWizardModal; on save the new owner is selected
+ *         (option="existing") and the list re-fetches (refreshNonce). Falls back to the inline
+ *         new-owner form when rendered outside the modal host. ownerContactable() (WizardContext) is
+ *         the single owner-dependency gate — never branch owner paths on managedMode (D-60C-04).
  */
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { useWizard, type LandlordDraft } from "../WizardContext"
+import { useAddLandlordSubflow } from "../addLandlordContext"
 import { OptionRow } from "../OptionRow"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -161,6 +164,7 @@ function NewOwnerForm({ draft, onChange }: NewOwnerFormProps) {
 
 export function StepLandlord() {
   const { state, patch } = useWizard()
+  const subflow = useAddLandlordSubflow()
 
   const [landlords, setLandlords]   = useState<LandlordRow[]>([])
   const [loading, setLoading]       = useState(true)
@@ -168,15 +172,21 @@ export function StepLandlord() {
 
   const option = (state.landlord?.option ?? null) as OwnerOption | null
 
+  // Re-fetches on mount and after the add-landlord sub-flow creates one (refreshNonce bumps),
+  // so the freshly-added owner appears in the picker and shows as selected.
   useEffect(() => {
+    setLoading(true)
     fetch("/api/landlords")
       .then((r) => r.json())
       .then((data: { landlords?: LandlordRow[] }) => setLandlords(data.landlords ?? []))
       .catch(() => setLandlords([]))
       .finally(() => setLoading(false))
-  }, [])
+  }, [subflow?.refreshNonce])
 
   function setOption(o: OwnerOption) {
+    // In the modal host, "add new owner" opens the shared add-party sub-flow (full FICA) in the
+    // same modal instead of the inline form; it returns with the new owner selected.
+    if (o === "new" && subflow) { subflow.openAddLandlord(); return }
     patch({
       landlord: {
         ...state.landlord,
