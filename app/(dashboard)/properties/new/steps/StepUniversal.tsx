@@ -17,6 +17,7 @@ import type { UniversalAnswers } from "@/lib/properties/buildProfile"
 import type { WizardState } from "../WizardContext"
 import { useWizard } from "../WizardContext"
 import { useTier } from "@/hooks/useTier"
+import { WInput } from "./fields"
 
 // ── Inline segmented picker (single row) ──────────────────────────────────────
 
@@ -31,20 +32,19 @@ interface InlineSegmentProps {
 
 function InlineSegment({ label, options, value, onChange }: Readonly<InlineSegmentProps>) {
   return (
-    <div className="flex items-center gap-3">
-      <span className="w-32 shrink-0 text-sm font-medium text-right leading-none">{label}</span>
-      <div className="flex rounded-md border border-border overflow-hidden">
-        {options.map((opt, i) => (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <span className="w-36 shrink-0 text-right text-[11px] font-medium uppercase leading-tight tracking-[0.08em] text-muted-foreground">{label}</span>
+      <div className="inline-flex flex-wrap gap-1 rounded-[var(--r-button)] border border-border bg-muted/40 p-1">
+        {options.map((opt) => (
           <button
             key={opt.value}
             type="button"
             onClick={() => onChange(opt.value)}
             className={cn(
-              "px-3 py-1.5 text-xs font-medium transition-colors",
-              i > 0 && "border-l border-border",
+              "rounded-[5px] px-3 py-1.5 text-xs font-medium transition-colors",
               value === opt.value
-                ? "bg-primary text-primary-foreground"
-                : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
+                ? "bg-card text-foreground shadow-sm ring-1 ring-border"
+                : "text-muted-foreground hover:text-foreground",
             )}
           >
             {opt.label}
@@ -55,6 +55,18 @@ function InlineSegment({ label, options, value, onChange }: Readonly<InlineSegme
   )
 }
 
+
+// Inline label + child row — same rhythm as InlineSegment (w-36 uppercase label, content right).
+function InlineRow({ label, required, htmlFor, children }: Readonly<{ label: string; required?: boolean; htmlFor?: string; children: React.ReactNode }>) {
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <label htmlFor={htmlFor} className="w-36 shrink-0 text-right text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+        {label}{required && <span className="text-primary"> *</span>}
+      </label>
+      <div className="min-w-[10rem] flex-1">{children}</div>
+    </div>
+  )
+}
 
 // ── Scheme section ────────────────────────────────────────────────────────────
 
@@ -255,29 +267,22 @@ export function StepUniversal() {
 
       {/* BC / scheme */}
       {schemePreselected ? (
-        <div className="rounded-lg border bg-muted/30 px-4 py-3 text-sm">
-          <span className="font-medium">Managing scheme: </span>
+        <div className="rounded-[var(--r-button)] border border-border bg-muted/30 px-4 py-3 text-sm">
+          <span className="font-medium text-foreground">Managing scheme: </span>
           <span className="text-muted-foreground">
             {preselectedScheme === "body_corporate"
               ? "Body corporate (pre-selected for sectional title)"
               : "Homeowners association (pre-selected for estate)"}
           </span>
-          <div className="mt-2 flex items-center gap-3">
-            <label htmlFor="scheme-name-preselected" className="w-32 shrink-0 text-sm font-medium text-right">
-              Scheme name
-            </label>
-            <input
-              id="scheme-name-preselected"
-              type="text"
-              value={local.schemeName}
-              onChange={(e) => update({ schemeName: e.target.value })}
-              placeholder={
-                preselectedScheme === "body_corporate"
-                  ? "e.g. Vineyard Heights Body Corporate"
-                  : "e.g. Blue Ridge Estate HOA"
-              }
-              className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-shadow"
-            />
+          <div className="mt-3">
+            <InlineRow label="Scheme name" htmlFor="scheme-name-preselected">
+              <WInput
+                id="scheme-name-preselected"
+                value={local.schemeName}
+                onChange={(v) => update({ schemeName: v })}
+                placeholder={preselectedScheme === "body_corporate" ? "e.g. Vineyard Heights Body Corporate" : "e.g. Blue Ridge Estate HOA"}
+              />
+            </InlineRow>
           </div>
         </div>
       ) : (
@@ -296,19 +301,14 @@ export function StepUniversal() {
             onChange={(v) => update({ schemeOption: v as SchemeOption })}
           />
           {showSchemeName && (
-            <div className="flex items-center gap-3">
-              <label htmlFor="scheme-name" className="w-32 shrink-0 text-sm font-medium text-right">
-                Scheme name <span className="text-destructive">*</span>
-              </label>
-              <input
+            <InlineRow label="Scheme name" required htmlFor="scheme-name">
+              <WInput
                 id="scheme-name"
-                type="text"
                 value={local.schemeName}
-                onChange={(e) => update({ schemeName: e.target.value })}
+                onChange={(v) => update({ schemeName: v })}
                 placeholder="e.g. Vineyard Heights Body Corporate"
-                className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-shadow"
               />
-            </div>
+            </InlineRow>
           )}
         </div>
       )}
@@ -326,21 +326,21 @@ export function StepUniversal() {
               onChange={(v) => update({ bedroomPick: v, bedroomsOther: null })}
             />
             {local.bedroomPick === "other" && (
-              <div className="flex items-center gap-3">
-                <span className="w-32 shrink-0" aria-hidden />
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  aria-label="Bedroom count"
-                  placeholder="How many?"
-                  autoFocus
-                  value={local.bedroomsOther ?? ""}
-                  onChange={(e) => {
-                    const n = e.target.value === "" ? null : Number(e.target.value)
-                    update({ bedroomsOther: Number.isNaN(n ?? 0) ? null : n })
-                  }}
-                  className="w-28 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-shadow"
-                />
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="w-36 shrink-0" aria-hidden />
+                <div className="w-32">
+                  <WInput
+                    inputMode="numeric"
+                    aria-label="Bedroom count"
+                    placeholder="How many?"
+                    autoFocus
+                    value={local.bedroomsOther === null ? "" : String(local.bedroomsOther)}
+                    onChange={(v) => {
+                      const n = v === "" ? null : Number(v)
+                      update({ bedroomsOther: Number.isNaN(n ?? 0) ? null : n })
+                    }}
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -368,21 +368,20 @@ export function StepUniversal() {
             onChange={(v) => update({ furnishing: v as FurnishingVal })}
           />
 
-          <div className="flex items-center gap-3">
-            <label htmlFor="unit-size" className="w-32 shrink-0 text-sm font-medium text-right">Size m²</label>
-            <input
-              id="unit-size"
-              type="text"
-              inputMode="numeric"
-              placeholder="e.g. 85"
-              value={local.sizeM2 ?? ""}
-              onChange={(e) => {
-                const n = e.target.value === "" ? null : Number(e.target.value)
-                update({ sizeM2: Number.isNaN(n ?? 0) ? null : n })
-              }}
-              className="w-24 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-shadow"
-            />
-          </div>
+          <InlineRow label="Size m²" htmlFor="unit-size">
+            <div className="w-32">
+              <WInput
+                id="unit-size"
+                inputMode="numeric"
+                placeholder="e.g. 85"
+                value={local.sizeM2 === null ? "" : String(local.sizeM2)}
+                onChange={(v) => {
+                  const n = v === "" ? null : Number(v)
+                  update({ sizeM2: Number.isNaN(n ?? 0) ? null : n })
+                }}
+              />
+            </div>
+          </InlineRow>
         </div>
       )}
 
