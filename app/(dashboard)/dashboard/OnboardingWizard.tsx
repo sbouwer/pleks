@@ -14,12 +14,13 @@
  */
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { FileText, ClipboardCheck, Home } from "lucide-react"
+import { FileText, ClipboardCheck, Home, UserCheck } from "lucide-react"
 import type { ReactNode } from "react"
 import { WizardModal, type WizardModalStep } from "@/components/ui/wizard-modal"
 import { usePartyFlow } from "@/components/parties/usePartyFlow"
 import { PropertyWizardModal } from "@/app/(dashboard)/properties/new/PropertyWizardModal"
 import { addLandlordParty, addTenantParty, addContractorParty } from "@/lib/actions/parties"
+import { addSelfAsLandlord } from "@/lib/actions/addSelfAsLandlord"
 import { dismissOnboarding } from "@/lib/actions/dismissOnboarding"
 import type { PartyRole } from "@/lib/parties/partyConfig"
 import type { GettingStartedProgress } from "./GettingStarted"
@@ -54,6 +55,28 @@ function ExplainPanel({ icon, lead, note }: Readonly<{ icon: ReactNode; lead: st
   )
 }
 
+function SelfLandlordBanner({ onAdd, adding }: Readonly<{ onAdd: () => void; adding: boolean }>) {
+  return (
+    <div className="mb-5 flex items-center gap-3 rounded-[var(--r-button)] border border-primary/30 bg-primary/5 p-3.5">
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--r-button)] bg-primary/10 text-primary">
+        <UserCheck className="h-[18px] w-[18px]" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-foreground">Managing your own rental?</p>
+        <p className="text-xs text-muted-foreground">Add yourself as the landlord — we&apos;ll use your profile details.</p>
+      </div>
+      <button
+        type="button"
+        onClick={onAdd}
+        disabled={adding}
+        className="shrink-0 rounded-[var(--r-button)] border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-60"
+      >
+        {adding ? "Adding…" : "Add me as landlord"}
+      </button>
+    </div>
+  )
+}
+
 export function OnboardingWizard({
   open, onClose, progress, startKey,
 }: Readonly<{
@@ -73,8 +96,14 @@ export function OnboardingWizard({
   })
   const [propertyOpen, setPropertyOpen] = useState(false)
   const [finishing, startFinish] = useTransition()
+  const [addingMe, startAddMe] = useTransition()
 
   function handlePartyDone() { router.refresh(); goNext() }
+
+  // "Add me as landlord" — the 01C self-landlord (agent mirror), seeded from the profile, no form.
+  function handleAddMe() {
+    startAddMe(async () => { const r = await addSelfAsLandlord(); if (r.ok) handlePartyDone() })
+  }
 
   const landlordFlow = usePartyFlow({ role: "landlord", onSubmit: addLandlordParty, onDone: handlePartyDone })
   const tenantFlow   = usePartyFlow({ role: "tenant",   onSubmit: addTenantParty,   onDone: handlePartyDone })
@@ -111,7 +140,10 @@ export function OnboardingWizard({
     onBack = flow.step === 0 ? goNext : flow.back
     primaryLabel = flow.primaryLabel
     onPrimary = flow.next
-    body = flow.body
+    // Owner step gets the "Add me as landlord" (01C self-landlord) shortcut above the form.
+    body = cur.key === "landlord" && flow.step === 0
+      ? <><SelfLandlordBanner onAdd={handleAddMe} adding={addingMe} />{flow.body}</>
+      : flow.body
   } else if (cur.key === "property") {
     backLabel = "Skip for now"; onBack = goNext; primaryLabel = "Set up property"; onPrimary = () => setPropertyOpen(true)
     body = <ExplainPanel icon={<Home className="h-7 w-7" />} lead="The property wizard walks you through scheme, address, units and documents — about two minutes." note="It opens the full guided setup; you'll come back here to finish the rest." />
