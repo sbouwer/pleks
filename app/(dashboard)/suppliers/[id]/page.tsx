@@ -18,6 +18,8 @@ import { RelationshipCard } from "@/components/contacts/RelationshipCard"
 import { StatGrid } from "@/components/contacts/StatGrid"
 import { ActivityTimeline } from "@/components/contacts/ActivityTimeline"
 import { ContractorContactSection, ContractorRatesSection, ContractorBankingSection, ContractorAddressSection } from "./SupplierSections"
+import { CompanyPeopleSection } from "@/components/contacts/CompanyPeopleSection"
+import { fetchCompanyPeople } from "@/lib/contacts/companyPeople"
 import { ContractorPortalSection } from "@/components/contractors/ContractorPortalSection"
 import { formatZAR } from "@/lib/constants"
 
@@ -118,6 +120,11 @@ export default async function ContractorDetailPage({ params }: Props) {
     .single()
 
   if (!contractor) redirect("/suppliers")
+
+  // 25A: people under a company supplier (operator, accounts…). Empty for sole-proprietor individuals.
+  const companyPeople = contractor.entity_type === "organisation"
+    ? await fetchCompanyPeople(service, membership.org_id, contractor.contact_id)
+    : []
 
   // Fetch banking + portal info from contractors table
   const { data: contractorBanking } = await service
@@ -250,6 +257,8 @@ export default async function ContractorDetailPage({ params }: Props) {
         />
       </ContactSidebar>
     }>
+
+      {contractor.entity_type === "organisation" && <CompanyPeopleSection people={companyPeople} />}
 
       {/* Active jobs */}
       <SectionCard title="Active jobs" count={(activeJobs ?? []).length}>

@@ -14,6 +14,8 @@ import { ContactDetailLayout } from "@/components/contacts/ContactDetailLayout"
 import { ContactSidebar } from "@/components/contacts/ContactSidebar"
 import { QuickActions } from "@/components/contacts/QuickActions"
 import { SectionCard } from "@/components/contacts/SectionCard"
+import { CompanyPeopleSection } from "@/components/contacts/CompanyPeopleSection"
+import { fetchCompanyPeople } from "@/lib/contacts/companyPeople"
 import { RelationshipCard } from "@/components/contacts/RelationshipCard"
 import { StatGrid } from "@/components/contacts/StatGrid"
 import { ActivityTimeline } from "@/components/contacts/ActivityTimeline"
@@ -203,6 +205,11 @@ export default async function LandlordDetailPage({ params }: Props) {
   const primaryPhone = phones?.[0]?.number ?? null
   const primaryEmail = emails?.[0]?.email ?? null
 
+  // 25A: people under a company landlord (signatories, accounts, maintenance…). Empty for individuals.
+  const companyPeople = landlord.entity_type === "organisation"
+    ? await fetchCompanyPeople(service, membership.org_id, landlord.contact_id)
+    : []
+
   // Landlord portal status + org tier for portal gating
   const { data: landlordPortal } = await service
     .from("landlords")
@@ -299,6 +306,7 @@ export default async function LandlordDetailPage({ params }: Props) {
         <IdentityForkBanner surface="landlord" />
       )}
       <WelcomePackBanner orgId={membership.org_id} landlordId={id} landlordName={displayName} />
+      {landlord.entity_type === "organisation" && <CompanyPeopleSection people={companyPeople} />}
       <SectionCard title="Properties" count={(properties || []).length} action={{ label: "View all", href: "/properties" }}>
         {(properties || []).length === 0 ? (
           <p className="text-sm text-muted-foreground">No properties linked.</p>
