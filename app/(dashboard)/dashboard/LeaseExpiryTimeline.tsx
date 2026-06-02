@@ -17,7 +17,7 @@ interface LeaseExpiryTimelineProps {
 
 export function LeaseExpiryTimeline({ leases }: Readonly<LeaseExpiryTimelineProps>) {
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card">
+    <div className="overflow-hidden rounded-[var(--r-button)] border border-border border-b-2 border-b-primary bg-card">
       <div className="flex items-center justify-between border-b border-border px-5 py-4">
         <h2 className="flex items-center gap-2.5 text-[15px] font-semibold tracking-tight">
           <span className="inline-block h-0.5 w-4 shrink-0 bg-amber-400"></span>
