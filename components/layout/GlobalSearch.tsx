@@ -1,17 +1,18 @@
 "use client"
 
 /**
- * components/layout/GlobalSearch.tsx — FILL: one-line purpose
+ * components/layout/GlobalSearch.tsx — header global search (inline combobox)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  rendered in the dashboard Topbar (desktop)
+ * Auth:   dashboard layout (gateway)
+ * Data:   GET /api/search?q= (debounced); results grouped by type
+ * Notes:  Inline — the header field IS the input; typing drops a results panel right below it (no
+ *         modal). ⌘K focuses it; ↑↓ navigate, ↵ open, Esc/outside-click close. Square + bg-card +
+ *         bg-popover panel, token-driven so it flips for dark.
  */
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { Search, Building2, User, Wrench, FileText, X, Loader2 } from "lucide-react"
+import { Search, Building2, User, Wrench, FileText, Loader2 } from "lucide-react"
 
 type SearchResult = {
   type: string
@@ -40,68 +41,46 @@ function groupResults(results: SearchResult[]): Record<string, SearchResult[]> {
 }
 
 export function GlobalSearch() {
-  const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
+  const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
-  const dialogRef = useRef<HTMLDialogElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const router = useRouter()
 
-  const openSearch = useCallback(() => {
-    setOpen(true)
-    setQuery("")
-    setResults([])
-    setActiveIndex(0)
-  }, [])
-
-  const closeSearch = useCallback(() => {
-    setOpen(false)
-    setQuery("")
-    setResults([])
-  }, [])
-
-  // Cmd+K / Ctrl+K shortcut
+  // ⌘K / Ctrl+K focuses the field (no modal to open anymore).
   useEffect(() => {
     function handler(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault()
-        if (open) {
-          closeSearch()
-        } else {
-          openSearch()
-        }
+        inputRef.current?.focus()
+        setOpen(true)
       }
     }
     document.addEventListener("keydown", handler)
     return () => document.removeEventListener("keydown", handler)
-  }, [open, openSearch, closeSearch])
-
-  // Open/close the native dialog
-  useEffect(() => {
-    const dialog = dialogRef.current
-    if (!dialog) return
-    if (open) {
-      dialog.showModal()
-      setTimeout(() => inputRef.current?.focus(), 50)
-    } else if (dialog.open) {
-      dialog.close()
-    }
-  }, [open])
-
-  // Cleanup debounce on unmount
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
-    }
   }, [])
 
-  function handleQueryChange(value: string) {
+  // Close the panel on any outside click.
+  useEffect(() => {
+    if (!open) return
+    function onDocClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", onDocClick)
+    return () => document.removeEventListener("mousedown", onDocClick)
+  }, [open])
+
+  useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current) }, [])
+
+  const runSearch = useCallback((value: string) => {
     setQuery(value)
+    setOpen(true)
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    if (value.length < 2) {
+    if (value.trim().length < 2) {
       setResults([])
       setLoading(false)
       return
@@ -114,83 +93,54 @@ export function GlobalSearch() {
       setLoading(false)
       setActiveIndex(0)
     }, 280)
-  }
-
-  function navigate(href: string) {
-    router.push(href)
-    closeSearch()
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Escape") {
-      closeSearch()
-      return
-    }
-    if (e.key === "ArrowDown") {
-      e.preventDefault()
-      setActiveIndex((i) => Math.min(i + 1, results.length - 1))
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault()
-      setActiveIndex((i) => Math.max(i - 1, 0))
-    } else if (e.key === "Enter" && results[activeIndex]) {
-      navigate(results[activeIndex].href)
-    }
-  }
+  }, [])
 
   const groups = groupResults(results)
   const flatResults = GROUP_ORDER.flatMap((t) => groups[t] ?? [])
 
+  function navigate(href: string) {
+    router.push(href)
+    setOpen(false)
+    setQuery("")
+    setResults([])
+    inputRef.current?.blur()
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Escape") { setOpen(false); inputRef.current?.blur(); return }
+    if (e.key === "ArrowDown") { e.preventDefault(); setActiveIndex((i) => Math.min(i + 1, flatResults.length - 1)) }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setActiveIndex((i) => Math.max(i - 1, 0)) }
+    else if (e.key === "Enter" && flatResults[activeIndex]) { navigate(flatResults[activeIndex].href) }
+  }
+
+  const showPanel = open && query.trim().length >= 2
+
   return (
-    <>
-      <button
-        onClick={openSearch}
-        className="flex cursor-pointer items-center gap-1.5 h-8 px-3 rounded-[var(--r-button)] border border-border bg-card text-sm text-muted-foreground hover:bg-muted/50 transition-colors"
-        title="Search (⌘K)"
-      >
-        <Search className="h-3.5 w-3.5" />
-        <span className="hidden sm:inline">Search…</span>
-        <kbd className="hidden md:inline ml-1 text-[10px] border border-border rounded px-1 py-0.5 bg-background font-mono">⌘K</kbd>
-      </button>
-
-      <dialog
-        ref={dialogRef}
+    <div ref={containerRef} className="relative w-[34rem] xl:w-[44rem]">
+      <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+      <input
+        ref={inputRef}
+        value={query}
+        onChange={(e) => runSearch(e.target.value)}
+        onFocus={() => { if (query.trim().length >= 2) setOpen(true) }}
+        onKeyDown={handleKeyDown}
+        placeholder="Search properties, tenants, invoices…"
         aria-label="Search"
-        onClose={closeSearch}
-        className="fixed inset-0 z-50 w-full max-w-lg mx-auto mt-[10vh] rounded-xl border border-border bg-popover shadow-2xl overflow-hidden p-0 backdrop:bg-black/60 backdrop:backdrop-blur-sm"
-      >
-        {/* Search input */}
-        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-border bg-popover">
-          {loading ? (
-            <Loader2 className="h-4 w-4 shrink-0 text-muted-foreground animate-spin" />
-          ) : (
-            <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-          )}
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={(e) => handleQueryChange(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Search properties, tenants, invoices…"
-            className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground/60"
-          />
-          <button
-            onClick={closeSearch}
-            className="text-muted-foreground hover:text-foreground transition-colors p-0.5 rounded"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+        className="h-10 w-full rounded-[var(--r-button)] border border-border bg-card pl-10 pr-12 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground/70 hover:bg-muted/30 focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
+      />
+      {loading ? (
+        <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+      ) : (
+        !query && (
+          <kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded border border-border bg-background px-1 py-0.5 font-mono text-[10px] text-muted-foreground">⌘K</kbd>
+        )
+      )}
 
-        {/* Results */}
-        <div className="max-h-[60vh] overflow-y-auto bg-popover">
-          {query.length < 2 && (
-            <p className="px-4 py-8 text-sm text-muted-foreground text-center">
-              Type at least 2 characters to search
-            </p>
-          )}
-
-          {query.length >= 2 && !loading && results.length === 0 && (
-            <p className="px-4 py-8 text-sm text-muted-foreground text-center">
+      {showPanel && (
+        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 overflow-hidden rounded-[var(--r-button)] border border-border bg-popover shadow-lg">
+          <div className="max-h-[60vh] overflow-y-auto">
+          {!loading && results.length === 0 && (
+            <p className="px-4 py-6 text-center text-sm text-muted-foreground">
               No results for &ldquo;{query}&rdquo;
             </p>
           )}
@@ -202,11 +152,9 @@ export function GlobalSearch() {
             const groupLabel = label === "Property" ? "Properties" : label + "s"
             return (
               <div key={type}>
-                <div className="flex items-center gap-2 px-4 py-2 bg-muted/20 border-b border-border/50">
-                  <Icon className="h-3 w-3 text-muted-foreground" />
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                    {groupLabel}
-                  </span>
+                <div className="flex items-center gap-2 border-b border-border/50 bg-muted/20 px-4 py-2">
+                  <Icon className="size-3 text-muted-foreground" />
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">{groupLabel}</span>
                 </div>
                 {group.map((result) => {
                   const flatIdx = flatResults.indexOf(result)
@@ -214,15 +162,14 @@ export function GlobalSearch() {
                   return (
                     <button
                       key={result.id}
-                      onClick={() => navigate(result.href)}
+                      type="button"
+                      onMouseDown={(e) => { e.preventDefault(); navigate(result.href) }}
                       onMouseEnter={() => setActiveIndex(flatIdx)}
-                      className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${isActive ? "bg-accent text-accent-foreground" : "hover:bg-muted/30"}`}
+                      className={`flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ${isActive ? "bg-accent text-accent-foreground" : "hover:bg-muted/40"}`}
                     >
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate text-foreground">{result.label}</p>
-                        {result.subtitle && (
-                          <p className="text-[11px] text-muted-foreground truncate mt-0.5">{result.subtitle}</p>
-                        )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-foreground">{result.label}</p>
+                        {result.subtitle && <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{result.subtitle}</p>}
                       </div>
                     </button>
                   )
@@ -230,16 +177,19 @@ export function GlobalSearch() {
               </div>
             )
           })}
-        </div>
 
-        {results.length > 0 && (
-          <div className="border-t border-border px-4 py-2.5 flex items-center gap-4 text-[11px] text-muted-foreground bg-muted/10">
-            <span>↑↓ navigate</span>
-            <span>↵ open</span>
-            <span>Esc close</span>
+          {results.length > 0 && (
+            <div className="flex items-center gap-4 border-t border-border bg-muted/10 px-4 py-2 text-[11px] text-muted-foreground">
+              <span>↑↓ navigate</span>
+              <span>↵ open</span>
+              <span>Esc close</span>
+            </div>
+          )}
           </div>
-        )}
-      </dialog>
-    </>
+          {/* amber doorsill — matches the profile / quick-add dropdowns */}
+          <div aria-hidden className="h-1 w-full bg-primary" />
+        </div>
+      )}
+    </div>
   )
 }
