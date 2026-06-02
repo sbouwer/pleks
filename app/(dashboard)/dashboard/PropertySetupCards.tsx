@@ -10,6 +10,7 @@
 import Link from "next/link"
 import { Home, ListChecks, ArrowRight } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
+import { GuidedSetupLink } from "@/components/properties/GuidedSetupLink"
 import { createServiceClient } from "@/lib/supabase/server"
 
 interface Props {
@@ -34,13 +35,7 @@ function FirstPropertyCard() {
               Tell us about the property. We&apos;ll match it to the way SA property works &mdash;
               sectional title, rental house, commercial, and more.
             </p>
-            <Link
-              href="/properties/new"
-              className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-            >
-              Start guided setup
-              <ArrowRight className="w-4 h-4" />
-            </Link>
+            <GuidedSetupLink />
           </div>
         </div>
       </CardContent>
