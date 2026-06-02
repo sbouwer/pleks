@@ -11,9 +11,6 @@ import { MobileHomeScreen } from "@/components/mobile/MobileHomeScreen"
 import { createClient, getCachedServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { getServerOrgMembership, getServerUser } from "@/lib/auth/server"
-import { InlineLink } from "@/components/ui/actions"
-import { Check, Circle } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { DashboardBanners } from "./DashboardBanners"
 import { MetricCard } from "./MetricCard"
 import { AttentionQueue } from "./AttentionQueue"
@@ -286,16 +283,6 @@ export default async function DashboardPage() {
     supplier:   (contractorsCountRes.count ?? 0) > 0,
   }
 
-  const checklistItems: { key: string; label: string; done: boolean; href?: string }[] = [
-    { key: "org",         label: "Organisation created",             done: true },
-    { key: "property",    label: "Add your first property",          done: totalProperties > 0,              href: "/properties" },
-    { key: "unit",        label: "Add a unit",                       done: totalUnits > 0,                   href: "/properties" },
-    { key: "tenant",      label: "Add a tenant",                     done: (tenantsCountRes.count ?? 0) > 0, href: "/tenants" },
-    { key: "lease",       label: "Create a lease",                   done: (leasesCountRes.count ?? 0) > 0,  href: "/leases" },
-    { key: "inspection",  label: "Schedule a move-in inspection",    done: (inspectionsCountRes.count ?? 0) > 0, href: "/inspections" },
-  ]
-  const showChecklist = checklistItems.some((item) => !item.done)
-
   const greeting = getGreeting()
   const dateStr = new Date().toLocaleDateString("en-ZA", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
   const tier = deriveTier(sub)
@@ -358,35 +345,6 @@ export default async function DashboardPage() {
         totalProperties={totalProperties}
         isAdmin={membership.role === "owner"}
       />
-
-      {/* Onboarding checklist — shown until all steps complete */}
-      {showChecklist && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Welcome to Pleks! Get started:</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2">
-              {checklistItems.map((item) => (
-                <li key={item.key} className="flex items-center gap-3">
-                  {item.done ? (
-                    <Check className="h-4 w-4 text-success" />
-                  ) : (
-                    <Circle className="h-4 w-4 text-muted-foreground" />
-                  )}
-                  {item.href && !item.done ? (
-                    <InlineLink href={item.href}>
-                      {item.label}
-                    </InlineLink>
-                  ) : (
-                    <span className={`text-sm ${item.done ? "text-muted-foreground line-through" : ""}`}>{item.label}</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Tier-aware plan / usage banner */}
       <PlanUsageBanner tier={tier as Tier} leaseCount={leasesCountRes.count ?? 0} />
