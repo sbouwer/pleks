@@ -8,13 +8,15 @@
  *         file renders all three party types from one set of components (DRY).
  */
 import { SA_PROVINCES } from "@/lib/constants"
-import { PARTY_ROLES, SPECIALITY_OPTIONS, type PartyRole, type PartyEntity } from "@/lib/parties/partyConfig"
-import type { PartyFormState, PartyErrors } from "@/lib/parties/partyValidation"
+import { PARTY_ROLES, SPECIALITY_OPTIONS, COMPANY_FUNCTION_OPTIONS, type PartyRole, type PartyEntity } from "@/lib/parties/partyConfig"
+import type { PartyFormState, PartyErrors, PartyPerson } from "@/lib/parties/partyValidation"
 import {
-  SectLabel, TextField, SelectField, IdField, EntityToggle, ChipPicker, CheckRow,
+  SectLabel, TextField, SelectField, IdField, EntityToggle, ChipPicker, CheckRow, PeopleRepeater,
 } from "./partyFields"
 
-type SetFn = (k: keyof PartyFormState, v: string | string[] | boolean) => void
+type SetFn = (k: keyof PartyFormState, v: string | string[] | boolean | PartyPerson[]) => void
+
+const FUNCTION_LABEL: Record<string, string> = Object.fromEntries(COMPANY_FUNCTION_OPTIONS.map((o) => [o.value, o.label]))
 
 const PROVINCE_OPTIONS = [{ value: "", label: "Select…" }, ...SA_PROVINCES.map((p) => ({ value: p, label: p }))]
 
@@ -55,13 +57,104 @@ function entityBlurb(entity: PartyEntity, fullFica: boolean): string {
 }
 
 // ── Step 1 — Identity ─────────────────────────────────────────────────────────
+type IdentityBodyProps = Readonly<{ f: PartyFormState; set: SetFn; errors: PartyErrors; fullFica: boolean }>
+
+function IndividualIdentity({ f, set, errors, fullFica }: IdentityBodyProps) {
+  return (
+    <div className="mt-6">
+      <SectLabel n="01">Personal details</SectLabel>
+      <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
+        <SelectField label="Title" k="title" f={f} set={set} options={TITLE_OPTIONS} />
+        <TextField label="Initials" k="initials" f={f} set={set} errors={errors} placeholder="J.S." />
+        <TextField label="First name" k="firstName" f={f} set={set} errors={errors} required placeholder="Jane" />
+        <TextField label="Middle name(s)" k="middleNames" f={f} set={set} errors={errors} placeholder="Optional" />
+        <TextField label="Last name" k="lastName" f={f} set={set} errors={errors} required placeholder="Smith" />
+        <TextField label="Suffix" k="suffix" f={f} set={set} errors={errors} placeholder="Jr / Sr — optional" />
+        <TextField label="Designation" k="designation" f={f} set={set} errors={errors} placeholder="Adv., Dr, CA(SA) — optional" />
+        <SelectField label="Gender" k="gender" f={f} set={set} options={GENDER_OPTIONS} />
+        {/* ID captured only for FICA parties (landlord/tenant). Suppliers store no ID. */}
+        {fullFica && <IdField label="ID" typeKey="idType" numKey="idNumber" f={f} set={set} errors={errors} />}
+        <TextField label="Email" k="email" f={f} set={set} errors={errors} required type="email" placeholder="jane@email.co.za" />
+        <TextField label="Phone" k="phone" f={f} set={set} errors={errors} required type="tel" placeholder="082 000 0000" />
+        <SelectField label="Preferred contact" k="preferredChannel" f={f} set={set} options={CHANNEL_OPTIONS} />
+      </div>
+    </div>
+  )
+}
+
+/** Legacy single-signatory block (tenant company — 25A people deferred). */
+function CompanySignatory({ f, set, errors, fullFica }: IdentityBodyProps) {
+  return (
+    <div className="mt-6">
+      <SectLabel n={fullFica ? "03" : "02"}>{fullFica ? "Mandated signatory" : "Primary contact"}</SectLabel>
+      <p className="mb-3 text-[13px] leading-snug text-muted-foreground">
+        {fullFica
+          ? "The director or authorised representative who signs on the company's behalf. Full FICA required."
+          : "The person you deal with day-to-day for this supplier."}
+      </p>
+      <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
+        <TextField label="First name" k="dirFirstName" f={f} set={set} errors={errors} required placeholder="John" />
+        <TextField label="Last name" k="dirLastName" f={f} set={set} errors={errors} required={fullFica} placeholder="Doe" />
+        {fullFica && <IdField label="ID" typeKey="dirIdType" numKey="dirIdNumber" f={f} set={set} errors={errors} required />}
+        <TextField label={fullFica ? "Direct phone" : "Phone"} k="dirPhone" f={f} set={set} errors={errors} required type="tel" placeholder="082 000 0000" />
+        <TextField label={fullFica ? "Direct email" : "Email"} k="dirEmail" f={f} set={set} errors={errors} required={fullFica} type="email" span placeholder="contact@company.co.za" />
+      </div>
+    </div>
+  )
+}
+
+function CompanyIdentity({
+  f, set, errors, fullFica, companyPeople, isSupplier,
+}: IdentityBodyProps & { companyPeople: boolean; isSupplier: boolean }) {
+  return (
+    <>
+      <div className="mt-6">
+        <SectLabel n="01">Company</SectLabel>
+        <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
+          <TextField label="Registered name" k="companyName" f={f} set={set} errors={errors} required span
+            placeholder={isSupplier ? "DW Plumbing CC" : "Coastline Holdings (Pty) Ltd"} />
+          <TextField label="CIPC reg. number" k="companyReg" f={f} set={set} errors={errors} placeholder="2023/123456/07" />
+          {fullFica && <TextField label="VAT number" k="vatNumber" f={f} set={set} errors={errors} placeholder="Optional" />}
+          {companyPeople && <TextField label="Company email" k="companyEmail" f={f} set={set} errors={errors} type="email" placeholder="info@company.co.za" />}
+          {companyPeople && <TextField label="Company phone" k="companyPhone" f={f} set={set} errors={errors} type="tel" placeholder="021 000 0000" />}
+        </div>
+      </div>
+
+      {fullFica && (
+        <div className="mt-6">
+          <SectLabel n="02">Registered address</SectLabel>
+          <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
+            <TextField label="Street address" k="addrLine1" f={f} set={set} errors={errors} required span placeholder="12 Main Road" />
+            <TextField label="Suburb" k="addrSuburb" f={f} set={set} errors={errors} placeholder="Sea Point" />
+            <TextField label="City" k="addrCity" f={f} set={set} errors={errors} required placeholder="Cape Town" />
+            <SelectField label="Province" k="addrProvince" f={f} set={set} options={PROVINCE_OPTIONS} />
+            <TextField label="Postal code" k="addrPostal" f={f} set={set} errors={errors} placeholder="8005" />
+          </div>
+        </div>
+      )}
+
+      {companyPeople ? (
+        <div className="mt-6">
+          <SectLabel n={fullFica ? "03" : "02"}>People</SectLabel>
+          <p className="mb-3 text-[13px] leading-snug text-muted-foreground">
+            The people you deal with at this company — add as many as you need. Mark who&apos;s the main contact;
+            a person&apos;s function routes the right messages to them (accounts → statements, maintenance → repairs).
+          </p>
+          <PeopleRepeater people={f.people ?? []} onChange={(ppl) => set("people", ppl)} error={errors.people} />
+        </div>
+      ) : (
+        <CompanySignatory f={f} set={set} errors={errors} fullFica={fullFica} />
+      )}
+    </>
+  )
+}
+
 export function IdentityStep({
-  role, entity, setEntity, f, set, errors, fullFica,
+  role, entity, setEntity, f, set, errors, fullFica, companyPeople,
 }: Readonly<{
   role: PartyRole; entity: PartyEntity; setEntity: (v: PartyEntity) => void
-  f: PartyFormState; set: SetFn; errors: PartyErrors; fullFica: boolean
+  f: PartyFormState; set: SetFn; errors: PartyErrors; fullFica: boolean; companyPeople: boolean
 }>) {
-  const isSupplier = role === "supplier"
   return (
     <>
       <div>
@@ -71,65 +164,9 @@ export function IdentityStep({
       </div>
 
       {entity === "individual" ? (
-        <div className="mt-6">
-          <SectLabel n="01">Personal details</SectLabel>
-          <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
-            <SelectField label="Title" k="title" f={f} set={set} options={TITLE_OPTIONS} />
-            <TextField label="Initials" k="initials" f={f} set={set} errors={errors} placeholder="J.S." />
-            <TextField label="First name" k="firstName" f={f} set={set} errors={errors} required placeholder="Jane" />
-            <TextField label="Middle name(s)" k="middleNames" f={f} set={set} errors={errors} placeholder="Optional" />
-            <TextField label="Last name" k="lastName" f={f} set={set} errors={errors} required placeholder="Smith" />
-            <TextField label="Suffix" k="suffix" f={f} set={set} errors={errors} placeholder="Jr / Sr — optional" />
-            <TextField label="Designation" k="designation" f={f} set={set} errors={errors} placeholder="Adv., Dr, CA(SA) — optional" />
-            <SelectField label="Gender" k="gender" f={f} set={set} options={GENDER_OPTIONS} />
-            {/* ID captured only for FICA parties (landlord/tenant). Suppliers store no ID. */}
-            {fullFica && <IdField label="ID" typeKey="idType" numKey="idNumber" f={f} set={set} errors={errors} />}
-            <TextField label="Email" k="email" f={f} set={set} errors={errors} required type="email" placeholder="jane@email.co.za" />
-            <TextField label="Phone" k="phone" f={f} set={set} errors={errors} required type="tel" placeholder="082 000 0000" />
-            <SelectField label="Preferred contact" k="preferredChannel" f={f} set={set} options={CHANNEL_OPTIONS} />
-          </div>
-        </div>
+        <IndividualIdentity f={f} set={set} errors={errors} fullFica={fullFica} />
       ) : (
-        <>
-          <div className="mt-6">
-            <SectLabel n="01">Company</SectLabel>
-            <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
-              <TextField label="Registered name" k="companyName" f={f} set={set} errors={errors} required span
-                placeholder={isSupplier ? "DW Plumbing CC" : "Coastline Holdings (Pty) Ltd"} />
-              <TextField label="CIPC reg. number" k="companyReg" f={f} set={set} errors={errors} placeholder="2023/123456/07" />
-              {fullFica && <TextField label="VAT number" k="vatNumber" f={f} set={set} errors={errors} placeholder="Optional" />}
-            </div>
-          </div>
-
-          {fullFica && (
-            <div className="mt-6">
-              <SectLabel n="02">Registered address</SectLabel>
-              <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
-                <TextField label="Street address" k="addrLine1" f={f} set={set} errors={errors} required span placeholder="12 Main Road" />
-                <TextField label="Suburb" k="addrSuburb" f={f} set={set} errors={errors} placeholder="Sea Point" />
-                <TextField label="City" k="addrCity" f={f} set={set} errors={errors} required placeholder="Cape Town" />
-                <SelectField label="Province" k="addrProvince" f={f} set={set} options={PROVINCE_OPTIONS} />
-                <TextField label="Postal code" k="addrPostal" f={f} set={set} errors={errors} placeholder="8005" />
-              </div>
-            </div>
-          )}
-
-          <div className="mt-6">
-            <SectLabel n={fullFica ? "03" : "02"}>{fullFica ? "Mandated signatory" : "Primary contact"}</SectLabel>
-            <p className="mb-3 text-[13px] leading-snug text-muted-foreground">
-              {fullFica
-                ? "The director or authorised representative who signs on the company's behalf. Full FICA required."
-                : "The person you deal with day-to-day for this supplier."}
-            </p>
-            <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
-              <TextField label="First name" k="dirFirstName" f={f} set={set} errors={errors} required placeholder="John" />
-              <TextField label="Last name" k="dirLastName" f={f} set={set} errors={errors} required={fullFica} placeholder="Doe" />
-              {fullFica && <IdField label="ID" typeKey="dirIdType" numKey="dirIdNumber" f={f} set={set} errors={errors} required />}
-              <TextField label={fullFica ? "Direct phone" : "Phone"} k="dirPhone" f={f} set={set} errors={errors} required type="tel" placeholder="082 000 0000" />
-              <TextField label={fullFica ? "Direct email" : "Email"} k="dirEmail" f={f} set={set} errors={errors} required={fullFica} type="email" span placeholder="contact@company.co.za" />
-            </div>
-          </div>
-        </>
+        <CompanyIdentity f={f} set={set} errors={errors} fullFica={fullFica} companyPeople={companyPeople} isSupplier={role === "supplier"} />
       )}
     </>
   )
@@ -237,8 +274,8 @@ function ReviewRow({ k, v }: Readonly<{ k: string; v: string | undefined }>) {
 }
 
 export function ReviewStep({
-  role, entity, f,
-}: Readonly<{ role: PartyRole; entity: PartyEntity; f: PartyFormState }>) {
+  role, entity, f, companyPeople,
+}: Readonly<{ role: PartyRole; entity: PartyEntity; f: PartyFormState; companyPeople: boolean }>) {
   const isIndividual = entity === "individual"
   return (
     <div className="space-y-5">
@@ -261,8 +298,20 @@ export function ReviewStep({
               <ReviewRow k="Registered name" v={f.companyName} />
               <ReviewRow k="CIPC reg." v={f.companyReg} />
               <ReviewRow k="Address" v={[f.addrLine1, f.addrCity].filter(Boolean).join(", ")} />
-              <ReviewRow k="Signatory" v={[f.dirFirstName, f.dirLastName].filter(Boolean).join(" ")} />
-              <ReviewRow k="Signatory email" v={f.dirEmail} />
+              {companyPeople ? (
+                (f.people ?? []).map((p, i) => (
+                  <ReviewRow
+                    key={p._uid ?? i}
+                    k={`${FUNCTION_LABEL[p.companyFunction ?? ""] ?? "Contact"}${p.isPrimary ? " · primary" : ""}`}
+                    v={[p.firstName, p.lastName].filter(Boolean).join(" ")}
+                  />
+                ))
+              ) : (
+                <>
+                  <ReviewRow k="Signatory" v={[f.dirFirstName, f.dirLastName].filter(Boolean).join(" ")} />
+                  <ReviewRow k="Signatory email" v={f.dirEmail} />
+                </>
+              )}
             </>
           )}
         </div>

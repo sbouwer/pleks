@@ -14,7 +14,7 @@ import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { headers } from "next/headers"
 import { hashIdNumber } from "@/lib/crypto/idNumber"
 import { PARTY_ROLES, toContactEntityType, type PartyRole, type PartyEntity } from "@/lib/parties/partyConfig"
-import type { PartyFormState, AddPartyInput, AddPartyResult } from "@/lib/parties/partyValidation"
+import type { PartyFormState, AddPartyInput, AddPartyResult, PartyPerson } from "@/lib/parties/partyValidation"
 
 type Db = Awaited<ReturnType<typeof requireAgentWriteAccess>>["db"]
 
@@ -65,11 +65,21 @@ function buildPartyContactData(
   // company
   d.company_name = f.companyName?.trim() || null
   d.registration_number = f.companyReg?.trim() || null
+  if (cfg.fullFica) d.vat_number = f.vatNumber?.trim() || null
+
+  if (cfg.companyPeople) {
+    // 25A: people are separate `contacts` rows (insertCompanyPeople). The company row holds only the
+    // company-general channel — falling back to the primary person so it's never blank.
+    const primary = (f.people ?? []).find((p) => p.isPrimary) ?? (f.people ?? [])[0]
+    d.primary_email = f.companyEmail?.trim() || primary?.email?.trim() || null
+    d.primary_phone = f.companyPhone?.trim() || primary?.phone?.trim() || null
+    return d
+  }
+
+  // legacy single-signatory company path (tenant — 25A people deferred)
   d.primary_email = f.dirEmail?.trim() || null
   d.primary_phone = f.dirPhone?.trim() || null
-
   if (cfg.fullFica) {
-    d.vat_number = f.vatNumber?.trim() || null
     d.contact_first_name = f.dirFirstName?.trim() || null
     d.contact_last_name = f.dirLastName?.trim() || null
     d.contact_phone = f.dirPhone?.trim() || null
@@ -83,6 +93,35 @@ function buildPartyContactData(
     d.last_name = f.dirLastName?.trim() || null
   }
   return d
+}
+
+/**
+ * Insert the company's people as `contacts` rows under the org contact (ADDENDUM_25A). Each is an
+ * individual with primary_role='company_contact' (kept out of role pickers) + a company_function +
+ * organisation_contact_id link. Enforces exactly one primary. No-op when there are no named people.
+ */
+async function insertCompanyPeople(db: Db, orgId: string, userId: string, companyContactId: string, people: PartyPerson[] | undefined) {
+  const named = (people ?? []).filter((p) => p.firstName?.trim() || p.lastName?.trim())
+  if (named.length === 0) return
+  let primaryIdx = named.findIndex((p) => p.isPrimary)
+  if (primaryIdx < 0) primaryIdx = 0
+  const rows = named.map((p, i) => ({
+    org_id: orgId,
+    entity_type: "individual",
+    primary_role: "company_contact",
+    organisation_contact_id: companyContactId,
+    company_function: p.companyFunction || "other",
+    designation: p.designation?.trim() || null,
+    is_primary_contact: i === primaryIdx,
+    title: p.title?.trim() || null,
+    first_name: p.firstName?.trim() || null,
+    last_name: p.lastName?.trim() || null,
+    primary_email: p.email?.trim() || null,
+    primary_phone: p.phone?.trim() || null,
+    created_by: userId,
+  }))
+  const { error } = await db.from("contacts").insert(rows)
+  if (error) console.error("[insertCompanyPeople] failed:", error.message)
 }
 
 /** Company registered address → contact_addresses (FICA roles only). No-op if no street line. */
@@ -137,6 +176,8 @@ export async function addContractorParty(input: AddPartyInput, supplierType: str
       return { ok: false, error: "Failed to create the contractor" }
     }
 
+    if (input.entity === "company") await insertCompanyPeople(db, orgId, userId, contact.id, f.people)
+
     await auditPartyCreate(db, orgId, userId, "contractors", contact.id, "supplier", input.entity, name)
     return { ok: true, name, id: contact.id as string }
   } catch (err) {
@@ -159,7 +200,10 @@ export async function addLandlordParty(input: AddPartyInput): Promise<AddPartyRe
       console.error("[addLandlordParty] contact insert failed:", contactErr?.message)
       return { ok: false, error: "Failed to create the contact" }
     }
-    if (input.entity === "company") await insertCompanyAddress(db, orgId, contact.id, f)
+    if (input.entity === "company") {
+      await insertCompanyAddress(db, orgId, contact.id, f)
+      await insertCompanyPeople(db, orgId, userId, contact.id, f.people)
+    }
 
     const { data: landlord, error: llErr } = await db.from("landlords").insert({
       org_id: orgId,

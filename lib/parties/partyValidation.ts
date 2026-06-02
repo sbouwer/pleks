@@ -6,7 +6,20 @@
  *         Identity/details validators return a { field: message } map (empty = valid). Kept here
  *         (not in the component) so the same rules drive both the modal UI and any future API guard.
  */
-import type { PartyRole, PartyEntity } from "./partyConfig"
+import type { PartyRole, PartyEntity, PartyRoleConfig } from "./partyConfig"
+
+/** A person under a company contact (ADDENDUM_25A) — first-class contact, role derives from the company. */
+export interface PartyPerson {
+  _uid?: string             // client-only stable React key; ignored by the persist layer
+  title?: string
+  firstName?: string
+  lastName?: string
+  companyFunction?: string  // owner_director | account_manager | accounts | maintenance | leasing | other
+  designation?: string      // free-text title (e.g. "Accounting & Account Management")
+  email?: string
+  phone?: string
+  isPrimary?: boolean
+}
 
 /** Payload from the modal to a create action. */
 export interface AddPartyInput {
@@ -43,6 +56,9 @@ export interface PartyFormState {
   companyName?: string
   companyReg?: string
   vatNumber?: string
+  companyEmail?: string       // company-general channel (org row primary_email)
+  companyPhone?: string       // company-general channel (org row primary_phone)
+  people?: PartyPerson[]      // 25A people repeater (landlord/supplier company path)
   addrLine1?: string
   addrSuburb?: string
   addrCity?: string
@@ -115,6 +131,7 @@ function validateIndividualIdentity(f: PartyFormState, e: PartyErrors, need: (k:
   checkSaId(f, "idType", "idNumber", e)
 }
 
+/** Legacy single-signatory company path (tenant — 25A people deferred). */
 function validateCompanyIdentity(f: PartyFormState, fullFica: boolean, e: PartyErrors, need: (k: keyof PartyFormState) => void) {
   need("companyName"); need("dirFirstName"); need("dirPhone")
   if (!fullFica) return
@@ -122,12 +139,31 @@ function validateCompanyIdentity(f: PartyFormState, fullFica: boolean, e: PartyE
   checkSaId(f, "dirIdType", "dirIdNumber", e)
 }
 
-/** Step 1 (Identity) validator — entity-aware; fullFica adds address + signatory requirements. */
-export function validateIdentity(entity: PartyEntity, f: PartyFormState, fullFica: boolean): PartyErrors {
+/** 25A people-repeater company path (landlord/supplier): ≥1 person, all named + functioned, one primary. */
+function validateCompanyPeopleIdentity(f: PartyFormState, fullFica: boolean, e: PartyErrors, need: (k: keyof PartyFormState) => void) {
+  need("companyName")
+  if (fullFica) { need("addrLine1"); need("addrCity") }
+  const people = f.people ?? []
+  if (people.length === 0) { e.people = "Add at least one contact person."; return }
+  if (people.some((p) => !p.firstName?.trim() || !p.lastName?.trim() || !p.companyFunction)) {
+    e.people = "Each person needs a first name, last name and a function."
+    return
+  }
+  if (people.filter((p) => p.isPrimary).length !== 1) {
+    e.people = "Mark exactly one person as the primary contact."
+  }
+}
+
+/** Step 1 (Identity) validator — entity-aware; company path branches on cfg.companyPeople (25A). */
+export function validateIdentity(entity: PartyEntity, f: PartyFormState, cfg: PartyRoleConfig): PartyErrors {
   const e: PartyErrors = {}
-  const need = (k: keyof PartyFormState) => { if (!String(f[k] ?? "").trim()) e[k] = "Required" }
+  const need = (k: keyof PartyFormState) => {
+    const v = f[k]
+    if (typeof v !== "string" || !v.trim()) e[k] = "Required"
+  }
   if (entity === "individual") validateIndividualIdentity(f, e, need)
-  else validateCompanyIdentity(f, fullFica, e, need)
+  else if (cfg.companyPeople) validateCompanyPeopleIdentity(f, cfg.fullFica, e, need)
+  else validateCompanyIdentity(f, cfg.fullFica, e, need)
   return e
 }
 

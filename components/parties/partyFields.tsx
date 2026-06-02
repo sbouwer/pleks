@@ -8,10 +8,10 @@
  *         segmented Individual/Company toggle, speciality chips, the stepper, and an inline SA-ID
  *         validity read-out. State is owned by the modal and threaded via f / set / errors.
  */
-import { Check } from "lucide-react"
+import { Check, Plus, X } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { PARTY_ID_TYPES } from "@/lib/parties/partyConfig"
-import { validateSAId, type PartyFormState, type PartyErrors } from "@/lib/parties/partyValidation"
+import { PARTY_ID_TYPES, COMPANY_FUNCTION_OPTIONS } from "@/lib/parties/partyConfig"
+import { validateSAId, type PartyFormState, type PartyErrors, type PartyPerson } from "@/lib/parties/partyValidation"
 
 type SetFn = (k: keyof PartyFormState, v: string | string[] | boolean) => void
 
@@ -197,6 +197,86 @@ export function ChipPicker({
           </button>
         )
       })}
+    </div>
+  )
+}
+
+// ── People repeater (company contacts, ADDENDUM_25A) ──────────────────────────
+const FUNCTION_SELECT_OPTIONS = [{ value: "", label: "Select…" }, ...COMPANY_FUNCTION_OPTIONS]
+
+function Bare({
+  label, value, onChange, required, type = "text", placeholder,
+}: Readonly<{ label: string; value?: string; onChange: (v: string) => void; required?: boolean; type?: string; placeholder?: string }>) {
+  return (
+    <Field label={label} required={required}>
+      <input className={inputCls(false)} type={type} value={value ?? ""} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+    </Field>
+  )
+}
+
+function BareSelect({
+  label, value, onChange, options, required,
+}: Readonly<{ label: string; value: string; onChange: (v: string) => void; options: ReadonlyArray<{ value: string; label: string }>; required?: boolean }>) {
+  return (
+    <Field label={label} required={required}>
+      <select className={cn(inputCls(false), "appearance-none")} value={value} onChange={(e) => onChange(e.target.value)}>
+        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+    </Field>
+  )
+}
+
+/**
+ * Multi-person editor for a company contact. Each person is a contact under the org; exactly one is the
+ * primary (the comms fallback). The host validates (≥1 person, all named/functioned, one primary).
+ */
+export function PeopleRepeater({
+  people, onChange, error,
+}: Readonly<{ people: PartyPerson[]; onChange: (p: PartyPerson[]) => void; error?: string }>) {
+  const update = (i: number, patch: Partial<PartyPerson>) =>
+    onChange(people.map((p, idx) => (idx === i ? { ...p, ...patch } : p)))
+  const remove = (i: number) => onChange(people.filter((_, idx) => idx !== i))
+  const setPrimary = (i: number) => onChange(people.map((p, idx) => ({ ...p, isPrimary: idx === i })))
+  const add = () => onChange([...people, { _uid: crypto.randomUUID(), isPrimary: people.length === 0 }])
+
+  return (
+    <div className="space-y-3">
+      {people.map((p, i) => (
+        <div key={p._uid ?? i} className="rounded-[var(--r-button)] border border-border bg-muted/20 p-3.5">
+          <div className="mb-3 flex items-center justify-between">
+            <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-foreground">
+              <input type="radio" name="company-primary-person" checked={!!p.isPrimary} onChange={() => setPrimary(i)} />
+              <span>Primary contact</span>
+            </label>
+            <button
+              type="button"
+              onClick={() => remove(i)}
+              aria-label="Remove person"
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-destructive"
+            >
+              <X className="h-3.5 w-3.5" /> Remove
+            </button>
+          </div>
+          <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+            <Bare label="First name" required value={p.firstName} onChange={(v) => update(i, { firstName: v })} placeholder="Jane" />
+            <Bare label="Last name" required value={p.lastName} onChange={(v) => update(i, { lastName: v })} placeholder="Smith" />
+            <BareSelect label="Function" required value={p.companyFunction ?? ""} onChange={(v) => update(i, { companyFunction: v })} options={FUNCTION_SELECT_OPTIONS} />
+            <Bare label="Role / title" value={p.designation} onChange={(v) => update(i, { designation: v })} placeholder="e.g. Accounting & Account Mgmt" />
+            <Bare label="Email" type="email" value={p.email} onChange={(v) => update(i, { email: v })} placeholder="jane@company.co.za" />
+            <Bare label="Phone" type="tel" value={p.phone} onChange={(v) => update(i, { phone: v })} placeholder="082 000 0000" />
+          </div>
+        </div>
+      ))}
+
+      <button
+        type="button"
+        onClick={add}
+        className="inline-flex items-center gap-1.5 rounded-[var(--r-button)] border border-dashed border-border px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+      >
+        <Plus className="h-4 w-4" /> Add {people.length === 0 ? "a person" : "another person"}
+      </button>
+
+      {error && <span className="block text-xs text-destructive">{error}</span>}
     </div>
   )
 }

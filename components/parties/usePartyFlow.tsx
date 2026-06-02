@@ -17,7 +17,7 @@ import type { WizardModalStep } from "@/components/ui/wizard-modal"
 import { PARTY_ROLES, type PartyRole, type PartyEntity } from "@/lib/parties/partyConfig"
 import {
   validateIdentity, validateDetails,
-  type PartyFormState, type PartyErrors, type AddPartyInput, type AddPartyResult,
+  type PartyFormState, type PartyErrors, type AddPartyInput, type AddPartyResult, type PartyPerson,
 } from "@/lib/parties/partyValidation"
 import { IdentityStep, DetailsStep, ReviewStep } from "./partySteps"
 
@@ -90,7 +90,7 @@ export function usePartyFlow({ role, onSubmit, onDone, hideWelcomePack }: UsePar
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState<AddPartyResult | null>(null)
 
-  const set = (k: keyof PartyFormState, v: string | string[] | boolean) =>
+  const set = (k: keyof PartyFormState, v: string | string[] | boolean | PartyPerson[]) =>
     setF((p) => ({ ...p, [k]: v }))
 
   const prefill = (values: Partial<PartyFormState>) =>
@@ -116,7 +116,7 @@ export function usePartyFlow({ role, onSubmit, onDone, hideWelcomePack }: UsePar
 
   function next() {
     if (step === 0) {
-      const e = validateIdentity(entity, f, cfg.fullFica)
+      const e = validateIdentity(entity, f, cfg)
       setErrors(e)
       if (Object.keys(e).length === 0) setStep(1)
     } else if (step === 1) {
@@ -134,10 +134,10 @@ export function usePartyFlow({ role, onSubmit, onDone, hideWelcomePack }: UsePar
   const body = (
     <>
       {step === 0 && (
-        <IdentityStep role={role} entity={entity} setEntity={changeEntity} f={f} set={set} errors={errors} fullFica={cfg.fullFica} />
+        <IdentityStep role={role} entity={entity} setEntity={changeEntity} f={f} set={set} errors={errors} fullFica={cfg.fullFica} companyPeople={cfg.companyPeople} />
       )}
       {step === 1 && <DetailsStep role={role} f={f} set={set} errors={errors} hideWelcomePack={hideWelcomePack} />}
-      {step === 2 && <ReviewStep role={role} entity={entity} f={f} />}
+      {step === 2 && <ReviewStep role={role} entity={entity} f={f} companyPeople={cfg.companyPeople} />}
     </>
   )
 

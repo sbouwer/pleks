@@ -30,6 +30,12 @@ export interface PartyRoleConfig {
   successNote: string
   /** primary success action label (null = no primary action, just "Done") */
   successAction: string | null
+  /**
+   * Company path uses the multi-person repeater (ADDENDUM_25A) instead of a single inline signatory.
+   * Landlords + suppliers: true. Tenants: false (company-tenant people deferred — lease-signatory /
+   * portal-login / per-individual screening integration is a follow-on; keep the single-signatory path).
+   */
+  companyPeople: boolean
 }
 
 export const PARTY_ROLES: Record<PartyRole, PartyRoleConfig> = {
@@ -42,6 +48,7 @@ export const PARTY_ROLES: Record<PartyRole, PartyRoleConfig> = {
     fullFica: true,
     successNote: "Their landlord profile is ready — add a property whenever you like.",
     successAction: "Generate welcome pack",
+    companyPeople: true,
   },
   tenant: {
     primaryRole: "tenant",
@@ -52,6 +59,7 @@ export const PARTY_ROLES: Record<PartyRole, PartyRoleConfig> = {
     fullFica: true,
     successNote: "Consent is on file. You can place them on a lease now or later.",
     successAction: "Start a lease for them",
+    companyPeople: false,
   },
   supplier: {
     primaryRole: "contractor",
@@ -62,8 +70,23 @@ export const PARTY_ROLES: Record<PartyRole, PartyRoleConfig> = {
     fullFica: false,
     successNote: "They'll now surface for matching maintenance jobs.",
     successAction: "Assign to a job",
+    companyPeople: true,
   },
 }
+
+/**
+ * Company-contact functions (ADDENDUM_25A) — the closed routing set for a person under an organisation.
+ * comms route by function (maintenance→maintenance, statement→accounts, else primary); free-text nuance
+ * lives in `designation`. Keep in sync with the contacts_company_function_check CHECK.
+ */
+export const COMPANY_FUNCTION_OPTIONS = [
+  { value: "owner_director", label: "Owner / Director" },
+  { value: "account_manager", label: "Account manager" },
+  { value: "accounts", label: "Accounts / Bookkeeper" },
+  { value: "maintenance", label: "Maintenance" },
+  { value: "leasing", label: "Leasing" },
+  { value: "other", label: "Other" },
+] as const
 
 export const PARTY_ROLE_ORDER: PartyRole[] = ["landlord", "tenant", "supplier"]
 
