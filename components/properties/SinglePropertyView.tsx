@@ -140,7 +140,7 @@ function TenantCard({ lease }: Readonly<{
       <div className="rounded-xl border border-border/60 bg-surface-elevated px-5 py-4 flex flex-col gap-3">
         <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70">Tenant</p>
         <p className="text-sm text-muted-foreground">No tenant assigned</p>
-        <InlineLink href="/tenants/new">Add a tenant</InlineLink>
+        <InlineLink href="/tenants?add=1">Add a tenant</InlineLink>
       </div>
     )
   }

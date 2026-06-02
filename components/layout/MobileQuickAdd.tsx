@@ -38,7 +38,7 @@ interface AddTile {
 const ADD: AddTile[] = [
   { icon: UserSquare2, label: "Landlord", href: "/landlords" },
   { icon: Home, label: "Property", href: "/properties" },
-  { icon: Users, label: "Tenant", href: "/tenants/new" },
+  { icon: Users, label: "Tenant", href: "/tenants?add=1" },
   { icon: HardHat, label: "Supplier", href: "/suppliers" },
   { icon: FileText, label: "Lease", href: "/leases/new" },
 ]

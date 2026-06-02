@@ -9,7 +9,7 @@
  * Notes:  Empty → the shared EmptyResourceState with the in-place add launcher; loading renders nothing
  *         (body = null) to avoid flash. AddPartyModal stays mounted so both the header and hero buttons drive it.
  */
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 import { AddButton } from "@/components/ui/add-button"
@@ -22,12 +22,18 @@ import { fetchTenantsAction } from "@/lib/queries/portfolioActions"
 import { AddPartyModal } from "@/components/parties/AddPartyModal"
 import { addTenantParty } from "@/lib/actions/parties"
 
-interface Props { orgId: string }
+interface Props { orgId: string; autoOpenAdd?: boolean }
 
-export function TenantsPageClient({ orgId }: Readonly<Props>) {
+export function TenantsPageClient({ orgId, autoOpenAdd }: Readonly<Props>) {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const [addOpen, setAddOpen] = useState(false)
+  // ?add=1 (from the property view / mobile quick-add) opens the add modal — the canonical add surface.
+  // Init from the prop so it opens on first paint; strip the param via history (not router, which would
+  // remount and reset addOpen) so a refresh/back doesn't reopen it.
+  const [addOpen, setAddOpen] = useState(!!autoOpenAdd)
+  useEffect(() => {
+    if (autoOpenAdd) globalThis.history.replaceState(null, "", "/tenants")
+  }, [autoOpenAdd])
   const { data: tenants = [], isLoading } = useQuery({
     queryKey: PORTFOLIO_QUERY_KEYS.tenants(orgId),
     queryFn: () => fetchTenantsAction(orgId),

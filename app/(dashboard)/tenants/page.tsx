@@ -1,11 +1,9 @@
 /**
- * app/(dashboard)/tenants/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/tenants/page.tsx — Tenants list page (prefetch + hydrate the tenant list)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /tenants  (?add=1 auto-opens the add-tenant modal — the canonical add surface)
+ * Auth:   getServerOrgMembership (redirects to /login)
+ * Data:   fetchTenants prefetched into React Query, hydrated client-side
  */
 import { HydrationBoundary, QueryClient, dehydrate } from "@tanstack/react-query"
 import { redirect } from "next/navigation"
@@ -14,11 +12,14 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { PORTFOLIO_QUERY_KEYS, STALE_TIME, fetchTenants } from "@/lib/queries/portfolio"
 import { TenantsPageClient } from "./TenantsPageClient"
 
-export default async function TenantsPage() {
+export default async function TenantsPage({
+  searchParams,
+}: Readonly<{ searchParams: Promise<{ add?: string }> }>) {
   const membership = await getServerOrgMembership()
   if (!membership) redirect("/login")
 
   const { org_id: orgId } = membership
+  const autoOpenAdd = (await searchParams).add === "1"
   const queryClient = new QueryClient()
   const supabase = await createServiceClient()
 
@@ -31,7 +32,7 @@ export default async function TenantsPage() {
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <TenantsPageClient orgId={orgId} />
+      <TenantsPageClient orgId={orgId} autoOpenAdd={autoOpenAdd} />
     </HydrationBoundary>
   )
 }
