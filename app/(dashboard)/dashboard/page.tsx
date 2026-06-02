@@ -62,9 +62,12 @@ function deriveTrialInfo(sub: SubRow) {
 async function DashboardHeavySections({
   orgId,
   collectionRate,
+  isOwner,
 }: Readonly<{
   orgId: string
   collectionRate: CollectionRateData
+  /** owner tier (single property, no trust/agency) — skip the agency Financials panel */
+  isOwner: boolean
 }>) {
   const [feesDue, trustBalance, unpaidOwners, attentionItems, activityItems, expiringLeases, landlordsCountRes] =
     await Promise.all([
@@ -80,6 +83,21 @@ async function DashboardHeavySections({
     ])
 
   const totalLandlords = landlordsCountRes.count ?? 0
+
+  // Owner tier: a single property with no trust account or other owners — the agency Financials
+  // panel (trust balance, owners-unpaid, management fees) doesn't apply, so lead with what's
+  // actionable for them: what needs attention + their lease expiry, then recent activity.
+  if (isOwner) {
+    return (
+      <>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <AttentionQueue items={attentionItems} />
+          <LeaseExpiryTimeline leases={expiringLeases} />
+        </div>
+        <ActivityFeed items={activityItems} />
+      </>
+    )
+  }
 
   return (
     <>
@@ -410,7 +428,7 @@ export default async function DashboardPage() {
       {/* Heavy sections — stream in via Suspense */}
       {collectionRate && (
         <Suspense fallback={<DashboardSectionsSkeleton />}>
-          <DashboardHeavySections orgId={orgId} collectionRate={collectionRate} />
+          <DashboardHeavySections orgId={orgId} collectionRate={collectionRate} isOwner={tier === "owner"} />
         </Suspense>
       )}
         </>
