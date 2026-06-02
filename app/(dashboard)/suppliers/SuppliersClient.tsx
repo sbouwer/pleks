@@ -10,14 +10,15 @@
 
 import { useState } from "react"
 import { Input } from "@/components/ui/input"
-import { ActionButton, EditButton, IconButton } from "@/components/ui/actions"
+import { EditButton, IconButton } from "@/components/ui/actions"
+import { AddButton } from "@/components/ui/add-button"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
 import { usePermissions } from "@/hooks/usePermissions"
 import {
-  Search, Trash2, X, Plus,
+  Search, Trash2, X,
   ArrowUpDown, ArrowUp, ArrowDown,
 } from "lucide-react"
 import { PORTFOLIO_QUERY_KEYS } from "@/lib/queries/portfolio"
@@ -302,23 +303,31 @@ export function SuppliersClient({ contractors: initial, orgId }: Readonly<Props>
   )
 }
 
-export function AddContractorButton({ orgId, supplierType = "contractor" }: Readonly<{ orgId: string; supplierType?: string }>) {
+export function AddContractorButton({
+  orgId, supplierType = "contractor", variant = "default", showPlus = true, labelOverride,
+}: Readonly<{
+  orgId: string; supplierType?: string
+  variant?: "default" | "hero"; showPlus?: boolean; labelOverride?: string
+}>) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
 
   const SUPPLIER_LABELS: Record<string, string> = {
-    managing_scheme: "Managing Scheme",
-    utility: "Utility",
-    contractor: "Contractor",
+    managing_scheme: "managing scheme",
+    utility: "utility",
+    contractor: "contractor",
   }
-  const label = SUPPLIER_LABELS[supplierType] ?? "Contractor"
+  const label = SUPPLIER_LABELS[supplierType] ?? "contractor"
 
   return (
     <>
-      <ActionButton tone="primary" icon={<Plus className="size-4" />} onClick={() => setOpen(true)}>
-        Add {label}
-      </ActionButton>
+      <AddButton
+        label={labelOverride ?? `Add ${label}`}
+        variant={variant}
+        showPlus={showPlus}
+        onClick={() => setOpen(true)}
+      />
       <AddPartyModal
         role="supplier"
         open={open}

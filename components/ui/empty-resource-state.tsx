@@ -14,10 +14,11 @@ import type { ReactNode } from "react"
 export function EmptyResourceState({
   eyebrow, title, headline, headerSub, emptyTitle, emptySub, icon, headerAction, heroAction,
 }: Readonly<{
-  eyebrow:       string
-  title:         string
-  headline:      string
-  headerSub:     string
+  /** page title block — omit (no `title`) to render just the dashed card, e.g. under a tabbed header */
+  eyebrow?:      string
+  title?:        string
+  headline?:     string
+  headerSub?:    string
   emptyTitle:    string
   emptySub:      string
   icon:          ReactNode
@@ -28,17 +29,21 @@ export function EmptyResourceState({
 }>) {
   return (
     <div>
-      <p className="font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">{eyebrow}</p>
-      <h1 className="mt-1 font-heading text-3xl font-bold leading-tight text-foreground">{title}</h1>
+      {title && (
+        <>
+          {eyebrow && <p className="font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">{eyebrow}</p>}
+          <h1 className="mt-1 font-heading text-3xl font-bold leading-tight text-foreground">{title}</h1>
 
-      {/* header row */}
-      <div className="mt-6 flex items-end justify-between gap-4 border-b border-dashed border-border pb-4">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-foreground">{headline}</p>
-          <p className="mt-0.5 text-sm text-muted-foreground">{headerSub}</p>
-        </div>
-        {headerAction}
-      </div>
+          {/* header row */}
+          <div className="mt-6 flex items-end justify-between gap-4 border-b border-dashed border-border pb-4">
+            <div className="min-w-0">
+              {headline && <p className="text-sm font-semibold text-foreground">{headline}</p>}
+              {headerSub && <p className="mt-0.5 text-sm text-muted-foreground">{headerSub}</p>}
+            </div>
+            {headerAction}
+          </div>
+        </>
+      )}
 
       {/* dashed door card */}
       <div className="mt-4 flex flex-col items-center rounded-[var(--r-button)] border border-dashed border-border bg-card px-6 py-14 text-center">

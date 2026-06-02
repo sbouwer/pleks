@@ -1,19 +1,20 @@
 "use client"
 
 /**
- * app/(dashboard)/tenants/TenantsPageClient.tsx — Tenants page shell: fetches tenant list via React Query and renders the searchable TenantsClient table or an empty state
+ * app/(dashboard)/tenants/TenantsPageClient.tsx — Tenants page shell: fetches tenant list via React Query and renders the table or the shared empty state
  *
  * Route:  /tenants
  * Auth:   dashboard layout (gateway)
  * Data:   tenant list from fetchTenantsAction (server action); cached under PORTFOLIO_QUERY_KEYS.tenants(orgId)
- * Notes:  loading state renders nothing (body = null) to avoid flash; TenantsClient receives the stable query result
+ * Notes:  Empty → the shared EmptyResourceState with the in-place add launcher; loading renders nothing
+ *         (body = null) to avoid flash. AddPartyModal stays mounted so both the header and hero buttons drive it.
  */
 import React, { useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
-import { ActionButton } from "@/components/ui/actions"
-import { EmptyState } from "@/components/shared/EmptyState"
-import { Users, Plus } from "lucide-react"
+import { AddButton } from "@/components/ui/add-button"
+import { EmptyResourceState } from "@/components/ui/empty-resource-state"
+import { Users } from "lucide-react"
 import { TenantsClient } from "./TenantsClient"
 import { PORTFOLIO_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchTenantsAction } from "@/lib/queries/portfolioActions"
@@ -32,19 +33,36 @@ export function TenantsPageClient({ orgId }: Readonly<Props>) {
     staleTime: STALE_TIME.tenants,
   })
 
-  let body: React.ReactNode = null
-  if (!isLoading) {
-    if (tenants.length === 0) {
-      body = (
-        <EmptyState
-          icon={<Users className="h-8 w-8 text-muted-foreground" />}
-          title="No tenants yet"
-          description="Import contacts from a CSV or add tenants manually using the button above."
+  const modal = (
+    <AddPartyModal
+      role="tenant"
+      open={addOpen}
+      onOpenChange={setAddOpen}
+      onSubmit={addTenantParty}
+      onCreated={() => {
+        queryClient.invalidateQueries({ queryKey: PORTFOLIO_QUERY_KEYS.tenants(orgId) })
+        router.refresh()
+      }}
+    />
+  )
+
+  if (!isLoading && tenants.length === 0) {
+    return (
+      <div>
+        <EmptyResourceState
+          eyebrow="Portfolio"
+          title="Tenants"
+          headline="No tenants yet"
+          headerSub="Add tenants to place them on leases and track their applications and payments."
+          emptyTitle="No tenants here yet"
+          emptySub="Add your first tenant to get started."
+          icon={<Users className="h-6 w-6" />}
+          headerAction={<AddButton label="Add tenant" onClick={() => setAddOpen(true)} />}
+          heroAction={<AddButton label="Add your first tenant" variant="hero" showPlus={false} onClick={() => setAddOpen(true)} />}
         />
-      )
-    } else {
-      body = <TenantsClient tenants={tenants} />
-    }
+        {modal}
+      </div>
+    )
   }
 
   return (
@@ -54,21 +72,10 @@ export function TenantsPageClient({ orgId }: Readonly<Props>) {
           <h1 className="font-heading text-3xl">Tenants</h1>
           <p className="text-sm text-muted-foreground">{tenants.length} tenants</p>
         </div>
-        <ActionButton tone="primary" icon={<Plus className="h-4 w-4" />} onClick={() => setAddOpen(true)}>
-          Add Tenant
-        </ActionButton>
+        <AddButton label="Add tenant" onClick={() => setAddOpen(true)} />
       </div>
-      {body}
-      <AddPartyModal
-        role="tenant"
-        open={addOpen}
-        onOpenChange={setAddOpen}
-        onSubmit={addTenantParty}
-        onCreated={() => {
-          queryClient.invalidateQueries({ queryKey: PORTFOLIO_QUERY_KEYS.tenants(orgId) })
-          router.refresh()
-        }}
-      />
+      {!isLoading && <TenantsClient tenants={tenants} />}
+      {modal}
     </div>
   )
 }

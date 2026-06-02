@@ -14,7 +14,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
-import { EmptyState } from "@/components/shared/EmptyState"
+import { EmptyResourceState } from "@/components/ui/empty-resource-state"
 import { HardHat } from "lucide-react"
 import { SuppliersClient, AddContractorButton, type Contractor } from "./SuppliersClient"
 import { PORTFOLIO_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
@@ -65,10 +65,19 @@ export function SuppliersPageClient({ orgId }: Props) {
         ))}
       </div>
       {contractors.length === 0 ? (
-        <EmptyState
-          icon={<HardHat className="h-8 w-8 text-muted-foreground" />}
-          title={`No ${tabInfo.plural} yet`}
-          description={`Add your first ${tabInfo.label.toLowerCase().slice(0, -1)} using the button above.`}
+        <EmptyResourceState
+          emptyTitle={`No ${tabInfo.plural} yet`}
+          emptySub={`Add your first ${tabInfo.singular} to get started.`}
+          icon={<HardHat className="h-6 w-6" />}
+          heroAction={
+            <AddContractorButton
+              orgId={orgId}
+              supplierType={activeTab}
+              variant="hero"
+              showPlus={false}
+              labelOverride={`Add your first ${tabInfo.singular}`}
+            />
+          }
         />
       ) : (
         <SuppliersClient contractors={contractors} orgId={orgId} />

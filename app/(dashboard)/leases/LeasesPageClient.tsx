@@ -11,8 +11,9 @@
 import { useQuery } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { ActionButton } from "@/components/ui/actions"
-import { Plus } from "lucide-react"
+import { AddButton } from "@/components/ui/add-button"
+import { EmptyResourceState } from "@/components/ui/empty-resource-state"
+import { FileText } from "lucide-react"
 import { LeaseListTabs } from "./LeaseListTabs"
 import type { SerializedLease } from "./LeaseRow"
 import { PORTFOLIO_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
@@ -37,7 +38,7 @@ interface Props { orgId: string }
 
 export function LeasesPageClient({ orgId }: Props) {
   const router = useRouter()
-  const { data: rawLeases = [] } = useQuery({
+  const { data: rawLeases = [], isLoading } = useQuery({
     queryKey: PORTFOLIO_QUERY_KEYS.leases(orgId),
     queryFn: () => fetchLeasesAction(orgId),
     staleTime: STALE_TIME.leases,
@@ -81,6 +82,23 @@ export function LeasesPageClient({ orgId }: Props) {
     }
   })
 
+  // Empty → the shared empty state (no tabs/filters or footer metrics — nothing to filter or total).
+  if (!isLoading && serialised.length === 0) {
+    return (
+      <EmptyResourceState
+        eyebrow="Portfolio"
+        title="Leases"
+        headline="No leases yet"
+        headerSub="Create a lease to manage tenancy agreements and rental schedules."
+        emptyTitle="No leases here yet"
+        emptySub="Create your first lease once a tenant is ready to be placed on a unit."
+        icon={<FileText className="h-6 w-6" />}
+        headerAction={<AddButton label="Create lease" onClick={() => router.push("/leases/new")} />}
+        heroAction={<AddButton label="Create your first lease" variant="hero" showPlus={false} onClick={() => router.push("/leases/new")} />}
+      />
+    )
+  }
+
   return (
     <div className="flex h-full flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -93,9 +111,7 @@ export function LeasesPageClient({ orgId }: Props) {
             {serialised.length} lease{serialised.length === 1 ? "" : "s"}
           </p>
         </div>
-        <ActionButton tone="primary" icon={<Plus className="h-4 w-4" />} onClick={() => router.push("/leases/new")}>
-          Create Lease
-        </ActionButton>
+        <AddButton label="Create lease" onClick={() => router.push("/leases/new")} />
       </div>
 
       {/* Mobile lease cards */}
