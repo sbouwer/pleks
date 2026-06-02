@@ -59,7 +59,7 @@
 .pub-btn {
   display: inline-flex; align-items: center; gap: 8px;
   font-size: 14px; font-weight: 500; line-height: 1;
-  padding: 11px 18px; border-radius: var(--r-sm);
+  padding: 11px 18px; border-radius: var(--r-button);
   border: 1px solid transparent; cursor: pointer; transition: all .15s;
   font-family: var(--pub-sans); text-decoration: none;
 }
@@ -79,7 +79,8 @@
 .pub-icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 34px; height: 34px; flex-shrink: 0;
-  border-radius: var(--r-sm);
+  /* Squared with a very slight softening — uses the canonical --r-button token. */
+  border-radius: var(--r-button);
   border: 1px solid var(--rule);
   background: var(--paper-sunk);
   color: var(--ink-mute);

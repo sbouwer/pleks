@@ -117,6 +117,10 @@
   --chart-5: oklch(0.60 0.02 260);
 
   --radius: 0.625rem;
+  /* Canonical button radius — global default; .pleks-public / .pleks-portal re-declare the same
+     value so every button (frontend + backend) is squared with a very slight softening.
+     Change in ONE place per scope to reskin all buttons. */
+  --r-button: 3px;
 
   /* Sidebar */
   --sidebar: oklch(0.18 0.01 260);
@@ -272,7 +276,8 @@ table.ledger tr.paid td:first-child::before {
 .pub-icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 34px; height: 34px; flex-shrink: 0;
-  border-radius: var(--r-sm, 5px);
+  /* Squared with a very slight softening — uses the canonical --r-button token. */
+  border-radius: var(--r-button);
   border: 1px solid var(--rule);
   background: var(--paper-sunk);
   color: var(--ink-mute);
@@ -349,6 +354,8 @@ table.ledger tr.paid td:first-child::before {
   --critical-wash:oklch(0.96 0.03 25);
   /* Radii */
   --r-xs: 3px; --r-sm: 5px; --r-md: 8px; --r-lg: 12px;
+  /* Canonical button radius — squared with a very slight softening. Change HERE to reskin ALL buttons. */
+  --r-button: 3px;
   /* Shadows */
   --shadow-1: 0 1px 0 oklch(0.88 0.006 85 / 0.6);
   --shadow-2: 0 1px 2px oklch(0.2 0.01 260 / 0.04), 0 1px 0 oklch(0.88 0.006 85 / 0.8);
@@ -474,6 +481,8 @@ table.ledger tr.paid td:first-child::before {
   /* Shared with public site */
   --pub-sans: var(--font-inter-tight, "Inter Tight", -apple-system, sans-serif);
   --r-xs: 3px; --r-sm: 5px; --r-md: 8px; --r-lg: 12px;
+  /* Canonical button radius — squared with a very slight softening. Change HERE to reskin ALL buttons. */
+  --r-button: 3px;
   --shadow-1: 0 1px 0 oklch(0.88 0.006 85 / 0.6);
   --shadow-2: 0 1px 2px oklch(0.2 0.01 260 / 0.04), 0 1px 0 oklch(0.88 0.006 85 / 0.8);
 }

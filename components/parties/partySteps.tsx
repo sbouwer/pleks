@@ -283,12 +283,12 @@ export function SuccessView({
       <div className="mt-6 flex flex-col items-stretch gap-2 self-stretch">
         {cfg.successAction && (
           <button type="button" onClick={onPrimaryAction ?? onClose}
-            className="rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
+            className="rounded-[var(--r-button)] bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
             {cfg.successAction}
           </button>
         )}
         <button type="button" onClick={onAddAnother}
-          className="rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted/40">
+          className="rounded-[var(--r-button)] border border-border px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted/40">
           Add another {cfg.singular.toLowerCase()}
         </button>
         <button type="button" onClick={onClose} className="px-4 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground">

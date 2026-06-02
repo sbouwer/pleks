@@ -50,7 +50,7 @@
   display: inline-flex; align-items: center; gap: 10px;
   background: var(--amber); color: var(--ink);
   padding: 10px 16px 10px 12px;
-  border: 0; border-radius: var(--r-sm, 5px);
+  border: 0; border-radius: var(--r-button);
   font-family: var(--pub-sans); font-size: 14px; font-weight: 600;
   letter-spacing: -0.005em;
   cursor: pointer; transition: filter .15s, box-shadow .15s;
@@ -77,7 +77,7 @@
   position: relative;
   display: inline-flex; align-items: center; gap: 8px;
   background: transparent; color: var(--ink);
-  padding: 8px 12px; border: 0; border-radius: var(--r-sm, 5px);
+  padding: 8px 12px; border: 0; border-radius: var(--r-button);
   font-family: var(--pub-sans); font-size: 14px; font-weight: 500;
   cursor: pointer; transition: background .15s, color .15s;
 }
@@ -105,7 +105,7 @@
   display: inline-flex; align-items: center; gap: 8px;
   background: transparent; color: var(--danger);
   padding: 8px 14px;
-  border: 1px solid var(--danger); border-radius: var(--r-sm, 5px);
+  border: 1px solid var(--danger); border-radius: var(--r-button);
   font-family: var(--pub-sans); font-size: 14px; font-weight: 500;
   cursor: pointer; transition: background .15s, color .15s;
 }
@@ -137,7 +137,7 @@
   position: relative;
   display: inline-flex; align-items: center; gap: 6px;
   background: transparent; color: var(--ink-soft);
-  padding: 6px; border: 0; border-radius: var(--r-sm, 5px);
+  padding: 6px; border: 0; border-radius: var(--r-button);
   font-family: var(--pub-sans); font-size: 13px; font-weight: 500;
   cursor: pointer; transition: background .15s, color .15s;
 }
@@ -163,7 +163,7 @@
 /* ── Bare icon button (toolbar / row actions) ────────────────────────── */
 .pa-iconbtn {
   position: relative;
-  width: 32px; height: 32px; border-radius: var(--r-sm, 5px);
+  width: 32px; height: 32px; border-radius: var(--r-button);
   border: 1px solid var(--rule-strong);
   background: var(--paper-raised); color: var(--ink-soft);
   display: inline-flex; align-items: center; justify-content: center;
@@ -205,7 +205,7 @@
 }
 .pa-iconstack-icon {
   position: relative;
-  width: 36px; height: 36px; border-radius: var(--r-sm, 5px);
+  width: 36px; height: 36px; border-radius: var(--r-button);
   border: 1px solid var(--rule-strong);
   background: var(--paper-raised);
   display: inline-flex; align-items: center; justify-content: center;
@@ -272,7 +272,7 @@
 .pa-modal-close {
   background: transparent; border: 0; padding: 4px;
   cursor: pointer; color: var(--ink-mute);
-  border-radius: var(--r-sm, 5px); transition: color .15s, background .15s;
+  border-radius: var(--r-button); transition: color .15s, background .15s;
 }
 .pa-modal-close:hover { color: var(--ink); background: var(--paper-sunk); }
 .pa-modal-body { color: var(--ink-soft); font-size: 14px; line-height: 1.5; }

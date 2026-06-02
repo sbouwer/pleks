@@ -133,7 +133,7 @@ export function AddPartyModal({
             <button
               type="button"
               onClick={() => (step === 0 ? close() : setStep(step - 1))}
-              className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              className="rounded-[var(--r-button)] px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
               {step === 0 ? "Cancel" : "Back"}
             </button>
@@ -141,7 +141,7 @@ export function AddPartyModal({
               type="button"
               onClick={next}
               disabled={submitting}
-              className="rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
+              className="rounded-[var(--r-button)] bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
             >
               {primaryLabel(step, submitting, cfg.singular)}
             </button>
