@@ -649,3 +649,22 @@ CREATE POLICY "org_renewal_reminders" ON property_insurance_renewal_reminders
     org_id IN (SELECT org_id FROM user_orgs
                WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL)
   );
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §12.3  FIX: properties.managing_scheme_id → contractors FK (was silently missing)
+--   §07 added the column with `... REFERENCES contractors(id)`, but via ADD COLUMN IF NOT
+--   EXISTS — so when the column already existed from an earlier run the FK was skipped. Without
+--   it PostgREST can't resolve the `contractors!managing_scheme_id` embed, so the owner-tier
+--   /properties select 400'd and silently returned null → "No property yet". Re-add it.
+-- ═══════════════════════════════════════════════════════════════════════════════
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'properties_managing_scheme_id_fkey' AND conrelid = 'properties'::regclass
+  ) THEN
+    ALTER TABLE properties
+      ADD CONSTRAINT properties_managing_scheme_id_fkey
+      FOREIGN KEY (managing_scheme_id) REFERENCES contractors(id);
+  END IF;
+END $$;

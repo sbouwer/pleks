@@ -27,12 +27,11 @@ export default async function PropertiesPage({
 
   // ── Owner tier: single property dashboard ──────────────────────────────────
   if (tier === "owner") {
-    const { data: rawProperty } = await db
+    const { data: rawProperty, error: ownerErr } = await db
       .from("properties")
       .select(`
         id, name, type, address_line1, address_line2, suburb, city, province, postal_code,
-        managing_agent_id, is_sectional_title, levy_amount_cents, levy_account_number,
-        managing_scheme:contractors!managing_scheme_id(id, contact:contacts(company_name)),
+        managing_agent_id, is_sectional_title, levy_amount_cents, levy_account_number, managing_scheme_id,
         units(
           id, unit_number, status, is_archived,
           bedrooms, bathrooms, size_m2, floor, parking_bays, furnished,
@@ -52,7 +51,20 @@ export default async function PropertiesPage({
       .is("deleted_at", null)
       .maybeSingle()
 
+    if (ownerErr) console.error("[properties] owner property fetch failed:", ownerErr.message)
     if (!rawProperty) return <NoPropertyYet />
+
+    // Managing scheme resolved separately — decoupled from the properties→contractors FK embed so a
+    // missing/uncached relationship can never 400 the whole select and blank the page.
+    const schemeId = (rawProperty as { managing_scheme_id?: string | null }).managing_scheme_id ?? null
+    let managingScheme: { id: string; contact: { company_name: string | null } | null } | null = null
+    if (schemeId) {
+      const { data: scheme, error: schemeErr } = await db
+        .from("contractors").select("id, contact:contacts(company_name)")
+        .eq("id", schemeId).eq("org_id", orgId).maybeSingle()
+      if (schemeErr) console.error("[properties] managing scheme fetch failed:", schemeErr.message)
+      managingScheme = (scheme as typeof managingScheme) ?? null
+    }
 
     const activeUnit = (rawProperty.units ?? [])[0]
     const now = new Date()
@@ -86,7 +98,7 @@ export default async function PropertiesPage({
     const prospCoTenants = (coTenantResults as { id: string; data: Parameters<typeof tenantDisplayName>[0] }[])
       .map((r) => ({ id: r.id, name: tenantDisplayName(r.data) ?? r.id }))
 
-    const property = rawProperty as unknown as SinglePropertyData
+    const property = { ...(rawProperty as object), managing_scheme: managingScheme } as unknown as SinglePropertyData
 
     return (
       <SinglePropertyView
@@ -102,7 +114,7 @@ export default async function PropertiesPage({
 
   // ── Steward tier: enriched card grid ──────────────────────────────────────
   if (tier === "steward") {
-    const { data: rawProperties } = await db
+    const { data: rawProperties, error: stewardErr } = await db
       .from("properties")
       .select(`
         id, name, type, address_line1, city, province,
@@ -112,6 +124,7 @@ export default async function PropertiesPage({
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
 
+    if (stewardErr) console.error("[properties] steward fetch failed:", stewardErr.message)
     const properties = (rawProperties ?? []) as unknown as PropertyListItem[]
     const totalUnitCount = properties.reduce(
       (sum, p) => sum + p.units.filter(u => !u.is_archived).length, 0
@@ -125,7 +138,7 @@ export default async function PropertiesPage({
   const statusFilter = searchParams.status ?? ""
   const view = (searchParams.view ?? "list") as "list" | "cards"
 
-  const { data: rawProperties } = await db
+  const { data: rawProperties, error: listErr } = await db
     .from("properties")
     .select(`
       id, name, type, address_line1, city, province,
@@ -135,6 +148,7 @@ export default async function PropertiesPage({
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
 
+  if (listErr) console.error("[properties] list fetch failed:", listErr.message)
   let properties = (rawProperties ?? []) as unknown as PropertyListItem[]
 
   // Apply search filter (server-side on the fetched data)
