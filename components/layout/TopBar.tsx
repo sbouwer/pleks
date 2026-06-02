@@ -38,6 +38,20 @@ export function Topbar({
   const [profileOpen, setProfileOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
+  // When <main> scrolls, its scrollbar insets the page content on the right. Push the header right by
+  // that width (0 when there's no scrollbar) so the icons stay aligned with the content. Re-measured on
+  // resize / content changes (a scrollbar appearing changes main's clientWidth).
+  const [scrollbarWidth, setScrollbarWidth] = useState(0)
+  useEffect(() => {
+    const main = document.querySelector("main")
+    if (!main) return
+    const measure = () => setScrollbarWidth(main.offsetWidth - main.clientWidth)
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(main)
+    return () => ro.disconnect()
+  }, [])
+
   // Close the profile menu on any outside click or Escape. A fixed backdrop element does NOT work
   // here: the header's backdrop-filter makes it the containing block for position:fixed children, so
   // an inset-0 backdrop only covers the 64px header, never the rest of the screen.
@@ -68,8 +82,9 @@ export function Topbar({
       background: "color-mix(in oklab, var(--muted) 30%, var(--background))",
       borderBottom: "1px solid var(--rule)",
       height: 64, display: "flex", alignItems: "center",
-      // Match the main content padding (p-6 = 24px) so the org name / icons line up with the page edges.
-      padding: "0 24px", gap: 16, flexShrink: 0,
+      // Match the main content padding (24px) + the scroll content's scrollbar width on the right, so the
+      // org name / icons line up with the page content whether or not <main> is scrolling.
+      padding: `0 ${24 + scrollbarWidth}px 0 24px`, gap: 16, flexShrink: 0,
     }}>
 
       {/* Left: org name */}
