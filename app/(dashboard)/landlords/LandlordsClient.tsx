@@ -10,11 +10,11 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
-import { Input } from "@/components/ui/input"
 import { ActionButton, EditButton, IconButton } from "@/components/ui/actions"
 import { Badge } from "@/components/ui/badge"
+import { ListSearchBar, ListCard, SortHeader, useListSort } from "@/components/ui/resource-list"
 import { toast } from "sonner"
-import { Search, X, ArrowUpDown, ArrowUp, ArrowDown, Trash2 } from "lucide-react"
+import { Trash2 } from "lucide-react"
 import { useOrg } from "@/hooks/useOrg"
 import { usePermissions } from "@/hooks/usePermissions"
 import { PORTFOLIO_QUERY_KEYS } from "@/lib/queries/portfolio"
@@ -36,23 +36,6 @@ interface Props {
 }
 
 type SortKey = "name" | "email" | "phone" | "type"
-type SortDir = "asc" | "desc"
-
-function SortIcon({ col, sortKey, sortDir }: Readonly<{ col: SortKey; sortKey: SortKey; sortDir: SortDir }>) {
-  if (col !== sortKey) return <ArrowUpDown className="size-3.5 text-muted-foreground/50 ml-1 inline" />
-  return sortDir === "asc"
-    ? <ArrowUp className="size-3.5 text-brand ml-1 inline" />
-    : <ArrowDown className="size-3.5 text-brand ml-1 inline" />
-}
-
-function ColHeader({ col, label, sortKey, sortDir, onSort }: Readonly<{ col: SortKey; label: string; sortKey: SortKey; sortDir: SortDir; onSort: (col: SortKey) => void }>) {
-  return (
-    <button type="button" onClick={() => onSort(col)}
-      className="flex items-center gap-0.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap">
-      {label}<SortIcon col={col} sortKey={sortKey} sortDir={sortDir} />
-    </button>
-  )
-}
 
 export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
   const router = useRouter()
@@ -60,14 +43,8 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
   const { orgId } = useOrg()
   const { isAdmin } = usePermissions()
   const [search, setSearch] = useState("")
-  const [sortKey, setSortKey] = useState<SortKey>("name")
-  const [sortDir, setSortDir] = useState<SortDir>("asc")
+  const { sortKey, sortDir, onSort } = useListSort<SortKey>("name")
   const [deletingId, setDeletingId] = useState<string | null>(null)
-
-  function handleSort(col: SortKey) {
-    if (sortKey === col) setSortDir(sortDir === "asc" ? "desc" : "asc")
-    else { setSortKey(col); setSortDir("asc") }
-  }
 
   const filtered = initial
     .filter((l) => {
@@ -110,17 +87,7 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
 
   return (
     <div className="space-y-4">
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-        <Input className="pl-9" placeholder="Search by name, email or phone…"
-          value={search} onChange={(e) => setSearch(e.target.value)} />
-        {search && (
-          <button onClick={() => setSearch("")}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-            <X className="size-4" />
-          </button>
-        )}
-      </div>
+      <ListSearchBar value={search} onChange={setSearch} placeholder="Search by name, email or phone…" />
 
       <p className="text-xs text-muted-foreground">{filtered.length} of {initial.length} landlord{initial.length === 1 ? "" : "s"}</p>
 
@@ -133,7 +100,7 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
             {filtered.map((l) => {
               const displayName = l.company_name || `${l.first_name ?? ""} ${l.last_name ?? ""}`.trim() || "Unnamed"
               return (
-                <div key={l.id} className="border border-border rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+                <div key={l.id} className="flex items-center justify-between gap-3 rounded-[var(--r-button)] border border-border bg-card px-4 py-3">
                   <div className="min-w-0">
                     <p className="font-medium text-sm truncate">{displayName}</p>
                     {l.phone && <p className="text-xs text-muted-foreground mt-0.5">{l.phone}</p>}
@@ -156,14 +123,14 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
           </div>
 
           {/* Desktop table */}
-          <div className="hidden lg:block rounded-lg border border-border overflow-hidden">
+          <ListCard className="hidden lg:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/30">
-                <th className="px-4 py-2.5 text-left"><ColHeader col="name" label="Name" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} /></th>
-                <th className="px-4 py-2.5 text-left hidden md:table-cell"><ColHeader col="type" label="Type" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} /></th>
-                <th className="px-4 py-2.5 text-left hidden lg:table-cell"><ColHeader col="phone" label="Phone" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} /></th>
-                <th className="px-4 py-2.5 text-left hidden lg:table-cell"><ColHeader col="email" label="Email" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} /></th>
+                <th className="px-4 py-2.5 text-left"><SortHeader col="name" label="Name" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
+                <th className="px-4 py-2.5 text-left hidden md:table-cell"><SortHeader col="type" label="Type" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
+                <th className="px-4 py-2.5 text-left hidden lg:table-cell"><SortHeader col="phone" label="Phone" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
+                <th className="px-4 py-2.5 text-left hidden lg:table-cell"><SortHeader col="email" label="Email" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
                 <th className="px-4 py-2.5 text-left hidden xl:table-cell">
                   <span className="text-xs font-medium text-muted-foreground">Properties</span>
                 </th>
@@ -217,7 +184,7 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
               })}
             </tbody>
           </table>
-          </div>
+          </ListCard>
         </>
       )}
     </div>

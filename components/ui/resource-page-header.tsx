@@ -22,8 +22,15 @@ export function ResourcePageHeader({
 }>) {
   // Same rhythm as EmptyResourceState: eyebrow → prominent title → a bold headline + muted description
   // over the dashed rule. Keeps every page (empty or populated) flowing identically.
+  //
+  // Sticky: this is the page's nav / quick-back / quick-add space, so it stays pinned while the content
+  // below scrolls. The negative margins cancel the dashboard <main> padding (p-6) so the bar spans edge
+  // to edge, and the opaque canvas fill (same token mix as the topbar) hides rows sliding underneath.
   return (
-    <div className="mb-5">
+    <div
+      className="sticky top-0 z-30 -mx-6 -mt-6 mb-5 px-6 pt-6 pb-5"
+      style={{ background: "color-mix(in oklab, var(--muted) 30%, var(--background))" }}
+    >
       {eyebrow && (
         <p className="font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">{eyebrow}</p>
       )}
