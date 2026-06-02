@@ -4,11 +4,11 @@
  * app/(dashboard)/dashboard/GettingStarted.tsx — new-user empty-state onboarding (dashboard)
  *
  * Route:  /dashboard (rendered when the org has no property yet)
- * Notes:  The door-grammar "get you set up" block from the dashboard mockup: a welcome hero, a
- *         progress meter, and six step cards (landlord → property → tenant → lease → inspection →
- *         supplier). The property card launches the wizard in place (GuidedSetupLink grammar); the
- *         rest route to their pages, which now carry the same empty-state + add modal. `done` flags
- *         come from the server so completed steps read as ticked.
+ * Notes:  The door-grammar "get you set up" block: a welcome hero whose primary action launches the
+ *         first incomplete step, a progress meter, and six step cards (landlord → property → tenant →
+ *         lease → inspection → supplier). Landlord/tenant/supplier open the shared add-party modal in
+ *         place and router.refresh() on create, so the card ticks off without leaving; property
+ *         launches the wizard; lease/inspection route to /new. `done` flags come from live counts.
  */
 import { useState } from "react"
 import { useRouter } from "next/navigation"
@@ -16,6 +16,10 @@ import { Shield, ArrowRight, Check, UserSquare2, Home, Users, FileText, Clipboar
 import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PropertyWizardModal } from "@/app/(dashboard)/properties/new/PropertyWizardModal"
+import { AddPartyModal } from "@/components/parties/AddPartyModal"
+import { addLandlordParty, addTenantParty, addContractorParty } from "@/lib/actions/parties"
+import type { AddPartyInput } from "@/lib/parties/partyValidation"
+import type { PartyRole } from "@/lib/parties/partyConfig"
 
 export interface GettingStartedProgress {
   landlord:   boolean
@@ -26,23 +30,24 @@ export interface GettingStartedProgress {
   supplier:   boolean
 }
 
+type StepKey = keyof GettingStartedProgress
+
 interface Step {
-  key:   keyof GettingStartedProgress
+  key:   StepKey
   step:  string
   icon:  LucideIcon
   title: string
   desc:  string
   cta:   string
-  href?: string   // omitted for the property step, which launches in place
 }
 
 const STEPS: Step[] = [
-  { key: "landlord",   step: "Step 01", icon: UserSquare2,   title: "Add a landlord",                desc: "Individuals, companies and trusts — with payout accounts for owner statements.",          cta: "Add a landlord",   href: "/landlords" },
+  { key: "landlord",   step: "Step 01", icon: UserSquare2,   title: "Add a landlord",                desc: "Individuals, companies and trusts — with payout accounts for owner statements.",          cta: "Add a landlord" },
   { key: "property",   step: "Step 02", icon: Home,          title: "Add your first property",       desc: "Sectional title, rental house, commercial — we tailor everything to how SA property works.", cta: "Start guided setup" },
-  { key: "tenant",     step: "Step 03", icon: Users,         title: "Add a tenant",                  desc: "Capture FICA and POPIA consent once; reuse it across every lease.",                        cta: "Add a tenant",     href: "/tenants" },
-  { key: "lease",      step: "Step 04", icon: FileText,      title: "Create a lease",                desc: "Generate a compliant lease with escalation, deposit and CPA clauses built in.",           cta: "Create a lease",   href: "/leases/new" },
-  { key: "inspection", step: "Step 05", icon: ClipboardCheck, title: "Schedule a move-in inspection", desc: "Photo-backed inspections that protect your deposit claims later.",                         cta: "Schedule it",      href: "/inspections/new" },
-  { key: "supplier",   step: "Step 06", icon: HardHat,       title: "Add a supplier",                desc: "Plumbers, electricians and contractors you assign to maintenance jobs.",                  cta: "Add a supplier",   href: "/suppliers" },
+  { key: "tenant",     step: "Step 03", icon: Users,         title: "Add a tenant",                  desc: "Capture FICA and POPIA consent once; reuse it across every lease.",                        cta: "Add a tenant" },
+  { key: "lease",      step: "Step 04", icon: FileText,      title: "Create a lease",                desc: "Generate a compliant lease with escalation, deposit and CPA clauses built in.",           cta: "Create a lease" },
+  { key: "inspection", step: "Step 05", icon: ClipboardCheck, title: "Schedule a move-in inspection", desc: "Photo-backed inspections that protect your deposit claims later.",                         cta: "Schedule it" },
+  { key: "supplier",   step: "Step 06", icon: HardHat,       title: "Add a supplier",                desc: "Plumbers, electricians and contractors you assign to maintenance jobs.",                  cta: "Add a supplier" },
 ]
 
 function StepCard({ s, done, onClick }: Readonly<{ s: Step; done: boolean; onClick: () => void }>) {
@@ -78,17 +83,27 @@ function StepCard({ s, done, onClick }: Readonly<{ s: Step; done: boolean; onCli
   )
 }
 
-export function GettingStarted({ progress }: Readonly<{ progress: GettingStartedProgress }>) {
+export function GettingStarted({ progress, orgId }: Readonly<{ progress: GettingStartedProgress; orgId: string }>) {
   const router = useRouter()
   const [dismissed, setDismissed] = useState(false)
-  const [wizardOpen, setWizardOpen] = useState(false)
+  const [propertyOpen, setPropertyOpen] = useState(false)
+  const [party, setParty] = useState<PartyRole | null>(null)
 
   const doneCount = STEPS.filter((s) => progress[s.key]).length
   const pct = Math.round((doneCount / STEPS.length) * 100)
+  const firstTodo = STEPS.find((s) => !progress[s.key])
 
-  function activate(s: Step) {
-    if (s.key === "property") { setWizardOpen(true); return }
-    if (s.href) router.push(s.href)
+  function activate(key: StepKey) {
+    if (key === "property") { setPropertyOpen(true); return }
+    if (key === "lease") { router.push("/leases/new"); return }
+    if (key === "inspection") { router.push("/inspections/new"); return }
+    setParty(key as PartyRole)   // landlord / tenant / supplier
+  }
+
+  function submitParty(input: AddPartyInput) {
+    if (party === "landlord") return addLandlordParty(input)
+    if (party === "tenant") return addTenantParty(input)
+    return addContractorParty(input, "contractor")
   }
 
   return (
@@ -104,10 +119,21 @@ export function GettingStarted({ progress }: Readonly<{ progress: GettingStarted
               A few short steps to a live portfolio. Start by adding the landlord who owns the property — you&apos;ll link their property next. Do the rest in any order.
             </p>
           </div>
+          {firstTodo && (
+            <button
+              type="button"
+              onClick={() => activate(firstTodo.key)}
+              className="group inline-flex shrink-0 items-center gap-2 rounded-[var(--r-button)] bg-foreground py-2.5 pl-2.5 pr-4 text-sm font-semibold text-background transition-colors hover:bg-primary hover:text-primary-foreground"
+            >
+              <span aria-hidden className="h-3.5 w-[3px] shrink-0 bg-primary transition-colors group-hover:bg-primary-foreground" />
+              Get started
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setDismissed(true)}
-            className="rounded-[var(--r-button)] border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+            className="shrink-0 rounded-[var(--r-button)] px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
           >
             Dismiss
           </button>
@@ -124,11 +150,24 @@ export function GettingStarted({ progress }: Readonly<{ progress: GettingStarted
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
         {STEPS.map((s) => (
-          <StepCard key={s.key} s={s} done={progress[s.key]} onClick={() => activate(s)} />
+          <StepCard key={s.key} s={s} done={progress[s.key]} onClick={() => activate(s.key)} />
         ))}
       </div>
 
-      <PropertyWizardModal open={wizardOpen} onClose={() => setWizardOpen(false)} />
+      {party && (
+        <AddPartyModal
+          role={party}
+          open
+          onOpenChange={(o) => { if (!o) setParty(null) }}
+          onSubmit={submitParty}
+          onCreated={() => router.refresh()}
+          onPrimaryAction={party === "landlord" ? (result) => {
+            if (!result.id) return
+            globalThis.open(`/api/reports/welcome-pack?orgId=${encodeURIComponent(orgId)}&landlordId=${encodeURIComponent(result.id)}`, "_blank")
+          } : undefined}
+        />
+      )}
+      <PropertyWizardModal open={propertyOpen} onClose={() => setPropertyOpen(false)} />
     </>
   )
 }

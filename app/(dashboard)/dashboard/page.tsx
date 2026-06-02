@@ -323,7 +323,7 @@ export default async function DashboardPage() {
       {isNewOrg ? (
         /* ── New-user empty state — get-started steps + workspace setup ──────── */
         <>
-          <GettingStarted progress={onboardingProgress} />
+          <GettingStarted progress={onboardingProgress} orgId={orgId} />
           <WorkspaceSetup />
         </>
       ) : (
