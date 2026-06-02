@@ -3,24 +3,19 @@
 /**
  * app/(dashboard)/dashboard/GettingStarted.tsx — new-user empty-state onboarding (dashboard)
  *
- * Route:  /dashboard (rendered when the org has no property yet)
- * Notes:  The door-grammar "get you set up" block: a welcome hero whose primary action launches the
- *         first incomplete step, a progress meter, and six step cards (landlord → property → tenant →
- *         lease → inspection → supplier). Landlord/tenant/supplier open the shared add-party modal in
- *         place and router.refresh() on create, so the card ticks off without leaving; property
- *         launches the wizard; lease/inspection route to /new. `done` flags come from live counts.
+ * Route:  /dashboard (rendered when onboarding is not yet dismissed)
+ * Notes:  The door-grammar "get you set up" block: a welcome hero, a progress meter, and six step
+ *         cards (landlord → property → tenant → lease → inspection → supplier). The hero "Get started"
+ *         and each card open the unified OnboardingWizard at that step (the single-modal guided walk).
+ *         `done` flags come from live counts; Skip/Finish stamp the org onboarding flag → populated.
  */
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Shield, ArrowRight, Check, UserSquare2, Home, Users, FileText, ClipboardCheck, HardHat } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { PropertyWizardModal } from "@/app/(dashboard)/properties/new/PropertyWizardModal"
-import { AddPartyModal } from "@/components/parties/AddPartyModal"
-import { addLandlordParty, addTenantParty, addContractorParty } from "@/lib/actions/parties"
 import { dismissOnboarding } from "@/lib/actions/dismissOnboarding"
-import type { AddPartyInput } from "@/lib/parties/partyValidation"
-import type { PartyRole } from "@/lib/parties/partyConfig"
+import { OnboardingWizard } from "./OnboardingWizard"
 
 export interface GettingStartedProgress {
   landlord:   boolean
@@ -84,12 +79,12 @@ function StepCard({ s, done, onClick }: Readonly<{ s: Step; done: boolean; onCli
   )
 }
 
-export function GettingStarted({ progress, orgId }: Readonly<{ progress: GettingStartedProgress; orgId: string }>) {
+export function GettingStarted({ progress }: Readonly<{ progress: GettingStartedProgress }>) {
   const router = useRouter()
   const [dismissed, setDismissed] = useState(false)
-  const [propertyOpen, setPropertyOpen] = useState(false)
-  const [party, setParty] = useState<PartyRole | null>(null)
   const [finishing, startFinish] = useTransition()
+  const [wizardOpen, setWizardOpen] = useState(false)
+  const [wizardStart, setWizardStart] = useState<StepKey | undefined>(undefined)
 
   const doneCount = STEPS.filter((s) => progress[s.key]).length
   const pct = Math.round((doneCount / STEPS.length) * 100)
@@ -101,17 +96,10 @@ export function GettingStarted({ progress, orgId }: Readonly<{ progress: Getting
     startFinish(async () => { await dismissOnboarding(); router.refresh() })
   }
 
-  function activate(key: StepKey) {
-    if (key === "property") { setPropertyOpen(true); return }
-    if (key === "lease") { router.push("/leases/new"); return }
-    if (key === "inspection") { router.push("/inspections/new"); return }
-    setParty(key as PartyRole)   // landlord / tenant / supplier
-  }
-
-  function submitParty(input: AddPartyInput) {
-    if (party === "landlord") return addLandlordParty(input)
-    if (party === "tenant") return addTenantParty(input)
-    return addContractorParty(input, "contractor")
+  // Every entry point opens the unified guided wizard at the chosen step.
+  function openWizard(key?: StepKey) {
+    setWizardStart(key)
+    setWizardOpen(true)
   }
 
   return (
@@ -130,7 +118,7 @@ export function GettingStarted({ progress, orgId }: Readonly<{ progress: Getting
           {firstTodo && (
             <button
               type="button"
-              onClick={() => activate(firstTodo.key)}
+              onClick={() => openWizard(firstTodo.key)}
               className="group inline-flex shrink-0 items-center gap-2 rounded-[var(--r-button)] bg-foreground py-2.5 pl-2.5 pr-4 text-sm font-semibold text-background transition-colors hover:bg-primary hover:text-primary-foreground"
             >
               <span aria-hidden className="h-3.5 w-[3px] shrink-0 bg-primary transition-colors group-hover:bg-primary-foreground" />
@@ -158,7 +146,7 @@ export function GettingStarted({ progress, orgId }: Readonly<{ progress: Getting
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
         {STEPS.map((s) => (
-          <StepCard key={s.key} s={s} done={progress[s.key]} onClick={() => activate(s.key)} />
+          <StepCard key={s.key} s={s} done={progress[s.key]} onClick={() => openWizard(s.key)} />
         ))}
       </div>
 
@@ -185,20 +173,12 @@ export function GettingStarted({ progress, orgId }: Readonly<{ progress: Getting
         )}
       </div>
 
-      {party && (
-        <AddPartyModal
-          role={party}
-          open
-          onOpenChange={(o) => { if (!o) setParty(null) }}
-          onSubmit={submitParty}
-          onCreated={() => router.refresh()}
-          onPrimaryAction={party === "landlord" ? (result) => {
-            if (!result.id) return
-            globalThis.open(`/api/reports/welcome-pack?orgId=${encodeURIComponent(orgId)}&landlordId=${encodeURIComponent(result.id)}`, "_blank")
-          } : undefined}
-        />
-      )}
-      <PropertyWizardModal open={propertyOpen} onClose={() => setPropertyOpen(false)} />
+      <OnboardingWizard
+        open={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        progress={progress}
+        startKey={wizardStart}
+      />
     </>
   )
 }

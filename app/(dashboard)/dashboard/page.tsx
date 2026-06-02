@@ -346,7 +346,7 @@ export default async function DashboardPage() {
       {showOnboarding ? (
         /* ── New-user empty state — get-started steps + workspace setup ──────── */
         <>
-          <GettingStarted progress={onboardingProgress} orgId={orgId} />
+          <GettingStarted progress={onboardingProgress} />
           <WorkspaceSetup isOwner={tier === "owner"} />
         </>
       ) : (

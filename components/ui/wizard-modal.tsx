@@ -22,6 +22,8 @@ export interface WizardModalStep {
   label:  string
   /** small uppercase hint shown under the label on the current step (e.g. "In progress"). */
   hint?:  string
+  /** explicit done state (e.g. onboarding steps that complete out of order). Defaults to index < current. */
+  done?:  boolean
 }
 
 interface WizardModalProps {
@@ -56,9 +58,9 @@ function RailStep({
   step: WizardModalStep; index: number; current: number; isLast: boolean
   onSelect?: (index: number) => void
 }>) {
-  const done      = index < current
+  const done      = step.done ?? index < current
   const active    = index === current
-  const clickable = done && !!onSelect
+  const clickable = (step.done || index < current) && !!onSelect
   return (
     <button
       type="button"
