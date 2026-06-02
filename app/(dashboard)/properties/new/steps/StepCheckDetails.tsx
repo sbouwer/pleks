@@ -33,8 +33,8 @@ export function StepCheckDetails({ variant }: Readonly<StepCheckDetailsProps>) {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-start gap-3 rounded-lg border bg-muted/20 p-4">
-        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+      <div className="flex items-start gap-3 rounded-[var(--r-button)] border bg-muted/20 p-4">
+        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--r-button)] bg-primary/10 text-primary">
           {isOwner ? <ShieldCheck className="h-5 w-5" /> : <UserCheck className="h-5 w-5" />}
         </span>
         <div className="space-y-1">
@@ -51,7 +51,7 @@ export function StepCheckDetails({ variant }: Readonly<StepCheckDetailsProps>) {
         {isOwner ? " property owner" : " owner's full"} record after setup.
       </p>
 
-      <label className="flex items-start gap-2.5 rounded-lg border bg-card p-3 text-sm cursor-pointer">
+      <label className="flex items-start gap-2.5 rounded-[var(--r-button)] border bg-card p-3 text-sm cursor-pointer">
         <input
           type="checkbox"
           checked={state.selfDetailsConfirmed}

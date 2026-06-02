@@ -111,10 +111,10 @@ function UnitCountInput({ value, onChange }: UnitCountInputProps) {
         max={200}
         value={value}
         onChange={(e) => {
-          const n = parseInt(e.target.value, 10)
-          if (!isNaN(n) && n >= 1) onChange(n)
+          const n = Number.parseInt(e.target.value, 10)
+          if (!Number.isNaN(n) && n >= 1) onChange(n)
         }}
-        className="w-16 rounded border border-input bg-background px-2 py-1 text-xs text-center"
+        className="w-16 rounded-[5px] border border-border bg-card px-2 py-1 text-center text-xs text-foreground outline-none transition-colors focus:border-primary"
         onClick={(e) => e.stopPropagation()}
       />
     </div>

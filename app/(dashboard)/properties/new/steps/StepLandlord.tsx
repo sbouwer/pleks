@@ -12,10 +12,12 @@
  *         the single owner-dependency gate — never branch owner paths on managedMode (D-60C-04).
  */
 import { useState, useEffect } from "react"
+import { Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useWizard, type LandlordDraft } from "../WizardContext"
 import { useAddLandlordSubflow } from "../addLandlordContext"
 import { OptionRow } from "../OptionRow"
+import { WField, WInput } from "./fields"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -59,10 +61,14 @@ interface NewOwnerFormProps {
 function NewOwnerForm({ draft, onChange }: NewOwnerFormProps) {
   const entityType = (draft.entity_type ?? "individual") as EntityType
 
+  const isTrust = entityType === "trust"
+  const companyLabel = isTrust ? "Trust name" : "Company name"
+  const companyPlaceholder = isTrust ? "Mokoena Family Trust" : "Blue Vista Properties (Pty) Ltd"
+
   return (
-    <div className="rounded-lg border bg-muted/20 p-4 space-y-4">
-      {/* Entity type */}
-      <div className="flex gap-2">
+    <div className="space-y-4 rounded-[var(--r-button)] border border-border bg-muted/20 p-4">
+      {/* Entity type — door pill */}
+      <div className="flex gap-1 rounded-[var(--r-button)] border border-border bg-muted/40 p-1">
         {(["individual", "company", "trust"] as EntityType[]).map((t) => (
           <button
             key={t}
@@ -70,10 +76,8 @@ function NewOwnerForm({ draft, onChange }: NewOwnerFormProps) {
             aria-pressed={entityType === t}
             onClick={() => onChange({ entity_type: t })}
             className={cn(
-              "flex-1 rounded-lg border px-3 py-2 text-xs font-medium capitalize transition-colors",
-              entityType === t
-                ? "border-primary bg-primary/5 text-primary"
-                : "border-border text-muted-foreground hover:border-primary/40",
+              "flex-1 rounded-[5px] px-3 py-1.5 text-xs font-medium capitalize transition-colors",
+              entityType === t ? "bg-card text-foreground shadow-sm ring-1 ring-border" : "text-muted-foreground hover:text-foreground",
             )}
           >
             {t}
@@ -82,76 +86,27 @@ function NewOwnerForm({ draft, onChange }: NewOwnerFormProps) {
       </div>
 
       {entityType === "individual" ? (
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <label htmlFor="owner-first" className="text-xs font-medium">First name</label>
-            <input
-              id="owner-first"
-              type="text"
-              value={draft.first_name ?? ""}
-              onChange={(e) => onChange({ first_name: e.target.value })}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              placeholder="Thabo"
-            />
-          </div>
-          <div className="space-y-1">
-            <label htmlFor="owner-last" className="text-xs font-medium">Last name</label>
-            <input
-              id="owner-last"
-              type="text"
-              value={draft.last_name ?? ""}
-              onChange={(e) => onChange({ last_name: e.target.value })}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              placeholder="Mokoena"
-            />
-          </div>
+        <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
+          <WField label="First name" htmlFor="owner-first">
+            <WInput id="owner-first" value={draft.first_name ?? ""} onChange={(v) => onChange({ first_name: v })} placeholder="Thabo" />
+          </WField>
+          <WField label="Last name" htmlFor="owner-last">
+            <WInput id="owner-last" value={draft.last_name ?? ""} onChange={(v) => onChange({ last_name: v })} placeholder="Mokoena" />
+          </WField>
         </div>
       ) : (
-        <div className="space-y-1">
-          {(() => {
-            const isTrust = entityType === "trust"
-            const fieldLabel = isTrust ? "Trust name" : "Company name"
-            const placeholder = isTrust ? "Mokoena Family Trust" : "Blue Vista Properties (Pty) Ltd"
-            return (
-              <>
-                <label htmlFor="owner-company" className="text-xs font-medium">{fieldLabel}</label>
-                <input
-                  id="owner-company"
-                  type="text"
-                  value={draft.company_name ?? ""}
-                  onChange={(e) => onChange({ company_name: e.target.value })}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  placeholder={placeholder}
-                />
-              </>
-            )
-          })()}
-        </div>
+        <WField label={companyLabel} htmlFor="owner-company">
+          <WInput id="owner-company" value={draft.company_name ?? ""} onChange={(v) => onChange({ company_name: v })} placeholder={companyPlaceholder} />
+        </WField>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <label htmlFor="owner-email" className="text-xs font-medium">Email</label>
-          <input
-            id="owner-email"
-            type="email"
-            value={draft.email ?? ""}
-            onChange={(e) => onChange({ email: e.target.value })}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            placeholder="owner@example.com"
-          />
-        </div>
-        <div className="space-y-1">
-          <label htmlFor="owner-phone" className="text-xs font-medium">Phone</label>
-          <input
-            id="owner-phone"
-            type="tel"
-            value={draft.phone ?? ""}
-            onChange={(e) => onChange({ phone: e.target.value })}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            placeholder="082 000 0000"
-          />
-        </div>
+      <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
+        <WField label="Email" htmlFor="owner-email">
+          <WInput id="owner-email" type="email" value={draft.email ?? ""} onChange={(v) => onChange({ email: v })} placeholder="owner@example.com" />
+        </WField>
+        <WField label="Phone" htmlFor="owner-phone">
+          <WInput id="owner-phone" type="tel" value={draft.phone ?? ""} onChange={(v) => onChange({ phone: v })} placeholder="082 000 0000" />
+        </WField>
       </div>
       <p className="text-xs text-muted-foreground">
         Full details (ID, banking, FICA) are captured on the owner profile page after creation.
@@ -223,13 +178,16 @@ export function StepLandlord() {
       {/* Existing owner search */}
       {option === "existing" && (
         <div className="space-y-2">
-          <input
-            type="search"
-            placeholder="Search by name or email…"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          />
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="search"
+              placeholder="Search by name or email…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-11 w-full rounded-[var(--r-button)] border border-border bg-card pl-10 pr-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground/70 hover:bg-muted/30 focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
+            />
+          </div>
           {loading && (
             <p className="text-sm text-muted-foreground py-2">Loading…</p>
           )}
@@ -237,7 +195,7 @@ export function StepLandlord() {
             <p className="text-sm text-muted-foreground py-2">No owners found.</p>
           )}
           {!loading && filtered.length > 0 && (
-            <div className="max-h-56 overflow-y-auto rounded-lg border divide-y">
+            <div className="max-h-56 divide-y divide-border overflow-y-auto rounded-[var(--r-button)] border border-border">
               {filtered.map((row) => (
                 <button
                   key={row.id}
@@ -298,8 +256,8 @@ function LaterPanel({ track, email, onChangeTrack, onChangeEmail }: LaterPanelPr
   ]
 
   return (
-    <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
-      <p className="text-sm font-medium">How should we follow up?</p>
+    <div className="space-y-3 rounded-[var(--r-button)] border border-border bg-muted/20 p-4">
+      <p className="text-sm font-medium text-foreground">How should we follow up?</p>
       <div className="space-y-1.5">
         {TRACKS.map((t) => (
           <OptionRow
@@ -313,19 +271,9 @@ function LaterPanel({ track, email, onChangeTrack, onChangeEmail }: LaterPanelPr
       </div>
 
       {track === "owner_email" && (
-        <div className="space-y-1">
-          <label htmlFor="later-owner-email" className="text-xs font-medium block">
-            Owner&apos;s email <span className="text-muted-foreground font-normal">(optional — add later if unsure)</span>
-          </label>
-          <input
-            id="later-owner-email"
-            type="email"
-            placeholder="owner@example.com"
-            value={email}
-            onChange={(e) => onChangeEmail(e.target.value)}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          />
-        </div>
+        <WField label="Owner's email (optional — add later if unsure)" htmlFor="later-owner-email">
+          <WInput id="later-owner-email" type="email" placeholder="owner@example.com" value={email} onChange={onChangeEmail} />
+        </WField>
       )}
     </div>
   )
