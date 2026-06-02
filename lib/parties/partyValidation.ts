@@ -18,7 +18,10 @@ export interface PartyPerson {
   designation?: string      // free-text title (e.g. "Accounting & Account Management")
   email?: string
   phone?: string
-  isPrimary?: boolean
+  isPrimary?: boolean       // comms default (exactly one per company)
+  isSignatory?: boolean     // signs for the company (lease/mandate) → FICA required (FICA roles only)
+  idType?: string           // sa_id | passport | permit (captured for signatories)
+  idNumber?: string
 }
 
 /** Payload from the modal to a create action. */
@@ -139,7 +142,19 @@ function validateCompanyIdentity(f: PartyFormState, fullFica: boolean, e: PartyE
   checkSaId(f, "dirIdType", "dirIdNumber", e)
 }
 
-/** 25A people-repeater company path (landlord/supplier): ≥1 person, all named + functioned, one primary. */
+/** A signatory whose SA-ID fails the checksum (passport/permit aren't checksum-validated). */
+function signatoryHasBadId(p: PartyPerson): boolean {
+  const id = p.idNumber?.trim()
+  if (!id) return true // signatory must have an ID number (FICA)
+  if ((p.idType || "sa_id") !== "sa_id") return false
+  const v = validateSAId(id)
+  return !!v && !v.valid
+}
+
+/**
+ * 25A people-repeater company path: ≥1 person, all named + functioned, exactly one primary. For FICA
+ * companies (landlord/tenant) also requires ≥1 signatory and every signatory to carry a valid FICA ID.
+ */
 function validateCompanyPeopleIdentity(f: PartyFormState, fullFica: boolean, e: PartyErrors, need: (k: keyof PartyFormState) => void) {
   need("companyName")
   if (fullFica) { need("addrLine1"); need("addrCity") }
@@ -151,6 +166,17 @@ function validateCompanyPeopleIdentity(f: PartyFormState, fullFica: boolean, e: 
   }
   if (people.filter((p) => p.isPrimary).length !== 1) {
     e.people = "Mark exactly one person as the primary contact."
+    return
+  }
+  if (fullFica) {
+    const signatories = people.filter((p) => p.isSignatory)
+    if (signatories.length === 0) {
+      e.people = "Mark at least one person as a signatory — they sign for the company and need FICA."
+      return
+    }
+    if (signatories.some(signatoryHasBadId)) {
+      e.people = "Every signatory needs a valid ID number (FICA)."
+    }
   }
 }
 

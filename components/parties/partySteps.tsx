@@ -140,7 +140,7 @@ function CompanyIdentity({
             The people you deal with at this company — add as many as you need. Mark who&apos;s the main contact;
             a person&apos;s function routes the right messages to them (accounts → statements, maintenance → repairs).
           </p>
-          <PeopleRepeater people={f.people ?? []} onChange={(ppl) => set("people", ppl)} error={errors.people} />
+          <PeopleRepeater people={f.people ?? []} onChange={(ppl) => set("people", ppl)} error={errors.people} fica={fullFica} />
         </div>
       ) : (
         <CompanySignatory f={f} set={set} errors={errors} fullFica={fullFica} />
@@ -302,7 +302,7 @@ export function ReviewStep({
                 (f.people ?? []).map((p, i) => (
                   <ReviewRow
                     key={p._uid ?? i}
-                    k={`${FUNCTION_LABEL[p.companyFunction ?? ""] ?? "Contact"}${p.isPrimary ? " · primary" : ""}`}
+                    k={`${FUNCTION_LABEL[p.companyFunction ?? ""] ?? "Contact"}${p.isPrimary ? " · primary" : ""}${p.isSignatory ? " · signatory" : ""}`}
                     v={[p.firstName, p.lastName].filter(Boolean).join(" ")}
                   />
                 ))

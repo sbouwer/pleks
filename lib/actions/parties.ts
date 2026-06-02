@@ -105,21 +105,29 @@ async function insertCompanyPeople(db: Db, orgId: string, userId: string, compan
   if (named.length === 0) return
   let primaryIdx = named.findIndex((p) => p.isPrimary)
   if (primaryIdx < 0) primaryIdx = 0
-  const rows = named.map((p, i) => ({
-    org_id: orgId,
-    entity_type: "individual",
-    primary_role: "company_contact",
-    organisation_contact_id: companyContactId,
-    company_function: p.companyFunction || "other",
-    designation: p.designation?.trim() || null,
-    is_primary_contact: i === primaryIdx,
-    title: p.title?.trim() || null,
-    first_name: p.firstName?.trim() || null,
-    last_name: p.lastName?.trim() || null,
-    primary_email: p.email?.trim() || null,
-    primary_phone: p.phone?.trim() || null,
-    created_by: userId,
-  }))
+  const rows = named.map((p, i) => {
+    const sigId = p.isSignatory ? (p.idNumber?.trim() || null) : null
+    return {
+      org_id: orgId,
+      entity_type: "individual",
+      primary_role: "company_contact",
+      organisation_contact_id: companyContactId,
+      company_function: p.companyFunction || "other",
+      designation: p.designation?.trim() || null,
+      is_primary_contact: i === primaryIdx,
+      // Signatory + FICA ID (FICA company contacts only) — the person who signs for the company.
+      is_signatory: !!p.isSignatory,
+      id_type: p.isSignatory ? (p.idType || "sa_id") : null,
+      id_number: sigId,
+      id_number_hash: sigId ? hashIdNumber(sigId) : null,
+      title: p.title?.trim() || null,
+      first_name: p.firstName?.trim() || null,
+      last_name: p.lastName?.trim() || null,
+      primary_email: p.email?.trim() || null,
+      primary_phone: p.phone?.trim() || null,
+      created_by: userId,
+    }
+  })
   const { error } = await db.from("contacts").insert(rows)
   if (error) console.error("[insertCompanyPeople] failed:", error.message)
 }
@@ -235,7 +243,9 @@ export async function addTenantParty(input: AddPartyInput): Promise<AddPartyResu
     const f = input.form
     const name = partyDisplayName("tenant", input.entity, f)
     const consent = f.popiaConsent === true
-    const subjectEmail = (input.entity === "company" ? f.dirEmail : f.email)?.trim() || null
+    // Tenant company now uses the people repeater (25A) — consent subject = company-general or primary person.
+    const primaryPerson = (f.people ?? []).find((p) => p.isPrimary) ?? (f.people ?? [])[0]
+    const subjectEmail = (input.entity === "company" ? (f.companyEmail || primaryPerson?.email) : f.email)?.trim() || null
 
     const { data: contact, error: contactErr } = await db
       .from("contacts").insert(buildPartyContactData("tenant", input.entity, f, orgId, userId)).select("id").single()
@@ -243,7 +253,10 @@ export async function addTenantParty(input: AddPartyInput): Promise<AddPartyResu
       console.error("[addTenantParty] contact insert failed:", contactErr?.message)
       return { ok: false, error: "Failed to create the contact" }
     }
-    if (input.entity === "company") await insertCompanyAddress(db, orgId, contact.id, f)
+    if (input.entity === "company") {
+      await insertCompanyAddress(db, orgId, contact.id, f)
+      await insertCompanyPeople(db, orgId, userId, contact.id, f.people)
+    }
 
     const now = new Date().toISOString()
     const { data: tenant, error: tErr } = await db.from("tenants").insert({

@@ -970,6 +970,10 @@ ALTER TABLE contacts
 ALTER TABLE contacts ADD COLUMN IF NOT EXISTS organisation_contact_id uuid REFERENCES contacts(id) ON DELETE CASCADE;
 ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company_function text;
 ALTER TABLE contacts ADD COLUMN IF NOT EXISTS is_primary_contact boolean NOT NULL DEFAULT false;
+-- A signatory signs for the company (lease/mandate) and is FICA'd (id_type/id_number/id_number_hash).
+-- Distinct from is_primary_contact (comms default). ≥1 signatory enforced at app level for FICA company
+-- contacts (landlord/tenant). The eventual surety/screening build reads these flagged signatories.
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS is_signatory boolean NOT NULL DEFAULT false;
 
 ALTER TABLE contacts DROP CONSTRAINT IF EXISTS contacts_company_function_check;
 ALTER TABLE contacts ADD CONSTRAINT contacts_company_function_check

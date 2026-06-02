@@ -32,8 +32,9 @@ export interface PartyRoleConfig {
   successAction: string | null
   /**
    * Company path uses the multi-person repeater (ADDENDUM_25A) instead of a single inline signatory.
-   * Landlords + suppliers: true. Tenants: false (company-tenant people deferred — lease-signatory /
-   * portal-login / per-individual screening integration is a follow-on; keep the single-signatory path).
+   * True for all roles (tenant un-deferred 2026-06-03 — company-tenant *contacts* are just people you
+   * reach). The tenant-*entity* concerns (signing/surety, portal, screening) remain a follow-on; the
+   * company's lease signatory is itself one of these contacts (flagged is_signatory + FICA).
    */
   companyPeople: boolean
 }
@@ -59,7 +60,7 @@ export const PARTY_ROLES: Record<PartyRole, PartyRoleConfig> = {
     fullFica: true,
     successNote: "Consent is on file. You can place them on a lease now or later.",
     successAction: "Start a lease for them",
-    companyPeople: false,
+    companyPeople: true,
   },
   supplier: {
     primaryRole: "contractor",

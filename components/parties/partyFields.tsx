@@ -226,13 +226,81 @@ function BareSelect({
   )
 }
 
+const ID_TYPE_OPTIONS = PARTY_ID_TYPES.map((t) => ({ value: t.value, label: t.label }))
+
+/** FICA ID capture for a signatory — SA-ID validity read-out inline (passport/permit not checksum-checked). */
+function PersonIdFields({ person, onUpdate }: Readonly<{ person: PartyPerson; onUpdate: (patch: Partial<PartyPerson>) => void }>) {
+  const isSaId = (person.idType || "sa_id") === "sa_id"
+  const v = isSaId ? validateSAId(person.idNumber) : null
+  const dobStr = v?.dob ? v.dob.toLocaleDateString("en-ZA") : ""
+  return (
+    <div className="mt-3 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+      <BareSelect label="ID type" value={person.idType ?? "sa_id"} onChange={(val) => onUpdate({ idType: val })} options={ID_TYPE_OPTIONS} />
+      <Field label="ID number" required>
+        <input
+          className={inputCls(false)}
+          value={person.idNumber ?? ""}
+          placeholder={isSaId ? "13-digit SA ID" : "Passport / permit number"}
+          onChange={(e) => onUpdate({ idNumber: e.target.value })}
+        />
+        {v && (
+          <span className={cn("mt-1 block text-xs", v.valid ? "text-emerald-600" : "text-destructive")}>
+            {v.valid ? `Valid · ${dobStr} · ${v.gender} · ${v.citizenship}` : "Checksum doesn't validate — check the number"}
+          </span>
+        )}
+      </Field>
+    </div>
+  )
+}
+
+function PersonCard({
+  person, fica, onUpdate, onRemove, onSetPrimary,
+}: Readonly<{ person: PartyPerson; fica: boolean; onUpdate: (patch: Partial<PartyPerson>) => void; onRemove: () => void; onSetPrimary: () => void }>) {
+  return (
+    <div className="rounded-[var(--r-button)] border border-border bg-muted/20 p-3.5">
+      <div className="mb-3 flex items-center justify-between">
+        <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-foreground">
+          <input type="radio" name="company-primary-person" checked={!!person.isPrimary} onChange={onSetPrimary} />
+          <span>Primary contact</span>
+        </label>
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label="Remove person"
+          className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-destructive"
+        >
+          <X className="h-3.5 w-3.5" /> Remove
+        </button>
+      </div>
+      <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+        <Bare label="First name" required value={person.firstName} onChange={(v) => onUpdate({ firstName: v })} placeholder="Jane" />
+        <Bare label="Last name" required value={person.lastName} onChange={(v) => onUpdate({ lastName: v })} placeholder="Smith" />
+        <BareSelect label="Function" required value={person.companyFunction ?? ""} onChange={(v) => onUpdate({ companyFunction: v })} options={FUNCTION_SELECT_OPTIONS} />
+        <Bare label="Role / title" value={person.designation} onChange={(v) => onUpdate({ designation: v })} placeholder="e.g. Accounting & Account Mgmt" />
+        <Bare label="Email" type="email" value={person.email} onChange={(v) => onUpdate({ email: v })} placeholder="jane@company.co.za" />
+        <Bare label="Phone" type="tel" value={person.phone} onChange={(v) => onUpdate({ phone: v })} placeholder="082 000 0000" />
+      </div>
+      {fica && (
+        <div className="mt-3 border-t border-border/60 pt-3">
+          <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-foreground">
+            <input type="checkbox" checked={!!person.isSignatory} onChange={(e) => onUpdate({ isSignatory: e.target.checked })} />
+            <span>Signatory — signs for the company (FICA required)</span>
+          </label>
+          {person.isSignatory && <PersonIdFields person={person} onUpdate={onUpdate} />}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /**
  * Multi-person editor for a company contact. Each person is a contact under the org; exactly one is the
- * primary (the comms fallback). The host validates (≥1 person, all named/functioned, one primary).
+ * primary (comms fallback). For FICA companies (`fica`), any person can be flagged a signatory (signs for
+ * the company → ID captured). The host validates (≥1 person, named/functioned, one primary, ≥1 FICA'd signatory).
  */
 export function PeopleRepeater({
-  people, onChange, error,
-}: Readonly<{ people: PartyPerson[]; onChange: (p: PartyPerson[]) => void; error?: string }>) {
+  people, onChange, error, fica,
+}: Readonly<{ people: PartyPerson[]; onChange: (p: PartyPerson[]) => void; error?: string; fica: boolean }>) {
   const update = (i: number, patch: Partial<PartyPerson>) =>
     onChange(people.map((p, idx) => (idx === i ? { ...p, ...patch } : p)))
   const remove = (i: number) => onChange(people.filter((_, idx) => idx !== i))
@@ -242,30 +310,14 @@ export function PeopleRepeater({
   return (
     <div className="space-y-3">
       {people.map((p, i) => (
-        <div key={p._uid ?? i} className="rounded-[var(--r-button)] border border-border bg-muted/20 p-3.5">
-          <div className="mb-3 flex items-center justify-between">
-            <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-foreground">
-              <input type="radio" name="company-primary-person" checked={!!p.isPrimary} onChange={() => setPrimary(i)} />
-              <span>Primary contact</span>
-            </label>
-            <button
-              type="button"
-              onClick={() => remove(i)}
-              aria-label="Remove person"
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-destructive"
-            >
-              <X className="h-3.5 w-3.5" /> Remove
-            </button>
-          </div>
-          <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
-            <Bare label="First name" required value={p.firstName} onChange={(v) => update(i, { firstName: v })} placeholder="Jane" />
-            <Bare label="Last name" required value={p.lastName} onChange={(v) => update(i, { lastName: v })} placeholder="Smith" />
-            <BareSelect label="Function" required value={p.companyFunction ?? ""} onChange={(v) => update(i, { companyFunction: v })} options={FUNCTION_SELECT_OPTIONS} />
-            <Bare label="Role / title" value={p.designation} onChange={(v) => update(i, { designation: v })} placeholder="e.g. Accounting & Account Mgmt" />
-            <Bare label="Email" type="email" value={p.email} onChange={(v) => update(i, { email: v })} placeholder="jane@company.co.za" />
-            <Bare label="Phone" type="tel" value={p.phone} onChange={(v) => update(i, { phone: v })} placeholder="082 000 0000" />
-          </div>
-        </div>
+        <PersonCard
+          key={p._uid ?? i}
+          person={p}
+          fica={fica}
+          onUpdate={(patch) => update(i, patch)}
+          onRemove={() => remove(i)}
+          onSetPrimary={() => setPrimary(i)}
+        />
       ))}
 
       <button
