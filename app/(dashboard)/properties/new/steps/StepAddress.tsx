@@ -11,10 +11,9 @@
  */
 import { useEffect, useRef, useState } from "react"
 import { Search } from "lucide-react"
-import { cn } from "@/lib/utils"
 import { getScenario } from "@/lib/properties/scenarios"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useWizard, type WizardAddress } from "../WizardContext"
+import { WSection, WField, WInput, WSelect } from "./fields"
 
 // ── SA provinces ──────────────────────────────────────────────────────────────
 
@@ -22,6 +21,7 @@ const SA_PROVINCES = [
   "Eastern Cape", "Free State", "Gauteng", "KwaZulu-Natal",
   "Limpopo", "Mpumalanga", "Northern Cape", "North West", "Western Cape",
 ]
+const PROVINCE_OPTIONS = [{ value: "", label: "Select…" }, ...SA_PROVINCES.map((p) => ({ value: p, label: p }))]
 
 // ── Property name suggestion ──────────────────────────────────────────────────
 
@@ -155,47 +155,13 @@ function PlacesSearch({ onPlace }: Readonly<PlacesSearchProps>) {
 
   return (
     <div className="relative">
-      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+      <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
       <input
         ref={inputRef}
         type="text"
         placeholder="Search address…"
         autoComplete="off"
-        className="w-full rounded-md border border-input bg-background pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-shadow"
-      />
-    </div>
-  )
-}
-
-// ── Inline field ──────────────────────────────────────────────────────────────
-
-interface FieldProps {
-  id:           string
-  label:        string
-  value:        string
-  placeholder?: string
-  required?:    boolean
-  inputMode?:   React.HTMLAttributes<HTMLInputElement>["inputMode"]
-  maxLength?:   number
-  onChange:     (v: string) => void
-  inputWidth?:  string
-}
-
-function Field({ id, label, value, placeholder, required, inputMode, maxLength, onChange, inputWidth = "flex-1" }: Readonly<FieldProps>) {
-  return (
-    <div className="flex items-center gap-3">
-      <label htmlFor={id} className="w-28 shrink-0 text-sm font-medium text-right leading-none">
-        {label}{required && <span className="ml-0.5 text-destructive text-xs">*</span>}
-      </label>
-      <input
-        id={id}
-        inputMode={inputMode}
-        maxLength={maxLength}
-        placeholder={placeholder}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        autoComplete="off"
-        className={cn(inputWidth, "rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-shadow")}
+        className="h-11 w-full rounded-[var(--r-button)] border border-border bg-card pl-10 pr-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground/70 hover:bg-muted/30 focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
       />
     </div>
   )
@@ -239,113 +205,59 @@ export function StepAddress() {
   }, [local])
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-6">
       <PlacesSearch onPlace={(partial) => {
         setPropertyNameTouched(false)
         update(partial)
       }} />
 
-      <div className="space-y-2">
-        {/* Street number + name */}
-        <div className="flex items-center gap-3">
-          <label htmlFor="addr-street-number" className="w-28 shrink-0 text-sm font-medium text-right">Street</label>
-          <input
-            id="addr-street-number"
-            type="text" placeholder="42"
-            value={local.street_number}
-            onChange={(e) => update({ street_number: e.target.value })}
-            aria-label="Street number"
-            autoComplete="off"
-            className="w-14 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-shadow"
-          />
-          <input
-            id="addr-street-name"
-            type="text" placeholder="Vineyard Road"
-            value={local.street_name}
-            onChange={(e) => update({ street_name: e.target.value })}
-            aria-label="Street name"
-            autoComplete="off"
-            className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-shadow"
-          />
-        </div>
-
-        {/* Address line 2 */}
-        <Field id="addr-line2" label="Building / unit" value={local.address_line2}
-          placeholder="Building name, unit no., floor…"
-          onChange={(v) => update({ address_line2: v })} />
-
-        <Field id="addr-suburb" label="Suburb" value={local.suburb} placeholder="Constantia"
-          onChange={(v) => update({ suburb: v })} />
-
-        {/* City + postal */}
-        <div className="flex items-center gap-3">
-          <label htmlFor="addr-city" className="w-28 shrink-0 text-sm font-medium text-right">
-            City <span className="text-destructive text-xs">*</span>
-          </label>
-          <input
-            id="addr-city" type="text" placeholder="Cape Town"
-            value={local.city}
-            onChange={(e) => update({ city: e.target.value })}
-            autoComplete="off"
-            className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-shadow"
-          />
-          <input
-            id="addr-postal" type="text" inputMode="numeric" maxLength={4} placeholder="7806"
-            value={local.postal_code}
-            onChange={(e) => update({ postal_code: e.target.value.replaceAll(/\D/g, "") })}
-            aria-label="Postal code"
-            autoComplete="off"
-            className="w-16 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-shadow"
-          />
-        </div>
-
-        {/* Province + Erf on same row */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <label htmlFor="addr-province" className="w-28 shrink-0 text-sm font-medium text-right">
-            Province <span className="text-destructive text-xs">*</span>
-          </label>
-          <Select value={local.province} onValueChange={(v) => update({ province: v ?? "" })}>
-            <SelectTrigger id="addr-province" className="w-44">
-              <SelectValue placeholder="Select…" />
-            </SelectTrigger>
-            <SelectContent>
-              {SA_PROVINCES.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <label htmlFor="addr-erf" className="text-sm font-medium shrink-0">Erf no.</label>
-          <input
-            id="addr-erf" type="text" placeholder="e.g. 1234"
-            value={local.erf_number ?? ""}
-            onChange={(e) => update({ erf_number: e.target.value || null })}
-            className="w-24 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-shadow"
-          />
+      <div>
+        <WSection n="01">Address</WSection>
+        <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
+          <WField label="Street number" htmlFor="addr-street-number">
+            <WInput id="addr-street-number" value={local.street_number} onChange={(v) => update({ street_number: v })} placeholder="42" inputMode="numeric" />
+          </WField>
+          <WField label="Street name" htmlFor="addr-street-name">
+            <WInput id="addr-street-name" value={local.street_name} onChange={(v) => update({ street_name: v })} placeholder="Vineyard Road" />
+          </WField>
+          <WField label="Building / unit" span htmlFor="addr-line2">
+            <WInput id="addr-line2" value={local.address_line2} onChange={(v) => update({ address_line2: v })} placeholder="Building name, unit no., floor…" />
+          </WField>
+          <WField label="Suburb" htmlFor="addr-suburb">
+            <WInput id="addr-suburb" value={local.suburb} onChange={(v) => update({ suburb: v })} placeholder="Constantia" />
+          </WField>
+          <WField label="City" required htmlFor="addr-city">
+            <WInput id="addr-city" value={local.city} onChange={(v) => update({ city: v })} placeholder="Cape Town" />
+          </WField>
+          <WField label="Postal code" htmlFor="addr-postal">
+            <WInput id="addr-postal" value={local.postal_code} onChange={(v) => update({ postal_code: v.replaceAll(/\D/g, "") })} placeholder="7806" inputMode="numeric" maxLength={4} />
+          </WField>
+          <WField label="Province" required htmlFor="addr-province">
+            <WSelect id="addr-province" value={local.province} onChange={(v) => update({ province: v })} options={PROVINCE_OPTIONS} />
+          </WField>
+          <WField label="Erf no." htmlFor="addr-erf">
+            <WInput id="addr-erf" value={local.erf_number ?? ""} onChange={(v) => update({ erf_number: v || null })} placeholder="e.g. 1234" />
+          </WField>
           {isSectional && (
-            <>
-              <span className="text-sm font-medium shrink-0">SS no.</span>
-              <input
-                id="addr-st" type="text" placeholder="SS123/2015"
-                value={local.sectional_title_number ?? ""}
-                onChange={(e) => update({ sectional_title_number: e.target.value || null })}
-                className="w-28 rounded-md border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-shadow"
-              />
-            </>
+            <WField label="Sectional scheme no." htmlFor="addr-st">
+              <WInput id="addr-st" value={local.sectional_title_number ?? ""} onChange={(v) => update({ sectional_title_number: v || null })} placeholder="SS123/2015" />
+            </WField>
           )}
         </div>
       </div>
 
-      {/* Property name */}
-      <div className="pt-2 border-t space-y-1">
-        <Field
-          id="addr-property-name" label="Property name"
-          value={local.property_name}
-          placeholder="Auto-suggested from the address above"
-          required
-          onChange={(v) => { setPropertyNameTouched(true); update({ property_name: v }) }}
-        />
-        <p className="pl-[7.25rem] text-xs text-muted-foreground">
-          Shown in dashboards, statements, and lease documents.
-          {scenario && ` Suggested as "${scenario.label.toLowerCase()}" style — edit to taste.`}
-        </p>
+      <div>
+        <WSection n="02">Property name</WSection>
+        <WField
+          label="Property name" required span htmlFor="addr-property-name"
+          hint={"Shown in dashboards, statements, and lease documents." + (scenario ? ` Suggested as "${scenario.label.toLowerCase()}" style — edit to taste.` : "")}
+        >
+          <WInput
+            id="addr-property-name" value={local.property_name}
+            onChange={(v) => { setPropertyNameTouched(true); update({ property_name: v }) }}
+            placeholder="Auto-suggested from the address above"
+          />
+        </WField>
       </div>
     </div>
   )
