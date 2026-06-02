@@ -23,6 +23,8 @@ import { ActivityFeed } from "./ActivityFeed"
 import { PropertySetupCards } from "./PropertySetupCards"
 import { GettingStarted, type GettingStartedProgress } from "./GettingStarted"
 import { WorkspaceSetup } from "./WorkspaceSetup"
+import { PlanUsageBanner } from "./PlanUsageBanner"
+import type { Tier } from "@/lib/constants"
 import { SurrenderedCommsWidget, type SurrenderedCommRow } from "./SurrenderedCommsWidget"
 import { formatZARAbbrev } from "@/lib/constants"
 import { getFeesDue } from "@/lib/dashboard/feesDue"
@@ -369,8 +371,11 @@ export default async function DashboardPage() {
         </Card>
       )}
 
+      {/* Tier-aware plan / usage banner */}
+      <PlanUsageBanner tier={tier as Tier} leaseCount={leasesCountRes.count ?? 0} />
+
       {/* KPI strip — connected panel */}
-      <div className="grid grid-cols-2 overflow-hidden rounded-xl border border-border md:grid-cols-5">
+      <div className="grid grid-cols-2 overflow-hidden rounded-[var(--r-button)] border border-border border-b-2 border-b-primary md:grid-cols-5">
         <MetricCard
           label="Properties"
           value={String(totalProperties)}
