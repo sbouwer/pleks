@@ -1,31 +1,26 @@
 /**
- * app/(dashboard)/dashboard/loading.tsx — FILL: one-line purpose
+ * app/(dashboard)/dashboard/loading.tsx — route skeleton for /dashboard
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /dashboard
+ * Notes:  Mirrors the populated dashboard silhouette — page header + plan banner + KPI strip + two
+ *         widget rows — so the load reads in the same door grammar with no layout jump.
  */
 import { Skeleton } from "@/components/ui/skeleton"
+import { ResourcePageHeaderSkeleton } from "@/components/ui/page-skeleton"
 
 export default function DashboardLoading() {
   return (
-    <div className="space-y-5">
-      <div>
-        <Skeleton className="h-8 w-56" />
-        <Skeleton className="h-4 w-72 mt-2" />
-      </div>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
-      </div>
+    <div>
+      <ResourcePageHeaderSkeleton />
+      <Skeleton className="mb-4 h-20 rounded-[var(--r-button)]" />
+      <Skeleton className="mb-4 h-24 rounded-[var(--r-button)]" />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Skeleton className="h-64 rounded-xl" />
-        <Skeleton className="h-64 rounded-xl" />
+        <Skeleton className="h-64 rounded-[var(--r-button)]" />
+        <Skeleton className="h-64 rounded-[var(--r-button)]" />
       </div>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[3fr_2fr]">
-        <Skeleton className="h-48 rounded-xl" />
-        <Skeleton className="h-48 rounded-xl" />
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Skeleton className="h-48 rounded-[var(--r-button)]" />
+        <Skeleton className="h-48 rounded-[var(--r-button)]" />
       </div>
     </div>
   )
