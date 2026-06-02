@@ -55,8 +55,17 @@ function SheetContent({
   side?: "top" | "right" | "bottom" | "left"
   showCloseButton?: boolean
 }) {
+  // The theme palette (data-theme) lives on the .pleks-portal wrapper; :root defaults to dark. A portal
+  // rendered at document.body would inherit that dark :root regardless of the app's theme (light app +
+  // dark sheet). Portal into the themed wrapper instead so sheets track the resolved theme. Falls back to
+  // body (default) when there's no portal wrapper (e.g. marketing/public surfaces).
+  const [container, setContainer] = React.useState<HTMLElement | null>(null)
+  React.useEffect(() => {
+    setContainer(document.querySelector(".pleks-portal") as HTMLElement | null)
+  }, [])
+
   return (
-    <SheetPortal>
+    <SheetPortal container={container ?? undefined}>
       <SheetOverlay />
       <SheetPrimitive.Popup
         data-slot="sheet-content"
