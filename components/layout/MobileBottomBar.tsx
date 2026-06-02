@@ -1,38 +1,32 @@
 "use client"
 
 /**
- * components/layout/MobileBottomBar.tsx — FILL: one-line purpose
+ * components/layout/MobileBottomBar.tsx — mobile tab bar (lg:hidden) with a center quick-add FAB
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   dashboard layout (gateway)
+ * Notes:  Five slots — Home / Schedule / [+ FAB] / Search / More. The FAB opens the quick-add sheet;
+ *         Search opens the search sheet; More opens the nav sheet. Schedule routes to /calendar.
  */
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Search, Plus, Menu } from "lucide-react"
+import { Home, CalendarDays, Search, Menu, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { MobileMoreSheet } from "./MobileMoreSheet"
 import { MobileQuickAdd } from "./MobileQuickAdd"
+import { MobileSearchSheet } from "./MobileSearchSheet"
 
 interface BottomTabProps {
-  href?: string
-  icon: React.ElementType
-  label: string
-  active?: boolean
-  onClick?: () => void
+  readonly href?: string
+  readonly icon: React.ElementType
+  readonly label: string
+  readonly active?: boolean
+  readonly onClick?: () => void
 }
 
 function BottomTab({ href, icon: Icon, label, active, onClick }: BottomTabProps) {
   const inner = (
-    <div
-      className={cn(
-        "flex flex-col items-center gap-0.5 px-3 py-1.5",
-        active ? "text-brand" : "text-muted-foreground"
-      )}
-    >
+    <div className={cn("flex flex-col items-center gap-0.5 px-2 py-1.5", active ? "text-brand" : "text-muted-foreground")}>
       <Icon className="h-5 w-5" />
       <span className="text-[10px] font-medium">{label}</span>
     </div>
@@ -52,27 +46,31 @@ export function MobileBottomBar() {
   const pathname = usePathname()
   const [moreOpen, setMoreOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
 
   return (
     <>
       <MobileMoreSheet open={moreOpen} onOpenChange={setMoreOpen} />
       <MobileQuickAdd open={addOpen} onOpenChange={setAddOpen} />
+      <MobileSearchSheet open={searchOpen} onOpenChange={setSearchOpen} />
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-card border-t border-border safe-area-inset-bottom">
-        <div className="flex justify-around items-center h-14 px-2">
-          <BottomTab
-            href="/dashboard"
-            icon={Home}
-            label="Home"
-            active={pathname === "/dashboard"}
-          />
-          <BottomTab
-            icon={Search}
-            label="Search"
-            onClick={() => {
-              /* TODO: open search */
-            }}
-          />
-          <BottomTab icon={Plus} label="Add" onClick={() => setAddOpen(true)} />
+        <div className="flex items-center h-14 px-2">
+          <BottomTab href="/dashboard" icon={Home} label="Home" active={pathname === "/dashboard"} />
+          <BottomTab href="/calendar" icon={CalendarDays} label="Schedule" active={pathname.startsWith("/calendar")} />
+
+          {/* Center FAB — quick add */}
+          <div className="flex-1 flex justify-center">
+            <button
+              type="button"
+              onClick={() => setAddOpen(true)}
+              aria-label="Quick add"
+              className="-mt-6 h-12 w-12 grid place-items-center rounded-full bg-primary text-primary-foreground shadow-lg border-4 border-card active:scale-95 transition-transform"
+            >
+              <Plus className="h-6 w-6" />
+            </button>
+          </div>
+
+          <BottomTab icon={Search} label="Search" onClick={() => setSearchOpen(true)} />
           <BottomTab icon={Menu} label="More" onClick={() => setMoreOpen(true)} />
         </div>
       </nav>

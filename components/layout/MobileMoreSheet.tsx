@@ -108,7 +108,7 @@ export function MobileMoreSheet({ open, onOpenChange }: MobileMoreSheetProps) {
                       key={item.href}
                       href={item.href}
                       onClick={() => onOpenChange(false)}
-                      className={`rounded-lg border border-border px-4 py-3 text-sm font-medium transition-colors ${
+                      className={`rounded-[var(--r-button)] border border-border px-4 py-3 text-sm font-medium transition-colors ${
                         isActive
                           ? "bg-brand/10 text-brand border-brand/30"
                           : "bg-card text-foreground hover:bg-muted active:bg-muted"
@@ -125,7 +125,7 @@ export function MobileMoreSheet({ open, onOpenChange }: MobileMoreSheetProps) {
           <button
             type="button"
             onClick={handleSignOut}
-            className="w-full rounded-lg border border-border px-4 py-3 text-sm font-medium text-destructive bg-card hover:bg-muted active:bg-muted transition-colors"
+            className="w-full rounded-[var(--r-button)] border border-border px-4 py-3 text-sm font-medium text-destructive bg-card hover:bg-muted active:bg-muted transition-colors"
           >
             Sign out
           </button>

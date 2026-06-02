@@ -1,75 +1,97 @@
 "use client"
 
 /**
- * components/layout/MobileQuickAdd.tsx — FILL: one-line purpose
+ * components/layout/MobileQuickAdd.tsx — the center "+" quick-add sheet (bottom)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   dashboard layout (gateway)
+ * Data:   none — routes to the page that hosts each add flow
+ * Notes:  Mirrors the desktop QuickAddMenu set (landlord/property/tenant/supplier/lease) plus field
+ *         capture (inspection/maintenance/payment). Door-grammar tile grid.
  */
 
 import { useRouter } from "next/navigation"
-import { Banknote, Wrench, UserPlus, Phone } from "lucide-react"
+import {
+  UserSquare2,
+  Home,
+  Users,
+  HardHat,
+  FileText,
+  ClipboardCheck,
+  Wrench,
+  Banknote,
+  type LucideIcon,
+} from "lucide-react"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 
 interface MobileQuickAddProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  readonly open: boolean
+  readonly onOpenChange: (open: boolean) => void
 }
 
-interface QuickAction {
-  icon: React.ElementType
+interface AddTile {
+  icon: LucideIcon
   label: string
-  href: string | null
+  href: string
 }
 
-const ACTIONS: QuickAction[] = [
-  { icon: Banknote, label: "Record a payment", href: "/billing" },
-  { icon: Wrench, label: "Log maintenance", href: "/maintenance/new" },
-  { icon: UserPlus, label: "Add a tenant", href: "/tenants" },
-  { icon: Phone, label: "Log a phone call", href: null },
+// "Add" records — routes to the page hosting each add flow (wizard/modal/new route).
+const ADD: AddTile[] = [
+  { icon: UserSquare2, label: "Landlord", href: "/landlords" },
+  { icon: Home, label: "Property", href: "/properties" },
+  { icon: Users, label: "Tenant", href: "/tenants/new" },
+  { icon: HardHat, label: "Supplier", href: "/suppliers" },
+  { icon: FileText, label: "Lease", href: "/leases/new" },
 ]
+
+// Field capture — log work on the move.
+const CAPTURE: AddTile[] = [
+  { icon: ClipboardCheck, label: "Inspection", href: "/inspections/new" },
+  { icon: Wrench, label: "Maintenance", href: "/maintenance/new" },
+  { icon: Banknote, label: "Payment", href: "/billing" },
+]
+
+function TileGrid({ tiles, onPick }: Readonly<{ tiles: AddTile[]; onPick: (href: string) => void }>) {
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {tiles.map((t) => (
+        <button
+          key={t.label}
+          type="button"
+          onClick={() => onPick(t.href)}
+          className="rounded-[var(--r-button)] border border-border bg-card py-4 flex flex-col items-center gap-2 active:scale-95 transition-transform"
+        >
+          <t.icon className="h-5 w-5 text-brand" />
+          <span className="text-[12px] font-medium text-foreground">{t.label}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
 
 export function MobileQuickAdd({ open, onOpenChange }: MobileQuickAddProps) {
   const router = useRouter()
 
-  function handleAction(href: string | null) {
+  function pick(href: string) {
     onOpenChange(false)
-    if (href) router.push(href)
+    router.push(href)
   }
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="bottom"
-        className="rounded-t-2xl p-0"
-      >
-        <SheetHeader className="px-4 pt-4 pb-2">
-          <SheetTitle className="text-base font-semibold">Quick actions</SheetTitle>
+      <SheetContent side="bottom" showCloseButton={false} className="rounded-t-2xl p-0">
+        <SheetHeader className="px-4 pt-4 pb-1">
+          <SheetTitle className="text-base font-semibold">Quick add</SheetTitle>
         </SheetHeader>
 
-        <div className="pb-4">
-          {ACTIONS.map((action) => (
-            <button
-              key={action.label}
-              type="button"
-              onClick={() => handleAction(action.href)}
-              className="w-full py-4 px-4 flex items-center gap-4 text-sm font-medium border-b border-border/50 active:bg-muted transition-colors"
-            >
-              <action.icon className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-              <span>{action.label}</span>
-            </button>
-          ))}
-
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            className="w-full py-4 px-4 text-sm font-medium text-muted-foreground active:bg-muted transition-colors"
-          >
-            Cancel
-          </button>
+        <div className="px-4 pb-6 space-y-5">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">Add</p>
+            <TileGrid tiles={ADD} onPick={pick} />
+          </div>
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">Capture</p>
+            <TileGrid tiles={CAPTURE} onPick={pick} />
+          </div>
         </div>
       </SheetContent>
     </Sheet>
