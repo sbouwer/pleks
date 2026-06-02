@@ -10,7 +10,7 @@
  *         place and router.refresh() on create, so the card ticks off without leaving; property
  *         launches the wizard; lease/inspection route to /new. `done` flags come from live counts.
  */
-import { useState } from "react"
+import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Shield, ArrowRight, Check, UserSquare2, Home, Users, FileText, ClipboardCheck, HardHat } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils"
 import { PropertyWizardModal } from "@/app/(dashboard)/properties/new/PropertyWizardModal"
 import { AddPartyModal } from "@/components/parties/AddPartyModal"
 import { addLandlordParty, addTenantParty, addContractorParty } from "@/lib/actions/parties"
+import { dismissOnboarding } from "@/lib/actions/dismissOnboarding"
 import type { AddPartyInput } from "@/lib/parties/partyValidation"
 import type { PartyRole } from "@/lib/parties/partyConfig"
 
@@ -88,10 +89,17 @@ export function GettingStarted({ progress, orgId }: Readonly<{ progress: Getting
   const [dismissed, setDismissed] = useState(false)
   const [propertyOpen, setPropertyOpen] = useState(false)
   const [party, setParty] = useState<PartyRole | null>(null)
+  const [finishing, startFinish] = useTransition()
 
   const doneCount = STEPS.filter((s) => progress[s.key]).length
   const pct = Math.round((doneCount / STEPS.length) * 100)
   const firstTodo = STEPS.find((s) => !progress[s.key])
+  const allDone = doneCount === STEPS.length
+
+  // Finish / skip → stamp onboarding dismissed → the server re-renders the populated dashboard.
+  function finish() {
+    startFinish(async () => { await dismissOnboarding(); router.refresh() })
+  }
 
   function activate(key: StepKey) {
     if (key === "property") { setPropertyOpen(true); return }
@@ -152,6 +160,29 @@ export function GettingStarted({ progress, orgId }: Readonly<{ progress: Getting
         {STEPS.map((s) => (
           <StepCard key={s.key} s={s} done={progress[s.key]} onClick={() => activate(s.key)} />
         ))}
+      </div>
+
+      <div className="mt-5 flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={finish}
+          disabled={finishing}
+          className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-60"
+        >
+          {finishing ? "Taking you there…" : "Skip for now — go to my dashboard"}
+        </button>
+        {allDone && (
+          <button
+            type="button"
+            onClick={finish}
+            disabled={finishing}
+            className="group inline-flex items-center gap-2 rounded-[var(--r-button)] bg-foreground py-2.5 pl-2.5 pr-4 text-sm font-semibold text-background transition-colors hover:bg-primary hover:text-primary-foreground disabled:opacity-60"
+          >
+            <span aria-hidden className="h-3.5 w-[3px] shrink-0 bg-primary transition-colors group-hover:bg-primary-foreground" />
+            Finish setup
+            <ArrowRight className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {party && (

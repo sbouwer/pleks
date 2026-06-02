@@ -2991,3 +2991,21 @@ DROP POLICY IF EXISTS "contact_leads_service_role_only" ON public.contact_leads;
 CREATE POLICY "contact_leads_service_role_only" ON public.contact_leads FOR ALL USING (false) WITH CHECK (false);
 DROP POLICY IF EXISTS "delivery_notice_tokens_service_role_only" ON public.delivery_notice_tokens;
 CREATE POLICY "delivery_notice_tokens_service_role_only" ON public.delivery_notice_tokens FOR ALL USING (false) WITH CHECK (false);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §38  ONBOARDING: dashboard guided-setup dismissal (per-org)
+--      The dashboard shows the new-user onboarding (get-started steps + workspace
+--      setup) until the org finishes or skips it. We persist that as one timestamp on
+--      organisations rather than deriving from "has a property" — so a user who skips
+--      straight to the dashboard still gets the populated view, and onboarding never
+--      re-appears across devices/sessions. Org-level: once anyone on the team completes
+--      it, the org is set up for everyone. Null = onboarding still active.
+-- ═══════════════════════════════════════════════════════════════════════════════
+ALTER TABLE organisations ADD COLUMN IF NOT EXISTS onboarding_dismissed_at timestamptz;
+
+-- Backfill: any org that already has a property is past onboarding → mark dismissed so the populated
+-- dashboard shows for established orgs (the flag defaults NULL for everyone, incl. existing orgs).
+-- Idempotent: only touches rows still NULL with a live property.
+UPDATE organisations o SET onboarding_dismissed_at = now()
+WHERE o.onboarding_dismissed_at IS NULL
+  AND EXISTS (SELECT 1 FROM properties p WHERE p.org_id = o.id AND p.deleted_at IS NULL);

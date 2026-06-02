@@ -222,7 +222,7 @@ export default async function DashboardPage() {
   const [orgRes, profileRes, subRes, propCountRes, unitRes, collectionRate, tenantsCountRes, leasesCountRes, inspectionsCountRes, landlordsCountRes, contractorsCountRes, surrenderedCommsRes] = await Promise.all([
     supabase
       .from("organisations")
-      .select("has_trust_account, has_deposit_account, management_scope, founding_agent, founding_agent_price_cents")
+      .select("has_trust_account, has_deposit_account, management_scope, founding_agent, founding_agent_price_cents, onboarding_dismissed_at")
       .eq("id", orgId)
       .single(),
     supabase
@@ -272,7 +272,10 @@ export default async function DashboardPage() {
   const occupiedUnits = activeUnits.filter((u) => u.status === "occupied").length
   const vacantUnits = activeUnits.filter((u) => u.status === "vacant").length
   const occupancyPercent = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0
-  const isNewOrg = totalProperties === 0
+  // Show onboarding until the org dismisses it (finished or skipped) — NOT derived from "has a
+  // property", so a user who skips straight to the dashboard still gets the populated view.
+  const onboardingDismissedAt = (org?.onboarding_dismissed_at as string | null) ?? null
+  const showOnboarding = onboardingDismissedAt === null
 
   const onboardingProgress: GettingStartedProgress = {
     landlord:   (landlordsCountRes.count ?? 0) > 0,
@@ -323,7 +326,7 @@ export default async function DashboardPage() {
         eyebrow={`Overview · ${dateStr}`}
         title={<DashboardGreeting firstName={firstName} fallback={`${greeting}, ${firstName}.`} />}
         headline="Your workspace"
-        sub={isNewOrg ? "Ready when you are — let's bring your portfolio to life." : "Here's your portfolio at a glance."}
+        sub={showOnboarding ? "Ready when you are — let's bring your portfolio to life." : "Here's your portfolio at a glance."}
         action={<QuickAddMenu orgId={orgId} />}
       />
 
@@ -340,7 +343,7 @@ export default async function DashboardPage() {
       {/* Surrendered mandatory comms widget (BUILD_63 Phase 8) */}
       <SurrenderedCommsWidget items={surrenderedCommItems} />
 
-      {isNewOrg ? (
+      {showOnboarding ? (
         /* ── New-user empty state — get-started steps + workspace setup ──────── */
         <>
           <GettingStarted progress={onboardingProgress} orgId={orgId} />
