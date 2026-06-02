@@ -63,8 +63,9 @@ export function Topbar({
   return (
     <header style={{
       position: "sticky", top: 0, zIndex: 40,
-      background: "color-mix(in oklch, var(--background) 94%, transparent)",
-      backdropFilter: "saturate(140%) blur(8px)",
+      // Match the page surface (bg-muted/30) so the header reads as one continuous canvas —
+      // the icons/search carry their own raised fill instead. Token-driven → works light + dark.
+      background: "color-mix(in oklab, var(--muted) 30%, var(--background))",
       borderBottom: "1px solid var(--rule)",
       height: 64, display: "flex", alignItems: "center",
       padding: "0 16px 0 20px", gap: 16, flexShrink: 0,
@@ -89,7 +90,7 @@ export function Topbar({
         <button
           type="button"
           onClick={toggle}
-          className="pub-icon-btn"
+          className="pub-icon-btn pub-icon-btn--raised"
           aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
           title={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
         >
@@ -101,7 +102,7 @@ export function Topbar({
           href={visitSiteHref}
           target="_blank"
           rel="noopener noreferrer"
-          className="pub-icon-btn hidden sm:flex"
+          className="pub-icon-btn pub-icon-btn--raised hidden sm:flex"
           aria-label={visitSiteLabel}
           title={visitSiteLabel}
         >
@@ -113,7 +114,7 @@ export function Topbar({
           <button
             type="button"
             onClick={() => setProfileOpen(p => !p)}
-            className="pub-icon-btn pub-icon-btn--active"
+            className="pub-icon-btn pub-icon-btn--raised pub-icon-btn--active"
             aria-label="Account menu"
             title="Account"
           >

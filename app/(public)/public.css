@@ -95,6 +95,11 @@
   color: var(--amber-ink);
   outline: none;
 }
+/* Raised variant — for a topbar whose background matches the page surface, so the button
+   reads as a distinct chip. Resting fill only (lower specificity than :hover, so hover still wins). */
+.pub-icon-btn--raised {
+  background: var(--paper-raised);
+}
 /* Active variant — used when the user is logged in (account menu button) */
 .pub-icon-btn--active {
   color: var(--amber-ink);
