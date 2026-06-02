@@ -34,7 +34,12 @@ export function useEnrolPasskey() {
     if (mounted.current) { setState("in_progress"); setErrorMsg(null) }
     try {
       const optionsRes = await fetch("/api/auth/passkeys/registration-options", { method: "POST" })
-      if (!optionsRes.ok) throw new Error("Failed to get options")
+      if (!optionsRes.ok) {
+        // Surface the server's reason (e.g. the 403 host message) rather than a generic failure,
+        // so a wrong-URL / unknown-host enrol shows an actionable error instead of dying silently.
+        const reason = (await optionsRes.text().catch(() => "")).trim()
+        throw new Error(reason || "Couldn't start passkey setup. Please try again.")
+      }
       const options = await optionsRes.json() as Record<string, unknown>
 
       let registration: RegistrationResponseJSON

@@ -14,7 +14,9 @@ export async function POST(req: Request) {
   try {
     rp = getRpConfig(req)
   } catch {
-    return new Response("Passkeys not available on this host", { status: 403 })
+    // Unknown host (e.g. a Vercel preview or the wrong URL) — passkeys can't bind safely here.
+    // Return an actionable message so the client shows it instead of failing opaquely.
+    return new Response("Passkeys aren't available on this web address. Open the app at its official URL (app.pleks.co.za, or localhost in development) and try again.", { status: 403 })
   }
 
   const supabase = await createClient()
