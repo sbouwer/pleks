@@ -1,15 +1,17 @@
 "use client"
 
 /**
- * components/mobile/MobileHomeScreen.tsx — FILL: one-line purpose
+ * components/mobile/MobileHomeScreen.tsx — mobile dashboard home (tile grid + attention + recent)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /dashboard (the lg:hidden mobile view)
+ * Auth:   dashboard layout (gateway)
+ * Data:   useMobileHomeBadges (counts) + mobile-attention / mobile-recent-activity client queries
+ * Notes:  Client-only — the greeting (device time), org name, name and badges all come from client
+ *         hooks. It's still SSR'd (rendered lg:hidden), so render is gated on a `mounted` flag: the
+ *         server and first client paint agree (blank), then real content paints — no hydration mismatch.
  */
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
 import {
@@ -212,6 +214,11 @@ function RecentActivity() {
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export function MobileHomeScreen() {
+  // Client-only data (greeting/org/name/badges) differs server↔client — paint nothing until mounted
+  // so SSR and the first client render agree, then render the real content. Kills the hydration mismatch.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+
   const { user } = useUser()
   const { displayName } = useOrg()
   const badges = useMobileHomeBadges()
@@ -238,6 +245,8 @@ export function MobileHomeScreen() {
     { href: "/payments?tab=arrears", icon: AlertTriangle, label: "Arrears", badge: fmtCents(badges.arrears_cents) },
     { href: "/finance/deposits", icon: Shield, label: "Deposits", badge: fmtCents(badges.deposits_cents) },
   ]
+
+  if (!mounted) return <div className="flex flex-col min-h-full bg-muted/30 pb-6" aria-hidden />
 
   return (
     <div className="flex flex-col min-h-full bg-muted/30 pb-6">
