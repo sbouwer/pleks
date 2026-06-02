@@ -85,6 +85,7 @@ export function GettingStarted({ progress }: Readonly<{ progress: GettingStarted
   const [finishing, startFinish] = useTransition()
   const [wizardOpen, setWizardOpen] = useState(false)
   const [wizardStart, setWizardStart] = useState<StepKey | undefined>(undefined)
+  const [wizardIsolated, setWizardIsolated] = useState(false)
 
   const doneCount = STEPS.filter((s) => progress[s.key]).length
   const pct = Math.round((doneCount / STEPS.length) * 100)
@@ -97,9 +98,11 @@ export function GettingStarted({ progress }: Readonly<{ progress: GettingStarted
     startFinish(async () => { await dismissOnboarding(); router.refresh() })
   }
 
-  // Every entry point opens the unified guided wizard at the chosen step.
-  function openWizard(key?: StepKey) {
+  // A step card opens THAT step in isolation (do it, close); only the hero "Get started" walks the
+  // full 6-step sequence. isolated=false → the guided walk; isolated=true → just the one step.
+  function openWizard(key?: StepKey, isolated = false) {
     setWizardStart(key)
+    setWizardIsolated(isolated)
     setWizardOpen(true)
   }
 
@@ -147,7 +150,7 @@ export function GettingStarted({ progress }: Readonly<{ progress: GettingStarted
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
         {STEPS.map((s) => (
-          <StepCard key={s.key} s={s} done={progress[s.key]} onClick={() => openWizard(s.key)} />
+          <StepCard key={s.key} s={s} done={progress[s.key]} onClick={() => openWizard(s.key, true)} />
         ))}
       </div>
 
@@ -168,6 +171,7 @@ export function GettingStarted({ progress }: Readonly<{ progress: GettingStarted
         onClose={() => setWizardOpen(false)}
         progress={progress}
         startKey={wizardStart}
+        isolated={wizardIsolated}
       />
     </>
   )

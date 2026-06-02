@@ -12,7 +12,7 @@
  *         onboarding flag → the populated dashboard. ("Add me as landlord" via the 01C self-landlord is
  *         a fast follow.)
  */
-import { useRef, useState, useTransition } from "react"
+import { useEffect, useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { FileText, ClipboardCheck, Home, UserCheck } from "lucide-react"
 import type { ReactNode } from "react"
@@ -77,12 +77,14 @@ function SelfLandlordBanner({ onAdd, adding }: Readonly<{ onAdd: () => void; add
 }
 
 export function OnboardingWizard({
-  open, onClose, progress, startKey,
+  open, onClose, progress, startKey, isolated = false,
 }: Readonly<{
   open: boolean
   onClose: () => void
   progress: GettingStartedProgress
   startKey?: StepKey
+  /** isolated: do ONLY the startKey step then close (a step card). false: walk the full sequence (hero). */
+  isolated?: boolean
 }>) {
   const router = useRouter()
   const [idx, setIdx] = useState(() => {
@@ -144,6 +146,7 @@ export function OnboardingWizard({
     setIdx(i)
   }
   function goNext() {
+    if (isolated) { finish(); return }   // one step then done — don't walk the sequence
     const nextTodo = STEPS.findIndex((s, i) => i > idx && !progress[s.key])
     if (nextTodo >= 0) goTo(nextTodo)
     else if (idx + 1 < STEPS.length) goTo(idx + 1)
@@ -155,10 +158,20 @@ export function OnboardingWizard({
     startFinish(() => { router.refresh(); onClose() })
   }
 
-  // Footer + body per step type.
+  // The idx useState initializer only runs on first mount, but this wizard stays mounted (open/closed).
+  // Re-sync to the requested step each time it (re)opens, so a card opens ITS step, not a stale one.
+  useEffect(() => {
+    if (!open) return
+    const i = startKey ? STEPS.findIndex((s) => s.key === startKey) : -1
+    goTo(i >= 0 ? i : Math.max(0, STEPS.findIndex((s) => !progress[s.key])))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, startKey])
+
+  // Footer + body per step type. In isolation there's no sequence to skip, so the soft-back reads "Cancel".
+  const skipLabel = isolated ? "Cancel" : "Skip for now"
   let backLabel: string, onBack: () => void, primaryLabel: string, onPrimary: () => void, body: ReactNode
   if (flow) {
-    backLabel = flow.step === 0 ? "Skip for now" : "Back"
+    backLabel = flow.step === 0 ? skipLabel : "Back"
     onBack = flow.step === 0 ? goNext : flow.back
     primaryLabel = flow.primaryLabel
     onPrimary = flow.next
@@ -167,10 +180,10 @@ export function OnboardingWizard({
       ? <><SelfLandlordBanner onAdd={handleAddMe} adding={addingMe} />{flow.body}</>
       : flow.body
   } else if (cur.key === "property") {
-    backLabel = "Skip for now"; onBack = goNext; primaryLabel = "Set up property"; onPrimary = () => setPropertyOpen(true)
+    backLabel = skipLabel; onBack = goNext; primaryLabel = "Set up property"; onPrimary = () => setPropertyOpen(true)
     body = <ExplainPanel icon={<Home className="h-7 w-7" />} lead="The property wizard walks you through scheme, address, units and documents — about two minutes." note="It opens the full guided setup; you'll come back here to finish the rest." />
   } else {
-    backLabel = "Skip for now"; onBack = goNext; primaryLabel = "Check it out"; onPrimary = () => { if (cur.href) router.push(cur.href) }
+    backLabel = skipLabel; onBack = goNext; primaryLabel = "Check it out"; onPrimary = () => { if (cur.href) router.push(cur.href) }
     body = (
       <ExplainPanel
         icon={cur.key === "lease" ? <FileText className="h-7 w-7" /> : <ClipboardCheck className="h-7 w-7" />}
@@ -180,22 +193,25 @@ export function OnboardingWizard({
     )
   }
 
-  const steps: WizardModalStep[] = STEPS.map((s, i) => ({
-    id: s.key,
-    label: s.label,
-    done: progress[s.key],
-    hint: i === idx ? "In progress" : undefined,
-  }))
+  // Isolated: a one-step rail (just this card's step). Sequence: the full six with progress.
+  const steps: WizardModalStep[] = isolated
+    ? [{ id: cur.key, label: cur.label, done: progress[cur.key], hint: "In progress" }]
+    : STEPS.map((s, i) => ({
+        id: s.key,
+        label: s.label,
+        done: progress[s.key],
+        hint: i === idx ? "In progress" : undefined,
+      }))
 
   return (
     <>
       <WizardModal
         open={open}
         onOpenChange={(o) => { if (!o) onClose() }}
-        eyebrow="Get set up"
+        eyebrow={isolated ? "Add to your portfolio" : "Get set up"}
         steps={steps}
-        current={idx}
-        onStepSelect={goTo}
+        current={isolated ? 0 : idx}
+        onStepSelect={isolated ? undefined : goTo}
         title={flow ? flow.title : cur.title}
         subtitle={flow ? flow.subtitle : cur.subtitle}
         backLabel={backLabel}
@@ -203,11 +219,11 @@ export function OnboardingWizard({
         primaryLabel={finishing ? "Finishing…" : primaryLabel}
         onPrimary={onPrimary}
         primaryDisabled={finishing || (!!flow && flow.primaryDisabled)}
-        footerSlot={
+        footerSlot={isolated ? undefined : (
           <button type="button" onClick={finish} disabled={finishing} className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-60">
             I&apos;ll finish later
           </button>
-        }
+        )}
       >
         {body}
       </WizardModal>
