@@ -12,7 +12,7 @@
 import type { ReactNode } from "react"
 
 export function EmptyResourceState({
-  eyebrow, title, headline, headerSub, emptyTitle, emptySub, icon, headerAction, heroAction, children,
+  eyebrow, title, headline, headerSub, emptyTitle, emptySub, icon, headerAction, heroAction, belowHeader, children,
 }: Readonly<{
   /** page title block — omit (no `title`) to render just the dashed card, e.g. under a tabbed header */
   eyebrow?:      string
@@ -26,6 +26,8 @@ export function EmptyResourceState({
   headerAction?: ReactNode
   /** hero add button inside the dashed card */
   heroAction?:   ReactNode
+  /** content between the header's dashed rule and the dashed card (e.g. a tabbed page's tab row) */
+  belowHeader?:  ReactNode
   /** extra content inside the dashed card, between the sub line and the hero button */
   children?:     ReactNode
 }>) {
@@ -46,6 +48,8 @@ export function EmptyResourceState({
           </div>
         </>
       )}
+
+      {belowHeader}
 
       {/* dashed door card */}
       <div className="mt-4 flex flex-col items-center rounded-[var(--r-button)] border border-dashed border-border bg-card px-6 py-14 text-center">

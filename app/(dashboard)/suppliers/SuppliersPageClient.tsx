@@ -45,6 +45,46 @@ export function SuppliersPageClient({ orgId }: Props) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const contractors = allContractors.filter((c: any) => c.supplier_type === activeTab) as Contractor[]
 
+  const tabsRow = (
+    <div className="flex gap-1 border-b border-border mb-6">
+      {TABS.map((tab) => (
+        <Link key={tab.key}
+          href={tab.key === "contractor" ? "/suppliers" : `/suppliers?type=${tab.key}`}
+          className={cn("px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+            activeTab === tab.key ? "border-brand text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+          )}>
+          {tab.label}
+        </Link>
+      ))}
+    </div>
+  )
+
+  // Empty → the same descriptive empty state as Tenants/Landlords, with the tabs slotted under the rule.
+  if (contractors.length === 0) {
+    return (
+      <EmptyResourceState
+        eyebrow="Portfolio"
+        title="Suppliers"
+        headline={`No ${tabInfo.plural} yet`}
+        headerSub={`Add ${tabInfo.plural} and assign them to maintenance jobs across your properties.`}
+        emptyTitle={`No ${tabInfo.plural} here yet`}
+        emptySub={`Add your first ${tabInfo.singular} to get started.`}
+        icon={<HardHat className="h-6 w-6" />}
+        headerAction={<AddContractorButton orgId={orgId} supplierType={activeTab} />}
+        heroAction={
+          <AddContractorButton
+            orgId={orgId}
+            supplierType={activeTab}
+            variant="hero"
+            showPlus={false}
+            labelOverride={`Add your first ${tabInfo.singular}`}
+          />
+        }
+        belowHeader={tabsRow}
+      />
+    )
+  }
+
   return (
     <div>
       <ResourcePageHeader
@@ -52,35 +92,8 @@ export function SuppliersPageClient({ orgId }: Props) {
         sub={`${contractors.length} ${contractors.length === 1 ? tabInfo.singular : tabInfo.plural}`}
         action={<AddContractorButton orgId={orgId} supplierType={activeTab} />}
       />
-      <div className="flex gap-1 border-b border-border mb-6">
-        {TABS.map((tab) => (
-          <Link key={tab.key}
-            href={tab.key === "contractor" ? "/suppliers" : `/suppliers?type=${tab.key}`}
-            className={cn("px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-              activeTab === tab.key ? "border-brand text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
-            )}>
-            {tab.label}
-          </Link>
-        ))}
-      </div>
-      {contractors.length === 0 ? (
-        <EmptyResourceState
-          emptyTitle={`No ${tabInfo.plural} yet`}
-          emptySub={`Add your first ${tabInfo.singular} to get started.`}
-          icon={<HardHat className="h-6 w-6" />}
-          heroAction={
-            <AddContractorButton
-              orgId={orgId}
-              supplierType={activeTab}
-              variant="hero"
-              showPlus={false}
-              labelOverride={`Add your first ${tabInfo.singular}`}
-            />
-          }
-        />
-      ) : (
-        <SuppliersClient contractors={contractors} orgId={orgId} />
-      )}
+      {tabsRow}
+      <SuppliersClient contractors={contractors} orgId={orgId} />
     </div>
   )
 }
