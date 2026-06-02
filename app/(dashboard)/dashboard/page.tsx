@@ -269,10 +269,12 @@ export default async function DashboardPage() {
   const occupiedUnits = activeUnits.filter((u) => u.status === "occupied").length
   const vacantUnits = activeUnits.filter((u) => u.status === "vacant").length
   const occupancyPercent = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0
-  // Show onboarding until the org dismisses it (finished or skipped) — NOT derived from "has a
-  // property", so a user who skips straight to the dashboard still gets the populated view.
+  // The guided setup dashboard shows until the org has its first property (an all-zeros populated
+  // dashboard is never useful) — UNLESS someone explicitly skipped setup ("not my job — an admin will
+  // do it"), which stamps onboarding_dismissed_at and reveals the populated view. "I'll finish later"
+  // is a session-only defer (client-side) and deliberately does NOT set the flag, so setup returns.
   const onboardingDismissedAt = (org?.onboarding_dismissed_at as string | null) ?? null
-  const showOnboarding = onboardingDismissedAt === null
+  const showOnboarding = totalProperties === 0 && onboardingDismissedAt === null
 
   const onboardingProgress: GettingStartedProgress = {
     landlord:   (landlordsCountRes.count ?? 0) > 0,

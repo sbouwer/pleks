@@ -89,10 +89,11 @@ export function GettingStarted({ progress }: Readonly<{ progress: GettingStarted
   const doneCount = STEPS.filter((s) => progress[s.key]).length
   const pct = Math.round((doneCount / STEPS.length) * 100)
   const firstTodo = STEPS.find((s) => !progress[s.key])
-  const allDone = doneCount === STEPS.length
 
-  // Finish / skip → stamp onboarding dismissed → the server re-renders the populated dashboard.
-  function finish() {
+  // "Skip" = decline/delegate ("not my job — an admin will handle it"): stamp the onboarding flag so the
+  // populated dashboard renders even with no portfolio. Distinct from "I'll finish later" (the hero's
+  // soft collapse below), which is a session-only defer that does NOT dismiss — setup returns next visit.
+  function skip() {
     startFinish(async () => { await dismissOnboarding(); router.refresh() })
   }
 
@@ -131,7 +132,7 @@ export function GettingStarted({ progress }: Readonly<{ progress: GettingStarted
             onClick={() => setDismissed(true)}
             className="shrink-0 rounded-[var(--r-button)] px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
           >
-            Dismiss
+            I&apos;ll finish later
           </button>
         </div>
       )}
@@ -150,27 +151,16 @@ export function GettingStarted({ progress }: Readonly<{ progress: GettingStarted
         ))}
       </div>
 
-      <div className="mt-5 flex items-center justify-between gap-3">
+      {/* Delegate escape — distinct from "I'll finish later". For someone whose job this isn't. */}
+      <div className="mt-5">
         <button
           type="button"
-          onClick={finish}
+          onClick={skip}
           disabled={finishing}
           className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-60"
         >
-          {finishing ? "Taking you there…" : "Skip for now — go to my dashboard"}
+          {finishing ? "Skipping…" : "Not your job? Skip setup — an admin can do this later"}
         </button>
-        {allDone && (
-          <button
-            type="button"
-            onClick={finish}
-            disabled={finishing}
-            className="group inline-flex items-center gap-2 rounded-[var(--r-button)] bg-foreground py-2.5 pl-2.5 pr-4 text-sm font-semibold text-background transition-colors hover:bg-primary hover:text-primary-foreground disabled:opacity-60"
-          >
-            <span aria-hidden className="h-3.5 w-[3px] shrink-0 bg-primary transition-colors group-hover:bg-primary-foreground" />
-            Finish setup
-            <ArrowRight className="h-4 w-4" />
-          </button>
-        )}
       </div>
 
       <OnboardingWizard

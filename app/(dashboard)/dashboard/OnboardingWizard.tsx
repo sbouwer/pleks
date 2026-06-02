@@ -21,7 +21,6 @@ import { usePartyFlow } from "@/components/parties/usePartyFlow"
 import { PropertyWizardModal } from "@/app/(dashboard)/properties/new/PropertyWizardModal"
 import { addLandlordParty, addTenantParty, addContractorParty } from "@/lib/actions/parties"
 import { getSelfLandlordPrefill, bindSelfLandlord } from "@/lib/actions/selfLandlord"
-import { dismissOnboarding } from "@/lib/actions/dismissOnboarding"
 import type { PartyRole } from "@/lib/parties/partyConfig"
 import type { GettingStartedProgress } from "./GettingStarted"
 
@@ -146,8 +145,10 @@ export function OnboardingWizard({
     else if (idx + 1 < STEPS.length) goTo(idx + 1)
     else finish()
   }
+  // "I'll finish later" — a soft defer: close the walk and refresh so ticked steps show on the dashboard.
+  // It does NOT dismiss onboarding; that's the dashboard's distinct "Skip setup" (an admin will do it).
   function finish() {
-    startFinish(async () => { await dismissOnboarding(); router.refresh(); onClose() })
+    startFinish(() => { router.refresh(); onClose() })
   }
 
   // Footer + body per step type.
@@ -200,7 +201,7 @@ export function OnboardingWizard({
         primaryDisabled={finishing || (!!flow && flow.primaryDisabled)}
         footerSlot={
           <button type="button" onClick={finish} disabled={finishing} className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground disabled:opacity-60">
-            Finish later — go to dashboard
+            I&apos;ll finish later
           </button>
         }
       >

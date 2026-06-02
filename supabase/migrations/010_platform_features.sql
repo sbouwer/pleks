@@ -3009,3 +3009,18 @@ ALTER TABLE organisations ADD COLUMN IF NOT EXISTS onboarding_dismissed_at times
 UPDATE organisations o SET onboarding_dismissed_at = now()
 WHERE o.onboarding_dismissed_at IS NULL
   AND EXISTS (SELECT 1 FROM properties p WHERE p.org_id = o.id AND p.deleted_at IS NULL);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §39  ONBOARDING: re-scope the flag to an explicit "skip", and clear stale dismissals
+--      The rule changed: the guided setup dashboard now shows until the org has its first
+--      property (an all-zeros populated dashboard is useless). onboarding_dismissed_at no
+--      longer means a generic "finished/skipped" — it means ONLY "explicitly skipped setup"
+--      (delegated: an admin will do it), the one way to force the populated view with no
+--      portfolio. "I'll finish later" is a session-only defer and never writes this column.
+--      The earlier "finish later" wrongly stamped it, so any org with NO live property that
+--      carries a flag was dismissed by that bug (genuine skips post-date this) — clear them
+--      so they get the corrected setup dashboard. Idempotent: re-runs match nothing.
+-- ═══════════════════════════════════════════════════════════════════════════════
+UPDATE organisations o SET onboarding_dismissed_at = NULL
+WHERE o.onboarding_dismissed_at IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM properties p WHERE p.org_id = o.id AND p.deleted_at IS NULL);

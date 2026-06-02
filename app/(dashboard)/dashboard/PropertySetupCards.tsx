@@ -8,39 +8,14 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 import Link from "next/link"
-import { Home, ListChecks, ArrowRight } from "lucide-react"
+import { ListChecks, ArrowRight } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
-import { GuidedSetupLink } from "@/components/properties/GuidedSetupLink"
 import { createServiceClient } from "@/lib/supabase/server"
 
 interface Props {
   orgId:            string
   totalProperties:  number
   isAdmin:          boolean
-}
-
-// ── First property card ───────────────────────────────────────────────────────
-
-function FirstPropertyCard() {
-  return (
-    <Card className="border-primary/30 bg-primary/5">
-      <CardContent className="pt-4 pb-4">
-        <div className="flex items-start gap-4">
-          <div className="rounded-lg bg-primary/10 p-2 shrink-0">
-            <Home className="w-5 h-5 text-primary" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-semibold mb-1">Add your first property</h3>
-            <p className="text-sm text-muted-foreground mb-3">
-              Tell us about the property. We&apos;ll match it to the way SA property works &mdash;
-              sectional title, rental house, commercial, and more.
-            </p>
-            <GuidedSetupLink />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
 }
 
 // ── Imported properties review card ───────────────────────────────────────────
@@ -81,10 +56,8 @@ const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 export async function PropertySetupCards({ orgId, totalProperties, isAdmin }: Readonly<Props>) {
   if (!isAdmin) return null
 
-  // 0 properties → first property card (always for admins on empty orgs)
-  if (totalProperties === 0) {
-    return <FirstPropertyCard />
-  }
+  // 0 properties → nothing here: the guided setup dashboard owns the empty state now.
+  if (totalProperties === 0) return null
 
   // > 0 properties → check for recent import with unclassified rows
   const service = await createServiceClient()
