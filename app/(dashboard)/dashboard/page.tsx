@@ -21,6 +21,8 @@ import { FinancialsPanel } from "./FinancialsPanel"
 import { LeaseExpiryTimeline } from "./LeaseExpiryTimeline"
 import { ActivityFeed } from "./ActivityFeed"
 import { PropertySetupCards } from "./PropertySetupCards"
+import { GettingStarted, type GettingStartedProgress } from "./GettingStarted"
+import { WorkspaceSetup } from "./WorkspaceSetup"
 import { SurrenderedCommsWidget, type SurrenderedCommRow } from "./SurrenderedCommsWidget"
 import { formatZARAbbrev } from "@/lib/constants"
 import { getFeesDue } from "@/lib/dashboard/feesDue"
@@ -194,7 +196,7 @@ export default async function DashboardPage() {
   const supabase = await createClient()
 
   // Light wave — all independent, renders greeting + metrics immediately
-  const [orgRes, profileRes, subRes, propCountRes, unitRes, collectionRate, tenantsCountRes, leasesCountRes, inspectionsCountRes, surrenderedCommsRes] = await Promise.all([
+  const [orgRes, profileRes, subRes, propCountRes, unitRes, collectionRate, tenantsCountRes, leasesCountRes, inspectionsCountRes, landlordsCountRes, contractorsCountRes, surrenderedCommsRes] = await Promise.all([
     supabase
       .from("organisations")
       .select("has_trust_account, has_deposit_account, management_scope, founding_agent, founding_agent_price_cents")
@@ -226,6 +228,8 @@ export default async function DashboardPage() {
     supabase.from("tenants").select("id", { count: "exact", head: true }).eq("org_id", orgId).is("deleted_at", null),
     supabase.from("leases").select("id", { count: "exact", head: true }).eq("org_id", orgId),
     supabase.from("inspections").select("id", { count: "exact", head: true }).eq("org_id", orgId),
+    getCachedServiceClient().then((c) => c.from("landlord_view").select("id", { count: "exact", head: true }).eq("org_id", orgId)),
+    getCachedServiceClient().then((c) => c.from("contractors").select("id", { count: "exact", head: true }).eq("org_id", orgId).is("deleted_at", null)),
     // Surrendered mandatory comms requiring manual dispatch (BUILD_63 Phase 8)
     getCachedServiceClient().then((c) =>
       c.from("mandatory_comm_retries")
@@ -246,6 +250,15 @@ export default async function DashboardPage() {
   const vacantUnits = activeUnits.filter((u) => u.status === "vacant").length
   const occupancyPercent = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0
   const isNewOrg = totalProperties === 0
+
+  const onboardingProgress: GettingStartedProgress = {
+    landlord:   (landlordsCountRes.count ?? 0) > 0,
+    property:   totalProperties > 0,
+    tenant:     (tenantsCountRes.count ?? 0) > 0,
+    lease:      (leasesCountRes.count ?? 0) > 0,
+    inspection: (inspectionsCountRes.count ?? 0) > 0,
+    supplier:   (contractorsCountRes.count ?? 0) > 0,
+  }
 
   const checklistItems: { key: string; label: string; done: boolean; href?: string }[] = [
     { key: "org",         label: "Organisation created",             done: true },
@@ -294,7 +307,7 @@ export default async function DashboardPage() {
           {greeting}, {firstName}.
         </h1>
         <p className="mt-1.5 text-[13.5px] text-muted-foreground">
-          Here&apos;s your portfolio at a glance.
+          {isNewOrg ? "Your workspace is ready — let's bring your portfolio to life." : "Here's your portfolio at a glance."}
         </p>
       </div>
 
@@ -311,7 +324,16 @@ export default async function DashboardPage() {
       {/* Surrendered mandatory comms widget (BUILD_63 Phase 8) */}
       <SurrenderedCommsWidget items={surrenderedCommItems} />
 
-      {/* BUILD_60 property setup cards — first property / check imports */}
+      {isNewOrg ? (
+        /* ── New-user empty state — get-started steps + workspace setup ──────── */
+        <>
+          <GettingStarted progress={onboardingProgress} />
+          <WorkspaceSetup />
+        </>
+      ) : (
+        /* ── Populated dashboard ────────────────────────────────────────────── */
+        <>
+      {/* BUILD_60 property setup cards — check imports */}
       <PropertySetupCards
         orgId={membership.org_id}
         totalProperties={totalProperties}
@@ -387,10 +409,12 @@ export default async function DashboardPage() {
       </div>
 
       {/* Heavy sections — stream in via Suspense */}
-      {!isNewOrg && collectionRate && (
+      {collectionRate && (
         <Suspense fallback={<DashboardSectionsSkeleton />}>
           <DashboardHeavySections orgId={orgId} collectionRate={collectionRate} />
         </Suspense>
+      )}
+        </>
       )}
     </div>
     </div>
