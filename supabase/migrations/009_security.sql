@@ -118,7 +118,7 @@ ALTER POLICY "org_contact_employment"     ON contact_employment           WITH C
 ALTER POLICY "org_contact_phones"         ON contact_phones               WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL));
 ALTER POLICY "org_contact_roles"          ON contact_roles                WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL));
 ALTER POLICY "org_contacts"               ON contacts                     WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL));
-ALTER POLICY "org_contractor_contacts"    ON contractor_contacts          WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL));
+-- org_contractor_contacts removed 2026-06-03 (ADDENDUM_25A) — contractor_contacts table dropped.
 ALTER POLICY "org_contractor_prefs"       ON contractor_preferences       WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL));
 ALTER POLICY "org_contractors"            ON contractors                  WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL));
 ALTER POLICY "org_custom_lease_requests"  ON custom_lease_requests        WITH CHECK (org_id IN (SELECT org_id FROM user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL));

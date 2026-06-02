@@ -975,6 +975,12 @@ ALTER TABLE contacts ADD COLUMN IF NOT EXISTS is_primary_contact boolean NOT NUL
 -- contacts (landlord/tenant). The eventual surety/screening build reads these flagged signatories.
 ALTER TABLE contacts ADD COLUMN IF NOT EXISTS is_signatory boolean NOT NULL DEFAULT false;
 
+-- belt-and-braces: a signatory must carry a hashed ID (FICA). App validation is the primary gate; this
+-- ensures no code path can persist a signatory without an ID.
+ALTER TABLE contacts DROP CONSTRAINT IF EXISTS contacts_signatory_needs_id;
+ALTER TABLE contacts ADD CONSTRAINT contacts_signatory_needs_id
+  CHECK (NOT is_signatory OR id_number_hash IS NOT NULL);
+
 ALTER TABLE contacts DROP CONSTRAINT IF EXISTS contacts_company_function_check;
 ALTER TABLE contacts ADD CONSTRAINT contacts_company_function_check
   CHECK (company_function IS NULL OR company_function IN

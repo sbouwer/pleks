@@ -156,13 +156,6 @@ export default async function ContractorDetailPage({ params }: Props) {
     .eq("contact_id", contractor.contact_id)
     .order("is_primary", { ascending: false })
 
-  // Fetch contractor contacts (associated people)
-  const { data: contractorContacts } = await service
-    .from("contractor_contacts")
-    .select("id, contact_id, role, is_primary, contacts(first_name, last_name, company_name, primary_email, primary_phone)")
-    .eq("contractor_id", id)
-    .eq("org_id", membership.org_id)
-
   // Active maintenance jobs assigned to this contractor
   const { data: activeJobs } = await service
     .from("maintenance_requests")
@@ -218,7 +211,6 @@ export default async function ContractorDetailPage({ params }: Props) {
     "Unnamed Contractor"
   const primaryPhone = phones?.[0]?.number ?? null
   const primaryEmail = emails?.[0]?.email ?? null
-  void contractorContacts
 
   return (
     <ContactDetailLayout breadcrumb={{ label: "Contractors", href: "/suppliers" }} sidebar={

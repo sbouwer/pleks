@@ -702,23 +702,10 @@ $$;
 CREATE INDEX IF NOT EXISTS idx_audit_log_created_id
   ON audit_log(created_at DESC, id DESC);
 
--- contractor_contacts: multiple people per contractor firm
-CREATE TABLE IF NOT EXISTS public.contractor_contacts (
-  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id        uuid NOT NULL REFERENCES public.organisations(id),
-  contractor_id uuid NOT NULL REFERENCES public.contractors(id) ON DELETE CASCADE,
-  contact_id    uuid NOT NULL REFERENCES public.contacts(id) ON DELETE CASCADE,
-  role          text,
-  is_primary    boolean NOT NULL DEFAULT false,
-  created_at    timestamptz NOT NULL DEFAULT now(),
-  UNIQUE(contractor_id, contact_id)
-);
-ALTER TABLE public.contractor_contacts ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "org_contractor_contacts" ON public.contractor_contacts;
-CREATE POLICY "org_contractor_contacts" ON public.contractor_contacts
-  FOR ALL USING (org_id IN (
-    SELECT org_id FROM public.user_orgs WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
-  ));
+-- contractor_contacts: REMOVED 2026-06-03 (ADDENDUM_25A) — superseded by the universal company-people
+-- model (contacts.organisation_contact_id; a supplier person is a first-class contact). Dropped in prod
+-- (0 rows). Its RLS policy was also removed from 009_security.sql §… (must go together — a CREATE POLICY
+-- on a dropped table breaks a fresh replay). Do NOT re-add.
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- §1  Expand audit_log action CHECK to cover all application action types
