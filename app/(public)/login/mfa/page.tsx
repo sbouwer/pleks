@@ -6,7 +6,10 @@
  * Route:  /login/mfa
  * Auth:   aal1 session required (password step already done)
  * Notes:  D1 (ADDENDUM_AUTH_CONTRACT): host-scoping deleted. Uses first verified factor globally.
- *         Post-verification hard-navigates directly to ?redirect= destination (Single-Pass Doctrine).
+ *         FIX-70: passkey-aware — the stay-vs-enrol decision mirrors the resolver (verified TOTP OR an
+ *         unrevoked passkey row); enrol redirects target the chooser (/settings/security/enrol), never
+ *         enrol-totp; an always-on escape link recovers a dead client credential. TOTP form renders only
+ *         when a verified TOTP factor exists. Post-verification hard-navigates to ?redirect= (Single-Pass).
  */
 
 import { useState, useEffect, useRef, Suspense } from "react"
@@ -16,6 +19,7 @@ import Link from "next/link"
 import { Loader2, ShieldCheck } from "lucide-react"
 import { AccentBracket } from "@/components/ui/AccentBracket"
 import { safeRedirect } from "@/lib/auth/safe-redirect"
+import { mfaVerifyNeedsEnrol, enrolChooserPath } from "@/lib/auth/mfaVerifyDecision"
 import { FocusShell } from "@/components/layout/FocusShell"
 import { usePasskeyLogin } from "@/lib/auth/passkeys/usePasskeyLogin"
 import { canUsePasskeys } from "@/lib/auth/passkeys/capability"
@@ -41,37 +45,27 @@ function MfaContent() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [checking, setChecking] = useState(true)
-  const [passkeyOffered, setPasskeyOffered] = useState(false)
+  const [hasTotp, setHasTotp] = useState(false)
+  const [passkeyOffered, setPasskeyOffered] = useState(false)   // passkey exists AND usable on this browser
   const inputRef = useRef<HTMLInputElement>(null)
   const { login: passkeyLogin, state: passkeyState, errorMsg: passkeyError, reset: passkeyReset } = usePasskeyLogin()
 
-  // Lost-authenticator recovery (ADDENDUM_69 Slice C): if the user has a passkey, offer it as
-  // an escape hatch right here — a passkey logs them in at AAL2 (Slice A), bypassing the TOTP
-  // they can't produce. Shown only when WebAuthn is available AND they have an enrolled passkey.
-  useEffect(() => {
-    let active = true
-    void (async () => {
-      try {
-        const cap = await canUsePasskeys()
-        if (!cap.available) return
-        const res = await fetch("/api/auth/passkeys/list")
-        if (!res.ok) return
-        const { passkeys } = await res.json() as { passkeys?: unknown[] }
-        if (active && (passkeys?.length ?? 0) > 0) setPasskeyOffered(true)
-      } catch { /* passkey just stays hidden */ }
-    })()
-    return () => { active = false }
-  }, [])
+  // The chooser (passkey OR authenticator) — every enrol/escape route off this page targets it, never
+  // the TOTP-only enrol-totp page. FIX-70: the verify page was passkey-blind and force-marched passkey
+  // users into TOTP. Carries the original destination so enrolment returns the user where they meant to go.
+  const enrolChooserHref = enrolChooserPath(redirectParam)
 
   async function handlePasskey() {
     passkeyReset()
     if (await passkeyLogin()) globalThis.location.href = safeRedirect(redirectParam)
   }
 
+  // One bootstrap resolving BOTH factor classes — mirrors the resolver's hasVerifiedFactor predicate
+  // (ADDENDUM_70 Slice A): a verified TOTP factor OR an unrevoked passkey row means "stay and verify".
+  // Only when NEITHER exists do we send the user to enrolment — and to the chooser, not enrol-totp.
   useEffect(() => {
     const supabase = createClient()
-
-    ;(async () => {
+    void (async () => {
       try {
         const { data: userData } = await supabase.auth.getUser()
         if (!userData.user) {
@@ -87,15 +81,33 @@ function MfaContent() {
         }
 
         const { data: factors } = await supabase.auth.mfa.listFactors()
-        const allVerified = (factors?.totp ?? []).filter((f) => f.status === "verified")
+        const totpVerified = (factors?.totp ?? []).some((f) => f.status === "verified")
 
-        if (allVerified.length === 0) {
-          router.replace("/settings/security/enrol-totp?mandatory=true")
+        // Server-truth passkey existence drives the redirect decision — NOT browser capability. Deleting
+        // a passkey from the authenticator removes only the client credential; this server row persists,
+        // so a passkey-holder is routed to *verify* and must not be bounced into enrolment here.
+        let passkeyExists = false
+        try {
+          const res = await fetch("/api/auth/passkeys/list")
+          if (res.ok) {
+            const { passkeys } = await res.json() as { passkeys?: unknown[] }
+            passkeyExists = (passkeys?.length ?? 0) > 0
+          }
+        } catch { /* treat as absent */ }
+
+        // No factor of EITHER kind → enrolment, via the chooser (passkey or authenticator).
+        if (mfaVerifyNeedsEnrol({ totpVerified, passkeyExists })) {
+          router.replace(enrolChooserPath(redirectParam, { mandatory: true }))
           return
         }
 
+        // The passkey button renders only when the credential is also usable on THIS browser; a
+        // passkey-only user on a non-WebAuthn browser still gets the always-on escape link below.
+        const cap = await canUsePasskeys().catch(() => ({ available: false }))
+        setPasskeyOffered(passkeyExists && cap.available)
+        setHasTotp(totpVerified)
         setChecking(false)
-        setTimeout(() => inputRef.current?.focus(), 100)
+        if (totpVerified) setTimeout(() => inputRef.current?.focus(), 100)
       } catch (err) {
         console.error("[mfa] setup check failed", err)
         setError("Couldn't load your MFA settings. Please refresh the page or contact support@pleks.co.za.")
@@ -116,7 +128,7 @@ function MfaContent() {
     const verifiedFactor = allVerified[0]
 
     if (factorsErr || !verifiedFactor) {
-      router.push("/settings/security/enrol-totp?mandatory=true")
+      router.push(enrolChooserPath(redirectParam, { mandatory: true }))
       return
     }
 
@@ -170,7 +182,9 @@ function MfaContent() {
           <ShieldCheck className="h-7 w-7 text-muted-foreground" />
         </div>
         <p className="fs-subhead" style={{ margin: "0 0 20px" }}>
-          Finish signing in — enter the 6-digit code from your authenticator app.
+          {hasTotp
+            ? "Finish signing in — enter the 6-digit code from your authenticator app."
+            : "Finish signing in — confirm it's you with your passkey."}
         </p>
 
         {error && (
@@ -179,37 +193,59 @@ function MfaContent() {
           </div>
         )}
 
-        <form onSubmit={handleVerify} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <OtpCodeInput value={code} onChange={setCode} disabled={loading} inputRef={inputRef} />
-          <button
-            type="submit"
-            className="fs-cta"
-            disabled={loading || code.length < 6}
-            style={{ opacity: code.length < 6 ? 0.6 : 1 }}
-          >
-            <span className="fs-cta-bar" aria-hidden="true" />
-            <span className="fs-cta-label">{loading ? "Verifying…" : "Verify"}</span>
-            <span className="fs-cta-arrow" aria-hidden="true">→</span>
-          </button>
-        </form>
+        {hasTotp && (
+          <form onSubmit={handleVerify} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <OtpCodeInput value={code} onChange={setCode} disabled={loading} inputRef={inputRef} />
+            <button
+              type="submit"
+              className="fs-cta"
+              disabled={loading || code.length < 6}
+              style={{ opacity: code.length < 6 ? 0.6 : 1 }}
+            >
+              <span className="fs-cta-bar" aria-hidden="true" />
+              <span className="fs-cta-label">{loading ? "Verifying…" : "Verify"}</span>
+              <span className="fs-cta-arrow" aria-hidden="true">→</span>
+            </button>
+          </form>
+        )}
 
         {passkeyOffered && (
           <>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "16px 0 10px" }}>
-              <div style={{ flex: 1, height: 1, background: "var(--rule)" }} />
-              <span className="text-xs text-muted-foreground">or</span>
-              <div style={{ flex: 1, height: 1, background: "var(--rule)" }} />
-            </div>
-            {passkeyError && <div className="mb-2 text-xs text-danger">{passkeyError}</div>}
+            {/* Divider only when the passkey sits under a TOTP form; passkey-only → it's the primary action. */}
+            {hasTotp && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "16px 0 10px" }}>
+                <div style={{ flex: 1, height: 1, background: "var(--rule)" }} />
+                <span className="text-xs text-muted-foreground">or</span>
+                <div style={{ flex: 1, height: 1, background: "var(--rule)" }} />
+              </div>
+            )}
             <PasskeyButton
               onClick={handlePasskey}
               loading={passkeyState === "in_progress"}
-              label="Use a passkey instead"
+              label={hasTotp ? "Use a passkey instead" : "Continue with a passkey"}
             />
+            {/* Dead client credential (live server row, deleted from the authenticator): the button fails.
+                Name it plainly and push the user at the escape link below — their only self-service way in. */}
+            {passkeyState === "error" && (
+              <div className="mt-2 text-xs text-danger" style={{ textAlign: "left" }}>
+                {passkeyError ?? "Couldn't find that passkey on this device."} Use “Set up another way” below to enrol a fresh factor.
+              </div>
+            )}
           </>
         )}
 
+        {/* Always-on self-service escape (D-FIX70-06): the only way back in for a passkey-only user whose
+            credential was deleted. Emphasised after a failed passkey attempt. */}
         <div style={{ marginTop: 16 }}>
+          <Link
+            href={enrolChooserHref}
+            className={passkeyState === "error" ? "fs-cta-ghost font-semibold text-foreground" : "fs-cta-ghost"}
+          >
+            Can&apos;t sign in with these? Set up another way
+          </Link>
+        </div>
+
+        <div style={{ marginTop: 10 }}>
           <Link href="/login" className="fs-cta-ghost">Use a different account</Link>
         </div>
 

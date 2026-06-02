@@ -6,7 +6,8 @@
  * Route:  /login/first-setup
  * Auth:   Authenticated; no AAL2 requirement (accessible before MFA enrolment)
  * Notes:  Shown to first-time users by the resolver when everAccepted=false and no MFA
- *         factor exists. Steps: Welcome → ToS acceptance → MFA handoff to enrol-totp.
+ *         factor exists. Steps: Welcome → ToS acceptance → MFA handoff to the enrol chooser
+ *         (passkey or authenticator; FIX-70).
  *         Returns to this page at ?wizard_step=4 after MFA enrolment completes,
  *         showing a first-property CTA before navigating to the dashboard.
  */
@@ -168,14 +169,14 @@ function MfaStep() {
         Secure your account
       </h2>
       <p style={{ fontSize: 13.5, color: "var(--ink-soft, #666)", margin: "0 0 28px", lineHeight: 1.6, textAlign: "center" }}>
-        Two-factor authentication is required for the Pleks workspace. You&apos;ll need
-        an authenticator app — Google Authenticator, Authy, or 1Password all work.
+        Two-factor authentication is required for the Pleks workspace. Set up a passkey
+        (recommended) or an authenticator app — whichever suits you.
       </p>
       <Link
-        href={`/settings/security/enrol-totp?mandatory=true&redirect=${encodeURIComponent(mfaReturnUrl)}`}
+        href={`/settings/security/enrol?mandatory=true&redirect=${encodeURIComponent(mfaReturnUrl)}`}
         style={BTN_PRIMARY}
       >
-        Set up authenticator
+        Secure my account
       </Link>
     </div>
   )
