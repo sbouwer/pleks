@@ -24,6 +24,8 @@ import { PropertySetupCards } from "./PropertySetupCards"
 import { GettingStarted, type GettingStartedProgress } from "./GettingStarted"
 import { WorkspaceSetup } from "./WorkspaceSetup"
 import { PlanUsageBanner } from "./PlanUsageBanner"
+import { QuickAddMenu } from "./QuickAddMenu"
+import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import type { Tier } from "@/lib/constants"
 import { SurrenderedCommsWidget, type SurrenderedCommRow } from "./SurrenderedCommsWidget"
 import { formatZARAbbrev } from "@/lib/constants"
@@ -297,21 +299,13 @@ export default async function DashboardPage() {
     </div>
     <div className="hidden lg:block">
     <div className="space-y-5">
-      {/* Greeting */}
-      <div>
-        <div className="mb-1.5 flex items-center gap-2.5">
-          <span className="inline-block h-0.5 w-6 shrink-0 bg-amber-400"></span>
-          <p className="font-mono text-[10.5px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            {dateStr}
-          </p>
-        </div>
-        <h1 className="font-heading text-[28px] leading-tight tracking-tight">
-          {greeting}, {firstName}.
-        </h1>
-        <p className="mt-1.5 text-[13.5px] text-muted-foreground">
-          {isNewOrg ? "Your workspace is ready — let's bring your portfolio to life." : "Here's your portfolio at a glance."}
-        </p>
-      </div>
+      {/* Page header — same rhythm as every other page (eyebrow · date / greeting / sub / Quick add) */}
+      <ResourcePageHeader
+        eyebrow={`Overview · ${dateStr}`}
+        title={`${greeting}, ${firstName}.`}
+        sub={isNewOrg ? "Your workspace is ready — let's bring your portfolio to life." : "Here's your portfolio at a glance."}
+        action={<QuickAddMenu orgId={orgId} />}
+      />
 
       {/* Banners */}
       <DashboardBanners
