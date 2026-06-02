@@ -36,7 +36,7 @@ function primaryLabel(step: number, submitting: boolean, singular: string): stri
 }
 
 export function AddPartyModal({
-  role, open, onOpenChange, onSubmit, onCreated,
+  role, open, onOpenChange, onSubmit, onCreated, onPrimaryAction,
 }: Readonly<{
   role: PartyRole
   open: boolean
@@ -44,6 +44,8 @@ export function AddPartyModal({
   onSubmit: (input: AddPartyInput) => Promise<AddPartyResult>
   /** called after a successful create so the parent can refresh its list */
   onCreated?: () => void
+  /** the success-view primary action (e.g. landlord → generate welcome pack); closes after */
+  onPrimaryAction?: (result: AddPartyResult) => void
 }>) {
   const cfg = PARTY_ROLES[role]
   const [entity, setEntity] = useState<PartyEntity>("individual")
@@ -51,7 +53,7 @@ export function AddPartyModal({
   const [errors, setErrors] = useState<PartyErrors>({})
   const [step, setStep] = useState(0)
   const [submitting, setSubmitting] = useState(false)
-  const [done, setDone] = useState<{ name: string } | null>(null)
+  const [done, setDone] = useState<AddPartyResult | null>(null)
 
   const set = (k: keyof PartyFormState, v: string | string[] | boolean) =>
     setF((p) => ({ ...p, [k]: v }))
@@ -77,7 +79,7 @@ export function AddPartyModal({
       return
     }
     onCreated?.()
-    setDone({ name: result.name ?? "" })
+    setDone(result)
   }
 
   function next() {
@@ -109,9 +111,10 @@ export function AddPartyModal({
           role={role}
           entity={entity}
           f={f}
-          displayName={done.name}
+          displayName={done.name ?? ""}
           onClose={close}
           onAddAnother={reset}
+          onPrimaryAction={onPrimaryAction ? () => { onPrimaryAction(done); close() } : undefined}
         />
       ) : (
         <div className="flex flex-col">

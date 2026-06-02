@@ -8,8 +8,8 @@
  * Data:   tenant list from fetchTenantsAction (server action); cached under PORTFOLIO_QUERY_KEYS.tenants(orgId)
  * Notes:  loading state renders nothing (body = null) to avoid flash; TenantsClient receives the stable query result
  */
-import React from "react"
-import { useQuery } from "@tanstack/react-query"
+import React, { useState } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 import { ActionButton } from "@/components/ui/actions"
 import { EmptyState } from "@/components/shared/EmptyState"
@@ -17,11 +17,15 @@ import { Users, Plus } from "lucide-react"
 import { TenantsClient } from "./TenantsClient"
 import { PORTFOLIO_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchTenantsAction } from "@/lib/queries/portfolioActions"
+import { AddPartyModal } from "@/components/parties/AddPartyModal"
+import { addTenantParty } from "@/lib/actions/parties"
 
 interface Props { orgId: string }
 
 export function TenantsPageClient({ orgId }: Readonly<Props>) {
   const router = useRouter()
+  const queryClient = useQueryClient()
+  const [addOpen, setAddOpen] = useState(false)
   const { data: tenants = [], isLoading } = useQuery({
     queryKey: PORTFOLIO_QUERY_KEYS.tenants(orgId),
     queryFn: () => fetchTenantsAction(orgId),
@@ -50,11 +54,21 @@ export function TenantsPageClient({ orgId }: Readonly<Props>) {
           <h1 className="font-heading text-3xl">Tenants</h1>
           <p className="text-sm text-muted-foreground">{tenants.length} tenants</p>
         </div>
-        <ActionButton tone="primary" icon={<Plus className="h-4 w-4" />} onClick={() => router.push("/tenants/new")}>
+        <ActionButton tone="primary" icon={<Plus className="h-4 w-4" />} onClick={() => setAddOpen(true)}>
           Add Tenant
         </ActionButton>
       </div>
       {body}
+      <AddPartyModal
+        role="tenant"
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        onSubmit={addTenantParty}
+        onCreated={() => {
+          queryClient.invalidateQueries({ queryKey: PORTFOLIO_QUERY_KEYS.tenants(orgId) })
+          router.refresh()
+        }}
+      />
     </div>
   )
 }

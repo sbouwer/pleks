@@ -15,11 +15,13 @@ export interface AddPartyInput {
   form: PartyFormState
 }
 
-/** Result back to the modal (name drives the success view). */
+/** Result back to the modal (name drives the success view; id enables the success action). */
 export interface AddPartyResult {
   ok: boolean
   error?: string
   name?: string
+  /** id of the created role record (landlord/tenant/contractor) */
+  id?: string
 }
 
 export interface PartyFormState {

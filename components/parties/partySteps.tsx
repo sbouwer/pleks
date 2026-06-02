@@ -262,10 +262,10 @@ export function ReviewStep({
 
 // ── Success ───────────────────────────────────────────────────────────────────
 export function SuccessView({
-  role, entity, f, displayName, onClose, onAddAnother,
+  role, entity, f, displayName, onClose, onAddAnother, onPrimaryAction,
 }: Readonly<{
   role: PartyRole; entity: PartyEntity; f: PartyFormState; displayName: string
-  onClose: () => void; onAddAnother: () => void
+  onClose: () => void; onAddAnother: () => void; onPrimaryAction?: () => void
 }>) {
   const cfg = PARTY_ROLES[role]
   const name = displayName
@@ -282,7 +282,7 @@ export function SuccessView({
       <p className="mt-1 max-w-xs text-sm text-muted-foreground">{cfg.successNote}</p>
       <div className="mt-6 flex flex-col items-stretch gap-2 self-stretch">
         {cfg.successAction && (
-          <button type="button" onClick={onClose}
+          <button type="button" onClick={onPrimaryAction ?? onClose}
             className="rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
             {cfg.successAction}
           </button>

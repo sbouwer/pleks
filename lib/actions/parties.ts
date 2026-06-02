@@ -4,83 +4,232 @@
  * lib/actions/parties.ts — create actions for the unified add-party modal
  *
  * Auth:   requireAgentWriteAccess (agent write gate + subscription lockdown)
- * Data:   contacts + the role extension table (contractors; landlords/tenants in a later phase)
- * Notes:  Phase 1 = contractor only. Contractors are not a full-FICA subject, so NO PII (ID number)
- *         is captured/stored — which keeps this free of the encryption path. Landlord/tenant creates
- *         (with id_number + id_number_hash + consent_log) follow the lib/actions/tenants.ts pattern
- *         when they are wired. db is the service client → every write carries org_id explicitly.
+ * Data:   contacts (+ contact_addresses for company FICA) + the role extension table
+ * Notes:  One DRY contact-row builder serves all three roles. FICA roles (landlord/tenant) capture
+ *         id_number + id_number_hash (hashIdNumber; at-rest encryption is the DB's job — same pattern
+ *         as lib/actions/tenants.ts) and put the company's mandated signatory in the contact_* columns;
+ *         contractors are non-FICA (no ID). Tenant consent writes a real consent_log row (POPIA).
  */
 import { requireAgentWriteAccess } from "@/lib/auth/server"
-import { toContactEntityType } from "@/lib/parties/partyConfig"
+import { headers } from "next/headers"
+import { hashIdNumber } from "@/lib/crypto/idNumber"
+import { PARTY_ROLES, toContactEntityType, type PartyRole, type PartyEntity } from "@/lib/parties/partyConfig"
 import type { PartyFormState, AddPartyInput, AddPartyResult } from "@/lib/parties/partyValidation"
 
-function contractorDisplayName(isCompany: boolean, f: PartyFormState): string {
-  if (isCompany) return f.companyName?.trim() || "Contractor"
-  return [f.firstName, f.lastName].filter(Boolean).join(" ").trim() || "Contractor"
+type Db = Awaited<ReturnType<typeof requireAgentWriteAccess>>["db"]
+
+function partyDisplayName(role: PartyRole, entity: PartyEntity, f: PartyFormState): string {
+  if (entity === "company") return f.companyName?.trim() || PARTY_ROLES[role].singular
+  return [f.firstName, f.lastName].filter(Boolean).join(" ").trim() || PARTY_ROLES[role].singular
 }
 
-/** One contacts row shape (consistent keys for the typed insert). Company stores the registered
- *  entity + its primary-contact person; individual stores the person. */
-function buildContractorContactRow(isCompany: boolean, f: PartyFormState, orgId: string, userId: string) {
-  return {
+/**
+ * Build the contacts row (Record so the typed insert accepts the varying key set, per tenants.ts).
+ * - individual: the person (+ ID for FICA roles)
+ * - company, FICA (landlord/tenant): registered entity + mandated signatory in contact_* columns
+ * - company, non-FICA (contractor): registered entity + primary contact person in first/last
+ */
+function buildPartyContactData(
+  role: PartyRole, entity: PartyEntity, f: PartyFormState, orgId: string, userId: string,
+): Record<string, unknown> {
+  const cfg = PARTY_ROLES[role]
+  const d: Record<string, unknown> = {
     org_id: orgId,
-    entity_type: toContactEntityType(isCompany ? "company" : "individual"),
-    primary_role: "contractor",
-    company_name: isCompany ? f.companyName?.trim() || null : null,
-    registration_number: isCompany ? f.companyReg?.trim() || null : null,
-    first_name: (isCompany ? f.dirFirstName : f.firstName)?.trim() || null,
-    last_name: (isCompany ? f.dirLastName : f.lastName)?.trim() || null,
-    primary_email: (isCompany ? f.dirEmail : f.email)?.trim() || null,
-    primary_phone: (isCompany ? f.dirPhone : f.phone)?.trim() || null,
+    entity_type: toContactEntityType(entity),
+    primary_role: cfg.primaryRole,
     notes: f.notes?.trim() || null,
     created_by: userId,
   }
+
+  if (entity === "individual") {
+    d.first_name = f.firstName?.trim() || null
+    d.last_name = f.lastName?.trim() || null
+    d.primary_email = f.email?.trim() || null
+    d.primary_phone = f.phone?.trim() || null
+    if (cfg.fullFica) {
+      d.id_type = f.idType || null
+      const id = f.idNumber?.trim() || null
+      d.id_number = id
+      d.id_number_hash = id ? hashIdNumber(id) : null
+    }
+    return d
+  }
+
+  // company
+  d.company_name = f.companyName?.trim() || null
+  d.registration_number = f.companyReg?.trim() || null
+  d.primary_email = f.dirEmail?.trim() || null
+  d.primary_phone = f.dirPhone?.trim() || null
+
+  if (cfg.fullFica) {
+    d.vat_number = f.vatNumber?.trim() || null
+    d.contact_first_name = f.dirFirstName?.trim() || null
+    d.contact_last_name = f.dirLastName?.trim() || null
+    d.contact_phone = f.dirPhone?.trim() || null
+    d.contact_email = f.dirEmail?.trim() || null
+    d.contact_id_type = f.dirIdType || null
+    const sigId = f.dirIdNumber?.trim() || null
+    d.contact_id_number = sigId
+    d.contact_id_number_hash = sigId ? hashIdNumber(sigId) : null
+  } else {
+    d.first_name = f.dirFirstName?.trim() || null
+    d.last_name = f.dirLastName?.trim() || null
+  }
+  return d
 }
 
-export async function addContractorParty(
-  input: AddPartyInput,
-  supplierType: string = "contractor",
-): Promise<AddPartyResult> {
-  if (input.role !== "supplier") return { ok: false, error: "Unsupported role for this action" }
+/** Company registered address → contact_addresses (FICA roles only). No-op if no street line. */
+async function insertCompanyAddress(db: Db, orgId: string, contactId: string, f: PartyFormState) {
+  if (!f.addrLine1?.trim()) return
+  await db.from("contact_addresses").insert({
+    org_id: orgId,
+    contact_id: contactId,
+    address_type: "physical",
+    street_line1: f.addrLine1.trim(),
+    suburb: f.addrSuburb?.trim() || null,
+    city: f.addrCity?.trim() || null,
+    province: f.addrProvince || null,
+    postal_code: f.addrPostal?.trim() || null,
+    is_primary: true,
+  })
+}
 
+async function auditPartyCreate(db: Db, orgId: string, userId: string, table: string, recordId: string, role: PartyRole, entity: PartyEntity, name: string) {
+  await db.from("audit_log").insert({
+    org_id: orgId,
+    table_name: table,
+    record_id: recordId,
+    action: "INSERT",
+    changed_by: userId,
+    new_values: { action: `${role}_added`, entity, name },
+  })
+}
+
+// ── Contractor ────────────────────────────────────────────────────────────────
+export async function addContractorParty(input: AddPartyInput, supplierType: string = "contractor"): Promise<AddPartyResult> {
+  if (input.role !== "supplier") return { ok: false, error: "Unsupported role for this action" }
   try {
     const { db, userId, orgId } = await requireAgentWriteAccess("add_contractor")
     const f = input.form
-    const isCompany = input.entity === "company"
-    const displayName = contractorDisplayName(isCompany, f)
-    const contactRow = buildContractorContactRow(isCompany, f, orgId, userId)
+    const name = partyDisplayName("supplier", input.entity, f)
 
-    const { data: contact, error: contactErr } = await db.from("contacts").insert(contactRow).select("id").single()
+    const { data: contact, error: contactErr } = await db
+      .from("contacts").insert(buildPartyContactData("supplier", input.entity, f, orgId, userId)).select("id").single()
     if (contactErr || !contact) {
       console.error("[addContractorParty] contact insert failed:", contactErr?.message)
       return { ok: false, error: "Failed to create the contact" }
     }
 
     const { error: conErr } = await db.from("contractors").insert({
-      org_id: orgId,
-      contact_id: contact.id,
-      is_active: f.isActive !== false,
-      specialities: f.specialities ?? [],
-      supplier_type: supplierType,
+      org_id: orgId, contact_id: contact.id, is_active: f.isActive !== false,
+      specialities: f.specialities ?? [], supplier_type: supplierType,
     })
     if (conErr) {
       console.error("[addContractorParty] contractor insert failed:", conErr.message)
-      await db.from("contacts").delete().eq("id", contact.id).eq("org_id", orgId) // roll back orphan
+      await db.from("contacts").delete().eq("id", contact.id).eq("org_id", orgId)
       return { ok: false, error: "Failed to create the contractor" }
     }
 
-    await db.from("audit_log").insert({
-      org_id: orgId,
-      table_name: "contractors",
-      record_id: contact.id,
-      action: "INSERT",
-      changed_by: userId,
-      new_values: { action: "contractor_added", entity: input.entity },
-    })
-
-    return { ok: true, name: displayName }
+    await auditPartyCreate(db, orgId, userId, "contractors", contact.id, "supplier", input.entity, name)
+    return { ok: true, name, id: contact.id as string }
   } catch (err) {
     console.error("[addContractorParty] failed:", err instanceof Error ? err.message : err)
     return { ok: false, error: err instanceof Error ? err.message : "Failed to add contractor" }
+  }
+}
+
+// ── Landlord ──────────────────────────────────────────────────────────────────
+export async function addLandlordParty(input: AddPartyInput): Promise<AddPartyResult> {
+  if (input.role !== "landlord") return { ok: false, error: "Unsupported role for this action" }
+  try {
+    const { db, userId, orgId } = await requireAgentWriteAccess("create_landlord")
+    const f = input.form
+    const name = partyDisplayName("landlord", input.entity, f)
+
+    const { data: contact, error: contactErr } = await db
+      .from("contacts").insert(buildPartyContactData("landlord", input.entity, f, orgId, userId)).select("id").single()
+    if (contactErr || !contact) {
+      console.error("[addLandlordParty] contact insert failed:", contactErr?.message)
+      return { ok: false, error: "Failed to create the contact" }
+    }
+    if (input.entity === "company") await insertCompanyAddress(db, orgId, contact.id, f)
+
+    const { data: landlord, error: llErr } = await db.from("landlords").insert({
+      org_id: orgId,
+      contact_id: contact.id,
+      bank_name: f.bankName?.trim() || null,
+      bank_account: f.accountNumber?.trim() || null,
+      bank_branch: f.branchCode?.trim() || null,
+      created_by: userId,
+    }).select("id").single()
+    if (llErr || !landlord) {
+      console.error("[addLandlordParty] landlord insert failed:", llErr?.message)
+      await db.from("contacts").delete().eq("id", contact.id).eq("org_id", orgId)
+      return { ok: false, error: "Failed to create the landlord" }
+    }
+
+    await auditPartyCreate(db, orgId, userId, "landlords", landlord.id, "landlord", input.entity, name)
+    return { ok: true, name, id: landlord.id as string }
+  } catch (err) {
+    console.error("[addLandlordParty] failed:", err instanceof Error ? err.message : err)
+    return { ok: false, error: err instanceof Error ? err.message : "Failed to add landlord" }
+  }
+}
+
+// ── Tenant ────────────────────────────────────────────────────────────────────
+export async function addTenantParty(input: AddPartyInput): Promise<AddPartyResult> {
+  if (input.role !== "tenant") return { ok: false, error: "Unsupported role for this action" }
+  try {
+    const { db, userId, orgId } = await requireAgentWriteAccess("create_tenant")
+    const f = input.form
+    const name = partyDisplayName("tenant", input.entity, f)
+    const consent = f.popiaConsent === true
+    const subjectEmail = (input.entity === "company" ? f.dirEmail : f.email)?.trim() || null
+
+    const { data: contact, error: contactErr } = await db
+      .from("contacts").insert(buildPartyContactData("tenant", input.entity, f, orgId, userId)).select("id").single()
+    if (contactErr || !contact) {
+      console.error("[addTenantParty] contact insert failed:", contactErr?.message)
+      return { ok: false, error: "Failed to create the contact" }
+    }
+    if (input.entity === "company") await insertCompanyAddress(db, orgId, contact.id, f)
+
+    const now = new Date().toISOString()
+    const { data: tenant, error: tErr } = await db.from("tenants").insert({
+      org_id: orgId,
+      contact_id: contact.id,
+      popia_consent_given: consent,
+      popia_consent_given_at: consent ? now : null,
+      employer_name: f.employer?.trim() || null,
+      occupation: f.occupation?.trim() || null,
+      created_by: userId,
+    }).select("id").single()
+    if (tErr || !tenant) {
+      console.error("[addTenantParty] tenant insert failed:", tErr?.message)
+      await db.from("contacts").delete().eq("id", contact.id).eq("org_id", orgId)
+      return { ok: false, error: "Failed to create the tenant" }
+    }
+
+    // POPIA consent — record a consent_log row with IP/UA for s18 accountability.
+    if (consent && subjectEmail) {
+      const h = await headers()
+      await db.from("consent_log").insert({
+        org_id: orgId,
+        user_id: userId,
+        subject_email: subjectEmail,
+        consent_type: "data_processing",
+        consent_given: true,
+        consent_version: "1.0-tenant-onboard",
+        ip_address: h.get("x-forwarded-for") || "unknown",
+        user_agent: h.get("user-agent") || "",
+        metadata: { tenant_id: tenant.id, agent_confirmed: true, tenant_type: input.entity },
+      })
+    }
+
+    await auditPartyCreate(db, orgId, userId, "tenants", tenant.id, "tenant", input.entity, name)
+    return { ok: true, name, id: tenant.id as string }
+  } catch (err) {
+    console.error("[addTenantParty] failed:", err instanceof Error ? err.message : err)
+    return { ok: false, error: err instanceof Error ? err.message : "Failed to add tenant" }
   }
 }
