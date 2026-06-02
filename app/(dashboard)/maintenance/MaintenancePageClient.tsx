@@ -263,6 +263,7 @@ export function MaintenancePageClient({ orgId }: Readonly<Props>) {
         <ResourcePageHeader
           eyebrow="Operations"
           title="Maintenance"
+          headline="Maintenance requests"
           sub={
             (list.length > 0 || dataUpdatedAt > 0) ? (
               <div className="space-y-0.5">

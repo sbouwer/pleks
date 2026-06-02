@@ -69,7 +69,12 @@ export default async function CalendarPage() {
 
   return (
     <div className="space-y-6">
-      <ResourcePageHeader eyebrow="Operations" title="Calendar" />
+      <ResourcePageHeader
+        eyebrow="Operations"
+        title="Calendar"
+        headline="Your schedule"
+        sub="Inspections, lease deadlines, legal dates and move-ins across your portfolio."
+      />
 
       <DeadlineAlert alerts={alerts} />
 

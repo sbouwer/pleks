@@ -163,6 +163,7 @@ export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
       <ResourcePageHeader
         eyebrow="Operations"
         title="Applications"
+        headline="Rental applications"
         sub={
           (list.length > 0 || dataUpdatedAt > 0) ? (
             <div className="space-y-0.5">

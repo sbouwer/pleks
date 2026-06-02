@@ -25,6 +25,7 @@ import { GettingStarted, type GettingStartedProgress } from "./GettingStarted"
 import { WorkspaceSetup } from "./WorkspaceSetup"
 import { PlanUsageBanner } from "./PlanUsageBanner"
 import { QuickAddMenu } from "./QuickAddMenu"
+import { DashboardGreeting } from "./DashboardGreeting"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import type { Tier } from "@/lib/constants"
 import { SurrenderedCommsWidget, type SurrenderedCommRow } from "./SurrenderedCommsWidget"
@@ -320,8 +321,9 @@ export default async function DashboardPage() {
       {/* Page header — same rhythm as every other page (eyebrow · date / greeting / sub / Quick add) */}
       <ResourcePageHeader
         eyebrow={`Overview · ${dateStr}`}
-        title={`${greeting}, ${firstName}.`}
-        sub={isNewOrg ? "Your workspace is ready — let's bring your portfolio to life." : "Here's your portfolio at a glance."}
+        title={<DashboardGreeting firstName={firstName} fallback={`${greeting}, ${firstName}.`} />}
+        headline="Your workspace"
+        sub={isNewOrg ? "Ready when you are — let's bring your portfolio to life." : "Here's your portfolio at a glance."}
         action={<QuickAddMenu orgId={orgId} />}
       />
 
