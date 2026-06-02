@@ -149,6 +149,13 @@
   html {
     @apply font-sans;
   }
+  /* Tailwind v4 preflight drops the button pointer cursor — restore it app-wide. */
+  button:not(:disabled),
+  [role="button"]:not(:disabled),
+  label[for],
+  summary {
+    cursor: pointer;
+  }
 }
 
 /* ── Shadcn button hover — plain CSS so Tailwind JIT isn't required ───────

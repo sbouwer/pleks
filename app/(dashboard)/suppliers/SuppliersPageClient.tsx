@@ -15,6 +15,7 @@ import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { EmptyResourceState } from "@/components/ui/empty-resource-state"
+import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import { HardHat } from "lucide-react"
 import { SuppliersClient, AddContractorButton, type Contractor } from "./SuppliersClient"
 import { PORTFOLIO_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
@@ -46,13 +47,11 @@ export function SuppliersPageClient({ orgId }: Props) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="font-heading text-3xl">Suppliers</h1>
-          <p className="text-sm text-muted-foreground">{contractors.length} {contractors.length === 1 ? tabInfo.singular : tabInfo.plural}</p>
-        </div>
-        <AddContractorButton orgId={orgId} supplierType={activeTab} />
-      </div>
+      <ResourcePageHeader
+        title="Suppliers"
+        sub={`${contractors.length} ${contractors.length === 1 ? tabInfo.singular : tabInfo.plural}`}
+        action={<AddContractorButton orgId={orgId} supplierType={activeTab} />}
+      />
       <div className="flex gap-1 border-b border-border mb-6">
         {TABS.map((tab) => (
           <Link key={tab.key}

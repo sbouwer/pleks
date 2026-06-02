@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AddButton } from "@/components/ui/add-button"
 import { EmptyResourceState } from "@/components/ui/empty-resource-state"
+import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import { FileText } from "lucide-react"
 import { LeaseListTabs } from "./LeaseListTabs"
 import type { SerializedLease } from "./LeaseRow"
@@ -101,18 +102,16 @@ export function LeasesPageClient({ orgId }: Props) {
 
   return (
     <div className="flex h-full flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-heading text-2xl font-bold">Leases</h1>
-          <p className="text-sm text-muted-foreground hidden lg:block">
-            Manage tenancy agreements and rental schedules.
-          </p>
-          <p className="text-xs text-muted-foreground lg:hidden">
-            {serialised.length} lease{serialised.length === 1 ? "" : "s"}
-          </p>
-        </div>
-        <AddButton label="Create lease" onClick={() => router.push("/leases/new")} />
-      </div>
+      <ResourcePageHeader
+        title="Leases"
+        sub={
+          <>
+            <span className="hidden lg:inline">Manage tenancy agreements and rental schedules.</span>
+            <span className="lg:hidden">{serialised.length} lease{serialised.length === 1 ? "" : "s"}</span>
+          </>
+        }
+        action={<AddButton label="Create lease" onClick={() => router.push("/leases/new")} />}
+      />
 
       {/* Mobile lease cards */}
       <div className="lg:hidden space-y-2">

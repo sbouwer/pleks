@@ -14,6 +14,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 import { AddButton } from "@/components/ui/add-button"
 import { EmptyResourceState } from "@/components/ui/empty-resource-state"
+import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import { Users } from "lucide-react"
 import { TenantsClient } from "./TenantsClient"
 import { PORTFOLIO_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
@@ -67,13 +68,11 @@ export function TenantsPageClient({ orgId }: Readonly<Props>) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="font-heading text-3xl">Tenants</h1>
-          <p className="text-sm text-muted-foreground">{tenants.length} tenants</p>
-        </div>
-        <AddButton label="Add tenant" onClick={() => setAddOpen(true)} />
-      </div>
+      <ResourcePageHeader
+        title="Tenants"
+        sub={`${tenants.length} tenants`}
+        action={<AddButton label="Add tenant" onClick={() => setAddOpen(true)} />}
+      />
       {!isLoading && <TenantsClient tenants={tenants} />}
       {modal}
     </div>

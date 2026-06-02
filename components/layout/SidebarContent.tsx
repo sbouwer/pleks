@@ -137,7 +137,7 @@ export function SidebarContent({
                         collapsed ? "justify-center px-2" : "gap-3 px-3",
                         active
                           ? "bg-primary/10 text-primary ring-1 ring-primary"
-                          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                          : "text-muted-foreground hover:bg-primary/[0.08] hover:text-foreground"
                       )}
                     >
                       <Icon className="h-4 w-4 shrink-0" />

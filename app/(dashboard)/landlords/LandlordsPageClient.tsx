@@ -14,6 +14,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 import { AddButton } from "@/components/ui/add-button"
 import { EmptyResourceState } from "@/components/ui/empty-resource-state"
+import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import { UserSquare2 } from "lucide-react"
 import { LandlordsClient } from "./LandlordsClient"
 import { AddPartyModal } from "@/components/parties/AddPartyModal"
@@ -74,13 +75,11 @@ export function LandlordsPageClient({ orgId }: Props) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="font-heading text-3xl">Landlords</h1>
-          <p className="text-sm text-muted-foreground">{landlords.length} {landlords.length === 1 ? "landlord" : "landlords"}</p>
-        </div>
-        <AddButton label="Add landlord" onClick={() => setAddOpen(true)} />
-      </div>
+      <ResourcePageHeader
+        title="Landlords"
+        sub={`${landlords.length} ${landlords.length === 1 ? "landlord" : "landlords"}`}
+        action={<AddButton label="Add landlord" onClick={() => setAddOpen(true)} />}
+      />
       {!isLoading && <LandlordsClient landlords={landlords} />}
       {modal}
     </div>
