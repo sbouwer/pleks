@@ -321,7 +321,7 @@ export default async function HomePage() {
 
           <div style={{ border: "1px solid var(--rule)", borderRadius: "var(--r-md)", background: "var(--paper-sunk)", padding: "28px 32px", marginBottom: 40 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 14, fontWeight: 600 }}>Included in every tier</span>
+              <span style={{ fontSize: 14, fontWeight: 600 }}>Included in every paid tier</span>
               <span style={{ flex: 1, height: 1, background: "var(--rule)", minWidth: 32 }} />
               <span style={{ fontSize: 12, color: "var(--amber-ink)", fontFamily: "var(--pub-mono)" }}>No add-ons · No per-use fees</span>
             </div>
