@@ -7,8 +7,9 @@
 import Link from "next/link"
 import { InlineLink } from "@/components/ui/actions"
 import { Button } from "@/components/ui/button"
-import { Edit, Building2, MapPin, Phone, Mail } from "lucide-react"
-import { EmptyState } from "@/components/shared/EmptyState"
+import { Edit, Home, MapPin, Phone, Mail } from "lucide-react"
+import { EmptyResourceState } from "@/components/ui/empty-resource-state"
+import { AddPropertyButton } from "./AddPropertyButton"
 import { BodyCorporateCard } from "./BodyCorporateCard"
 import { OwnerMetrics } from "./PropertyMetrics"
 import { OwnerUnitPanel } from "./OwnerUnitPanel"
@@ -413,18 +414,16 @@ export function SinglePropertyView({ property, currentInvoice = null, orgId = ""
 
 export function NoPropertyYet() {
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="font-heading text-3xl">My property</h1>
-        <Button render={<Link href="/properties/new" />}>
-          <Building2 className="size-4 mr-1.5" /> Add your property
-        </Button>
-      </div>
-      <EmptyState
-        icon={<Building2 className="h-8 w-8 text-muted-foreground" />}
-        title="No property yet"
-        description="Add your property to get started."
-      />
-    </div>
+    <EmptyResourceState
+      eyebrow="Portfolio"
+      title="Properties"
+      headline="No properties yet"
+      headerSub="Add your first property to start building leases, statements and maintenance."
+      emptyTitle="Your portfolio is empty"
+      emptySub="It takes about two minutes to add your first one."
+      icon={<Home className="h-6 w-6" />}
+      headerAction={<AddPropertyButton />}
+      heroAction={<AddPropertyButton variant="hero" label="Add your first property" showPlus={false} />}
+    />
   )
 }
