@@ -48,8 +48,11 @@ export function useTier() {
     loading: isLoading,
     isOwner: tier === "owner",
     isSteward: tier === "steward",
+    isGrowth: tier === "growth",
     isPortfolio: tier === "portfolio",
     isFirm: tier === "firm",
+    /** any paid tier (steward and up) — the common "not the free owner tier" gate */
+    isPaid: tier !== "owner",
     can: (feature: string) => hasFeature(tier, feature),
     status: data?.status ?? "active",
     periodEnd: data?.current_period_end ?? null,

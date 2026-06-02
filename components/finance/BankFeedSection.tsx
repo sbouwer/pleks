@@ -54,7 +54,7 @@ export function BankFeedSection({ tier }: Readonly<BankFeedSectionProps>) {
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null)
   const fastlinkContainerRef = useRef<HTMLDivElement>(null)
 
-  const isEligible = tier === "steward" || tier === "firm" || tier === "portfolio"
+  const isEligible = tier === "steward" || tier === "growth" || tier === "firm" || tier === "portfolio"
 
   useEffect(() => {
     if (!orgId) return

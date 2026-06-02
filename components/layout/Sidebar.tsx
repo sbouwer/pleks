@@ -87,7 +87,7 @@ const NAV_GROUPS: NavGroup[] = [
 export function Sidebar() {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
-  const { isSteward, isPortfolio, isFirm } = useTier()
+  const { isSteward, isGrowth, isPortfolio, isFirm } = useTier()
   const badges = useNavBadges()
   const caps = useOrgCapabilities()
 
@@ -111,7 +111,7 @@ export function Sidebar() {
       .filter((item) => {
         // Tier gates
         if (item.href === "/calendar") return isPortfolio || isFirm
-        if (item.href === "/finance/trust-ledger") return isSteward || isPortfolio || isFirm
+        if (item.href === "/finance/trust-ledger") return isSteward || isGrowth || isPortfolio || isFirm
         // Org-type gates — D-61A-04: hide, don't grey-out
         if (item.href === "/landlords" && caps !== null && !caps.hasLandlordsList) return false
         if (item.href === "/hoa" && caps !== null && !caps.hasHOA) return false

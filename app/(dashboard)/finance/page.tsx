@@ -29,7 +29,7 @@ export default async function FinancePage() {
   if (!gw) redirect("/login")
 
   const { orgId, tier } = gw
-  const isSteward = tier === "steward" || tier === "portfolio" || tier === "firm"
+  const isPaidTier = tier === "steward" || tier === "growth" || tier === "portfolio" || tier === "firm"
   const data = await getFinanceHubData(orgId)
 
   const totalTenantBalance = data.tenantBalances.reduce((s, t) => s + t.balance_cents, 0)
@@ -129,8 +129,8 @@ export default async function FinancePage() {
         </CardContent>
       </Card>
 
-      {/* Owner Balances — steward+ only */}
-      {isSteward && (
+      {/* Owner Balances — paid tiers (steward and up) */}
+      {isPaidTier && (
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">

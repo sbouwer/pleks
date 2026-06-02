@@ -197,7 +197,7 @@ export default function ReconciliationPage() {
               {uploading ? "Uploading..." : "Upload"}
             </ActionButton>
           </form>
-          {(tier === "steward" || tier === "firm" || tier === "portfolio") && feedConnections.length === 0 && (
+          {(tier === "steward" || tier === "growth" || tier === "firm" || tier === "portfolio") && feedConnections.length === 0 && (
             <p className="text-xs text-muted-foreground mt-3">
               Want automatic daily sync?{" "}
               <InlineLink href="/settings/deposits">Connect a live bank feed</InlineLink>
