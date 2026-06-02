@@ -306,7 +306,7 @@ export default async function LandlordDetailPage({ params }: Props) {
         <IdentityForkBanner surface="landlord" />
       )}
       <WelcomePackBanner orgId={membership.org_id} landlordId={id} landlordName={displayName} />
-      {landlord.entity_type === "organisation" && <CompanyPeopleSection people={companyPeople} />}
+      {landlord.entity_type === "organisation" && <CompanyPeopleSection people={companyPeople} companyContactId={landlord.contact_id} fica />}
       <SectionCard title="Properties" count={(properties || []).length} action={{ label: "View all", href: "/properties" }}>
         {(properties || []).length === 0 ? (
           <p className="text-sm text-muted-foreground">No properties linked.</p>

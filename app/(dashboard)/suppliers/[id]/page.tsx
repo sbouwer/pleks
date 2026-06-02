@@ -258,7 +258,7 @@ export default async function ContractorDetailPage({ params }: Props) {
       </ContactSidebar>
     }>
 
-      {contractor.entity_type === "organisation" && <CompanyPeopleSection people={companyPeople} />}
+      {contractor.entity_type === "organisation" && <CompanyPeopleSection people={companyPeople} companyContactId={contractor.contact_id} fica={false} />}
 
       {/* Active jobs */}
       <SectionCard title="Active jobs" count={(activeJobs ?? []).length}>
