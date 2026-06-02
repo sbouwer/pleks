@@ -144,7 +144,7 @@ export function GlobalSearch() {
     <>
       <button
         onClick={openSearch}
-        className="flex items-center gap-1.5 h-8 px-3 rounded-md border border-border bg-muted/50 text-sm text-muted-foreground hover:bg-muted transition-colors"
+        className="flex cursor-pointer items-center gap-1.5 h-8 px-3 rounded-[var(--r-button)] border border-border bg-muted/50 text-sm text-muted-foreground hover:bg-muted transition-colors"
         title="Search (⌘K)"
       >
         <Search className="h-3.5 w-3.5" />

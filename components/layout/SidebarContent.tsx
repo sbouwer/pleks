@@ -83,7 +83,7 @@ export function SidebarContent({
         {collapsed ? (
           <button
             onClick={onToggleCollapse}
-            className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-muted transition-colors"
+            className="flex h-9 w-9 items-center justify-center rounded-[var(--r-button)] hover:bg-muted transition-colors"
           >
             <Menu className="h-5 w-5 text-muted-foreground" />
           </button>
@@ -102,7 +102,7 @@ export function SidebarContent({
             {onToggleCollapse && (
               <button
                 onClick={onToggleCollapse}
-                className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                className="flex h-8 w-8 items-center justify-center rounded-[var(--r-button)] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                 aria-label="Collapse sidebar"
               >
                 <Menu className="h-4 w-4" />
@@ -133,10 +133,10 @@ export function SidebarContent({
                       onClick={() => handleNavClick(item.href)}
                       title={collapsed ? item.label : undefined}
                       className={cn(
-                        "flex items-center rounded-lg py-2 text-sm font-medium transition-colors",
+                        "flex items-center rounded-[var(--r-button)] py-2 text-sm font-medium transition-colors",
                         collapsed ? "justify-center px-2" : "gap-3 px-3",
                         active
-                          ? "bg-brand/10 text-brand"
+                          ? "bg-primary/10 text-primary ring-1 ring-primary"
                           : "text-muted-foreground hover:bg-muted hover:text-foreground"
                       )}
                     >

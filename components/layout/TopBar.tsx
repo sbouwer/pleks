@@ -10,7 +10,7 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { ExternalLink, LogOut, Moon, Sun, User, UserCircle } from "lucide-react"
 import { GlobalSearch } from "@/components/layout/GlobalSearch"
 import { SyncIndicator } from "@/components/layout/SyncIndicator"
@@ -36,6 +36,24 @@ export function Topbar({
   const { theme, toggle } = usePortalTheme()
   const router = useRouter()
   const [profileOpen, setProfileOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Close the profile menu on any outside click or Escape. A fixed backdrop element does NOT work
+  // here: the header's backdrop-filter makes it the containing block for position:fixed children, so
+  // an inset-0 backdrop only covers the 64px header, never the rest of the screen.
+  useEffect(() => {
+    if (!profileOpen) return
+    function onDocClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setProfileOpen(false)
+    }
+    function onEsc(e: KeyboardEvent) { if (e.key === "Escape") setProfileOpen(false) }
+    document.addEventListener("mousedown", onDocClick)
+    document.addEventListener("keydown", onEsc)
+    return () => {
+      document.removeEventListener("mousedown", onDocClick)
+      document.removeEventListener("keydown", onEsc)
+    }
+  }, [profileOpen])
 
   async function handleSignOut() {
     await fetch("/api/auth/logout", { method: "POST" })
@@ -73,6 +91,7 @@ export function Topbar({
           onClick={toggle}
           className="pub-icon-btn"
           aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
+          title={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
         >
           {theme === "light" ? <Moon size={15} /> : <Sun size={15} />}
         </button>
@@ -84,57 +103,47 @@ export function Topbar({
           rel="noopener noreferrer"
           className="pub-icon-btn hidden sm:flex"
           aria-label={visitSiteLabel}
+          title={visitSiteLabel}
         >
           <ExternalLink size={15} />
         </a>
 
         {/* Profile */}
-        <div className="relative">
+        <div className="relative" ref={menuRef}>
           <button
             type="button"
             onClick={() => setProfileOpen(p => !p)}
             className="pub-icon-btn pub-icon-btn--active"
             aria-label="Account menu"
+            title="Account"
           >
             <User size={15} />
           </button>
 
           {profileOpen && (
-            <>
-              {/* Backdrop */}
+            <div className="absolute right-0 top-[42px] z-50 min-w-[200px] overflow-hidden rounded-[var(--r-button)] border border-border bg-popover shadow-lg">
+              <p className="border-b border-border px-3 py-2 text-xs text-muted-foreground">
+                {user?.email}
+              </p>
               <button
                 type="button"
-                aria-label="Close menu"
-                onClick={() => setProfileOpen(false)}
-                style={{ position: "fixed", inset: 0, zIndex: 40, cursor: "default", background: "transparent", border: "none" }}
-              />
-              {/* Dropdown */}
-              <div style={{
-                position: "absolute", right: 0, top: 42, zIndex: 50, minWidth: 200,
-                borderRadius: "var(--r-md)", border: "1px solid var(--rule)",
-                background: "var(--paper-raised)", boxShadow: "var(--shadow-2)", padding: "4px 0",
-              }}>
-                <p style={{ padding: "8px 12px", borderBottom: "1px solid var(--rule)", margin: 0, fontSize: 12, color: "var(--ink-mute)" }}>
-                  {user?.email}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => { setProfileOpen(false); router.push(settingsHref) }}
-                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", fontSize: 13, color: "var(--ink)", width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer" }}
-                >
-                  <UserCircle size={14} style={{ color: "var(--ink-mute)" }} />
-                  Settings
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSignOut}
-                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", fontSize: 13, color: "var(--danger)", width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer" }}
-                >
-                  <LogOut size={14} />
-                  Sign out
-                </button>
-              </div>
-            </>
+                onClick={() => { setProfileOpen(false); router.push(settingsHref) }}
+                className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-[13px] text-foreground transition-colors hover:bg-muted"
+              >
+                <UserCircle size={14} className="text-muted-foreground" />
+                Settings
+              </button>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-[13px] text-destructive transition-colors hover:bg-muted"
+              >
+                <LogOut size={14} />
+                Sign out
+              </button>
+              {/* amber doorsill */}
+              <div aria-hidden className="h-1 w-full bg-primary" />
+            </div>
           )}
         </div>
       </div>

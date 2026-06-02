@@ -146,9 +146,9 @@ function ScenarioCard({
       onClick={onSelect}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onSelect() }}
       className={cn(
-        "group rounded-lg border transition-colors cursor-pointer select-none",
+        "group rounded-[var(--r-button)] border transition-colors cursor-pointer select-none",
         selected
-          ? "border-primary bg-primary/[0.04]"
+          ? "border-primary bg-primary/10 ring-1 ring-primary"
           : "border-border hover:border-primary/40 hover:bg-muted/30",
       )}
     >

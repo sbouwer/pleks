@@ -27,14 +27,14 @@ function RelationshipChoice({ selected, onSelect, icon, title, desc }: Readonly<
       aria-pressed={selected}
       onClick={onSelect}
       className={cn(
-        "flex w-full items-start gap-4 rounded-xl border p-4 text-left transition-colors",
+        "flex w-full items-start gap-4 rounded-[var(--r-button)] border p-4 text-left transition-colors",
         selected
           ? "border-primary bg-primary/10 ring-1 ring-primary"
           : "border-border hover:border-primary/40 hover:bg-muted/30",
       )}
     >
       <span className={cn(
-        "mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition-colors",
+        "mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--r-button)] border transition-colors",
         selected ? "border-primary/40 bg-primary/15 text-primary" : "border-transparent bg-muted text-muted-foreground",
       )}>
         {icon}

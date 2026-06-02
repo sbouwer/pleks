@@ -147,7 +147,7 @@ export function EntityToggle({
   entity, onChange,
 }: Readonly<{ entity: "individual" | "company"; onChange: (v: "individual" | "company") => void }>) {
   return (
-    <div className="inline-flex rounded-lg border border-border bg-muted/40 p-1" role="tablist" aria-label="Party type">
+    <div className="inline-flex rounded-[var(--r-button)] border border-border bg-muted/40 p-1" role="tablist" aria-label="Party type">
       {(["individual", "company"] as const).map((v) => {
         const on = entity === v
         return (
@@ -158,7 +158,7 @@ export function EntityToggle({
             aria-selected={on}
             onClick={() => onChange(v)}
             className={cn(
-              "flex items-center gap-2 rounded-md px-4 py-1.5 text-sm font-medium transition-colors",
+              "flex items-center gap-2 rounded-[var(--r-button)] px-4 py-1.5 text-sm font-medium transition-colors",
               on ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
             )}
           >
@@ -187,7 +187,7 @@ export function ChipPicker({
             aria-pressed={on}
             onClick={() => toggle(s)}
             className={cn(
-              "inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+              "inline-flex items-center gap-1 rounded-[var(--r-button)] border px-3 py-1 text-xs font-medium transition-colors",
               on
                 ? "border-primary bg-primary/10 text-primary"
                 : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground",
@@ -208,7 +208,7 @@ export function CheckRow({
   return (
     <label
       className={cn(
-        "flex cursor-pointer items-start gap-2.5 rounded-lg border p-3 text-sm",
+        "flex cursor-pointer items-start gap-2.5 rounded-[var(--r-button)] border p-3 text-sm",
         gate ? "border-primary/30 bg-primary/[0.03]" : "border-border bg-card",
       )}
     >

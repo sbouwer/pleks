@@ -26,7 +26,7 @@ export function OptionRow({ selected, onSelect, label, sub, disabled }: Readonly
   return (
     <div
       className={cn(
-        "rounded-lg border transition-colors",
+        "rounded-[var(--r-button)] border transition-colors",
         disabled && "opacity-50",
         !disabled && (selected
           ? "border-primary bg-primary/10 ring-1 ring-primary"
