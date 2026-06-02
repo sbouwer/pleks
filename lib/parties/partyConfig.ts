@@ -96,10 +96,12 @@ export function toContactEntityType(entity: PartyEntity): "organisation" | "indi
   return entity === "company" ? "organisation" : "individual"
 }
 
+// Values MUST match contacts_id_type_check (sa_id | passport | asylum_permit) — persisting "permit"
+// throws a CHECK violation (same class as the old contractor_contact bug). Label stays "Permit".
 export const PARTY_ID_TYPES = [
   { value: "sa_id", label: "SA ID Number" },
   { value: "passport", label: "Passport" },
-  { value: "permit", label: "Permit" },
+  { value: "asylum_permit", label: "Permit" },
 ] as const
 
 /**
