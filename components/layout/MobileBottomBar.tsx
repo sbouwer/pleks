@@ -15,6 +15,8 @@ import { cn } from "@/lib/utils"
 import { MobileMoreSheet } from "./MobileMoreSheet"
 import { MobileQuickAdd } from "./MobileQuickAdd"
 import { MobileSearchSheet } from "./MobileSearchSheet"
+import { MobileScheduleSheet } from "./MobileScheduleSheet"
+import { MobileOfflineSheet } from "./MobileOfflineSheet"
 
 interface BottomTabProps {
   readonly href?: string
@@ -47,16 +49,27 @@ export function MobileBottomBar() {
   const [moreOpen, setMoreOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
+  const [scheduleOpen, setScheduleOpen] = useState(false)
+  const [offlineOpen, setOfflineOpen] = useState(false)
 
   return (
     <>
-      <MobileMoreSheet open={moreOpen} onOpenChange={setMoreOpen} />
+      <MobileMoreSheet
+        open={moreOpen}
+        onOpenChange={setMoreOpen}
+        onOpenOffline={() => {
+          setMoreOpen(false)
+          setOfflineOpen(true)
+        }}
+      />
       <MobileQuickAdd open={addOpen} onOpenChange={setAddOpen} />
       <MobileSearchSheet open={searchOpen} onOpenChange={setSearchOpen} />
+      <MobileScheduleSheet open={scheduleOpen} onOpenChange={setScheduleOpen} />
+      <MobileOfflineSheet open={offlineOpen} onOpenChange={setOfflineOpen} />
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-card border-t border-border safe-area-inset-bottom">
         <div className="flex items-center h-14 px-2">
           <BottomTab href="/dashboard" icon={Home} label="Home" active={pathname === "/dashboard"} />
-          <BottomTab href="/calendar" icon={CalendarDays} label="Schedule" active={pathname.startsWith("/calendar")} />
+          <BottomTab icon={CalendarDays} label="Schedule" onClick={() => setScheduleOpen(true)} />
 
           {/* Center FAB — quick add */}
           <div className="flex-1 flex justify-center">

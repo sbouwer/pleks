@@ -22,7 +22,7 @@ export interface ScheduleStop {
   href: string
 }
 
-const INSPECTION_LABEL: Record<string, string> = {
+export const INSPECTION_LABEL: Record<string, string> = {
   move_in: "Move-in inspection",
   periodic: "Periodic inspection",
   move_out: "Move-out inspection",
@@ -31,11 +31,28 @@ const INSPECTION_LABEL: Record<string, string> = {
   commercial_dilapidations: "Dilapidations inspection",
 }
 
-interface InspectionRow {
+export interface InspectionRow {
   id: string
   inspection_type: string
   scheduled_date: string | null
   units: { unit_number: string | null; properties: { name: string | null } | null } | null
+}
+
+/** Map a raw inspection row to a source-agnostic schedule stop. */
+export function inspectionToStop(r: InspectionRow): ScheduleStop {
+  const unit = r.units
+  const propertyName = unit?.properties?.name ?? "Property"
+  const unitNo = unit?.unit_number ? `Unit ${unit.unit_number}` : null
+  const when = r.scheduled_date ? new Date(r.scheduled_date) : null
+  return {
+    id: r.id,
+    kind: "inspection",
+    title: INSPECTION_LABEL[r.inspection_type] ?? "Inspection",
+    location: [propertyName, unitNo].filter(Boolean).join(" · "),
+    time: when ? when.toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" }) : "—",
+    scheduledAt: r.scheduled_date ?? "",
+    href: `/inspections/${r.id}`,
+  }
 }
 
 export function useTodaySchedule(): { stops: ScheduleStop[]; isLoading: boolean } {
@@ -61,23 +78,7 @@ export function useTodaySchedule(): { stops: ScheduleStop[]; isLoading: boolean 
         return []
       }
 
-      return ((rows ?? []) as unknown as InspectionRow[]).map((r) => {
-        const unit = r.units
-        const propertyName = unit?.properties?.name ?? "Property"
-        const unitNo = unit?.unit_number ? `Unit ${unit.unit_number}` : null
-        const when = r.scheduled_date ? new Date(r.scheduled_date) : null
-        return {
-          id: r.id,
-          kind: "inspection" as const,
-          title: INSPECTION_LABEL[r.inspection_type] ?? "Inspection",
-          location: [propertyName, unitNo].filter(Boolean).join(" · "),
-          time: when
-            ? when.toLocaleTimeString("en-ZA", { hour: "2-digit", minute: "2-digit" })
-            : "—",
-          scheduledAt: r.scheduled_date ?? "",
-          href: `/inspections/${r.id}`,
-        }
-      })
+      return ((rows ?? []) as unknown as InspectionRow[]).map(inspectionToStop)
     },
     staleTime: 60_000,
     refetchInterval: 120_000,

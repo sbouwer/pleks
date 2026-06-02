@@ -10,6 +10,7 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
+import { CloudDownload } from "lucide-react"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { useOrgCapabilities } from "@/hooks/useOrgCapabilities"
 
@@ -55,9 +56,10 @@ const SECTIONS = [
 interface MobileMoreSheetProps {
   readonly open: boolean
   readonly onOpenChange: (open: boolean) => void
+  readonly onOpenOffline?: () => void
 }
 
-export function MobileMoreSheet({ open, onOpenChange }: MobileMoreSheetProps) {
+export function MobileMoreSheet({ open, onOpenChange, onOpenOffline }: MobileMoreSheetProps) {
   const pathname = usePathname()
   const router = useRouter()
   const caps = useOrgCapabilities()
@@ -121,6 +123,19 @@ export function MobileMoreSheet({ open, onOpenChange }: MobileMoreSheetProps) {
               </div>
             </div>
           ))}
+
+          {/* Device tools */}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-2">Device</p>
+            <button
+              type="button"
+              onClick={() => { onOpenChange(false); onOpenOffline?.() }}
+              className="w-full flex items-center gap-2 rounded-[var(--r-button)] border border-border px-4 py-3 text-sm font-medium bg-card hover:bg-muted active:bg-muted transition-colors"
+            >
+              <CloudDownload className="h-4 w-4 text-muted-foreground" />
+              Offline &amp; sync
+            </button>
+          </div>
 
           <button
             type="button"

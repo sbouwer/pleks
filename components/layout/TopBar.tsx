@@ -17,7 +17,7 @@ import { SyncIndicator } from "@/components/layout/SyncIndicator"
 import { usePortalTheme } from "@/components/layout/PortalThemeProvider"
 import { useUser } from "@/hooks/useUser"
 import { useOrg } from "@/hooks/useOrg"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { RoleSwitcher } from "@/components/role-switcher/RoleSwitcher"
 
 interface TopbarProps {
@@ -35,6 +35,10 @@ export function Topbar({
   const { displayName } = useOrg()
   const { theme, toggle } = usePortalTheme()
   const router = useRouter()
+  const pathname = usePathname()
+  // The mobile /dashboard renders its own greeting header (MobileHomeScreen), so the desktop Topbar
+  // would stack as a second header there. Hide it on mobile for that one route; keep it everywhere else.
+  const hiddenOnMobile = pathname === "/dashboard"
   const [profileOpen, setProfileOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -75,13 +79,13 @@ export function Topbar({
   }
 
   return (
-    <header style={{
+    <header className={hiddenOnMobile ? "hidden lg:flex" : "flex"} style={{
       position: "sticky", top: 0, zIndex: 40,
       // Match the page surface (bg-muted/30) so the header reads as one continuous canvas —
       // the icons/search carry their own raised fill instead. Token-driven → works light + dark.
       background: "color-mix(in oklab, var(--muted) 30%, var(--background))",
       borderBottom: "1px solid var(--rule)",
-      height: 64, display: "flex", alignItems: "center",
+      height: 64, alignItems: "center",
       // Match the main content padding (24px) + the scroll content's scrollbar width on the right, so the
       // org name / icons line up with the page content whether or not <main> is scrolling.
       padding: `0 ${24 + scrollbarWidth}px 0 24px`, gap: 16, flexShrink: 0,
