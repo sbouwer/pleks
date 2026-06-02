@@ -28,13 +28,13 @@ export function FeedbackButton({ role }: Readonly<FeedbackButtonProps>) {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Help & feedback"
-        className="group fixed right-0 bottom-20 z-40 flex items-center rounded-l-[var(--r-button)] rounded-r-none bg-primary py-2.5 pl-3 pr-2.5 text-primary-foreground shadow-lg transition-all hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 lg:bottom-6"
+        className="group fixed right-0 bottom-20 z-40 flex items-center rounded-l-[var(--r-button)] rounded-r-none bg-primary py-1.5 pl-2 pr-2 text-primary-foreground shadow-lg transition-all hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 lg:bottom-6"
       >
         {/* Label: shown by default on mobile (no hover); collapsed on desktop until hover/focus. */}
-        <span className="mr-2 max-w-[6rem] overflow-hidden whitespace-nowrap text-sm font-medium opacity-100 transition-all duration-200 lg:mr-0 lg:max-w-0 lg:opacity-0 lg:group-hover:mr-2 lg:group-hover:max-w-[6rem] lg:group-hover:opacity-100 lg:group-focus-visible:mr-2 lg:group-focus-visible:max-w-[6rem] lg:group-focus-visible:opacity-100">
+        <span className="mr-1.5 max-w-[5rem] overflow-hidden whitespace-nowrap text-xs font-medium opacity-100 transition-all duration-200 lg:mr-0 lg:max-w-0 lg:opacity-0 lg:group-hover:mr-1.5 lg:group-hover:max-w-[5rem] lg:group-hover:opacity-100 lg:group-focus-visible:mr-1.5 lg:group-focus-visible:max-w-[5rem] lg:group-focus-visible:opacity-100">
           Feedback
         </span>
-        <MessageSquarePlus className="h-5 w-5 shrink-0" />
+        <MessageSquarePlus className="h-4 w-4 shrink-0" />
       </button>
 
       <HelpModal open={open} onOpenChange={setOpen} role={role} />
