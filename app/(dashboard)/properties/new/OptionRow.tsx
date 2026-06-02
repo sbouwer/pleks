@@ -29,7 +29,7 @@ export function OptionRow({ selected, onSelect, label, sub, disabled }: Readonly
         "rounded-lg border transition-colors",
         disabled && "opacity-50",
         !disabled && (selected
-          ? "border-primary bg-primary/[0.04]"
+          ? "border-primary bg-primary/10 ring-1 ring-primary"
           : "border-border hover:border-primary/40 hover:bg-muted/30"),
       )}
     >

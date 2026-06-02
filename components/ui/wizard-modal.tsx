@@ -15,6 +15,7 @@
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
 import { X, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { usePortalTheme } from "@/components/layout/PortalThemeProvider"
 
 export interface WizardModalStep {
   id:     string
@@ -107,16 +108,18 @@ export function WizardModal({
   title, subtitle, backLabel, onBack, primaryLabel, onPrimary, primaryDisabled,
   footerError, footerSlot, className, children, success,
 }: Readonly<WizardModalProps>) {
+  const { theme } = usePortalTheme()
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
-        {/* display:contents scopes CSS vars to the light theme (same pattern as ui/modal-card) */}
-        <div className="pleks-portal" style={{ display: "contents" }}>
+        {/* display:contents keeps the element in the cascade for inherited CSS vars while generating
+            no box; data-theme mirrors the dashboard theme so the modal follows light/dark. */}
+        <div className="pleks-portal" style={{ display: "contents" }} data-theme={theme}>
           <DialogPrimitive.Backdrop className="fixed inset-0 z-50 bg-black/40 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0" />
           <DialogPrimitive.Popup
             className={cn(
               "fixed left-1/2 top-1/2 z-50 flex w-[calc(100%-2rem)] max-w-[920px] -translate-x-1/2 -translate-y-1/2 flex-col",
-              "h-[min(726px,calc(100vh-3rem))] overflow-hidden rounded-2xl border border-border bg-card shadow-2xl outline-none",
+              "h-[min(726px,calc(100vh-3rem))] overflow-hidden border border-border bg-card shadow-2xl outline-none",
               "data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
               className,
             )}
@@ -182,18 +185,20 @@ export function WizardModal({
                       <button
                         type="button"
                         onClick={onBack}
-                        className="rounded-[var(--r-button)] px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+                        className="rounded-[var(--r-button)] border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
                       >
                         {backLabel}
                       </button>
                       {footerSlot}
                     </div>
+                    {/* mockup primary: dark fill + amber accent bar + light text */}
                     <button
                       type="button"
                       onClick={onPrimary}
                       disabled={primaryDisabled}
-                      className="rounded-[var(--r-button)] bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex items-center gap-2.5 rounded-[var(--r-button)] bg-foreground py-2.5 pl-3 pr-4 text-sm font-semibold text-background transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
                     >
+                      <span aria-hidden className="h-3.5 w-[3px] shrink-0 bg-primary" />
                       {primaryLabel}
                     </button>
                   </div>

@@ -29,13 +29,13 @@ function RelationshipChoice({ selected, onSelect, icon, title, desc }: Readonly<
       className={cn(
         "flex w-full items-start gap-4 rounded-xl border p-4 text-left transition-colors",
         selected
-          ? "border-primary bg-primary/[0.04]"
+          ? "border-primary bg-primary/10 ring-1 ring-primary"
           : "border-border hover:border-primary/40 hover:bg-muted/30",
       )}
     >
       <span className={cn(
-        "mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors",
-        selected ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground",
+        "mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition-colors",
+        selected ? "border-primary/40 bg-primary/15 text-primary" : "border-transparent bg-muted text-muted-foreground",
       )}>
         {icon}
       </span>
