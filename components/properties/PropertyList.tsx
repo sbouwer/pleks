@@ -14,6 +14,7 @@ import Link from "next/link"
 import { formatZARAbbrev } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 import { ChevronUp, ChevronDown } from "lucide-react"
+import { ListSearchBar, ListCard } from "@/components/ui/resource-list"
 import { PropertyCards } from "./PropertyCards"
 import type { PropertyCardData } from "./PropertyCards"
 import type { Tier } from "@/lib/constants"
@@ -79,17 +80,38 @@ interface Props {
 export function PropertyList({ properties, view, tier, totalUnitCount }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>("name")
   const [sortDir, setSortDir] = useState<SortDir>("asc")
-
-  if (view === "cards") {
-    return <PropertyCards properties={properties} tier={tier} totalUnitCount={totalUnitCount} />
-  }
+  const [search, setSearch] = useState("")
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc")
     else { setSortKey(key); setSortDir("asc") }
   }
 
-  const sorted = [...properties].sort((a, b) => {
+  // Search by property name or address (street line / town).
+  const q = search.trim().toLowerCase()
+  const filtered = q
+    ? properties.filter((p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.address_line1.toLowerCase().includes(q) ||
+        p.city.toLowerCase().includes(q))
+    : properties
+
+  const searchBar = (
+    <ListSearchBar value={search} onChange={setSearch} placeholder="Search by name, street or town…" />
+  )
+
+  if (view === "cards") {
+    return (
+      <div className="space-y-4">
+        {searchBar}
+        {filtered.length === 0
+          ? <p className="py-8 text-center text-sm text-muted-foreground">No properties match your search.</p>
+          : <PropertyCards properties={filtered} tier={tier} totalUnitCount={totalUnitCount} />}
+      </div>
+    )
+  }
+
+  const sorted = [...filtered].sort((a, b) => {
     const aUnits = a.units.filter(u => !u.is_archived)
     const bUnits = b.units.filter(u => !u.is_archived)
     let av = 0, bv = 0
@@ -109,7 +131,12 @@ export function PropertyList({ properties, view, tier, totalUnitCount }: Props) 
   })
 
   return (
-    <div className="rounded-xl border border-border/60 overflow-hidden">
+    <div className="space-y-4">
+      {searchBar}
+      {sorted.length === 0 ? (
+        <p className="py-8 text-center text-sm text-muted-foreground">No properties match your search.</p>
+      ) : (
+      <ListCard>
       <table className="w-full text-sm">
         <thead className="border-b border-border/60 bg-muted/30">
           <tr>
@@ -185,6 +212,8 @@ export function PropertyList({ properties, view, tier, totalUnitCount }: Props) 
           })}
         </tbody>
       </table>
+      </ListCard>
+      )}
     </div>
   )
 }

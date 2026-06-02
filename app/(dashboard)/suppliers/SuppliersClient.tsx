@@ -9,18 +9,15 @@
  */
 
 import { useState } from "react"
-import { Input } from "@/components/ui/input"
 import { EditButton, IconButton } from "@/components/ui/actions"
 import { AddButton } from "@/components/ui/add-button"
 import { Badge } from "@/components/ui/badge"
+import { ListSearchBar, ListCard, SortHeader, useListSort } from "@/components/ui/resource-list"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
 import { usePermissions } from "@/hooks/usePermissions"
-import {
-  Search, Trash2, X,
-  ArrowUpDown, ArrowUp, ArrowDown,
-} from "lucide-react"
+import { Trash2 } from "lucide-react"
 import { PORTFOLIO_QUERY_KEYS } from "@/lib/queries/portfolio"
 import { AddPartyModal } from "@/components/parties/AddPartyModal"
 import { addContractorParty } from "@/lib/actions/parties"
@@ -47,27 +44,6 @@ interface Props {
 }
 
 type SortKey = "company" | "contact" | "phone" | "email" | "status"
-type SortDir = "asc" | "desc"
-
-function SortIcon({ col, sortKey, sortDir }: Readonly<{ col: SortKey; sortKey: SortKey; sortDir: SortDir }>) {
-  if (col !== sortKey) return <ArrowUpDown className="size-3.5 text-muted-foreground/50 ml-1 inline" />
-  return sortDir === "asc"
-    ? <ArrowUp className="size-3.5 text-brand ml-1 inline" />
-    : <ArrowDown className="size-3.5 text-brand ml-1 inline" />
-}
-
-function ColHeader({ col, label, sortKey, sortDir, onSort }: Readonly<{ col: SortKey; label: string; sortKey: SortKey; sortDir: SortDir; onSort: (col: SortKey) => void }>) {
-  return (
-    <button
-      type="button"
-      onClick={() => onSort(col)}
-      className="flex items-center gap-0.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
-    >
-      {label}
-      <SortIcon col={col} sortKey={sortKey} sortDir={sortDir} />
-    </button>
-  )
-}
 
 export function SuppliersClient({ contractors: initial, orgId }: Readonly<Props>) {
   const router = useRouter()
@@ -75,19 +51,9 @@ export function SuppliersClient({ contractors: initial, orgId }: Readonly<Props>
   const [search, setSearch] = useState("")
   const [activeFilter, setActiveFilter] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [sortKey, setSortKey] = useState<SortKey>("company")
-  const [sortDir, setSortDir] = useState<SortDir>("asc")
+  const { sortKey, sortDir, onSort } = useListSort<SortKey>("company")
 
   const { isAdmin } = usePermissions()
-
-  function handleSort(col: SortKey) {
-    if (sortKey === col) {
-      setSortDir(sortDir === "asc" ? "desc" : "asc")
-    } else {
-      setSortKey(col)
-      setSortDir("asc")
-    }
-  }
 
   const filtered = initial
     .filter((c) => {
@@ -147,23 +113,7 @@ export function SuppliersClient({ contractors: initial, orgId }: Readonly<Props>
     <div className="space-y-4">
       {/* Search + filter */}
       <div className="flex flex-col gap-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <Input
-            className="pl-9"
-            placeholder="Search by name, email or phone…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          {search && (
-            <button
-              onClick={() => setSearch("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              <X className="size-4" />
-            </button>
-          )}
-        </div>
+        <ListSearchBar value={search} onChange={setSearch} placeholder="Search by name, email or phone…" />
 
         {allSpecialities.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
@@ -193,27 +143,27 @@ export function SuppliersClient({ contractors: initial, orgId }: Readonly<Props>
       {filtered.length === 0 ? (
         <p className="text-sm text-muted-foreground py-8 text-center">No contractors match your search.</p>
       ) : (
-        <div className="rounded-lg border border-border overflow-hidden">
+        <ListCard>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/30">
                 <th className="px-4 py-2.5 text-left">
-                  <ColHeader col="company" label="Company" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                  <SortHeader col="company" label="Company" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
                 </th>
                 <th className="px-4 py-2.5 text-left hidden md:table-cell">
-                  <ColHeader col="contact" label="Primary Contact" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                  <SortHeader col="contact" label="Primary Contact" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
                 </th>
                 <th className="px-4 py-2.5 text-left hidden lg:table-cell">
-                  <ColHeader col="phone" label="Phone" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                  <SortHeader col="phone" label="Phone" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
                 </th>
                 <th className="px-4 py-2.5 text-left hidden lg:table-cell">
-                  <ColHeader col="email" label="Email" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                  <SortHeader col="email" label="Email" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
                 </th>
                 <th className="px-4 py-2.5 text-left hidden xl:table-cell">
                   <span className="text-xs font-medium text-muted-foreground">Specialities</span>
                 </th>
                 <th className="px-4 py-2.5 text-left">
-                  <ColHeader col="status" label="Status" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                  <SortHeader col="status" label="Status" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
                 </th>
                 <th className="px-4 py-2.5 text-right">
                   <span className="sr-only">Actions</span>
@@ -297,7 +247,7 @@ export function SuppliersClient({ contractors: initial, orgId }: Readonly<Props>
               })}
             </tbody>
           </table>
-        </div>
+        </ListCard>
       )}
     </div>
   )

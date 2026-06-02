@@ -15,6 +15,7 @@ import Link from "next/link"
 import { AddButton } from "@/components/ui/add-button"
 import { EmptyResourceState } from "@/components/ui/empty-resource-state"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
+import { ListSearchBar, ListCard } from "@/components/ui/resource-list"
 import { Wrench, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
 import { OPERATIONAL_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchMaintenanceAction } from "@/lib/queries/portfolioActions"
@@ -198,6 +199,7 @@ export function MaintenancePageClient({ orgId }: Readonly<Props>) {
   const queryClient = useQueryClient()
   const queryKey = OPERATIONAL_QUERY_KEYS.maintenance(orgId)
   const [activeTab, setActiveTab] = useState<Tab>("all")
+  const [search, setSearch] = useState("")
   const [sortField, setSortField] = useState<SortField>("age")
   const [sortDir, setSortDir] = useState<SortDir>("desc")
 
@@ -217,7 +219,17 @@ export function MaintenancePageClient({ orgId }: Readonly<Props>) {
   }
 
   const emergencies = list.filter(r => r.urgency === "emergency" && !["completed", "closed", "cancelled", "rejected"].includes(r.status))
-  const tabFiltered = list.filter(r => matchesTab(r, activeTab))
+  // Search by title / WO number / unit / property name + address (street line, suburb, town).
+  const q = search.trim().toLowerCase()
+  const searched = q
+    ? list.filter((r) => {
+        const u = r.units as unknown as { unit_number?: string; properties?: { name?: string; address_line1?: string; suburb?: string; city?: string } } | null
+        const p = u?.properties
+        return [r.title, r.work_order_number, u?.unit_number, p?.name, p?.address_line1, p?.suburb, p?.city]
+          .filter(Boolean).join(" ").toLowerCase().includes(q)
+      })
+    : list
+  const tabFiltered = searched.filter(r => matchesTab(r, activeTab))
   const filtered = sortList(tabFiltered, sortField, sortDir) as MaintenanceItemExtended[]
   const actionCount = list.filter(r => matchesTab(r, "action")).length
 
@@ -303,6 +315,12 @@ export function MaintenancePageClient({ orgId }: Readonly<Props>) {
           </div>
         )}
 
+        {list.length > 0 && (
+          <div className="mb-4">
+            <ListSearchBar value={search} onChange={setSearch} placeholder="Search by title, unit, property or address…" />
+          </div>
+        )}
+
         {/* Tabs */}
         {list.length > 0 && (
           <div className="flex gap-1 mb-4 border-b border-border/60">
@@ -338,10 +356,10 @@ export function MaintenancePageClient({ orgId }: Readonly<Props>) {
           />
         )}
         {list.length > 0 && filtered.length === 0 && (
-          <p className="text-sm text-muted-foreground py-4">No requests in this category.</p>
+          <p className="text-sm text-muted-foreground py-4">{q ? "No requests match your search." : "No requests in this category."}</p>
         )}
         {list.length > 0 && filtered.length > 0 && (
-          <div className="rounded-lg border border-border overflow-hidden">
+          <ListCard>
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/30">
@@ -384,7 +402,7 @@ export function MaintenancePageClient({ orgId }: Readonly<Props>) {
                 </div>
               ) : null
             })()}
-          </div>
+          </ListCard>
         )}
       </div>
     </div>
