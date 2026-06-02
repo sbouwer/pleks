@@ -98,22 +98,26 @@ export function OnboardingWizard({
   const [addingMe, startAddMe] = useTransition()
   // When the agent chose "Add me as landlord", bind the saved landlord as the 01C self-landlord.
   const selfModeRef = useRef(false)
+  const [isSelf, setIsSelf] = useState(false)   // reactive twin of selfModeRef — drives hiding the welcome pack
 
   function handlePartyDone() { router.refresh(); goNext() }
 
   // "Add me as landlord" — pre-fill the landlord form from the profile so the agent can review and
   // complete it (title, ID, etc.) before saving; the save then binds it as the self-landlord mirror.
+  // No welcome pack to yourself, so it's pre-set off and the prompt is hidden.
   function handleAddMe() {
     startAddMe(async () => {
       const p = await getSelfLandlordPrefill()
       if (!p.ok) return
-      landlordFlow.prefill({ firstName: p.firstName, lastName: p.lastName, phone: p.phone, email: p.email })
+      landlordFlow.prefill({ firstName: p.firstName, lastName: p.lastName, phone: p.phone, email: p.email, sendWelcomePack: false })
       selfModeRef.current = true
+      setIsSelf(true)
     })
   }
 
   const landlordFlow = usePartyFlow({
     role: "landlord",
+    hideWelcomePack: isSelf,
     onSubmit: async (input) => {
       const r = await addLandlordParty(input)
       if (r.ok && r.id && selfModeRef.current) { await bindSelfLandlord(r.id); selfModeRef.current = false }
@@ -136,7 +140,7 @@ export function OnboardingWizard({
   function goTo(i: number) {
     if (i < 0 || i >= STEPS.length) return
     flowFor(STEPS[i].role)?.reset()   // fresh form when (re)entering a party step
-    if (STEPS[i].role === "landlord") selfModeRef.current = false   // drop a stale "add me" intent
+    if (STEPS[i].role === "landlord") { selfModeRef.current = false; setIsSelf(false) }   // drop a stale "add me" intent
     setIdx(i)
   }
   function goNext() {

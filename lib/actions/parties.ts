@@ -42,8 +42,15 @@ function buildPartyContactData(
   }
 
   if (entity === "individual") {
+    d.title = f.title?.trim() || null
+    d.initials = f.initials?.trim() || null
     d.first_name = f.firstName?.trim() || null
+    d.middle_names = f.middleNames?.trim() || null
     d.last_name = f.lastName?.trim() || null
+    d.suffix = f.suffix?.trim() || null
+    d.designation = f.designation?.trim() || null
+    d.gender = f.gender || null
+    d.preferred_channel = f.preferredChannel || null
     d.primary_email = f.email?.trim() || null
     d.primary_phone = f.phone?.trim() || null
     if (cfg.fullFica) {

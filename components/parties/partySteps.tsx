@@ -18,6 +18,31 @@ type SetFn = (k: keyof PartyFormState, v: string | string[] | boolean) => void
 
 const PROVINCE_OPTIONS = [{ value: "", label: "Select…" }, ...SA_PROVINCES.map((p) => ({ value: p, label: p }))]
 
+const TITLE_OPTIONS = [
+  { value: "", label: "Select…" },
+  ...["Mr", "Mrs", "Ms", "Miss", "Dr", "Prof", "Adv", "Rev", "Hon"].map((t) => ({ value: t, label: t })),
+]
+
+const CHANNEL_OPTIONS = [
+  { value: "", label: "No preference" },
+  { value: "email", label: "Email" },
+  { value: "sms", label: "SMS" },
+  { value: "whatsapp", label: "WhatsApp" },
+  { value: "phone", label: "Phone call" },
+  { value: "post", label: "Post" },
+]
+
+const GENDER_OPTIONS = [
+  { value: "", label: "Select…" },
+  { value: "male", label: "Male" },
+  { value: "female", label: "Female" },
+  { value: "other", label: "Other" },
+  { value: "prefer_not_to_say", label: "Prefer not to say" },
+]
+
+const GENDER_LABEL: Record<string, string> = { male: "Male", female: "Female", other: "Other", prefer_not_to_say: "Prefer not to say" }
+const CHANNEL_LABEL: Record<string, string> = { email: "Email", sms: "SMS", whatsapp: "WhatsApp", phone: "Phone call", post: "Post" }
+
 function entityBlurb(entity: PartyEntity, fullFica: boolean): string {
   if (entity === "individual") {
     return fullFica
@@ -49,12 +74,19 @@ export function IdentityStep({
         <div className="mt-6">
           <SectLabel n="01">Personal details</SectLabel>
           <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
+            <SelectField label="Title" k="title" f={f} set={set} options={TITLE_OPTIONS} />
+            <TextField label="Initials" k="initials" f={f} set={set} errors={errors} placeholder="J.S." />
             <TextField label="First name" k="firstName" f={f} set={set} errors={errors} required placeholder="Jane" />
+            <TextField label="Middle name(s)" k="middleNames" f={f} set={set} errors={errors} placeholder="Optional" />
             <TextField label="Last name" k="lastName" f={f} set={set} errors={errors} required placeholder="Smith" />
+            <TextField label="Suffix" k="suffix" f={f} set={set} errors={errors} placeholder="Jr / Sr — optional" />
+            <TextField label="Designation" k="designation" f={f} set={set} errors={errors} placeholder="Adv., Dr, CA(SA) — optional" />
+            <SelectField label="Gender" k="gender" f={f} set={set} options={GENDER_OPTIONS} />
             {/* ID captured only for FICA parties (landlord/tenant). Suppliers store no ID. */}
             {fullFica && <IdField label="ID" typeKey="idType" numKey="idNumber" f={f} set={set} errors={errors} />}
             <TextField label="Email" k="email" f={f} set={set} errors={errors} required type="email" placeholder="jane@email.co.za" />
             <TextField label="Phone" k="phone" f={f} set={set} errors={errors} required type="tel" placeholder="082 000 0000" />
+            <SelectField label="Preferred contact" k="preferredChannel" f={f} set={set} options={CHANNEL_OPTIONS} />
           </div>
         </div>
       ) : (
@@ -105,8 +137,8 @@ export function IdentityStep({
 
 // ── Step 2 — Role-specific details ────────────────────────────────────────────
 export function DetailsStep({
-  role, f, set, errors,
-}: Readonly<{ role: PartyRole; f: PartyFormState; set: SetFn; errors: PartyErrors }>) {
+  role, f, set, errors, hideWelcomePack,
+}: Readonly<{ role: PartyRole; f: PartyFormState; set: SetFn; errors: PartyErrors; hideWelcomePack?: boolean }>) {
   if (role === "tenant") {
     return (
       <>
@@ -175,18 +207,21 @@ export function DetailsStep({
           <TextField label="Branch code" k="branchCode" f={f} set={set} errors={errors} placeholder="250655" />
         </div>
       </div>
-      <div className="mt-6">
-        <SectLabel n="02">Welcome pack</SectLabel>
-        <div className="mb-3 rounded-lg border border-amber-300/60 bg-amber-50/60 p-4">
-          <p className="text-sm font-medium text-foreground">Send a branded welcome pack?</p>
-          <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-            Portfolio overview, rental analysis and a compliance calendar — branded with your agency details.
-          </p>
+      {/* Hidden on the "add me as landlord" self path — you don't send yourself a welcome pack. */}
+      {!hideWelcomePack && (
+        <div className="mt-6">
+          <SectLabel n="02">Welcome pack</SectLabel>
+          <div className="mb-3 rounded-lg border border-amber-300/60 bg-amber-50/60 p-4">
+            <p className="text-sm font-medium text-foreground">Send a branded welcome pack?</p>
+            <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
+              Portfolio overview, rental analysis and a compliance calendar — branded with your agency details.
+            </p>
+          </div>
+          <CheckRow checked={f.sendWelcomePack !== false} onChange={(v) => set("sendWelcomePack", v)}>
+            Generate the welcome pack once this landlord is added.
+          </CheckRow>
         </div>
-        <CheckRow checked={f.sendWelcomePack !== false} onChange={(v) => set("sendWelcomePack", v)}>
-          Generate the welcome pack once this landlord is added.
-        </CheckRow>
-      </div>
+      )}
     </>
   )
 }
@@ -214,9 +249,12 @@ export function ReviewStep({
         <div className="divide-y divide-border rounded-lg border border-border px-3">
           {isIndividual ? (
             <>
-              <ReviewRow k="Name" v={[f.firstName, f.lastName].filter(Boolean).join(" ")} />
+              <ReviewRow k="Name" v={[f.title, f.initials, f.firstName, f.middleNames, f.lastName, f.suffix].filter(Boolean).join(" ")} />
+              {f.designation && <ReviewRow k="Designation" v={f.designation} />}
+              {f.gender && <ReviewRow k="Gender" v={GENDER_LABEL[f.gender] ?? f.gender} />}
               <ReviewRow k="Email" v={f.email} />
               <ReviewRow k="Phone" v={f.phone} />
+              {f.preferredChannel && <ReviewRow k="Preferred contact" v={CHANNEL_LABEL[f.preferredChannel] ?? f.preferredChannel} />}
             </>
           ) : (
             <>

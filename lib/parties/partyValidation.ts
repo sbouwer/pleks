@@ -26,8 +26,15 @@ export interface AddPartyResult {
 
 export interface PartyFormState {
   // individual
+  title?: string             // salutation (Mr, Mrs, Ms, Dr, Prof, Adv…)
+  initials?: string
   firstName?: string
+  middleNames?: string       // any names between first and last
   lastName?: string
+  suffix?: string            // Jr, Sr, II…
+  designation?: string       // professional / honorific (Adv., Dr, CA(SA)…)
+  gender?: string            // male | female | other | prefer_not_to_say
+  preferredChannel?: string  // email | sms | whatsapp | phone | post
   idType?: string
   idNumber?: string
   email?: string

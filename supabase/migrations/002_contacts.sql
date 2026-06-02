@@ -939,3 +939,20 @@ ALTER TABLE user_profiles
   ADD COLUMN IF NOT EXISTS forked_landlord_id              uuid REFERENCES landlords(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS fork_banner_dismissed_agent     boolean NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS fork_banner_dismissed_landlord  boolean NOT NULL DEFAULT false;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §14  CONTACT PERSON DETAIL FIELDS (any contact — landlord/tenant/supplier/agent)
+--      Richer human identity captured against the individual person on a contact row:
+--      salutation title, initials, middle/other names, name suffix, a professional/honorific
+--      designation, and a preferred contact channel. Surfaced in the shared add-party Identity
+--      step, so every individual contact can carry them. (first_name/last_name already exist.)
+--      Org contact-person honorifics are a separate need — these populate for individual contacts.
+-- ═══════════════════════════════════════════════════════════════════════════════
+ALTER TABLE contacts
+  ADD COLUMN IF NOT EXISTS title             text,   -- salutation (Mr, Mrs, Ms, Dr, Prof, Adv…)
+  ADD COLUMN IF NOT EXISTS initials          text,
+  ADD COLUMN IF NOT EXISTS middle_names      text,   -- any names between first and last
+  ADD COLUMN IF NOT EXISTS suffix            text,   -- Jr, Sr, II, III…
+  ADD COLUMN IF NOT EXISTS designation       text,   -- professional / honorific (Adv., Dr, CA(SA)…)
+  ADD COLUMN IF NOT EXISTS preferred_channel text
+    CHECK (preferred_channel IN ('email', 'sms', 'whatsapp', 'phone', 'post'));

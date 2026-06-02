@@ -53,6 +53,8 @@ export interface UsePartyFlowOptions {
    * which then exposes `done` so the caller can render the SuccessView.
    */
   onDone?:  (result: AddPartyResult) => void
+  /** Hide the landlord "welcome pack" prompt (the self "add me as landlord" path). */
+  hideWelcomePack?: boolean
 }
 
 export interface PartyFlow {
@@ -79,7 +81,7 @@ export interface PartyFlow {
   prefill:         (values: Partial<PartyFormState>) => void
 }
 
-export function usePartyFlow({ role, onSubmit, onDone }: UsePartyFlowOptions): PartyFlow {
+export function usePartyFlow({ role, onSubmit, onDone, hideWelcomePack }: UsePartyFlowOptions): PartyFlow {
   const cfg = PARTY_ROLES[role]
   const [entity, setEntity] = useState<PartyEntity>("individual")
   const [f, setF] = useState<PartyFormState>({})
@@ -134,7 +136,7 @@ export function usePartyFlow({ role, onSubmit, onDone }: UsePartyFlowOptions): P
       {step === 0 && (
         <IdentityStep role={role} entity={entity} setEntity={changeEntity} f={f} set={set} errors={errors} fullFica={cfg.fullFica} />
       )}
-      {step === 1 && <DetailsStep role={role} f={f} set={set} errors={errors} />}
+      {step === 1 && <DetailsStep role={role} f={f} set={set} errors={errors} hideWelcomePack={hideWelcomePack} />}
       {step === 2 && <ReviewStep role={role} entity={entity} f={f} />}
     </>
   )
