@@ -68,7 +68,8 @@ export function Topbar({
       background: "color-mix(in oklab, var(--muted) 30%, var(--background))",
       borderBottom: "1px solid var(--rule)",
       height: 64, display: "flex", alignItems: "center",
-      padding: "0 16px 0 20px", gap: 16, flexShrink: 0,
+      // Match the main content padding (p-6 = 24px) so the org name / icons line up with the page edges.
+      padding: "0 24px", gap: 16, flexShrink: 0,
     }}>
 
       {/* Left: org name */}
