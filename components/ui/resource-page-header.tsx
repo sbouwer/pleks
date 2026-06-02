@@ -24,11 +24,12 @@ export function ResourcePageHeader({
   // over the dashed rule. Keeps every page (empty or populated) flowing identically.
   //
   // Sticky: this is the page's nav / quick-back / quick-add space, so it stays pinned while the content
-  // below scrolls. The negative margins cancel the dashboard <main> padding (p-6) so the bar spans edge
-  // to edge, and the opaque canvas fill (same token mix as the topbar) hides rows sliding underneath.
+  // below scrolls. The negative margins cancel the dashboard <main> padding (p-6): -mx-6/px-6 bleed it
+  // edge to edge, and -mt-6 with a matching -top-6 stick offset pin it FLUSH to the top — without the
+  // offset it would pin 24px low (main's pt-6) and its opaque fill would clip the first row below.
   return (
     <div
-      className="sticky top-0 z-30 -mx-6 -mt-6 mb-5 px-6 pt-6 pb-5"
+      className="sticky -top-6 z-30 -mx-6 -mt-6 mb-5 px-6 pt-6 pb-5"
       style={{ background: "color-mix(in oklab, var(--muted) 30%, var(--background))" }}
     >
       {eyebrow && (
