@@ -29,7 +29,7 @@ const ITEMS: { key: ItemKey; label: string; icon: LucideIcon }[] = [
   { key: "lease",    label: "Lease",    icon: FileText },
 ]
 
-export function QuickAddMenu({ orgId }: Readonly<{ orgId: string }>) {
+export function QuickAddMenu() {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [party, setParty] = useState<PartyRole | null>(null)
@@ -100,10 +100,6 @@ export function QuickAddMenu({ orgId }: Readonly<{ orgId: string }>) {
           onOpenChange={(o) => { if (!o) setParty(null) }}
           onSubmit={submitParty}
           onCreated={() => router.refresh()}
-          onPrimaryAction={party === "landlord" ? (result) => {
-            if (!result.id) return
-            globalThis.open(`/api/reports/welcome-pack?orgId=${encodeURIComponent(orgId)}&landlordId=${encodeURIComponent(result.id)}`, "_blank")
-          } : undefined}
         />
       )}
       <PropertyWizardModal open={propertyOpen} onClose={() => setPropertyOpen(false)} />

@@ -45,12 +45,6 @@ export function LandlordsPageClient({ orgId }: Props) {
         queryClient.invalidateQueries({ queryKey: PORTFOLIO_QUERY_KEYS.properties(orgId) })
         router.refresh()
       }}
-      onPrimaryAction={(result) => {
-        // "Generate welcome pack" — opens the branded pack for the new landlord in a new tab.
-        if (!result.id) return
-        const url = `/api/reports/welcome-pack?orgId=${encodeURIComponent(orgId)}&landlordId=${encodeURIComponent(result.id)}`
-        globalThis.open(url, "_blank")
-      }}
     />
   )
 

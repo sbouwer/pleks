@@ -5,20 +5,20 @@
  *
  * Notes:  Standalone wrapper around usePartyFlow (the host-agnostic add-party brain) on the shared
  *         WizardModal. Renders all three party types (landlord/tenant/supplier) from PARTY_ROLES; the
- *         actual create is injected via `onSubmit`, so the same modal serves the suppliers/landlords/
- *         tenants pages. For the in-wizard "add a landlord" sub-flow, host usePartyFlow directly with
- *         an `onDone` instead — see the property wizard. DRY: copy/fields/validation live in lib/parties.
+ *         actual create is injected via `onSubmit`. Save + exit: a successful create refreshes the host
+ *         list (onCreated) and closes the modal — no success interstitial and no reset-to-empty (the old
+ *         behaviour re-mounted + reset the form when an empty list first became populated). For the
+ *         in-wizard "add a landlord" sub-flow, host usePartyFlow directly with an `onDone` instead.
  */
 import { WizardModal } from "@/components/ui/wizard-modal"
 import { type PartyRole } from "@/lib/parties/partyConfig"
 import { type AddPartyInput, type AddPartyResult } from "@/lib/parties/partyValidation"
 import { usePartyFlow } from "./usePartyFlow"
-import { SuccessView } from "./partySteps"
 
 export type { AddPartyInput, AddPartyResult }
 
 export function AddPartyModal({
-  role, open, onOpenChange, onSubmit, onCreated, onPrimaryAction,
+  role, open, onOpenChange, onSubmit, onCreated,
 }: Readonly<{
   role: PartyRole
   open: boolean
@@ -26,10 +26,7 @@ export function AddPartyModal({
   onSubmit: (input: AddPartyInput) => Promise<AddPartyResult>
   /** called after a successful create so the parent can refresh its list */
   onCreated?: () => void
-  /** the success-view primary action (e.g. landlord → generate welcome pack); closes after */
-  onPrimaryAction?: (result: AddPartyResult) => void
 }>) {
-  // Standalone: no onDone → the flow surfaces `done` and we render the SuccessView below.
   const flow = usePartyFlow({
     role,
     onSubmit: async (input) => {
@@ -37,26 +34,14 @@ export function AddPartyModal({
       if (result.ok) onCreated?.()
       return result
     },
+    // save + exit: close, then reset after the close animation so the next open starts fresh
+    onDone: () => { onOpenChange(false); setTimeout(() => flow.reset(), 200) },
   })
 
   function close() {
     onOpenChange(false)
-    // defer the reset so the close animation doesn't flash an empty step-0
-    setTimeout(flow.reset, 200)
+    setTimeout(() => flow.reset(), 200)
   }
-
-  const result = flow.done
-  const success = result ? (
-    <SuccessView
-      role={role}
-      entity={flow.entity}
-      f={flow.f}
-      displayName={result.name ?? ""}
-      onClose={close}
-      onAddAnother={flow.reset}
-      onPrimaryAction={onPrimaryAction ? () => { onPrimaryAction(result); close() } : undefined}
-    />
-  ) : undefined
 
   return (
     <WizardModal
@@ -73,7 +58,6 @@ export function AddPartyModal({
       primaryLabel={flow.primaryLabel}
       onPrimary={flow.next}
       primaryDisabled={flow.primaryDisabled}
-      success={success}
     >
       {flow.body}
     </WizardModal>

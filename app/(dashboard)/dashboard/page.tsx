@@ -316,7 +316,7 @@ export default async function DashboardPage() {
         title={<DashboardGreeting firstName={firstName} fallback={`${greeting}, ${firstName}.`} />}
         headline="Your workspace"
         sub={showOnboarding ? "Ready when you are — let's bring your portfolio to life." : "Here's your portfolio at a glance."}
-        action={<QuickAddMenu orgId={orgId} />}
+        action={<QuickAddMenu />}
       />
 
       {/* Banners */}
