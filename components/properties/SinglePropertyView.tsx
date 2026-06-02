@@ -17,7 +17,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge"
 import { UpgradeCta } from "@/components/shared/UpgradeCta"
 import { AskingRentCard } from "./AskingRentCard"
 import { VacantSection } from "./VacantSection"
-import { formatZAR } from "@/lib/constants"
+import { formatZAR, TIER_LIMITS } from "@/lib/constants"
 
 export interface SinglePropertyData {
   id: string
@@ -403,7 +403,7 @@ export function SinglePropertyView({ property, currentInvoice = null, orgId = ""
       {/* Upgrade CTA — compact horizontal bar */}
       <UpgradeCta
         title="Managing more properties?"
-        description="Upgrade to Steward for up to 20 units."
+        description={`Upgrade to Steward for up to ${TIER_LIMITS.steward.leases} leases.`}
         dismissKey="owner-upgrade-cta"
       />
     </div>
