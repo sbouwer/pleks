@@ -956,3 +956,34 @@ ALTER TABLE contacts
   ADD COLUMN IF NOT EXISTS designation       text,   -- professional / honorific (Adv., Dr, CA(SA)…)
   ADD COLUMN IF NOT EXISTS preferred_channel text
     CHECK (preferred_channel IN ('email', 'sms', 'whatsapp', 'phone', 'post'));
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §15  BUILD_25A: COMPANY CONTACTS — multiple people under an organisation contact
+--      An organisation contact (entity_type='organisation') carries the role; its people
+--      are first-class individual `contacts` rows linked via organisation_contact_id (1:1 —
+--      a person belongs to one org). Each person has a company_function (comms routing) +
+--      designation (free-text title, §14) + exactly one is_primary_contact per company.
+--      primary_role='company_contact' keeps sub-people out of role-scoped pickers/lists.
+--      Role/type lives on the company, never duplicated on the person. Zero FK churn — every
+--      existing landlords/contractors/tenants/… anchor still points at the company contact row.
+-- ═══════════════════════════════════════════════════════════════════════════════
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS organisation_contact_id uuid REFERENCES contacts(id) ON DELETE CASCADE;
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS company_function text;
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS is_primary_contact boolean NOT NULL DEFAULT false;
+
+ALTER TABLE contacts DROP CONSTRAINT IF EXISTS contacts_company_function_check;
+ALTER TABLE contacts ADD CONSTRAINT contacts_company_function_check
+  CHECK (company_function IS NULL OR company_function IN
+    ('owner_director', 'account_manager', 'accounts', 'maintenance', 'leasing', 'other'));
+
+-- 'company_contact' added so sub-people are excluded from role pickers by construction
+ALTER TABLE contacts DROP CONSTRAINT IF EXISTS contacts_primary_role_check;
+ALTER TABLE contacts ADD CONSTRAINT contacts_primary_role_check
+  CHECK (primary_role IN ('tenant', 'landlord', 'contractor', 'agent', 'body_corporate',
+                          'guarantor', 'insurance_broker', 'company_contact', 'other'));
+
+CREATE INDEX IF NOT EXISTS idx_contacts_org_contact
+  ON contacts(organisation_contact_id) WHERE organisation_contact_id IS NOT NULL;
+-- exactly one primary person per company
+CREATE UNIQUE INDEX IF NOT EXISTS uq_contacts_org_primary
+  ON contacts(organisation_contact_id) WHERE is_primary_contact AND organisation_contact_id IS NOT NULL;
