@@ -42,6 +42,9 @@ export function InstallPrompt() {
     await deferredPrompt.prompt()
     const { outcome } = await deferredPrompt.userChoice
     if (outcome === "accepted" || outcome === "dismissed") {
+      // Persist once the user has interacted either way, so the banner never nags again — a full page
+      // reload (e.g. the consent flow) re-fires beforeinstallprompt and would otherwise re-show it.
+      localStorage.setItem(DISMISSED_KEY, "1")
       setVisible(false)
       setDeferredPrompt(null)
     }
