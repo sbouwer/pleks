@@ -12,10 +12,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
-import { ActionButton, IconButton } from "@/components/ui/actions"
+import { IconButton } from "@/components/ui/actions"
+import { AddButton } from "@/components/ui/add-button"
+import { EmptyResourceState } from "@/components/ui/empty-resource-state"
+import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { BulkDecidePanel } from "@/components/applications/BulkDecidePanel"
-import { Users, Copy, Check, ExternalLink, Plus } from "lucide-react"
+import { Users, Copy, Check, ExternalLink } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import { OPERATIONAL_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchApplicationsAction } from "@/lib/queries/portfolioActions"
@@ -157,52 +160,44 @@ export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="font-heading text-3xl">Applications</h1>
-          {list.length > 0 && (
-            <p className="text-sm text-muted-foreground mt-1">
-              {prescreenReady.length} ready to review &middot; {screeningComplete.length} screening complete
-            </p>
-          )}
-          {dataUpdatedAt > 0 && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-              <span>Updated {relativeTime(new Date(dataUpdatedAt))}</span>
-              <button type="button" className="pa-link" onClick={() => queryClient.invalidateQueries({ queryKey })}>Refresh</button>
+      <ResourcePageHeader
+        eyebrow="Operations"
+        title="Applications"
+        sub={
+          (list.length > 0 || dataUpdatedAt > 0) ? (
+            <div className="space-y-0.5">
+              {list.length > 0 && (
+                <p>{prescreenReady.length} ready to review &middot; {screeningComplete.length} screening complete</p>
+              )}
+              {dataUpdatedAt > 0 && (
+                <span className="flex items-center gap-2 text-xs">
+                  Updated {relativeTime(new Date(dataUpdatedAt))}
+                  <button type="button" className="pa-link" onClick={() => queryClient.invalidateQueries({ queryKey })}>Refresh</button>
+                </span>
+              )}
             </div>
-          )}
-        </div>
-        <ActionButton tone="primary" icon={<Plus className="size-4" />} onClick={() => router.push("/properties")}>
-          New listing
-        </ActionButton>
-      </div>
+          ) : undefined
+        }
+        action={<AddButton label="New listing" onClick={() => router.push("/properties")} />}
+      />
 
       {!hasContent ? (
-        <div className="max-w-lg mx-auto py-12 text-center space-y-6">
-          <div className="mx-auto w-12 h-12 rounded-full bg-brand/10 flex items-center justify-center">
-            <Users className="h-6 w-6 text-brand" />
-          </div>
-          <div className="space-y-2">
-            <h2 className="text-xl font-heading">No active listings</h2>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Listings are created from a unit. Once published, applicants apply via a
-              shareable link and you&apos;ll manage everything here — review, shortlist,
-              screen, and approve.
-            </p>
-          </div>
-          <div className="rounded-lg border border-border/60 bg-surface-elevated p-4 text-left space-y-3">
+        <EmptyResourceState
+          emptyTitle="No active listings"
+          emptySub="Listings are created from a unit. Once published, applicants apply via a shareable link and you'll manage everything here — review, shortlist, screen, and approve."
+          icon={<Users className="h-6 w-6" />}
+          heroAction={<AddButton label="Go to properties" showPlus={false} onClick={() => router.push("/properties")} />}
+        >
+          <div className="space-y-3 rounded-[var(--r-button)] border border-border/60 bg-muted/30 p-4 text-left">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">How it works</p>
-            <ol className="text-sm text-muted-foreground space-y-2">
-              <li className="flex gap-2"><span className="text-brand font-medium shrink-0">1.</span> Go to a property and open a vacant unit</li>
-              <li className="flex gap-2"><span className="text-brand font-medium shrink-0">2.</span> Click &ldquo;Create listing&rdquo; — set the asking rent and requirements</li>
-              <li className="flex gap-2"><span className="text-brand font-medium shrink-0">3.</span> Share the link — applicants apply on their phone</li>
-              <li className="flex gap-2"><span className="text-brand font-medium shrink-0">4.</span> Come back here to review and decide</li>
+            <ol className="space-y-2 text-sm text-muted-foreground">
+              <li className="flex gap-2"><span className="shrink-0 font-medium text-primary">1.</span> Go to a property and open a vacant unit</li>
+              <li className="flex gap-2"><span className="shrink-0 font-medium text-primary">2.</span> Click &ldquo;Create listing&rdquo; — set the asking rent and requirements</li>
+              <li className="flex gap-2"><span className="shrink-0 font-medium text-primary">3.</span> Share the link — applicants apply on their phone</li>
+              <li className="flex gap-2"><span className="shrink-0 font-medium text-primary">4.</span> Come back here to review and decide</li>
             </ol>
           </div>
-          <ActionButton tone="primary" icon={<Plus className="size-4" />} onClick={() => router.push("/properties")}>
-            Go to properties
-          </ActionButton>
-        </div>
+        </EmptyResourceState>
       ) : (
         <div className="space-y-6">
           {mergedList.map(({ listing, apps }) => {

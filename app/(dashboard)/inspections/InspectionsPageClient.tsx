@@ -10,11 +10,12 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { ActionButton } from "@/components/ui/actions"
+import { AddButton } from "@/components/ui/add-button"
+import { EmptyResourceState } from "@/components/ui/empty-resource-state"
+import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import { Card, CardContent } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
-import { EmptyState } from "@/components/shared/EmptyState"
-import { ClipboardCheck, Plus } from "lucide-react"
+import { ClipboardCheck } from "lucide-react"
 import { OPERATIONAL_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchInspectionsAction } from "@/lib/queries/portfolioActions"
 import { relativeTime } from "@/lib/utils"
@@ -43,29 +44,31 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="font-heading text-3xl">Inspections</h1>
-          {list.length > 0 && (
-            <p className="text-sm text-muted-foreground mt-1">{list.length} inspections</p>
-          )}
-          {dataUpdatedAt > 0 && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-              <span>Updated {relativeTime(new Date(dataUpdatedAt))}</span>
-              <button type="button" className="pa-link" onClick={() => queryClient.invalidateQueries({ queryKey })}>Refresh</button>
+      <ResourcePageHeader
+        eyebrow="Operations"
+        title="Inspections"
+        sub={
+          (list.length > 0 || dataUpdatedAt > 0) ? (
+            <div className="space-y-0.5">
+              {list.length > 0 && <p>{list.length} inspections</p>}
+              {dataUpdatedAt > 0 && (
+                <span className="flex items-center gap-2 text-xs">
+                  Updated {relativeTime(new Date(dataUpdatedAt))}
+                  <button type="button" className="pa-link" onClick={() => queryClient.invalidateQueries({ queryKey })}>Refresh</button>
+                </span>
+              )}
             </div>
-          )}
-        </div>
-        <ActionButton tone="primary" icon={<Plus className="h-4 w-4" />} onClick={() => router.push("/inspections/new")}>
-          Schedule Inspection
-        </ActionButton>
-      </div>
+          ) : undefined
+        }
+        action={<AddButton label="Schedule inspection" onClick={() => router.push("/inspections/new")} />}
+      />
 
       {list.length === 0 ? (
-        <EmptyState
-          icon={<ClipboardCheck className="h-8 w-8 text-muted-foreground" />}
-          title="No inspections yet"
-          description="Schedule your first inspection from a unit's detail page."
+        <EmptyResourceState
+          emptyTitle="No inspections yet"
+          emptySub="Schedule your first inspection from a unit's detail page."
+          icon={<ClipboardCheck className="h-6 w-6" />}
+          heroAction={<AddButton label="Schedule inspection" showPlus={false} onClick={() => router.push("/inspections/new")} />}
         />
       ) : (
         <div className="space-y-2">

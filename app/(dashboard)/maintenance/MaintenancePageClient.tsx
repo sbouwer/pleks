@@ -12,9 +12,10 @@ import { useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { ActionButton } from "@/components/ui/actions"
-import { EmptyState } from "@/components/shared/EmptyState"
-import { Wrench, Plus, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
+import { AddButton } from "@/components/ui/add-button"
+import { EmptyResourceState } from "@/components/ui/empty-resource-state"
+import { ResourcePageHeader } from "@/components/ui/resource-page-header"
+import { Wrench, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
 import { OPERATIONAL_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchMaintenanceAction } from "@/lib/queries/portfolioActions"
 import { relativeTime } from "@/lib/utils"
@@ -229,9 +230,7 @@ export function MaintenancePageClient({ orgId }: Readonly<Props>) {
             <h1 className="font-heading text-2xl">Maintenance</h1>
             {list.length > 0 && <p className="text-xs text-muted-foreground">{list.length} total</p>}
           </div>
-          <ActionButton tone="primary" icon={<Plus className="h-4 w-4" />} onClick={() => router.push("/maintenance/new")}>
-            Log
-          </ActionButton>
+          <AddButton label="Log" onClick={() => router.push("/maintenance/new")} />
         </div>
 
         {emergencies.length > 0 && (
@@ -244,10 +243,11 @@ export function MaintenancePageClient({ orgId }: Readonly<Props>) {
         )}
 
         {list.length === 0 ? (
-          <EmptyState
-            icon={<Wrench className="h-8 w-8 text-muted-foreground" />}
-            title="No maintenance requests"
-            description="Log a request to get started."
+          <EmptyResourceState
+            emptyTitle="No maintenance requests"
+            emptySub="Log a request to get started."
+            icon={<Wrench className="h-6 w-6" />}
+            heroAction={<AddButton label="Log request" showPlus={false} onClick={() => router.push("/maintenance/new")} />}
           />
         ) : (
           <div className="rounded-xl border border-border bg-surface-elevated px-3">
@@ -260,27 +260,30 @@ export function MaintenancePageClient({ orgId }: Readonly<Props>) {
 
       {/* ── Desktop ──────────────────────────────────────────────────────── */}
       <div className="hidden lg:block">
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h1 className="font-heading text-3xl">Maintenance</h1>
-            {list.length > 0 && (
-              <p className="text-sm text-muted-foreground mt-1">
-                {list.length} request{list.length !== 1 ? "s" : ""}
-                {emergencies.length > 0 && ` · ${emergencies.length} emergency`}
-                {actionCount > 0 && ` · ${actionCount} need action`}
-              </p>
-            )}
-            {dataUpdatedAt > 0 && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                <span>Updated {relativeTime(new Date(dataUpdatedAt))}</span>
-                <button type="button" className="pa-link" onClick={() => queryClient.invalidateQueries({ queryKey })}>Refresh</button>
+        <ResourcePageHeader
+          eyebrow="Operations"
+          title="Maintenance"
+          sub={
+            (list.length > 0 || dataUpdatedAt > 0) ? (
+              <div className="space-y-0.5">
+                {list.length > 0 && (
+                  <p>
+                    {list.length} request{list.length !== 1 ? "s" : ""}
+                    {emergencies.length > 0 && ` · ${emergencies.length} emergency`}
+                    {actionCount > 0 && ` · ${actionCount} need action`}
+                  </p>
+                )}
+                {dataUpdatedAt > 0 && (
+                  <span className="flex items-center gap-2 text-xs">
+                    Updated {relativeTime(new Date(dataUpdatedAt))}
+                    <button type="button" className="pa-link" onClick={() => queryClient.invalidateQueries({ queryKey })}>Refresh</button>
+                  </span>
+                )}
               </div>
-            )}
-          </div>
-          <ActionButton tone="primary" icon={<Plus className="h-4 w-4" />} onClick={() => router.push("/maintenance/new")}>
-            Log request
-          </ActionButton>
-        </div>
+            ) : undefined
+          }
+          action={<AddButton label="Log request" onClick={() => router.push("/maintenance/new")} />}
+        />
 
         {emergencies.length > 0 && (
           <div className="rounded-lg border border-danger/30 bg-danger/5 px-4 py-2.5 mb-4 flex items-start gap-3">
@@ -326,10 +329,11 @@ export function MaintenancePageClient({ orgId }: Readonly<Props>) {
         )}
 
         {list.length === 0 && (
-          <EmptyState
-            icon={<Wrench className="h-8 w-8 text-muted-foreground" />}
-            title="No maintenance requests"
-            description="Log a maintenance request to get started."
+          <EmptyResourceState
+            emptyTitle="No maintenance requests"
+            emptySub="Log a maintenance request to get started."
+            icon={<Wrench className="h-6 w-6" />}
+            heroAction={<AddButton label="Log request" showPlus={false} onClick={() => router.push("/maintenance/new")} />}
           />
         )}
         {list.length > 0 && filtered.length === 0 && (

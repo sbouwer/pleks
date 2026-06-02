@@ -13,6 +13,7 @@ import { fetchCalendarEvents, fetchOverdueAlerts } from "@/lib/calendar/events"
 import { DeadlineAlert } from "@/components/calendar/DeadlineAlert"
 import { CalendarClientLoader } from "./CalendarClientLoader"
 import { InlineLink } from "@/components/ui/actions"
+import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 
 function getTier(membership: { tier?: string | null } | null): string {
   return membership?.tier ?? "owner"
@@ -68,10 +69,7 @@ export default async function CalendarPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <CalendarDays className="h-7 w-7 text-muted-foreground" />
-        <h1 className="font-heading text-3xl">Operations Calendar</h1>
-      </div>
+      <ResourcePageHeader eyebrow="Operations" title="Calendar" />
 
       <DeadlineAlert alerts={alerts} />
 

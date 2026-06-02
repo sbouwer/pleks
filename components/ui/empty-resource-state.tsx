@@ -12,7 +12,7 @@
 import type { ReactNode } from "react"
 
 export function EmptyResourceState({
-  eyebrow, title, headline, headerSub, emptyTitle, emptySub, icon, headerAction, heroAction,
+  eyebrow, title, headline, headerSub, emptyTitle, emptySub, icon, headerAction, heroAction, children,
 }: Readonly<{
   /** page title block — omit (no `title`) to render just the dashed card, e.g. under a tabbed header */
   eyebrow?:      string
@@ -26,6 +26,8 @@ export function EmptyResourceState({
   headerAction?: ReactNode
   /** hero add button inside the dashed card */
   heroAction?:   ReactNode
+  /** extra content inside the dashed card, between the sub line and the hero button */
+  children?:     ReactNode
 }>) {
   return (
     <div>
@@ -51,7 +53,8 @@ export function EmptyResourceState({
           {icon}
         </span>
         <p className="font-heading text-base font-semibold text-foreground">{emptyTitle}</p>
-        <p className="mt-1 text-sm text-muted-foreground">{emptySub}</p>
+        <p className="mt-1 max-w-md text-sm text-muted-foreground">{emptySub}</p>
+        {children && <div className="mt-5 w-full max-w-md">{children}</div>}
         {heroAction && <div className="mt-5">{heroAction}</div>}
       </div>
     </div>
