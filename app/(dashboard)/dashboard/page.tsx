@@ -344,7 +344,7 @@ export default async function DashboardPage() {
         /* ── New-user empty state — get-started steps + workspace setup ──────── */
         <>
           <GettingStarted progress={onboardingProgress} orgId={orgId} />
-          <WorkspaceSetup />
+          <WorkspaceSetup isOwner={tier === "owner"} />
         </>
       ) : (
         /* ── Populated dashboard ────────────────────────────────────────────── */

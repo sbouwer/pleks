@@ -10,18 +10,20 @@ import Link from "next/link"
 import { ArrowRight, Landmark, Zap, FileText, Wallet, UserCheck, User } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
-interface SetupItem { icon: LucideIcon; title: string; desc: string; href: string }
+interface SetupItem { icon: LucideIcon; title: string; desc: string; href: string; agencyOnly?: boolean }
 
 const ITEMS: SetupItem[] = [
-  { icon: Landmark,  title: "Company details",          desc: "Your agency details, PPRA FFC number and banking.",                 href: "/settings" },
+  { icon: Landmark,  title: "Your details",             desc: "Your contact details, banking and (for agencies) PPRA FFC number.",  href: "/settings" },
   { icon: Zap,       title: "Branding",                 desc: "Add your logo and colours to statements and the tenant portal.",    href: "/settings" },
   { icon: FileText,  title: "Lease document templates", desc: "Customise the clauses and documents you issue.",                    href: "/settings" },
-  { icon: Wallet,    title: "Trust / deposits account", desc: "Connect the account for owner payouts and deposit holding.",        href: "/settings/subscription" },
-  { icon: UserCheck, title: "Team",                     desc: "Invite agents and set who sees which portfolios.",                  href: "/settings/team" },
+  { icon: Wallet,    title: "Trust / deposits account", desc: "Connect the account for owner payouts and deposit holding.",        href: "/settings/subscription", agencyOnly: true },
+  { icon: UserCheck, title: "Team",                     desc: "Invite agents and set who sees which portfolios.",                  href: "/settings/team", agencyOnly: true },
   { icon: User,      title: "Your profile & signature", desc: "Your name, contact details and signing signature.",                 href: "/settings/profile" },
 ]
 
-export function WorkspaceSetup() {
+export function WorkspaceSetup({ isOwner = false }: Readonly<{ isOwner?: boolean }>) {
+  // Owner tier (self-managing, single property, no team or trust account) skips the agency-only items.
+  const items = ITEMS.filter((it) => !(isOwner && it.agencyOnly))
   return (
     <div className="mt-4 overflow-hidden rounded-[var(--r-button)] border border-border border-b-2 border-b-primary bg-card">
       <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3.5">
@@ -36,7 +38,7 @@ export function WorkspaceSetup() {
       <p className="px-5 pb-1 pt-3 text-[12.5px] leading-relaxed text-muted-foreground">
         Optional, but worth doing — these shape how your statements, leases and tenant portal look and work. Do them whenever you like.
       </p>
-      {ITEMS.map((it) => {
+      {items.map((it) => {
         const Icon = it.icon
         return (
           <Link
