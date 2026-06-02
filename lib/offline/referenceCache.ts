@@ -115,6 +115,7 @@ export async function cacheReferenceData(): Promise<ReferenceCounts | null> {
     supabase
       .from("contacts")
       .select("id, primary_role, first_name, last_name, company_name, primary_email, primary_phone, organisation_contact_id, company_function")
+      .is("deleted_at", null)
       .limit(FETCH_LIMIT),
     supabase
       .from("properties")
