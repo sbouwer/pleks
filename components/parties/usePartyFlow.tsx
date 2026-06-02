@@ -75,6 +75,8 @@ export interface PartyFlow {
   back:            () => void
   goTo:            (index: number) => void
   reset:           () => void
+  /** merge values into the form (e.g. pre-fill from a profile) without leaving the current step. */
+  prefill:         (values: Partial<PartyFormState>) => void
 }
 
 export function usePartyFlow({ role, onSubmit, onDone }: UsePartyFlowOptions): PartyFlow {
@@ -88,6 +90,9 @@ export function usePartyFlow({ role, onSubmit, onDone }: UsePartyFlowOptions): P
 
   const set = (k: keyof PartyFormState, v: string | string[] | boolean) =>
     setF((p) => ({ ...p, [k]: v }))
+
+  const prefill = (values: Partial<PartyFormState>) =>
+    setF((p) => ({ ...p, ...values }))
 
   function reset() {
     setEntity("individual"); setF({}); setErrors({}); setStep(0); setDone(null)
@@ -142,6 +147,6 @@ export function usePartyFlow({ role, onSubmit, onDone }: UsePartyFlowOptions): P
     subtitle:        stepSubtitle(step, cfg.blurb, cfg.singular),
     primaryLabel:    primaryLabelFor(step, submitting, cfg.singular),
     primaryDisabled: submitting,
-    body, next, back, goTo, reset,
+    body, next, back, goTo, reset, prefill,
   }
 }

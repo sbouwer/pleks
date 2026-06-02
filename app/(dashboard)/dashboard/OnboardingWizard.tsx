@@ -12,7 +12,7 @@
  *         onboarding flag → the populated dashboard. ("Add me as landlord" via the 01C self-landlord is
  *         a fast follow.)
  */
-import { useState, useTransition } from "react"
+import { useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { FileText, ClipboardCheck, Home, UserCheck } from "lucide-react"
 import type { ReactNode } from "react"
@@ -20,7 +20,7 @@ import { WizardModal, type WizardModalStep } from "@/components/ui/wizard-modal"
 import { usePartyFlow } from "@/components/parties/usePartyFlow"
 import { PropertyWizardModal } from "@/app/(dashboard)/properties/new/PropertyWizardModal"
 import { addLandlordParty, addTenantParty, addContractorParty } from "@/lib/actions/parties"
-import { addSelfAsLandlord } from "@/lib/actions/addSelfAsLandlord"
+import { getSelfLandlordPrefill, bindSelfLandlord } from "@/lib/actions/selfLandlord"
 import { dismissOnboarding } from "@/lib/actions/dismissOnboarding"
 import type { PartyRole } from "@/lib/parties/partyConfig"
 import type { GettingStartedProgress } from "./GettingStarted"
@@ -63,7 +63,7 @@ function SelfLandlordBanner({ onAdd, adding }: Readonly<{ onAdd: () => void; add
       </span>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-foreground">Managing your own rental?</p>
-        <p className="text-xs text-muted-foreground">Add yourself as the landlord — we&apos;ll use your profile details.</p>
+        <p className="text-xs text-muted-foreground">We&apos;ll fill the form with your details — review and complete it before saving.</p>
       </div>
       <button
         type="button"
@@ -71,7 +71,7 @@ function SelfLandlordBanner({ onAdd, adding }: Readonly<{ onAdd: () => void; add
         disabled={adding}
         className="shrink-0 rounded-[var(--r-button)] border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-60"
       >
-        {adding ? "Adding…" : "Add me as landlord"}
+        {adding ? "Filling…" : "Use my details"}
       </button>
     </div>
   )
@@ -97,15 +97,31 @@ export function OnboardingWizard({
   const [propertyOpen, setPropertyOpen] = useState(false)
   const [finishing, startFinish] = useTransition()
   const [addingMe, startAddMe] = useTransition()
+  // When the agent chose "Add me as landlord", bind the saved landlord as the 01C self-landlord.
+  const selfModeRef = useRef(false)
 
   function handlePartyDone() { router.refresh(); goNext() }
 
-  // "Add me as landlord" — the 01C self-landlord (agent mirror), seeded from the profile, no form.
+  // "Add me as landlord" — pre-fill the landlord form from the profile so the agent can review and
+  // complete it (title, ID, etc.) before saving; the save then binds it as the self-landlord mirror.
   function handleAddMe() {
-    startAddMe(async () => { const r = await addSelfAsLandlord(); if (r.ok) handlePartyDone() })
+    startAddMe(async () => {
+      const p = await getSelfLandlordPrefill()
+      if (!p.ok) return
+      landlordFlow.prefill({ firstName: p.firstName, lastName: p.lastName, phone: p.phone, email: p.email })
+      selfModeRef.current = true
+    })
   }
 
-  const landlordFlow = usePartyFlow({ role: "landlord", onSubmit: addLandlordParty, onDone: handlePartyDone })
+  const landlordFlow = usePartyFlow({
+    role: "landlord",
+    onSubmit: async (input) => {
+      const r = await addLandlordParty(input)
+      if (r.ok && r.id && selfModeRef.current) { await bindSelfLandlord(r.id); selfModeRef.current = false }
+      return r
+    },
+    onDone: handlePartyDone,
+  })
   const tenantFlow   = usePartyFlow({ role: "tenant",   onSubmit: addTenantParty,   onDone: handlePartyDone })
   const supplierFlow = usePartyFlow({ role: "supplier", onSubmit: (input) => addContractorParty(input, "contractor"), onDone: handlePartyDone })
   function flowFor(role?: PartyRole) {
@@ -121,6 +137,7 @@ export function OnboardingWizard({
   function goTo(i: number) {
     if (i < 0 || i >= STEPS.length) return
     flowFor(STEPS[i].role)?.reset()   // fresh form when (re)entering a party step
+    if (STEPS[i].role === "landlord") selfModeRef.current = false   // drop a stale "add me" intent
     setIdx(i)
   }
   function goNext() {

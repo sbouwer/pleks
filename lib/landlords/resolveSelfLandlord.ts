@@ -25,6 +25,29 @@ export interface ResolveLandlordResult {
   error?:             string
 }
 
+/**
+ * Bind a landlord as the agent's self-landlord (Model B mirror) — Owner tier only (D-01C-10).
+ * Non-fatal if it fails: the landlord exists; only the sync binding is missed. Shared by
+ * resolveSelfLandlord (thin self-owned create) and the onboarding "Add me as landlord" path (which
+ * creates a full landlord via the party form, then binds it).
+ */
+export async function bindSelfLandlordIfOwner(
+  db: Db,
+  orgId: string,
+  userId: string,
+  landlordId: string,
+): Promise<void> {
+  const tier = await getOrgTierCanonical(orgId)
+  if (tier !== "owner") return
+  const { error } = await db
+    .from("user_profiles")
+    .update({ self_landlord_id: landlordId })
+    .eq("id", userId)
+  if (error) {
+    console.error("bindSelfLandlordIfOwner: self-landlord binding failed:", error.message)
+  }
+}
+
 export async function resolveSelfLandlord(
   db: Db,
   orgId: string,
@@ -75,16 +98,7 @@ export async function resolveSelfLandlord(
 
   // Bind only on Owner tier (D-01C-10). Non-fatal if it fails: the landlord exists and the property
   // links to it; only the sync binding is missed (reconcile_self_landlord_bindings can repair).
-  const tier = await getOrgTierCanonical(orgId)
-  if (tier === "owner") {
-    const { error: bindErr } = await db
-      .from("user_profiles")
-      .update({ self_landlord_id: landlord.id })
-      .eq("id", userId)
-    if (bindErr) {
-      console.error("resolveSelfLandlord: self-landlord binding failed:", bindErr.message)
-    }
-  }
+  await bindSelfLandlordIfOwner(db, orgId, userId, landlord.id as string)
 
   return {
     ok:                true,
