@@ -6,7 +6,7 @@
  * Route:  /properties/new (picker step)
  * Data:   lib/properties/scenarios (segments + scenario meta); writes scenarioType/unitCount to state
  * Notes:  ADDENDUM_60C — the self-vs-managed toggle was REMOVED (relationship is decided at step 1);
- *         the advanced-setup escape lives on this step (in WizardShell's footer).
+ *         the advanced-setup escape lives on this step (in the wizard modal footer).
  */
 import { useState } from "react"
 import {
