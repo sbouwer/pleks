@@ -20,6 +20,10 @@ import type { CoTenant } from "../wizardData"
 import { useLeaseWizard } from "../LeaseWizardContext"
 import type { StepHandle } from "../stepHandle"
 import { updateContactJuristicFields } from "@/lib/actions/contacts"
+import { ensureTenantForContact } from "@/lib/actions/leases"
+import { createClient } from "@/lib/supabase/client"
+
+interface Signatory { id: string; name: string; role: string | null }
 
 function TenantRow({
   label, tenantName, orgId, onSelect, onRemove,
@@ -68,6 +72,11 @@ export function TenantStep({ register }: Readonly<Props>) {
   const [addingCo, setAddingCo] = useState(false)
   const [error, setError] = useState("")
 
+  // Company signatories candidate pool (org tenant) — the agent picks which are added as co-lessees.
+  const [tenantContactId, setTenantContactId] = useState<string | null>(null)
+  const [signatories, setSignatories] = useState<Signatory[]>([])
+  const [promotingId, setPromotingId] = useState<string | null>(null)
+
   const org = orgId ?? ""
 
   const [tenantIsJuristic, setTenantIsJuristic] = useState(data.tenantIsJuristic)
@@ -100,6 +109,7 @@ export function TenantStep({ register }: Readonly<Props>) {
   function handleSelectMain(t: PickedTenant) {
     setTenantId(t.id)
     setTenantName(t.name)
+    setTenantContactId(t.contact_id)
     const isJuristic = t.entity_type !== "individual" && t.entity_type !== null
     setTenantIsJuristic(isJuristic)
     setTenantJuristicType(t.juristic_type)
@@ -113,7 +123,7 @@ export function TenantStep({ register }: Readonly<Props>) {
   function handleSelectCo(t: PickedTenant) {
     if (t.id === tenantId) { setError("Co-tenant must be a different person from the main tenant"); return }
     if (coTenants.some((c) => c.id === t.id)) { setError("This person is already added"); return }
-    setCoTenants((prev) => [...prev, { id: t.id, name: t.name }])
+    setCoTenants((prev) => [...prev, { id: t.id, name: t.name, isSignatory: false }])
     setAddingCo(false)
     setError("")
   }
@@ -125,7 +135,44 @@ export function TenantStep({ register }: Readonly<Props>) {
   function handleReplaceCo(existingId: string, t: PickedTenant) {
     if (t.id === tenantId) { setError("Co-tenant must be a different person"); return }
     if (coTenants.some((c) => c.id === t.id && c.id !== existingId)) { setError("This person is already added"); return }
-    setCoTenants((prev) => prev.map((c) => c.id === existingId ? { id: t.id, name: t.name } : c))
+    setCoTenants((prev) => prev.map((c) => c.id === existingId ? { id: t.id, name: t.name, isSignatory: false } : c))
+    setError("")
+  }
+
+  // Load the company tenant's signatories (25A is_signatory contacts) as the co-lessee candidate pool.
+  useEffect(() => {
+    if (!tenantIsJuristic || !tenantContactId || !org) { setSignatories([]); return }
+    let cancelled = false
+    const supabase = createClient()
+    supabase
+      .from("contacts")
+      .select("id, first_name, last_name, designation, company_function")
+      .eq("org_id", org)
+      .eq("organisation_contact_id", tenantContactId)
+      .eq("is_signatory", true)
+      .is("deleted_at", null)
+      .then(({ data: rows, error: err }) => {
+        if (cancelled) return
+        if (err) { console.error("TenantStep: load signatories failed:", err.message); setSignatories([]); return }
+        setSignatories((rows ?? []).map((r) => ({
+          id: r.id as string,
+          name: [r.first_name, r.last_name].filter(Boolean).join(" ").trim() || "Signatory",
+          role: (r.designation as string | null) || (r.company_function as string | null) || null,
+        })))
+      })
+    return () => { cancelled = true }
+  }, [tenantIsJuristic, tenantContactId, org])
+
+  // Promote a chosen signatory (a contact) to a tenant role, then add as a co-lessee with is_signatory.
+  async function handleAddSignatory(s: Signatory) {
+    if (coTenants.some((c) => c.contactId === s.id)) return
+    setPromotingId(s.id)
+    const res = await ensureTenantForContact(s.id)
+    setPromotingId(null)
+    if (!res.ok || !res.tenantId) { setError(res.error ?? "Couldn't add that signatory"); return }
+    if (res.tenantId === tenantId) { setError("That signatory is already the primary tenant"); return }
+    if (coTenants.some((c) => c.id === res.tenantId)) { setError("Already added as a co-lessee"); return }
+    setCoTenants((prev) => [...prev, { id: res.tenantId as string, name: s.name, isSignatory: true, contactId: s.id }])
     setError("")
   }
 
@@ -184,16 +231,20 @@ export function TenantStep({ register }: Readonly<Props>) {
       {/* Co-tenants (unlimited) */}
       {tenantId && (
         <div className="space-y-3">
-          {coTenants.map((co, i) => (
-            <TenantRow
-              key={co.id}
-              label={`Co-tenant ${coTenants.length > 1 ? i + 1 : ""}`}
-              tenantName={co.name}
-              orgId={org}
-              onSelect={(t) => handleReplaceCo(co.id, t)}
-              onRemove={() => handleRemoveCo(co.id)}
-            />
-          ))}
+          {coTenants.map((co, i) => {
+            const coNum = coTenants.length > 1 ? ` ${i + 1}` : ""
+            const coLabel = co.isSignatory ? "Co-lessee · signs for company" : `Co-tenant${coNum}`
+            return (
+              <TenantRow
+                key={co.id}
+                label={coLabel}
+                tenantName={co.name}
+                orgId={org}
+                onSelect={(t) => handleReplaceCo(co.id, t)}
+                onRemove={() => handleRemoveCo(co.id)}
+              />
+            )
+          })}
 
           {addingCo ? (
             <div className="space-y-2">
@@ -216,10 +267,36 @@ export function TenantStep({ register }: Readonly<Props>) {
               <Plus className="size-3.5" /> Add co-tenant
             </button>
           )}
-          {/* TODO(CD): when an organisation tenant is selected, list its signatories (fetchCompanyPeople,
-              is_signatory) each with an "add as co-tenant" action. Needs a data-model decision — co-tenants
-              are tenant ids, signatories are contacts under organisation_contact_id; do not implement until
-              CD specs whether a signatory becomes a tenant / how it's stored. */}
+        </div>
+      )}
+
+      {/* Company signatories — candidate pool for an organisation tenant. The agent picks which sign/occupy
+          as co-lessees (CPA: not every signatory is a co-lessee). Each pick is promoted to a tenant role and
+          stored in lease_co_tenants with is_signatory = true. */}
+      {tenantIsJuristic && signatories.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Company signatories</p>
+          <p className="text-xs text-muted-foreground">Add the people who sign or occupy on behalf of {tenantName} as co-lessees — pick only those who should be on the lease.</p>
+          <div className="space-y-2">
+            {signatories.map((s) => {
+              const added = coTenants.some((c) => c.contactId === s.id)
+              return (
+                <div key={s.id} className="flex items-center justify-between rounded-[var(--r-button)] border border-border bg-muted/20 px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{s.name}</p>
+                    {s.role && <p className="text-xs text-muted-foreground truncate">{s.role}</p>}
+                  </div>
+                  {added ? (
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground"><CheckCircle2 className="size-3.5 text-primary" /> Co-lessee</span>
+                  ) : (
+                    <button type="button" onClick={() => handleAddSignatory(s)} disabled={promotingId === s.id} className="text-xs font-medium text-primary hover:underline disabled:opacity-50">
+                      {promotingId === s.id ? "Adding…" : "Add as co-lessee"}
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
 

@@ -58,7 +58,7 @@ function appendCommonFields(formData: FormData, data: WizardData, cpaApplies: bo
   formData.set("escalation_percent", data.escalationPercent)
   formData.set("escalation_type", data.escalationType)
   if (data.deposit) formData.set("deposit_amount", data.deposit)
-  if (data.coTenants.length > 0) formData.set("co_tenants_json", JSON.stringify(data.coTenants.map((c) => c.id)))
+  if (data.coTenants.length > 0) formData.set("co_tenants_json", JSON.stringify(data.coTenants.map((c) => ({ tenant_id: c.id, is_signatory: !!c.isSignatory }))))
 }
 
 function buildGeneratedFormData(data: WizardData, cpaApplies: boolean): FormData {

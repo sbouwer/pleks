@@ -28,6 +28,7 @@ import { useAddTenantSubflow } from "@/app/(dashboard)/leases/new/addTenantConte
 export interface PickedTenant {
   id: string
   name: string
+  contact_id: string | null
   phone: string | null
   entity_type: string | null
   juristic_type: string | null
@@ -38,6 +39,7 @@ export interface PickedTenant {
 
 interface TenantRow {
   id: string
+  contact_id: string | null
   first_name: string | null
   last_name: string | null
   company_name: string | null
@@ -105,6 +107,7 @@ export function TenantPicker({ orgId, onSelect, trigger, align = "left", exclude
     onSelect({
       id: t.id,
       name: displayName(t),
+      contact_id: t.contact_id ?? null,
       phone: t.phone ?? null,
       entity_type: t.entity_type,
       juristic_type: t.juristic_type ?? null,
@@ -140,6 +143,7 @@ export function TenantPicker({ orgId, onSelect, trigger, align = "left", exclude
     onSelect({
       id: t.id,
       name: displayName(t),
+      contact_id: t.contact_id ?? null,
       phone: t.phone ?? null,
       entity_type: t.entity_type,
       juristic_type: t.juristic_type ?? null,

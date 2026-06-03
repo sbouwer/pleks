@@ -35,6 +35,10 @@ export interface SpecialTerm {
 export interface CoTenant {
   id: string
   name: string
+  /** true when this co-lessee signs for a company tenant (→ lease_co_tenants.is_signatory). */
+  isSignatory?: boolean
+  /** the underlying contact id (set for promoted company signatories) — lets the picker dedupe candidates. */
+  contactId?: string
 }
 
 export interface AnnexureCRules {

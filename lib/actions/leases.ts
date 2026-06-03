@@ -118,19 +118,32 @@ async function insertLeaseCharges(db: DbClient, formData: FormData, leaseId: str
   } catch { /* ignore malformed charges */ }
 }
 
-async function insertCoTenants(db: DbClient, formData: FormData, leaseId: string, orgId: string): Promise<string[]> {
-  const coTenantsRaw = formData.get("co_tenants_json") as string | null
-  if (!coTenantsRaw) return []
+interface CoTenantInput { tenant_id: string; is_signatory: boolean }
+
+/** Parse co_tenants_json — accepts the new {tenant_id,is_signatory}[] shape and the legacy string[] (→ not a
+ *  signatory). Co-lessees and company signatories share lease_co_tenants; is_signatory marks which ones sign. */
+function parseCoTenants(raw: string | null): CoTenantInput[] {
+  if (!raw) return []
   try {
-    const coTenantIds = JSON.parse(coTenantsRaw) as string[]
-    if (coTenantIds.length > 0) {
-      await db.from("lease_co_tenants").insert(
-        coTenantIds.map((tid) => ({ org_id: orgId, lease_id: leaseId, tenant_id: tid }))
-      )
-    }
-    return coTenantIds
-  } catch { /* ignore malformed */ }
-  return []
+    const parsed = JSON.parse(raw) as Array<string | { tenant_id?: string; is_signatory?: boolean }>
+    return parsed
+      .map((x) => (typeof x === "string"
+        ? { tenant_id: x, is_signatory: false }
+        : { tenant_id: x.tenant_id ?? "", is_signatory: !!x.is_signatory }))
+      .filter((c) => c.tenant_id)
+  } catch {
+    return []
+  }
+}
+
+async function insertCoTenants(db: DbClient, formData: FormData, leaseId: string, orgId: string): Promise<string[]> {
+  const co = parseCoTenants(formData.get("co_tenants_json") as string | null)
+  if (co.length > 0) {
+    await db.from("lease_co_tenants").insert(
+      co.map((c) => ({ org_id: orgId, lease_id: leaseId, tenant_id: c.tenant_id, is_signatory: c.is_signatory }))
+    )
+  }
+  return co.map((c) => c.tenant_id)
 }
 
 async function saveClauseSelections(db: DbClient, formData: FormData, leaseId: string, orgId: string, propertyId: string) {
@@ -323,21 +336,16 @@ export async function createUploadedLease(formData: FormData): Promise<{ error: 
 
   const leaseId = lease.id
 
-  // Insert co-tenants
-  const coTenantsRaw = formData.get("co_tenants_json") as string | null
-  if (coTenantsRaw) {
-    try {
-      const coTenantIds = JSON.parse(coTenantsRaw) as string[]
-      if (coTenantIds.length > 0) {
-        await db.from("lease_co_tenants").insert(
-          coTenantIds.map((tid) => ({ org_id: orgId, lease_id: leaseId, tenant_id: tid }))
-        )
-        await db.from("units").update({
-          prospective_tenant_id: tenantId,
-          prospective_co_tenant_ids: coTenantIds,
-        }).eq("id", unitId)
-      }
-    } catch { /* ignore malformed */ }
+  // Insert co-tenants (co-lessees + company signatories; is_signatory marks which ones sign)
+  const co = parseCoTenants(formData.get("co_tenants_json") as string | null)
+  if (co.length > 0) {
+    await db.from("lease_co_tenants").insert(
+      co.map((c) => ({ org_id: orgId, lease_id: leaseId, tenant_id: c.tenant_id, is_signatory: c.is_signatory }))
+    )
+    await db.from("units").update({
+      prospective_tenant_id: tenantId,
+      prospective_co_tenant_ids: co.map((c) => c.tenant_id),
+    }).eq("id", unitId)
   } else {
     await db.from("units").update({ prospective_tenant_id: tenantId }).eq("id", unitId)
   }
@@ -609,6 +617,31 @@ export async function giveNotice(leaseId: string, givenBy: "tenant" | "landlord"
   revalidatePath(`/leases/${leaseId}`)
   revalidatePath("/leases")
   return { success: true }
+}
+
+/**
+ * Promote an existing contact to a tenant role (for adding a company signatory as a co-lessee). Reuses the
+ * contact's tenant row if one already exists (25A globality: one person → one contact, gains a tenant role),
+ * else creates it. Returns the tenant id to store in lease_co_tenants. ADDENDUM_LEASE_CREATION_MODAL.
+ */
+export async function ensureTenantForContact(contactId: string): Promise<{ ok: boolean; tenantId?: string; error?: string }> {
+  const gw = await requireAgentWriteAccess("ensure_tenant_for_contact")
+  const { db, orgId } = gw
+
+  const { data: contact, error: contactErr } = await db
+    .from("contacts").select("id").eq("id", contactId).eq("org_id", orgId).is("deleted_at", null).maybeSingle()
+  if (contactErr) return { ok: false, error: contactErr.message }
+  if (!contact) return { ok: false, error: "Contact not found" }
+
+  const { data: existing, error: existErr } = await db
+    .from("tenants").select("id").eq("org_id", orgId).eq("contact_id", contactId).is("deleted_at", null).maybeSingle()
+  if (existErr) return { ok: false, error: existErr.message }
+  if (existing?.id) return { ok: true, tenantId: existing.id }
+
+  const { data: created, error: createErr } = await db
+    .from("tenants").insert({ org_id: orgId, contact_id: contactId }).select("id").single()
+  if (createErr || !created) return { ok: false, error: createErr?.message ?? "Failed to create tenant" }
+  return { ok: true, tenantId: created.id }
 }
 
 export async function addLeaseCoTenant(leaseId: string, tenantId: string): Promise<{ error: string } | { success: true }> {
