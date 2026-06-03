@@ -1,15 +1,38 @@
 "use server"
 
 /**
- * lib/actions/configuration.ts — FILL: one-line purpose
+ * lib/actions/configuration.ts — org-level configuration writes (Settings)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   requireAgentWriteAccess (agent write gate — subscription lockdown enforced)
+ * Data:   organisations.settings (JSON, merged) + scalar org columns; keyed by organisations.id = orgId
+ * Notes:  saveOrgConfiguration merges into the settings JSON so it never clobbers other subsystems' keys.
+ *         setDefaultLeaseDocumentSource (ADDENDUM_LEASE_CREATION_MODAL Phase 3 / D-7) persists the lease
+ *         document-source fork default; null clears it (back to undecided → the lease step shows the fork).
  */
 import { requireAgentWriteAccess } from "@/lib/auth/server"
+
+export type LeaseDocumentSource = "pleks" | "external"
+
+/**
+ * Persist the org's default lease document source (Axis A). 'pleks' = Generate with Pleks,
+ * 'external' = Upload signed leases, null = undecided. Read by the lease CreateStep via useOrg().
+ */
+export async function setDefaultLeaseDocumentSource(
+  source: LeaseDocumentSource | null,
+): Promise<{ error?: string }> {
+  const { db, orgId } = await requireAgentWriteAccess("edit_org_settings")
+
+  const { error } = await db
+    .from("organisations")
+    .update({ default_lease_document_source: source })
+    .eq("id", orgId)
+
+  if (error) {
+    console.error("setDefaultLeaseDocumentSource:", error.message)
+    return { error: "Could not save your lease default" }
+  }
+  return {}
+}
 
 export async function saveOrgConfiguration(formData: FormData): Promise<{ error?: string }> {
   const gw = await requireAgentWriteAccess("edit_org_settings")

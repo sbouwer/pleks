@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ClauseConfigurator } from "@/components/leases/ClauseConfigurator"
 import { LeaseBrandingSection } from "@/components/leases/LeaseBrandingSection"
+import { LeaseSourceDefaultSetting } from "@/components/leases/LeaseSourceDefaultSetting"
 import { LeasePreview } from "@/components/leases/LeasePreview"
 import { ActionButton, InlineLink } from "@/components/ui/actions"
 import { useRouter } from "next/navigation"
@@ -157,6 +158,9 @@ export default function LeaseTemplatesPage() {
       )}
 
       <div className={orgInfo?.clauseEditConfirmedAt ? "" : "mt-8"}>
+        {/* Default lease document source (Axis A) — ADDENDUM_LEASE_CREATION_MODAL Phase 3 / D-7 */}
+        <LeaseSourceDefaultSetting />
+
         {/* Lease branding */}
         <LeaseBrandingSection />
 

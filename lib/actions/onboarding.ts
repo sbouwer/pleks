@@ -37,6 +37,9 @@ export interface OnboardingData {
   tosAccepted: boolean
   invites?: Array<{ email: string; role: string }>
   onboardingComplete: boolean
+  // ADDENDUM_LEASE_CREATION_MODAL Phase 3 (D-7): optional org default for the lease document-source fork.
+  // 'pleks' = Generate with Pleks · 'external' = Upload signed leases · undefined = undecided (show the fork).
+  defaultLeaseDocumentSource?: "pleks" | "external"
   // Auth fields (only when creating a new account)
   password?: string
   isAlreadyAuthenticated?: boolean
@@ -82,6 +85,8 @@ export async function createAccountAndOrg(data: OnboardingData): Promise<{
       ppra_ffc_number: data.ppraFfcNumber || null,
       user_type: data.userType,
       onboarding_complete: data.onboardingComplete,
+      // Phase 3: only set when the agent made a choice; undecided stays NULL → lease step shows the fork.
+      default_lease_document_source: data.defaultLeaseDocumentSource ?? null,
     })
     .select("id")
     .single()

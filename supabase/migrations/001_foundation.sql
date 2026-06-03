@@ -824,3 +824,19 @@ RETURNS boolean AS $$
   );
 $$ LANGUAGE sql SECURITY DEFINER
    SET search_path = auth, public;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §6  ADDENDUM_LEASE_CREATION_MODAL (Phase 3): organisations.default_lease_document_source
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Org-level default for the lease step-4 fork (Axis A): 'pleks' = Generate with Pleks,
+-- 'external' = Upload signed leases. NULL = undecided → the lease CreateStep just shows
+-- the fork (D-7). Captured optionally at onboarding; editable later from Settings. Nullable,
+-- no backfill. CreateStep reads it via useOrg() (organisations(*)) and maps 'external'→'uploaded'.
+
+ALTER TABLE organisations
+  ADD COLUMN IF NOT EXISTS default_lease_document_source text
+  CHECK (default_lease_document_source IN ('pleks', 'external'));
+
+COMMENT ON COLUMN organisations.default_lease_document_source IS
+  'ADDENDUM_LEASE_CREATION_MODAL Phase 3 / D-7: org default for the lease document-source fork. '
+  '''pleks'' = Generate with Pleks, ''external'' = Upload signed leases, NULL = undecided (show fork).';
