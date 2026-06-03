@@ -17,11 +17,12 @@ import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
 import { usePermissions } from "@/hooks/usePermissions"
-import { Trash2 } from "lucide-react"
+import { Trash2, RotateCcw } from "lucide-react"
 import { PORTFOLIO_QUERY_KEYS } from "@/lib/queries/portfolio"
 import { AddPartyModal } from "@/components/parties/AddPartyModal"
 import { EditPartyModal } from "@/components/parties/EditPartyModal"
 import { addContractorParty, fetchContractorParty, updateContractorParty } from "@/lib/actions/parties"
+import { fetchArchivedSuppliers, reactivateSupplier, type ArchivedSupplier } from "@/lib/actions/supplierArchive"
 
 // Canonical speciality list lives in lib/parties/partyConfig (single source — re-exported here so
 // any existing importer of this module keeps working).
@@ -57,6 +58,33 @@ export function SuppliersClient({ contractors: initial, orgId }: Readonly<Props>
   const { sortKey, sortDir, onSort } = useListSort<SortKey>("company")
 
   const { isAdmin } = usePermissions()
+
+  const [showArchived, setShowArchived] = useState(false)
+  const [archived, setArchived] = useState<ArchivedSupplier[]>([])
+  const [loadingArchived, setLoadingArchived] = useState(false)
+  const [reactivatingId, setReactivatingId] = useState<string | null>(null)
+
+  async function toggleArchived() {
+    if (showArchived) { setShowArchived(false); return }
+    setLoadingArchived(true)
+    setArchived(await fetchArchivedSuppliers())
+    setLoadingArchived(false)
+    setShowArchived(true)
+  }
+
+  async function handleReactivate(s: ArchivedSupplier) {
+    setReactivatingId(s.id)
+    const res = await reactivateSupplier(s.id, s.contactId)
+    setReactivatingId(null)
+    if (res.ok) {
+      toast.success("Supplier reactivated")
+      setArchived((prev) => prev.filter((x) => x.id !== s.id))
+      queryClient.invalidateQueries({ queryKey: PORTFOLIO_QUERY_KEYS.contractors(orgId) })
+      router.refresh()
+    } else {
+      toast.error(res.error ?? "Could not reactivate")
+    }
+  }
 
   const filtered = initial
     .filter((c) => {
@@ -138,10 +166,15 @@ export function SuppliersClient({ contractors: initial, orgId }: Readonly<Props>
         )}
       </div>
 
-      <p className="text-xs text-muted-foreground">
-        {filtered.length} of {initial.length} contractor{initial.length === 1 ? "" : "s"}
-        {activeFilter && ` · filtered by "${activeFilter}"`}
-      </p>
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">
+          {filtered.length} of {initial.length} contractor{initial.length === 1 ? "" : "s"}
+          {activeFilter && ` · filtered by "${activeFilter}"`}
+        </p>
+        <button type="button" onClick={toggleArchived} className="text-xs text-muted-foreground transition-colors hover:text-foreground hover:underline">
+          {showArchived ? "Hide archived" : "Show archived"}
+        </button>
+      </div>
 
       {filtered.length === 0 ? (
         <p className="text-sm text-muted-foreground py-8 text-center">No contractors match your search.</p>
@@ -256,6 +289,38 @@ export function SuppliersClient({ contractors: initial, orgId }: Readonly<Props>
             </tbody>
           </table>
         </ListCard>
+      )}
+
+      {showArchived && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Archived suppliers</p>
+          {loadingArchived && <p className="text-sm text-muted-foreground">Loading…</p>}
+          {!loadingArchived && archived.length === 0 && <p className="text-sm text-muted-foreground">No archived suppliers.</p>}
+          {!loadingArchived && archived.length > 0 && (
+            <ListCard>
+              <div className="divide-y divide-border">
+                {archived.map((s) => (
+                  <div key={s.id} className="flex items-center justify-between px-4 py-2.5">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{s.name}</p>
+                      <p className="text-xs text-muted-foreground">Archived</p>
+                    </div>
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => handleReactivate(s)}
+                        disabled={reactivatingId === s.id}
+                        className="inline-flex items-center gap-1.5 rounded-[var(--r-button)] border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
+                      >
+                        <RotateCcw className="size-3.5" /> {reactivatingId === s.id ? "Reactivating…" : "Reactivate"}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </ListCard>
+          )}
+        </div>
       )}
 
       {editId && (
