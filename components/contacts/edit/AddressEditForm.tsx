@@ -1,13 +1,13 @@
 "use client"
 
 /**
- * components/contacts/edit/AddressEditForm.tsx — FILL: one-line purpose
+ * components/contacts/edit/AddressEditForm.tsx — inline create/edit form for a contact's postal/physical address
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   none directly; POSTs/PATCHes to /api/{entityType}/{entityId}/contact-details (gated server-side)
+ * Data:   contact_addresses via the contact-details route handler
+ * Notes:  address_type defaults to "physical" — must be a valid contact_addresses.address_type CHECK value
+ *         (physical|postal|billing|work|other). The form has no type picker, so the default IS the persisted
+ *         value on create; the route's `?? "physical"` only catches null/undefined, not a stale string.
  */
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
@@ -47,7 +47,7 @@ export function AddressEditForm({ entityType, entityId, address, onSaved }: Read
     city: address?.city ?? "",
     province: address?.province ?? "",
     postal_code: address?.postal_code ?? "",
-    address_type: address?.address_type ?? "residential",
+    address_type: address?.address_type ?? "physical",
   })
 
   const baseUrl = `/api/${entityType}/${entityId}/contact-details`
