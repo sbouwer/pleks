@@ -44,12 +44,14 @@ function Fact({ fact }: Readonly<{ fact: DetailFact }>) {
 }
 
 export function DetailPageHeader({
-  category, backHref, title, status, facts, actions, tabs,
+  category, backHref, title, status, badge, facts, actions, tabs,
 }: Readonly<{
   category: string
   backHref: string
   title: ReactNode
   status?: DetailStatus
+  /** optional type chip next to the status pill (e.g. UTILITY / SCHEME SERVICE / TRUST). */
+  badge?: ReactNode
   facts: DetailFact[]
   actions?: ReactNode
   tabs?: ReactNode
@@ -70,6 +72,7 @@ export function DetailPageHeader({
       <div className="mt-2 flex flex-wrap items-center gap-3">
         <h1 className="font-heading text-3xl font-bold leading-tight text-foreground">{title}</h1>
         {status && <StatusPill status={status} />}
+        {badge}
       </div>
 
       <div className="mt-5 flex items-end justify-between gap-4 border-b border-dashed border-border pb-4">

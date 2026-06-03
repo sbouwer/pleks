@@ -10,8 +10,10 @@
  */
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import { Wrench } from "lucide-react"
+import { Wrench, Landmark, Zap } from "lucide-react"
 import { DetailPageLayout, DetailFullWidth } from "@/components/detail/DetailPageLayout"
+import { DetailTypeBadge } from "@/components/detail/DetailTypeBadge"
+import { supplierArchetypeConfig } from "@/lib/suppliers/archetype"
 import { DetailSection } from "@/components/detail/DetailSection"
 import { DetailQuickbar } from "@/components/detail/DetailQuickbar"
 import { contactActions } from "@/lib/detail/contactActions"
@@ -116,7 +118,7 @@ export default async function ContractorDetailPage({ params }: Props) {
   // Fetch contractor from view
   const { data: contractor } = await service
     .from("contractor_view")
-    .select("id, contact_id, entity_type, first_name, last_name, company_name, trading_as, registration_number, vat_number, email, phone, specialities, is_active, notes, call_out_rate_cents, hourly_rate_cents")
+    .select("id, contact_id, entity_type, first_name, last_name, company_name, trading_as, registration_number, vat_number, email, phone, specialities, is_active, notes, call_out_rate_cents, hourly_rate_cents, supplier_type, property_ids")
     .eq("id", id)
     .eq("org_id", membership.org_id)
     .single()
@@ -232,10 +234,12 @@ export default async function ContractorDetailPage({ params }: Props) {
   const primaryEmail = emails?.[0]?.email ?? null
   const activeJobCount = (activeJobs ?? []).length
 
-  // Identity → status pill (active/inactive) + the header facts strip.
+  // Identity → status pill (active/inactive) + the type chip (archetype) + the header facts strip.
   const status: DetailStatus = contractor.is_active
     ? { kind: "occupied", label: "Active" }
     : { kind: "neutral", label: "Inactive" }
+  const arch = supplierArchetypeConfig(contractor.supplier_type)
+  const archIcon = { contractor: Wrench, scheme: Landmark, utility: Zap }[arch.archetype]
 
   const facts: DetailFact[] = [
     { k: "Type", v: contractor.entity_type === "organisation" ? "Company" : "Individual" },
@@ -257,6 +261,7 @@ export default async function ContractorDetailPage({ params }: Props) {
       backHref="/suppliers"
       title={displayName}
       status={status}
+      badge={<DetailTypeBadge label={arch.badgeLabel} icon={archIcon} />}
       facts={facts}
       actions={<DetailQuickbar actions={actions} />}
     >

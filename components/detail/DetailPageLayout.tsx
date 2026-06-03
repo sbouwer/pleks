@@ -17,12 +17,14 @@ export function DetailFullWidth({ children }: Readonly<{ children: ReactNode }>)
 }
 
 export function DetailPageLayout({
-  category, backHref, title, status, facts, actions, tabs, children,
+  category, backHref, title, status, badge, facts, actions, tabs, children,
 }: Readonly<{
   category: string
   backHref: string
   title: ReactNode
   status?: DetailStatus
+  /** optional type chip next to the status pill (e.g. UTILITY / SCHEME SERVICE / TRUST). */
+  badge?: ReactNode
   facts: DetailFact[]
   actions?: ReactNode
   tabs?: ReactNode
@@ -35,6 +37,7 @@ export function DetailPageLayout({
         backHref={backHref}
         title={title}
         status={status}
+        badge={badge}
         facts={facts}
         actions={actions}
         tabs={tabs}
