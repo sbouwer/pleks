@@ -19,6 +19,7 @@ import { triageMaintenanceRequest, deriveSeverityFromTriage } from "@/lib/ai/mai
 import { hasFeature } from "@/lib/tier/gates"
 import { getOrgTier } from "@/lib/tier/getOrgTier"
 import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
+import { resolveCompanyContact } from "@/lib/contacts/resolveCompanyContact"
 import { routeAndSend } from "@/lib/messaging/router"
 import { WorkOrderDispatchEmail } from "@/lib/comms/templates/maintenance/work-order-dispatch"
 import { MaintenanceLoggedEmail } from "@/lib/comms/templates/tenant/maintenance/maintenance-logged"
@@ -257,19 +258,31 @@ async function prepareWorkOrderSent(
     || [contractor?.first_name, contractor?.last_name].filter(Boolean).join(" ")
     || "Contractor"
 
-  if (contractor?.email) {
-    await sendWorkOrderEmail({ db, userId, requestId, req, contractor, contractorDisplayName, token })
+  // 25A §3: route the work order to the supplier's maintenance (or primary) person when one exists;
+  // otherwise fall back to the contractor's own email — resolver only improves routing, never drops a send.
+  const contractorContactId = (contractor?.contact_id as string | null) ?? null
+  const resolved = contractorContactId
+    ? await resolveCompanyContact(db, req.org_id as string, contractorContactId, "maintenance", "email")
+    : null
+  const recipientEmail = resolved?.email ?? (contractor?.email as string | null) ?? null
+  const recipientName = resolved?.name ?? contractorDisplayName
+  const recipientContactId = resolved?.contactId ?? contractorContactId ?? undefined
+
+  if (recipientEmail) {
+    await sendWorkOrderEmail({ db, userId, requestId, req, recipientEmail, recipientName, recipientContactId, contractorDisplayName, token })
   }
 
   return { extraUpdates, toastMessage: `Work order sent to ${contractorDisplayName}` }
 }
 
-async function sendWorkOrderEmail({ db, userId, requestId, req, contractor, contractorDisplayName, token }: {
+async function sendWorkOrderEmail({ db, userId, requestId, req, recipientEmail, recipientName, recipientContactId, contractorDisplayName, token }: {
   db: GatewayDb
   userId: string
   requestId: string
   req: Record<string, unknown>
-  contractor: Record<string, unknown>
+  recipientEmail: string
+  recipientName: string
+  recipientContactId?: string
   contractorDisplayName: string
   token: string
 }) {
@@ -305,7 +318,7 @@ async function sendWorkOrderEmail({ db, userId, requestId, req, contractor, cont
   try {
     await sendEmail({
       orgId, templateKey: "maintenance.work_order",
-      to: { email: contractor.email as string, name: contractorDisplayName, contactId: (contractor.contact_id as string | null) ?? undefined },
+      to: { email: recipientEmail, name: recipientName, contactId: recipientContactId },
       subject: `Work Order ${req.work_order_number} — ${propertyLabel}`,
       emailElement: React.createElement(WorkOrderDispatchEmail, {
         branding, contractorName: contractorDisplayName,
