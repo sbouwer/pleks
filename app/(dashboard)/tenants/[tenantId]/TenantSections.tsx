@@ -45,6 +45,7 @@ interface ContactAddress {
   city: string | null
   province: string | null
   postal_code: string | null
+  country: string | null
   address_type: string
   is_primary: boolean
 }
@@ -241,6 +242,7 @@ export function TenantAddressSection({ entityId, address }: Readonly<TenantAddre
     address?.city,
     address?.province,
     address?.postal_code,
+    address?.country && address.country !== "South Africa" ? address.country : null,
   ].filter(Boolean).join(", ")
 
   return (

@@ -18,7 +18,7 @@ export interface SubRecordBody {
   number?: string; phone_type?: string; label?: string; is_primary?: boolean; can_whatsapp?: boolean
   email?: string; email_type?: string
   street_line1?: string; street_line2?: string; suburb?: string; city?: string
-  province?: string; postal_code?: string; address_type?: string
+  province?: string; postal_code?: string; country?: string; address_type?: string
   account_name?: string; bank_name?: string; account_number?: string; branch_code?: string; account_type?: string
 }
 
@@ -51,7 +51,8 @@ async function insertAddress(service: Service, orgId: string, contactId: string,
     org_id: orgId, contact_id: contactId,
     street_line1: b.street_line1 ?? null, street_line2: b.street_line2 ?? null,
     suburb: b.suburb ?? null, city: b.city ?? null, province: b.province ?? null,
-    postal_code: b.postal_code ?? null, address_type: b.address_type ?? "physical", is_primary: b.is_primary ?? false,
+    postal_code: b.postal_code ?? null, country: b.country?.trim() || "South Africa",
+    address_type: b.address_type ?? "physical", is_primary: b.is_primary ?? false,
   }))
 }
 
@@ -82,7 +83,8 @@ function updateAddress(service: Service, contactId: string, id: string, b: SubRe
   return service.from("contact_addresses").update({
     street_line1: b.street_line1 ?? null, street_line2: b.street_line2 ?? null,
     suburb: b.suburb ?? null, city: b.city ?? null, province: b.province ?? null,
-    postal_code: b.postal_code ?? null, address_type: b.address_type ?? "physical",
+    postal_code: b.postal_code ?? null, country: b.country?.trim() || "South Africa",
+    address_type: b.address_type ?? "physical",
   }).eq("id", id).eq("contact_id", contactId)
 }
 

@@ -69,6 +69,20 @@ export const SA_PROVINCES = [
   "Mpumalanga",
 ] as const
 
+export const DEFAULT_COUNTRY = "South Africa"
+
+// Contacts can be abroad — South Africa first, then common countries. Province becomes free text off South Africa.
+export const COUNTRIES = [
+  "South Africa",
+  "Namibia", "Botswana", "Zimbabwe", "Mozambique", "Eswatini", "Lesotho", "Zambia", "Malawi", "Mauritius",
+  "United Kingdom", "Ireland", "Netherlands", "Belgium", "Germany", "France", "Spain", "Portugal", "Italy",
+  "Switzerland", "Austria", "Denmark", "Sweden", "Norway", "Finland", "Greece", "Poland",
+  "United States", "Canada", "Australia", "New Zealand",
+  "United Arab Emirates", "Saudi Arabia", "Qatar", "Israel",
+  "India", "China", "Hong Kong", "Singapore", "Japan",
+  "Nigeria", "Kenya", "Ghana", "Egypt", "Brazil", "Argentina", "Other",
+] as const
+
 export const UNIT_FEATURES = [
   "Pool",
   "Garden",

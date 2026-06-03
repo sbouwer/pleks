@@ -36,6 +36,7 @@ export interface PartyAddressInput {
   city?: string
   province?: string
   postal?: string
+  country?: string   // defaults to South Africa; province is free text when not SA
 }
 
 /** A bank account captured at create time → contact_bank_accounts (global multi-account banking). */

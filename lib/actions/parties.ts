@@ -155,8 +155,9 @@ async function insertCompanyAddresses(db: Db, orgId: string, contactId: string, 
       street_line2: a.line2?.trim() || null,
       suburb: a.suburb?.trim() || null,
       city: a.city?.trim() || null,
-      province: a.province || null,
+      province: a.province?.trim() || null,
       postal_code: a.postal?.trim() || null,
+      country: a.country?.trim() || "South Africa",
       is_primary: a.type === "physical",
     }))
   if (rows.length === 0) return
@@ -307,6 +308,7 @@ function mapAddressesToForm(rows: Array<Record<string, unknown>> | null): PartyA
       city: (a.city as string | null) ?? undefined,
       province: (a.province as string | null) ?? undefined,
       postal: (a.postal_code as string | null) ?? undefined,
+      country: (a.country as string | null) ?? undefined,
     }))
 }
 
@@ -405,7 +407,7 @@ export async function fetchContractorParty(contractorId: string): Promise<PartyE
 
   const [{ data: con }, { data: addrs }, { data: banks }] = await Promise.all([
     db.from("contractors").select("vat_registered").eq("id", contractorId).eq("org_id", orgId).single(),
-    db.from("contact_addresses").select("street_line1, street_line2, suburb, city, province, postal_code, address_type").eq("contact_id", c.contact_id),
+    db.from("contact_addresses").select("street_line1, street_line2, suburb, city, province, postal_code, country, address_type").eq("contact_id", c.contact_id),
     db.from("contact_bank_accounts").select("id, account_name, bank_name, account_number, branch_code, account_type, label, is_primary").eq("contact_id", c.contact_id).order("is_primary", { ascending: false }),
   ])
 
@@ -528,7 +530,7 @@ export async function fetchLandlordParty(landlordId: string): Promise<PartyEditD
   const entity: PartyEntity = l.entity_type === "organisation" ? "company" : "individual"
 
   const [{ data: addrs }, { data: banks }] = await Promise.all([
-    db.from("contact_addresses").select("street_line1, street_line2, suburb, city, province, postal_code, address_type").eq("contact_id", l.contact_id),
+    db.from("contact_addresses").select("street_line1, street_line2, suburb, city, province, postal_code, country, address_type").eq("contact_id", l.contact_id),
     db.from("contact_bank_accounts").select("id, account_name, bank_name, account_number, branch_code, account_type, label, is_primary").eq("contact_id", l.contact_id).order("is_primary", { ascending: false }),
   ])
   const people = entity === "company" ? await fetchCompanyPeopleAsParty(db, orgId, l.contact_id) : undefined
@@ -658,7 +660,7 @@ export async function fetchTenantParty(tenantId: string): Promise<PartyEditData>
 
   const [{ data: ident }, { data: addrs }] = await Promise.all([
     db.from("contacts").select("registration_number, vat_number").eq("id", t.contact_id as string).single(),
-    db.from("contact_addresses").select("street_line1, street_line2, suburb, city, province, postal_code, address_type").eq("contact_id", t.contact_id),
+    db.from("contact_addresses").select("street_line1, street_line2, suburb, city, province, postal_code, country, address_type").eq("contact_id", t.contact_id),
   ])
   const people = entity === "company" ? await fetchCompanyPeopleAsParty(db, orgId, t.contact_id as string) : undefined
 

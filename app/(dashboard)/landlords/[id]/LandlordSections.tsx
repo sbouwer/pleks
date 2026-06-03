@@ -40,6 +40,7 @@ interface ContactAddress {
   city: string | null
   province: string | null
   postal_code: string | null
+  country: string | null
   address_type: string
   is_primary: boolean
 }
@@ -195,6 +196,7 @@ export function LandlordAddressSection({
         address.street_line2,
         [address.suburb, address.city].filter(Boolean).join(", "),
         [address.province, address.postal_code].filter(Boolean).join(" "),
+        address.country && address.country !== "South Africa" ? address.country : null,
       ].filter(Boolean)
     : []
 

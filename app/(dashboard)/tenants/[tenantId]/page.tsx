@@ -159,7 +159,7 @@ export default async function TenantDetailPage({
       .order("is_primary", { ascending: false }),
     service
       .from("contact_addresses")
-      .select("id, street_line1, street_line2, suburb, city, province, postal_code, address_type, is_primary")
+      .select("id, street_line1, street_line2, suburb, city, province, postal_code, country, address_type, is_primary")
       .eq("contact_id", tenant.contact_id)
       .order("is_primary", { ascending: false }),
     service

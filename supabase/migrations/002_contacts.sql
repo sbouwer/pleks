@@ -226,11 +226,7 @@ CREATE TABLE IF NOT EXISTS contact_addresses (
   street_line2    text,
   suburb          text,
   city            text,
-  province        text CHECK (province IN (
-                    'Western Cape', 'Eastern Cape', 'Northern Cape',
-                    'North West', 'Free State', 'KwaZulu-Natal',
-                    'Gauteng', 'Limpopo', 'Mpumalanga'
-                  )),
+  province        text,   -- free text: a SA province OR an international state/region (contacts can be abroad)
   postal_code     text,
   country         text NOT NULL DEFAULT 'South Africa',
   is_primary      boolean NOT NULL DEFAULT false,
@@ -1061,3 +1057,10 @@ BEGIN
   END IF;
 END
 $do$;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §17  INTERNATIONAL_ADDRESSES: contacts can be abroad — drop the SA-only province CHECK
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- province is now free text (a SA province OR an international state/region). country already exists
+-- (default 'South Africa'). Idempotent: the inline CHECK is auto-named contact_addresses_province_check.
+ALTER TABLE contact_addresses DROP CONSTRAINT IF EXISTS contact_addresses_province_check;

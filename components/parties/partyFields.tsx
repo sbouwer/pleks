@@ -10,7 +10,7 @@
  */
 import { Check, Plus, X } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { SA_PROVINCES } from "@/lib/constants"
+import { SA_PROVINCES, COUNTRIES, DEFAULT_COUNTRY } from "@/lib/constants"
 import { PARTY_ID_TYPES, COMPANY_FUNCTION_OPTIONS } from "@/lib/parties/partyConfig"
 import { validateSAId, type PartyFormState, type PartyErrors, type PartyPerson, type PartyAddressInput, type PartyBankAccountInput } from "@/lib/parties/partyValidation"
 
@@ -228,19 +228,28 @@ function BareSelect({
 }
 
 const ADDRESS_PROVINCE_OPTIONS = [{ value: "", label: "Province…" }, ...SA_PROVINCES.map((p) => ({ value: p, label: p }))]
+const COUNTRY_OPTIONS = COUNTRIES.map((c) => ({ value: c, label: c }))
 
-/** One typed company address (25A multi-address). Writes a patch back into the parent's addresses array. */
+/** One typed address (25A multi-address). Writes a patch back into the parent's addresses array. Contacts can be
+ *  abroad: country defaults to South Africa; the province becomes a free-text state/region off South Africa. */
 export function AddressFields({
   address, onUpdate, requiredLine,
 }: Readonly<{ address: PartyAddressInput; onUpdate: (patch: Partial<PartyAddressInput>) => void; requiredLine?: boolean }>) {
+  const country = address.country ?? DEFAULT_COUNTRY
+  const isSA = country === DEFAULT_COUNTRY
   return (
     <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
       <Bare label="Street address" required={requiredLine} value={address.line1} onChange={(v) => onUpdate({ line1: v })} placeholder="12 Main Road" />
       <Bare label="Address line 2" value={address.line2} onChange={(v) => onUpdate({ line2: v })} placeholder="Optional" />
       <Bare label="Suburb" value={address.suburb} onChange={(v) => onUpdate({ suburb: v })} placeholder="Sea Point" />
       <Bare label="City" required={requiredLine} value={address.city} onChange={(v) => onUpdate({ city: v })} placeholder="Cape Town" />
-      <BareSelect label="Province" value={address.province ?? ""} onChange={(v) => onUpdate({ province: v })} options={ADDRESS_PROVINCE_OPTIONS} />
+      {isSA ? (
+        <BareSelect label="Province" value={address.province ?? ""} onChange={(v) => onUpdate({ province: v })} options={ADDRESS_PROVINCE_OPTIONS} />
+      ) : (
+        <Bare label="Province / state" value={address.province} onChange={(v) => onUpdate({ province: v })} placeholder="e.g. Noord-Holland" />
+      )}
       <Bare label="Postal code" value={address.postal} onChange={(v) => onUpdate({ postal: v })} placeholder="8005" />
+      <BareSelect label="Country" value={country} onChange={(v) => onUpdate({ country: v })} options={COUNTRY_OPTIONS} />
     </div>
   )
 }

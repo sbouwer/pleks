@@ -41,6 +41,7 @@ interface ContactAddress {
   city: string | null
   province: string | null
   postal_code: string | null
+  country: string | null
   address_type: string
   is_primary: boolean
 }
@@ -171,6 +172,7 @@ export function ContractorAddressSection({ entityId, address }: Readonly<Contrac
         address.suburb,
         [address.city, address.province].filter(Boolean).join(", "),
         address.postal_code,
+        address.country && address.country !== "South Africa" ? address.country : null,
       ].filter(Boolean)
     : []
 

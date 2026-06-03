@@ -177,7 +177,7 @@ export default async function ContractorDetailPage({ params }: Props) {
   // Fetch contact addresses
   const { data: addresses } = await service
     .from("contact_addresses")
-    .select("id, street_line1, street_line2, suburb, city, province, postal_code, address_type, is_primary")
+    .select("id, street_line1, street_line2, suburb, city, province, postal_code, country, address_type, is_primary")
     .eq("contact_id", contractor.contact_id)
     .order("is_primary", { ascending: false })
 

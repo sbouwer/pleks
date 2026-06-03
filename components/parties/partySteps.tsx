@@ -351,8 +351,9 @@ function ReviewSection({ title, children }: Readonly<{ title: string; children: 
 }
 
 function reviewAddressLine(a: PartyAddressInput): string {
-  return [a.line1, a.line2, a.suburb, [a.city, a.province].filter(Boolean).join(", "), a.postal]
-    .map((s) => s?.trim()).filter(Boolean).join(", ")
+  const parts = [a.line1, a.line2, a.suburb, [a.city, a.province].filter(Boolean).join(", "), a.postal]
+  if (a.country && a.country !== "South Africa") parts.push(a.country)
+  return parts.map((s) => s?.trim()).filter(Boolean).join(", ")
 }
 
 export function ReviewStep({

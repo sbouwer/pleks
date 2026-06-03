@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { SA_PROVINCES } from "@/lib/constants"
+import { SA_PROVINCES, COUNTRIES, DEFAULT_COUNTRY } from "@/lib/constants"
 
 interface ContactAddress {
   id: string
@@ -26,6 +26,7 @@ interface ContactAddress {
   city: string | null
   province: string | null
   postal_code: string | null
+  country: string | null
   address_type: string
   is_primary: boolean
 }
@@ -47,8 +48,10 @@ export function AddressEditForm({ entityType, entityId, address, onSaved }: Read
     city: address?.city ?? "",
     province: address?.province ?? "",
     postal_code: address?.postal_code ?? "",
+    country: address?.country ?? DEFAULT_COUNTRY,
     address_type: address?.address_type ?? "physical",
   })
+  const isSA = form.country === DEFAULT_COUNTRY
 
   const baseUrl = `/api/${entityType}/${entityId}/contact-details`
 
@@ -84,13 +87,24 @@ export function AddressEditForm({ entityType, entityId, address, onSaved }: Read
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <Label className="text-xs">Province</Label>
-          <Select value={form.province} onValueChange={(v) => setForm((f) => ({ ...f, province: v ?? "" }))}>
-            <SelectTrigger className="h-8 text-sm mt-1"><SelectValue placeholder="Province" /></SelectTrigger>
-            <SelectContent>{SA_PROVINCES.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
-          </Select>
+          <Label className="text-xs">Province{isSA ? "" : " / state"}</Label>
+          {isSA ? (
+            <Select value={form.province} onValueChange={(v) => setForm((f) => ({ ...f, province: v ?? "" }))}>
+              <SelectTrigger className="h-8 text-sm mt-1"><SelectValue placeholder="Province" /></SelectTrigger>
+              <SelectContent>{SA_PROVINCES.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
+            </Select>
+          ) : (
+            <Input value={form.province} onChange={(e) => setForm((f) => ({ ...f, province: e.target.value }))} className="h-8 text-sm mt-1" placeholder="e.g. Noord-Holland" />
+          )}
         </div>
-        <div><Label className="text-xs">Postal code</Label><Input value={form.postal_code} onChange={(e) => setForm((f) => ({ ...f, postal_code: e.target.value }))} className="h-8 text-sm mt-1" maxLength={4} /></div>
+        <div><Label className="text-xs">Postal code</Label><Input value={form.postal_code} onChange={(e) => setForm((f) => ({ ...f, postal_code: e.target.value }))} className="h-8 text-sm mt-1" maxLength={isSA ? 4 : 12} /></div>
+      </div>
+      <div>
+        <Label className="text-xs">Country</Label>
+        <Select value={form.country} onValueChange={(v) => setForm((f) => ({ ...f, country: v ?? DEFAULT_COUNTRY }))}>
+          <SelectTrigger className="h-8 text-sm mt-1"><SelectValue placeholder="Country" /></SelectTrigger>
+          <SelectContent>{COUNTRIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+        </Select>
       </div>
       <div className="flex gap-2 pt-1"><Button size="sm" onClick={handleSave} disabled={isPending} className="h-7 text-xs">{isPending ? "Saving…" : "Save"}</Button><Button size="sm" variant="outline" onClick={onSaved} disabled={isPending} className="h-7 text-xs">Cancel</Button></div>
     </div>
