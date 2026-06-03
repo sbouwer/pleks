@@ -419,13 +419,7 @@ CREATE TABLE IF NOT EXISTS landlords (
   org_id                uuid NOT NULL REFERENCES organisations(id),
   contact_id            uuid NOT NULL REFERENCES contacts(id),
 
-  -- Banking (for owner EFT payments — reference data, not collection)
-  bank_name             text,
-  bank_account          text,
-  bank_branch           text,
-  bank_account_type     text CHECK (bank_account_type IN (
-                          'cheque', 'savings', 'transmission'
-                        )),
+  -- Banking moved to contact_bank_accounts (§16) — multi-account, contact-scoped, read by contact_id.
   tax_number            text,    -- SARS tax number for owner statements
 
   -- Payment preferences
@@ -669,7 +663,11 @@ FROM tenants t
 JOIN contacts c ON c.id = t.contact_id;
 
 -- landlord_view: joins landlords + contacts
-CREATE OR REPLACE VIEW landlord_view AS
+-- DROP+CREATE (not CREATE OR REPLACE): the §16 banking cutover removed the bank_* columns, and
+-- CREATE OR REPLACE cannot drop view columns. Banking now lives in contact_bank_accounts (read by
+-- contact_id). tax_number + payment_method stay on landlords (not account data).
+DROP VIEW IF EXISTS landlord_view;
+CREATE VIEW landlord_view AS
 SELECT
   l.id,
   l.org_id,
@@ -685,10 +683,6 @@ SELECT
   c.primary_email       AS email,
   c.primary_phone       AS phone,
   -- Landlord-specific
-  l.bank_name,
-  l.bank_account,
-  l.bank_branch,
-  l.bank_account_type,
   l.tax_number,
   l.payment_method,
   c.notes,
@@ -1001,3 +995,69 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_contacts_org_primary
 -- BUILD_25A_AMENDMENT: at most one address per type per contact (physical/postal/billing). UI enforces
 -- one block per type in the add flow; this hardens it at the DB (contact_addresses has no soft-delete).
 CREATE UNIQUE INDEX IF NOT EXISTS uq_contact_addresses_type ON contact_addresses(contact_id, address_type);
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §16  GLOBAL_BANK_ACCOUNTS: contact-scoped multi-account banking (mirrors contact_addresses)
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Any contact (landlord, supplier, …) can hold multiple bank accounts — utilities typically have
+-- one per bank so the agent can pay same-bank. Replaces the single-column banking that lived on
+-- contractors.bank_* and landlords.bank_* (backfilled + dropped below; contractor_view never exposed
+-- them, landlord_view is slimmed above). account_number is plaintext at rest, masked on display —
+-- consistent with the columns it supersedes. Tenant refund accounts keep their own table
+-- (tenant_bank_accounts) — that flow carries consent/verification semantics this generic table does not.
+
+CREATE TABLE IF NOT EXISTS contact_bank_accounts (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id          uuid NOT NULL REFERENCES organisations(id),
+  contact_id      uuid NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+  account_name    text,            -- account holder name ("banking name")
+  bank_name       text,
+  account_number  text,            -- plaintext at rest, masked on display
+  branch_code     text,
+  account_type    text CHECK (account_type IN ('cheque', 'savings', 'transmission')),
+  label           text,            -- optional, e.g. "FNB" — disambiguates one-account-per-bank
+  is_primary      boolean NOT NULL DEFAULT false,
+  created_by      uuid REFERENCES auth.users(id),
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  updated_at      timestamptz NOT NULL DEFAULT now()
+);
+
+DROP TRIGGER IF EXISTS update_contact_bank_accounts_updated_at ON contact_bank_accounts;
+CREATE TRIGGER update_contact_bank_accounts_updated_at
+  BEFORE UPDATE ON contact_bank_accounts
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE INDEX IF NOT EXISTS idx_contact_bank_accounts_contact ON contact_bank_accounts(contact_id);
+-- at most one primary account per contact
+CREATE UNIQUE INDEX IF NOT EXISTS uq_contact_bank_accounts_primary
+  ON contact_bank_accounts(contact_id) WHERE is_primary;
+
+ALTER TABLE contact_bank_accounts ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "org_contact_bank_accounts" ON contact_bank_accounts;
+CREATE POLICY "org_contact_bank_accounts" ON contact_bank_accounts
+  FOR ALL USING (
+    org_id IN (
+      SELECT org_id FROM user_orgs
+      WHERE user_id = (SELECT auth.uid()) AND deleted_at IS NULL
+    )
+  );
+
+-- Backfill landlords.bank_* → contact_bank_accounts, then drop the columns. Guarded on column
+-- existence so a re-run after the drop is a clean no-op (the SELECT would otherwise 42703).
+DO $do$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_name = 'landlords' AND column_name = 'bank_account') THEN
+    INSERT INTO contact_bank_accounts (org_id, contact_id, bank_name, account_number, branch_code, account_type, is_primary)
+    SELECT l.org_id, l.contact_id, l.bank_name, l.bank_account, l.bank_branch, l.bank_account_type, true
+    FROM landlords l
+    WHERE (l.bank_name IS NOT NULL OR l.bank_account IS NOT NULL OR l.bank_branch IS NOT NULL)
+      AND NOT EXISTS (SELECT 1 FROM contact_bank_accounts cba WHERE cba.contact_id = l.contact_id);
+    ALTER TABLE landlords
+      DROP COLUMN bank_name,
+      DROP COLUMN bank_account,
+      DROP COLUMN bank_branch,
+      DROP COLUMN bank_account_type;
+  END IF;
+END
+$do$;

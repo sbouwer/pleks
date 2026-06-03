@@ -20,6 +20,7 @@ import { RelationshipCard } from "@/components/contacts/RelationshipCard"
 import { StatGrid } from "@/components/contacts/StatGrid"
 import { ActivityTimeline } from "@/components/contacts/ActivityTimeline"
 import { LandlordIdentitySection, LandlordContactSection, LandlordAddressSection, LandlordBankingSection } from "./LandlordSections"
+import { BankAccountsSection } from "@/components/contacts/edit/BankAccountsSection"
 import { LandlordPortalSection } from "@/components/portal/LandlordPortalSection"
 import { WelcomePackBanner } from "@/components/reports/WelcomePackBanner"
 import { IdentityForkBanner } from "@/components/identity/IdentityForkBanner"
@@ -115,12 +116,20 @@ export default async function LandlordDetailPage({ params }: Props) {
 
   const { data: landlord } = await service
     .from("landlord_view")
-    .select("id, contact_id, entity_type, first_name, last_name, company_name, trading_as, registration_number, vat_number, email, phone, bank_name, bank_account, bank_branch, bank_account_type, tax_number, payment_method, notes")
+    .select("id, contact_id, entity_type, first_name, last_name, company_name, trading_as, registration_number, vat_number, email, phone, tax_number, payment_method, notes")
     .eq("id", id)
     .eq("org_id", membership.org_id)
     .single()
 
   if (!landlord) redirect("/landlords")
+
+  // Bank accounts — global multi-account banking (contact-scoped)
+  const { data: landlordBankAccounts } = await service
+    .from("contact_bank_accounts")
+    .select("id, account_name, bank_name, account_number, branch_code, account_type, label, is_primary")
+    .eq("contact_id", landlord.contact_id)
+    .eq("org_id", membership.org_id)
+    .order("is_primary", { ascending: false })
 
   const [phonesResult, emailsResult, addressesResult, propertiesResult] = await Promise.all([
     service
@@ -282,13 +291,17 @@ export default async function LandlordDetailPage({ params }: Props) {
             entityId={id}
             address={(addresses ?? [])[0] ?? null}
           />
+          <div className="border-t pt-3 mt-3">
+            <BankAccountsSection
+              entityType="landlords"
+              entityId={id}
+              contactId={landlord.contact_id}
+              accounts={landlordBankAccounts ?? []}
+            />
+          </div>
           <LandlordBankingSection
             landlordId={id}
             contactId={landlord.contact_id}
-            bankName={landlord.bank_name}
-            bankAccount={landlord.bank_account}
-            bankBranch={landlord.bank_branch}
-            bankAccountType={landlord.bank_account_type}
             taxNumber={landlord.tax_number}
             paymentMethod={landlord.payment_method}
           />

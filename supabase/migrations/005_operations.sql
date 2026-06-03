@@ -33,12 +33,7 @@ CREATE TABLE IF NOT EXISTS contractors (
   supplier_type   text DEFAULT 'contractor'
                   CHECK (supplier_type IN ('contractor', 'recurring', 'both')),
   vat_registered  boolean DEFAULT false,
-  banking_name    text,
-  bank_name       text,
-  bank_account_number text,
-  bank_branch_code    text,
-  bank_account_type   text
-                  CHECK (bank_account_type IN ('cheque', 'savings', 'transmission')),
+  -- Banking moved to contact_bank_accounts (002 §16) — multi-account, contact-scoped, read by contact_id.
 
   -- Audit
   is_active       boolean DEFAULT true,
@@ -2716,3 +2711,30 @@ UPDATE applications
 ALTER TABLE applications
   ADD COLUMN IF NOT EXISTS fitscore_synthesis_template_version VARCHAR(32)
     NOT NULL DEFAULT 'synthesis.v1.0';
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §30  GLOBAL_BANK_ACCOUNTS: backfill contractors.bank_* → contact_bank_accounts, drop columns
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- The table + RLS live in 002 §16 (contact-scoped, runs before this file on replay). Here we migrate
+-- the contractor single-account columns into it and drop them. Guarded on column existence so a re-run
+-- after the drop is a clean no-op (the SELECT would otherwise 42703). contractor_view never exposed
+-- these columns, so no view dependency. vat_registered stays on contractors (not account data).
+
+DO $do$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_name = 'contractors' AND column_name = 'bank_account_number') THEN
+    INSERT INTO contact_bank_accounts (org_id, contact_id, account_name, bank_name, account_number, branch_code, account_type, is_primary)
+    SELECT ct.org_id, ct.contact_id, ct.banking_name, ct.bank_name, ct.bank_account_number, ct.bank_branch_code, ct.bank_account_type, true
+    FROM contractors ct
+    WHERE (ct.banking_name IS NOT NULL OR ct.bank_name IS NOT NULL OR ct.bank_account_number IS NOT NULL OR ct.bank_branch_code IS NOT NULL)
+      AND NOT EXISTS (SELECT 1 FROM contact_bank_accounts cba WHERE cba.contact_id = ct.contact_id);
+    ALTER TABLE contractors
+      DROP COLUMN banking_name,
+      DROP COLUMN bank_name,
+      DROP COLUMN bank_account_number,
+      DROP COLUMN bank_branch_code,
+      DROP COLUMN bank_account_type;
+  END IF;
+END
+$do$;

@@ -56,8 +56,8 @@ interface ContractorPatchBody {
   specialities?: string[]; isActive?: boolean
   callOutRateCents?: number; hourlyRateCents?: number
   heritageApproved?: boolean; heritageSpecialities?: string[]
-  bankingName?: string; bankName?: string; bankAccountNumber?: string
-  bankBranchCode?: string; bankAccountType?: string; vatRegistered?: boolean
+  vatRegistered?: boolean
+  // Banking moved to contact_bank_accounts — edited via /api/suppliers/[id]/contact-details (type: bank_account)
 }
 
 function buildContractorContactUpdate(body: ContractorPatchBody): Record<string, unknown> {
@@ -81,11 +81,6 @@ function buildContractorUpdate(body: ContractorPatchBody): Record<string, unknow
   if (body.isActive !== undefined) u.is_active = body.isActive
   if (body.callOutRateCents !== undefined) u.call_out_rate_cents = body.callOutRateCents
   if (body.hourlyRateCents !== undefined) u.hourly_rate_cents = body.hourlyRateCents
-  if (body.bankingName !== undefined) u.banking_name = body.bankingName?.trim() || null
-  if (body.bankName !== undefined) u.bank_name = body.bankName?.trim() || null
-  if (body.bankAccountNumber !== undefined) u.bank_account_number = body.bankAccountNumber?.trim() || null
-  if (body.bankBranchCode !== undefined) u.bank_branch_code = body.bankBranchCode?.trim() || null
-  if (body.bankAccountType !== undefined) u.bank_account_type = body.bankAccountType || null
   if (body.vatRegistered !== undefined) u.vat_registered = body.vatRegistered
   if (body.heritageApproved !== undefined) u.heritage_approved = body.heritageApproved
   if (body.heritageSpecialities !== undefined) u.heritage_specialities = body.heritageSpecialities

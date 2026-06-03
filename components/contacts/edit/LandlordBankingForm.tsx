@@ -1,13 +1,12 @@
 "use client"
 
 /**
- * components/contacts/edit/LandlordBankingForm.tsx — FILL: one-line purpose
+ * components/contacts/edit/LandlordBankingForm.tsx — inline edit for a landlord's tax number + payment method
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   PATCH /api/landlords (membership-gated) — updates landlords.tax_number / payment_method
+ * Data:   landlords table (tax_number, payment_method)
+ * Notes:  bank accounts moved to contact_bank_accounts — edited via BankAccountsSection, not here. This form
+ *         now only owns the SARS tax number (owner statements) + payout payment method.
  */
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
@@ -20,25 +19,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 interface LandlordBankingFormProps {
   landlordId: string
   contactId: string
-  bankName: string | null
-  bankAccount: string | null
-  bankBranch: string | null
-  bankAccountType: string | null
   taxNumber: string | null
   paymentMethod: string | null
   onSaved: () => void
 }
 
 export function LandlordBankingForm({
-  landlordId, contactId, bankName, bankAccount, bankBranch, bankAccountType, taxNumber, paymentMethod, onSaved
+  landlordId, contactId, taxNumber, paymentMethod, onSaved,
 }: Readonly<LandlordBankingFormProps>) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [form, setForm] = useState({
-    bank_name: bankName ?? "",
-    bank_account: bankAccount ?? "",
-    bank_branch: bankBranch ?? "",
-    bank_account_type: bankAccountType ?? "",
     tax_number: taxNumber ?? "",
     payment_method: paymentMethod ?? "",
   })
@@ -49,10 +40,10 @@ export function LandlordBankingForm({
         const res = await fetch("/api/landlords", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ landlordId, contactId, ...form }),
+          body: JSON.stringify({ landlordId, contactId, taxNumber: form.tax_number, paymentMethod: form.payment_method }),
         })
         if (!res.ok) throw new Error()
-        toast.success("Banking details saved")
+        toast.success("Payment details saved")
         router.refresh()
         onSaved()
       } catch {
@@ -63,20 +54,6 @@ export function LandlordBankingForm({
 
   return (
     <div className="space-y-2">
-      <div><Label className="text-xs">Bank name</Label><Input value={form.bank_name} onChange={(e) => setForm((f) => ({ ...f, bank_name: e.target.value }))} className="h-8 text-sm mt-1" /></div>
-      <div><Label className="text-xs">Account number</Label><Input value={form.bank_account} onChange={(e) => setForm((f) => ({ ...f, bank_account: e.target.value }))} className="h-8 text-sm mt-1" /></div>
-      <div><Label className="text-xs">Branch code</Label><Input value={form.bank_branch} onChange={(e) => setForm((f) => ({ ...f, bank_branch: e.target.value }))} className="h-8 text-sm mt-1" /></div>
-      <div>
-        <Label className="text-xs">Account type</Label>
-        <Select value={form.bank_account_type} onValueChange={(v) => setForm((f) => ({ ...f, bank_account_type: v ?? "" }))}>
-          <SelectTrigger className="h-8 text-sm mt-1"><SelectValue placeholder="Select type" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="cheque">Cheque</SelectItem>
-            <SelectItem value="savings">Savings</SelectItem>
-            <SelectItem value="transmission">Transmission</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
       <div><Label className="text-xs">Tax number</Label><Input value={form.tax_number} onChange={(e) => setForm((f) => ({ ...f, tax_number: e.target.value }))} className="h-8 text-sm mt-1" /></div>
       <div>
         <Label className="text-xs">Payment method</Label>
@@ -85,7 +62,7 @@ export function LandlordBankingForm({
           <SelectContent>
             <SelectItem value="eft">EFT</SelectItem>
             <SelectItem value="cash">Cash</SelectItem>
-            <SelectItem value="cheque">Cheque</SelectItem>
+            <SelectItem value="other">Other</SelectItem>
           </SelectContent>
         </Select>
       </div>

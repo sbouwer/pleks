@@ -72,7 +72,7 @@ export function ContractorPortalSection({
 
   // ── Portal management for Portfolio / Firm ──────────────────
   return (
-    <div className="border-t pt-3 mt-3">
+    <div>
       <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Contractor portal</span>
       <div className="mt-2 space-y-2">
         {status === "none" && (

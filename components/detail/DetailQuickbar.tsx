@@ -12,7 +12,7 @@ import { useState, useRef, useEffect, createElement } from "react"
 import Link from "next/link"
 import {
   Pencil, Receipt, Wrench, ClipboardCheck, MessageSquare, Gift, Archive, FileText, User, Plus, Mail,
-  MoreHorizontal, Circle, type LucideIcon,
+  Phone, MessageCircle, MoreHorizontal, Circle, type LucideIcon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { DetailAction } from "@/lib/detail/types"
@@ -20,7 +20,7 @@ import type { DetailAction } from "@/lib/detail/types"
 const ICONS: Record<string, LucideIcon> = {
   edit: Pencil, statement: Receipt, maintenance: Wrench, inspection: ClipboardCheck,
   message: MessageSquare, welcome: Gift, archive: Archive, lease: FileText, user: User,
-  add: Plus, email: Mail,
+  add: Plus, email: Mail, phone: Phone, whatsapp: MessageCircle,
 }
 const iconFor = (name: string): LucideIcon => ICONS[name] ?? Circle
 

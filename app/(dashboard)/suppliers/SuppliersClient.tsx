@@ -29,6 +29,7 @@ export { SPECIALITY_OPTIONS } from "@/lib/parties/partyConfig"
 export interface Contractor {
   id: string
   contact_id: string
+  entity_type: string | null
   first_name: string | null
   last_name: string | null
   company_name: string | null
@@ -148,7 +149,7 @@ export function SuppliersClient({ contractors: initial, orgId }: Readonly<Props>
             <thead>
               <tr className="border-b border-border bg-muted/30">
                 <th className="px-4 py-2.5 text-left">
-                  <SortHeader col="company" label="Company" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+                  <SortHeader col="company" label="Name" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
                 </th>
                 <th className="px-4 py-2.5 text-left hidden md:table-cell">
                   <SortHeader col="contact" label="Primary Contact" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
@@ -188,6 +189,11 @@ export function SuppliersClient({ contractors: initial, orgId }: Readonly<Props>
                   >
                     <td className="px-4 py-3">
                       <p className="font-medium text-sm">{displayName}</p>
+                      {c.entity_type && (
+                        <p className="text-[11px] text-muted-foreground">
+                          {c.entity_type === "organisation" ? "Company" : "Individual"}
+                        </p>
+                      )}
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell">
                       <p className="text-sm text-muted-foreground">

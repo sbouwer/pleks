@@ -1,23 +1,26 @@
 /**
- * app/(dashboard)/suppliers/[id]/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/suppliers/[id]/page.tsx — supplier/contractor detail page (identity, rates, banking, jobs, performance)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /suppliers/[id]
+ * Auth:   auth.getUser + user_orgs membership (redirects to /login or /onboarding)
+ * Data:   contractor_view, contractors, contact_phones/emails/addresses, maintenance_requests, supplier_invoices
+ * Notes:  First page migrated onto the universal DetailPageLayout (ADDENDUM_DETAIL_PAGE_TEMPLATE §4 Phase 1) —
+ *         the retired sidebar's identity → header facts + status pill; its sections → grid body blocks.
+ *         Banking account number stays masked on display (mask-before-display invariant).
  */
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { Wrench } from "lucide-react"
-import { ContactDetailLayout } from "@/components/contacts/ContactDetailLayout"
-import { ContactSidebar } from "@/components/contacts/ContactSidebar"
-import { QuickActions } from "@/components/contacts/QuickActions"
+import { DetailPageLayout, DetailFullWidth } from "@/components/detail/DetailPageLayout"
+import { DetailSection } from "@/components/detail/DetailSection"
+import { DetailQuickbar } from "@/components/detail/DetailQuickbar"
+import type { DetailFact, DetailStatus, DetailAction } from "@/lib/detail/types"
 import { SectionCard } from "@/components/contacts/SectionCard"
 import { RelationshipCard } from "@/components/contacts/RelationshipCard"
 import { StatGrid } from "@/components/contacts/StatGrid"
 import { ActivityTimeline } from "@/components/contacts/ActivityTimeline"
-import { ContractorContactSection, ContractorRatesSection, ContractorBankingSection, ContractorAddressSection } from "./SupplierSections"
+import { ContractorContactSection, ContractorRatesSection, ContractorAddressSection } from "./SupplierSections"
+import { BankAccountsSection } from "@/components/contacts/edit/BankAccountsSection"
 import { CompanyPeopleSection } from "@/components/contacts/CompanyPeopleSection"
 import { fetchCompanyPeople } from "@/lib/contacts/companyPeople"
 import { ContractorPortalSection } from "@/components/contractors/ContractorPortalSection"
@@ -25,10 +28,6 @@ import { formatZAR } from "@/lib/constants"
 
 interface Props {
   params: Promise<{ id: string }>
-}
-
-function initials(name: string) {
-  return name.split(" ").map((w) => w[0]).filter(Boolean).join("").slice(0, 2).toUpperCase()
 }
 
 async function fetchInvoiceData(service: Awaited<ReturnType<typeof createServiceClient>>, contractorId: string) {
@@ -126,13 +125,21 @@ export default async function ContractorDetailPage({ params }: Props) {
     ? await fetchCompanyPeople(service, membership.org_id, contractor.contact_id)
     : []
 
-  // Fetch banking + portal info from contractors table
+  // Fetch VAT flag + portal info from contractors (banking moved to contact_bank_accounts)
   const { data: contractorBanking } = await service
     .from("contractors")
-    .select("banking_name, bank_name, bank_account_number, bank_branch_code, bank_account_type, vat_registered, portal_status, portal_invite_sent_at")
+    .select("vat_registered, portal_status, portal_invite_sent_at")
     .eq("id", id)
     .eq("org_id", membership.org_id)
     .single()
+
+  // Bank accounts — global multi-account banking (contact-scoped)
+  const { data: bankAccounts } = await service
+    .from("contact_bank_accounts")
+    .select("id, account_name, bank_name, account_number, branch_code, account_type, label, is_primary")
+    .eq("contact_id", contractor.contact_id)
+    .eq("org_id", membership.org_id)
+    .order("is_primary", { ascending: false })
 
   // Fetch org tier for portal gating
   const { data: sub } = await service
@@ -207,47 +214,75 @@ export default async function ContractorDetailPage({ params }: Props) {
     ? Math.round(ratings.reduce((a, b) => a + b, 0) / ratings.length * 10) / 10
     : null
 
-  // Badges
-  const badges: Array<{ text: string; variant: "green" | "amber" | "red" | "blue" | "gray" }> = [
-    { text: contractor.is_active ? "Active" : "Inactive", variant: contractor.is_active ? "green" : "gray" },
-  ]
-  if (contractorBanking?.vat_registered) badges.push({ text: "VAT registered", variant: "gray" })
-
   const displayName = contractor.company_name ||
     `${contractor.first_name ?? ""} ${contractor.last_name ?? ""}`.trim() ||
     "Unnamed Contractor"
   const primaryPhone = phones?.[0]?.number ?? null
   const primaryEmail = emails?.[0]?.email ?? null
+  const activeJobCount = (activeJobs ?? []).length
+
+  // Identity → status pill (active/inactive) + the header facts strip.
+  const status: DetailStatus = contractor.is_active
+    ? { kind: "occupied", label: "Active" }
+    : { kind: "neutral", label: "Inactive" }
+
+  const facts: DetailFact[] = [
+    { k: "Type", v: contractor.entity_type === "organisation" ? "Company" : "Individual" },
+    { k: "Specialities", v: (contractor.specialities ?? []).length > 0 ? (contractor.specialities ?? []).join(", ") : "—" },
+    { k: "Active jobs", v: String(activeJobCount) },
+    { k: "Avg rating", v: avgRating != null ? `${avgRating} / 5` : "—" },
+  ]
+  if (contractorBanking?.vat_registered) facts.push({ k: "VAT", v: "Registered" })
+
+  // Quick-action toolbar — the single action surface (Call/Email/WhatsApp, the old sidebar's live actions).
+  const waSource = primaryPhone?.replaceAll(/\D/g, "") ?? null
+  let waNumber: string | null = null
+  if (waSource) waNumber = waSource.startsWith("0") ? `27${waSource.slice(1)}` : waSource
+  const actions: DetailAction[] = [
+    ...(primaryPhone ? [{ key: "call", label: "Call", icon: "phone", href: `tel:${primaryPhone}` }] : []),
+    ...(primaryEmail ? [{ key: "email", label: "Email", icon: "email", href: `mailto:${primaryEmail}` }] : []),
+    ...(waNumber ? [{ key: "whatsapp", label: "WhatsApp", icon: "whatsapp", href: `https://wa.me/${waNumber}` }] : []),
+  ]
 
   return (
-    <ContactDetailLayout breadcrumb={{ label: "Contractors", href: "/suppliers" }} sidebar={
-      <ContactSidebar
-        avatar={{ initials: initials(displayName), bgColor: "#FFF7ED", textColor: "#C2410C" }}
-        name={displayName}
-        subtitle={contractor.entity_type === "organisation" ? "Company" : "Individual contractor"}
-        badges={badges}
-        quickActions={
-          <QuickActions primaryPhone={primaryPhone} primaryEmail={primaryEmail} moreItems={[
-            { label: "Archive", variant: "danger" as const },
-          ]} />
-        }
-      >
+    <DetailPageLayout
+      category="Suppliers"
+      backHref="/suppliers"
+      title={displayName}
+      status={status}
+      facts={facts}
+      actions={<DetailQuickbar actions={actions} />}
+    >
+      {contractor.entity_type === "organisation" && (
+        <DetailFullWidth>
+          <CompanyPeopleSection people={companyPeople} companyContactId={contractor.contact_id} fica={false} />
+        </DetailFullWidth>
+      )}
+
+      {/* Former sidebar sections — now grid body blocks (each self-titled with its own inline edit). */}
+      <DetailSection>
         <ContractorContactSection entityId={id} phones={phones ?? []} emails={emails ?? []} />
+      </DetailSection>
+      <DetailSection>
         <ContractorRatesSection
           contractorId={id}
           callOutRateCents={contractor.call_out_rate_cents ?? null}
           hourlyRateCents={contractor.hourly_rate_cents ?? null}
           specialities={contractor.specialities ?? []}
         />
-        <ContractorBankingSection
-          contractorId={id}
-          bankingName={contractorBanking?.banking_name ?? null}
-          bankName={contractorBanking?.bank_name ?? null}
-          bankAccountNumber={contractorBanking?.bank_account_number ?? null}
-          bankBranchCode={contractorBanking?.bank_branch_code ?? null}
-          bankAccountType={contractorBanking?.bank_account_type ?? null}
+      </DetailSection>
+      <DetailSection>
+        <BankAccountsSection
+          entityType="suppliers"
+          entityId={id}
+          contactId={contractor.contact_id}
+          accounts={bankAccounts ?? []}
         />
+      </DetailSection>
+      <DetailSection>
         <ContractorAddressSection entityId={id} address={(addresses ?? [])[0] ?? null} />
+      </DetailSection>
+      <DetailSection>
         <ContractorPortalSection
           contractorId={id}
           tier={orgTier}
@@ -255,61 +290,64 @@ export default async function ContractorDetailPage({ params }: Props) {
           portalInviteSentAt={contractorBanking?.portal_invite_sent_at ?? null}
           contractorEmail={primaryEmail}
         />
-      </ContactSidebar>
-    }>
-
-      {contractor.entity_type === "organisation" && <CompanyPeopleSection people={companyPeople} companyContactId={contractor.contact_id} fica={false} />}
+      </DetailSection>
 
       {/* Active jobs */}
-      <SectionCard title="Active jobs" count={(activeJobs ?? []).length}>
-        {(activeJobs ?? []).length === 0 ? (
-          <p className="text-sm text-muted-foreground">No active jobs.</p>
-        ) : (
-          <div className="space-y-1">
-            {(activeJobs ?? []).map((job) => {
-              const unit = job.units as unknown as { unit_number: string; properties: { name: string } } | null
-              const statusVariant = ["in_progress", "acknowledged", "work_order_sent"].includes(job.status) ? "amber" as const : "blue" as const
-              return (
-                <RelationshipCard
-                  key={job.id}
-                  icon={<Wrench className="h-4 w-4 text-orange-600" />}
-                  iconBg="#FFF7ED"
-                  title={job.title}
-                  subtitle={unit ? `${unit.properties?.name ?? ""} — ${unit.unit_number}` : job.category ?? ""}
-                  rightLabel={job.quoted_cost_cents ? formatZAR(job.quoted_cost_cents) : undefined}
-                  rightBadge={!job.quoted_cost_cents ? { text: job.status.replaceAll(/_/g, " "), variant: statusVariant } : undefined}
-                  href={`/maintenance/${job.id}`}
-                />
-              )
-            })}
-          </div>
-        )}
-      </SectionCard>
+      <DetailFullWidth>
+        <SectionCard title="Active jobs" count={activeJobCount}>
+          {activeJobCount === 0 ? (
+            <p className="text-sm text-muted-foreground">No active jobs.</p>
+          ) : (
+            <div className="space-y-1">
+              {(activeJobs ?? []).map((job) => {
+                const unit = job.units as unknown as { unit_number: string; properties: { name: string } } | null
+                const statusVariant = ["in_progress", "acknowledged", "work_order_sent"].includes(job.status) ? "amber" as const : "blue" as const
+                return (
+                  <RelationshipCard
+                    key={job.id}
+                    icon={<Wrench className="h-4 w-4 text-orange-600" />}
+                    iconBg="#FFF7ED"
+                    title={job.title}
+                    subtitle={unit ? `${unit.properties?.name ?? ""} — ${unit.unit_number}` : job.category ?? ""}
+                    rightLabel={job.quoted_cost_cents ? formatZAR(job.quoted_cost_cents) : undefined}
+                    rightBadge={!job.quoted_cost_cents ? { text: job.status.replaceAll(/_/g, " "), variant: statusVariant } : undefined}
+                    href={`/maintenance/${job.id}`}
+                  />
+                )
+              })}
+            </div>
+          )}
+        </SectionCard>
+      </DetailFullWidth>
 
       {/* Performance */}
-      <SectionCard title="Performance">
-        <StatGrid stats={[
-          { label: "Jobs completed", value: String(totalCompleted) },
-          { label: "Avg completion", value: totalCompleted > 0 ? `${avgCompletionDays} days` : "—" },
-          { label: "Avg response", value: avgResponseHours === null ? "—" : `${avgResponseHours}h` },
-          { label: "Avg rating", value: avgRating != null ? `${avgRating}/5` : "—" },
-          { label: "No-shows", value: noShowCount > 0 ? String(noShowCount) : "—" },
-          { label: "Reschedules", value: contractorRescheduleCount > 0 ? String(contractorRescheduleCount) : "—" },
-          { label: "Incomplete returns", value: incompleteCount > 0 ? String(incompleteCount) : "—" },
-          { label: "Total invoiced", value: formatZAR(totalInvoiced) },
-        ]} />
-      </SectionCard>
+      <DetailFullWidth>
+        <SectionCard title="Performance">
+          <StatGrid stats={[
+            { label: "Jobs completed", value: String(totalCompleted) },
+            { label: "Avg completion", value: totalCompleted > 0 ? `${avgCompletionDays} days` : "—" },
+            { label: "Avg response", value: avgResponseHours === null ? "—" : `${avgResponseHours}h` },
+            { label: "Avg rating", value: avgRating != null ? `${avgRating}/5` : "—" },
+            { label: "No-shows", value: noShowCount > 0 ? String(noShowCount) : "—" },
+            { label: "Reschedules", value: contractorRescheduleCount > 0 ? String(contractorRescheduleCount) : "—" },
+            { label: "Incomplete returns", value: incompleteCount > 0 ? String(incompleteCount) : "—" },
+            { label: "Total invoiced", value: formatZAR(totalInvoiced) },
+          ]} />
+        </SectionCard>
+      </DetailFullWidth>
 
       {/* Recent invoices */}
-      <SectionCard title="Recent invoices" count={recentInvoices.length}>
-        <ActivityTimeline
-          items={recentInvoices.map((inv) => ({
-            dotColor: inv.status === "paid" ? "#1D9E75" : "#D85A30",
-            title: `${inv.invoice_number ?? "Invoice"} — ${formatZAR(inv.amount_incl_vat_cents)} (${inv.status})`,
-            time: new Date(inv.invoice_date).toLocaleDateString("en-ZA"),
-          }))}
-        />
-      </SectionCard>
-    </ContactDetailLayout>
+      <DetailFullWidth>
+        <SectionCard title="Recent invoices" count={recentInvoices.length}>
+          <ActivityTimeline
+            items={recentInvoices.map((inv) => ({
+              dotColor: inv.status === "paid" ? "#1D9E75" : "#D85A30",
+              title: `${inv.invoice_number ?? "Invoice"} — ${formatZAR(inv.amount_incl_vat_cents)} (${inv.status})`,
+              time: new Date(inv.invoice_date).toLocaleDateString("en-ZA"),
+            }))}
+          />
+        </SectionCard>
+      </DetailFullWidth>
+    </DetailPageLayout>
   )
 }

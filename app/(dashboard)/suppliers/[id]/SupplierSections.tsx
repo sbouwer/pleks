@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * app/(dashboard)/suppliers/[id]/SupplierSections.tsx — inline-editable supplier/contractor detail sections (contact, rates, banking, address)
+ * app/(dashboard)/suppliers/[id]/SupplierSections.tsx — inline-editable supplier/contractor detail sections (contact, rates, address)
  *
  * Route:  /suppliers/[id]
  * Auth:   gateway-protected server wrapper
@@ -14,7 +14,6 @@ import { DetailRow } from "@/components/contacts/DetailRow"
 import { ContactEditForm } from "@/components/contacts/edit/ContactEditForm"
 import { AddressEditForm } from "@/components/contacts/edit/AddressEditForm"
 import { ContractorRatesForm } from "@/components/contacts/edit/ContractorRatesForm"
-import { ContractorBankingForm } from "@/components/contacts/edit/ContractorBankingForm"
 import { formatZAR } from "@/lib/constants"
 
 interface ContactPhone {
@@ -61,7 +60,7 @@ export function ContractorContactSection({ entityId, phones, emails }: Readonly<
   const primaryEmail = emails[0] ?? null
 
   return (
-    <div className="border-t pt-3 mt-3">
+    <div>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Contact</span>
         {!editing && (
@@ -122,7 +121,7 @@ export function ContractorRatesSection({
   const [editing, setEditing] = useState(false)
 
   return (
-    <div className="border-t pt-3 mt-3">
+    <div>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Rates</span>
         {!editing && (
@@ -150,65 +149,6 @@ export function ContractorRatesSection({
   )
 }
 
-// ─── Banking Section ──────────────────────────────────────────────────────────
-
-interface ContractorBankingSectionProps {
-  contractorId: string
-  bankingName: string | null
-  bankName: string | null
-  bankAccountNumber: string | null
-  bankBranchCode: string | null
-  bankAccountType: string | null
-}
-
-export function ContractorBankingSection({
-  contractorId,
-  bankingName,
-  bankName,
-  bankAccountNumber,
-  bankBranchCode,
-  bankAccountType,
-}: Readonly<ContractorBankingSectionProps>) {
-  const [editing, setEditing] = useState(false)
-
-  return (
-    <div className="border-t pt-3 mt-3">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Banking</span>
-        {!editing && (
-          <EditButton mode="label" label="Edit" onClick={() => setEditing(true)} />
-        )}
-      </div>
-      {editing ? (
-        <ContractorBankingForm
-          contractorId={contractorId}
-          bankingName={bankingName}
-          bankName={bankName}
-          bankAccountNumber={bankAccountNumber}
-          bankBranchCode={bankBranchCode}
-          bankAccountType={bankAccountType}
-          onSaved={() => setEditing(false)}
-        />
-      ) : (
-        <div>
-          {bankingName && <DetailRow label="Account name">{bankingName}</DetailRow>}
-          {bankName && <DetailRow label="Bank">{bankName}</DetailRow>}
-          {bankAccountNumber && (
-            <DetailRow label="Account no.">
-              {`\u2022\u2022\u2022\u2022${bankAccountNumber.slice(-4)}`}
-            </DetailRow>
-          )}
-          {bankBranchCode && <DetailRow label="Branch code">{bankBranchCode}</DetailRow>}
-          {bankAccountType && <DetailRow label="Account type">{bankAccountType}</DetailRow>}
-          {!bankingName && !bankName && !bankAccountNumber && !bankBranchCode && !bankAccountType && (
-            <p className="text-xs text-muted-foreground">No banking details.</p>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ─── Address Section ──────────────────────────────────────────────────────────
 
 interface ContractorAddressSectionProps {
@@ -230,7 +170,7 @@ export function ContractorAddressSection({ entityId, address }: Readonly<Contrac
     : []
 
   return (
-    <div className="border-t pt-3 mt-3">
+    <div>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Address</span>
         {!editing && (

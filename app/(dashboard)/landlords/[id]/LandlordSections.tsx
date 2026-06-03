@@ -222,30 +222,23 @@ export function LandlordAddressSection({
 
 // ─── Banking ─────────────────────────────────────────────────────────────────
 
-interface LandlordBankingSectionProps {
+interface LandlordPaymentSectionProps {
   landlordId: string
   contactId: string
-  bankName: string | null
-  bankAccount: string | null
-  bankBranch: string | null
-  bankAccountType: string | null
   taxNumber: string | null
   paymentMethod: string | null
 }
 
+// Tax + payment preference. Bank accounts moved to the multi-account BankAccountsSection (contact_bank_accounts).
 export function LandlordBankingSection({
-  landlordId, contactId, bankName, bankAccount, bankBranch, bankAccountType, taxNumber, paymentMethod,
-}: Readonly<LandlordBankingSectionProps>) {
+  landlordId, contactId, taxNumber, paymentMethod,
+}: Readonly<LandlordPaymentSectionProps>) {
   const [editing, setEditing] = useState(false)
-
-  const maskedAccount = bankAccount
-    ? `${"•".repeat(Math.max(0, bankAccount.length - 4))}${bankAccount.slice(-4)}`
-    : null
 
   return (
     <div className="border-t pt-3 mt-3 first:border-t-0 first:pt-0 first:mt-0">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Banking</span>
+        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Payment details</span>
         {!editing && (
           <EditButton mode="label" label="Edit" onClick={() => setEditing(true)} />
         )}
@@ -254,24 +247,16 @@ export function LandlordBankingSection({
         <LandlordBankingForm
           landlordId={landlordId}
           contactId={contactId}
-          bankName={bankName}
-          bankAccount={bankAccount}
-          bankBranch={bankBranch}
-          bankAccountType={bankAccountType}
           taxNumber={taxNumber}
           paymentMethod={paymentMethod}
           onSaved={() => setEditing(false)}
         />
       ) : (
         <div>
-          {bankName && <DetailRow label="Bank">{bankName}</DetailRow>}
-          {maskedAccount && <DetailRow label="Account">{maskedAccount}</DetailRow>}
-          {bankBranch && <DetailRow label="Branch">{bankBranch}</DetailRow>}
-          {bankAccountType && <DetailRow label="Type">{bankAccountType}</DetailRow>}
           {taxNumber && <DetailRow label="Tax no.">{taxNumber}</DetailRow>}
           {paymentMethod && <DetailRow label="Payment">{paymentMethod}</DetailRow>}
-          {!bankName && !maskedAccount && !bankAccountType && !taxNumber && !paymentMethod && (
-            <p className="text-sm text-muted-foreground">No banking details.</p>
+          {!taxNumber && !paymentMethod && (
+            <p className="text-sm text-muted-foreground">No payment details.</p>
           )}
         </div>
       )}

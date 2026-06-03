@@ -75,6 +75,37 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true, landlordId: landlord.id })
 }
 
+interface LandlordPatchBody {
+  landlordId?: string; contactId?: string
+  entityType?: string; firstName?: string; lastName?: string; companyName?: string
+  tradingAs?: string; registrationNumber?: string; vatNumber?: string
+  email?: string; phone?: string; notes?: string
+  // Banking moved to contact_bank_accounts — edited via /api/landlords/[id]/contact-details (type: bank_account)
+  taxNumber?: string; paymentMethod?: string
+}
+
+function buildLandlordContactUpdate(b: LandlordPatchBody): Record<string, unknown> {
+  const u: Record<string, unknown> = {}
+  if (b.firstName !== undefined) u.first_name = b.firstName?.trim() || null
+  if (b.lastName !== undefined) u.last_name = b.lastName?.trim() || null
+  if (b.entityType !== undefined) u.entity_type = b.entityType
+  if (b.companyName !== undefined) u.company_name = b.companyName?.trim() || null
+  if (b.tradingAs !== undefined) u.trading_as = b.tradingAs?.trim() || null
+  if (b.registrationNumber !== undefined) u.registration_number = b.registrationNumber?.trim() || null
+  if (b.vatNumber !== undefined) u.vat_number = b.vatNumber?.trim() || null
+  if (b.email !== undefined) u.primary_email = b.email?.trim() || null
+  if (b.phone !== undefined) u.primary_phone = b.phone?.trim() || null
+  if (b.notes !== undefined) u.notes = b.notes?.trim() || null
+  return u
+}
+
+function buildLandlordUpdate(b: LandlordPatchBody): Record<string, unknown> {
+  const u: Record<string, unknown> = {}
+  if (b.taxNumber !== undefined) u.tax_number = b.taxNumber?.trim() || null
+  if (b.paymentMethod !== undefined) u.payment_method = b.paymentMethod || null
+  return u
+}
+
 export async function PATCH(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -84,51 +115,20 @@ export async function PATCH(req: NextRequest) {
   const membership = await getMembership(service, user.id)
   if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
 
-  const {
-    landlordId, contactId,
-    // Contact fields
-    entityType, firstName, lastName, companyName, tradingAs, registrationNumber, vatNumber,
-    email, phone, notes,
-    // Landlord fields
-    bankName, bankAccount, bankBranch, bankAccountType, taxNumber, paymentMethod,
-  } = await req.json()
-  if (!landlordId || !contactId) return NextResponse.json({ error: "Missing ids" }, { status: 400 })
+  const body = await req.json() as LandlordPatchBody
+  if (!body.landlordId || !body.contactId) return NextResponse.json({ error: "Missing ids" }, { status: 400 })
 
-  // Build contact update (only include defined fields)
-  const contactUpdate: Record<string, unknown> = {}
-  if (firstName !== undefined) contactUpdate.first_name = firstName?.trim() || null
-  if (lastName !== undefined) contactUpdate.last_name = lastName?.trim() || null
-  if (entityType !== undefined) contactUpdate.entity_type = entityType
-  if (companyName !== undefined) contactUpdate.company_name = companyName?.trim() || null
-  if (tradingAs !== undefined) contactUpdate.trading_as = tradingAs?.trim() || null
-  if (registrationNumber !== undefined) contactUpdate.registration_number = registrationNumber?.trim() || null
-  if (vatNumber !== undefined) contactUpdate.vat_number = vatNumber?.trim() || null
-  if (email !== undefined) contactUpdate.primary_email = email?.trim() || null
-  if (phone !== undefined) contactUpdate.primary_phone = phone?.trim() || null
-  if (notes !== undefined) contactUpdate.notes = notes?.trim() || null
-
+  const contactUpdate = buildLandlordContactUpdate(body)
   if (Object.keys(contactUpdate).length > 0) {
     const { error: contactError } = await service.from("contacts")
-      .update(contactUpdate)
-      .eq("id", contactId)
-      .eq("org_id", membership.org_id)
+      .update(contactUpdate).eq("id", body.contactId).eq("org_id", membership.org_id)
     if (contactError) return NextResponse.json({ error: contactError.message }, { status: 500 })
   }
 
-  // Build landlord update
-  const landlordUpdate: Record<string, unknown> = {}
-  if (bankName !== undefined) landlordUpdate.bank_name = bankName?.trim() || null
-  if (bankAccount !== undefined) landlordUpdate.bank_account = bankAccount?.trim() || null
-  if (bankBranch !== undefined) landlordUpdate.bank_branch = bankBranch?.trim() || null
-  if (bankAccountType !== undefined) landlordUpdate.bank_account_type = bankAccountType || null
-  if (taxNumber !== undefined) landlordUpdate.tax_number = taxNumber?.trim() || null
-  if (paymentMethod !== undefined) landlordUpdate.payment_method = paymentMethod || null
-
+  const landlordUpdate = buildLandlordUpdate(body)
   if (Object.keys(landlordUpdate).length > 0) {
     const { error: landlordError } = await service.from("landlords")
-      .update(landlordUpdate)
-      .eq("id", landlordId)
-      .eq("org_id", membership.org_id)
+      .update(landlordUpdate).eq("id", body.landlordId).eq("org_id", membership.org_id)
     if (landlordError) return NextResponse.json({ error: landlordError.message }, { status: 500 })
   }
 
