@@ -5,9 +5,10 @@
  *
  * Auth:   client-only; tenant search via TenantPicker (org-scoped); juristic-band save via updateContactJuristicFields
  * Data:   reads/writes WizardData tenant fields through LeaseWizardContext
- * Notes:  Content-only (footer-driven nav). TenantPicker's "Add new tenant" opens the shared AddPartyModal
- *         inline (Phase 2 standalone already shipped); the in-modal sub-flow bridge is Phase 2 (not built here).
- *         Registers a validate-then-commit submit handler the modal footer's Continue invokes.
+ * Notes:  Content-only (footer-driven nav). TenantPicker's "Add new tenant" swaps the host modal into the
+ *         in-modal add-tenant sub-flow (ADDENDUM_LEASE_CREATION_MODAL Phase 2 / D-8) — LeaseWizardModal hosts
+ *         it via AddTenantProvider and returns with the new tenant selected. Registers a validate-then-commit
+ *         submit handler the modal footer's Continue invokes.
  */
 import { useState, useMemo } from "react"
 import { useOrg } from "@/hooks/useOrg"

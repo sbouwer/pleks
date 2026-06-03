@@ -144,6 +144,10 @@ function OnboardingWizard() {
   // §A — explicit ToS consent; CTA disabled until ticked on every completion surface
   const [tosAccepted, setTosAccepted] = useState(false)
 
+  // ADDENDUM_LEASE_CREATION_MODAL Phase 3 (D-7) — optional org default for the lease document-source fork.
+  // null = undecided (skippable) → the lease CreateStep just shows the fork on every lease.
+  const [leaseSource, setLeaseSource] = useState<"pleks" | "external" | null>(null)
+
   // Inline validation message shown when a completion CTA is clicked with missing fields
   const [formHint, setFormHint] = useState("")
 
@@ -271,6 +275,7 @@ function OnboardingWizard() {
       tosAccepted,
       invites: userType === "agency" ? invites.filter((i) => i.email.trim()) : undefined,
       onboardingComplete: true,
+      defaultLeaseDocumentSource: leaseSource ?? undefined,
       password: isAlreadyAuthenticated ? undefined : acctPassword,
       isAlreadyAuthenticated,
     }
@@ -339,6 +344,39 @@ function OnboardingWizard() {
     </div>
   )
 
+  // Phase 3 (D-7) — optional, skippable lease-default control shown above the final CTA. Three radios:
+  // Generate with Pleks / Upload signed leases / Decide later (the default — leaves the org column NULL).
+  const leaseSourceOptions: Array<{ value: "pleks" | "external" | null; label: string; sub: string }> = [
+    { value: "pleks",    label: "Generate leases with Pleks",  sub: "Build SA-compliant leases from a Pleks template" },
+    { value: "external", label: "Upload my own signed leases", sub: "Pleks tracks the key terms for invoicing and arrears" },
+    { value: null,       label: "Decide per lease",            sub: "We'll ask each time you create a lease" },
+  ]
+  const leaseSourceChoice = (
+    <fieldset style={{ border: "none", padding: 0, margin: "0 0 16px" }}>
+      <legend style={{ fontSize: 13, fontWeight: 500, color: "var(--ink)", marginBottom: 4, padding: 0 }}>
+        How will most of your leases be created? <span style={{ color: "var(--ink-mute)", fontWeight: 400 }}>(optional)</span>
+      </legend>
+      <p style={{ fontSize: 12, color: "var(--ink-mute)", margin: "0 0 10px" }}>You can change this anytime in Settings.</p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {leaseSourceOptions.map((opt) => (
+          <label key={opt.label} className="ob-check-row" style={{ alignItems: "flex-start" }}>
+            <input
+              type="radio"
+              name="lease-source"
+              checked={leaseSource === opt.value}
+              onChange={() => setLeaseSource(opt.value)}
+              style={{ marginTop: 2 }}
+            />
+            <span>
+              <span style={{ display: "block", fontSize: 13, color: "var(--ink)" }}>{opt.label}</span>
+              <span style={{ display: "block", fontSize: 12, color: "var(--ink-mute)" }}>{opt.sub}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  )
+
   // §A — ToS checkbox rendered immediately above each final CTA
   const tosCheckbox = (
     <label className="ob-check-row" style={{ marginBottom: 12 }}>
@@ -405,6 +443,7 @@ function OnboardingWizard() {
               </button>
             </div>
           </Field>
+          {leaseSourceChoice}
           {tosCheckbox}
           <Btn onClick={handleCreateAccount} disabled={loading}>
             {loading ? "Creating account…" : "Create account"}
@@ -423,6 +462,7 @@ function OnboardingWizard() {
         {progressBar}
         <h2 className="ob-heading">You&apos;re all set</h2>
         <p className="pub-small" style={{ margin: "0 0 28px" }}>{subtitle ?? "Your free Owner account is ready."}</p>
+        {leaseSourceChoice}
         {tosCheckbox}
         <Btn onClick={handleComplete} disabled={loading || !tosAccepted}>
           {loading ? "Setting up…" : "Go to dashboard"}

@@ -15,6 +15,9 @@
  */
 import { useRef, useState, useTransition } from "react"
 import { WizardModal, type WizardModalStep } from "@/components/ui/wizard-modal"
+import { usePartyFlow } from "@/components/parties/usePartyFlow"
+import { addTenantParty } from "@/lib/actions/parties"
+import { AddTenantProvider } from "@/app/(dashboard)/leases/new/addTenantContext"
 import { LeaseWizardProvider, useLeaseWizard } from "./LeaseWizardContext"
 import type { WizardPrefill } from "./wizardData"
 import type { StepHandle } from "./stepHandle"
@@ -47,6 +50,22 @@ function LeaseWizardModalInner({
   const handleRef = useRef<StepHandle | null>(null)
   const register = (handle: StepHandle) => { handleRef.current = handle }
 
+  // ── Tenant sub-flow (Tenant step → "Add new tenant", in the same modal) — D-8 ───
+  const [subflow, setSubflow] = useState<"add_tenant" | null>(null)
+  const [refreshNonce, setRefreshNonce] = useState(0)
+  const [lastCreatedId, setLastCreatedId] = useState<string | null>(null)
+  const tenantFlow = usePartyFlow({
+    role: "tenant",
+    onSubmit: addTenantParty,
+    onDone: (result) => {
+      // created → hand the new tenant back to the picker (it re-fetches on the nonce and auto-selects)
+      if (result.id) setLastCreatedId(result.id)
+      setRefreshNonce((n) => n + 1)
+      setSubflow(null)
+    },
+  })
+  function openAddTenant() { tenantFlow.reset(); setSubflow("add_tenant") }
+
   const isFirst = step === 0
   const meta = STEP_META[step]
 
@@ -74,6 +93,29 @@ function LeaseWizardModalInner({
     hint: i === step ? "In progress" : undefined,
   }))
 
+  // ── Tenant sub-flow: same modal, swapped contents (mirror PropertyWizardModal) ──
+  if (subflow === "add_tenant") {
+    return (
+      <WizardModal
+        open
+        onOpenChange={(o) => { if (!o) setSubflow(null) }}   // close/Esc → back to lease, never lose the wizard
+        eyebrow={tenantFlow.eyebrow}
+        steps={tenantFlow.steps}
+        current={tenantFlow.step}
+        onStepSelect={tenantFlow.goTo}
+        title={tenantFlow.title}
+        subtitle={tenantFlow.subtitle}
+        backLabel={tenantFlow.step === 0 ? "Back to lease" : "Back"}
+        onBack={() => (tenantFlow.step === 0 ? setSubflow(null) : tenantFlow.back())}
+        primaryLabel={tenantFlow.primaryLabel}
+        onPrimary={tenantFlow.next}
+        primaryDisabled={tenantFlow.primaryDisabled}
+      >
+        {tenantFlow.body}
+      </WizardModal>
+    )
+  }
+
   return (
     <WizardModal
       open
@@ -91,7 +133,9 @@ function LeaseWizardModalInner({
       primaryDisabled={isSaving}
       footerError={error}
     >
-      {renderStep()}
+      <AddTenantProvider value={{ openAddTenant, refreshNonce, lastCreatedId }}>
+        {renderStep()}
+      </AddTenantProvider>
     </WizardModal>
   )
 }

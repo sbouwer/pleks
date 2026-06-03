@@ -5,9 +5,14 @@
  *
  * Auth:   dashboard layout (gateway); the add path goes through addTenantParty (agent write gate)
  * Data:   tenant list via fetchTenants (React Query, org-scoped)
- * Notes:  "Add new tenant" opens the shared AddPartyModal IN PLACE (no navigation) — the host flow (lease
- *         builder, property card) keeps its state. On create it invalidates the list and auto-selects the
- *         new tenant once it lands. Replaced the old /tenants/new?returnTo navigation (ADDENDUM_25A lease-flow).
+ * Notes:  Dual-mode "Add new tenant" (ADDENDUM_LEASE_CREATION_MODAL Phase 2, D-8):
+ *           • Hosted in a wizard-modal (lease builder) → an AddTenantProvider supplies the bridge, so the
+ *             picker calls openAddTenant() and the host swaps the SAME modal to the in-modal sub-flow
+ *             ("Back to lease"); it returns with the new tenant id (lastCreatedId) + a bumped refreshNonce.
+ *           • Plain page (VacantSection, inspections, co-tenant manager) → no provider, so it opens the
+ *             shared AddPartyModal IN PLACE (no navigation), exactly as before.
+ *         Either way it invalidates the list and auto-selects the new tenant once it lands. Replaced the old
+ *         /tenants/new?returnTo navigation (ADDENDUM_25A lease-flow).
  */
 import { useState, useRef, useEffect, cloneElement, isValidElement } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
@@ -16,6 +21,7 @@ import { PORTFOLIO_QUERY_KEYS, STALE_TIME, fetchTenants } from "@/lib/queries/po
 import { Search, UserRound, Plus } from "lucide-react"
 import { AddPartyModal } from "@/components/parties/AddPartyModal"
 import { addTenantParty } from "@/lib/actions/parties"
+import { useAddTenantSubflow } from "@/app/(dashboard)/leases/new/addTenantContext"
 
 export interface PickedTenant {
   id: string
@@ -62,8 +68,15 @@ export function TenantPicker({ orgId, onSelect, trigger, align = "left", exclude
   const [pendingSelectId, setPendingSelectId] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  // Set when THIS picker launched the hosted sub-flow, so only it (not the sibling co-tenant pickers
+  // sharing the same provider) consumes the created tenant when the host bumps the nonce.
+  const openedSubflowRef = useRef(false)
   const supabase = createClient()
   const queryClient = useQueryClient()
+
+  // Present only when this picker is hosted inside the lease wizard-modal (D-8). When present, "Add new
+  // tenant" swaps the host modal to the in-modal sub-flow instead of opening the standalone AddPartyModal.
+  const subflow = useAddTenantSubflow()
 
   const { data: tenants = [] } = useQuery({
     queryKey: PORTFOLIO_QUERY_KEYS.tenants(orgId),
@@ -71,6 +84,17 @@ export function TenantPicker({ orgId, onSelect, trigger, align = "left", exclude
     staleTime: STALE_TIME.tenants,
     enabled: !!orgId,
   })
+
+  // Hosted sub-flow finished a create → re-fetch the list and queue the new tenant for auto-select,
+  // but only in the picker that opened it. (The standalone path queues pendingSelectId from onSubmit.)
+  const hostNonce = subflow?.refreshNonce ?? 0
+  const hostCreatedId = subflow?.lastCreatedId ?? null
+  useEffect(() => {
+    if (!hostCreatedId || !openedSubflowRef.current) return
+    openedSubflowRef.current = false
+    void queryClient.invalidateQueries({ queryKey: PORTFOLIO_QUERY_KEYS.tenants(orgId) })
+    setPendingSelectId(hostCreatedId)
+  }, [hostNonce, hostCreatedId, orgId, queryClient])
 
   // After an inline add, the new tenant lands in the refetched list — auto-select it for the host flow.
   useEffect(() => {
@@ -204,7 +228,11 @@ export function TenantPicker({ orgId, onSelect, trigger, align = "left", exclude
             <button
               type="button"
               className="flex w-full items-center gap-2 px-3 py-2 text-sm text-brand hover:bg-muted/50 rounded-lg transition-colors"
-              onClick={() => { close(); setAddOpen(true) }}
+              onClick={() => {
+                close()
+                if (subflow) { openedSubflowRef.current = true; subflow.openAddTenant() }
+                else setAddOpen(true)
+              }}
             >
               <Plus className="size-4" />
               Add new tenant
