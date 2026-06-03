@@ -20,7 +20,8 @@ import { usePermissions } from "@/hooks/usePermissions"
 import { Trash2 } from "lucide-react"
 import { PORTFOLIO_QUERY_KEYS } from "@/lib/queries/portfolio"
 import { AddPartyModal } from "@/components/parties/AddPartyModal"
-import { addContractorParty } from "@/lib/actions/parties"
+import { EditPartyModal } from "@/components/parties/EditPartyModal"
+import { addContractorParty, fetchContractorParty, updateContractorParty } from "@/lib/actions/parties"
 
 // Canonical speciality list lives in lib/parties/partyConfig (single source — re-exported here so
 // any existing importer of this module keeps working).
@@ -52,6 +53,7 @@ export function SuppliersClient({ contractors: initial, orgId }: Readonly<Props>
   const [search, setSearch] = useState("")
   const [activeFilter, setActiveFilter] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [editId, setEditId] = useState<string | null>(null)
   const { sortKey, sortDir, onSort } = useListSort<SortKey>("company")
 
   const { isAdmin } = usePermissions()
@@ -236,7 +238,7 @@ export function SuppliersClient({ contractors: initial, orgId }: Readonly<Props>
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <EditButton label="Edit supplier" onClick={() => router.push(`/suppliers/${c.id}`)} />
+                        <EditButton label="Edit supplier" onClick={() => setEditId(c.id)} />
                         {isAdmin && (
                           <IconButton
                             icon={<Trash2 className="size-3.5" />}
@@ -254,6 +256,20 @@ export function SuppliersClient({ contractors: initial, orgId }: Readonly<Props>
             </tbody>
           </table>
         </ListCard>
+      )}
+
+      {editId && (
+        <EditPartyModal
+          role="supplier"
+          open={!!editId}
+          onOpenChange={(o) => { if (!o) setEditId(null) }}
+          fetchData={() => fetchContractorParty(editId)}
+          onSubmit={(input) => updateContractorParty(input, editId)}
+          onSaved={() => {
+            queryClient.invalidateQueries({ queryKey: PORTFOLIO_QUERY_KEYS.contractors(orgId) })
+            router.refresh()
+          }}
+        />
       )}
     </div>
   )

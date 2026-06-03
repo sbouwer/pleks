@@ -11,24 +11,28 @@
  *         in-wizard "add a landlord" sub-flow, host usePartyFlow directly with an `onDone` instead.
  */
 import { WizardModal } from "@/components/ui/wizard-modal"
-import { type PartyRole } from "@/lib/parties/partyConfig"
-import { type AddPartyInput, type AddPartyResult } from "@/lib/parties/partyValidation"
+import { type PartyRole, type PartyEntity } from "@/lib/parties/partyConfig"
+import { type AddPartyInput, type AddPartyResult, type PartyFormState } from "@/lib/parties/partyValidation"
 import { usePartyFlow } from "./usePartyFlow"
 
 export type { AddPartyInput, AddPartyResult }
 
 export function AddPartyModal({
-  role, open, onOpenChange, onSubmit, onCreated,
+  role, open, onOpenChange, onSubmit, onCreated, mode = "add", initialEntity, initialForm,
 }: Readonly<{
   role: PartyRole
   open: boolean
   onOpenChange: (open: boolean) => void
   onSubmit: (input: AddPartyInput) => Promise<AddPartyResult>
-  /** called after a successful create so the parent can refresh its list */
+  /** called after a successful create/update so the parent can refresh its list */
   onCreated?: () => void
+  /** "edit" pre-fills from initialEntity/initialForm and switches copy to save-changes. */
+  mode?: "add" | "edit"
+  initialEntity?: PartyEntity
+  initialForm?: PartyFormState
 }>) {
   const flow = usePartyFlow({
-    role,
+    role, mode, initialEntity, initialForm,
     onSubmit: async (input) => {
       const result = await onSubmit(input)
       if (result.ok) onCreated?.()

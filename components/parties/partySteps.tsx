@@ -163,17 +163,19 @@ function CompanyIdentity({
 }
 
 export function IdentityStep({
-  role, entity, setEntity, f, set, errors, fullFica, companyPeople,
+  role, entity, setEntity, f, set, errors, fullFica, companyPeople, lockEntity,
 }: Readonly<{
   role: PartyRole; entity: PartyEntity; setEntity: (v: PartyEntity) => void
   f: PartyFormState; set: SetFn; errors: PartyErrors; fullFica: boolean; companyPeople: boolean
+  lockEntity?: boolean
 }>) {
+  const lockedLabel = entity === "individual" ? "Individual" : "Company"
   return (
     <>
       <div>
-        <SectLabel>Who are you adding?</SectLabel>
-        <EntityToggle entity={entity} onChange={setEntity} />
-        <p className="mt-3 text-[13px] leading-snug text-muted-foreground">{entityBlurb(entity, fullFica)}</p>
+        <SectLabel>{lockEntity ? lockedLabel : "Who are you adding?"}</SectLabel>
+        {!lockEntity && <EntityToggle entity={entity} onChange={setEntity} />}
+        <p className={`text-[13px] leading-snug text-muted-foreground ${lockEntity ? "" : "mt-3"}`}>{entityBlurb(entity, fullFica)}</p>
       </div>
 
       {entity === "individual" ? (
@@ -282,15 +284,12 @@ export function DetailsStep({
   return (
     <>
       <div>
-        <SectLabel n="01">Payout account · optional</SectLabel>
+        <SectLabel n="01">Payout account(s) · optional</SectLabel>
         <p className="mb-3 text-[13px] leading-snug text-muted-foreground">
-          Where collected rent is paid out. You can add this later from their profile.
+          Where collected rent is paid out — add one or more accounts (the first is the primary). You can also
+          add these later from their profile.
         </p>
-        <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
-          <TextField label="Bank" k="bankName" f={f} set={set} errors={errors} placeholder="e.g. FNB" />
-          <TextField label="Account number" k="accountNumber" f={f} set={set} errors={errors} placeholder="000 000 0000" />
-          <TextField label="Branch code" k="branchCode" f={f} set={set} errors={errors} placeholder="250655" />
-        </div>
+        <BankAccountsRepeater accounts={f.bankAccounts ?? []} onChange={(a) => set("bankAccounts", a)} />
       </div>
       {/* Hidden on the "add me as landlord" self path — you don't send yourself a welcome pack. */}
       {!hideWelcomePack && (
@@ -392,8 +391,13 @@ export function ReviewStep({
           )}
           {role === "landlord" && (
             <>
-              <ReviewRow k="Payout bank" v={f.bankName} />
-              <ReviewRow k="Account" v={f.accountNumber} />
+              {(f.bankAccounts ?? []).filter((b) => b.bankName?.trim() || b.accountNumber?.trim()).map((b, i) => (
+                <ReviewRow
+                  key={b._uid ?? i}
+                  k={`Payout bank${i === 0 ? " · primary" : ""}`}
+                  v={[b.bankName, b.accountNumber ? `••••${b.accountNumber.slice(-4)}` : null].filter(Boolean).join(" · ")}
+                />
+              ))}
               <ReviewRow k="Welcome pack" v={f.sendWelcomePack !== false ? "Will send" : "Skip"} />
             </>
           )}

@@ -27,20 +27,25 @@ const STEPS: ReadonlyArray<WizardModalStep> = [
   { id: "confirm",  label: "Confirm",  hint: "In progress" },
 ]
 
-function stepHeading(step: number, singular: string, detailsTitle: string): string {
-  if (step === 0) return `Add a ${singular.toLowerCase()}`
+type FlowMode = "add" | "edit"
+
+function stepHeading(step: number, singular: string, detailsTitle: string, mode: FlowMode): string {
+  if (step === 0) return mode === "edit" ? `Edit ${singular.toLowerCase()}` : `Add a ${singular.toLowerCase()}`
   if (step === 1) return detailsTitle
-  return "Review & confirm"
+  return mode === "edit" ? "Review changes" : "Review & confirm"
 }
 
-function stepSubtitle(step: number, blurb: string, singular: string): string | undefined {
-  if (step === 0) return blurb
-  if (step === 2) return `Check everything before you add the ${singular.toLowerCase()}.`
+function stepSubtitle(step: number, blurb: string, singular: string, mode: FlowMode): string | undefined {
+  if (step === 0) return mode === "edit" ? undefined : blurb
+  if (step === 2) return mode === "edit"
+    ? `Check the changes before you save.`
+    : `Check everything before you add the ${singular.toLowerCase()}.`
   return undefined
 }
 
-function primaryLabelFor(step: number, submitting: boolean, singular: string): string {
+function primaryLabelFor(step: number, submitting: boolean, singular: string, mode: FlowMode): string {
   if (step !== 2) return "Continue"
+  if (mode === "edit") return submitting ? "Saving…" : "Save changes"
   return submitting ? "Adding…" : `Add ${singular.toLowerCase()}`
 }
 
@@ -55,6 +60,10 @@ export interface UsePartyFlowOptions {
   onDone?:  (result: AddPartyResult) => void
   /** Hide the landlord "welcome pack" prompt (the self "add me as landlord" path). */
   hideWelcomePack?: boolean
+  /** "edit" pre-fills the form and switches the copy to save-changes; the entity toggle is locked. */
+  mode?:         FlowMode
+  initialEntity?: PartyEntity
+  initialForm?:   PartyFormState
 }
 
 export interface PartyFlow {
@@ -81,10 +90,10 @@ export interface PartyFlow {
   prefill:         (values: Partial<PartyFormState>) => void
 }
 
-export function usePartyFlow({ role, onSubmit, onDone, hideWelcomePack }: UsePartyFlowOptions): PartyFlow {
+export function usePartyFlow({ role, onSubmit, onDone, hideWelcomePack, mode = "add", initialEntity, initialForm }: UsePartyFlowOptions): PartyFlow {
   const cfg = PARTY_ROLES[role]
-  const [entity, setEntity] = useState<PartyEntity>("individual")
-  const [f, setF] = useState<PartyFormState>({})
+  const [entity, setEntity] = useState<PartyEntity>(initialEntity ?? "individual")
+  const [f, setF] = useState<PartyFormState>(initialForm ?? {})
   const [errors, setErrors] = useState<PartyErrors>({})
   const [step, setStep] = useState(0)
   const [submitting, setSubmitting] = useState(false)
@@ -97,7 +106,7 @@ export function usePartyFlow({ role, onSubmit, onDone, hideWelcomePack }: UsePar
     setF((p) => ({ ...p, ...values }))
 
   function reset() {
-    setEntity("individual"); setF({}); setErrors({}); setStep(0); setDone(null)
+    setEntity(initialEntity ?? "individual"); setF(initialForm ?? {}); setErrors({}); setStep(0); setDone(null)
   }
 
   function changeEntity(v: PartyEntity) { setEntity(v); setErrors({}) }
@@ -134,9 +143,9 @@ export function usePartyFlow({ role, onSubmit, onDone, hideWelcomePack }: UsePar
   const body = (
     <>
       {step === 0 && (
-        <IdentityStep role={role} entity={entity} setEntity={changeEntity} f={f} set={set} errors={errors} fullFica={cfg.fullFica} companyPeople={cfg.companyPeople} />
+        <IdentityStep role={role} entity={entity} setEntity={changeEntity} f={f} set={set} errors={errors} fullFica={cfg.fullFica} companyPeople={cfg.companyPeople} lockEntity={mode === "edit"} />
       )}
-      {step === 1 && <DetailsStep role={role} f={f} set={set} errors={errors} hideWelcomePack={hideWelcomePack} />}
+      {step === 1 && <DetailsStep role={role} f={f} set={set} errors={errors} hideWelcomePack={hideWelcomePack || mode === "edit"} />}
       {step === 2 && <ReviewStep role={role} entity={entity} f={f} />}
     </>
   )
@@ -144,10 +153,10 @@ export function usePartyFlow({ role, onSubmit, onDone, hideWelcomePack }: UsePar
   return {
     role, entity, f, step, done,
     steps:           STEPS,
-    eyebrow:         `Add ${cfg.singular.toLowerCase()}`,
-    title:           stepHeading(step, cfg.singular, cfg.detailsTitle),
-    subtitle:        stepSubtitle(step, cfg.blurb, cfg.singular),
-    primaryLabel:    primaryLabelFor(step, submitting, cfg.singular),
+    eyebrow:         `${mode === "edit" ? "Edit" : "Add"} ${cfg.singular.toLowerCase()}`,
+    title:           stepHeading(step, cfg.singular, cfg.detailsTitle, mode),
+    subtitle:        stepSubtitle(step, cfg.blurb, cfg.singular, mode),
+    primaryLabel:    primaryLabelFor(step, submitting, cfg.singular, mode),
     primaryDisabled: submitting,
     body, next, back, goTo, reset, prefill,
   }

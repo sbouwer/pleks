@@ -18,6 +18,8 @@ import { Trash2 } from "lucide-react"
 import { useOrg } from "@/hooks/useOrg"
 import { usePermissions } from "@/hooks/usePermissions"
 import { PORTFOLIO_QUERY_KEYS } from "@/lib/queries/portfolio"
+import { EditPartyModal } from "@/components/parties/EditPartyModal"
+import { fetchLandlordParty, updateLandlordParty } from "@/lib/actions/parties"
 
 interface Landlord {
   id: string
@@ -45,6 +47,7 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
   const [search, setSearch] = useState("")
   const { sortKey, sortDir, onSort } = useListSort<SortKey>("name")
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [editId, setEditId] = useState<string | null>(null)
 
   const filtered = initial
     .filter((l) => {
@@ -167,7 +170,7 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
                     </td>
                     <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <EditButton label="Edit landlord" onClick={() => router.push(`/landlords/${l.id}`)} />
+                        <EditButton label="Edit landlord" onClick={() => setEditId(l.id)} />
                         {isAdmin && (
                           <IconButton
                             icon={<Trash2 className="size-3.5" />}
@@ -186,6 +189,23 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
           </table>
           </ListCard>
         </>
+      )}
+
+      {editId && (
+        <EditPartyModal
+          role="landlord"
+          open={!!editId}
+          onOpenChange={(o) => { if (!o) setEditId(null) }}
+          fetchData={() => fetchLandlordParty(editId)}
+          onSubmit={(input) => updateLandlordParty(input, editId)}
+          onSaved={() => {
+            if (orgId) {
+              queryClient.invalidateQueries({ queryKey: PORTFOLIO_QUERY_KEYS.landlords(orgId) })
+              queryClient.invalidateQueries({ queryKey: PORTFOLIO_QUERY_KEYS.properties(orgId) })
+            }
+            router.refresh()
+          }}
+        />
       )}
     </div>
   )

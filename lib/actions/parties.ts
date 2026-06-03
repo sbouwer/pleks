@@ -11,6 +11,7 @@
  *         contractors are non-FICA (no ID). Tenant consent writes a real consent_log row (POPIA).
  */
 import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { gateway } from "@/lib/supabase/gateway"
 import { headers } from "next/headers"
 import { hashIdNumber } from "@/lib/crypto/idNumber"
 import { PARTY_ROLES, toContactEntityType, type PartyRole, type PartyEntity } from "@/lib/parties/partyConfig"
@@ -174,6 +175,166 @@ async function auditPartyCreate(db: Db, orgId: string, userId: string, table: st
   })
 }
 
+async function auditPartyUpdate(db: Db, orgId: string, userId: string, table: string, recordId: string, role: PartyRole, entity: PartyEntity, name: string) {
+  await db.from("audit_log").insert({
+    org_id: orgId,
+    table_name: table,
+    record_id: recordId,
+    action: "UPDATE",
+    changed_by: userId,
+    new_values: { action: `${role}_updated`, entity, name },
+  })
+}
+
+// ── Edit helpers (shared by the update* actions) ──────────────────────────────
+
+/** Editable contact scalar fields (entity-aware). entity_type / primary_role are immutable on edit.
+ *  For FICA individuals (landlord/tenant) the ID round-trips (pre-filled by fetch → editable here). */
+function buildContactScalarUpdate(entity: PartyEntity, f: PartyFormState, fica: boolean, primary?: PartyPerson): Record<string, unknown> {
+  if (entity === "individual") {
+    const base: Record<string, unknown> = {
+      title: f.title?.trim() || null, initials: f.initials?.trim() || null,
+      first_name: f.firstName?.trim() || null, middle_names: f.middleNames?.trim() || null,
+      last_name: f.lastName?.trim() || null, suffix: f.suffix?.trim() || null,
+      designation: f.designation?.trim() || null, gender: f.gender || null,
+      preferred_channel: f.preferredChannel || null,
+      primary_email: f.email?.trim() || null, primary_phone: f.phone?.trim() || null,
+      vat_number: f.vatNumber?.trim() || null,
+    }
+    if (fica) {
+      const id = f.idNumber?.trim() || null
+      base.id_type = f.idType || "sa_id"
+      base.id_number = id
+      base.id_number_hash = id ? hashIdNumber(id) : null
+    }
+    return base
+  }
+  return {
+    company_name: f.companyName?.trim() || null,
+    registration_number: f.companyReg?.trim() || null,
+    vat_number: f.vatNumber?.trim() || null,
+    primary_email: f.companyEmail?.trim() || primary?.email?.trim() || null,
+    primary_phone: f.companyPhone?.trim() || primary?.phone?.trim() || null,
+  }
+}
+
+/** Upsert company people: update by id, insert new, soft-delete removed. Clears primary first to dodge uq. */
+async function upsertCompanyPeople(db: Db, orgId: string, userId: string, companyContactId: string, people: PartyPerson[] | undefined) {
+  const list = (people ?? []).filter((p) => p.firstName?.trim() || p.lastName?.trim())
+  const { data: existing } = await db.from("contacts")
+    .select("id").eq("organisation_contact_id", companyContactId).eq("org_id", orgId).is("deleted_at", null)
+  const existingIds = new Set((existing ?? []).map((r) => r.id as string))
+  const submittedIds = new Set(list.filter((p) => p.id).map((p) => p.id as string))
+
+  const toDelete = [...existingIds].filter((id) => !submittedIds.has(id))
+  if (toDelete.length > 0) {
+    await db.from("contacts").update({ deleted_at: new Date().toISOString() }).in("id", toDelete).eq("org_id", orgId)
+  }
+  // clear all primaries up front so the partial-unique never trips mid-loop
+  await db.from("contacts").update({ is_primary_contact: false }).eq("organisation_contact_id", companyContactId).eq("org_id", orgId)
+
+  let primaryIdx = list.findIndex((p) => p.isPrimary)
+  if (primaryIdx < 0) primaryIdx = 0
+  for (let i = 0; i < list.length; i++) {
+    const p = list[i]
+    const sigId = p.isSignatory ? (p.idNumber?.trim() || null) : null
+    const row = {
+      company_function: p.companyFunction || "other",
+      designation: p.designation?.trim() || null,
+      is_primary_contact: i === primaryIdx,
+      is_signatory: !!p.isSignatory,
+      id_type: p.isSignatory ? (p.idType || "sa_id") : null,
+      id_number: sigId,
+      id_number_hash: sigId ? hashIdNumber(sigId) : null,
+      title: p.title?.trim() || null,
+      first_name: p.firstName?.trim() || null,
+      last_name: p.lastName?.trim() || null,
+      primary_email: p.email?.trim() || null,
+      primary_phone: p.phone?.trim() || null,
+    }
+    if (p.id && existingIds.has(p.id)) {
+      await db.from("contacts").update(row).eq("id", p.id).eq("org_id", orgId)
+    } else {
+      await db.from("contacts").insert({
+        org_id: orgId, entity_type: "individual", primary_role: "company_contact",
+        organisation_contact_id: companyContactId, created_by: userId, ...row,
+      })
+    }
+  }
+}
+
+/** Replace the typed (physical/postal/billing) addresses; leaves work/other addresses untouched. */
+async function replaceTypedAddresses(db: Db, orgId: string, contactId: string, addresses: PartyAddressInput[] | undefined) {
+  await db.from("contact_addresses").delete()
+    .eq("contact_id", contactId).eq("org_id", orgId).in("address_type", ["physical", "postal", "billing"])
+  await insertCompanyAddresses(db, orgId, contactId, addresses)
+}
+
+/** Replace all bank accounts (no FK deps on contact_bank_accounts). */
+async function replaceBankAccounts(db: Db, orgId: string, contactId: string, accounts: PartyBankAccountInput[] | undefined) {
+  await db.from("contact_bank_accounts").delete().eq("contact_id", contactId).eq("org_id", orgId)
+  await insertPartyBankAccounts(db, orgId, contactId, accounts)
+}
+
+/** Existing company people → PartyPerson[] (carries the DB id for the edit diff). */
+async function fetchCompanyPeopleAsParty(db: Db, orgId: string, companyContactId: string): Promise<PartyPerson[]> {
+  const { data } = await db.from("contacts")
+    .select("id, title, first_name, last_name, company_function, designation, is_primary_contact, is_signatory, id_type, id_number, primary_email, primary_phone")
+    .eq("organisation_contact_id", companyContactId).eq("org_id", orgId).is("deleted_at", null)
+    .order("is_primary_contact", { ascending: false })
+  return (data ?? []).map((p) => ({
+    _uid: p.id as string, id: p.id as string,
+    title: (p.title as string | null) ?? undefined,
+    firstName: (p.first_name as string | null) ?? undefined,
+    lastName: (p.last_name as string | null) ?? undefined,
+    companyFunction: (p.company_function as string | null) ?? undefined,
+    designation: (p.designation as string | null) ?? undefined,
+    email: (p.primary_email as string | null) ?? undefined,
+    phone: (p.primary_phone as string | null) ?? undefined,
+    isPrimary: !!p.is_primary_contact,
+    isSignatory: !!p.is_signatory,
+    idType: (p.id_type as string | null) ?? undefined,
+    idNumber: (p.id_number as string | null) ?? undefined,
+  }))
+}
+
+const centsToZar = (c: number | null | undefined): string | undefined => (c == null ? undefined : String(c / 100))
+
+function mapAddressesToForm(rows: Array<Record<string, unknown>> | null): PartyAddressInput[] {
+  return (rows ?? [])
+    .filter((a) => ["physical", "postal", "billing"].includes(a.address_type as string))
+    .map((a) => ({
+      type: a.address_type as PartyAddressInput["type"],
+      line1: (a.street_line1 as string | null) ?? undefined,
+      line2: (a.street_line2 as string | null) ?? undefined,
+      suburb: (a.suburb as string | null) ?? undefined,
+      city: (a.city as string | null) ?? undefined,
+      province: (a.province as string | null) ?? undefined,
+      postal: (a.postal_code as string | null) ?? undefined,
+    }))
+}
+
+function mapBankAccountsToForm(rows: Array<Record<string, unknown>> | null): PartyBankAccountInput[] {
+  return (rows ?? []).map((b) => ({
+    _uid: b.id as string, id: b.id as string,
+    accountName: (b.account_name as string | null) ?? undefined,
+    bankName: (b.bank_name as string | null) ?? undefined,
+    accountNumber: (b.account_number as string | null) ?? undefined,
+    branchCode: (b.branch_code as string | null) ?? undefined,
+    accountType: (b.account_type as string | null) ?? undefined,
+    label: (b.label as string | null) ?? undefined,
+  }))
+}
+
+/** Result of a fetch-as-party (pre-fill payload for the edit modal). */
+export interface PartyEditData {
+  ok: boolean
+  error?: string
+  entity?: PartyEntity
+  form?: PartyFormState
+  name?: string
+}
+
 // ── Contractor ────────────────────────────────────────────────────────────────
 export async function addContractorParty(input: AddPartyInput, supplierType: string = "contractor"): Promise<AddPartyResult> {
   if (input.role !== "supplier") return { ok: false, error: "Unsupported role for this action" }
@@ -219,6 +380,87 @@ export async function addContractorParty(input: AddPartyInput, supplierType: str
   }
 }
 
+/** Fetch a contractor as a pre-filled PartyFormState for the edit modal. */
+export async function fetchContractorParty(contractorId: string): Promise<PartyEditData> {
+  const gw = await gateway()
+  if (!gw) return { ok: false, error: "Not authorised" }
+  const { db, orgId } = gw
+
+  const { data: c } = await db.from("contractor_view")
+    .select("id, contact_id, entity_type, first_name, last_name, company_name, registration_number, vat_number, email, phone, specialities, is_active, notes, call_out_rate_cents, hourly_rate_cents")
+    .eq("id", contractorId).eq("org_id", orgId).single()
+  if (!c) return { ok: false, error: "Supplier not found" }
+
+  const [{ data: con }, { data: addrs }, { data: banks }] = await Promise.all([
+    db.from("contractors").select("vat_registered").eq("id", contractorId).eq("org_id", orgId).single(),
+    db.from("contact_addresses").select("street_line1, street_line2, suburb, city, province, postal_code, address_type").eq("contact_id", c.contact_id),
+    db.from("contact_bank_accounts").select("id, account_name, bank_name, account_number, branch_code, account_type, label, is_primary").eq("contact_id", c.contact_id).order("is_primary", { ascending: false }),
+  ])
+
+  const entity: PartyEntity = c.entity_type === "organisation" ? "company" : "individual"
+  const people = entity === "company" ? await fetchCompanyPeopleAsParty(db, orgId, c.contact_id) : undefined
+
+  const form: PartyFormState = {
+    firstName: (c.first_name as string | null) ?? undefined,
+    lastName: (c.last_name as string | null) ?? undefined,
+    companyName: (c.company_name as string | null) ?? undefined,
+    companyReg: (c.registration_number as string | null) ?? undefined,
+    vatNumber: (c.vat_number as string | null) ?? undefined,
+    email: entity === "individual" ? ((c.email as string | null) ?? undefined) : undefined,
+    phone: entity === "individual" ? ((c.phone as string | null) ?? undefined) : undefined,
+    companyEmail: entity === "company" ? ((c.email as string | null) ?? undefined) : undefined,
+    companyPhone: entity === "company" ? ((c.phone as string | null) ?? undefined) : undefined,
+    people,
+    specialities: (c.specialities as string[] | null) ?? [],
+    isActive: c.is_active !== false,
+    notes: (c.notes as string | null) ?? undefined,
+    callOutRate: centsToZar(c.call_out_rate_cents as number | null),
+    hourlyRate: centsToZar(c.hourly_rate_cents as number | null),
+    vatRegistered: !!con?.vat_registered,
+    addresses: mapAddressesToForm(addrs),
+    bankAccounts: mapBankAccountsToForm(banks),
+  }
+  return { ok: true, entity, form, name: partyDisplayName("supplier", entity, form) }
+}
+
+/** Update a contractor from the edit modal (scalars + collection upsert). */
+export async function updateContractorParty(input: AddPartyInput, contractorId: string): Promise<AddPartyResult> {
+  if (input.role !== "supplier") return { ok: false, error: "Unsupported role for this action" }
+  try {
+    const { db, userId, orgId } = await requireAgentWriteAccess("update_contractor")
+    const f = input.form
+
+    const { data: con } = await db.from("contractors").select("contact_id").eq("id", contractorId).eq("org_id", orgId).single()
+    if (!con) return { ok: false, error: "Supplier not found" }
+    const contactId = con.contact_id as string
+
+    const primary = (f.people ?? []).find((p) => p.isPrimary) ?? (f.people ?? [])[0]
+    const { error: cErr } = await db.from("contacts")
+      .update(buildContactScalarUpdate(input.entity, f, false, primary)).eq("id", contactId).eq("org_id", orgId)
+    if (cErr) { console.error("[updateContractorParty] contact update failed:", cErr.message); return { ok: false, error: "Failed to update the contact" } }
+
+    const { error: conErr } = await db.from("contractors").update({
+      is_active: f.isActive !== false,
+      specialities: f.specialities ?? [],
+      call_out_rate_cents: zarToCents(f.callOutRate),
+      hourly_rate_cents: zarToCents(f.hourlyRate),
+      vat_registered: !!f.vatRegistered,
+    }).eq("id", contractorId).eq("org_id", orgId)
+    if (conErr) { console.error("[updateContractorParty] contractor update failed:", conErr.message); return { ok: false, error: "Failed to update the supplier" } }
+
+    if (input.entity === "company") await upsertCompanyPeople(db, orgId, userId, contactId, f.people)
+    await replaceTypedAddresses(db, orgId, contactId, f.addresses)
+    await replaceBankAccounts(db, orgId, contactId, f.bankAccounts)
+
+    const name = partyDisplayName("supplier", input.entity, f)
+    await auditPartyUpdate(db, orgId, userId, "contractors", contractorId, "supplier", input.entity, name)
+    return { ok: true, name, id: contractorId }
+  } catch (err) {
+    console.error("[updateContractorParty] failed:", err instanceof Error ? err.message : err)
+    return { ok: false, error: err instanceof Error ? err.message : "Failed to update supplier" }
+  }
+}
+
 // ── Landlord ──────────────────────────────────────────────────────────────────
 export async function addLandlordParty(input: AddPartyInput): Promise<AddPartyResult> {
   if (input.role !== "landlord") return { ok: false, error: "Unsupported role for this action" }
@@ -241,9 +483,6 @@ export async function addLandlordParty(input: AddPartyInput): Promise<AddPartyRe
     const { data: landlord, error: llErr } = await db.from("landlords").insert({
       org_id: orgId,
       contact_id: contact.id,
-      bank_name: f.bankName?.trim() || null,
-      bank_account: f.accountNumber?.trim() || null,
-      bank_branch: f.branchCode?.trim() || null,
       created_by: userId,
     }).select("id").single()
     if (llErr || !landlord) {
@@ -252,11 +491,88 @@ export async function addLandlordParty(input: AddPartyInput): Promise<AddPartyRe
       return { ok: false, error: "Failed to create the landlord" }
     }
 
+    // Banking → contact_bank_accounts (global multi-account; supersedes the dropped landlords.bank_*).
+    await insertPartyBankAccounts(db, orgId, contact.id, f.bankAccounts)
+
     await auditPartyCreate(db, orgId, userId, "landlords", landlord.id, "landlord", input.entity, name)
     return { ok: true, name, id: landlord.id as string }
   } catch (err) {
     console.error("[addLandlordParty] failed:", err instanceof Error ? err.message : err)
     return { ok: false, error: err instanceof Error ? err.message : "Failed to add landlord" }
+  }
+}
+
+/** Fetch a landlord as a pre-filled PartyFormState for the edit modal. */
+export async function fetchLandlordParty(landlordId: string): Promise<PartyEditData> {
+  const gw = await gateway()
+  if (!gw) return { ok: false, error: "Not authorised" }
+  const { db, orgId } = gw
+
+  const { data: l } = await db.from("landlord_view")
+    .select("id, contact_id, entity_type, first_name, last_name, company_name, registration_number, vat_number, email, phone, notes")
+    .eq("id", landlordId).eq("org_id", orgId).single()
+  if (!l) return { ok: false, error: "Landlord not found" }
+  const entity: PartyEntity = l.entity_type === "organisation" ? "company" : "individual"
+
+  const [{ data: addrs }, { data: banks }] = await Promise.all([
+    db.from("contact_addresses").select("street_line1, street_line2, suburb, city, province, postal_code, address_type").eq("contact_id", l.contact_id),
+    db.from("contact_bank_accounts").select("id, account_name, bank_name, account_number, branch_code, account_type, label, is_primary").eq("contact_id", l.contact_id).order("is_primary", { ascending: false }),
+  ])
+  const people = entity === "company" ? await fetchCompanyPeopleAsParty(db, orgId, l.contact_id) : undefined
+
+  let idType: string | undefined
+  let idNumber: string | undefined
+  if (entity === "individual") {
+    const { data: idc } = await db.from("contacts").select("id_type, id_number").eq("id", l.contact_id).single()
+    idType = (idc?.id_type as string | null) ?? undefined
+    idNumber = (idc?.id_number as string | null) ?? undefined
+  }
+
+  const form: PartyFormState = {
+    firstName: (l.first_name as string | null) ?? undefined,
+    lastName: (l.last_name as string | null) ?? undefined,
+    companyName: (l.company_name as string | null) ?? undefined,
+    companyReg: (l.registration_number as string | null) ?? undefined,
+    vatNumber: (l.vat_number as string | null) ?? undefined,
+    email: entity === "individual" ? ((l.email as string | null) ?? undefined) : undefined,
+    phone: entity === "individual" ? ((l.phone as string | null) ?? undefined) : undefined,
+    companyEmail: entity === "company" ? ((l.email as string | null) ?? undefined) : undefined,
+    companyPhone: entity === "company" ? ((l.phone as string | null) ?? undefined) : undefined,
+    idType, idNumber,
+    people,
+    notes: (l.notes as string | null) ?? undefined,
+    addresses: mapAddressesToForm(addrs),
+    bankAccounts: mapBankAccountsToForm(banks),
+  }
+  return { ok: true, entity, form, name: partyDisplayName("landlord", entity, form) }
+}
+
+/** Update a landlord from the edit modal (scalars + collection upsert). */
+export async function updateLandlordParty(input: AddPartyInput, landlordId: string): Promise<AddPartyResult> {
+  if (input.role !== "landlord") return { ok: false, error: "Unsupported role for this action" }
+  try {
+    const { db, userId, orgId } = await requireAgentWriteAccess("update_landlord")
+    const f = input.form
+
+    const { data: ll } = await db.from("landlords").select("contact_id").eq("id", landlordId).eq("org_id", orgId).single()
+    if (!ll) return { ok: false, error: "Landlord not found" }
+    const contactId = ll.contact_id as string
+
+    const primary = (f.people ?? []).find((p) => p.isPrimary) ?? (f.people ?? [])[0]
+    const { error: cErr } = await db.from("contacts")
+      .update(buildContactScalarUpdate(input.entity, f, true, primary)).eq("id", contactId).eq("org_id", orgId)
+    if (cErr) { console.error("[updateLandlordParty] contact update failed:", cErr.message); return { ok: false, error: "Failed to update the contact" } }
+
+    if (input.entity === "company") await upsertCompanyPeople(db, orgId, userId, contactId, f.people)
+    await replaceTypedAddresses(db, orgId, contactId, f.addresses)
+    await replaceBankAccounts(db, orgId, contactId, f.bankAccounts)
+
+    const name = partyDisplayName("landlord", input.entity, f)
+    await auditPartyUpdate(db, orgId, userId, "landlords", landlordId, "landlord", input.entity, name)
+    return { ok: true, name, id: landlordId }
+  } catch (err) {
+    console.error("[updateLandlordParty] failed:", err instanceof Error ? err.message : err)
+    return { ok: false, error: err instanceof Error ? err.message : "Failed to update landlord" }
   }
 }
 
@@ -320,5 +636,79 @@ export async function addTenantParty(input: AddPartyInput): Promise<AddPartyResu
   } catch (err) {
     console.error("[addTenantParty] failed:", err instanceof Error ? err.message : err)
     return { ok: false, error: err instanceof Error ? err.message : "Failed to add tenant" }
+  }
+}
+
+/** Fetch a tenant as a pre-filled PartyFormState for the edit modal (POPIA consent pre-checked). */
+export async function fetchTenantParty(tenantId: string): Promise<PartyEditData> {
+  const gw = await gateway()
+  if (!gw) return { ok: false, error: "Not authorised" }
+  const { db, orgId } = gw
+
+  const { data: t } = await db.from("tenant_view")
+    .select("contact_id, entity_type, first_name, last_name, company_name, email, phone, id_type, id_number, employer_name, occupation, notes")
+    .eq("id", tenantId).eq("org_id", orgId).single()
+  if (!t) return { ok: false, error: "Tenant not found" }
+  const entity: PartyEntity = t.entity_type === "organisation" ? "company" : "individual"
+
+  const [{ data: ident }, { data: addrs }] = await Promise.all([
+    db.from("contacts").select("registration_number, vat_number").eq("id", t.contact_id as string).single(),
+    db.from("contact_addresses").select("street_line1, street_line2, suburb, city, province, postal_code, address_type").eq("contact_id", t.contact_id),
+  ])
+  const people = entity === "company" ? await fetchCompanyPeopleAsParty(db, orgId, t.contact_id as string) : undefined
+
+  const form: PartyFormState = {
+    firstName: (t.first_name as string | null) ?? undefined,
+    lastName: (t.last_name as string | null) ?? undefined,
+    companyName: (t.company_name as string | null) ?? undefined,
+    companyReg: (ident?.registration_number as string | null) ?? undefined,
+    vatNumber: (ident?.vat_number as string | null) ?? undefined,
+    email: entity === "individual" ? ((t.email as string | null) ?? undefined) : undefined,
+    phone: entity === "individual" ? ((t.phone as string | null) ?? undefined) : undefined,
+    companyEmail: entity === "company" ? ((t.email as string | null) ?? undefined) : undefined,
+    companyPhone: entity === "company" ? ((t.phone as string | null) ?? undefined) : undefined,
+    idType: (t.id_type as string | null) ?? undefined,
+    idNumber: (t.id_number as string | null) ?? undefined,
+    people,
+    employer: (t.employer_name as string | null) ?? undefined,
+    occupation: (t.occupation as string | null) ?? undefined,
+    notes: (t.notes as string | null) ?? undefined,
+    popiaConsent: true, // already a tenant → consent on file; pre-checked so the details gate passes
+    addresses: mapAddressesToForm(addrs),
+  }
+  return { ok: true, entity, form, name: partyDisplayName("tenant", entity, form) }
+}
+
+/** Update a tenant from the edit modal (scalars + tenant fields + collection upsert). POPIA not re-logged. */
+export async function updateTenantParty(input: AddPartyInput, tenantId: string): Promise<AddPartyResult> {
+  if (input.role !== "tenant") return { ok: false, error: "Unsupported role for this action" }
+  try {
+    const { db, userId, orgId } = await requireAgentWriteAccess("update_tenant")
+    const f = input.form
+
+    const { data: tn } = await db.from("tenants").select("contact_id").eq("id", tenantId).eq("org_id", orgId).single()
+    if (!tn) return { ok: false, error: "Tenant not found" }
+    const contactId = tn.contact_id as string
+
+    const primary = (f.people ?? []).find((p) => p.isPrimary) ?? (f.people ?? [])[0]
+    const { error: cErr } = await db.from("contacts")
+      .update(buildContactScalarUpdate(input.entity, f, true, primary)).eq("id", contactId).eq("org_id", orgId)
+    if (cErr) { console.error("[updateTenantParty] contact update failed:", cErr.message); return { ok: false, error: "Failed to update the contact" } }
+
+    const { error: tErr } = await db.from("tenants").update({
+      employer_name: f.employer?.trim() || null,
+      occupation: f.occupation?.trim() || null,
+    }).eq("id", tenantId).eq("org_id", orgId)
+    if (tErr) { console.error("[updateTenantParty] tenant update failed:", tErr.message); return { ok: false, error: "Failed to update the tenant" } }
+
+    if (input.entity === "company") await upsertCompanyPeople(db, orgId, userId, contactId, f.people)
+    await replaceTypedAddresses(db, orgId, contactId, f.addresses)
+
+    const name = partyDisplayName("tenant", input.entity, f)
+    await auditPartyUpdate(db, orgId, userId, "tenants", tenantId, "tenant", input.entity, name)
+    return { ok: true, name, id: tenantId }
+  } catch (err) {
+    console.error("[updateTenantParty] failed:", err instanceof Error ? err.message : err)
+    return { ok: false, error: err instanceof Error ? err.message : "Failed to update tenant" }
   }
 }

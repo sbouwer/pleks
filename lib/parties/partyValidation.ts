@@ -11,6 +11,7 @@ import type { PartyRole, PartyEntity, PartyRoleConfig } from "./partyConfig"
 /** A person under a company contact (ADDENDUM_25A) — first-class contact, role derives from the company. */
 export interface PartyPerson {
   _uid?: string             // client-only stable React key; ignored by the persist layer
+  id?: string               // existing contacts.id when editing (drives upsert/soft-delete diff)
   title?: string
   firstName?: string
   lastName?: string
@@ -40,6 +41,7 @@ export interface PartyAddressInput {
 /** A bank account captured at create time → contact_bank_accounts (global multi-account banking). */
 export interface PartyBankAccountInput {
   _uid?: string             // client-only stable React key; ignored by the persist layer
+  id?: string               // existing contact_bank_accounts.id when editing
   accountName?: string
   bankName?: string
   accountNumber?: string
