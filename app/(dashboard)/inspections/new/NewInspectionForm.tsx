@@ -17,6 +17,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { CheckCircle2, ClipboardList, ChevronDown, UserRound, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { createInspection } from "@/lib/actions/inspections"
+import { contactDisplayName } from "@/lib/contacts/displayName"
 import { TenantPicker } from "@/components/shared/TenantPicker"
 import type { PickedTenant } from "@/components/shared/TenantPicker"
 import { toast } from "sonner"
@@ -168,11 +169,8 @@ export function NewInspectionForm({
         .eq("id", prospectiveTenantId)
         .single()
       if (!cancelled && tv) {
-        const name = tv.entity_type === "juristic"
-          ? (tv.company_name ?? "Company")
-          : [tv.first_name, tv.last_name].filter(Boolean).join(" ")
         setTenantId(prospectiveTenantId)
-        setTenantName(name)
+        setTenantName(contactDisplayName(tv, ""))
       }
     }
 
@@ -196,9 +194,7 @@ export function NewInspectionForm({
         const coNames = coResult.flatMap((row) => {
           const tv = Array.isArray(row.tenant_view) ? row.tenant_view[0] : row.tenant_view
           if (!tv) return []
-          const n = (tv as { entity_type?: string; company_name?: string; first_name?: string; last_name?: string }).entity_type === "juristic"
-            ? ((tv as { company_name?: string }).company_name ?? "Company")
-            : [(tv as { first_name?: string }).first_name, (tv as { last_name?: string }).last_name].filter(Boolean).join(" ")
+          const n = contactDisplayName(tv as Parameters<typeof contactDisplayName>[0], "")
           return n ? [n] : []
         })
         setCoTenantNames(coNames)
@@ -213,11 +209,8 @@ export function NewInspectionForm({
         .eq("id", lease.tenant_id)
         .single()
       if (!cancelled && tv) {
-        const name = tv.entity_type === "juristic"
-          ? (tv.company_name ?? "Company")
-          : [tv.first_name, tv.last_name].filter(Boolean).join(" ")
         setTenantId(lease.tenant_id)
-        setTenantName(name)
+        setTenantName(contactDisplayName(tv, ""))
       }
       await applyLeaseCoTenants(lease.id)
     }

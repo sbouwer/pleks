@@ -21,6 +21,7 @@ import { PORTFOLIO_QUERY_KEYS, STALE_TIME, fetchTenants } from "@/lib/queries/po
 import { Search, UserRound, Plus } from "lucide-react"
 import { AddPartyModal } from "@/components/parties/AddPartyModal"
 import { addTenantParty } from "@/lib/actions/parties"
+import { contactDisplayName } from "@/lib/contacts/displayName"
 import { useAddTenantSubflow } from "@/app/(dashboard)/leases/new/addTenantContext"
 
 export interface PickedTenant {
@@ -49,8 +50,7 @@ interface TenantRow {
 }
 
 function displayName(t: TenantRow): string {
-  if (t.entity_type === "juristic" && t.company_name) return t.company_name
-  return `${t.first_name ?? ""} ${t.last_name ?? ""}`.trim() || "Unnamed"
+  return contactDisplayName(t)
 }
 
 interface TenantPickerProps {

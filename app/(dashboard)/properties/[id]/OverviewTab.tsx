@@ -137,7 +137,7 @@ function landlordDisplayInfo(landlord: OverviewLandlord | null) {
   const name = landlord.company_name?.trim()
     || [landlord.first_name, landlord.last_name].filter(Boolean).join(" ")
     || "Unknown"
-  const isJuristic = landlord.entity_type === "juristic"
+  const isJuristic = landlord.entity_type === "organisation"
   return {
     name,
     subtitle:       isJuristic ? "Company / Trust" : "Individual",

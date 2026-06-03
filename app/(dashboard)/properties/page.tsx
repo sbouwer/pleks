@@ -8,6 +8,7 @@
 import { redirect } from "next/navigation"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { getOrgTier } from "@/lib/tier/getOrgTier"
+import { contactDisplayName } from "@/lib/contacts/displayName"
 import { SinglePropertyView, NoPropertyYet } from "@/components/properties/SinglePropertyView"
 import { PropertyCards } from "@/components/properties/PropertyCards"
 import { PropertyListView } from "@/components/properties/PropertyListView"
@@ -77,9 +78,7 @@ export default async function PropertiesPage({
 
     function tenantDisplayName(row: { first_name?: string | null; last_name?: string | null; company_name?: string | null; entity_type?: string | null } | null) {
       if (!row) return null
-      return row.entity_type === "juristic"
-        ? (row.company_name ?? "Company")
-        : [row.first_name, row.last_name].filter(Boolean).join(" ") || null
+      return contactDisplayName(row, "") || null
     }
 
     const [invoiceRes, prospTenantRes, ...coTenantResults] = await Promise.all([

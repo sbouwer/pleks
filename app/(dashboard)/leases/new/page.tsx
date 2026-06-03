@@ -13,6 +13,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { getServerOrgMembership } from "@/lib/auth/server"
 import { redirect } from "next/navigation"
 import { hasAcceptedLeaseDisclaimer } from "@/lib/leases/disclaimer"
+import { contactDisplayName } from "@/lib/contacts/displayName"
 import { NewLeaseRoute } from "./NewLeaseRoute"
 
 interface Props {
@@ -23,9 +24,7 @@ type TenantRow = { first_name?: string | null; last_name?: string | null; compan
 
 function displayName(row: TenantRow): string | null {
   if (!row) return null
-  return row.entity_type === "juristic"
-    ? (row.company_name ?? "Company")
-    : [row.first_name, row.last_name].filter(Boolean).join(" ") || null
+  return contactDisplayName(row, "") || null
 }
 
 type SupabaseService = Awaited<ReturnType<typeof createServiceClient>>

@@ -13,6 +13,7 @@ import { redirect } from "next/navigation"
 import { NewInspectionForm } from "./NewInspectionForm"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { BackLink } from "@/components/ui/BackLink"
+import { contactDisplayName } from "@/lib/contacts/displayName"
 
 interface Props {
   searchParams: Promise<Record<string, string>>
@@ -39,9 +40,7 @@ async function resolveTenantName(supabase: SupabaseClient, tenantId: string | nu
     .eq("id", tenantId)
     .single()
   if (!tv) return null
-  return tv.entity_type === "juristic"
-    ? (tv.company_name ?? "Company")
-    : [tv.first_name, tv.last_name].filter(Boolean).join(" ")
+  return contactDisplayName(tv, "")
 }
 
 export default async function NewInspectionPage({ searchParams }: Readonly<Props>) {
