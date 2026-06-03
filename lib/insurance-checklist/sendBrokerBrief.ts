@@ -10,6 +10,7 @@
 import * as React from "react"
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
+import { resolveCompanyContact } from "@/lib/contacts/resolveCompanyContact"
 import { fetchBrokerBriefData, renderBrokerBriefHTML } from "./generateBrokerBriefHTML"
 import { ChecklistBriefEmail } from "@/lib/comms/templates/insurance/checklist-brief-email"
 
@@ -76,10 +77,11 @@ export async function sendBrokerBrief(propertyId: string): Promise<SendBrokerBri
     agentPhone:   data.agentPhone,
   })
 
+  const briefResolved = brokerRow?.contact_id ? await resolveCompanyContact(db, orgId, brokerRow.contact_id, "general", "email") : null
   const result = await sendEmail({
     orgId,
     templateKey:  "insurance.checklist_brief",
-    to: { email: broker.primary_email, name: brokerName },
+    to: { email: briefResolved?.email ?? broker.primary_email, name: briefResolved?.name ?? brokerName, contactId: briefResolved?.contactId ?? brokerRow?.contact_id ?? undefined },
     subject:      `Insurance coverage verification request — ${data.propertyName}`,
     emailElement,
     bodyPreview:  `Insurance verification request for ${data.propertyName} from ${branding.orgName}`,

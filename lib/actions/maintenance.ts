@@ -227,6 +227,18 @@ export async function createMaintenanceRequest(formData: FormData) {
 
 type GatewayDb = import("@supabase/supabase-js").SupabaseClient
 
+/**
+ * 25A §3: resolve the recipient `to` for a company-addressed send — function/primary person when one
+ * exists, else the contact's own email (never drops a send). Centralised so call sites stay simple.
+ */
+async function maintenanceRecipient(
+  db: GatewayDb, orgId: string, contactId: string | null, fallbackEmail: string, fallbackName: string,
+  purpose: "maintenance" | "general" = "maintenance",
+): Promise<{ email: string; name: string; contactId?: string }> {
+  const r = contactId ? await resolveCompanyContact(db, orgId, contactId, purpose, "email") : null
+  return { email: r?.email ?? fallbackEmail, name: r?.name ?? fallbackName, contactId: r?.contactId ?? contactId ?? undefined }
+}
+
 async function prepareWorkOrderSent(
   db: GatewayDb,
   userId: string,
@@ -642,7 +654,7 @@ export async function addMaintenanceNote(
           await sendEmail({
             orgId,
             templateKey: "maintenance.memo_landlord_notified",
-            to: { email: landlordEmail, name: landlordName },
+            to: await maintenanceRecipient(service, orgId, property?.landlords?.contact_id ?? null, landlordEmail, landlordName, "general"),
             subject: `Maintenance memo — ${req.work_order_number ?? requestId}`,
             emailElement: React.createElement(MemoLandlordNotifiedEmail, {
               branding: buildBranding(orgSettings),
@@ -754,12 +766,16 @@ async function notifyCancelledContractor({ orgId, userId, requestId, req }: { or
     ])
     const c = contractorRes.data
     const unit = unitRes.data as { unit_number: string; properties: { name: string } } | null
-    if (!c?.email) return
+    if (!c) return
     const contractorName = (c.company_name as string | null) || [c.first_name, c.last_name].filter(Boolean).join(" ") || "Contractor"
+    // 25A §3: route to the supplier's maintenance/primary person when one exists; else the contractor's own email.
+    const resolved = c.contact_id ? await resolveCompanyContact(service, orgId, c.contact_id as string, "maintenance", "email") : null
+    const recipientEmail = resolved?.email ?? (c.email as string | null) ?? null
+    if (!recipientEmail) return
     const propertyLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "the property"
     await sendEmail({
       orgId, templateKey: "maintenance.cancelled",
-      to: { email: c.email as string, name: contractorName, contactId: (c.contact_id as string | null) ?? undefined },
+      to: { email: recipientEmail, name: resolved?.name ?? contractorName, contactId: resolved?.contactId ?? (c.contact_id as string | null) ?? undefined },
       subject: `Work order cancelled — ${req.work_order_number ?? requestId}`,
       emailElement: React.createElement(CancelledContractorEmail, {
         branding: buildBranding(orgSettings), contractorName,
@@ -883,7 +899,7 @@ export async function changeContractor(
         await sendEmail({
           orgId,
           templateKey: "maintenance.contractor_changed",
-          to: { email: oldC.email as string, name: oldContractorName, contactId: (oldC.contact_id as string | null) ?? undefined },
+          to: await maintenanceRecipient(service, orgId, (oldC.contact_id as string | null), oldC.email as string, oldContractorName),
           subject: `Work order reassigned — ${req.work_order_number ?? requestId}`,
           emailElement: React.createElement(ContractorChangedEmail, {
             branding,
@@ -910,7 +926,7 @@ export async function changeContractor(
         await sendEmail({
           orgId,
           templateKey: "maintenance.work_order",
-          to: { email: newC.email as string, name: newContractorName, contactId: (newC.contact_id as string | null) ?? undefined },
+          to: await maintenanceRecipient(service, orgId, (newC.contact_id as string | null), newC.email as string, newContractorName),
           subject: `Work Order ${req.work_order_number} — ${propertyLabel}`,
           emailElement: React.createElement(WorkOrderDispatchEmail, {
             branding,

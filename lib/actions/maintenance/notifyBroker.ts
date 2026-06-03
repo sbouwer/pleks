@@ -1,17 +1,17 @@
 "use server"
 
 /**
- * lib/actions/maintenance/notifyBroker.ts — FILL: one-line purpose
+ * lib/actions/maintenance/notifyBroker.ts — notify the property's insurance broker of a critical incident
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   createServiceClient (invoked from agent-write-gated maintenance flows)
+ * Data:   property_brokers → contacts; sends incident.critical_broker; logs communication_log
+ * Notes:  Recipient routed via resolveCompanyContact (25A §3) — a broker org routes to its primary person,
+ *         else the contact's own email (resolver-then-fallback, zero regression).
  */
 
 import { createServiceClient } from "@/lib/supabase/server"
 import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
+import { resolveCompanyContact } from "@/lib/contacts/resolveCompanyContact"
 import * as React from "react"
 import {
   CriticalIncidentBrokerEmail,
@@ -117,10 +117,11 @@ export async function notifyBroker(params: NotifyBrokerParams): Promise<{ logId?
     unknownItems:        unknownItems.length > 0   ? unknownItems   : undefined,
   }
 
+  const brokerResolved = contact.id ? await resolveCompanyContact(db, params.orgId, contact.id, "general", "email") : null
   const result = await sendEmail({
     orgId:       params.orgId,
     templateKey: "incident.critical_broker",
-    to: { email: contact.email, name: brokerName, contactId: contact.id },
+    to: { email: brokerResolved?.email ?? contact.email, name: brokerResolved?.name ?? brokerName, contactId: brokerResolved?.contactId ?? contact.id },
     subject:     `Critical incident: ${params.incidentTitle} — ${params.propertyName}`,
     emailElement: React.createElement(CriticalIncidentBrokerEmail, emailProps),
     bodyPreview: `Critical incident reported at ${params.propertyName}: ${params.incidentTitle}`,

@@ -1,16 +1,16 @@
 "use server"
 
 /**
- * lib/actions/maintenance/notifyScheme.ts — FILL: one-line purpose
+ * lib/actions/maintenance/notifyScheme.ts — notify the managing scheme / body corporate of a critical incident
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   createServiceClient (invoked from agent-write-gated maintenance flows)
+ * Data:   managing_schemes (managing-agent / emergency contact) → contacts; sends incident.critical_scheme
+ * Notes:  Recipient routed via resolveCompanyContact (25A §3) — a scheme org routes to its primary person,
+ *         else the contact's own email (resolver-then-fallback, zero regression).
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
+import { resolveCompanyContact } from "@/lib/contacts/resolveCompanyContact"
 import * as React from "react"
 import {
   CriticalIncidentSchemeEmail,
@@ -86,10 +86,11 @@ export async function notifyScheme(params: NotifySchemeParams): Promise<{ skippe
     maintenanceRequestId: params.maintenanceRequestId,
   }
 
+  const schemeResolved = contact.id ? await resolveCompanyContact(db, params.orgId, contact.id, "general", "email") : null
   const result = await sendEmail({
     orgId:       params.orgId,
     templateKey: "incident.critical_scheme",
-    to: { email: contact.email, name: contactName, contactId: contact.id },
+    to: { email: schemeResolved?.email ?? contact.email, name: schemeResolved?.name ?? contactName, contactId: schemeResolved?.contactId ?? contact.id },
     subject:     `Critical incident: ${params.incidentTitle} — ${params.propertyName}`,
     emailElement: React.createElement(CriticalIncidentSchemeEmail, emailProps),
     bodyPreview: `Critical incident at ${params.propertyName}: ${params.incidentTitle}`,
