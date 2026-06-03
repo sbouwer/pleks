@@ -23,6 +23,8 @@ export interface LeaseWizardContextValue {
   setStep: (step: number) => void
   goNext: () => void
   goBack: () => void
+  /** Furthest step the user has reached — the rail lets them jump freely to any step up to this. */
+  maxReached: number
   totalSteps: number
   renewalOf: string | null
 }
@@ -43,6 +45,10 @@ export function LeaseWizardProvider({
 }: Readonly<{ prefill: WizardPrefill; renewalOf: string | null; children: ReactNode }>) {
   const [data, setData] = useState<WizardData>(() => buildInitialWizardData(prefill))
   const [step, setStep] = useState<number>(() => initialStepFromPrefill(prefill))
+  // Highest step reached so far — lets the rail jump forward to already-visited steps (not just back),
+  // so a long 7-wide flow isn't a one-way street: edit an early step then hop straight back to Create.
+  const [maxReached, setMaxReached] = useState<number>(() => initialStepFromPrefill(prefill))
+  useEffect(() => { setMaxReached((m) => Math.max(m, step)) }, [step])
 
   const patch = useCallback((partial: Partial<WizardData>) => {
     setData((prev) => ({ ...prev, ...partial }))
@@ -77,8 +83,8 @@ export function LeaseWizardProvider({
   const goBack = useCallback(() => setStep((s) => Math.max(s - 1, 0)), [])
 
   const value = useMemo<LeaseWizardContextValue>(
-    () => ({ data, patch, step, setStep, goNext, goBack, totalSteps: TOTAL_STEPS, renewalOf }),
-    [data, patch, step, goNext, goBack, renewalOf],
+    () => ({ data, patch, step, setStep, goNext, goBack, maxReached, totalSteps: TOTAL_STEPS, renewalOf }),
+    [data, patch, step, goNext, goBack, maxReached, renewalOf],
   )
 
   return <LeaseWizardCtx.Provider value={value}>{children}</LeaseWizardCtx.Provider>

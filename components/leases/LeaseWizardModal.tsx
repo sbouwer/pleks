@@ -51,7 +51,7 @@ function primaryLabel(step: number, isSaving: boolean): string {
 function LeaseWizardModalInner({
   onClose, disclaimerAccepted,
 }: Readonly<{ onClose: () => void; disclaimerAccepted: boolean }>) {
-  const { step, setStep, goNext, goBack } = useLeaseWizard()
+  const { step, setStep, goNext, goBack, maxReached } = useLeaseWizard()
   const [isSaving, startSaving] = useTransition()
   const [error, setError] = useState<string | null>(null)
   // The current step registers its validate-then-commit handler here on every render.
@@ -102,6 +102,9 @@ function LeaseWizardModalInner({
     id: s.id,
     label: s.label,
     hint: i === step ? "In progress" : undefined,
+    // Any already-reached step (other than the one you're on) is clickable in the rail, so the user can
+    // jump back to it — and forward again to the furthest reached, e.g. Create — without re-walking all 7.
+    done: i !== step && i <= maxReached,
   }))
 
   // ── Tenant sub-flow: same modal, swapped contents (mirror PropertyWizardModal) ──
@@ -134,7 +137,7 @@ function LeaseWizardModalInner({
       eyebrow="Create lease"
       steps={steps}
       current={step}
-      onStepSelect={(i) => { if (i < step) setStep(i) }}
+      onStepSelect={(i) => { if (i <= maxReached) setStep(i) }}
       title={meta?.title ?? "Create lease"}
       subtitle={meta?.subtitle}
       backLabel={isFirst ? "Cancel" : "Back"}
