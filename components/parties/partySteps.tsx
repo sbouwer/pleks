@@ -326,7 +326,7 @@ export function PartyStepBody({ stepId, ...props }: StepBodyProps & { stepId: Pa
     case "address":      return <AddressBody {...props} />
     case "consent":      return <ConsentBody {...props} />
     case "welcome":      return <WelcomeBody {...props} />
-    case "confirm":      return <ReviewStep role={props.role} entity={props.entity} f={props.f} />
+    case "confirm":      return <ReviewStep role={props.role} entity={props.entity} f={props.f} hideWelcomePack={props.hideWelcomePack} />
     default:             return null
   }
 }
@@ -341,89 +341,102 @@ function ReviewRow({ k, v }: Readonly<{ k: string; v: string | undefined }>) {
   )
 }
 
-export function ReviewStep({
-  role, entity, f,
-}: Readonly<{ role: PartyRole; entity: PartyEntity; f: PartyFormState }>) {
-  const isIndividual = entity === "individual"
+function ReviewSection({ title, children }: Readonly<{ title: string; children: React.ReactNode }>) {
   return (
-    <div className="space-y-5">
-      <div>
-        <div className="mb-1.5 text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-          {isIndividual ? "Individual" : "Company"}
-        </div>
-        <div className="divide-y divide-border rounded-lg border border-border px-3">
-          {isIndividual ? (
-            <>
-              <ReviewRow k="Name" v={[f.title, f.initials, f.firstName, f.middleNames, f.lastName, f.suffix].filter(Boolean).join(" ")} />
-              {f.designation && <ReviewRow k="Designation" v={f.designation} />}
-              {f.gender && <ReviewRow k="Gender" v={GENDER_LABEL[f.gender] ?? f.gender} />}
-              <ReviewRow k="Email" v={f.email} />
-              <ReviewRow k="Phone" v={f.phone} />
-              {f.preferredChannel && <ReviewRow k="Preferred contact" v={CHANNEL_LABEL[f.preferredChannel] ?? f.preferredChannel} />}
-            </>
-          ) : (
-            <>
-              <ReviewRow k="Registered name" v={f.companyName} />
-              <ReviewRow k="CIPC reg." v={f.companyReg} />
-              {f.vatNumber && <ReviewRow k="VAT no." v={f.vatNumber} />}
-              {(f.addresses ?? []).filter((a) => a.line1?.trim()).map((a) => (
-                <ReviewRow key={a.type} k={ADDRESS_TYPE_LABEL[a.type] ?? "Address"} v={[a.line1, a.city].filter(Boolean).join(", ")} />
-              ))}
-              {(f.people ?? []).map((p, i) => (
-                <ReviewRow
-                  key={p._uid ?? i}
-                  k={`${FUNCTION_LABEL[p.companyFunction ?? ""] ?? "Contact"}${p.isPrimary ? " · primary" : ""}${p.isSignatory ? " · signatory" : ""}`}
-                  v={[p.firstName, p.lastName].filter(Boolean).join(" ")}
-                />
-              ))}
-            </>
-          )}
-        </div>
-      </div>
-      <div>
-        <div className="mb-1.5 text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-          {PARTY_ROLES[role].detailsTitle}
-        </div>
-        <div className="divide-y divide-border rounded-lg border border-border px-3">
-          {role === "tenant" && (
-            <>
-              <ReviewRow k="POPIA consent" v={f.popiaConsent ? "Given" : "Not given"} />
-              <ReviewRow k="Employer" v={f.employer} />
-              <ReviewRow k="Occupation" v={f.occupation} />
-            </>
-          )}
-          {role === "supplier" && (
-            <>
-              <ReviewRow k="Specialities" v={(f.specialities || []).join(", ")} />
-              {f.callOutRate && <ReviewRow k="Call-out rate" v={`R ${f.callOutRate}`} />}
-              {f.hourlyRate && <ReviewRow k="Hourly rate" v={`R ${f.hourlyRate}`} />}
-              {(f.addresses ?? []).filter((a) => a.line1?.trim()).map((a) => (
-                <ReviewRow key={a.type} k={ADDRESS_TYPE_LABEL[a.type] ?? "Address"} v={[a.line1, a.city].filter(Boolean).join(", ")} />
-              ))}
-              {(f.bankAccounts ?? []).filter((b) => b.bankName?.trim() || b.accountNumber?.trim()).map((b, i) => (
-                <ReviewRow
-                  key={b._uid ?? i}
-                  k={`Bank${i === 0 ? " · primary" : ""}`}
-                  v={[b.bankName, b.accountNumber ? `••••${b.accountNumber.slice(-4)}` : null].filter(Boolean).join(" · ")}
-                />
-              ))}
-              <ReviewRow k="Status" v={f.isActive !== false ? "Active" : "Inactive"} />
-            </>
-          )}
-          {role === "landlord" && (
-            <>
-              {(f.bankAccounts ?? []).filter((b) => b.bankName?.trim() || b.accountNumber?.trim()).map((b, i) => (
-                <ReviewRow
-                  key={b._uid ?? i}
-                  k={`Payout bank${i === 0 ? " · primary" : ""}`}
-                  v={[b.bankName, b.accountNumber ? `••••${b.accountNumber.slice(-4)}` : null].filter(Boolean).join(" · ")}
-                />
-              ))}
-              <ReviewRow k="Welcome pack" v={f.sendWelcomePack !== false ? "Will send" : "Skip"} />
-            </>
-          )}
-        </div>
-      </div>
+    <div>
+      <SectLabel>{title}</SectLabel>
+      <div className="divide-y divide-border rounded-[var(--r-button)] border border-border px-3">{children}</div>
+    </div>
+  )
+}
+
+function reviewAddressLine(a: PartyAddressInput): string {
+  return [a.line1, a.line2, a.suburb, [a.city, a.province].filter(Boolean).join(", "), a.postal]
+    .map((s) => s?.trim()).filter(Boolean).join(", ")
+}
+
+export function ReviewStep({
+  role, entity, f, hideWelcomePack,
+}: Readonly<{ role: PartyRole; entity: PartyEntity; f: PartyFormState; hideWelcomePack?: boolean }>) {
+  const isIndividual = entity === "individual"
+  const addresses = (f.addresses ?? []).filter((a) => a.line1?.trim())
+  const banks = (f.bankAccounts ?? []).filter((b) => b.bankName?.trim() || b.accountNumber?.trim())
+  const people = f.people ?? []
+  const idMasked = f.idNumber?.trim() ? `••••••••••${f.idNumber.trim().slice(-4)}` : undefined
+
+  return (
+    <div className="mt-6 space-y-5">
+      {isIndividual ? (
+        <ReviewSection title="Personal details">
+          <ReviewRow k="Name" v={[f.title, f.firstName, f.middleNames, f.lastName, f.suffix].filter(Boolean).join(" ")} />
+          {f.designation && <ReviewRow k="Designation" v={f.designation} />}
+          {f.gender && <ReviewRow k="Gender" v={GENDER_LABEL[f.gender] ?? f.gender} />}
+          {f.dob && <ReviewRow k="Date of birth" v={f.dob} />}
+          {idMasked && <ReviewRow k="ID" v={idMasked} />}
+          <ReviewRow k="Email" v={f.email} />
+          <ReviewRow k="Phone" v={f.phone} />
+          {f.preferredChannel && <ReviewRow k="Preferred contact" v={CHANNEL_LABEL[f.preferredChannel] ?? f.preferredChannel} />}
+        </ReviewSection>
+      ) : (
+        <ReviewSection title="Company">
+          <ReviewRow k="Registered name" v={f.companyName} />
+          {f.companyReg && <ReviewRow k="CIPC reg." v={f.companyReg} />}
+          {f.vatNumber && <ReviewRow k="VAT no." v={f.vatNumber} />}
+          {f.companyEmail && <ReviewRow k="Company email" v={f.companyEmail} />}
+          {f.companyPhone && <ReviewRow k="Company phone" v={f.companyPhone} />}
+        </ReviewSection>
+      )}
+
+      {!isIndividual && people.length > 0 && (
+        <ReviewSection title="People">
+          {people.map((p, i) => (
+            <ReviewRow
+              key={p._uid ?? i}
+              k={`${FUNCTION_LABEL[p.companyFunction ?? ""] ?? "Contact"}${p.isPrimary ? " · primary" : ""}${p.isSignatory ? " · signatory" : ""}`}
+              v={[p.firstName, p.lastName].filter(Boolean).join(" ")}
+            />
+          ))}
+        </ReviewSection>
+      )}
+
+      {addresses.length > 0 && (
+        <ReviewSection title="Address">
+          {addresses.map((a) => <ReviewRow key={a.type} k={ADDRESS_TYPE_LABEL[a.type] ?? "Address"} v={reviewAddressLine(a)} />)}
+        </ReviewSection>
+      )}
+
+      {banks.length > 0 && (
+        <ReviewSection title="Banking">
+          {banks.map((b, i) => (
+            <ReviewRow
+              key={b._uid ?? i}
+              k={`${b.bankName || "Account"}${i === 0 ? " · primary" : ""}`}
+              v={[b.accountName, b.accountNumber ? `••••${b.accountNumber.slice(-4)}` : null, b.branchCode].filter(Boolean).join(" · ")}
+            />
+          ))}
+        </ReviewSection>
+      )}
+
+      {role === "supplier" && (
+        <ReviewSection title="Supplier details">
+          <ReviewRow k="Specialities" v={(f.specialities || []).join(", ")} />
+          {f.callOutRate && <ReviewRow k="Call-out rate" v={`R ${f.callOutRate}`} />}
+          {f.hourlyRate && <ReviewRow k="Hourly rate" v={`R ${f.hourlyRate}`} />}
+          <ReviewRow k="Status" v={f.isActive !== false ? "Active" : "Inactive"} />
+        </ReviewSection>
+      )}
+      {role === "tenant" && (
+        <ReviewSection title="Tenant details">
+          <ReviewRow k="POPIA consent" v={f.popiaConsent ? "Given" : "Not given"} />
+          {f.employer && <ReviewRow k="Employer" v={f.employer} />}
+          {f.occupation && <ReviewRow k="Occupation" v={f.occupation} />}
+        </ReviewSection>
+      )}
+      {role === "landlord" && !hideWelcomePack && (
+        <ReviewSection title="Landlord details">
+          <ReviewRow k="Welcome pack" v={f.sendWelcomePack !== false ? "Will send" : "Skip"} />
+        </ReviewSection>
+      )}
     </div>
   )
 }

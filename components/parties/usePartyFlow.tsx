@@ -33,8 +33,9 @@ function subtitleFor(stepId: string, isConfirm: boolean, mode: FlowMode, blurb: 
 }
 
 function primaryLabelFor(isConfirm: boolean, submitting: boolean, mode: FlowMode, singular: string): string {
-  if (!isConfirm) return "Continue"
+  // edit mode: save from any step (the rail lets you jump straight to the one you want)
   if (mode === "edit") return submitting ? "Saving…" : "Save changes"
+  if (!isConfirm) return "Continue"
   return submitting ? "Adding…" : `Add ${singular.toLowerCase()}`
 }
 
@@ -123,10 +124,12 @@ export function usePartyFlow({
   }
 
   function next() {
-    if (isConfirm) { void submit(); return }
     const e = current.validate ? current.validate(entity, f) : {}
     setErrors(e)
-    if (Object.keys(e).length === 0) setStep(safeStep + 1)
+    if (Object.keys(e).length > 0) return
+    // edit mode: the primary button saves from whatever step you're on; add mode advances, submitting on confirm
+    if (mode === "edit" || isConfirm) void submit()
+    else setStep(safeStep + 1)
   }
 
   function back() { if (safeStep > 0) setStep(safeStep - 1) }
@@ -142,7 +145,10 @@ export function usePartyFlow({
     />
   )
 
-  const steps: ReadonlyArray<WizardModalStep> = stepDefs.map((s) => ({ id: s.id, label: s.label, hint: "In progress" }))
+  // In edit mode every step is reachable (all pre-filled), so mark non-current steps done → the rail makes them clickable.
+  const steps: ReadonlyArray<WizardModalStep> = stepDefs.map((s, i) => ({
+    id: s.id, label: s.label, hint: "In progress", done: mode === "edit" && i !== safeStep,
+  }))
 
   return {
     role, entity, f, step: safeStep, done,
