@@ -15,8 +15,7 @@ import { DetailPageLayout, DetailFullWidth } from "@/components/detail/DetailPag
 import { DetailTypeBadge } from "@/components/detail/DetailTypeBadge"
 import { supplierArchetypeConfig } from "@/lib/suppliers/archetype"
 import { DetailSection } from "@/components/detail/DetailSection"
-import { DetailQuickbar } from "@/components/detail/DetailQuickbar"
-import { contactActions } from "@/lib/detail/contactActions"
+import { SupplierDetailActions } from "@/components/suppliers/SupplierDetailActions"
 import type { DetailFact, DetailStatus } from "@/lib/detail/types"
 import { SectionCard } from "@/components/contacts/SectionCard"
 import { RelationshipCard } from "@/components/contacts/RelationshipCard"
@@ -252,9 +251,6 @@ export default async function ContractorDetailPage({ params }: Props) {
   }
   if (contractorBanking?.vat_registered) facts.push({ k: "VAT", v: "Registered" })
 
-  // Quick-action toolbar — the single action surface (Call/Email/WhatsApp, the old sidebar's live actions).
-  const actions = contactActions(primaryPhone, primaryEmail)
-
   return (
     <DetailPageLayout
       category="Suppliers"
@@ -263,7 +259,7 @@ export default async function ContractorDetailPage({ params }: Props) {
       status={status}
       badge={<DetailTypeBadge label={arch.badgeLabel} icon={archIcon} />}
       facts={facts}
-      actions={<DetailQuickbar actions={actions} />}
+      actions={<SupplierDetailActions supplierId={id} phone={primaryPhone} email={primaryEmail} />}
     >
       {contractor.entity_type === "organisation" && (
         <DetailFullWidth>
