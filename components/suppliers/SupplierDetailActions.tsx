@@ -16,12 +16,20 @@ import { EditButton, IconButton } from "@/components/ui/actions"
 import { EditPartyModal } from "@/components/parties/EditPartyModal"
 import { fetchContractorParty, updateContractorParty } from "@/lib/actions/parties"
 
+/** Normalise an SA number for wa.me (leading 0 → 27), matching lib/detail/contactActions. */
+function waNormalise(phone: string | null): string {
+  if (!phone) return ""
+  const digits = phone.replaceAll(/\D/g, "")
+  if (!digits) return ""
+  return digits.startsWith("0") ? `27${digits.slice(1)}` : digits
+}
+
 export function SupplierDetailActions({
   supplierId, phone, email,
 }: Readonly<{ supplierId: string; phone: string | null; email: string | null }>) {
   const router = useRouter()
   const [editOpen, setEditOpen] = useState(false)
-  const waNumber = phone ? phone.replaceAll(/\D/g, "") : ""
+  const waNumber = waNormalise(phone)
 
   return (
     <div className="flex items-center gap-1">
