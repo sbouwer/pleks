@@ -12,7 +12,8 @@
  *           • Plain page (VacantSection, inspections, co-tenant manager) → no provider, so it opens the
  *             shared AddPartyModal IN PLACE (no navigation), exactly as before.
  *         Either way it invalidates the list and auto-selects the new tenant once it lands. Replaced the old
- *         /tenants/new?returnTo navigation (ADDENDUM_25A lease-flow).
+ *         /tenants/new?returnTo navigation (ADDENDUM_25A lease-flow). Dropdown panel + "Add new tenant" link
+ *         squared onto the new primary+square design language (rounded-[var(--r-button)], text-primary).
  */
 import { useState, useRef, useEffect, cloneElement, isValidElement } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
@@ -184,7 +185,7 @@ export function TenantPicker({ orgId, onSelect, trigger, align = "left", exclude
       />
 
       {open && (
-        <div className={`absolute ${align === "right" ? "right-0" : "left-0"} top-full mt-1 z-50 w-72 rounded-xl border border-border/60 bg-surface-elevated shadow-lg`}>
+        <div className={`absolute ${align === "right" ? "right-0" : "left-0"} top-full mt-1 z-50 w-72 rounded-[var(--r-button)] border border-border/60 bg-surface-elevated shadow-lg`}>
           {/* Search */}
           <div className="flex items-center gap-2 px-3 py-2 border-b border-border/60">
             <Search className="size-3.5 text-muted-foreground flex-shrink-0" />
@@ -227,7 +228,7 @@ export function TenantPicker({ orgId, onSelect, trigger, align = "left", exclude
           <div className="border-t border-border/60 p-1">
             <button
               type="button"
-              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-brand hover:bg-muted/50 rounded-lg transition-colors"
+              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-muted/50 rounded-[var(--r-button)] transition-colors"
               onClick={() => {
                 close()
                 if (subflow) { openedSubflowRef.current = true; subflow.openAddTenant() }

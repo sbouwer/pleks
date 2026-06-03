@@ -99,7 +99,7 @@ function RecurringForm({ onAdd, onCancel }: Readonly<{ onAdd: (c: LocalCharge) =
   }
 
   return (
-    <div className="rounded-lg border border-brand/30 bg-brand/5 p-4 space-y-3">
+    <div className="rounded-[var(--r-button)] border border-primary/30 bg-primary/[0.03] p-4 space-y-3">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium">New recurring charge</span>
         <button type="button" onClick={onCancel}><X className="size-4" /></button>
@@ -139,7 +139,7 @@ function RecurringForm({ onAdd, onCancel }: Readonly<{ onAdd: (c: LocalCharge) =
         </Select>
       </div>
       <label className="flex items-center gap-2 cursor-pointer text-sm">
-        <input type="checkbox" checked={deductFromOwner} onChange={(e) => setDeductFromOwner(e.target.checked)} className="accent-brand" />
+        <input type="checkbox" checked={deductFromOwner} onChange={(e) => setDeductFromOwner(e.target.checked)} className="accent-primary" />
         Deduct from owner payment
       </label>
       <div className="flex justify-end gap-2">
@@ -173,7 +173,7 @@ function OnceOffForm({ onAdd, onCancel }: Readonly<{ onAdd: (c: LocalOnceOffChar
   }
 
   return (
-    <div className="rounded-lg border border-brand/30 bg-brand/5 p-4 space-y-3">
+    <div className="rounded-[var(--r-button)] border border-primary/30 bg-primary/[0.03] p-4 space-y-3">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium">New once-off charge</span>
         <button type="button" onClick={onCancel}><X className="size-4" /></button>
@@ -233,7 +233,7 @@ export function ChargesSection({ charges, onceOffCharges, onChangeCharges, onCha
         {charges.length > 0 ? (
           <div className="space-y-2">
             {charges.map((c) => (
-              <div key={c.id} className="flex items-start justify-between rounded-lg border border-border/60 bg-surface-elevated px-3 py-2.5">
+              <div key={c.id} className="flex items-start justify-between rounded-[var(--r-button)] border border-border/60 bg-surface-elevated px-3 py-2.5">
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium">{c.description}</span>
@@ -277,7 +277,7 @@ export function ChargesSection({ charges, onceOffCharges, onChangeCharges, onCha
         {onceOffCharges.length > 0 ? (
           <div className="space-y-2">
             {onceOffCharges.map((c) => (
-              <div key={c.id} className="flex items-start justify-between rounded-lg border border-border/60 bg-surface-elevated px-3 py-2.5">
+              <div key={c.id} className="flex items-start justify-between rounded-[var(--r-button)] border border-border/60 bg-surface-elevated px-3 py-2.5">
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium">{c.description}</span>

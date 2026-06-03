@@ -15,7 +15,6 @@ import { createClient } from "@/lib/supabase/client"
 import { useOrg } from "@/hooks/useOrg"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card, CardContent } from "@/components/ui/card"
 import { CheckCircle2, ChevronDown, ChevronRight, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { contactDisplayName } from "@/lib/contacts/displayName"
@@ -96,12 +95,12 @@ function InlineCombobox<T extends { id: string }>({
 
   const filtered = items.filter((item) => getSearchText(item).toLowerCase().includes(search.toLowerCase()))
 
-  if (loading) return <div className="h-9 rounded-lg bg-muted animate-pulse" />
+  if (loading) return <div className="h-9 rounded-[var(--r-button)] bg-muted animate-pulse" />
 
   return (
     <div ref={containerRef} className="relative">
       {open ? (
-        <div className="flex items-center gap-2 w-full rounded-lg border border-brand bg-background px-3 py-2 ring-1 ring-brand">
+        <div className="flex items-center gap-2 w-full rounded-[var(--r-button)] border border-primary bg-background px-3 py-2 ring-1 ring-primary">
           <Search className="size-4 text-muted-foreground flex-shrink-0" />
           <input
             ref={inputRef}
@@ -116,7 +115,7 @@ function InlineCombobox<T extends { id: string }>({
         <button
           type="button"
           onClick={openCombobox}
-          className="flex items-center gap-2 w-full rounded-lg border border-border/60 bg-background px-3 py-2 text-left hover:border-brand/50 transition-colors"
+          className="flex items-center gap-2 w-full rounded-[var(--r-button)] border border-border/60 bg-background px-3 py-2 text-left hover:border-primary/50 transition-colors"
         >
           <span className="flex-1 text-sm truncate">{value ? displayValue : <span className="text-muted-foreground">{placeholder}</span>}</span>
           <ChevronDown className="size-4 text-muted-foreground flex-shrink-0" />
@@ -124,7 +123,7 @@ function InlineCombobox<T extends { id: string }>({
       )}
 
       {open && (
-        <ul className="absolute z-50 mt-1 w-full rounded-lg border border-border bg-popover shadow-lg max-h-60 overflow-y-auto">
+        <ul className="absolute z-50 mt-1 w-full rounded-[var(--r-button)] border border-border bg-popover shadow-lg max-h-60 overflow-y-auto">
           {filtered.length === 0 ? (
             <li className="px-3 py-2 text-sm text-muted-foreground">No results</li>
           ) : (
@@ -136,7 +135,7 @@ function InlineCombobox<T extends { id: string }>({
                   onClick={() => { onSelect(item); setOpen(false) }}
                   className={cn(
                     "w-full text-left px-3 py-2 text-sm hover:bg-muted/50 transition-colors",
-                    item.id === value && "bg-brand/10 font-medium"
+                    item.id === value && "bg-primary/10 font-medium"
                   )}
                 >
                   {renderItem(item)}
@@ -340,23 +339,21 @@ export function PropertyBuildingUnitStep({ register }: Readonly<Props>) {
   return (
     <div className="space-y-6">
       {isPreFilled && data.propertyName && data.unitLabel ? (
-        <Card className="border-brand/30 bg-brand/5">
-          <CardContent className="pt-4">
-            <div className="flex items-start justify-between">
-              <div className="flex items-start gap-3">
-                <CheckCircle2 className="size-5 text-brand mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="font-medium text-sm">{data.propertyName}</p>
-                  <p className="text-xs text-muted-foreground">{data.unitLabel}</p>
-                  <p className="text-xs text-muted-foreground capitalize">{leaseType} lease</p>
-                </div>
+        <div className="rounded-[var(--r-button)] border border-primary/30 bg-primary/[0.03] p-4">
+          <div className="flex items-start justify-between">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="size-5 text-primary mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-medium text-sm">{data.propertyName}</p>
+                <p className="text-xs text-muted-foreground">{data.unitLabel}</p>
+                <p className="text-xs text-muted-foreground capitalize">{leaseType} lease</p>
               </div>
-              <button type="button" className="text-xs text-brand hover:underline flex-shrink-0" onClick={() => setIsPreFilled(false)}>
-                Change
-              </button>
             </div>
-          </CardContent>
-        </Card>
+            <button type="button" className="text-xs text-primary hover:underline flex-shrink-0" onClick={() => setIsPreFilled(false)}>
+              Change
+            </button>
+          </div>
+        </div>
       ) : (
         <div className="space-y-4">
           <div className="space-y-2">

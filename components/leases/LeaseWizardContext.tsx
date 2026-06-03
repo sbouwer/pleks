@@ -5,9 +5,11 @@
  *
  * Auth:   client-only; the save paths (createLease / createUploadedLease) enforce requireAgentWriteAccess
  * Data:   in-memory WizardData (no localStorage draft — the lease modal is short-lived and prefill-driven)
- * Notes:  Mirrors app/(dashboard)/properties/new/WizardContext but flatter: 4 fixed steps, footer-driven nav.
- *         Steps read `data` + `patch` from here and render content-only; the LeaseWizardModal footer drives
- *         Continue/Back + per-step validation. Renewal prefill loads once on mount from the renewal API.
+ * Notes:  Mirrors app/(dashboard)/properties/new/WizardContext but flatter: 7 fixed steps (Property · Tenant ·
+ *         Lease terms · Charges · Lease clauses · Annexures · Create), footer-driven nav. Steps read `data` +
+ *         `patch` from here and render content-only — the lease-details slice (terms/charges/clauses/annexures)
+ *         is LIVE in `data` so the four detail steps stay in sync as you navigate between them. The
+ *         LeaseWizardModal footer drives Continue/Back + per-step validation. Renewal prefill loads once on mount.
  */
 import {
   createContext, useContext, useState, useEffect, useCallback, useMemo, type ReactNode,
@@ -27,11 +29,11 @@ export interface LeaseWizardContextValue {
 
 const LeaseWizardCtx = createContext<LeaseWizardContextValue | null>(null)
 
-const TOTAL_STEPS = 4
+const TOTAL_STEPS = 7
 
 /** Resolve the first step to land on given what was prefilled (mirrors the old wizard's jump-ahead). */
 function initialStepFromPrefill(prefill: WizardPrefill): number {
-  if (prefill.propertyId && prefill.unitId && prefill.tenantId) return 2 // Lease details
+  if (prefill.propertyId && prefill.unitId && prefill.tenantId) return 2 // Lease terms
   if (prefill.propertyId && prefill.unitId) return 1                     // Tenant(s)
   return 0                                                               // Property → Building → Unit
 }
