@@ -37,6 +37,17 @@ export interface PartyAddressInput {
   postal?: string
 }
 
+/** A bank account captured at create time → contact_bank_accounts (global multi-account banking). */
+export interface PartyBankAccountInput {
+  _uid?: string             // client-only stable React key; ignored by the persist layer
+  accountName?: string
+  bankName?: string
+  accountNumber?: string
+  branchCode?: string
+  accountType?: string      // cheque | savings | transmission
+  label?: string            // optional, e.g. "FNB" — disambiguates one-account-per-bank
+}
+
 /** Payload from the modal to a create action. */
 export interface AddPartyInput {
   role: PartyRole
@@ -80,6 +91,10 @@ export interface PartyFormState {
   specialities?: string[]
   isActive?: boolean
   notes?: string
+  callOutRate?: string        // ZAR (converted to cents on persist)
+  hourlyRate?: string         // ZAR (converted to cents on persist)
+  vatRegistered?: boolean
+  bankAccounts?: PartyBankAccountInput[]  // global multi-account banking captured at create
   // tenant details
   popiaConsent?: boolean
   employer?: string

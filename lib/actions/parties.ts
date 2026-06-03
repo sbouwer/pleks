@@ -14,9 +14,36 @@ import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { headers } from "next/headers"
 import { hashIdNumber } from "@/lib/crypto/idNumber"
 import { PARTY_ROLES, toContactEntityType, type PartyRole, type PartyEntity } from "@/lib/parties/partyConfig"
-import type { PartyFormState, AddPartyInput, AddPartyResult, PartyPerson, PartyAddressInput } from "@/lib/parties/partyValidation"
+import type { PartyFormState, AddPartyInput, AddPartyResult, PartyPerson, PartyAddressInput, PartyBankAccountInput } from "@/lib/parties/partyValidation"
 
 type Db = Awaited<ReturnType<typeof requireAgentWriteAccess>>["db"]
+
+/** Parse a ZAR string (possibly "R 450,00" / "450") to integer cents; null when blank/unparseable. */
+function zarToCents(v: string | undefined): number | null {
+  if (!v?.trim()) return null
+  const n = Number.parseFloat(v.replace(/[^0-9.]/g, ""))
+  return Number.isFinite(n) ? Math.round(n * 100) : null
+}
+
+/** Bank accounts captured at create → contact_bank_accounts (first = primary). Skips blank rows. */
+async function insertPartyBankAccounts(db: Db, orgId: string, contactId: string, accounts: PartyBankAccountInput[] | undefined) {
+  const rows = (accounts ?? [])
+    .filter((a) => a.bankName?.trim() || a.accountNumber?.trim())
+    .map((a, i) => ({
+      org_id: orgId,
+      contact_id: contactId,
+      account_name: a.accountName?.trim() || null,
+      bank_name: a.bankName?.trim() || null,
+      account_number: a.accountNumber?.trim() || null,
+      branch_code: a.branchCode?.trim() || null,
+      account_type: a.accountType || null,
+      label: a.label?.trim() || null,
+      is_primary: i === 0,
+    }))
+  if (rows.length === 0) return
+  const { error } = await db.from("contact_bank_accounts").insert(rows)
+  if (error) console.error("[insertPartyBankAccounts] failed:", error.message)
+}
 
 function partyDisplayName(role: PartyRole, entity: PartyEntity, f: PartyFormState): string {
   if (entity === "company") return f.companyName?.trim() || PARTY_ROLES[role].singular
@@ -165,6 +192,9 @@ export async function addContractorParty(input: AddPartyInput, supplierType: str
     const { error: conErr } = await db.from("contractors").insert({
       org_id: orgId, contact_id: contact.id, is_active: f.isActive !== false,
       specialities: f.specialities ?? [], supplier_type: supplierType,
+      call_out_rate_cents: zarToCents(f.callOutRate),
+      hourly_rate_cents: zarToCents(f.hourlyRate),
+      vat_registered: !!f.vatRegistered,
     })
     if (conErr) {
       console.error("[addContractorParty] contractor insert failed:", conErr.message)
@@ -172,7 +202,14 @@ export async function addContractorParty(input: AddPartyInput, supplierType: str
       return { ok: false, error: "Failed to create the contractor" }
     }
 
+    // VAT number lives on the contact (buildPartyContactData only sets it for FICA companies).
+    if (f.vatNumber?.trim()) {
+      await db.from("contacts").update({ vat_number: f.vatNumber.trim() }).eq("id", contact.id).eq("org_id", orgId)
+    }
+
     if (input.entity === "company") await insertCompanyPeople(db, orgId, userId, contact.id, f.people)
+    await insertCompanyAddresses(db, orgId, contact.id, f.addresses)
+    await insertPartyBankAccounts(db, orgId, contact.id, f.bankAccounts)
 
     await auditPartyCreate(db, orgId, userId, "contractors", contact.id, "supplier", input.entity, name)
     return { ok: true, name, id: contact.id as string }

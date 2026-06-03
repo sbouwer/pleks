@@ -12,7 +12,7 @@ import { Check, Plus, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SA_PROVINCES } from "@/lib/constants"
 import { PARTY_ID_TYPES, COMPANY_FUNCTION_OPTIONS } from "@/lib/parties/partyConfig"
-import { validateSAId, type PartyFormState, type PartyErrors, type PartyPerson, type PartyAddressInput } from "@/lib/parties/partyValidation"
+import { validateSAId, type PartyFormState, type PartyErrors, type PartyPerson, type PartyAddressInput, type PartyBankAccountInput } from "@/lib/parties/partyValidation"
 
 type SetFn = (k: keyof PartyFormState, v: string | string[] | boolean) => void
 
@@ -348,6 +348,55 @@ export function PeopleRepeater({
       </button>
 
       {error && <span className="block text-xs text-destructive">{error}</span>}
+    </div>
+  )
+}
+
+// ── Bank accounts repeater (global multi-account banking, captured at create) ─
+const ACCOUNT_TYPE_SELECT = [
+  { value: "", label: "Account type…" },
+  { value: "cheque", label: "Cheque" },
+  { value: "savings", label: "Savings" },
+  { value: "transmission", label: "Transmission" },
+]
+
+/** Repeatable bank-account inputs (+add) → contact_bank_accounts. The first account persists as primary. */
+export function BankAccountsRepeater({
+  accounts, onChange,
+}: Readonly<{ accounts: PartyBankAccountInput[]; onChange: (a: PartyBankAccountInput[]) => void }>) {
+  const update = (i: number, patch: Partial<PartyBankAccountInput>) =>
+    onChange(accounts.map((a, idx) => (idx === i ? { ...a, ...patch } : a)))
+  const remove = (i: number) => onChange(accounts.filter((_, idx) => idx !== i))
+  const add = () => onChange([...accounts, { _uid: crypto.randomUUID() }])
+
+  return (
+    <div className="space-y-3">
+      {accounts.map((a, i) => (
+        <div key={a._uid ?? i} className="rounded-[var(--r-button)] border border-border bg-muted/20 p-3.5">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+              Account {i + 1}{i === 0 ? " · primary" : ""}
+            </span>
+            <button type="button" onClick={() => remove(i)} aria-label="Remove account"
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-destructive">
+              <X className="h-3.5 w-3.5" /> Remove
+            </button>
+          </div>
+          <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+            <Bare label="Bank" value={a.bankName} onChange={(v) => update(i, { bankName: v })} placeholder="FNB" />
+            <Bare label="Label (optional)" value={a.label} onChange={(v) => update(i, { label: v })} placeholder="e.g. Municipal account" />
+            <Bare label="Account name" value={a.accountName} onChange={(v) => update(i, { accountName: v })} />
+            <Bare label="Account number" value={a.accountNumber} onChange={(v) => update(i, { accountNumber: v })} />
+            <Bare label="Branch code" value={a.branchCode} onChange={(v) => update(i, { branchCode: v })} />
+            <BareSelect label="Account type" value={a.accountType ?? ""} onChange={(v) => update(i, { accountType: v })} options={ACCOUNT_TYPE_SELECT} />
+          </div>
+        </div>
+      ))}
+
+      <button type="button" onClick={add}
+        className="inline-flex items-center gap-1.5 rounded-[var(--r-button)] border border-dashed border-border px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground">
+        <Plus className="h-4 w-4" /> Add {accounts.length === 0 ? "a bank account" : "another account"}
+      </button>
     </div>
   )
 }

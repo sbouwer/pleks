@@ -9,12 +9,12 @@
  */
 import { Plus, X } from "lucide-react"
 import { PARTY_ROLES, SPECIALITY_OPTIONS, COMPANY_FUNCTION_OPTIONS, type PartyRole, type PartyEntity } from "@/lib/parties/partyConfig"
-import type { PartyFormState, PartyErrors, PartyPerson, PartyAddressInput } from "@/lib/parties/partyValidation"
+import type { PartyFormState, PartyErrors, PartyPerson, PartyAddressInput, PartyBankAccountInput } from "@/lib/parties/partyValidation"
 import {
-  SectLabel, TextField, SelectField, IdField, EntityToggle, ChipPicker, CheckRow, PeopleRepeater, AddressFields,
+  SectLabel, TextField, SelectField, IdField, EntityToggle, ChipPicker, CheckRow, PeopleRepeater, AddressFields, BankAccountsRepeater,
 } from "./partyFields"
 
-type SetFn = (k: keyof PartyFormState, v: string | string[] | boolean | PartyPerson[] | PartyAddressInput[]) => void
+type SetFn = (k: keyof PartyFormState, v: string | string[] | boolean | PartyPerson[] | PartyAddressInput[] | PartyBankAccountInput[]) => void
 
 const FUNCTION_LABEL: Record<string, string> = Object.fromEntries(COMPANY_FUNCTION_OPTIONS.map((o) => [o.value, o.label]))
 
@@ -82,10 +82,13 @@ function IndividualIdentity({ f, set, errors, fullFica }: IdentityBodyProps) {
 
 const ADDRESS_TYPE_LABEL: Record<string, string> = { physical: "Street address", postal: "Postal address", billing: "Billing address" }
 
-/** Company addresses (25A multi-address): physical (required) + collapsed opt-in postal / billing. */
+/** Multi-address (25A): physical + collapsed opt-in postal / billing. Physical required unless `optional`. */
 function CompanyAddressSection({
-  addresses, onChange, error,
-}: Readonly<{ addresses: PartyAddressInput[]; onChange: (a: PartyAddressInput[]) => void; error?: string }>) {
+  addresses, onChange, error, n = "02", title = "Registered / street address", optional = false,
+}: Readonly<{
+  addresses: PartyAddressInput[]; onChange: (a: PartyAddressInput[]) => void; error?: string
+  n?: string; title?: string; optional?: boolean
+}>) {
   const get = (type: PartyAddressInput["type"]) => addresses.find((a) => a.type === type)
   const update = (type: PartyAddressInput["type"], patch: Partial<PartyAddressInput>) =>
     onChange(addresses.some((a) => a.type === type)
@@ -96,8 +99,8 @@ function CompanyAddressSection({
 
   return (
     <div className="mt-6">
-      <SectLabel n="02">Registered / street address</SectLabel>
-      <AddressFields address={get("physical") ?? { type: "physical" }} onUpdate={(p) => update("physical", p)} requiredLine />
+      <SectLabel n={n}>{title}</SectLabel>
+      <AddressFields address={get("physical") ?? { type: "physical" }} onUpdate={(p) => update("physical", p)} requiredLine={!optional} />
 
       {(["postal", "billing"] as const).map((type) => {
         const a = get(type)
@@ -227,13 +230,48 @@ export function DetailsStep({
           <ChipPicker value={f.specialities || []} onChange={(v) => set("specialities", v)} options={SPECIALITY_OPTIONS} />
           {errors.specialities && <span className="mt-2.5 block text-xs text-destructive">{errors.specialities}</span>}
         </div>
+
         <div className="mt-6">
-          <SectLabel n="02">Status &amp; notes</SectLabel>
+          <SectLabel n="02">Rates · optional</SectLabel>
+          <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
+            <TextField label="Call-out rate (R)" k="callOutRate" f={f} set={set} errors={errors} type="number" placeholder="e.g. 450" />
+            <TextField label="Hourly rate (R)" k="hourlyRate" f={f} set={set} errors={errors} type="number" placeholder="e.g. 350" />
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <SectLabel n="03">VAT · optional</SectLabel>
+          <CheckRow checked={!!f.vatRegistered} onChange={(v) => set("vatRegistered", v)}>
+            VAT registered
+          </CheckRow>
+          {f.vatRegistered && (
+            <div className="mt-3.5">
+              <TextField label="VAT number" k="vatNumber" f={f} set={set} errors={errors} placeholder="4xxxxxxxxx" />
+            </div>
+          )}
+        </div>
+
+        <CompanyAddressSection
+          n="04" title="Address · optional" optional
+          addresses={f.addresses ?? []} onChange={(a) => set("addresses", a)} error={errors.addresses}
+        />
+
+        <div className="mt-6">
+          <SectLabel n="05">Banking · optional</SectLabel>
+          <p className="mb-3 text-[13px] leading-snug text-muted-foreground">
+            Add the supplier&apos;s bank account(s). Many suppliers (e.g. utilities) keep one account per bank —
+            add each so payments can route same-bank. The first account is the primary.
+          </p>
+          <BankAccountsRepeater accounts={f.bankAccounts ?? []} onChange={(a) => set("bankAccounts", a)} />
+        </div>
+
+        <div className="mt-6">
+          <SectLabel n="06">Status &amp; notes</SectLabel>
           <CheckRow checked={f.isActive !== false} onChange={(v) => set("isActive", v)}>
             Active — available to assign to new maintenance jobs.
           </CheckRow>
           <div className="mt-3.5">
-            <TextField label="Internal notes" k="notes" f={f} set={set} errors={errors} span placeholder="Rates, preferred areas, callout terms…" />
+            <TextField label="Internal notes" k="notes" f={f} set={set} errors={errors} span placeholder="Preferred areas, callout terms…" />
           </div>
         </div>
       </>
@@ -336,6 +374,19 @@ export function ReviewStep({
           {role === "supplier" && (
             <>
               <ReviewRow k="Specialities" v={(f.specialities || []).join(", ")} />
+              {f.callOutRate && <ReviewRow k="Call-out rate" v={`R ${f.callOutRate}`} />}
+              {f.hourlyRate && <ReviewRow k="Hourly rate" v={`R ${f.hourlyRate}`} />}
+              {f.vatRegistered && <ReviewRow k="VAT" v={f.vatNumber ? `Registered · ${f.vatNumber}` : "Registered"} />}
+              {(f.addresses ?? []).filter((a) => a.line1?.trim()).map((a) => (
+                <ReviewRow key={a.type} k={ADDRESS_TYPE_LABEL[a.type] ?? "Address"} v={[a.line1, a.city].filter(Boolean).join(", ")} />
+              ))}
+              {(f.bankAccounts ?? []).filter((b) => b.bankName?.trim() || b.accountNumber?.trim()).map((b, i) => (
+                <ReviewRow
+                  key={b._uid ?? i}
+                  k={`Bank${i === 0 ? " · primary" : ""}`}
+                  v={[b.bankName, b.accountNumber ? `••••${b.accountNumber.slice(-4)}` : null].filter(Boolean).join(" · ")}
+                />
+              ))}
               <ReviewRow k="Status" v={f.isActive !== false ? "Active" : "Inactive"} />
             </>
           )}
