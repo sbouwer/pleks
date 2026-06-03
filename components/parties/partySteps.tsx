@@ -268,7 +268,7 @@ function BankingBody({ f, set }: StepBodyProps) {
   )
 }
 
-function ConsentBody({ f, set, errors }: StepBodyProps) {
+function ConsentBody({ entity, f, set, errors }: StepBodyProps) {
   return (
     <>
       <div>
@@ -289,8 +289,9 @@ function ConsentBody({ f, set, errors }: StepBodyProps) {
       <div className="mt-6">
         <SectLabel n="02">Background · optional</SectLabel>
         <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
-          <TextField label="Employer" k="employer" f={f} set={set} errors={errors} placeholder="Company or employer" />
-          <TextField label="Occupation" k="occupation" f={f} set={set} errors={errors} placeholder="e.g. Engineer" />
+          {/* Employer / occupation are person facts — only for an individual tenant, not a company. */}
+          {entity === "individual" && <TextField label="Employer" k="employer" f={f} set={set} errors={errors} placeholder="Company or employer" />}
+          {entity === "individual" && <TextField label="Occupation" k="occupation" f={f} set={set} errors={errors} placeholder="e.g. Engineer" />}
           <TextField label="Internal notes (not visible to tenant)" k="notes" f={f} set={set} errors={errors} span placeholder="Optional" />
         </div>
       </div>

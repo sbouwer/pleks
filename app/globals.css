@@ -494,6 +494,10 @@ table.ledger tr.paid td:first-child::before {
   --shadow-2: 0 1px 2px oklch(0.2 0.01 260 / 0.04), 0 1px 0 oklch(0.88 0.006 85 / 0.8);
 }
 
+/* The .pleks-portal wrapper is display:contents, so color-scheme doesn't reach native <select> option
+   popups — set it on the controls directly so the OS draws the dropdown list dark, not white. */
+.pleks-portal[data-theme="dark"] select { color-scheme: dark; }
+
 .pleks-portal[data-theme="dark"] {
   color-scheme: dark;
   /* Paper & ink — dark navy */
