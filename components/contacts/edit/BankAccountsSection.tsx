@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { EditButton } from "@/components/ui/actions"
+import { DetailCard } from "@/components/detail/DetailCard"
 
 export interface BankAccount {
   id: string
@@ -165,12 +166,10 @@ export function BankAccountsSection({
   const refresh = () => router.refresh()
 
   return (
-    <div>
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Banking</span>
-        {!adding && editingId === null && <EditButton mode="label" label="Add" onClick={() => setAdding(true)} />}
-      </div>
-
+    <DetailCard
+      title="Banking"
+      headerAction={!adding && editingId === null ? <EditButton mode="label" label="Add" onClick={() => setAdding(true)} /> : undefined}
+    >
       {accounts.length === 0 && !adding && <p className="text-xs text-muted-foreground">No bank accounts.</p>}
 
       <div className="space-y-2">
@@ -192,6 +191,6 @@ export function BankAccountsSection({
           <Plus className="h-3.5 w-3.5" /> Add another account
         </button>
       )}
-    </div>
+    </DetailCard>
   )
 }

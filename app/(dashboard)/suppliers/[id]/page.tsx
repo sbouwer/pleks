@@ -14,7 +14,6 @@ import { Wrench, Landmark, Zap, Phone, Mail, MessageCircle, Users, MapPin, type 
 import { DetailPageLayout, DetailFullWidth } from "@/components/detail/DetailPageLayout"
 import { DetailTypeBadge } from "@/components/detail/DetailTypeBadge"
 import { supplierArchetypeConfig } from "@/lib/suppliers/archetype"
-import { DetailSection } from "@/components/detail/DetailSection"
 import { SupplierDetailActions } from "@/components/suppliers/SupplierDetailActions"
 import type { DetailFact, DetailStatus } from "@/lib/detail/types"
 import { DetailCard, DetailStatGrid } from "@/components/detail/DetailCard"
@@ -376,23 +375,19 @@ export default async function ContractorDetailPage({ params }: Props) {
       <DetailCard title="Account profile" flush>
         <DetailStatGrid stats={accountStats} />
       </DetailCard>
-      <DetailSection>
-        <BankAccountsSection
-          entityType="suppliers"
-          entityId={id}
-          contactId={contractor.contact_id}
-          accounts={bankAccounts ?? []}
-        />
-      </DetailSection>
-      <DetailSection>
-        <ContractorPortalSection
-          contractorId={id}
-          tier={orgTier}
-          portalStatus={(contractorBanking?.portal_status ?? "none") as "none" | "invited" | "active" | "suspended"}
-          portalInviteSentAt={contractorBanking?.portal_invite_sent_at ?? null}
-          contractorEmail={primaryEmail}
-        />
-      </DetailSection>
+      <BankAccountsSection
+        entityType="suppliers"
+        entityId={id}
+        contactId={contractor.contact_id}
+        accounts={bankAccounts ?? []}
+      />
+      <ContractorPortalSection
+        contractorId={id}
+        tier={orgTier}
+        portalStatus={(contractorBanking?.portal_status ?? "none") as "none" | "invited" | "active" | "suspended"}
+        portalInviteSentAt={contractorBanking?.portal_invite_sent_at ?? null}
+        contractorEmail={primaryEmail}
+      />
 
       {/* Active jobs */}
       <DetailFullWidth>

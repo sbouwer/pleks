@@ -9,6 +9,7 @@
 
 import { useState } from "react"
 import { ActionButton, InlineLink } from "@/components/ui/actions"
+import { DetailCard } from "@/components/detail/DetailCard"
 import { toast } from "sonner"
 import { Mail, CheckCircle2, Clock } from "lucide-react"
 
@@ -50,9 +51,8 @@ export function ContractorPortalSection({
   // ── Upsell card for Owner / Steward ─────────────────────────
   if (!isPortalTier) {
     return (
-      <div className="border-t pt-3 mt-3">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Contractor portal</span>
-        <div className="mt-2 rounded-lg border border-border/50 bg-surface-elevated/60 px-3 py-3 space-y-1.5">
+      <DetailCard title="Contractor portal">
+        <div className="space-y-1.5 rounded-[var(--r-button)] border border-border bg-muted/20 px-3 py-3">
           <p className="text-xs text-muted-foreground leading-relaxed">
             Give your contractors a login to manage jobs, submit quotes, upload compliance
             documents, and track payments.
@@ -66,15 +66,14 @@ export function ContractorPortalSection({
             Compare plans
           </InlineLink>
         </div>
-      </div>
+      </DetailCard>
     )
   }
 
   // ── Portal management for Portfolio / Firm ──────────────────
   return (
-    <div>
-      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Contractor portal</span>
-      <div className="mt-2 space-y-2">
+    <DetailCard title="Contractor portal">
+      <div className="space-y-2">
         {status === "none" && (
           <>
             <p className="text-xs text-muted-foreground">
@@ -129,6 +128,6 @@ export function ContractorPortalSection({
           </div>
         )}
       </div>
-    </div>
+    </DetailCard>
   )
 }
