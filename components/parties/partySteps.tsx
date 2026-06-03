@@ -7,18 +7,16 @@
  *         Review → Success. All copy/behaviour is driven by PARTY_ROLES + the role flags, so this
  *         file renders all three party types from one set of components (DRY).
  */
-import { SA_PROVINCES } from "@/lib/constants"
+import { Plus, X } from "lucide-react"
 import { PARTY_ROLES, SPECIALITY_OPTIONS, COMPANY_FUNCTION_OPTIONS, type PartyRole, type PartyEntity } from "@/lib/parties/partyConfig"
-import type { PartyFormState, PartyErrors, PartyPerson } from "@/lib/parties/partyValidation"
+import type { PartyFormState, PartyErrors, PartyPerson, PartyAddressInput } from "@/lib/parties/partyValidation"
 import {
-  SectLabel, TextField, SelectField, IdField, EntityToggle, ChipPicker, CheckRow, PeopleRepeater,
+  SectLabel, TextField, SelectField, IdField, EntityToggle, ChipPicker, CheckRow, PeopleRepeater, AddressFields,
 } from "./partyFields"
 
-type SetFn = (k: keyof PartyFormState, v: string | string[] | boolean | PartyPerson[]) => void
+type SetFn = (k: keyof PartyFormState, v: string | string[] | boolean | PartyPerson[] | PartyAddressInput[]) => void
 
 const FUNCTION_LABEL: Record<string, string> = Object.fromEntries(COMPANY_FUNCTION_OPTIONS.map((o) => [o.value, o.label]))
-
-const PROVINCE_OPTIONS = [{ value: "", label: "Select…" }, ...SA_PROVINCES.map((p) => ({ value: p, label: p }))]
 
 const TITLE_OPTIONS = [
   { value: "", label: "Select…" },
@@ -82,23 +80,50 @@ function IndividualIdentity({ f, set, errors, fullFica }: IdentityBodyProps) {
   )
 }
 
-/** Legacy single-signatory block (tenant company — 25A people deferred). */
-function CompanySignatory({ f, set, errors, fullFica }: IdentityBodyProps) {
+const ADDRESS_TYPE_LABEL: Record<string, string> = { physical: "Street address", postal: "Postal address", billing: "Billing address" }
+
+/** Company addresses (25A multi-address): physical (required) + collapsed opt-in postal / billing. */
+function CompanyAddressSection({
+  addresses, onChange, error,
+}: Readonly<{ addresses: PartyAddressInput[]; onChange: (a: PartyAddressInput[]) => void; error?: string }>) {
+  const get = (type: PartyAddressInput["type"]) => addresses.find((a) => a.type === type)
+  const update = (type: PartyAddressInput["type"], patch: Partial<PartyAddressInput>) =>
+    onChange(addresses.some((a) => a.type === type)
+      ? addresses.map((a) => (a.type === type ? { ...a, ...patch } : a))
+      : [...addresses, { type, ...patch }])
+  const addType = (type: PartyAddressInput["type"]) => onChange([...addresses, { type }])
+  const removeType = (type: PartyAddressInput["type"]) => onChange(addresses.filter((a) => a.type !== type))
+
   return (
     <div className="mt-6">
-      <SectLabel n={fullFica ? "03" : "02"}>{fullFica ? "Mandated signatory" : "Primary contact"}</SectLabel>
-      <p className="mb-3 text-[13px] leading-snug text-muted-foreground">
-        {fullFica
-          ? "The director or authorised representative who signs on the company's behalf. Full FICA required."
-          : "The person you deal with day-to-day for this supplier."}
-      </p>
-      <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
-        <TextField label="First name" k="dirFirstName" f={f} set={set} errors={errors} required placeholder="John" />
-        <TextField label="Last name" k="dirLastName" f={f} set={set} errors={errors} required={fullFica} placeholder="Doe" />
-        {fullFica && <IdField label="ID" typeKey="dirIdType" numKey="dirIdNumber" f={f} set={set} errors={errors} required />}
-        <TextField label={fullFica ? "Direct phone" : "Phone"} k="dirPhone" f={f} set={set} errors={errors} required type="tel" placeholder="082 000 0000" />
-        <TextField label={fullFica ? "Direct email" : "Email"} k="dirEmail" f={f} set={set} errors={errors} required={fullFica} type="email" span placeholder="contact@company.co.za" />
-      </div>
+      <SectLabel n="02">Registered / street address</SectLabel>
+      <AddressFields address={get("physical") ?? { type: "physical" }} onUpdate={(p) => update("physical", p)} requiredLine />
+
+      {(["postal", "billing"] as const).map((type) => {
+        const a = get(type)
+        if (!a) {
+          return (
+            <button key={type} type="button" onClick={() => addType(type)}
+              className="mt-3 mr-2 inline-flex items-center gap-1.5 rounded-[var(--r-button)] border border-dashed border-border px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground">
+              <Plus className="h-4 w-4" /> Add {type} address
+            </button>
+          )
+        }
+        return (
+          <div key={type} className="mt-4 rounded-[var(--r-button)] border border-border bg-muted/20 p-3.5">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">{ADDRESS_TYPE_LABEL[type]}</span>
+              <button type="button" onClick={() => removeType(type)} aria-label={`Remove ${type} address`}
+                className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-destructive">
+                <X className="h-3.5 w-3.5" /> Remove
+              </button>
+            </div>
+            <AddressFields address={a} onUpdate={(p) => update(type, p)} />
+          </div>
+        )
+      })}
+
+      {error && <span className="mt-2 block text-xs text-destructive">{error}</span>}
     </div>
   )
 }
@@ -120,31 +145,16 @@ function CompanyIdentity({
         </div>
       </div>
 
-      {fullFica && (
-        <div className="mt-6">
-          <SectLabel n="02">Registered address</SectLabel>
-          <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
-            <TextField label="Street address" k="addrLine1" f={f} set={set} errors={errors} required span placeholder="12 Main Road" />
-            <TextField label="Suburb" k="addrSuburb" f={f} set={set} errors={errors} placeholder="Sea Point" />
-            <TextField label="City" k="addrCity" f={f} set={set} errors={errors} required placeholder="Cape Town" />
-            <SelectField label="Province" k="addrProvince" f={f} set={set} options={PROVINCE_OPTIONS} />
-            <TextField label="Postal code" k="addrPostal" f={f} set={set} errors={errors} placeholder="8005" />
-          </div>
-        </div>
-      )}
+      {fullFica && <CompanyAddressSection addresses={f.addresses ?? []} onChange={(a) => set("addresses", a)} error={errors.addresses} />}
 
-      {companyPeople ? (
-        <div className="mt-6">
-          <SectLabel n={fullFica ? "03" : "02"}>People</SectLabel>
-          <p className="mb-3 text-[13px] leading-snug text-muted-foreground">
-            The people you deal with at this company — add as many as you need. Mark who&apos;s the main contact;
-            a person&apos;s function routes the right messages to them (accounts → statements, maintenance → repairs).
-          </p>
-          <PeopleRepeater people={f.people ?? []} onChange={(ppl) => set("people", ppl)} error={errors.people} fica={fullFica} />
-        </div>
-      ) : (
-        <CompanySignatory f={f} set={set} errors={errors} fullFica={fullFica} />
-      )}
+      <div className="mt-6">
+        <SectLabel n={fullFica ? "03" : "02"}>People</SectLabel>
+        <p className="mb-3 text-[13px] leading-snug text-muted-foreground">
+          The people you deal with at this company — add as many as you need. Mark who&apos;s the main contact;
+          a person&apos;s function routes the right messages to them (accounts → statements, maintenance → repairs).
+        </p>
+        <PeopleRepeater people={f.people ?? []} onChange={(ppl) => set("people", ppl)} error={errors.people} fica={fullFica} />
+      </div>
     </>
   )
 }
@@ -274,8 +284,8 @@ function ReviewRow({ k, v }: Readonly<{ k: string; v: string | undefined }>) {
 }
 
 export function ReviewStep({
-  role, entity, f, companyPeople,
-}: Readonly<{ role: PartyRole; entity: PartyEntity; f: PartyFormState; companyPeople: boolean }>) {
+  role, entity, f,
+}: Readonly<{ role: PartyRole; entity: PartyEntity; f: PartyFormState }>) {
   const isIndividual = entity === "individual"
   return (
     <div className="space-y-5">
@@ -297,21 +307,16 @@ export function ReviewStep({
             <>
               <ReviewRow k="Registered name" v={f.companyName} />
               <ReviewRow k="CIPC reg." v={f.companyReg} />
-              <ReviewRow k="Address" v={[f.addrLine1, f.addrCity].filter(Boolean).join(", ")} />
-              {companyPeople ? (
-                (f.people ?? []).map((p, i) => (
-                  <ReviewRow
-                    key={p._uid ?? i}
-                    k={`${FUNCTION_LABEL[p.companyFunction ?? ""] ?? "Contact"}${p.isPrimary ? " · primary" : ""}${p.isSignatory ? " · signatory" : ""}`}
-                    v={[p.firstName, p.lastName].filter(Boolean).join(" ")}
-                  />
-                ))
-              ) : (
-                <>
-                  <ReviewRow k="Signatory" v={[f.dirFirstName, f.dirLastName].filter(Boolean).join(" ")} />
-                  <ReviewRow k="Signatory email" v={f.dirEmail} />
-                </>
-              )}
+              {(f.addresses ?? []).filter((a) => a.line1?.trim()).map((a) => (
+                <ReviewRow key={a.type} k={ADDRESS_TYPE_LABEL[a.type] ?? "Address"} v={[a.line1, a.city].filter(Boolean).join(", ")} />
+              ))}
+              {(f.people ?? []).map((p, i) => (
+                <ReviewRow
+                  key={p._uid ?? i}
+                  k={`${FUNCTION_LABEL[p.companyFunction ?? ""] ?? "Contact"}${p.isPrimary ? " · primary" : ""}${p.isSignatory ? " · signatory" : ""}`}
+                  v={[p.firstName, p.lastName].filter(Boolean).join(" ")}
+                />
+              ))}
             </>
           )}
         </div>

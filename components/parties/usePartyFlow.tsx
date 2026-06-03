@@ -17,7 +17,7 @@ import type { WizardModalStep } from "@/components/ui/wizard-modal"
 import { PARTY_ROLES, type PartyRole, type PartyEntity } from "@/lib/parties/partyConfig"
 import {
   validateIdentity, validateDetails,
-  type PartyFormState, type PartyErrors, type AddPartyInput, type AddPartyResult, type PartyPerson,
+  type PartyFormState, type PartyErrors, type AddPartyInput, type AddPartyResult, type PartyPerson, type PartyAddressInput,
 } from "@/lib/parties/partyValidation"
 import { IdentityStep, DetailsStep, ReviewStep } from "./partySteps"
 
@@ -90,7 +90,7 @@ export function usePartyFlow({ role, onSubmit, onDone, hideWelcomePack }: UsePar
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState<AddPartyResult | null>(null)
 
-  const set = (k: keyof PartyFormState, v: string | string[] | boolean | PartyPerson[]) =>
+  const set = (k: keyof PartyFormState, v: string | string[] | boolean | PartyPerson[] | PartyAddressInput[]) =>
     setF((p) => ({ ...p, [k]: v }))
 
   const prefill = (values: Partial<PartyFormState>) =>
@@ -137,7 +137,7 @@ export function usePartyFlow({ role, onSubmit, onDone, hideWelcomePack }: UsePar
         <IdentityStep role={role} entity={entity} setEntity={changeEntity} f={f} set={set} errors={errors} fullFica={cfg.fullFica} companyPeople={cfg.companyPeople} />
       )}
       {step === 1 && <DetailsStep role={role} f={f} set={set} errors={errors} hideWelcomePack={hideWelcomePack} />}
-      {step === 2 && <ReviewStep role={role} entity={entity} f={f} companyPeople={cfg.companyPeople} />}
+      {step === 2 && <ReviewStep role={role} entity={entity} f={f} />}
     </>
   )
 

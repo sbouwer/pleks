@@ -14,7 +14,7 @@ import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { headers } from "next/headers"
 import { hashIdNumber } from "@/lib/crypto/idNumber"
 import { PARTY_ROLES, toContactEntityType, type PartyRole, type PartyEntity } from "@/lib/parties/partyConfig"
-import type { PartyFormState, AddPartyInput, AddPartyResult, PartyPerson } from "@/lib/parties/partyValidation"
+import type { PartyFormState, AddPartyInput, AddPartyResult, PartyPerson, PartyAddressInput } from "@/lib/parties/partyValidation"
 
 type Db = Awaited<ReturnType<typeof requireAgentWriteAccess>>["db"]
 
@@ -62,36 +62,15 @@ function buildPartyContactData(
     return d
   }
 
-  // company
+  // company — people are separate `contacts` rows (insertCompanyPeople). The company row holds only the
+  // company-general channel, falling back to the primary person so it's never blank. (All company contacts
+  // use the people model now; the legacy single-signatory path was retired in ADDENDUM_25A_AMENDMENT.)
   d.company_name = f.companyName?.trim() || null
   d.registration_number = f.companyReg?.trim() || null
   if (cfg.fullFica) d.vat_number = f.vatNumber?.trim() || null
-
-  if (cfg.companyPeople) {
-    // 25A: people are separate `contacts` rows (insertCompanyPeople). The company row holds only the
-    // company-general channel — falling back to the primary person so it's never blank.
-    const primary = (f.people ?? []).find((p) => p.isPrimary) ?? (f.people ?? [])[0]
-    d.primary_email = f.companyEmail?.trim() || primary?.email?.trim() || null
-    d.primary_phone = f.companyPhone?.trim() || primary?.phone?.trim() || null
-    return d
-  }
-
-  // legacy single-signatory company path (tenant — 25A people deferred)
-  d.primary_email = f.dirEmail?.trim() || null
-  d.primary_phone = f.dirPhone?.trim() || null
-  if (cfg.fullFica) {
-    d.contact_first_name = f.dirFirstName?.trim() || null
-    d.contact_last_name = f.dirLastName?.trim() || null
-    d.contact_phone = f.dirPhone?.trim() || null
-    d.contact_email = f.dirEmail?.trim() || null
-    d.contact_id_type = f.dirIdType || null
-    const sigId = f.dirIdNumber?.trim() || null
-    d.contact_id_number = sigId
-    d.contact_id_number_hash = sigId ? hashIdNumber(sigId) : null
-  } else {
-    d.first_name = f.dirFirstName?.trim() || null
-    d.last_name = f.dirLastName?.trim() || null
-  }
+  const primary = (f.people ?? []).find((p) => p.isPrimary) ?? (f.people ?? [])[0]
+  d.primary_email = f.companyEmail?.trim() || primary?.email?.trim() || null
+  d.primary_phone = f.companyPhone?.trim() || primary?.phone?.trim() || null
   return d
 }
 
@@ -132,20 +111,29 @@ async function insertCompanyPeople(db: Db, orgId: string, userId: string, compan
   if (error) console.error("[insertCompanyPeople] failed:", error.message)
 }
 
-/** Company registered address → contact_addresses (FICA roles only). No-op if no street line. */
-async function insertCompanyAddress(db: Db, orgId: string, contactId: string, f: PartyFormState) {
-  if (!f.addrLine1?.trim()) return
-  await db.from("contact_addresses").insert({
-    org_id: orgId,
-    contact_id: contactId,
-    address_type: "physical",
-    street_line1: f.addrLine1.trim(),
-    suburb: f.addrSuburb?.trim() || null,
-    city: f.addrCity?.trim() || null,
-    province: f.addrProvince || null,
-    postal_code: f.addrPostal?.trim() || null,
-    is_primary: true,
-  })
+/**
+ * Company addresses → contact_addresses, one row per typed entry (ADDENDUM_25A_AMENDMENT). physical is the
+ * primary (exactly one); postal/billing are non-primary. Skips blank entries. No migration — the
+ * address_type CHECK already permits physical/postal/billing and there's no one-row-per-contact constraint.
+ */
+async function insertCompanyAddresses(db: Db, orgId: string, contactId: string, addresses: PartyAddressInput[] | undefined) {
+  const rows = (addresses ?? [])
+    .filter((a) => a.line1?.trim())
+    .map((a) => ({
+      org_id: orgId,
+      contact_id: contactId,
+      address_type: a.type,
+      street_line1: a.line1!.trim(),
+      street_line2: a.line2?.trim() || null,
+      suburb: a.suburb?.trim() || null,
+      city: a.city?.trim() || null,
+      province: a.province || null,
+      postal_code: a.postal?.trim() || null,
+      is_primary: a.type === "physical",
+    }))
+  if (rows.length === 0) return
+  const { error } = await db.from("contact_addresses").insert(rows)
+  if (error) console.error("[insertCompanyAddresses] failed:", error.message)
 }
 
 async function auditPartyCreate(db: Db, orgId: string, userId: string, table: string, recordId: string, role: PartyRole, entity: PartyEntity, name: string) {
@@ -209,7 +197,7 @@ export async function addLandlordParty(input: AddPartyInput): Promise<AddPartyRe
       return { ok: false, error: "Failed to create the contact" }
     }
     if (input.entity === "company") {
-      await insertCompanyAddress(db, orgId, contact.id, f)
+      await insertCompanyAddresses(db, orgId, contact.id, f.addresses)
       await insertCompanyPeople(db, orgId, userId, contact.id, f.people)
     }
 
@@ -254,7 +242,7 @@ export async function addTenantParty(input: AddPartyInput): Promise<AddPartyResu
       return { ok: false, error: "Failed to create the contact" }
     }
     if (input.entity === "company") {
-      await insertCompanyAddress(db, orgId, contact.id, f)
+      await insertCompanyAddresses(db, orgId, contact.id, f.addresses)
       await insertCompanyPeople(db, orgId, userId, contact.id, f.people)
     }
 

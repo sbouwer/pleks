@@ -24,6 +24,19 @@ export interface PartyPerson {
   idNumber?: string
 }
 
+/** A typed company address (ADDENDUM_25A_AMENDMENT) — one row per type in contact_addresses. */
+export type PartyAddressType = "physical" | "postal" | "billing"
+
+export interface PartyAddressInput {
+  type: PartyAddressType
+  line1?: string
+  line2?: string
+  suburb?: string
+  city?: string
+  province?: string
+  postal?: string
+}
+
 /** Payload from the modal to a create action. */
 export interface AddPartyInput {
   role: PartyRole
@@ -61,19 +74,8 @@ export interface PartyFormState {
   vatNumber?: string
   companyEmail?: string       // company-general channel (org row primary_email)
   companyPhone?: string       // company-general channel (org row primary_phone)
-  people?: PartyPerson[]      // 25A people repeater (landlord/supplier company path)
-  addrLine1?: string
-  addrSuburb?: string
-  addrCity?: string
-  addrProvince?: string
-  addrPostal?: string
-  // mandated signatory (fullFica) / primary contact (supplier)
-  dirFirstName?: string
-  dirLastName?: string
-  dirIdType?: string
-  dirIdNumber?: string
-  dirPhone?: string
-  dirEmail?: string
+  people?: PartyPerson[]      // 25A people repeater (all company contacts)
+  addresses?: PartyAddressInput[]  // 25A multi-address (physical/postal/billing); physical = addresses[0]
   // supplier details
   specialities?: string[]
   isActive?: boolean
@@ -134,12 +136,18 @@ function validateIndividualIdentity(f: PartyFormState, e: PartyErrors, need: (k:
   checkSaId(f, "idType", "idNumber", e)
 }
 
-/** Legacy single-signatory company path (tenant — 25A people deferred). */
-function validateCompanyIdentity(f: PartyFormState, fullFica: boolean, e: PartyErrors, need: (k: keyof PartyFormState) => void) {
-  need("companyName"); need("dirFirstName"); need("dirPhone")
-  if (!fullFica) return
-  need("addrLine1"); need("addrCity"); need("dirLastName"); need("dirIdNumber"); need("dirEmail")
-  checkSaId(f, "dirIdType", "dirIdNumber", e)
+/** Physical address mandatory (line1 + city); an opened postal/billing block must be complete or removed. */
+function companyAddressError(addresses: PartyAddressInput[] | undefined): string | null {
+  const list = addresses ?? []
+  const phys = list.find((a) => a.type === "physical")
+  if (!phys?.line1?.trim() || !phys?.city?.trim()) return "A street address (line 1 + city) is required."
+  for (const a of list) {
+    if (a.type === "physical") continue
+    if ((a.line1?.trim() || a.city?.trim()) && (!a.line1?.trim() || !a.city?.trim())) {
+      return `Complete the ${a.type} address (line 1 + city) or remove it.`
+    }
+  }
+  return null
 }
 
 /** A signatory whose SA-ID fails the checksum (passport/permit aren't checksum-validated). */
@@ -157,7 +165,10 @@ function signatoryHasBadId(p: PartyPerson): boolean {
  */
 function validateCompanyPeopleIdentity(f: PartyFormState, fullFica: boolean, e: PartyErrors, need: (k: keyof PartyFormState) => void) {
   need("companyName")
-  if (fullFica) { need("addrLine1"); need("addrCity") }
+  if (fullFica) {
+    const addrErr = companyAddressError(f.addresses)
+    if (addrErr) e.addresses = addrErr
+  }
   const people = f.people ?? []
   if (people.length === 0) { e.people = "Add at least one contact person."; return }
   if (people.some((p) => !p.firstName?.trim() || !p.lastName?.trim() || !p.companyFunction)) {
@@ -188,8 +199,7 @@ export function validateIdentity(entity: PartyEntity, f: PartyFormState, cfg: Pa
     if (typeof v !== "string" || !v.trim()) e[k] = "Required"
   }
   if (entity === "individual") validateIndividualIdentity(f, e, need)
-  else if (cfg.companyPeople) validateCompanyPeopleIdentity(f, cfg.fullFica, e, need)
-  else validateCompanyIdentity(f, cfg.fullFica, e, need)
+  else validateCompanyPeopleIdentity(f, cfg.fullFica, e, need)
   return e
 }
 

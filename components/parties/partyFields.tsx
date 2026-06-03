@@ -10,8 +10,9 @@
  */
 import { Check, Plus, X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { SA_PROVINCES } from "@/lib/constants"
 import { PARTY_ID_TYPES, COMPANY_FUNCTION_OPTIONS } from "@/lib/parties/partyConfig"
-import { validateSAId, type PartyFormState, type PartyErrors, type PartyPerson } from "@/lib/parties/partyValidation"
+import { validateSAId, type PartyFormState, type PartyErrors, type PartyPerson, type PartyAddressInput } from "@/lib/parties/partyValidation"
 
 type SetFn = (k: keyof PartyFormState, v: string | string[] | boolean) => void
 
@@ -223,6 +224,24 @@ function BareSelect({
         {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
     </Field>
+  )
+}
+
+const ADDRESS_PROVINCE_OPTIONS = [{ value: "", label: "Province…" }, ...SA_PROVINCES.map((p) => ({ value: p, label: p }))]
+
+/** One typed company address (25A multi-address). Writes a patch back into the parent's addresses array. */
+export function AddressFields({
+  address, onUpdate, requiredLine,
+}: Readonly<{ address: PartyAddressInput; onUpdate: (patch: Partial<PartyAddressInput>) => void; requiredLine?: boolean }>) {
+  return (
+    <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+      <Bare label="Street address" required={requiredLine} value={address.line1} onChange={(v) => onUpdate({ line1: v })} placeholder="12 Main Road" />
+      <Bare label="Address line 2" value={address.line2} onChange={(v) => onUpdate({ line2: v })} placeholder="Optional" />
+      <Bare label="Suburb" value={address.suburb} onChange={(v) => onUpdate({ suburb: v })} placeholder="Sea Point" />
+      <Bare label="City" required={requiredLine} value={address.city} onChange={(v) => onUpdate({ city: v })} placeholder="Cape Town" />
+      <BareSelect label="Province" value={address.province ?? ""} onChange={(v) => onUpdate({ province: v })} options={ADDRESS_PROVINCE_OPTIONS} />
+      <Bare label="Postal code" value={address.postal} onChange={(v) => onUpdate({ postal: v })} placeholder="8005" />
+    </div>
   )
 }
 
