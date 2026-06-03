@@ -11,8 +11,9 @@
  */
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { Crown, Calculator, Wrench, FileText, User, Phone, Mail, Plus, Trash2, Loader2 } from "lucide-react"
+import { Crown, Calculator, Wrench, FileText, User, Phone, Mail, Plus, Loader2 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
+import { DeleteButton } from "@/components/ui/actions"
 import { DetailCard } from "@/components/detail/DetailCard"
 import { COMPANY_FUNCTION_LABEL } from "@/lib/contacts/contactScope"
 import { COMPANY_FUNCTION_OPTIONS } from "@/lib/parties/partyConfig"
@@ -82,9 +83,7 @@ function PersonRow({ person, onRemove, busy }: Readonly<{ person: CompanyPerson;
             <Mail className="h-3.5 w-3.5" />
           </a>
         )}
-        <button type="button" onClick={onRemove} disabled={busy} aria-label={`Remove ${person.name}`} className="grid h-8 w-8 place-items-center rounded-[var(--r-button)] border border-border text-muted-foreground transition-colors hover:text-destructive disabled:opacity-50">
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
+        <DeleteButton label={`Remove ${person.name}`} itemName={person.name} description="They'll be removed from this company's contacts. This can't be undone." confirmLabel="Remove" loading={busy} onConfirm={onRemove} />
       </div>
     </div>
   )

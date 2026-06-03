@@ -250,7 +250,7 @@
   position: relative;
   background: var(--paper-raised);
   border: 1px solid var(--rule);
-  border-radius: var(--r-md, 8px);
+  border-radius: var(--r-button);
   padding: 24px 26px 22px;
   width: min(440px, calc(100vw - 32px));
   box-shadow: 0 24px 60px oklch(0.18 0.012 260 / 0.16),
@@ -259,7 +259,7 @@
 .pa-modal::after {
   content: ""; position: absolute; left: -1px; right: -1px; bottom: -4px;
   height: 4px; background: var(--amber);
-  border-radius: 0 0 var(--r-md, 8px) var(--r-md, 8px);
+  border-radius: 0 0 var(--r-button) var(--r-button);
 }
 .pa-modal-head {
   display: flex; align-items: center; gap: 10px; margin-bottom: 8px;

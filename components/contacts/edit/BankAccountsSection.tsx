@@ -12,10 +12,10 @@
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Plus, Trash2 } from "lucide-react"
+import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Field, UnderlineInput, UnderlineSelect, DashedAddButton } from "@/components/ui/door-form"
-import { EditButton } from "@/components/ui/actions"
+import { EditButton, DeleteButton } from "@/components/ui/actions"
 import { DetailCard } from "@/components/detail/DetailCard"
 
 export interface BankAccount {
@@ -137,9 +137,14 @@ function AccountRow({
               className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">Make primary</button>
           )}
           <EditButton label="Edit account" onClick={onEdit} />
-          <button type="button" aria-label="Remove account" title="Remove account" disabled={isPending} onClick={() => mutate("DELETE", {}, "Bank account removed")} className="pa-edit">
-            <Trash2 className="size-3.5" />
-          </button>
+          <DeleteButton
+            label="Remove account"
+            itemName="this bank account"
+            description="The bank account will be removed from this contact. This can't be undone."
+            confirmLabel="Remove"
+            loading={isPending}
+            onConfirm={() => mutate("DELETE", {}, "Bank account removed")}
+          />
         </div>
       </div>
     </div>

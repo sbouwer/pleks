@@ -6,6 +6,7 @@
  */
 export { ActionButton } from "./Button";
 export { EditButton } from "./EditButton";
+export { DeleteButton } from "./DeleteButton";
 export { InlineLink } from "./InlineLink";
 export { IconButton } from "./IconButton";
 export { IconStack } from "./IconStack";

@@ -9,7 +9,7 @@
  */
 
 import { useState } from "react"
-import { EditButton, IconButton } from "@/components/ui/actions"
+import { EditButton, DeleteButton } from "@/components/ui/actions"
 import { AddButton } from "@/components/ui/add-button"
 import { Badge } from "@/components/ui/badge"
 import { ListSearchBar, ListCard, SortHeader, useListSort } from "@/components/ui/resource-list"
@@ -17,7 +17,7 @@ import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
 import { usePermissions } from "@/hooks/usePermissions"
-import { Trash2, RotateCcw } from "lucide-react"
+import { RotateCcw } from "lucide-react"
 import { PORTFOLIO_QUERY_KEYS } from "@/lib/queries/portfolio"
 import { AddPartyModal } from "@/components/parties/AddPartyModal"
 import { EditPartyModal } from "@/components/parties/EditPartyModal"
@@ -273,12 +273,13 @@ export function SuppliersClient({ contractors: initial, orgId }: Readonly<Props>
                       <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <EditButton label="Edit supplier" onClick={() => setEditId(c.id)} />
                         {isAdmin && (
-                          <IconButton
-                            icon={<Trash2 className="size-3.5" />}
-                            label="Delete supplier"
-                            onClick={() => handleDelete(c)}
-                            disabled={isDeleting}
-                            className="pa-iconbtn--destructive"
+                          <DeleteButton
+                            label="Archive supplier"
+                            itemName={c.company_name ?? "this supplier"}
+                            description="They leave your active list, but historical work orders and invoices are kept. Active obligations block removal."
+                            confirmLabel="Archive"
+                            loading={isDeleting}
+                            onConfirm={() => handleDelete(c)}
                           />
                         )}
                       </div>
