@@ -38,7 +38,7 @@ function AnnexureSection({
 }: Readonly<{ letter: string; title: string; subtitle: string; defaultOpen?: boolean; children: React.ReactNode }>) {
   const [open, setOpen] = useState(defaultOpen)
   return (
-    <div className="rounded-lg border border-border">
+    <div className="rounded-[var(--r-button)] border border-border">
       <button type="button" className="w-full flex items-center justify-between px-4 py-3 text-left" onClick={() => setOpen((v) => !v)}>
         <div className="flex items-center gap-3">
           <span className="flex size-7 items-center justify-center rounded-full bg-muted text-xs font-bold">{letter}</span>
@@ -168,7 +168,7 @@ export function AnnexuresSection({
           {specialTerms.length === 0 && (
             <p className="text-sm text-muted-foreground">No special agreements — Annexure D will state &quot;No special agreements apply.&quot;</p>
           )}
-          <button type="button" onClick={() => onChangeSpecialTerms([...specialTerms, { type: "custom", detail: "" }])} className="text-sm text-brand hover:underline flex items-center gap-1">
+          <button type="button" onClick={() => onChangeSpecialTerms([...specialTerms, { type: "custom", detail: "" }])} className="text-sm text-primary hover:underline flex items-center gap-1">
             <Plus className="size-3" /> Add special agreement
           </button>
         </div>

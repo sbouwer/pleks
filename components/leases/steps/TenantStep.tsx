@@ -12,7 +12,6 @@
  */
 import { useState, useMemo, useEffect } from "react"
 import { useOrg } from "@/hooks/useOrg"
-import { Card, CardContent } from "@/components/ui/card"
 import { CheckCircle2, UserRound, ChevronDown, Plus, X } from "lucide-react"
 import { TenantPicker } from "@/components/shared/TenantPicker"
 import type { PickedTenant } from "@/components/shared/TenantPicker"
@@ -31,29 +30,27 @@ function TenantRow({
   onRemove?: () => void
 }>) {
   return (
-    <Card className="border-brand/30 bg-brand/5">
-      <CardContent className="pt-4">
-        <div className="flex items-start justify-between">
-          <div className="flex items-start gap-3">
-            <CheckCircle2 className="size-5 text-brand mt-0.5 flex-shrink-0" />
-            <div>
-              <p className="font-medium text-sm">{tenantName}</p>
-              <p className="text-xs text-muted-foreground">{label}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <TenantPicker orgId={orgId} onSelect={onSelect}
-              trigger={<button type="button" className="text-xs text-brand hover:underline">Change</button>}
-            />
-            {onRemove && (
-              <button type="button" onClick={onRemove} className="text-muted-foreground hover:text-danger ml-1">
-                <X className="size-3.5" />
-              </button>
-            )}
+    <div className="rounded-[var(--r-button)] border border-primary/30 bg-primary/[0.03] p-4">
+      <div className="flex items-start justify-between">
+        <div className="flex items-start gap-3">
+          <CheckCircle2 className="size-5 text-primary mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="font-medium text-sm">{tenantName}</p>
+            <p className="text-xs text-muted-foreground">{label}</p>
           </div>
         </div>
-      </CardContent>
-    </Card>
+        <div className="flex items-center gap-2">
+          <TenantPicker orgId={orgId} onSelect={onSelect}
+            trigger={<button type="button" className="text-xs text-primary hover:underline">Change</button>}
+          />
+          {onRemove && (
+            <button type="button" onClick={onRemove} className="text-muted-foreground hover:text-danger ml-1">
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -180,7 +177,7 @@ export function TenantStep({ register }: Readonly<Props>) {
           <p className="text-sm font-medium">Tenant *</p>
           <TenantPicker orgId={org} onSelect={handleSelectMain}
             trigger={
-              <button type="button" className="w-full flex items-center gap-3 rounded-lg border border-border/60 bg-surface-elevated px-3 py-2.5 text-left hover:bg-muted/30 transition-colors">
+              <button type="button" className="w-full flex items-center gap-3 rounded-[var(--r-button)] border border-border/60 bg-surface-elevated px-3 py-2.5 text-left hover:bg-muted/30 transition-colors">
                 <UserRound className="size-4 text-muted-foreground flex-shrink-0" />
                 <span className="flex-1 text-sm text-muted-foreground">Search tenants…</span>
                 <ChevronDown className="size-4 text-muted-foreground" />
@@ -212,7 +209,7 @@ export function TenantStep({ register }: Readonly<Props>) {
               </div>
               <TenantPicker orgId={org} onSelect={handleSelectCo}
                 trigger={
-                  <button type="button" className="w-full flex items-center gap-3 rounded-lg border border-border/60 bg-surface-elevated px-3 py-2.5 text-left hover:bg-muted/30 transition-colors">
+                  <button type="button" className="w-full flex items-center gap-3 rounded-[var(--r-button)] border border-border/60 bg-surface-elevated px-3 py-2.5 text-left hover:bg-muted/30 transition-colors">
                     <UserRound className="size-4 text-muted-foreground flex-shrink-0" />
                     <span className="flex-1 text-sm text-muted-foreground">Search tenants…</span>
                     <ChevronDown className="size-4 text-muted-foreground" />
@@ -221,7 +218,7 @@ export function TenantStep({ register }: Readonly<Props>) {
               />
             </div>
           ) : (
-            <button type="button" onClick={() => setAddingCo(true)} className="flex items-center gap-1.5 text-sm text-brand hover:underline">
+            <button type="button" onClick={() => setAddingCo(true)} className="flex items-center gap-1.5 text-sm text-primary hover:underline">
               <Plus className="size-3.5" /> Add co-tenant
             </button>
           )}
@@ -230,7 +227,7 @@ export function TenantStep({ register }: Readonly<Props>) {
 
       {/* Franchise flag — only for juristic non-sole-prop tenants */}
       {showFranchiseFlag && (
-        <div className="rounded-lg border border-border/60 bg-muted/20 px-4 py-3 space-y-2">
+        <div className="rounded-[var(--r-button)] border border-border/60 bg-muted/20 px-4 py-3 space-y-2">
           <p className="text-xs text-muted-foreground">
             Consumer Protection Act check — these determine whether the CPA applies to this company as a
             consumer (CPA s5), independent of whether the property is residential or commercial.
@@ -257,7 +254,7 @@ export function TenantStep({ register }: Readonly<Props>) {
 
       {/* Stale / missing size bands — only for juristic non-franchise non-sole-prop */}
       {showBands && !isFranchiseAgreement && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 px-4 py-3 space-y-3">
+        <div className="rounded-[var(--r-button)] border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 px-4 py-3 space-y-3">
           <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
             Confirm {tenantName}&apos;s size for CPA determination
           </p>

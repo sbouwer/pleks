@@ -115,7 +115,7 @@ export function ClausesSection({
     <div className="space-y-6">
       {/* HOA supremacy banner */}
       {isSectionalTitle && hasSchemeRules && (
-        <div className="flex items-start gap-3 rounded-lg border border-info/30 bg-info/5 px-4 py-3">
+        <div className="flex items-start gap-3 rounded-[var(--r-button)] border border-info/30 bg-info/5 px-4 py-3">
           <Info className="size-4 text-info mt-0.5 shrink-0" />
           <div>
             <p className="text-sm font-medium">Body corporate rules are supreme</p>
@@ -129,7 +129,7 @@ export function ClausesSection({
       )}
 
       {isSectionalTitle && !hasSchemeRules && (
-        <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
+        <div className="flex items-start gap-3 rounded-[var(--r-button)] border border-border bg-muted/30 px-4 py-3">
           <Info className="size-4 text-muted-foreground mt-0.5 shrink-0" />
           <p className="text-xs text-muted-foreground">
             This property is sectional title. Assign a managing scheme in property settings to enable the BC rules
@@ -154,7 +154,7 @@ export function ClausesSection({
               <div
                 key={conflict.id}
                 className={cn(
-                  "rounded-lg border px-4 py-3 text-sm transition-colors",
+                  "rounded-[var(--r-button)] border px-4 py-3 text-sm transition-colors",
                   isAck ? "border-border/40 bg-muted/20" : "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30"
                 )}
               >
@@ -202,7 +202,7 @@ export function ClausesSection({
 
       {aiStatus === "checking" && (
         <p className="text-xs text-muted-foreground flex items-center gap-2">
-          <span className="inline-block size-3 rounded-full border-2 border-brand border-t-transparent animate-spin" />
+          <span className="inline-block size-3 rounded-full border-2 border-primary border-t-transparent animate-spin" />
           {" Checking for additional clause conflicts…"}
         </p>
       )}

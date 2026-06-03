@@ -11,7 +11,6 @@ import { Input } from "@/components/ui/input"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card, CardContent } from "@/components/ui/card"
 import { Info } from "lucide-react"
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
 import type { CpaDetermination } from "@/lib/leases/cpaApplicability"
@@ -110,7 +109,7 @@ export function TermsSection({ value, onChange, isResidential, cpaDetermination 
 
       <div className="flex items-center gap-6">
         <label className="flex items-center gap-2 cursor-pointer text-sm">
-          <input type="radio" checked={value.isFixedTerm} onChange={() => set("isFixedTerm", true)} className="accent-brand" />
+          <input type="radio" checked={value.isFixedTerm} onChange={() => set("isFixedTerm", true)} className="accent-primary" />
           Fixed term
         </label>
         <label className="flex items-center gap-2 cursor-pointer text-sm">
@@ -118,7 +117,7 @@ export function TermsSection({ value, onChange, isResidential, cpaDetermination 
             type="radio"
             checked={!value.isFixedTerm}
             onChange={() => onChange({ ...value, isFixedTerm: false, endDate: "" })}
-            className="accent-brand"
+            className="accent-primary"
           />
           Month-to-month
         </label>
@@ -221,7 +220,7 @@ export function TermsSection({ value, onChange, isResidential, cpaDetermination 
         </div>
         <div className="space-y-2">
           <label className="flex items-center gap-2 cursor-pointer text-sm font-medium">
-            <input type="checkbox" checked={value.arrearsInterestEnabled} onChange={(e) => set("arrearsInterestEnabled", e.target.checked)} className="accent-brand" />
+            <input type="checkbox" checked={value.arrearsInterestEnabled} onChange={(e) => set("arrearsInterestEnabled", e.target.checked)} className="accent-primary" />
             Arrears interest clause
           </label>
           {value.arrearsInterestEnabled && (
@@ -238,16 +237,14 @@ export function TermsSection({ value, onChange, isResidential, cpaDetermination 
       </div>
 
       {/* Legal info bar */}
-      <Card className="border-info/30 bg-info/5">
-        <CardContent className="flex items-start gap-3 py-3 px-4">
-          <Info className="size-4 text-info mt-0.5 flex-shrink-0" />
-          <p className="text-xs text-muted-foreground">
-            {isResidential
-              ? "RHA applies. Deposit interest belongs to tenant (statutory). CPA s14: 20 business days' notice required before automatic renewal."
-              : "CPA may not apply to commercial leases. Deposit terms are contractual. Confirm notice period with your legal clauses."}
-          </p>
-        </CardContent>
-      </Card>
+      <div className="flex items-start gap-3 rounded-[var(--r-button)] border border-info/30 bg-info/5 py-3 px-4">
+        <Info className="size-4 text-info mt-0.5 flex-shrink-0" />
+        <p className="text-xs text-muted-foreground">
+          {isResidential
+            ? "RHA applies. Deposit interest belongs to tenant (statutory). CPA s14: 20 business days' notice required before automatic renewal."
+            : "CPA may not apply to commercial leases. Deposit terms are contractual. Confirm notice period with your legal clauses."}
+        </p>
+      </div>
     </div>
   )
 }

@@ -92,8 +92,8 @@ function ForkCard({
       type="button"
       onClick={onClick}
       className={cn(
-        "text-left rounded-xl border bg-card p-5 transition-colors",
-        active ? "border-brand ring-1 ring-brand bg-brand/5" : "border-border/60 hover:border-brand/40 hover:bg-brand/5"
+        "text-left rounded-[var(--r-button)] border bg-card p-5 transition-colors",
+        active ? "border-primary ring-1 ring-primary bg-primary/[0.03]" : "border-border/60 hover:border-primary/40 hover:bg-primary/[0.03]"
       )}
     >
       <div className="flex items-center gap-2 mb-3">
@@ -209,7 +209,7 @@ export function CreateStep({ register, disclaimerAccepted }: Readonly<Props>) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <ForkCard
           active={source === "pleks"}
-          icon={<FileText className="size-5 text-brand" />}
+          icon={<FileText className="size-5 text-primary" />}
           title="Generate with Pleks"
           description="Build an SA-compliant lease from your Pleks template, with clauses, annexures, and digital signing."
           onClick={() => chooseSource("pleks")}
@@ -224,7 +224,7 @@ export function CreateStep({ register, disclaimerAccepted }: Readonly<Props>) {
 
         <ForkCard
           active={source === "uploaded"}
-          icon={<Paperclip className="size-5 text-brand" />}
+          icon={<Paperclip className="size-5 text-primary" />}
           title="Upload signed lease"
           description="Upload a signed lease or your agency's own template. Pleks tracks the key terms for invoicing and arrears."
           onClick={() => chooseSource("uploaded")}
@@ -241,9 +241,9 @@ export function CreateStep({ register, disclaimerAccepted }: Readonly<Props>) {
       {source === "uploaded" && (
         <div className="space-y-3">
           {file ? (
-            <div className="flex items-center justify-between rounded-lg border border-brand/30 bg-brand/5 px-4 py-3">
+            <div className="flex items-center justify-between rounded-[var(--r-button)] border border-primary/30 bg-primary/[0.03] px-4 py-3">
               <div className="flex items-center gap-2">
-                <Paperclip className="size-4 text-brand shrink-0" />
+                <Paperclip className="size-4 text-primary shrink-0" />
                 <div>
                   <p className="text-sm font-medium">{file.name}</p>
                   <p className="text-xs text-muted-foreground">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
@@ -255,7 +255,7 @@ export function CreateStep({ register, disclaimerAccepted }: Readonly<Props>) {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="w-full rounded-xl border-2 border-dashed border-border/60 hover:border-brand/40 transition-colors px-6 py-8 flex flex-col items-center gap-2 text-center"
+              className="w-full rounded-[var(--r-button)] border-2 border-dashed border-border/60 hover:border-primary/40 transition-colors px-6 py-8 flex flex-col items-center gap-2 text-center"
             >
               <Paperclip className="size-6 text-muted-foreground" />
               <p className="text-sm font-medium">Drop your lease PDF here</p>

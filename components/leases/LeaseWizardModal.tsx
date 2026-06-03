@@ -7,10 +7,12 @@
  * Auth:   the save paths (createLease / createUploadedLease) enforce requireAgentWriteAccess
  * Data:   LeaseWizardContext (in-memory WizardData, prefill-driven); create actions on the final step
  * Notes:  ADDENDUM_LEASE_CREATION_MODAL Phase 1. Replaces /leases/new's LeasePathFork + the two inline-nav
- *         wizards (LeaseWizard, LeaseWizardUpload) with ONE WizardModal: four left-rail steps (Property →
- *         Building → Unit · Tenant(s) · Lease details · Create), footer-driven Continue/Back. Each content-only
- *         step registers a StepHandle (submit) via the shared ref; the footer's primary calls it. The fork
- *         moved to the end (step 4); the disclaimer gates the generate branch only (D-10). Controlled via
+ *         wizards (LeaseWizard, LeaseWizardUpload) with ONE WizardModal: seven left-rail steps (Property →
+ *         Building → Unit · Tenant(s) · Lease terms · Charges · Lease clauses · Annexures · Create),
+ *         footer-driven Continue/Back. The lease-details slice is split back into four distinct rail steps whose
+ *         state lives in LeaseWizardContext (live-shared, so navigating between them never desyncs). Each
+ *         content-only step registers a StepHandle (submit) via the shared ref; the footer's primary calls it.
+ *         The fork is the last step; the disclaimer gates the generate branch only (D-10). Controlled via
  *         open/onClose by a launcher; mirrors PropertyWizardModal.
  */
 import { useRef, useState, useTransition } from "react"
@@ -23,16 +25,22 @@ import type { WizardPrefill } from "./wizardData"
 import type { StepHandle } from "./stepHandle"
 import { PropertyBuildingUnitStep } from "./steps/PropertyBuildingUnitStep"
 import { TenantStep } from "./steps/TenantStep"
-import { LeaseDetailsStep } from "./steps/LeaseDetailsStep"
+import { LeaseTermsStep } from "./steps/LeaseTermsStep"
+import { ChargesStep } from "./steps/ChargesStep"
+import { ClausesStep } from "./steps/ClausesStep"
+import { AnnexuresStep } from "./steps/AnnexuresStep"
 import { CreateStep } from "./steps/CreateStep"
 
 interface StepMeta { id: string; label: string; title: string; subtitle: string }
 
 const STEP_META: StepMeta[] = [
-  { id: "property", label: "Property",      title: "Property & unit",  subtitle: "Pick the erf, building, and unit this lease is for." },
-  { id: "tenant",   label: "Tenant(s)",     title: "Tenant(s)",        subtitle: "Who is moving in?" },
-  { id: "details",  label: "Lease details", title: "Lease details",    subtitle: "Terms, charges, clauses, and annexures — prefilled from the unit." },
-  { id: "create",   label: "Create",        title: "Create lease",     subtitle: "Generate with Pleks, or upload a signed lease." },
+  { id: "property",  label: "Property",      title: "Property & unit", subtitle: "Pick the erf, building, and unit this lease is for." },
+  { id: "tenant",    label: "Tenant(s)",     title: "Tenant(s)",       subtitle: "Who is moving in?" },
+  { id: "terms",     label: "Lease terms",   title: "Lease terms",     subtitle: "Financial details and duration — prefilled from the unit." },
+  { id: "charges",   label: "Charges",       title: "Charges",         subtitle: "Recurring and once-off charges in addition to rent." },
+  { id: "clauses",   label: "Lease clauses", title: "Lease clauses",   subtitle: "Configure which clauses apply to this lease." },
+  { id: "annexures", label: "Annexures",     title: "Annexures",       subtitle: "Review and amend the four lease annexures." },
+  { id: "create",    label: "Create",        title: "Create lease",    subtitle: "Generate with Pleks, or upload a signed lease." },
 ]
 
 function primaryLabel(step: number, isSaving: boolean): string {
@@ -73,8 +81,11 @@ function LeaseWizardModalInner({
     switch (step) {
       case 0: return <PropertyBuildingUnitStep register={register} />
       case 1: return <TenantStep register={register} />
-      case 2: return <LeaseDetailsStep register={register} />
-      case 3: return <CreateStep register={register} disclaimerAccepted={disclaimerAccepted} />
+      case 2: return <LeaseTermsStep register={register} />
+      case 3: return <ChargesStep register={register} />
+      case 4: return <ClausesStep register={register} />
+      case 5: return <AnnexuresStep register={register} />
+      case 6: return <CreateStep register={register} disclaimerAccepted={disclaimerAccepted} />
       default: return null
     }
   }
