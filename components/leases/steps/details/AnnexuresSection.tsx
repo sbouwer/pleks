@@ -8,11 +8,8 @@
  * Notes:  Lifted from the old AnnexuresStep, stripped of its own step-nav. Four collapsible annexures (A–D).
  */
 import { useState } from "react"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Field, UnderlineInput, UnderlineSelect, DashedAddButton } from "@/components/ui/door-form"
 import { ChevronDown, ChevronUp, Plus, X } from "lucide-react"
-import { cn } from "@/lib/utils"
 import { formatZAR } from "@/lib/constants"
 import type { LocalCharge, LocalOnceOffCharge, AnnexureCRules, SpecialTerm } from "../../wizardData"
 
@@ -138,12 +135,11 @@ export function AnnexuresSection({
 
       {/* Annexure C — Property Rules */}
       <AnnexureSection letter="C" title="Property Rules" subtitle="Amend as needed for this specific unit">
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
           {(Object.entries(rules) as [keyof AnnexureCRules, string][]).map(([key, value]) => (
-            <div key={key} className="space-y-1">
-              <Label className="text-xs font-medium capitalize">{RULE_LABELS[key]}</Label>
-              <Input value={value} onChange={(e) => updateRule(key, e.target.value)} className={cn("text-sm", !value.trim() && "border-danger/50")} />
-            </div>
+            <Field key={key} label={RULE_LABELS[key]}>
+              <UnderlineInput value={value} onChange={(e) => updateRule(key, e.target.value)} error={!value.trim()} />
+            </Field>
           ))}
         </div>
       </AnnexureSection>
@@ -152,14 +148,13 @@ export function AnnexuresSection({
       <AnnexureSection letter="D" title="Special Agreements" subtitle="Pet permission, parking arrangements, custom terms, etc.">
         <div className="space-y-3">
           {specialTerms.map((term, i) => (
-            <div key={`term-${i}`} className="flex gap-2">
-              <Select value={term.type} onValueChange={(v) => updateSpecialTermType(i, v ?? "custom")}>
-                <SelectTrigger className="w-44">
-                  <SelectValue>{SPECIAL_TERM_TYPES.find((t) => t.value === term.type)?.label}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>{SPECIAL_TERM_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
-              </Select>
-              <Input className="flex-1" value={term.detail} onChange={(e) => updateSpecialTermDetail(i, e.target.value)} placeholder="Details" />
+            <div key={`term-${i}`} className="flex items-center gap-2">
+              <div className="w-44 shrink-0">
+                <UnderlineSelect value={term.type} onChange={(v) => updateSpecialTermType(i, v || "custom")} options={SPECIAL_TERM_TYPES} />
+              </div>
+              <div className="flex-1">
+                <UnderlineInput value={term.detail} onChange={(e) => updateSpecialTermDetail(i, e.target.value)} placeholder="Details" />
+              </div>
               <button type="button" className="text-muted-foreground hover:text-danger" onClick={() => onChangeSpecialTerms(specialTerms.filter((_, idx) => idx !== i))}>
                 <X className="size-4" />
               </button>
@@ -168,9 +163,9 @@ export function AnnexuresSection({
           {specialTerms.length === 0 && (
             <p className="text-sm text-muted-foreground">No special agreements — Annexure D will state &quot;No special agreements apply.&quot;</p>
           )}
-          <button type="button" onClick={() => onChangeSpecialTerms([...specialTerms, { type: "custom", detail: "" }])} className="text-sm text-primary hover:underline flex items-center gap-1">
-            <Plus className="size-3" /> Add special agreement
-          </button>
+          <DashedAddButton onClick={() => onChangeSpecialTerms([...specialTerms, { type: "custom", detail: "" }])}>
+            <Plus className="size-3.5" /> Add special agreement
+          </DashedAddButton>
         </div>
       </AnnexureSection>
     </div>
