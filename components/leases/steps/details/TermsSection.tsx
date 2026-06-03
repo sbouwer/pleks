@@ -1,16 +1,16 @@
 "use client"
 
 /**
- * components/leases/steps/details/TermsSection.tsx — the "Lease terms" section of the merged Lease-details step
+ * components/leases/steps/details/TermsSection.tsx — the "Lease terms" section of the lease modal
  *
  * Auth:   client-only; pure form section (no DB access)
  * Data:   controlled by parent via value/onChange; CPA status derived from determineCpaApplicability
- * Notes:  Lifted from the old LeaseTermsStep, stripped of its own step-nav and wired to a controlled TermsState.
+ * Notes:  Door-card grammar (underline fields, matches the add-party modal). Laid out as a compact 2-col
+ *         grid so the whole step fits the modal without scrolling. Keeps the start→end and rent→deposit
+ *         auto-fill. CPA s14 status chip + door-styled tooltip on residential leases.
  */
-import { Input } from "@/components/ui/input"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Field, UnderlineInput, UnderlineSelect } from "@/components/ui/door-form"
 import { Info } from "lucide-react"
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip"
 import type { CpaDetermination } from "@/lib/leases/cpaApplicability"
@@ -48,6 +48,11 @@ const DUE_DAY_OPTIONS = [
   { value: "last_working_day", label: "Last working day of the month" },
 ]
 
+const DEPOSIT_INTEREST_OPTIONS = [
+  { value: "tenant", label: "Tenant" },
+  { value: "landlord", label: "Landlord" },
+]
+
 const CURRENT_PRIME = 11.25
 
 interface Props {
@@ -62,6 +67,46 @@ function cpaStatusLabel(cpa: CpaDetermination): string {
   if (cpa.applies === "yes") return "CPA s14 applies"
   if (cpa.applies === "indeterminate") return "CPA status unknown"
   return "CPA s14 n/a"
+}
+
+function CpaChip({ cpa }: Readonly<{ cpa: CpaDetermination }>) {
+  return (
+    <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
+      {cpaStatusLabel(cpa)}
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger>
+            <Info className="size-3.5 cursor-help flex-shrink-0" />
+          </TooltipTrigger>
+          <TooltipContent
+            side="top"
+            className="max-w-72 flex-col items-start gap-2 rounded-[var(--r-button)] border border-border bg-card px-3.5 py-3 leading-relaxed text-foreground shadow-lg"
+          >
+            <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+              CPA s14 — Fixed-term cancellation
+            </span>
+            {cpa.applies === "yes" && (
+              <>
+                <p>CPA s14 applies. The tenant may cancel at any time on 20 business days&apos; written notice.</p>
+                <p><span className="font-medium">Penalty:</span> 20% × monthly rent × months remaining — payable within 7 days. Falls away for any month the unit is re-let.</p>
+              </>
+            )}
+            {cpa.applies === "no" && <p>CPA s14 does not apply — the lease terms govern cancellation.</p>}
+            {cpa.applies === "indeterminate" && (
+              <p>CPA status can&apos;t be determined until the tenant&apos;s turnover and asset value are confirmed.</p>
+            )}
+            <p className="text-xs italic text-muted-foreground/70">{cpa.notes}</p>
+            <p className="w-full border-t border-border pt-1.5 text-muted-foreground">
+              See lease clause:{" "}
+              <a href="/settings/lease-templates#early_termination" target="_blank" rel="noopener noreferrer" className="font-medium text-primary underline underline-offset-2">
+                Early Termination ↗
+              </a>
+            </p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    </span>
+  )
 }
 
 export function TermsSection({ value, onChange, isResidential, cpaDetermination }: Readonly<Props>) {
@@ -94,155 +139,87 @@ export function TermsSection({ value, onChange, isResidential, cpaDetermination 
   const effectiveArrearsRate = CURRENT_PRIME + Number(value.arrearsMargin || 0)
 
   return (
-    <div className="space-y-6">
-      {/* Dates */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="start-date">Start date *</Label>
+    <div className="space-y-4">
+      {/* Dates + term type */}
+      <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+        <Field label="Start date" required htmlFor="start-date">
           <DatePickerInput value={value.startDate} onChange={handleStartDateChange} placeholder="Start date" />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="end-date">End date {!value.isFixedTerm && <span className="text-muted-foreground text-xs">(month-to-month)</span>}</Label>
+        </Field>
+        <Field label={value.isFixedTerm ? "End date" : "End date · month-to-month"} htmlFor="end-date">
           <DatePickerInput value={value.endDate} onChange={(v) => set("endDate", v)} placeholder="End date" disabled={!value.isFixedTerm} />
-        </div>
+        </Field>
       </div>
 
       <div className="flex items-center gap-6">
-        <label className="flex items-center gap-2 cursor-pointer text-sm">
+        <label className="flex cursor-pointer items-center gap-2 text-sm">
           <input type="radio" checked={value.isFixedTerm} onChange={() => set("isFixedTerm", true)} className="accent-primary" />
           Fixed term
         </label>
-        <label className="flex items-center gap-2 cursor-pointer text-sm">
-          <input
-            type="radio"
-            checked={!value.isFixedTerm}
-            onChange={() => onChange({ ...value, isFixedTerm: false, endDate: "" })}
-            className="accent-primary"
-          />
+        <label className="flex cursor-pointer items-center gap-2 text-sm">
+          <input type="radio" checked={!value.isFixedTerm} onChange={() => onChange({ ...value, isFixedTerm: false, endDate: "" })} className="accent-primary" />
           Month-to-month
         </label>
-        {isResidential && (
-          <span className="flex items-center gap-1.5 text-xs text-muted-foreground ml-auto">
-            {cpaStatusLabel(cpaDetermination)}
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger>
-                  <Info className="size-3.5 cursor-help flex-shrink-0" />
-                </TooltipTrigger>
-                <TooltipContent side="top" className="flex-col items-start max-w-72 gap-2 py-3 px-3.5 leading-relaxed">
-                  <p className="font-semibold">CPA s14 — Fixed-term lease cancellation</p>
-                  {cpaDetermination.applies === "yes" && (
-                    <>
-                      <p>CPA s14 applies. The tenant may cancel at any time on 20 business days&apos; written notice.</p>
-                      <p><span className="font-medium">Cancellation penalty:</span> 20% × monthly rent × months remaining — payable within 7 days. Falls away for any month the unit is re-let.</p>
-                    </>
-                  )}
-                  {cpaDetermination.applies === "no" && <p>CPA s14 does not apply — the lease terms govern cancellation.</p>}
-                  {cpaDetermination.applies === "indeterminate" && (
-                    <p>CPA status cannot be determined until the tenant&apos;s turnover and asset value are confirmed.</p>
-                  )}
-                  <p className="text-xs text-muted-foreground/70 italic">{cpaDetermination.notes}</p>
-                  <p className="opacity-60 border-t border-current/20 pt-1.5 w-full">
-                    See lease clause:{" "}
-                    <a href="/settings/lease-templates#early_termination" target="_blank" rel="noopener noreferrer" className="font-medium opacity-100 underline underline-offset-2">
-                      Early Termination ↗
-                    </a>
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </span>
+        {isResidential && <CpaChip cpa={cpaDetermination} />}
+      </div>
+
+      {/* Money + cadence */}
+      <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+        <Field label="Monthly rent (ZAR)" required htmlFor="rent">
+          <UnderlineInput id="rent" type="number" min="0" step="0.01" value={value.rent} onChange={(e) => handleRentChange(e.target.value)} placeholder="e.g. 8500" />
+        </Field>
+        <Field label="Deposit (ZAR)" htmlFor="deposit">
+          <UnderlineInput id="deposit" type="number" min="0" step="0.01" value={value.deposit} onChange={(e) => set("deposit", e.target.value)} placeholder="Defaults to 2× rent" />
+        </Field>
+
+        <Field label="Payment due day">
+          <UnderlineSelect value={value.paymentDueDay} onChange={(v) => set("paymentDueDay", v || "1")} options={DUE_DAY_OPTIONS} />
+        </Field>
+        <Field label="Escalation %" htmlFor="escalation">
+          <UnderlineInput id="escalation" type="number" min="0" max="25" step="0.5" value={value.escalationPercent} onChange={(e) => set("escalationPercent", e.target.value)} />
+        </Field>
+
+        <Field label="Escalation type">
+          <UnderlineSelect value={value.escalationType} onChange={(v) => set("escalationType", v || "fixed")} options={ESCALATION_TYPES} />
+        </Field>
+        {isResidential ? (
+          <Field label="Deposit interest rate (% p.a.)" htmlFor="deposit-rate">
+            <UnderlineInput id="deposit-rate" type="number" min="0" max="20" step="0.25" value={value.depositInterestRate} onChange={(e) => set("depositInterestRate", e.target.value)} />
+          </Field>
+        ) : (
+          <Field label="Deposit interest accrues to">
+            <UnderlineSelect value={value.depositInterestTo} onChange={(v) => set("depositInterestTo", v || "landlord")} options={DEPOSIT_INTEREST_OPTIONS} />
+          </Field>
+        )}
+
+        {!isResidential && (
+          <Field label="Deposit interest rate (% p.a.)" htmlFor="deposit-rate-c">
+            <UnderlineInput id="deposit-rate-c" type="number" min="0" max="20" step="0.25" value={value.depositInterestRate} onChange={(e) => set("depositInterestRate", e.target.value)} />
+          </Field>
         )}
       </div>
 
-      {/* Rent + deposit */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="rent">Monthly rent (ZAR) *</Label>
-          <Input id="rent" type="number" min="0" step="0.01" value={value.rent} onChange={(e) => handleRentChange(e.target.value)} placeholder="e.g. 8500" />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="deposit">Deposit (ZAR)</Label>
-          <Input id="deposit" type="number" min="0" step="0.01" value={value.deposit} onChange={(e) => set("deposit", e.target.value)} placeholder="Defaults to 2× rent" />
-        </div>
+      {/* Arrears interest — compact inline */}
+      <div className="space-y-1">
+        <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+          <input type="checkbox" checked={value.arrearsInterestEnabled} onChange={(e) => set("arrearsInterestEnabled", e.target.checked)} className="accent-primary" />
+          Arrears interest clause
+        </label>
+        {value.arrearsInterestEnabled && (
+          <div className="flex items-center gap-2 pl-6 text-sm">
+            <span>Prime +</span>
+            <input type="number" min="0" max="10" step="0.5" value={value.arrearsMargin} onChange={(e) => set("arrearsMargin", e.target.value)} className="w-16 border-0 border-b border-input bg-transparent px-0 py-1 text-sm focus:border-primary focus:outline-none" />
+            <span>% = {effectiveArrearsRate.toFixed(2)}% p.a. at current prime ({CURRENT_PRIME}%)</span>
+          </div>
+        )}
       </div>
 
-      {/* Payment day */}
-      <div className="space-y-2">
-        <Label>Payment due day</Label>
-        <Select value={value.paymentDueDay} onValueChange={(v) => set("paymentDueDay", v ?? "1")}>
-          <SelectTrigger className="w-64">
-            <SelectValue>{DUE_DAY_OPTIONS.find((opt) => opt.value === value.paymentDueDay)?.label ?? value.paymentDueDay}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {DUE_DAY_OPTIONS.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Escalation */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="escalation">Escalation %</Label>
-          <Input id="escalation" type="number" min="0" max="25" step="0.5" value={value.escalationPercent} onChange={(e) => set("escalationPercent", e.target.value)} />
-        </div>
-        <div className="space-y-2">
-          <Label>Escalation type</Label>
-          <Select value={value.escalationType} onValueChange={(v) => set("escalationType", v ?? "fixed")}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {ESCALATION_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {/* Commercial: deposit interest owner */}
-      {!isResidential && (
-        <div className="space-y-2">
-          <Label>Deposit interest accrues to</Label>
-          <Select value={value.depositInterestTo} onValueChange={(v) => set("depositInterestTo", v ?? "landlord")}>
-            <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="tenant">Tenant</SelectItem>
-              <SelectItem value="landlord">Landlord</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
-      {/* Interest settings */}
-      <div className="space-y-4 pl-4 border-l-2 border-border">
-        <div className="space-y-2">
-          <Label htmlFor="deposit-rate">Deposit interest rate (% p.a.)</Label>
-          <Input id="deposit-rate" type="number" min="0" max="20" step="0.25" value={value.depositInterestRate} onChange={(e) => set("depositInterestRate", e.target.value)} className="w-32" />
-          <p className="text-xs text-muted-foreground">Rate paid to tenant on deposit held.</p>
-        </div>
-        <div className="space-y-2">
-          <label className="flex items-center gap-2 cursor-pointer text-sm font-medium">
-            <input type="checkbox" checked={value.arrearsInterestEnabled} onChange={(e) => set("arrearsInterestEnabled", e.target.checked)} className="accent-primary" />
-            Arrears interest clause
-          </label>
-          {value.arrearsInterestEnabled && (
-            <div className="pl-6 space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="text-sm">Prime +</span>
-                <Input type="number" min="0" max="10" step="0.5" value={value.arrearsMargin} onChange={(e) => set("arrearsMargin", e.target.value)} className="w-20" />
-                <span className="text-sm">%</span>
-              </div>
-              <p className="text-xs text-muted-foreground">= {effectiveArrearsRate.toFixed(2)}% p.a. at current prime ({CURRENT_PRIME}%)</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Legal info bar */}
-      <div className="flex items-start gap-3 rounded-[var(--r-button)] border border-info/30 bg-info/5 py-3 px-4">
-        <Info className="size-4 text-info mt-0.5 flex-shrink-0" />
+      {/* Legal info — one tight line */}
+      <div className="flex items-start gap-2.5 rounded-[var(--r-button)] border border-info/30 bg-info/5 px-3 py-2">
+        <Info className="mt-0.5 size-3.5 flex-shrink-0 text-info" />
         <p className="text-xs text-muted-foreground">
           {isResidential
-            ? "RHA applies. Deposit interest belongs to tenant (statutory). CPA s14: 20 business days' notice required before automatic renewal."
-            : "CPA may not apply to commercial leases. Deposit terms are contractual. Confirm notice period with your legal clauses."}
+            ? "RHA applies. Deposit interest belongs to the tenant (statutory). CPA s14: 20 business days' notice before automatic renewal."
+            : "CPA may not apply to commercial leases. Deposit terms are contractual — confirm the notice period in your clauses."}
         </p>
       </div>
     </div>

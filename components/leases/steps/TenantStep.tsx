@@ -15,6 +15,7 @@ import { useOrg } from "@/hooks/useOrg"
 import { CheckCircle2, UserRound, ChevronDown, Plus, X } from "lucide-react"
 import { TenantPicker } from "@/components/shared/TenantPicker"
 import type { PickedTenant } from "@/components/shared/TenantPicker"
+import { DoorCard } from "@/components/ui/door-form"
 import type { CoTenant } from "../wizardData"
 import { useLeaseWizard } from "../LeaseWizardContext"
 import type { StepHandle } from "../stepHandle"
@@ -75,7 +76,6 @@ export function TenantStep({ register }: Readonly<Props>) {
   const [turnoverUnder2m, setTurnoverUnder2m] = useState(data.tenantTurnoverUnder2m)
   const [assetUnder2m, setAssetUnder2m] = useState(data.tenantAssetUnder2m)
   const [sizeBandsCapturedAt, setSizeBandsCapturedAt] = useState(data.tenantSizeBandsCapturedAt)
-  const [savingBands, setSavingBands] = useState(false)
 
   const isSoleProp = tenantJuristicType === "sole_proprietor"
   const bandsStale = useMemo(() => {
@@ -110,21 +110,6 @@ export function TenantStep({ register }: Readonly<Props>) {
     setError("")
   }
 
-  async function handleSaveBands() {
-    if (!tenantId) return
-    setSavingBands(true)
-    await updateContactJuristicFields({
-      contactId: tenantId,
-      juristicType: tenantJuristicType,
-      turnoverUnder2m,
-      assetValueUnder2m: assetUnder2m,
-    })
-    setSavingBands(false)
-    setSizeBandsCapturedAt(new Date().toISOString())
-    setShowBands(false)
-    setError("")
-  }
-
   function handleSelectCo(t: PickedTenant) {
     if (t.id === tenantId) { setError("Co-tenant must be a different person from the main tenant"); return }
     if (coTenants.some((c) => c.id === t.id)) { setError("This person is already added"); return }
@@ -144,11 +129,20 @@ export function TenantStep({ register }: Readonly<Props>) {
     setError("")
   }
 
-  function submit(): boolean {
+  async function submit(): Promise<boolean> {
     if (!tenantId) { setError("Please select a tenant"); return false }
     if (showBands && (turnoverUnder2m === null || assetUnder2m === null)) {
       setError("Confirm the tenant's annual turnover and asset value before continuing.")
       return false
+    }
+    // Persist freshly-captured CPA size bands on Continue (replaces the old inline "Save and continue").
+    if (showBands && tenantIsJuristic && !isSoleProp && turnoverUnder2m !== null && assetUnder2m !== null) {
+      await updateContactJuristicFields({
+        contactId: tenantId,
+        juristicType: tenantJuristicType,
+        turnoverUnder2m,
+        assetValueUnder2m: assetUnder2m,
+      })
     }
     setError("")
     patch({
@@ -177,7 +171,7 @@ export function TenantStep({ register }: Readonly<Props>) {
           <p className="text-sm font-medium">Tenant *</p>
           <TenantPicker orgId={org} onSelect={handleSelectMain}
             trigger={
-              <button type="button" className="w-full flex items-center gap-3 rounded-[var(--r-button)] border border-border/60 bg-surface-elevated px-3 py-2.5 text-left hover:bg-muted/30 transition-colors">
+              <button type="button" className="w-full flex items-center gap-3 rounded-[var(--r-button)] border border-border bg-card px-3 py-2.5 text-left hover:border-primary/40 transition-colors">
                 <UserRound className="size-4 text-muted-foreground flex-shrink-0" />
                 <span className="flex-1 text-sm text-muted-foreground">Search tenants…</span>
                 <ChevronDown className="size-4 text-muted-foreground" />
@@ -209,7 +203,7 @@ export function TenantStep({ register }: Readonly<Props>) {
               </div>
               <TenantPicker orgId={org} onSelect={handleSelectCo}
                 trigger={
-                  <button type="button" className="w-full flex items-center gap-3 rounded-[var(--r-button)] border border-border/60 bg-surface-elevated px-3 py-2.5 text-left hover:bg-muted/30 transition-colors">
+                  <button type="button" className="w-full flex items-center gap-3 rounded-[var(--r-button)] border border-border bg-card px-3 py-2.5 text-left hover:border-primary/40 transition-colors">
                     <UserRound className="size-4 text-muted-foreground flex-shrink-0" />
                     <span className="flex-1 text-sm text-muted-foreground">Search tenants…</span>
                     <ChevronDown className="size-4 text-muted-foreground" />
@@ -222,90 +216,70 @@ export function TenantStep({ register }: Readonly<Props>) {
               <Plus className="size-3.5" /> Add co-tenant
             </button>
           )}
+          {/* TODO(CD): when an organisation tenant is selected, list its signatories (fetchCompanyPeople,
+              is_signatory) each with an "add as co-tenant" action. Needs a data-model decision — co-tenants
+              are tenant ids, signatories are contacts under organisation_contact_id; do not implement until
+              CD specs whether a signatory becomes a tenant / how it's stored. */}
         </div>
       )}
 
-      {/* Franchise flag — only for juristic non-sole-prop tenants */}
+      {/* CPA determination — one card: framing note + franchise question + (when needed) size bands.
+          No "Save" button: the bands persist on the modal's Continue (see submit). */}
       {showFranchiseFlag && (
-        <div className="rounded-[var(--r-button)] border border-border/60 bg-muted/20 px-4 py-3 space-y-2">
+        <DoorCard className="space-y-3">
           <p className="text-xs text-muted-foreground">
             Consumer Protection Act check — these determine whether the CPA applies to this company as a
             consumer (CPA s5), independent of whether the property is residential or commercial.
           </p>
-          <p className="text-sm font-medium">Is this a franchise agreement?</p>
-          <p className="text-xs text-muted-foreground">
-            Franchise agreements have full CPA protection regardless of tenant size (CPA s5(6)).
-          </p>
-          <div className="flex gap-4">
-            {(["yes", "no"] as const).map((v) => (
-              <label key={v} className="flex items-center gap-1.5 text-sm cursor-pointer">
-                <input
-                  type="radio"
-                  checked={isFranchiseAgreement === (v === "yes")}
-                  onChange={() => setIsFranchiseAgreement(v === "yes")}
-                  className="accent-primary"
-                />
-                {v === "yes" ? "Yes — franchise agreement" : "No"}
-              </label>
-            ))}
-          </div>
-        </div>
-      )}
 
-      {/* Stale / missing size bands — only for juristic non-franchise non-sole-prop */}
-      {showBands && !isFranchiseAgreement && (
-        <div className="rounded-[var(--r-button)] border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 px-4 py-3 space-y-3">
-          <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
-            Confirm {tenantName}&apos;s size for CPA determination
-          </p>
-          <p className="text-xs text-amber-700 dark:text-amber-400">
-            {bandsStale ? "Size bands are over 12 months old — please re-confirm." : "Size bands not yet captured."}
-          </p>
-          <div className="space-y-2">
-            <div className="space-y-1">
-              <p className="text-xs font-medium">Annual turnover</p>
-              <div className="flex gap-4">
-                {([["true", "Below R2m"], ["false", "R2m or more"]] as const).map(([v, l]) => (
-                  <label key={v} className="flex items-center gap-1.5 text-sm cursor-pointer">
-                    <input
-                      type="radio"
-                      checked={String(turnoverUnder2m) === v}
-                      onChange={() => { setTurnoverUnder2m(v === "true"); setError("") }}
-                      className="accent-primary"
-                    />
-                    {l}
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-1">
-              <p className="text-xs font-medium">Asset value</p>
-              <div className="flex gap-4">
-                {([["true", "Below R2m"], ["false", "R2m or more"]] as const).map(([v, l]) => (
-                  <label key={v} className="flex items-center gap-1.5 text-sm cursor-pointer">
-                    <input
-                      type="radio"
-                      checked={String(assetUnder2m) === v}
-                      onChange={() => { setAssetUnder2m(v === "true"); setError("") }}
-                      className="accent-primary"
-                    />
-                    {l}
-                  </label>
-                ))}
-              </div>
+          <div className="space-y-1.5">
+            <p className="text-sm font-medium">Is this a franchise agreement?</p>
+            <p className="text-xs text-muted-foreground">Franchise agreements have full CPA protection regardless of tenant size (CPA s5(6)).</p>
+            <div className="flex gap-4 pt-0.5">
+              {(["yes", "no"] as const).map((v) => (
+                <label key={v} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    checked={isFranchiseAgreement === (v === "yes")}
+                    onChange={() => setIsFranchiseAgreement(v === "yes")}
+                    className="accent-primary"
+                  />
+                  {v === "yes" ? "Yes — franchise agreement" : "No"}
+                </label>
+              ))}
             </div>
           </div>
-          {turnoverUnder2m !== null && assetUnder2m !== null && (
-            <button
-              type="button"
-              onClick={handleSaveBands}
-              disabled={savingBands}
-              className="text-xs font-medium text-amber-800 dark:text-amber-300 underline underline-offset-2 hover:no-underline disabled:opacity-50"
-            >
-              {savingBands ? "Saving…" : "Save and continue"}
-            </button>
+
+          {showBands && (
+            <div className="space-y-2.5 border-t border-border/60 pt-3">
+              <p className="text-xs text-muted-foreground">
+                {bandsStale ? `${tenantName}'s size bands are over 12 months old — re-confirm.` : `Confirm ${tenantName}'s size for the CPA threshold (s5(2)(b)).`}
+              </p>
+              <div className="space-y-1">
+                <p className="text-xs font-medium">Annual turnover</p>
+                <div className="flex gap-4">
+                  {([["true", "Below R2m"], ["false", "R2m or more"]] as const).map(([v, l]) => (
+                    <label key={v} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                      <input type="radio" checked={String(turnoverUnder2m) === v} onChange={() => { setTurnoverUnder2m(v === "true"); setError("") }} className="accent-primary" />
+                      {l}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-medium">Asset value</p>
+                <div className="flex gap-4">
+                  {([["true", "Below R2m"], ["false", "R2m or more"]] as const).map(([v, l]) => (
+                    <label key={v} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                      <input type="radio" checked={String(assetUnder2m) === v} onChange={() => { setAssetUnder2m(v === "true"); setError("") }} className="accent-primary" />
+                      {l}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
           )}
-        </div>
+        </DoorCard>
       )}
 
       {error && <p className="text-sm text-danger">{error}</p>}
