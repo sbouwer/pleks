@@ -96,8 +96,11 @@ export function usePartyFlow({
   const current = stepDefs[safeStep]
   const isConfirm = current.id === "confirm"
 
-  const set = (k: keyof PartyFormState, v: string | string[] | boolean | PartyPerson[] | PartyAddressInput[]) =>
+  const set = (k: keyof PartyFormState, v: string | string[] | boolean | PartyPerson[] | PartyAddressInput[]) => {
     setF((p) => ({ ...p, [k]: v }))
+    // clear this field's error as soon as it's edited (so a "required" warning doesn't linger after fixing it)
+    setErrors((e) => (e[k] === undefined ? e : { ...e, [k]: undefined }))
+  }
 
   const prefill = (values: Partial<PartyFormState>) => setF((p) => ({ ...p, ...values }))
 

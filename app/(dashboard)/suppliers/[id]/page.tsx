@@ -31,6 +31,8 @@ interface Props {
   params: Promise<{ id: string }>
 }
 
+const GENDER_LABEL: Record<string, string> = { male: "Male", female: "Female", other: "Other", prefer_not_to_say: "Prefer not to say" }
+
 async function fetchInvoiceData(service: Awaited<ReturnType<typeof createServiceClient>>, contractorId: string) {
   const [{ data: invData }, { data: invTotal }] = await Promise.all([
     service
@@ -142,6 +144,14 @@ export default async function ContractorDetailPage({ params }: Props) {
     .eq("org_id", membership.org_id)
     .order("is_primary", { ascending: false })
 
+  // Identity extras (title/gender) not on contractor_view — title prefixes the name, gender shows as a fact
+  const { data: supplierIdentityExtra } = await service
+    .from("contacts")
+    .select("title, gender")
+    .eq("id", contractor.contact_id)
+    .eq("org_id", membership.org_id)
+    .single()
+
   // Fetch org tier for portal gating
   const { data: sub } = await service
     .from("subscriptions")
@@ -216,7 +226,7 @@ export default async function ContractorDetailPage({ params }: Props) {
     : null
 
   const displayName = contractor.company_name ||
-    `${contractor.first_name ?? ""} ${contractor.last_name ?? ""}`.trim() ||
+    [supplierIdentityExtra?.title, contractor.first_name, contractor.last_name].filter(Boolean).join(" ").trim() ||
     "Unnamed Contractor"
   const primaryPhone = phones?.[0]?.number ?? null
   const primaryEmail = emails?.[0]?.email ?? null
@@ -233,6 +243,9 @@ export default async function ContractorDetailPage({ params }: Props) {
     { k: "Active jobs", v: String(activeJobCount) },
     { k: "Avg rating", v: avgRating != null ? `${avgRating} / 5` : "—" },
   ]
+  if (contractor.entity_type !== "organisation" && supplierIdentityExtra?.gender) {
+    facts.push({ k: "Gender", v: GENDER_LABEL[supplierIdentityExtra.gender] ?? supplierIdentityExtra.gender })
+  }
   if (contractorBanking?.vat_registered) facts.push({ k: "VAT", v: "Registered" })
 
   // Quick-action toolbar — the single action surface (Call/Email/WhatsApp, the old sidebar's live actions).

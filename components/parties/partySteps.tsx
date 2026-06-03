@@ -7,9 +7,10 @@
  *         Review → Success. All copy/behaviour is driven by PARTY_ROLES + the role flags, so this
  *         file renders all three party types from one set of components (DRY).
  */
+import { useEffect } from "react"
 import { Plus, X } from "lucide-react"
 import { PARTY_ROLES, SPECIALITY_OPTIONS, COMPANY_FUNCTION_OPTIONS, type PartyRole, type PartyEntity } from "@/lib/parties/partyConfig"
-import type { PartyFormState, PartyErrors, PartyPerson, PartyAddressInput, PartyBankAccountInput } from "@/lib/parties/partyValidation"
+import { validateSAId, type PartyFormState, type PartyErrors, type PartyPerson, type PartyAddressInput, type PartyBankAccountInput } from "@/lib/parties/partyValidation"
 import type { PartyStepId } from "@/lib/parties/partyStepPlan"
 import {
   SectLabel, TextField, SelectField, IdField, EntityToggle, ChipPicker, CheckRow, PeopleRepeater, AddressFields, BankAccountsRepeater,
@@ -59,23 +60,39 @@ function entityBlurb(entity: PartyEntity, fullFica: boolean): string {
 type IdentityBodyProps = Readonly<{ f: PartyFormState; set: SetFn; errors: PartyErrors; fullFica: boolean }>
 
 function IndividualIdentity({ f, set, errors, fullFica }: IdentityBodyProps) {
+  // Auto-fill DOB + gender from a valid SA ID — only when empty, so a manual choice (e.g. unlabelled gender) sticks.
+  useEffect(() => {
+    const v = validateSAId(f.idNumber)
+    if (!v?.valid) return
+    if (!f.dob && v.dob) set("dob", v.dob.toISOString().slice(0, 10))
+    if (!f.gender) set("gender", v.gender.toLowerCase())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [f.idNumber])
+
   return (
     <div className="mt-6">
       <SectLabel n="01">Personal details</SectLabel>
       <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
-        <SelectField label="Title" k="title" f={f} set={set} options={TITLE_OPTIONS} />
-        <TextField label="Initials" k="initials" f={f} set={set} errors={errors} placeholder="J.S." />
+        {/* Title + initials share one cell (neither needs a full column) so first name sits beside them. */}
+        <div className="grid grid-cols-2 gap-x-3">
+          <SelectField label="Title" k="title" f={f} set={set} options={TITLE_OPTIONS} />
+          <TextField label="Initials" k="initials" f={f} set={set} errors={errors} placeholder="J.S." />
+        </div>
         <TextField label="First name" k="firstName" f={f} set={set} errors={errors} required placeholder="Jane" />
-        <TextField label="Middle name(s)" k="middleNames" f={f} set={set} errors={errors} placeholder="Optional" />
         <TextField label="Last name" k="lastName" f={f} set={set} errors={errors} required placeholder="Smith" />
-        <TextField label="Suffix" k="suffix" f={f} set={set} errors={errors} placeholder="Jr / Sr — optional" />
-        <TextField label="Designation" k="designation" f={f} set={set} errors={errors} placeholder="Adv., Dr, CA(SA) — optional" />
+        <TextField label="Middle name(s)" k="middleNames" f={f} set={set} errors={errors} placeholder="Optional" />
+        {/* Suffix + designation share one cell too. */}
+        <div className="grid grid-cols-2 gap-x-3">
+          <TextField label="Suffix" k="suffix" f={f} set={set} errors={errors} placeholder="Jr / Sr" />
+          <TextField label="Designation" k="designation" f={f} set={set} errors={errors} placeholder="Dr, CA(SA)" />
+        </div>
+        <SelectField label="Preferred contact" k="preferredChannel" f={f} set={set} options={CHANNEL_OPTIONS} />
+        {/* ID type + number sit together; ID required only for FICA parties. DOB + gender follow, auto-filled from a SA ID. */}
+        <IdField label="ID" typeKey="idType" numKey="idNumber" f={f} set={set} errors={errors} required={fullFica} />
+        <TextField label="Date of birth" k="dob" f={f} set={set} errors={errors} type="date" />
         <SelectField label="Gender" k="gender" f={f} set={set} options={GENDER_OPTIONS} />
-        {/* ID captured only for FICA parties (landlord/tenant). Suppliers store no ID. */}
-        {fullFica && <IdField label="ID" typeKey="idType" numKey="idNumber" f={f} set={set} errors={errors} />}
         <TextField label="Email" k="email" f={f} set={set} errors={errors} required type="email" placeholder="jane@email.co.za" />
         <TextField label="Phone" k="phone" f={f} set={set} errors={errors} required type="tel" placeholder="082 000 0000" />
-        <SelectField label="Preferred contact" k="preferredChannel" f={f} set={set} options={CHANNEL_OPTIONS} />
       </div>
     </div>
   )
@@ -132,9 +149,9 @@ function CompanyAddressSection({
   )
 }
 
-/** Company info grid only (registered name / reg / VAT / company channel). People + address are own steps. */
+/** Company info grid only — same fields for every role (only required differs). People + address are own steps. */
 function CompanyInfo({
-  f, set, errors, fullFica, companyPeople, isSupplier,
+  f, set, errors, companyPeople, isSupplier,
 }: IdentityBodyProps & { companyPeople: boolean; isSupplier: boolean }) {
   return (
     <div className="mt-6">
@@ -143,7 +160,7 @@ function CompanyInfo({
         <TextField label="Registered name" k="companyName" f={f} set={set} errors={errors} required span
           placeholder={isSupplier ? "DW Plumbing CC" : "Coastline Holdings (Pty) Ltd"} />
         <TextField label="CIPC reg. number" k="companyReg" f={f} set={set} errors={errors} placeholder="2023/123456/07" />
-        {fullFica && <TextField label="VAT number" k="vatNumber" f={f} set={set} errors={errors} placeholder="Optional" />}
+        <TextField label="VAT number" k="vatNumber" f={f} set={set} errors={errors} placeholder="Optional" />
         {companyPeople && <TextField label="Company email" k="companyEmail" f={f} set={set} errors={errors} type="email" placeholder="info@company.co.za" />}
         {companyPeople && <TextField label="Company phone" k="companyPhone" f={f} set={set} errors={errors} type="tel" placeholder="021 000 0000" />}
       </div>
@@ -190,8 +207,9 @@ function PeopleBody({ f, set, errors, fullFica }: StepBodyProps) {
   )
 }
 
-function AddressBody({ role, f, set, errors }: StepBodyProps) {
-  const optional = role === "supplier"
+function AddressBody({ entity, fullFica, f, set, errors }: StepBodyProps) {
+  // Physical address required only for FICA companies (landlord/tenant); optional otherwise.
+  const optional = !(entity === "company" && fullFica)
   return (
     <CompanyAddressSection
       n="01" title={optional ? "Address · optional" : "Registered / street address"} optional={optional}
@@ -236,42 +254,17 @@ function RatesStatusBody({ f, set, errors }: StepBodyProps) {
   )
 }
 
-function BankingBody({ role, f, set, errors }: StepBodyProps) {
-  if (role === "landlord") {
-    return (
-      <div>
-        <SectLabel n="01">Payout account(s) · optional</SectLabel>
-        <p className="mb-3 text-[13px] leading-snug text-muted-foreground">
-          Where collected rent is paid out — add one or more accounts (the first is the primary). You can also
-          add these later from their profile.
-        </p>
-        <BankAccountsRepeater accounts={f.bankAccounts ?? []} onChange={(a) => set("bankAccounts", a)} />
-      </div>
-    )
-  }
-  // supplier
+/** Same banking card for every role: one or more accounts (VAT lives in company details). */
+function BankingBody({ f, set }: StepBodyProps) {
   return (
-    <>
-      <div>
-        <SectLabel n="01">Bank account(s) · optional</SectLabel>
-        <p className="mb-3 text-[13px] leading-snug text-muted-foreground">
-          Add the supplier&apos;s bank account(s). Many suppliers (e.g. utilities) keep one account per bank —
-          add each so payments can route same-bank. The first account is the primary.
-        </p>
-        <BankAccountsRepeater accounts={f.bankAccounts ?? []} onChange={(a) => set("bankAccounts", a)} />
-      </div>
-      <div className="mt-6">
-        <SectLabel n="02">VAT · optional</SectLabel>
-        <CheckRow checked={!!f.vatRegistered} onChange={(v) => set("vatRegistered", v)}>
-          VAT registered
-        </CheckRow>
-        {f.vatRegistered && (
-          <div className="mt-3.5">
-            <TextField label="VAT number" k="vatNumber" f={f} set={set} errors={errors} placeholder="4xxxxxxxxx" />
-          </div>
-        )}
-      </div>
-    </>
+    <div>
+      <SectLabel n="01">Bank account(s) · optional</SectLabel>
+      <p className="mb-3 text-[13px] leading-snug text-muted-foreground">
+        Add one or more bank accounts — the first is the primary. Many suppliers (e.g. utilities) keep one
+        account per bank so payments can route same-bank. You can also add these later from the profile.
+      </p>
+      <BankAccountsRepeater accounts={f.bankAccounts ?? []} onChange={(a) => set("bankAccounts", a)} />
+    </div>
   )
 }
 
@@ -372,6 +365,7 @@ export function ReviewStep({
             <>
               <ReviewRow k="Registered name" v={f.companyName} />
               <ReviewRow k="CIPC reg." v={f.companyReg} />
+              {f.vatNumber && <ReviewRow k="VAT no." v={f.vatNumber} />}
               {(f.addresses ?? []).filter((a) => a.line1?.trim()).map((a) => (
                 <ReviewRow key={a.type} k={ADDRESS_TYPE_LABEL[a.type] ?? "Address"} v={[a.line1, a.city].filter(Boolean).join(", ")} />
               ))}
@@ -403,7 +397,6 @@ export function ReviewStep({
               <ReviewRow k="Specialities" v={(f.specialities || []).join(", ")} />
               {f.callOutRate && <ReviewRow k="Call-out rate" v={`R ${f.callOutRate}`} />}
               {f.hourlyRate && <ReviewRow k="Hourly rate" v={`R ${f.hourlyRate}`} />}
-              {f.vatRegistered && <ReviewRow k="VAT" v={f.vatNumber ? `Registered · ${f.vatNumber}` : "Registered"} />}
               {(f.addresses ?? []).filter((a) => a.line1?.trim()).map((a) => (
                 <ReviewRow key={a.type} k={ADDRESS_TYPE_LABEL[a.type] ?? "Address"} v={[a.line1, a.city].filter(Boolean).join(", ")} />
               ))}

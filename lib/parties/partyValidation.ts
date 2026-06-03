@@ -76,6 +76,7 @@ export interface PartyFormState {
   suffix?: string            // Jr, Sr, II…
   designation?: string       // professional / honorific (Adv., Dr, CA(SA)…)
   gender?: string            // male | female | other | prefer_not_to_say
+  dob?: string               // date of birth (YYYY-MM-DD); auto-derived from a valid SA ID, overridable
   preferredChannel?: string  // email | sms | whatsapp | phone | post
   idType?: string
   idNumber?: string
@@ -233,15 +234,20 @@ export function validateDetails(role: PartyRole, f: PartyFormState): PartyErrors
 // ── Per-step validators (multi-step wizard) ───────────────────────────────────
 // The flow is split into focused steps; each step validates only its own section.
 
-/** Identity step: individual → personal + SA-ID; company → registered name only (people/address are own steps). */
-export function validateIdentityCore(entity: PartyEntity, f: PartyFormState): PartyErrors {
+/** Identity step: individual → personal + SA-ID (ID mandatory for FICA roles); company → registered name only. */
+export function validateIdentityCore(entity: PartyEntity, f: PartyFormState, fullFica: boolean): PartyErrors {
   const e: PartyErrors = {}
   const need = (k: keyof PartyFormState) => {
     const v = f[k]
     if (typeof v !== "string" || !v.trim()) e[k] = "Required"
   }
-  if (entity === "individual") validateIndividualIdentity(f, e, need)
-  else need("companyName")
+  if (entity === "individual") {
+    validateIndividualIdentity(f, e, need)
+    // The ID field shows on every individual; it's required only for FICA parties (landlord/tenant).
+    if (fullFica && !f.idNumber?.trim()) e.idNumber = "An ID number is required (FICA)."
+  } else {
+    need("companyName")
+  }
   return e
 }
 

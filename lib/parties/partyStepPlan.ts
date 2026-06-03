@@ -25,9 +25,11 @@ export function buildPartySteps(
   role: PartyRole, entity: PartyEntity, cfg: PartyRoleConfig, hideWelcomePack: boolean,
 ): PartyStepDef[] {
   const company = entity === "company"
-  const identity: PartyStepDef = { id: "identity", label: "Identity", validate: (e, f) => validateIdentityCore(e, f) }
+  // Physical address is required only for FICA companies (landlord/tenant). Everyone else gets the step, optional.
+  const addressRequired = company && cfg.fullFica
+  const identity: PartyStepDef = { id: "identity", label: "Identity", validate: (e, f) => validateIdentityCore(e, f, cfg.fullFica) }
   const people: PartyStepDef = { id: "people", label: "People", validate: (_e, f) => validatePeopleStep(f, cfg.fullFica) }
-  const addressRequired: PartyStepDef = { id: "address", label: "Address", validate: (_e, f) => validateAddressStep(f, true) }
+  const address: PartyStepDef = { id: "address", label: "Address", validate: (_e, f) => validateAddressStep(f, addressRequired) }
   const confirm: PartyStepDef = { id: "confirm", label: "Confirm" }
 
   if (role === "supplier") {
@@ -37,14 +39,15 @@ export function buildPartySteps(
       { id: "specialities", label: "Specialities", validate: (_e, f) => validateSpecialitiesStep(f) },
       { id: "rates", label: "Rates & status" },
       { id: "banking", label: "Banking" },
-      { id: "address", label: "Address", validate: (_e, f) => validateAddressStep(f, false) },
+      address,
       confirm,
     ]
   }
   if (role === "landlord") {
     return [
       identity,
-      ...(company ? [people, addressRequired] : []),
+      ...(company ? [people] : []),
+      address,
       { id: "banking", label: "Banking" },
       ...(hideWelcomePack ? [] : [{ id: "welcome", label: "Welcome pack" } as PartyStepDef]),
       confirm,
@@ -53,7 +56,8 @@ export function buildPartySteps(
   // tenant
   return [
     identity,
-    ...(company ? [people, addressRequired] : []),
+    ...(company ? [people] : []),
+    address,
     { id: "consent", label: "Consent", validate: (_e, f) => validateConsentStep(f) },
     confirm,
   ]

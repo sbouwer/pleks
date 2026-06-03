@@ -78,15 +78,15 @@ function buildPartyContactData(
     d.suffix = f.suffix?.trim() || null
     d.designation = f.designation?.trim() || null
     d.gender = f.gender || null
+    d.date_of_birth = f.dob || null
     d.preferred_channel = f.preferredChannel || null
     d.primary_email = f.email?.trim() || null
     d.primary_phone = f.phone?.trim() || null
-    if (cfg.fullFica) {
-      d.id_type = f.idType || null
-      const id = f.idNumber?.trim() || null
-      d.id_number = id
-      d.id_number_hash = id ? hashIdNumber(id) : null
-    }
+    // ID kept for every individual — required for FICA parties (landlord/tenant), optional for suppliers; null if blank.
+    d.id_type = f.idType || null
+    const id = f.idNumber?.trim() || null
+    d.id_number = id
+    d.id_number_hash = id ? hashIdNumber(id) : null
     return d
   }
 
@@ -95,7 +95,7 @@ function buildPartyContactData(
   // use the people model now; the legacy single-signatory path was retired in ADDENDUM_25A_AMENDMENT.)
   d.company_name = f.companyName?.trim() || null
   d.registration_number = f.companyReg?.trim() || null
-  if (cfg.fullFica) d.vat_number = f.vatNumber?.trim() || null
+  d.vat_number = f.vatNumber?.trim() || null
   const primary = (f.people ?? []).find((p) => p.isPrimary) ?? (f.people ?? [])[0]
   d.primary_email = f.companyEmail?.trim() || primary?.email?.trim() || null
   d.primary_phone = f.companyPhone?.trim() || primary?.phone?.trim() || null
@@ -189,25 +189,21 @@ async function auditPartyUpdate(db: Db, orgId: string, userId: string, table: st
 // ── Edit helpers (shared by the update* actions) ──────────────────────────────
 
 /** Editable contact scalar fields (entity-aware). entity_type / primary_role are immutable on edit.
- *  For FICA individuals (landlord/tenant) the ID round-trips (pre-filled by fetch → editable here). */
-function buildContactScalarUpdate(entity: PartyEntity, f: PartyFormState, fica: boolean, primary?: PartyPerson): Record<string, unknown> {
+ *  ID round-trips for every individual (pre-filled by fetch → editable here); required only for FICA in the UI. */
+function buildContactScalarUpdate(entity: PartyEntity, f: PartyFormState, primary?: PartyPerson): Record<string, unknown> {
   if (entity === "individual") {
-    const base: Record<string, unknown> = {
+    const id = f.idNumber?.trim() || null
+    return {
       title: f.title?.trim() || null, initials: f.initials?.trim() || null,
       first_name: f.firstName?.trim() || null, middle_names: f.middleNames?.trim() || null,
       last_name: f.lastName?.trim() || null, suffix: f.suffix?.trim() || null,
       designation: f.designation?.trim() || null, gender: f.gender || null,
+      date_of_birth: f.dob || null,
       preferred_channel: f.preferredChannel || null,
       primary_email: f.email?.trim() || null, primary_phone: f.phone?.trim() || null,
       vat_number: f.vatNumber?.trim() || null,
+      id_type: f.idType || "sa_id", id_number: id, id_number_hash: id ? hashIdNumber(id) : null,
     }
-    if (fica) {
-      const id = f.idNumber?.trim() || null
-      base.id_type = f.idType || "sa_id"
-      base.id_number = id
-      base.id_number_hash = id ? hashIdNumber(id) : null
-    }
-    return base
   }
   return {
     company_name: f.companyName?.trim() || null,
@@ -317,7 +313,7 @@ function mapAddressesToForm(rows: Array<Record<string, unknown>> | null): PartyA
 /** Full individual identity fields from contacts → form (so editing doesn't wipe title/gender/etc.). */
 async function individualIdentityForm(db: Db, contactId: string): Promise<Partial<PartyFormState>> {
   const { data: c } = await db.from("contacts")
-    .select("title, initials, middle_names, suffix, designation, gender, preferred_channel, id_type, id_number, vat_number")
+    .select("title, initials, middle_names, suffix, designation, gender, date_of_birth, preferred_channel, id_type, id_number, vat_number")
     .eq("id", contactId).single()
   if (!c) return {}
   return {
@@ -327,6 +323,7 @@ async function individualIdentityForm(db: Db, contactId: string): Promise<Partia
     suffix: (c.suffix as string | null) ?? undefined,
     designation: (c.designation as string | null) ?? undefined,
     gender: (c.gender as string | null) ?? undefined,
+    dob: ((c.date_of_birth as string | null) ?? undefined)?.slice(0, 10),
     preferredChannel: (c.preferred_channel as string | null) ?? undefined,
     idType: (c.id_type as string | null) ?? undefined,
     idNumber: (c.id_number as string | null) ?? undefined,
@@ -375,17 +372,12 @@ export async function addContractorParty(input: AddPartyInput, supplierType: str
       specialities: f.specialities ?? [], supplier_type: supplierType,
       call_out_rate_cents: zarToCents(f.callOutRate),
       hourly_rate_cents: zarToCents(f.hourlyRate),
-      vat_registered: !!f.vatRegistered,
+      vat_registered: !!f.vatNumber?.trim(), // VAT is company-only; registered ⇔ a VAT number was given
     })
     if (conErr) {
       console.error("[addContractorParty] contractor insert failed:", conErr.message)
       await db.from("contacts").delete().eq("id", contact.id).eq("org_id", orgId)
       return { ok: false, error: "Failed to create the contractor" }
-    }
-
-    // VAT number lives on the contact (buildPartyContactData only sets it for FICA companies).
-    if (f.vatNumber?.trim()) {
-      await db.from("contacts").update({ vat_number: f.vatNumber.trim() }).eq("id", contact.id).eq("org_id", orgId)
     }
 
     if (input.entity === "company") await insertCompanyPeople(db, orgId, userId, contact.id, f.people)
@@ -457,7 +449,7 @@ export async function updateContractorParty(input: AddPartyInput, contractorId: 
 
     const primary = (f.people ?? []).find((p) => p.isPrimary) ?? (f.people ?? [])[0]
     const { error: cErr } = await db.from("contacts")
-      .update(buildContactScalarUpdate(input.entity, f, false, primary)).eq("id", contactId).eq("org_id", orgId)
+      .update(buildContactScalarUpdate(input.entity, f, primary)).eq("id", contactId).eq("org_id", orgId)
     if (cErr) { console.error("[updateContractorParty] contact update failed:", cErr.message); return { ok: false, error: "Failed to update the contact" } }
 
     const { error: conErr } = await db.from("contractors").update({
@@ -465,7 +457,7 @@ export async function updateContractorParty(input: AddPartyInput, contractorId: 
       specialities: f.specialities ?? [],
       call_out_rate_cents: zarToCents(f.callOutRate),
       hourly_rate_cents: zarToCents(f.hourlyRate),
-      vat_registered: !!f.vatRegistered,
+      vat_registered: !!f.vatNumber?.trim(), // VAT is company-only; registered ⇔ a VAT number was given
     }).eq("id", contractorId).eq("org_id", orgId)
     if (conErr) { console.error("[updateContractorParty] contractor update failed:", conErr.message); return { ok: false, error: "Failed to update the supplier" } }
 
@@ -573,7 +565,7 @@ export async function updateLandlordParty(input: AddPartyInput, landlordId: stri
 
     const primary = (f.people ?? []).find((p) => p.isPrimary) ?? (f.people ?? [])[0]
     const { error: cErr } = await db.from("contacts")
-      .update(buildContactScalarUpdate(input.entity, f, true, primary)).eq("id", contactId).eq("org_id", orgId)
+      .update(buildContactScalarUpdate(input.entity, f, primary)).eq("id", contactId).eq("org_id", orgId)
     if (cErr) { console.error("[updateLandlordParty] contact update failed:", cErr.message); return { ok: false, error: "Failed to update the contact" } }
 
     if (input.entity === "company") await upsertCompanyPeople(db, orgId, userId, contactId, f.people)
@@ -706,7 +698,7 @@ export async function updateTenantParty(input: AddPartyInput, tenantId: string):
 
     const primary = (f.people ?? []).find((p) => p.isPrimary) ?? (f.people ?? [])[0]
     const { error: cErr } = await db.from("contacts")
-      .update(buildContactScalarUpdate(input.entity, f, true, primary)).eq("id", contactId).eq("org_id", orgId)
+      .update(buildContactScalarUpdate(input.entity, f, primary)).eq("id", contactId).eq("org_id", orgId)
     if (cErr) { console.error("[updateTenantParty] contact update failed:", cErr.message); return { ok: false, error: "Failed to update the contact" } }
 
     const { error: tErr } = await db.from("tenants").update({

@@ -132,6 +132,14 @@ export default async function TenantDetailPage({
 
   if (!tenant) notFound()
 
+  // Identity extras (title/gender) not on tenant_view — shown on the identity card
+  const { data: tenantIdentityExtra } = await service
+    .from("contacts")
+    .select("title, gender")
+    .eq("id", tenant.contact_id)
+    .eq("org_id", membership.org_id)
+    .single()
+
   const [
     { data: phones },
     { data: emails },
@@ -243,6 +251,8 @@ export default async function TenantDetailPage({
       </DetailSection>
       <DetailSection>
         <TenantIdentitySection
+          title={tenantIdentityExtra?.title ?? null}
+          gender={tenantIdentityExtra?.gender ?? null}
           idNumber={tenant.id_number ?? null}
           idType={tenant.id_type ?? null}
           dateOfBirth={tenant.date_of_birth ?? null}

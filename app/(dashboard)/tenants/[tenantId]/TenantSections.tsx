@@ -119,13 +119,17 @@ export function TenantContactSection({ entityId, phones, emails, fallbackPhone, 
 // ─── TenantIdentitySection ────────────────────────────────────────────────────
 
 interface TenantIdentitySectionProps {
+  title: string | null
+  gender: string | null
   idNumber: string | null
   idType: string | null
   dateOfBirth: string | null
   nationality: string | null
 }
 
-export function TenantIdentitySection({ idNumber, idType, dateOfBirth, nationality }: Readonly<TenantIdentitySectionProps>) {
+const GENDER_LABEL: Record<string, string> = { male: "Male", female: "Female", other: "Other", prefer_not_to_say: "Prefer not to say" }
+
+export function TenantIdentitySection({ title, gender, idNumber, idType, dateOfBirth, nationality }: Readonly<TenantIdentitySectionProps>) {
   const maskedId = idNumber && idNumber.length > 4
     ? `••••••••••${idNumber.slice(-4)}`
     : idNumber ?? null
@@ -140,6 +144,12 @@ export function TenantIdentitySection({ idNumber, idType, dateOfBirth, nationali
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Identity</span>
       </div>
       <div>
+        {title && (
+          <DetailRow label="Title">{title}</DetailRow>
+        )}
+        {gender && (
+          <DetailRow label="Gender">{GENDER_LABEL[gender] ?? gender}</DetailRow>
+        )}
         {maskedId && (
           <DetailRow label={idType ?? "ID"}>{maskedId}</DetailRow>
         )}
@@ -149,7 +159,7 @@ export function TenantIdentitySection({ idNumber, idType, dateOfBirth, nationali
         {nationality && (
           <DetailRow label="Nationality">{nationality}</DetailRow>
         )}
-        {!maskedId && !formattedDob && !nationality && (
+        {!title && !gender && !maskedId && !formattedDob && !nationality && (
           <p className="text-xs text-muted-foreground">No identity information.</p>
         )}
       </div>
