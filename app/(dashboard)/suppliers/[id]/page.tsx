@@ -347,7 +347,7 @@ export default async function ContractorDetailPage({ params }: Props) {
       )}
 
       {/* Row 1 — identity · Account profile (read-only; edit via the header Edit modal). */}
-      <DetailCard title="Supplier">
+      <DetailCard title={arch.badgeLabel}>
           <div className="space-y-3">
             <div className="flex items-start gap-3">
               <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand/20 text-sm font-semibold text-brand">
@@ -355,7 +355,7 @@ export default async function ContractorDetailPage({ params }: Props) {
               </div>
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">{displayName}</p>
-                <p className="text-xs text-muted-foreground">{arch.badgeLabel}</p>
+                <p className="text-xs text-muted-foreground">{contractor.entity_type === "organisation" ? "Company" : "Individual"}</p>
               </div>
             </div>
             <div className="space-y-1.5 border-t border-border/40 pt-3">
@@ -389,35 +389,46 @@ export default async function ContractorDetailPage({ params }: Props) {
         contractorEmail={primaryEmail}
       />
 
-      {/* Active jobs */}
-      <DetailFullWidth>
-        <DetailCard title="Active jobs" count={activeJobCount}>
-          {activeJobCount === 0 ? (
-            <p className="text-sm text-muted-foreground">No active jobs.</p>
-          ) : (
-            <div className="space-y-1">
-              {(activeJobs ?? []).map((job) => {
-                const unit = job.units as unknown as { unit_number: string; properties: { name: string } } | null
-                const statusVariant = ["in_progress", "acknowledged", "work_order_sent"].includes(job.status) ? "amber" as const : "blue" as const
-                return (
-                  <RelationshipCard
-                    key={job.id}
-                    icon={<Wrench className="h-4 w-4 text-orange-600" />}
-                    iconBg="#FFF7ED"
-                    title={job.title}
-                    subtitle={unit ? `${unit.properties?.name ?? ""} — ${unit.unit_number}` : job.category ?? ""}
-                    rightLabel={job.quoted_cost_cents ? formatZAR(job.quoted_cost_cents) : undefined}
-                    rightBadge={!job.quoted_cost_cents ? { text: job.status.replaceAll(/_/g, " "), variant: statusVariant } : undefined}
-                    href={`/maintenance/${job.id}`}
-                  />
-                )
-              })}
-            </div>
-          )}
-        </DetailCard>
-      </DetailFullWidth>
+      {/* Active jobs · Recent invoices — side by side */}
+      <DetailCard title="Active jobs" count={activeJobCount}>
+        {activeJobCount === 0 ? (
+          <p className="text-sm text-muted-foreground">No active jobs.</p>
+        ) : (
+          <div className="space-y-1">
+            {(activeJobs ?? []).map((job) => {
+              const unit = job.units as unknown as { unit_number: string; properties: { name: string } } | null
+              const statusVariant = ["in_progress", "acknowledged", "work_order_sent"].includes(job.status) ? "amber" as const : "blue" as const
+              return (
+                <RelationshipCard
+                  key={job.id}
+                  icon={<Wrench className="h-4 w-4 text-orange-600" />}
+                  iconBg="#FFF7ED"
+                  title={job.title}
+                  subtitle={unit ? `${unit.properties?.name ?? ""} — ${unit.unit_number}` : job.category ?? ""}
+                  rightLabel={job.quoted_cost_cents ? formatZAR(job.quoted_cost_cents) : undefined}
+                  rightBadge={!job.quoted_cost_cents ? { text: job.status.replaceAll(/_/g, " "), variant: statusVariant } : undefined}
+                  href={`/maintenance/${job.id}`}
+                />
+              )
+            })}
+          </div>
+        )}
+      </DetailCard>
+      <DetailCard title="Recent invoices" count={recentInvoices.length}>
+        {recentInvoices.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No invoices yet.</p>
+        ) : (
+          <ActivityTimeline
+            items={recentInvoices.map((inv) => ({
+              dotColor: inv.status === "paid" ? "#1D9E75" : "#D85A30",
+              title: `${inv.invoice_number ?? "Invoice"} — ${formatZAR(inv.amount_incl_vat_cents)} (${inv.status})`,
+              time: new Date(inv.invoice_date).toLocaleDateString("en-ZA"),
+            }))}
+          />
+        )}
+      </DetailCard>
 
-      {/* Performance */}
+      {/* Performance (full-width) */}
       <DetailFullWidth>
         <DetailCard title="Performance" flush>
           <DetailStatGrid stats={[
@@ -430,19 +441,6 @@ export default async function ContractorDetailPage({ params }: Props) {
             { label: "Incomplete returns", value: incompleteCount > 0 ? String(incompleteCount) : "—" },
             { label: "Total invoiced", value: formatZAR(totalInvoiced) },
           ]} />
-        </DetailCard>
-      </DetailFullWidth>
-
-      {/* Recent invoices */}
-      <DetailFullWidth>
-        <DetailCard title="Recent invoices" count={recentInvoices.length}>
-          <ActivityTimeline
-            items={recentInvoices.map((inv) => ({
-              dotColor: inv.status === "paid" ? "#1D9E75" : "#D85A30",
-              title: `${inv.invoice_number ?? "Invoice"} — ${formatZAR(inv.amount_incl_vat_cents)} (${inv.status})`,
-              time: new Date(inv.invoice_date).toLocaleDateString("en-ZA"),
-            }))}
-          />
         </DetailCard>
       </DetailFullWidth>
     </DetailPageLayout>

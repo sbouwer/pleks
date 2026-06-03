@@ -14,9 +14,7 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Field, UnderlineInput, UnderlineSelect, DashedAddButton } from "@/components/ui/door-form"
 import { EditButton } from "@/components/ui/actions"
 import { DetailCard } from "@/components/detail/DetailCard"
 
@@ -33,7 +31,8 @@ export interface BankAccount {
 
 type EntityType = "suppliers" | "landlords" | "tenants"
 
-const ACCOUNT_TYPE_OPTIONS = [
+const ACCOUNT_TYPE_SELECT = [
+  { value: "", label: "Type…" },
   { value: "cheque", label: "Cheque" },
   { value: "savings", label: "Savings" },
   { value: "transmission", label: "Transmission" },
@@ -74,26 +73,16 @@ function AccountForm({
   }
 
   return (
-    <div className="space-y-2 rounded-[var(--r-button)] border border-border bg-muted/20 p-3">
-      <div className="grid grid-cols-2 gap-2">
-        <div><Label className="text-xs">Bank</Label><Input value={form.bank_name} onChange={(e) => set("bank_name", e.target.value)} className="h-8 text-sm mt-1" placeholder="e.g. FNB" /></div>
-        <div><Label className="text-xs">Label (optional)</Label><Input value={form.label} onChange={(e) => set("label", e.target.value)} className="h-8 text-sm mt-1" placeholder="e.g. Municipal account" /></div>
-      </div>
-      <div><Label className="text-xs">Account name</Label><Input value={form.account_name} onChange={(e) => set("account_name", e.target.value)} className="h-8 text-sm mt-1" /></div>
-      <div className="grid grid-cols-2 gap-2">
-        <div><Label className="text-xs">Account number</Label><Input value={form.account_number} onChange={(e) => set("account_number", e.target.value)} className="h-8 text-sm mt-1" /></div>
-        <div><Label className="text-xs">Branch code</Label><Input value={form.branch_code} onChange={(e) => set("branch_code", e.target.value)} className="h-8 text-sm mt-1" /></div>
-      </div>
-      <div className="grid grid-cols-2 items-end gap-2">
-        <div>
-          <Label className="text-xs">Account type</Label>
-          <Select value={form.account_type} onValueChange={(v) => set("account_type", v ?? "")}>
-            <SelectTrigger className="h-8 text-sm mt-1"><SelectValue placeholder="Type" /></SelectTrigger>
-            <SelectContent>{ACCOUNT_TYPE_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
-        <label className="flex items-center gap-2 text-xs text-muted-foreground pb-1.5">
-          <input type="checkbox" checked={form.is_primary} disabled={!!firstAccount} onChange={(e) => set("is_primary", e.target.checked)} />
+    <div className="space-y-3 rounded-[var(--r-button)] border border-border bg-muted/20 p-3.5">
+      <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+        <Field label="Bank"><UnderlineInput value={form.bank_name} onChange={(e) => set("bank_name", e.target.value)} placeholder="e.g. FNB" /></Field>
+        <Field label="Label (optional)"><UnderlineInput value={form.label} onChange={(e) => set("label", e.target.value)} placeholder="e.g. Municipal account" /></Field>
+        <Field label="Account name" span><UnderlineInput value={form.account_name} onChange={(e) => set("account_name", e.target.value)} /></Field>
+        <Field label="Account number"><UnderlineInput value={form.account_number} onChange={(e) => set("account_number", e.target.value)} /></Field>
+        <Field label="Branch code"><UnderlineInput value={form.branch_code} onChange={(e) => set("branch_code", e.target.value)} /></Field>
+        <Field label="Account type"><UnderlineSelect value={form.account_type} onChange={(v) => set("account_type", v)} options={ACCOUNT_TYPE_SELECT} /></Field>
+        <label className="flex items-center gap-2 self-end pb-2 text-xs text-muted-foreground">
+          <input type="checkbox" checked={form.is_primary} disabled={!!firstAccount} onChange={(e) => set("is_primary", e.target.checked)} className="accent-primary" />
           Primary account
         </label>
       </div>
@@ -166,11 +155,10 @@ export function BankAccountsSection({
   const refresh = () => router.refresh()
 
   return (
-    <DetailCard
-      title="Banking"
-      headerAction={!adding && editingId === null ? <EditButton mode="label" label="Add" onClick={() => setAdding(true)} /> : undefined}
-    >
-      {accounts.length === 0 && !adding && <p className="text-xs text-muted-foreground">No bank accounts.</p>}
+    <DetailCard title="Banking">
+      {accounts.length === 0 && !adding && (
+        <DashedAddButton onClick={() => setAdding(true)}><Plus className="h-3.5 w-3.5" /> Add bank account</DashedAddButton>
+      )}
 
       <div className="space-y-2">
         {accounts.map((acc) =>
