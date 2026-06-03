@@ -10,9 +10,11 @@
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect, notFound } from "next/navigation"
 import { Home, Wrench } from "lucide-react"
-import { ContactDetailLayout } from "@/components/contacts/ContactDetailLayout"
-import { ContactSidebar } from "@/components/contacts/ContactSidebar"
-import { QuickActions } from "@/components/contacts/QuickActions"
+import { DetailPageLayout, DetailFullWidth } from "@/components/detail/DetailPageLayout"
+import { DetailSection } from "@/components/detail/DetailSection"
+import { DetailQuickbar } from "@/components/detail/DetailQuickbar"
+import { contactActions } from "@/lib/detail/contactActions"
+import type { DetailFact, DetailStatus } from "@/lib/detail/types"
 import { SectionCard } from "@/components/contacts/SectionCard"
 import { RelationshipCard } from "@/components/contacts/RelationshipCard"
 import { StatGrid } from "@/components/contacts/StatGrid"
@@ -21,9 +23,6 @@ import { MobileTenantView } from "@/components/mobile/MobileTenantView"
 import { formatZAR } from "@/lib/constants"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-type BadgeVariant = "green" | "amber" | "red" | "blue" | "gray"
-type Badge = { text: string; variant: BadgeVariant }
 
 interface TenantRow {
   entity_type: string
@@ -70,29 +69,22 @@ function getDisplayName(tenant: TenantRow): string {
   return tenant.company_name || "Unnamed Tenant"
 }
 
-function getInitials(name: string): string {
-  return name.split(" ").map((w) => w[0]).filter(Boolean).join("").slice(0, 2).toUpperCase()
+function tenantStatus(tenant: TenantRow, activeLease: LeaseRow | null, arrearsCase: ArrearsCase | null): DetailStatus {
+  if (tenant.blacklisted) return { kind: "flag", label: "Blacklisted" }
+  if (arrearsCase) return { kind: "flag", label: `${arrearsCase.months_in_arrears}mo arrears` }
+  if (activeLease?.status === "notice") return { kind: "vacant", label: "Notice period" }
+  if (activeLease) return { kind: "occupied", label: "Active lease" }
+  return { kind: "neutral", label: "No active lease" }
 }
 
-function buildBadges(tenant: TenantRow, activeLease: LeaseRow | null, arrearsCase: ArrearsCase | null): Badge[] {
-  const badges: Badge[] = []
-  if (activeLease) {
-    badges.push({
-      text: activeLease.status === "notice" ? "Notice period" : "Active lease",
-      variant: activeLease.status === "notice" ? "amber" : "green",
-    })
-  } else {
-    badges.push({ text: "No active lease", variant: "gray" })
-  }
-  if (arrearsCase) {
-    badges.push({ text: `${arrearsCase.months_in_arrears}mo arrears`, variant: "red" })
-  } else {
-    badges.push({ text: "Good standing", variant: "green" })
-  }
-  if (tenant.blacklisted) {
-    badges.push({ text: "Blacklisted", variant: "red" })
-  }
-  return badges
+function buildTenantFacts(tenant: TenantRow, activeLease: LeaseRow | null, arrearsCase: ArrearsCase | null): DetailFact[] {
+  const facts: DetailFact[] = [
+    { k: "Type", v: tenant.entity_type === "individual" ? "Individual" : "Company" },
+    { k: "Rent", v: activeLease ? formatZAR(activeLease.rent_amount_cents ?? 0) : "—", mono: true },
+    { k: "Deposit", v: activeLease?.deposit_amount_cents ? formatZAR(activeLease.deposit_amount_cents) : "—", mono: true },
+  ]
+  if (arrearsCase) facts.push({ k: "Arrears", v: formatZAR(arrearsCase.total_arrears_cents), mono: true })
+  return facts
 }
 
 function getLeaseSubtitle(leaseUnit: LeaseUnit, endDate: string | null): string {
@@ -195,9 +187,12 @@ export default async function TenantDetailPage({
   }
 
   const displayName = getDisplayName(tenant)
-  const badges = buildBadges(tenant, activeLease ?? null, arrearsCase)
   const primaryPhone = phones?.[0]?.number ?? null
   const primaryEmail = emails?.[0]?.email ?? null
+
+  const status = tenantStatus(tenant, activeLease ?? null, arrearsCase)
+  const facts = buildTenantFacts(tenant, activeLease ?? null, arrearsCase)
+  const actions = contactActions(primaryPhone, primaryEmail)
   const leaseUnit = activeLease?.units as unknown as LeaseUnit | null
   const leaseProperty = leaseUnit?.properties ?? null
 
@@ -235,115 +230,115 @@ export default async function TenantDetailPage({
 
       {/* Desktop view */}
       <div className="hidden lg:block">
-    <ContactDetailLayout
-      breadcrumb={{ label: "Tenants", href: "/tenants" }}
-      sidebar={
-        <ContactSidebar
-          avatar={{ initials: getInitials(displayName), bgColor: "#EEF2FF", textColor: "#4F46E5" }}
-          name={displayName}
-          subtitle={tenant.entity_type === "individual" ? "Individual tenant" : "Company tenant"}
-          badges={badges}
-          quickActions={
-            <QuickActions
-              primaryPhone={primaryPhone}
-              primaryEmail={primaryEmail}
-              moreItems={[
-                { label: "Send notice" },
-                { label: "Archive", variant: "danger" as const },
-              ]}
-            />
-          }
-        >
-          <TenantContactSection entityId={tenantId} phones={phones ?? []} emails={emails ?? []} />
-          <TenantIdentitySection
-            idNumber={tenant.id_number ?? null}
-            idType={tenant.id_type ?? null}
-            dateOfBirth={tenant.date_of_birth ?? null}
-            nationality={tenant.nationality ?? null}
-          />
-          {tenant.entity_type === "individual" && (
-            <TenantEmploymentSection
-              tenantId={tenantId}
-              employerName={tenant.employer_name ?? null}
-              employerPhone={tenant.employer_phone ?? null}
-              occupation={tenant.occupation ?? null}
-              employmentType={tenant.employment_type ?? null}
-              preferredContact={tenant.preferred_contact ?? null}
-            />
-          )}
-          {tenant.entity_type !== "individual" && (
-            <TenantJuristicSection
-              contactId={tenant.contact_id}
-              juristicType={(tenant as Record<string, unknown>).juristic_type as string | null ?? null}
-              turnoverUnder2m={(tenant as Record<string, unknown>).turnover_under_2m as boolean | null ?? null}
-              assetValueUnder2m={(tenant as Record<string, unknown>).asset_value_under_2m as boolean | null ?? null}
-              sizeBandsCapturedAt={(tenant as Record<string, unknown>).size_bands_captured_at as string | null ?? null}
-            />
-          )}
-          <TenantAddressSection entityId={tenantId} address={(addresses ?? [])[0] ?? null} />
-        </ContactSidebar>
-      }
+    <DetailPageLayout
+      category="Tenants"
+      backHref="/tenants"
+      title={displayName}
+      status={status}
+      facts={facts}
+      actions={<DetailQuickbar actions={actions} />}
     >
-      {/* Current lease */}
-      <SectionCard title="Current lease">
-        {activeLease && leaseUnit ? (
-          <RelationshipCard
-            icon={<Home className="h-4 w-4 text-indigo-600" />}
-            iconBg="#EEF2FF"
-            title={`${leaseProperty?.name ?? ""} — ${leaseUnit.unit_number}`}
-            subtitle={getLeaseSubtitle(leaseUnit, activeLease.end_date)}
-            rightLabel={formatZAR(activeLease.rent_amount_cents ?? 0)}
-            rightSublabel="/month"
-            href={`/leases/${activeLease.id}`}
-          />
-        ) : (
-          <p className="text-sm text-muted-foreground">No active lease.</p>
-        )}
-      </SectionCard>
-
-      {/* Payment status */}
-      <SectionCard title="Payment status" action={{ label: "View ledger & statement", href: "/tenants/" + tenantId + "/ledger" }}>
-        <StatGrid
-          stats={[
-            { label: "Monthly rent", value: activeLease ? formatZAR(activeLease.rent_amount_cents ?? 0) : "—" },
-            { label: "Deposit held", value: activeLease?.deposit_amount_cents ? formatZAR(activeLease.deposit_amount_cents) : "—" },
-            {
-              label: "Arrears",
-              value: arrearsCase ? formatZAR(arrearsCase.total_arrears_cents) : "R 0",
-              variant: arrearsCase ? "red" as const : "green" as const,
-            },
-            {
-              label: "Status",
-              value: arrearsCase ? `${arrearsCase.months_in_arrears}mo in arrears` : "Good standing",
-            },
-          ]}
+      <DetailSection>
+        <TenantContactSection entityId={tenantId} phones={phones ?? []} emails={emails ?? []} />
+      </DetailSection>
+      <DetailSection>
+        <TenantIdentitySection
+          idNumber={tenant.id_number ?? null}
+          idType={tenant.id_type ?? null}
+          dateOfBirth={tenant.date_of_birth ?? null}
+          nationality={tenant.nationality ?? null}
         />
-      </SectionCard>
+      </DetailSection>
+      {tenant.entity_type === "individual" && (
+        <DetailSection>
+          <TenantEmploymentSection
+            tenantId={tenantId}
+            employerName={tenant.employer_name ?? null}
+            employerPhone={tenant.employer_phone ?? null}
+            occupation={tenant.occupation ?? null}
+            employmentType={tenant.employment_type ?? null}
+            preferredContact={tenant.preferred_contact ?? null}
+          />
+        </DetailSection>
+      )}
+      {tenant.entity_type !== "individual" && (
+        <DetailSection>
+          <TenantJuristicSection
+            contactId={tenant.contact_id}
+            juristicType={(tenant as Record<string, unknown>).juristic_type as string | null ?? null}
+            turnoverUnder2m={(tenant as Record<string, unknown>).turnover_under_2m as boolean | null ?? null}
+            assetValueUnder2m={(tenant as Record<string, unknown>).asset_value_under_2m as boolean | null ?? null}
+            sizeBandsCapturedAt={(tenant as Record<string, unknown>).size_bands_captured_at as string | null ?? null}
+          />
+        </DetailSection>
+      )}
+      <DetailSection>
+        <TenantAddressSection entityId={tenantId} address={(addresses ?? [])[0] ?? null} />
+      </DetailSection>
 
-      {/* Maintenance requests */}
-      <SectionCard title="Active maintenance" count={(maintenanceRequests ?? []).length}>
-        {(maintenanceRequests ?? []).length === 0 ? (
-          <p className="text-sm text-muted-foreground">No active requests.</p>
-        ) : (
-          <div className="space-y-1">
-            {(maintenanceRequests ?? []).map((req) => {
-              const unit = req.units as unknown as MaintenanceUnit | null
-              return (
-                <RelationshipCard
-                  key={req.id}
-                  icon={<Wrench className="h-4 w-4 text-amber-600" />}
-                  iconBg="#FFFBEB"
-                  title={req.title}
-                  subtitle={unit ? `${unit.properties?.name ?? ""} — ${unit.unit_number}` : req.category ?? ""}
-                  rightBadge={{ text: req.status.replaceAll("_", " "), variant: getMaintenanceStatusVariant(req.status) }}
-                  href={`/maintenance/${req.id}`}
-                />
-              )
-            })}
-          </div>
-        )}
-      </SectionCard>
-    </ContactDetailLayout>
+      <DetailFullWidth>
+        <SectionCard title="Current lease">
+          {activeLease && leaseUnit ? (
+            <RelationshipCard
+              icon={<Home className="h-4 w-4 text-indigo-600" />}
+              iconBg="#EEF2FF"
+              title={`${leaseProperty?.name ?? ""} — ${leaseUnit.unit_number}`}
+              subtitle={getLeaseSubtitle(leaseUnit, activeLease.end_date)}
+              rightLabel={formatZAR(activeLease.rent_amount_cents ?? 0)}
+              rightSublabel="/month"
+              href={`/leases/${activeLease.id}`}
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground">No active lease.</p>
+          )}
+        </SectionCard>
+      </DetailFullWidth>
+
+      <DetailFullWidth>
+        <SectionCard title="Payment status" action={{ label: "View ledger & statement", href: "/tenants/" + tenantId + "/ledger" }}>
+          <StatGrid
+            stats={[
+              { label: "Monthly rent", value: activeLease ? formatZAR(activeLease.rent_amount_cents ?? 0) : "—" },
+              { label: "Deposit held", value: activeLease?.deposit_amount_cents ? formatZAR(activeLease.deposit_amount_cents) : "—" },
+              {
+                label: "Arrears",
+                value: arrearsCase ? formatZAR(arrearsCase.total_arrears_cents) : "R 0",
+                variant: arrearsCase ? "red" as const : "green" as const,
+              },
+              {
+                label: "Status",
+                value: arrearsCase ? `${arrearsCase.months_in_arrears}mo in arrears` : "Good standing",
+              },
+            ]}
+          />
+        </SectionCard>
+      </DetailFullWidth>
+
+      <DetailFullWidth>
+        <SectionCard title="Active maintenance" count={(maintenanceRequests ?? []).length}>
+          {(maintenanceRequests ?? []).length === 0 ? (
+            <p className="text-sm text-muted-foreground">No active requests.</p>
+          ) : (
+            <div className="space-y-1">
+              {(maintenanceRequests ?? []).map((req) => {
+                const unit = req.units as unknown as MaintenanceUnit | null
+                return (
+                  <RelationshipCard
+                    key={req.id}
+                    icon={<Wrench className="h-4 w-4 text-amber-600" />}
+                    iconBg="#FFFBEB"
+                    title={req.title}
+                    subtitle={unit ? `${unit.properties?.name ?? ""} — ${unit.unit_number}` : req.category ?? ""}
+                    rightBadge={{ text: req.status.replaceAll("_", " "), variant: getMaintenanceStatusVariant(req.status) }}
+                    href={`/maintenance/${req.id}`}
+                  />
+                )
+              })}
+            </div>
+          )}
+        </SectionCard>
+      </DetailFullWidth>
+    </DetailPageLayout>
       </div>{/* end desktop */}
     </div>
   )

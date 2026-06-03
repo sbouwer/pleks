@@ -14,7 +14,8 @@ import { Wrench } from "lucide-react"
 import { DetailPageLayout, DetailFullWidth } from "@/components/detail/DetailPageLayout"
 import { DetailSection } from "@/components/detail/DetailSection"
 import { DetailQuickbar } from "@/components/detail/DetailQuickbar"
-import type { DetailFact, DetailStatus, DetailAction } from "@/lib/detail/types"
+import { contactActions } from "@/lib/detail/contactActions"
+import type { DetailFact, DetailStatus } from "@/lib/detail/types"
 import { SectionCard } from "@/components/contacts/SectionCard"
 import { RelationshipCard } from "@/components/contacts/RelationshipCard"
 import { StatGrid } from "@/components/contacts/StatGrid"
@@ -235,14 +236,7 @@ export default async function ContractorDetailPage({ params }: Props) {
   if (contractorBanking?.vat_registered) facts.push({ k: "VAT", v: "Registered" })
 
   // Quick-action toolbar — the single action surface (Call/Email/WhatsApp, the old sidebar's live actions).
-  const waSource = primaryPhone?.replaceAll(/\D/g, "") ?? null
-  let waNumber: string | null = null
-  if (waSource) waNumber = waSource.startsWith("0") ? `27${waSource.slice(1)}` : waSource
-  const actions: DetailAction[] = [
-    ...(primaryPhone ? [{ key: "call", label: "Call", icon: "phone", href: `tel:${primaryPhone}` }] : []),
-    ...(primaryEmail ? [{ key: "email", label: "Email", icon: "email", href: `mailto:${primaryEmail}` }] : []),
-    ...(waNumber ? [{ key: "whatsapp", label: "WhatsApp", icon: "whatsapp", href: `https://wa.me/${waNumber}` }] : []),
-  ]
+  const actions = contactActions(primaryPhone, primaryEmail)
 
   return (
     <DetailPageLayout

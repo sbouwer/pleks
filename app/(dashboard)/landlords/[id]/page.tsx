@@ -10,9 +10,11 @@
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { Building2 } from "lucide-react"
-import { ContactDetailLayout } from "@/components/contacts/ContactDetailLayout"
-import { ContactSidebar } from "@/components/contacts/ContactSidebar"
-import { QuickActions } from "@/components/contacts/QuickActions"
+import { DetailPageLayout, DetailFullWidth } from "@/components/detail/DetailPageLayout"
+import { DetailSection } from "@/components/detail/DetailSection"
+import { DetailQuickbar } from "@/components/detail/DetailQuickbar"
+import { contactActions } from "@/lib/detail/contactActions"
+import type { DetailFact, DetailStatus, DetailAction } from "@/lib/detail/types"
 import { SectionCard } from "@/components/contacts/SectionCard"
 import { CompanyPeopleSection } from "@/components/contacts/CompanyPeopleSection"
 import { fetchCompanyPeople } from "@/lib/contacts/companyPeople"
@@ -90,6 +92,19 @@ async function fetchLandlordVerification(
   }, [])
 
   return { latestCipcCompany: null, linkedDeedsPulls }
+}
+
+function buildLandlordFacts(
+  entityType: string | null, propertyCount: number, totalMonthlyRent: number, occupancyPercent: number, totalArrears: number,
+): DetailFact[] {
+  const facts: DetailFact[] = [
+    { k: "Type", v: entityType === "organisation" ? "Company" : "Individual" },
+    { k: "Properties", v: String(propertyCount) },
+    { k: "Monthly rent", v: formatZAR(totalMonthlyRent), mono: true },
+    { k: "Occupancy", v: `${occupancyPercent}%` },
+  ]
+  if (totalArrears > 0) facts.push({ k: "Outstanding", v: formatZAR(totalArrears), mono: true })
+  return facts
 }
 
 export default async function LandlordDetailPage({ params }: Props) {
@@ -203,9 +218,6 @@ export default async function LandlordDetailPage({ params }: Props) {
   const occupiedUnits = (landlordLeases || []).length
   const occupancyPercent = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0
 
-  const initials = (displayName: string) =>
-    displayName.split(" ").map((w: string) => w[0]).filter(Boolean).join("").slice(0, 2).toUpperCase()
-
   const displayName =
     landlord.company_name ||
     `${landlord.first_name ?? ""} ${landlord.last_name ?? ""}`.trim() ||
@@ -246,133 +258,147 @@ export default async function LandlordDetailPage({ params }: Props) {
       )
     : { latestCipcCompany: null as LatestPull | null, linkedDeedsPulls: [] as LinkedDeedsPull[] }
 
+  const propertyCount = (properties || []).length
+
+  const status: DetailStatus = { kind: "occupied", label: "Active" }
+  const facts = buildLandlordFacts(landlord.entity_type, propertyCount, totalMonthlyRent, occupancyPercent, totalArrears)
+
+  // Quick-action toolbar — call/email/whatsapp + the welcome-pack generator (the live sidebar actions).
+  const actions: DetailAction[] = [
+    ...contactActions(primaryPhone, primaryEmail),
+    { key: "welcome", label: "Welcome pack", icon: "welcome", href: `/api/reports/welcome-pack?orgId=${membership.org_id}&landlordId=${id}` },
+  ]
+
   return (
-    <ContactDetailLayout
-      breadcrumb={{ label: "Landlords", href: "/landlords" }}
-      sidebar={
-        <ContactSidebar
-          avatar={{ initials: initials(displayName), bgColor: "#E1F5EE", textColor: "#0F6E56" }}
-          name={displayName}
-          subtitle={landlord.entity_type === "organisation" ? "Company" : "Individual landlord"}
-          badges={[
-            { text: `${(properties || []).length} ${(properties || []).length === 1 ? "property" : "properties"}`, variant: "blue" as const },
-            { text: "Active", variant: "green" as const },
-          ]}
-          quickActions={
-            <QuickActions
-              primaryPhone={primaryPhone}
-              primaryEmail={primaryEmail}
-              moreItems={[
-                { label: "Send statement" },
-                { label: "Generate Welcome Pack", href: `/api/reports/welcome-pack?orgId=${membership.org_id}&landlordId=${id}` },
-                { label: "Archive", variant: "danger" as const },
-              ]}
-            />
-          }
-        >
-          <LandlordIdentitySection
-            landlordId={id}
-            contactId={landlord.contact_id}
-            entityType={landlord.entity_type}
-            firstName={landlord.first_name}
-            lastName={landlord.last_name}
-            companyName={landlord.company_name}
-            tradingAs={landlord.trading_as}
-            registrationNumber={landlord.registration_number}
-            vatNumber={landlord.vat_number}
-            notes={landlord.notes}
-          />
-          <LandlordContactSection
-            entityId={id}
-            phones={phones ?? []}
-            emails={emails ?? []}
-          />
-          <LandlordAddressSection
-            entityId={id}
-            address={(addresses ?? [])[0] ?? null}
-          />
-          <div className="border-t pt-3 mt-3">
-            <BankAccountsSection
-              entityType="landlords"
-              entityId={id}
-              contactId={landlord.contact_id}
-              accounts={landlordBankAccounts ?? []}
-            />
-          </div>
-          <LandlordBankingSection
-            landlordId={id}
-            contactId={landlord.contact_id}
-            taxNumber={landlord.tax_number}
-            paymentMethod={landlord.payment_method}
-          />
-          <LandlordPortalSection
-            landlordId={id}
-            tier={orgTier}
-            portalStatus={(landlordPortal?.portal_status ?? "none") as "none" | "invited" | "active" | "suspended"}
-            portalInvitedAt={landlordPortal?.portal_invited_at ?? null}
-            landlordEmail={primaryEmail}
-          />
-        </ContactSidebar>
-      }
+    <DetailPageLayout
+      category="Landlords"
+      backHref="/landlords"
+      title={displayName}
+      status={status}
+      facts={facts}
+      actions={<DetailQuickbar actions={actions} />}
     >
       {forkState?.forked && !forkState.dismissedLandlord && forkState.forkedLandlordId === id && (
-        <IdentityForkBanner surface="landlord" />
+        <DetailFullWidth><IdentityForkBanner surface="landlord" /></DetailFullWidth>
       )}
-      <WelcomePackBanner orgId={membership.org_id} landlordId={id} landlordName={displayName} />
-      {landlord.entity_type === "organisation" && <CompanyPeopleSection people={companyPeople} companyContactId={landlord.contact_id} fica />}
-      <SectionCard title="Properties" count={(properties || []).length} action={{ label: "View all", href: "/properties" }}>
-        {(properties || []).length === 0 ? (
-          <p className="text-sm text-muted-foreground">No properties linked.</p>
-        ) : (
-          <div className="space-y-1">
-            {(properties || []).map((p) => {
-              const addressParts = [p.address_line1, p.suburb, p.city].filter(Boolean)
-              return (
-                <RelationshipCard
-                  key={p.id}
-                  icon={<Building2 className="h-4 w-4 text-blue-600" />}
-                  iconBg="#E6F1FB"
-                  title={p.name}
-                  subtitle={addressParts.join(", ") || `${p.unit_count ?? 0} unit${p.unit_count === 1 ? "" : "s"}`}
-                  rightLabel={rentByProperty[p.id] ? formatZAR(rentByProperty[p.id]) : undefined}
-                  rightSublabel={rentByProperty[p.id] ? "/month" : undefined}
-                  href={`/properties/${p.id}`}
-                />
-              )
-            })}
-          </div>
-        )}
-      </SectionCard>
+      <DetailFullWidth>
+        <WelcomePackBanner orgId={membership.org_id} landlordId={id} landlordName={displayName} />
+      </DetailFullWidth>
 
-      <SectionCard title="Financial summary" action={{ label: "View ledger", href: `/landlords/${id}/ledger` }}>
-        <StatGrid stats={[
-          { label: "Monthly rent", value: formatZAR(totalMonthlyRent) },
-          { label: "Total units", value: String(totalUnits) },
-          { label: "Occupancy", value: `${occupancyPercent}%` },
-          { label: "Outstanding", value: formatZAR(totalArrears), variant: totalArrears > 0 ? "red" as const : "green" as const },
-        ]} />
-      </SectionCard>
+      {landlord.entity_type === "organisation" && (
+        <DetailFullWidth>
+          <CompanyPeopleSection people={companyPeople} companyContactId={landlord.contact_id} fica />
+        </DetailFullWidth>
+      )}
 
-      <LandlordVerificationCard
-        landlordContactId={landlord.contact_id}
-        entityType={landlord.entity_type}
-        registrationNumber={landlord.registration_number ?? null}
-        companyName={landlord.company_name ?? null}
-        landlordDisplayName={displayName}
-        canAccessIntelligence={canAccessIntelligence}
-        latestCipcCompany={latestCipcCompany}
-        linkedDeedsPulls={linkedDeedsPulls}
-      />
-
-      <SectionCard title="Owner statements" count={recentStatements.length}>
-        <ActivityTimeline
-          items={recentStatements.map((s) => ({
-            dotColor: s.owner_payment_status === "paid" ? "#1D9E75" : "#D85A30",
-            title: `${s.period_month} — ${formatZAR(s.net_to_owner_cents)} ${s.owner_payment_status}`,
-            time: s.owner_payment_date ? new Date(s.owner_payment_date).toLocaleDateString("en-ZA") : "Pending",
-          }))}
+      {/* Former sidebar sections — now grid body blocks. */}
+      <DetailSection>
+        <LandlordIdentitySection
+          landlordId={id}
+          contactId={landlord.contact_id}
+          entityType={landlord.entity_type}
+          firstName={landlord.first_name}
+          lastName={landlord.last_name}
+          companyName={landlord.company_name}
+          tradingAs={landlord.trading_as}
+          registrationNumber={landlord.registration_number}
+          vatNumber={landlord.vat_number}
+          notes={landlord.notes}
         />
-      </SectionCard>
-    </ContactDetailLayout>
+      </DetailSection>
+      <DetailSection>
+        <LandlordContactSection entityId={id} phones={phones ?? []} emails={emails ?? []} />
+      </DetailSection>
+      <DetailSection>
+        <LandlordAddressSection entityId={id} address={(addresses ?? [])[0] ?? null} />
+      </DetailSection>
+      <DetailSection>
+        <BankAccountsSection
+          entityType="landlords"
+          entityId={id}
+          contactId={landlord.contact_id}
+          accounts={landlordBankAccounts ?? []}
+        />
+      </DetailSection>
+      <DetailSection>
+        <LandlordBankingSection
+          landlordId={id}
+          contactId={landlord.contact_id}
+          taxNumber={landlord.tax_number}
+          paymentMethod={landlord.payment_method}
+        />
+      </DetailSection>
+      <DetailSection>
+        <LandlordPortalSection
+          landlordId={id}
+          tier={orgTier}
+          portalStatus={(landlordPortal?.portal_status ?? "none") as "none" | "invited" | "active" | "suspended"}
+          portalInvitedAt={landlordPortal?.portal_invited_at ?? null}
+          landlordEmail={primaryEmail}
+        />
+      </DetailSection>
+
+      <DetailFullWidth>
+        <SectionCard title="Properties" count={propertyCount} action={{ label: "View all", href: "/properties" }}>
+          {propertyCount === 0 ? (
+            <p className="text-sm text-muted-foreground">No properties linked.</p>
+          ) : (
+            <div className="space-y-1">
+              {(properties || []).map((p) => {
+                const addressParts = [p.address_line1, p.suburb, p.city].filter(Boolean)
+                return (
+                  <RelationshipCard
+                    key={p.id}
+                    icon={<Building2 className="h-4 w-4 text-blue-600" />}
+                    iconBg="#E6F1FB"
+                    title={p.name}
+                    subtitle={addressParts.join(", ") || `${p.unit_count ?? 0} unit${p.unit_count === 1 ? "" : "s"}`}
+                    rightLabel={rentByProperty[p.id] ? formatZAR(rentByProperty[p.id]) : undefined}
+                    rightSublabel={rentByProperty[p.id] ? "/month" : undefined}
+                    href={`/properties/${p.id}`}
+                  />
+                )
+              })}
+            </div>
+          )}
+        </SectionCard>
+      </DetailFullWidth>
+
+      <DetailFullWidth>
+        <SectionCard title="Financial summary" action={{ label: "View ledger", href: `/landlords/${id}/ledger` }}>
+          <StatGrid stats={[
+            { label: "Monthly rent", value: formatZAR(totalMonthlyRent) },
+            { label: "Total units", value: String(totalUnits) },
+            { label: "Occupancy", value: `${occupancyPercent}%` },
+            { label: "Outstanding", value: formatZAR(totalArrears), variant: totalArrears > 0 ? "red" as const : "green" as const },
+          ]} />
+        </SectionCard>
+      </DetailFullWidth>
+
+      <DetailFullWidth>
+        <LandlordVerificationCard
+          landlordContactId={landlord.contact_id}
+          entityType={landlord.entity_type}
+          registrationNumber={landlord.registration_number ?? null}
+          companyName={landlord.company_name ?? null}
+          landlordDisplayName={displayName}
+          canAccessIntelligence={canAccessIntelligence}
+          latestCipcCompany={latestCipcCompany}
+          linkedDeedsPulls={linkedDeedsPulls}
+        />
+      </DetailFullWidth>
+
+      <DetailFullWidth>
+        <SectionCard title="Owner statements" count={recentStatements.length}>
+          <ActivityTimeline
+            items={recentStatements.map((s) => ({
+              dotColor: s.owner_payment_status === "paid" ? "#1D9E75" : "#D85A30",
+              title: `${s.period_month} — ${formatZAR(s.net_to_owner_cents)} ${s.owner_payment_status}`,
+              time: s.owner_payment_date ? new Date(s.owner_payment_date).toLocaleDateString("en-ZA") : "Pending",
+            }))}
+          />
+        </SectionCard>
+      </DetailFullWidth>
+    </DetailPageLayout>
   )
 }

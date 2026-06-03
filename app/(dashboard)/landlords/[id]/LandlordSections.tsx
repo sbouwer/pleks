@@ -68,7 +68,7 @@ export function LandlordIdentitySection({
   const displayName = companyName || fullName || null
 
   return (
-    <div className="border-t pt-3 mt-3 first:border-t-0 first:pt-0 first:mt-0">
+    <div>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Identity</span>
         {!editing && (
@@ -121,7 +121,7 @@ export function LandlordContactSection({
   const extraEmails = emails.length > 1 ? emails.length - 1 : 0
 
   return (
-    <div className="border-t pt-3 mt-3 first:border-t-0 first:pt-0 first:mt-0">
+    <div>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Contact</span>
         {!editing && (
@@ -189,7 +189,7 @@ export function LandlordAddressSection({
     : []
 
   return (
-    <div className="border-t pt-3 mt-3 first:border-t-0 first:pt-0 first:mt-0">
+    <div>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Address</span>
         {!editing && (
@@ -236,7 +236,7 @@ export function LandlordBankingSection({
   const [editing, setEditing] = useState(false)
 
   return (
-    <div className="border-t pt-3 mt-3 first:border-t-0 first:pt-0 first:mt-0">
+    <div>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Payment details</span>
         {!editing && (

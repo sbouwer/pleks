@@ -65,7 +65,7 @@ export function TenantContactSection({ entityId, phones, emails }: Readonly<Tena
   const primaryEmail = emails.find((e) => e.is_primary) ?? emails[0] ?? null
 
   return (
-    <div className="border-t pt-3 mt-3">
+    <div>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Contact</span>
         {!editing && <EditButton mode="label" label="Edit" onClick={() => setEditing(true)} />}
@@ -130,7 +130,7 @@ export function TenantIdentitySection({ idNumber, idType, dateOfBirth, nationali
     : null
 
   return (
-    <div className="border-t pt-3 mt-3">
+    <div>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Identity</span>
       </div>
@@ -174,7 +174,7 @@ export function TenantEmploymentSection({
   const [editing, setEditing] = useState(false)
 
   return (
-    <div className="border-t pt-3 mt-3">
+    <div>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Employment</span>
         {!editing && <EditButton mode="label" label="Edit" onClick={() => setEditing(true)} />}
@@ -229,7 +229,7 @@ export function TenantAddressSection({ entityId, address }: Readonly<TenantAddre
   ].filter(Boolean).join(", ")
 
   return (
-    <div className="border-t pt-3 mt-3">
+    <div>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Address</span>
         {!editing && <EditButton mode="label" label="Edit" onClick={() => setEditing(true)} />}
@@ -328,7 +328,7 @@ function JuristicView({ juristicType, turnoverUnder2m, assetValueUnder2m, sizeBa
   }, [sizeBandsCapturedAt])
 
   return (
-    <div className="border-t pt-3 mt-3">
+    <div>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">CPA classification</span>
         <EditButton mode="label" label="Edit" onClick={onEdit} />
@@ -386,7 +386,7 @@ function JuristicEdit({ contactId, juristicType: init, turnoverUnder2m: initT, a
   }
 
   return (
-    <div className="border-t pt-3 mt-3">
+    <div>
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">CPA classification</span>
       </div>
