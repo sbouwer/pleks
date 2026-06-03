@@ -1,19 +1,19 @@
 /**
- * app/(dashboard)/leases/new/page.tsx — Create-lease page: path fork between generated template and uploaded doc
+ * app/(dashboard)/leases/new/page.tsx — opens the unified lease-creation modal (LeaseWizardModal)
  *
  * Route:  /leases/new
  * Auth:   requireAdminAuth via getServerOrgMembership (redirects to /login if missing)
  * Data:   pre-fills property/unit/tenant from query params; owner tier auto-prefills from single property
- * Notes:  LeaseDisclaimerGate guards the form until the disclaimer has been accepted
+ * Notes:  ADDENDUM_LEASE_CREATION_MODAL Phase 1 — the page resolves prefill (incl. renewal) + disclaimer
+ *         acceptance and opens LeaseWizardModal, returning to /leases on close (mirrors /properties/new).
+ *         The disclaimer now gates the "Generate with Pleks" branch inside the modal only (D-10), not the
+ *         whole flow.
  */
-import { Suspense } from "react"
 import { createServiceClient } from "@/lib/supabase/server"
 import { getServerOrgMembership } from "@/lib/auth/server"
 import { redirect } from "next/navigation"
-import { LeasePathFork } from "@/components/leases/LeasePathFork"
-import { LeaseDisclaimerGate } from "@/components/leases/LeaseDisclaimerGate"
 import { hasAcceptedLeaseDisclaimer } from "@/lib/leases/disclaimer"
-import { BackLink } from "@/components/ui/BackLink"
+import { NewLeaseRoute } from "./NewLeaseRoute"
 
 interface Props {
   searchParams: Promise<Record<string, string>>
@@ -104,38 +104,57 @@ function buildUnitLabel(unitData: { unit_number: string | null; bedrooms: number
   ].filter(Boolean).join(" — ")
 }
 
+interface ResolvedIds {
+  propertyId: string | null
+  unitId: string | null
+  tenantId: string | null
+  resolvedTenantName: string | null
+  resolvedCoTenants: { id: string; name: string }[]
+}
+
+/** Resolve the property/unit/tenant IDs to prefill, applying the owner-tier single-property auto-fill. */
+async function resolveIds(
+  supabase: SupabaseService,
+  orgId: string,
+  tier: string | null,
+  sp: Record<string, string>,
+): Promise<ResolvedIds> {
+  const base: ResolvedIds = {
+    propertyId: sp.property ?? null,
+    unitId: sp.unit ?? null,
+    tenantId: sp.tenant ?? null,
+    resolvedTenantName: null,
+    resolvedCoTenants: [],
+  }
+  if (base.propertyId || tier !== "owner") return base
+
+  const prefill = await prefillOwnerTier(supabase, orgId, base.tenantId)
+  if (!prefill) return base
+  return {
+    propertyId: prefill.propertyId,
+    unitId: prefill.unitId || base.unitId,
+    tenantId: prefill.tenantId ?? base.tenantId,
+    resolvedTenantName: prefill.resolvedTenantName,
+    resolvedCoTenants: prefill.resolvedCoTenants,
+  }
+}
+
 export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
   const membership = await getServerOrgMembership()
   if (!membership) redirect("/login")
 
   const accepted = await hasAcceptedLeaseDisclaimer()
-
   const { org_id: orgId } = membership
   const supabase = await createServiceClient()
 
   const sp = await searchParams
   const renewalOf = sp.renewal_of ?? null
-
-  let propertyId = sp.property ?? null
-  let unitId = sp.unit ?? null
-  let tenantId = sp.tenant ?? null
-  let resolvedTenantName: string | null = null
-  let resolvedCoTenants: { id: string; name: string }[] = []
   const coTenantIds = sp.co_tenants ? sp.co_tenants.split(",").filter(Boolean) : []
 
-  // Owner tier: auto-prefill the single property + unit (and prospective tenant)
-  if (!propertyId && membership.tier === "owner") {
-    const prefill = await prefillOwnerTier(supabase, orgId, tenantId)
-    if (prefill) {
-      propertyId = prefill.propertyId
-      if (prefill.unitId) unitId = prefill.unitId
-      if (prefill.tenantId) tenantId = prefill.tenantId
-      resolvedTenantName = prefill.resolvedTenantName
-      resolvedCoTenants = prefill.resolvedCoTenants
-    }
-  }
+  const ids = await resolveIds(supabase, orgId, membership.tier, sp)
+  const { propertyId, unitId, tenantId, resolvedTenantName, resolvedCoTenants } = ids
 
-  // Fetch display names for remaining pre-filled IDs
+  // Fetch display names for the resolved IDs.
   const [propRes, unitRes, tenantRes, ...coTenantResults] = await Promise.all([
     propertyId
       ? supabase.from("properties").select("name").eq("id", propertyId).eq("org_id", orgId).single()
@@ -152,33 +171,24 @@ export default async function NewLeasePage({ searchParams }: Readonly<Props>) {
     ),
   ])
 
-  const propName = propRes.data?.name ?? null
   const unitData = unitRes.data as { unit_number: string | null; bedrooms: number | null; bathrooms: number | null } | null
-  const unitLabel = buildUnitLabel(unitData)
-
-  const finalTenantName = resolvedTenantName ?? displayName(tenantRes.data as TenantRow)
   const finalCoTenants = resolvedCoTenants.length > 0
     ? resolvedCoTenants
     : coTenantResults.map((r) => ({ id: r.id, name: displayName(r.data) ?? r.id }))
 
   return (
-    <LeaseDisclaimerGate initialAccepted={accepted}>
-      <div>
-        <BackLink href="/leases" label="Leases" />
-        <h1 className="font-heading text-2xl mb-6">Create lease</h1>
-        <Suspense fallback={<div className="text-sm text-muted-foreground">Loading…</div>}>
-          <LeasePathFork
-            initialPropertyId={propertyId}
-            initialPropertyName={propName}
-            initialUnitId={unitId}
-            initialUnitLabel={unitLabel}
-            initialTenantId={tenantId}
-            initialTenantName={finalTenantName}
-            initialCoTenants={finalCoTenants}
-            renewalOf={renewalOf}
-          />
-        </Suspense>
-      </div>
-    </LeaseDisclaimerGate>
+    <NewLeaseRoute
+      prefill={{
+        propertyId,
+        propertyName: propRes.data?.name ?? null,
+        unitId,
+        unitLabel: buildUnitLabel(unitData),
+        tenantId,
+        tenantName: resolvedTenantName ?? displayName(tenantRes.data as TenantRow),
+        coTenants: finalCoTenants,
+      }}
+      renewalOf={renewalOf}
+      disclaimerAccepted={accepted}
+    />
   )
 }

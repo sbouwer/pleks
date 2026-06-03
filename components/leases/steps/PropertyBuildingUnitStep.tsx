@@ -1,24 +1,26 @@
 "use client"
 
 /**
- * components/leases/steps/PropertyUnitStep.tsx — FILL: one-line purpose
+ * components/leases/steps/PropertyBuildingUnitStep.tsx — step 1 of the lease modal: property → building → unit
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   client-only; reads org-scoped properties/buildings/units via the anon client (RLS)
+ * Data:   properties, buildings (units.building_id), units (org-scoped); prefills the rule-set from the unit
+ * Notes:  Content-only (footer-driven nav). Adds the building tier (ADDENDUM_LEASE_CREATION_MODAL §1/D-5):
+ *         auto-selects + collapses when a property has exactly one building; shows a building combobox +
+ *         an "Erf → Building → Unit" wayfinding crumb when several. Units filter by the selected building.
+ *         Registers a validate-then-commit submit handler the modal footer's Continue invokes.
  */
 import { useState, useEffect, useRef } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useOrg } from "@/hooks/useOrg"
-import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent } from "@/components/ui/card"
-import { CheckCircle2, ChevronDown, Search } from "lucide-react"
+import { CheckCircle2, ChevronDown, ChevronRight, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { WizardData, LocalCharge } from "../LeaseWizard"
+import { useLeaseWizard } from "../LeaseWizardContext"
+import type { LocalCharge } from "../wizardData"
+import type { StepHandle } from "../stepHandle"
 
 interface Property {
   id: string
@@ -31,21 +33,23 @@ interface Property {
   managing_scheme_id: string | null
 }
 
+interface Building {
+  id: string
+  name: string
+  building_code: string | null
+}
+
 interface Unit {
   id: string
   unit_number: string | null
   status: string
+  building_id: string | null
   asking_rent_cents: number | null
   bedrooms: number | null
   bathrooms: number | null
   parking_bays: number | null
   prospective_tenant_id?: string | null
   prospective_co_tenant_ids?: string[]
-}
-
-interface Props {
-  data: WizardData
-  onNext: (updates: Partial<WizardData>) => void
 }
 
 function unitLabel(u: Unit) {
@@ -58,17 +62,8 @@ function unitLabel(u: Unit) {
 
 /** Inline combobox: clicking the button turns it into a search input; list renders below. */
 function InlineCombobox<T extends { id: string }>({
-  id,
-  value,
-  placeholder,
-  displayValue,
-  items,
-  getSearchText,
-  renderItem,
-  onSelect,
-  loading,
+  value, placeholder, displayValue, items, getSearchText, renderItem, onSelect, loading,
 }: Readonly<{
-  id?: string
   value: string
   placeholder: string
   displayValue: string
@@ -89,26 +84,21 @@ function InlineCombobox<T extends { id: string }>({
     setTimeout(() => inputRef.current?.focus(), 0)
   }
 
-  // Close on outside click
   useEffect(() => {
     if (!open) return
     function handleClick(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false)
     }
     document.addEventListener("mousedown", handleClick)
     return () => document.removeEventListener("mousedown", handleClick)
   }, [open])
 
-  const filtered = items.filter((item) =>
-    getSearchText(item).toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = items.filter((item) => getSearchText(item).toLowerCase().includes(search.toLowerCase()))
 
   if (loading) return <div className="h-9 rounded-lg bg-muted animate-pulse" />
 
   return (
-    <div ref={containerRef} className="relative" id={id}>
+    <div ref={containerRef} className="relative">
       {open ? (
         <div className="flex items-center gap-2 w-full rounded-lg border border-brand bg-background px-3 py-2 ring-1 ring-brand">
           <Search className="size-4 text-muted-foreground flex-shrink-0" />
@@ -116,7 +106,7 @@ function InlineCombobox<T extends { id: string }>({
             ref={inputRef}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={`Search…`}
+            placeholder="Search…"
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             onKeyDown={(e) => e.key === "Escape" && setOpen(false)}
           />
@@ -159,11 +149,25 @@ function InlineCombobox<T extends { id: string }>({
   )
 }
 
-export function PropertyUnitStep({ data, onNext }: Readonly<Props>) {
+function rowToName(row: { first_name?: string | null; last_name?: string | null; company_name?: string | null; entity_type?: string | null } | null) {
+  if (!row) return ""
+  return row.entity_type === "juristic"
+    ? (row.company_name ?? "Company")
+    : [row.first_name, row.last_name].filter(Boolean).join(" ")
+}
+
+interface Props {
+  register: (handle: StepHandle) => void
+}
+
+export function PropertyBuildingUnitStep({ register }: Readonly<Props>) {
+  const { data, patch } = useLeaseWizard()
   const { orgId } = useOrg()
   const [properties, setProperties] = useState<Property[]>([])
+  const [buildings, setBuildings] = useState<Building[]>([])
   const [units, setUnits] = useState<Unit[]>([])
   const [propertyId, setPropertyId] = useState(data.propertyId)
+  const [buildingId, setBuildingId] = useState(data.buildingId)
   const [unitId, setUnitId] = useState(data.unitId)
   const [leaseType, setLeaseType] = useState<"residential" | "commercial">(data.leaseType)
   const [loadingProps, setLoadingProps] = useState(true)
@@ -180,49 +184,101 @@ export function PropertyUnitStep({ data, onNext }: Readonly<Props>) {
       .eq("org_id", orgId)
       .is("deleted_at", null)
       .order("name")
-      .then(({ data: rows }) => {
+      .then(({ data: rows, error: err }) => {
+        if (err) console.error("PropertyBuildingUnitStep: load properties failed:", err.message)
         setProperties((rows as Property[]) ?? [])
         setLoadingProps(false)
       })
   }, [orgId])
 
+  // Load buildings + units for the selected property; auto-select a single building.
   useEffect(() => {
-    if (!propertyId) return
+    if (!propertyId) { setBuildings([]); setUnits([]); return }
     let cancelled = false
     const supabase = createClient()
-    async function fetchUnits() {
+    async function fetchPropertyChildren() {
       setLoadingUnits(true)
-      const { data: rows } = await supabase
-        .from("units")
-        .select("id, unit_number, status, asking_rent_cents, bedrooms, bathrooms, parking_bays, prospective_tenant_id, prospective_co_tenant_ids")
-        .eq("property_id", propertyId)
-        .is("deleted_at", null)
-        .eq("is_archived", false)
-        .order("unit_number")
-      if (!cancelled) {
-        setUnits((rows as Unit[]) ?? [])
-        setLoadingUnits(false)
-      }
+      const [buildingsRes, unitsRes] = await Promise.all([
+        supabase
+          .from("buildings")
+          .select("id, name, building_code")
+          .eq("property_id", propertyId)
+          .is("deleted_at", null)
+          .order("name"),
+        supabase
+          .from("units")
+          .select("id, unit_number, status, building_id, asking_rent_cents, bedrooms, bathrooms, parking_bays, prospective_tenant_id, prospective_co_tenant_ids")
+          .eq("property_id", propertyId)
+          .is("deleted_at", null)
+          .eq("is_archived", false)
+          .order("unit_number"),
+      ])
+      if (cancelled) return
+      if (buildingsRes.error) console.error("PropertyBuildingUnitStep: load buildings failed:", buildingsRes.error.message)
+      if (unitsRes.error) console.error("PropertyBuildingUnitStep: load units failed:", unitsRes.error.message)
+      const bRows = (buildingsRes.data as Building[]) ?? []
+      setBuildings(bRows)
+      setUnits((unitsRes.data as Unit[]) ?? [])
+      // Auto-select + collapse a single building.
+      if (bRows.length === 1) setBuildingId((prev) => prev || bRows[0].id)
+      setLoadingUnits(false)
     }
-    void fetchUnits()
+    void fetchPropertyChildren()
     return () => { cancelled = true }
   }, [propertyId])
 
   function handlePropertyChange(p: Property) {
     setPropertyId(p.id)
+    setBuildingId("")
     setUnitId("")
     setIsPreFilled(false)
     setUnits([])
+    setBuildings([])
     setLeaseType(p.type === "commercial" ? "commercial" : "residential")
   }
 
-  async function handleNext() {
-    if (!propertyId) { setError("Please select a property"); return }
-    if (!unitId) { setError("Please select a unit"); return }
+  function handleBuildingChange(b: Building) {
+    setBuildingId(b.id)
+    setUnitId("")
+  }
+
+  const multiBuilding = buildings.length > 1
+  // When several buildings exist, only show units once a building is chosen; otherwise show all units.
+  const visibleUnits = multiBuilding && buildingId
+    ? units.filter((u) => u.building_id === buildingId)
+    : units
+
+  async function resolveProspectiveTenants(unit: Unit | undefined) {
+    let tenantId = data.tenantId
+    let tenantName = data.tenantName
+    let coTenants = data.coTenants
+    const prospTenantId = unit?.prospective_tenant_id
+    const prospCoIds = unit?.prospective_co_tenant_ids ?? []
+    if (!tenantId && prospTenantId) {
+      const supabase = createClient()
+      const [primaryRes, ...coResults] = await Promise.all([
+        supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", prospTenantId).single(),
+        ...prospCoIds.map((id) =>
+          supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", id).single()
+            .then((r) => ({ id, row: r.data }))
+        ),
+      ])
+      tenantId = prospTenantId
+      tenantName = rowToName(primaryRes.data)
+      coTenants = (coResults as { id: string; row: Parameters<typeof rowToName>[0] }[]).map((r) => ({ id: r.id, name: rowToName(r.row) }))
+    }
+    return { tenantId, tenantName, coTenants }
+  }
+
+  async function submit(): Promise<boolean> {
+    if (!propertyId) { setError("Please select a property"); return false }
+    if (multiBuilding && !buildingId) { setError("Please select a building"); return false }
+    if (!unitId) { setError("Please select a unit"); return false }
     setError("")
 
     const prop = properties.find((p) => p.id === propertyId)
     const unit = units.find((u) => u.id === unitId)
+    const building = buildings.find((b) => b.id === buildingId)
     const selectedUnit = unit ?? { unit_number: null, status: "", asking_rent_cents: null, bedrooms: null, bathrooms: null, id: unitId }
 
     let initialCharges = data.charges
@@ -240,41 +296,13 @@ export function PropertyUnitStep({ data, onNext }: Readonly<Props>) {
       initialCharges = [bcCharge]
     }
 
-    // Look up prospective tenants if set on the unit (and not already pre-filled from URL)
-    let tenantId = data.tenantId
-    let tenantName = data.tenantName
-    let coTenants = data.coTenants
+    const { tenantId, tenantName, coTenants } = await resolveProspectiveTenants(unit)
 
-    const prospTenantId = unit?.prospective_tenant_id
-    const prospCoIds = unit?.prospective_co_tenant_ids ?? []
-
-    if (!tenantId && prospTenantId) {
-      const supabase = createClient()
-
-      function rowToName(row: { first_name?: string | null; last_name?: string | null; company_name?: string | null; entity_type?: string | null } | null) {
-        if (!row) return ""
-        return row.entity_type === "juristic"
-          ? (row.company_name ?? "Company")
-          : [row.first_name, row.last_name].filter(Boolean).join(" ")
-      }
-
-      const [primaryRes, ...coResults] = await Promise.all([
-        supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", prospTenantId).single(),
-        ...prospCoIds.map((id) =>
-          supabase.from("tenant_view").select("first_name, last_name, company_name, entity_type").eq("id", id).single()
-            .then((r) => ({ id, row: r.data }))
-        ),
-      ])
-
-      tenantId = prospTenantId
-      tenantName = rowToName(primaryRes.data)
-      coTenants = (coResults as { id: string; row: Parameters<typeof rowToName>[0] }[])
-        .map((r) => ({ id: r.id, name: rowToName(r.row) }))
-    }
-
-    onNext({
+    patch({
       propertyId,
       propertyName: prop?.name ?? "",
+      buildingId: building?.id ?? "",
+      buildingName: building?.name ?? "",
       unitId,
       unitLabel: unit ? unitLabel(unit) : "",
       leaseType,
@@ -288,10 +316,20 @@ export function PropertyUnitStep({ data, onNext }: Readonly<Props>) {
       tenantName,
       coTenants,
     })
+    return true
   }
 
+  register({ submit })
+
   const selectedProp = properties.find((p) => p.id === propertyId)
+  const selectedBuilding = buildings.find((b) => b.id === buildingId)
   const selectedUnit = units.find((u) => u.id === unitId)
+  let buildingDisplay = ""
+  if (selectedBuilding) {
+    buildingDisplay = selectedBuilding.building_code
+      ? `${selectedBuilding.name} (${selectedBuilding.building_code})`
+      : selectedBuilding.name
+  }
 
   return (
     <div className="space-y-6">
@@ -339,14 +377,35 @@ export function PropertyUnitStep({ data, onNext }: Readonly<Props>) {
             />
           </div>
 
-          {propertyId && (
+          {/* Building tier — only shown for multi-building estates (auto-selected + hidden when one). */}
+          {propertyId && multiBuilding && (
+            <div className="space-y-2">
+              <Label>Building *</Label>
+              <InlineCombobox<Building>
+                value={buildingId}
+                placeholder="Select a building…"
+                displayValue={buildingDisplay}
+                items={buildings}
+                getSearchText={(b) => `${b.name} ${b.building_code ?? ""}`}
+                onSelect={handleBuildingChange}
+                renderItem={(b) => (
+                  <span>
+                    <span className="font-medium">{b.name}</span>
+                    {b.building_code && <span className="text-muted-foreground ml-1 text-xs">{b.building_code}</span>}
+                  </span>
+                )}
+              />
+            </div>
+          )}
+
+          {propertyId && (!multiBuilding || buildingId) && (
             <div className="space-y-2">
               <Label>Unit *</Label>
               <InlineCombobox<Unit>
                 value={unitId}
                 placeholder="Select a unit…"
                 displayValue={selectedUnit ? unitLabel(selectedUnit) : ""}
-                items={units}
+                items={visibleUnits}
                 loading={loadingUnits}
                 getSearchText={(u) => `${u.unit_number ?? ""} ${u.bedrooms ?? ""} ${u.status}`}
                 onSelect={(u) => setUnitId(u.id)}
@@ -382,11 +441,18 @@ export function PropertyUnitStep({ data, onNext }: Readonly<Props>) {
         </div>
       )}
 
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {/* Wayfinding crumb — only meaningful on multi-building estates (D-5). */}
+      {multiBuilding && (selectedProp || selectedBuilding || selectedUnit) && (
+        <div className="flex items-center flex-wrap gap-1 text-xs text-muted-foreground">
+          <span className={cn(selectedProp && "text-foreground font-medium")}>{selectedProp?.name ?? "Erf"}</span>
+          <ChevronRight className="size-3" />
+          <span className={cn(selectedBuilding && "text-foreground font-medium")}>{selectedBuilding?.name ?? "Building"}</span>
+          <ChevronRight className="size-3" />
+          <span className={cn(selectedUnit && "text-foreground font-medium")}>{selectedUnit ? unitLabel(selectedUnit) : "Unit"}</span>
+        </div>
+      )}
 
-      <div className="flex justify-end">
-        <Button onClick={handleNext}>Continue →</Button>
-      </div>
+      {error && <p className="text-sm text-danger">{error}</p>}
     </div>
   )
 }

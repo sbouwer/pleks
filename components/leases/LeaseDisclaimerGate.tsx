@@ -1,13 +1,13 @@
 "use client"
 
 /**
- * components/leases/LeaseDisclaimerGate.tsx — FILL: one-line purpose
+ * components/leases/LeaseDisclaimerGate.tsx — scroll-to-accept liability disclaimer for Pleks-generated leases
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   client-only; acceptance persisted via recordLeaseDisclaimerAcceptance (agent write)
+ * Data:   acceptance status from /api/consent/lease-disclaimer (or the server-passed initialAccepted)
+ * Notes:  Blurs children behind a full-screen modal until the user scrolls to the bottom and accepts. In the
+ *         lease modal it gates the "Generate with Pleks" branch only (ADDENDUM_LEASE_CREATION_MODAL D-10);
+ *         onAccepted lets the host react (e.g. unblock the footer's Create action).
  */
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
@@ -45,9 +45,11 @@ interface Props {
   children: React.ReactNode
   /** Pass from server component to avoid client-side fetch. Omit to let gate check itself. */
   initialAccepted?: boolean
+  /** Called once the user accepts (so a host like the lease modal can unblock its own action). */
+  onAccepted?: () => void
 }
 
-export function LeaseDisclaimerGate({ children, initialAccepted }: Props) {
+export function LeaseDisclaimerGate({ children, initialAccepted, onAccepted }: Readonly<Props>) {
   const [status, setStatus] = useState<"loading" | "accepted" | "pending">(() => {
     if (initialAccepted === true) return "accepted"
     if (initialAccepted === false) return "pending"
@@ -84,6 +86,7 @@ export function LeaseDisclaimerGate({ children, initialAccepted }: Props) {
     }
     setStatus("accepted")
     setAccepting(false)
+    onAccepted?.()
   }
 
   if (status === "accepted") return <>{children}</>

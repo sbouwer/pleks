@@ -1,0 +1,162 @@
+/**
+ * components/leases/wizardData.ts — shared lease-wizard data shape + defaults
+ *
+ * Auth:   client-only data shape; the save path (createLease / createUploadedLease) enforces requireAgentWriteAccess
+ * Data:   in-memory WizardData held by LeaseWizardContext; prefilled from the unit/property/tenant fetch
+ * Notes:  Extracted from the old LeaseWizard.tsx so the unified LeaseWizardModal + its content-only steps
+ *         and the API conflict-checker can share the types without importing a React component. Only the
+ *         TYPE/value exports moved here — the LeaseWizard component is gone (absorbed into LeaseWizardModal).
+ */
+
+export interface LocalCharge {
+  id: string
+  description: string
+  charge_type: string
+  amount_cents: number
+  start_date: string
+  end_date: string | null
+  payable_to: string
+  deduct_from_owner_payment: boolean
+}
+
+export interface LocalOnceOffCharge {
+  id: string
+  description: string
+  charge_type: string
+  amount_cents: number
+  payable_to: string
+}
+
+export interface SpecialTerm {
+  type: string
+  detail: string
+}
+
+export interface CoTenant {
+  id: string
+  name: string
+}
+
+export interface AnnexureCRules {
+  pets: string
+  smoking: string
+  parking: string
+  noise: string
+  commonAreas: string
+}
+
+export interface WizardData {
+  // Step 1 — Property → Building → Unit
+  propertyId: string
+  propertyName: string
+  buildingId: string
+  buildingName: string
+  unitId: string
+  unitLabel: string
+  leaseType: "residential" | "commercial"
+  askingRentCents: number | null
+  bcLevyCents: number | null
+  // Step 2 — Tenant(s)
+  tenantId: string
+  tenantName: string
+  coTenants: CoTenant[]
+  // Step 3 — Lease details (terms)
+  startDate: string
+  endDate: string
+  isFixedTerm: boolean
+  noticePeriod: string
+  rent: string
+  deposit: string
+  paymentDueDay: string
+  escalationPercent: string
+  escalationType: string
+  depositInterestTo: string
+  depositInterestRate: string
+  arrearsInterestEnabled: boolean
+  arrearsMargin: string
+  cpaApplies: boolean
+  tenantIsJuristic: boolean
+  isFranchiseAgreement: boolean
+  tenantJuristicType: string | null
+  tenantTurnoverUnder2m: boolean | null
+  tenantAssetUnder2m: boolean | null
+  tenantSizeBandsCapturedAt: string | null
+  // Step 1 — metadata (not editable, from property/unit fetch)
+  isSectionalTitle: boolean
+  parkingBays: number
+  hasSchemeRules: boolean
+  // Step 3 — charges
+  charges: LocalCharge[]
+  onceOffCharges: LocalOnceOffCharge[]
+  // Step 3 — clauses
+  clauseSelections: Record<string, boolean>
+  acknowledgedConflicts: string[]
+  // Step 3 — annexures
+  annexureCRules: AnnexureCRules
+  specialTerms: SpecialTerm[]
+}
+
+export const DEFAULT_ANNEXURE_C_RULES: AnnexureCRules = {
+  pets: "No pets permitted without prior written consent of the Landlord.",
+  smoking: "Smoking is strictly prohibited inside the premises.",
+  parking: "One (1) parking bay allocated to the Tenant.",
+  noise: "No excessive noise after 22:00 or before 07:00 on weekdays, or after 23:00 on weekends.",
+  commonAreas: "Common areas must be kept clean and clear of personal belongings.",
+}
+
+export interface WizardPrefill {
+  propertyId?: string | null
+  propertyName?: string | null
+  unitId?: string | null
+  unitLabel?: string | null
+  tenantId?: string | null
+  tenantName?: string | null
+  coTenants?: CoTenant[]
+}
+
+/** Build the initial WizardData from the server-resolved prefill (URL params, owner tier, renewal). */
+export function buildInitialWizardData(prefill: WizardPrefill): WizardData {
+  return {
+    propertyId: prefill.propertyId ?? "",
+    propertyName: prefill.propertyName ?? "",
+    buildingId: "",
+    buildingName: "",
+    unitId: prefill.unitId ?? "",
+    unitLabel: prefill.unitLabel ?? "",
+    leaseType: "residential",
+    askingRentCents: null,
+    bcLevyCents: null,
+    tenantId: prefill.tenantId ?? "",
+    tenantName: prefill.tenantName ?? "",
+    coTenants: prefill.coTenants ?? [],
+    startDate: "",
+    endDate: "",
+    isFixedTerm: true,
+    noticePeriod: "20",
+    rent: "",
+    deposit: "",
+    paymentDueDay: "1",
+    escalationPercent: "8",
+    escalationType: "fixed",
+    depositInterestTo: "tenant",
+    depositInterestRate: "5",
+    arrearsInterestEnabled: true,
+    arrearsMargin: "2",
+    cpaApplies: true,
+    tenantIsJuristic: false,
+    isFranchiseAgreement: false,
+    tenantJuristicType: null,
+    tenantTurnoverUnder2m: null,
+    tenantAssetUnder2m: null,
+    tenantSizeBandsCapturedAt: null,
+    isSectionalTitle: false,
+    parkingBays: 0,
+    hasSchemeRules: false,
+    charges: [],
+    onceOffCharges: [],
+    clauseSelections: {},
+    acknowledgedConflicts: [],
+    annexureCRules: { ...DEFAULT_ANNEXURE_C_RULES },
+    specialTerms: [],
+  }
+}

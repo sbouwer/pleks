@@ -1,36 +1,27 @@
 "use client"
 
 /**
- * components/leases/steps/TenantStep.tsx — FILL: one-line purpose
+ * components/leases/steps/TenantStep.tsx — step 2 of the lease modal: primary tenant + co-tenants
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   client-only; tenant search via TenantPicker (org-scoped); juristic-band save via updateContactJuristicFields
+ * Data:   reads/writes WizardData tenant fields through LeaseWizardContext
+ * Notes:  Content-only (footer-driven nav). TenantPicker's "Add new tenant" opens the shared AddPartyModal
+ *         inline (Phase 2 standalone already shipped); the in-modal sub-flow bridge is Phase 2 (not built here).
+ *         Registers a validate-then-commit submit handler the modal footer's Continue invokes.
  */
 import { useState, useMemo } from "react"
 import { useOrg } from "@/hooks/useOrg"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { CheckCircle2, UserRound, ChevronDown, Plus, X } from "lucide-react"
 import { TenantPicker } from "@/components/shared/TenantPicker"
 import type { PickedTenant } from "@/components/shared/TenantPicker"
-import type { WizardData, CoTenant } from "../LeaseWizard"
+import type { CoTenant } from "../wizardData"
+import { useLeaseWizard } from "../LeaseWizardContext"
+import type { StepHandle } from "../stepHandle"
 import { updateContactJuristicFields } from "@/lib/actions/contacts"
 
-interface Props {
-  data: WizardData
-  onBack: () => void
-  onNext: (updates: Partial<WizardData>) => void
-}
-
 function TenantRow({
-  label,
-  tenantName,
-  orgId,
-  onSelect,
-  onRemove,
+  label, tenantName, orgId, onSelect, onRemove,
 }: Readonly<{
   label: string
   tenantName: string
@@ -65,7 +56,12 @@ function TenantRow({
   )
 }
 
-export function TenantStep({ data, onBack, onNext }: Readonly<Props>) {
+interface Props {
+  register: (handle: StepHandle) => void
+}
+
+export function TenantStep({ register }: Readonly<Props>) {
+  const { data, patch } = useLeaseWizard()
   const { orgId } = useOrg()
   const [tenantId, setTenantId] = useState(data.tenantId)
   const [tenantName, setTenantName] = useState(data.tenantName)
@@ -130,14 +126,21 @@ export function TenantStep({ data, onBack, onNext }: Readonly<Props>) {
     setCoTenants((prev) => prev.filter((c) => c.id !== id))
   }
 
-  function handleNext() {
-    if (!tenantId) { setError("Please select a tenant"); return }
+  function handleReplaceCo(existingId: string, t: PickedTenant) {
+    if (t.id === tenantId) { setError("Co-tenant must be a different person"); return }
+    if (coTenants.some((c) => c.id === t.id && c.id !== existingId)) { setError("This person is already added"); return }
+    setCoTenants((prev) => prev.map((c) => c.id === existingId ? { id: t.id, name: t.name } : c))
+    setError("")
+  }
+
+  function submit(): boolean {
+    if (!tenantId) { setError("Please select a tenant"); return false }
     if (showBandsPrompt && !savingBands) {
       setError("Confirm the tenant's annual turnover and asset value before continuing.")
-      return
+      return false
     }
     setError("")
-    onNext({
+    patch({
       tenantId,
       tenantName,
       coTenants,
@@ -148,7 +151,10 @@ export function TenantStep({ data, onBack, onNext }: Readonly<Props>) {
       tenantAssetUnder2m: assetUnder2m,
       tenantSizeBandsCapturedAt: sizeBandsCapturedAt,
     })
+    return true
   }
+
+  register({ submit })
 
   return (
     <div className="space-y-6">
@@ -184,12 +190,7 @@ export function TenantStep({ data, onBack, onNext }: Readonly<Props>) {
               label={`Co-tenant ${coTenants.length > 1 ? i + 1 : ""}`}
               tenantName={co.name}
               orgId={org}
-              onSelect={(t) => {
-                if (t.id === tenantId) { setError("Co-tenant must be a different person"); return }
-                if (coTenants.some((c) => c.id === t.id && c.id !== co.id)) { setError("This person is already added"); return }
-                setCoTenants((prev) => prev.map((c) => c.id === co.id ? { id: t.id, name: t.name } : c))
-                setError("")
-              }}
+              onSelect={(t) => handleReplaceCo(co.id, t)}
               onRemove={() => handleRemoveCo(co.id)}
             />
           ))}
@@ -298,11 +299,6 @@ export function TenantStep({ data, onBack, onNext }: Readonly<Props>) {
       )}
 
       {error && <p className="text-sm text-danger">{error}</p>}
-
-      <div className="flex justify-between">
-        <Button variant="outline" onClick={onBack}>← Back</Button>
-        <Button onClick={handleNext}>Continue →</Button>
-      </div>
     </div>
   )
 }
