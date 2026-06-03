@@ -231,6 +231,10 @@ export function TenantStep({ register }: Readonly<Props>) {
       {/* Franchise flag — only for juristic non-sole-prop tenants */}
       {showFranchiseFlag && (
         <div className="rounded-lg border border-border/60 bg-muted/20 px-4 py-3 space-y-2">
+          <p className="text-xs text-muted-foreground">
+            Consumer Protection Act check — these determine whether the CPA applies to this company as a
+            consumer (CPA s5), independent of whether the property is residential or commercial.
+          </p>
           <p className="text-sm font-medium">Is this a franchise agreement?</p>
           <p className="text-xs text-muted-foreground">
             Franchise agreements have full CPA protection regardless of tenant size (CPA s5(6)).
