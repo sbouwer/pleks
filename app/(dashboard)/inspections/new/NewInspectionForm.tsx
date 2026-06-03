@@ -426,7 +426,6 @@ export function NewInspectionForm({
                         <TenantPicker
                           orgId={orgId}
                           onSelect={handleSelectTenant}
-                          returnTo="/inspections/new"
                           trigger={
                             <button type="button" className="text-xs text-brand hover:underline">Change</button>
                           }
@@ -446,7 +445,6 @@ export function NewInspectionForm({
                 <TenantPicker
                   orgId={orgId}
                   onSelect={handleSelectTenant}
-                  returnTo="/inspections/new"
                   trigger={
                     <button
                       type="button"

@@ -1,20 +1,21 @@
 "use client"
 
 /**
- * components/shared/TenantPicker.tsx — FILL: one-line purpose
+ * components/shared/TenantPicker.tsx — searchable tenant dropdown with inline "add new tenant"
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   dashboard layout (gateway); the add path goes through addTenantParty (agent write gate)
+ * Data:   tenant list via fetchTenants (React Query, org-scoped)
+ * Notes:  "Add new tenant" opens the shared AddPartyModal IN PLACE (no navigation) — the host flow (lease
+ *         builder, property card) keeps its state. On create it invalidates the list and auto-selects the
+ *         new tenant once it lands. Replaced the old /tenants/new?returnTo navigation (ADDENDUM_25A lease-flow).
  */
 import { useState, useRef, useEffect, cloneElement, isValidElement } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { createClient } from "@/lib/supabase/client"
 import { PORTFOLIO_QUERY_KEYS, STALE_TIME, fetchTenants } from "@/lib/queries/portfolio"
 import { Search, UserRound, Plus } from "lucide-react"
-import Link from "next/link"
+import { AddPartyModal } from "@/components/parties/AddPartyModal"
+import { addTenantParty } from "@/lib/actions/parties"
 
 export interface PickedTenant {
   id: string
@@ -50,17 +51,19 @@ interface TenantPickerProps {
   orgId: string
   onSelect: (tenant: PickedTenant) => void
   trigger: React.ReactNode
-  returnTo?: string
   align?: "left" | "right"
   excludeIds?: string[]
 }
 
-export function TenantPicker({ orgId, onSelect, trigger, returnTo, align = "left", excludeIds }: Readonly<TenantPickerProps>) {
+export function TenantPicker({ orgId, onSelect, trigger, align = "left", excludeIds }: Readonly<TenantPickerProps>) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState("")
+  const [addOpen, setAddOpen] = useState(false)
+  const [pendingSelectId, setPendingSelectId] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
+  const queryClient = useQueryClient()
 
   const { data: tenants = [] } = useQuery({
     queryKey: PORTFOLIO_QUERY_KEYS.tenants(orgId),
@@ -68,6 +71,24 @@ export function TenantPicker({ orgId, onSelect, trigger, returnTo, align = "left
     staleTime: STALE_TIME.tenants,
     enabled: !!orgId,
   })
+
+  // After an inline add, the new tenant lands in the refetched list — auto-select it for the host flow.
+  useEffect(() => {
+    if (!pendingSelectId) return
+    const t = (tenants as TenantRow[]).find((x) => x.id === pendingSelectId)
+    if (!t) return
+    onSelect({
+      id: t.id,
+      name: displayName(t),
+      phone: t.phone ?? null,
+      entity_type: t.entity_type,
+      juristic_type: t.juristic_type ?? null,
+      turnover_under_2m: t.turnover_under_2m ?? null,
+      asset_value_under_2m: t.asset_value_under_2m ?? null,
+      size_bands_captured_at: t.size_bands_captured_at ?? null,
+    })
+    setPendingSelectId(null)
+  }, [tenants, pendingSelectId, onSelect])
 
   function close() {
     setOpen(false)
@@ -122,13 +143,21 @@ export function TenantPicker({ orgId, onSelect, trigger, returnTo, align = "left
       })
     : trigger
 
-  const addTenantHref = returnTo
-    ? `/tenants/new?returnTo=${encodeURIComponent(returnTo)}`
-    : "/tenants/new"
-
   return (
     <div ref={containerRef} className="relative">
       {triggerWithHandler}
+
+      <AddPartyModal
+        role="tenant"
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        onSubmit={async (input) => {
+          const result = await addTenantParty(input)
+          if (result.ok && result.id) setPendingSelectId(result.id)
+          return result
+        }}
+        onCreated={() => queryClient.invalidateQueries({ queryKey: PORTFOLIO_QUERY_KEYS.tenants(orgId) })}
+      />
 
       {open && (
         <div className={`absolute ${align === "right" ? "right-0" : "left-0"} top-full mt-1 z-50 w-72 rounded-xl border border-border/60 bg-surface-elevated shadow-lg`}>
@@ -172,14 +201,14 @@ export function TenantPicker({ orgId, onSelect, trigger, returnTo, align = "left
 
           {/* Footer */}
           <div className="border-t border-border/60 p-1">
-            <Link
-              href={addTenantHref}
-              className="flex items-center gap-2 px-3 py-2 text-sm text-brand hover:bg-muted/50 rounded-lg transition-colors"
-              onClick={close}
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-brand hover:bg-muted/50 rounded-lg transition-colors"
+              onClick={() => { close(); setAddOpen(true) }}
             >
               <Plus className="size-4" />
               Add new tenant
-            </Link>
+            </button>
           </div>
         </div>
       )}

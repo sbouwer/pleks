@@ -41,7 +41,6 @@ function SelectedTenantRow({
         <TenantPicker
           orgId={orgId}
           onSelect={onSelect}
-          returnTo="/properties"
           trigger={
             <button type="button" className="text-xs text-brand hover:underline">Change</button>
           }
@@ -114,7 +113,6 @@ export function NoTenantCard({ orgId }: Readonly<Props>) {
               <TenantPicker
                 orgId={orgId}
                 onSelect={handleSelectCo}
-                returnTo="/properties"
                 trigger={
                   <button
                     type="button"
@@ -146,7 +144,6 @@ export function NoTenantCard({ orgId }: Readonly<Props>) {
           <TenantPicker
             orgId={orgId}
             onSelect={handleSelectPrimary}
-            returnTo="/properties"
             trigger={
               <button
                 type="button"

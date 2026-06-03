@@ -1,175 +1,17 @@
 "use server"
 
 /**
- * lib/actions/tenants.ts — CRUD server actions for tenant contacts
+ * lib/actions/tenants.ts — update server actions for tenant contacts
  *
  * Auth:   requireAgentWriteAccess (all paths are writes)
  * Data:   contacts + tenants tables via gateway service client
- * Notes:  SA ID numbers are hashed (hashIdNumber) before storage; raw value stored
- *         encrypted. consent_log written for any POPIA-sensitive capture. IP + UA
- *         recorded on createTenant for POPIA s18 accountability. Company tenants
- *         store director FICA fields on the same contact row.
+ * Notes:  Tenant CREATE now goes through the shared add-party flow (addTenantParty); this file holds the
+ *         post-create edit/communication actions. updateTenant edits the contact + tenant rows;
+ *         logCommunication records a communication_log entry.
  */
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
-import { hashIdNumber } from "@/lib/crypto/idNumber"
-import { headers } from "next/headers"
-
-export async function createTenant(formData: FormData) {
-  const gw = await requireAgentWriteAccess("create_tenant")
-  const { db, userId, orgId } = gw
-
-  const tenantType = formData.get("tenant_type") as string || "individual"
-  const idNumber = formData.get("id_number") as string || null
-  const headersList = await headers()
-  const ip = headersList.get("x-forwarded-for") || "unknown"
-  const ua = headersList.get("user-agent") || ""
-
-  const entityType = tenantType === "company" ? "organisation" : "individual"
-
-  // Build contact record
-  const contactData: Record<string, unknown> = {
-    org_id: orgId,
-    entity_type: entityType,
-    primary_role: "tenant",
-    primary_email: formData.get("email") as string || null,
-    primary_phone: formData.get("phone") as string || null,
-    notes: formData.get("notes") as string || null,
-    created_by: userId,
-  }
-
-  if (tenantType === "individual") {
-    contactData.first_name = formData.get("first_name") as string
-    contactData.last_name = formData.get("last_name") as string
-    contactData.id_type = formData.get("id_type") as string || null
-    contactData.id_number = idNumber
-    contactData.id_number_hash = idNumber ? hashIdNumber(idNumber) : null
-    contactData.date_of_birth = formData.get("date_of_birth") as string || null
-    contactData.nationality = formData.get("nationality") as string || "South African"
-  } else {
-    contactData.company_name = formData.get("company_name") as string
-    contactData.registration_number = formData.get("company_reg_number") as string || null
-    contactData.vat_number = formData.get("vat_number") as string || null
-    // Mandated signatory / director FICA
-    contactData.contact_first_name = formData.get("contact_first_name") as string || null
-    contactData.contact_last_name = formData.get("contact_last_name") as string || null
-    const contactIdNum = formData.get("contact_id_number") as string || null
-    contactData.contact_id_type = formData.get("contact_id_type") as string || null
-    contactData.contact_id_number = contactIdNum
-    contactData.contact_id_number_hash = contactIdNum ? hashIdNumber(contactIdNum) : null
-    contactData.contact_date_of_birth = formData.get("contact_date_of_birth") as string || null
-    contactData.contact_phone = formData.get("contact_phone") as string || null
-    contactData.contact_email = formData.get("contact_email") as string || null
-    // primary_email / primary_phone for company = director's contact (set above in contactData already)
-  }
-
-  // Step 1: Create contact
-  const { data: contact, error: contactError } = await db
-    .from("contacts")
-    .insert(contactData)
-    .select("id")
-    .single()
-
-  if (contactError || !contact) {
-    return { error: contactError?.message || "Failed to create contact" }
-  }
-
-  // Insert company address if provided
-  if (tenantType === "company") {
-    const addrLine1 = formData.get("company_addr_line1") as string || null
-    if (addrLine1) {
-      await db.from("contact_addresses").insert({
-        org_id: orgId,
-        contact_id: contact.id,
-        address_type: "physical",
-        street_line1: addrLine1,
-        suburb: formData.get("company_addr_suburb") as string || null,
-        city: formData.get("company_addr_city") as string || null,
-        province: formData.get("company_addr_province") as string || null,
-        postal_code: formData.get("company_addr_postal_code") as string || null,
-        is_primary: true,
-      })
-    }
-  }
-
-  // Step 2: Create tenant (thin record)
-  const tenantData: Record<string, unknown> = {
-    org_id: orgId,
-    contact_id: contact.id,
-    preferred_contact: formData.get("preferred_contact") as string || "whatsapp",
-    popia_consent_given: formData.get("popia_consent") === "true",
-    popia_consent_given_at: formData.get("popia_consent") === "true" ? new Date().toISOString() : null,
-    created_by: userId,
-    employer_name: formData.get("employer_name") as string || null,
-    employer_phone: formData.get("employer_phone") as string || null,
-    occupation: formData.get("occupation") as string || null,
-  }
-
-  const { data: tenant, error } = await db
-    .from("tenants")
-    .insert(tenantData)
-    .select("id")
-    .single()
-
-  if (error || !tenant) {
-    return { error: error?.message || "Failed to create tenant" }
-  }
-
-  // Log POPIA consent
-  if (tenantData.popia_consent_given && contactData.primary_email) {
-    await db.from("consent_log").insert({
-      org_id: orgId,
-      user_id: userId,
-      subject_email: contactData.primary_email as string,
-      consent_type: "data_processing",
-      consent_given: true,
-      consent_version: "1.0-tenant-onboard",
-      ip_address: ip,
-      user_agent: ua,
-      metadata: {
-        tenant_id: tenant.id,
-        agent_confirmed: true,
-        tenant_type: tenantType,
-      },
-    })
-  }
-
-  // Emergency contacts
-  const contactNames = formData.getAll("contact_name") as string[]
-  const contactPhones = formData.getAll("contact_phone") as string[]
-  const contactRelations = formData.getAll("contact_relationship") as string[]
-
-  for (let i = 0; i < contactNames.length; i++) {
-    if (!contactNames[i]?.trim()) continue
-    await db.from("tenant_next_of_kin").insert({
-      org_id: orgId,
-      tenant_id: tenant.id,
-      full_name: contactNames[i].trim(),
-      phone: contactPhones[i]?.trim() || null,
-      relationship: contactRelations[i]?.trim() || null,
-      is_emergency: true,
-    })
-  }
-
-  // Audit
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    table_name: "tenants",
-    record_id: tenant.id,
-    action: "INSERT",
-    changed_by: userId,
-    new_values: {
-      tenant_type: tenantType,
-      name: tenantType === "individual"
-        ? `${contactData.first_name} ${contactData.last_name}`
-        : contactData.company_name,
-    },
-  })
-
-  revalidatePath("/tenants")
-  redirect(`/tenants/${tenant.id}`)
-}
 
 export async function updateTenant(tenantId: string, formData: FormData) {
   const gw = await requireAgentWriteAccess("edit_tenant")

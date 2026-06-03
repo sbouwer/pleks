@@ -48,7 +48,7 @@ function SelectedTenantRow({
         </div>
       </div>
       <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-        <TenantPicker orgId={orgId} onSelect={onSelect} returnTo="/properties"
+        <TenantPicker orgId={orgId} onSelect={onSelect}
           trigger={<button type="button" className="text-xs text-brand hover:underline">Change</button>}
         />
         {onRemove && (
@@ -159,7 +159,7 @@ export function VacantSection({
                   <p className="text-xs text-muted-foreground">Co-tenant (optional)</p>
                   <button type="button" onClick={() => setAddingCo(false)} className="text-xs text-muted-foreground hover:text-foreground">Cancel</button>
                 </div>
-                <TenantPicker orgId={orgId} onSelect={handleSelectCo} returnTo="/properties"
+                <TenantPicker orgId={orgId} onSelect={handleSelectCo}
                   trigger={
                     <button type="button" className="w-full flex items-center gap-3 rounded-lg border border-border/60 bg-background px-3 py-2 text-left hover:bg-muted/30 transition-colors">
                       <UserRound className="size-4 text-muted-foreground flex-shrink-0" />
@@ -180,7 +180,7 @@ export function VacantSection({
         ) : (
           <>
             <p className="text-sm text-muted-foreground">No tenant assigned</p>
-            <TenantPicker orgId={orgId} onSelect={handleSelectPrimary} returnTo="/properties"
+            <TenantPicker orgId={orgId} onSelect={handleSelectPrimary}
               trigger={
                 <button type="button" className="w-full flex items-center gap-3 rounded-lg border border-border/60 bg-background px-3 py-2 text-left hover:bg-muted/30 transition-colors">
                   <UserRound className="size-4 text-muted-foreground flex-shrink-0" />
