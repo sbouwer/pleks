@@ -50,6 +50,8 @@ interface LandlordIdentitySectionProps {
   landlordId: string
   contactId: string
   entityType: string
+  title: string | null
+  gender: string | null
   firstName: string | null
   lastName: string | null
   companyName: string | null
@@ -59,12 +61,14 @@ interface LandlordIdentitySectionProps {
   notes: string | null
 }
 
+const GENDER_LABEL: Record<string, string> = { male: "Male", female: "Female", other: "Other", prefer_not_to_say: "Prefer not to say" }
+
 export function LandlordIdentitySection({
-  landlordId, contactId, entityType, firstName, lastName, companyName, tradingAs, registrationNumber, vatNumber, notes,
+  landlordId, contactId, entityType, title, gender, firstName, lastName, companyName, tradingAs, registrationNumber, vatNumber, notes,
 }: Readonly<LandlordIdentitySectionProps>) {
   const [editing, setEditing] = useState(false)
 
-  const fullName = `${firstName ?? ""} ${lastName ?? ""}`.trim()
+  const fullName = [title, firstName, lastName].filter(Boolean).join(" ").trim()
   const displayName = companyName || fullName || null
 
   return (
@@ -93,6 +97,7 @@ export function LandlordIdentitySection({
         <div>
           {displayName && <DetailRow label="Name">{displayName}</DetailRow>}
           {tradingAs && <DetailRow label="Trading as">{tradingAs}</DetailRow>}
+          {!companyName && gender && <DetailRow label="Gender">{GENDER_LABEL[gender] ?? gender}</DetailRow>}
           {registrationNumber && <DetailRow label="Reg. no.">{registrationNumber}</DetailRow>}
           {vatNumber && <DetailRow label="VAT no.">{vatNumber}</DetailRow>}
           {notes && <DetailRow label="Notes">{notes}</DetailRow>}

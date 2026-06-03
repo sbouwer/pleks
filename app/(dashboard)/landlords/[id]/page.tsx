@@ -146,6 +146,14 @@ export default async function LandlordDetailPage({ params }: Props) {
     .eq("org_id", membership.org_id)
     .order("is_primary", { ascending: false })
 
+  // Identity extras not on landlord_view (title/gender shown on the identity card)
+  const { data: identityExtra } = await service
+    .from("contacts")
+    .select("title, gender")
+    .eq("id", landlord.contact_id)
+    .eq("org_id", membership.org_id)
+    .single()
+
   const [phonesResult, emailsResult, addressesResult, propertiesResult] = await Promise.all([
     service
       .from("contact_phones")
@@ -297,6 +305,8 @@ export default async function LandlordDetailPage({ params }: Props) {
           landlordId={id}
           contactId={landlord.contact_id}
           entityType={landlord.entity_type}
+          title={identityExtra?.title ?? null}
+          gender={identityExtra?.gender ?? null}
           firstName={landlord.first_name}
           lastName={landlord.last_name}
           companyName={landlord.company_name}

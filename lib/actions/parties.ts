@@ -314,6 +314,26 @@ function mapAddressesToForm(rows: Array<Record<string, unknown>> | null): PartyA
     }))
 }
 
+/** Full individual identity fields from contacts → form (so editing doesn't wipe title/gender/etc.). */
+async function individualIdentityForm(db: Db, contactId: string): Promise<Partial<PartyFormState>> {
+  const { data: c } = await db.from("contacts")
+    .select("title, initials, middle_names, suffix, designation, gender, preferred_channel, id_type, id_number, vat_number")
+    .eq("id", contactId).single()
+  if (!c) return {}
+  return {
+    title: (c.title as string | null) ?? undefined,
+    initials: (c.initials as string | null) ?? undefined,
+    middleNames: (c.middle_names as string | null) ?? undefined,
+    suffix: (c.suffix as string | null) ?? undefined,
+    designation: (c.designation as string | null) ?? undefined,
+    gender: (c.gender as string | null) ?? undefined,
+    preferredChannel: (c.preferred_channel as string | null) ?? undefined,
+    idType: (c.id_type as string | null) ?? undefined,
+    idNumber: (c.id_number as string | null) ?? undefined,
+    vatNumber: (c.vat_number as string | null) ?? undefined,
+  }
+}
+
 function mapBankAccountsToForm(rows: Array<Record<string, unknown>> | null): PartyBankAccountInput[] {
   return (rows ?? []).map((b) => ({
     _uid: b.id as string, id: b.id as string,
@@ -420,6 +440,7 @@ export async function fetchContractorParty(contractorId: string): Promise<PartyE
     addresses: mapAddressesToForm(addrs),
     bankAccounts: mapBankAccountsToForm(banks),
   }
+  if (entity === "individual") Object.assign(form, await individualIdentityForm(db, c.contact_id as string))
   return { ok: true, entity, form, name: partyDisplayName("supplier", entity, form) }
 }
 
@@ -520,14 +541,6 @@ export async function fetchLandlordParty(landlordId: string): Promise<PartyEditD
   ])
   const people = entity === "company" ? await fetchCompanyPeopleAsParty(db, orgId, l.contact_id) : undefined
 
-  let idType: string | undefined
-  let idNumber: string | undefined
-  if (entity === "individual") {
-    const { data: idc } = await db.from("contacts").select("id_type, id_number").eq("id", l.contact_id).single()
-    idType = (idc?.id_type as string | null) ?? undefined
-    idNumber = (idc?.id_number as string | null) ?? undefined
-  }
-
   const form: PartyFormState = {
     firstName: (l.first_name as string | null) ?? undefined,
     lastName: (l.last_name as string | null) ?? undefined,
@@ -538,12 +551,12 @@ export async function fetchLandlordParty(landlordId: string): Promise<PartyEditD
     phone: entity === "individual" ? ((l.phone as string | null) ?? undefined) : undefined,
     companyEmail: entity === "company" ? ((l.email as string | null) ?? undefined) : undefined,
     companyPhone: entity === "company" ? ((l.phone as string | null) ?? undefined) : undefined,
-    idType, idNumber,
     people,
     notes: (l.notes as string | null) ?? undefined,
     addresses: mapAddressesToForm(addrs),
     bankAccounts: mapBankAccountsToForm(banks),
   }
+  if (entity === "individual") Object.assign(form, await individualIdentityForm(db, l.contact_id as string))
   return { ok: true, entity, form, name: partyDisplayName("landlord", entity, form) }
 }
 
@@ -676,6 +689,7 @@ export async function fetchTenantParty(tenantId: string): Promise<PartyEditData>
     popiaConsent: true, // already a tenant → consent on file; pre-checked so the details gate passes
     addresses: mapAddressesToForm(addrs),
   }
+  if (entity === "individual") Object.assign(form, await individualIdentityForm(db, t.contact_id as string))
   return { ok: true, entity, form, name: partyDisplayName("tenant", entity, form) }
 }
 
