@@ -10,6 +10,7 @@
 import { Plus, X } from "lucide-react"
 import { PARTY_ROLES, SPECIALITY_OPTIONS, COMPANY_FUNCTION_OPTIONS, type PartyRole, type PartyEntity } from "@/lib/parties/partyConfig"
 import type { PartyFormState, PartyErrors, PartyPerson, PartyAddressInput, PartyBankAccountInput } from "@/lib/parties/partyValidation"
+import type { PartyStepId } from "@/lib/parties/partyStepPlan"
 import {
   SectLabel, TextField, SelectField, IdField, EntityToggle, ChipPicker, CheckRow, PeopleRepeater, AddressFields, BankAccountsRepeater,
 } from "./partyFields"
@@ -131,44 +132,33 @@ function CompanyAddressSection({
   )
 }
 
-function CompanyIdentity({
+/** Company info grid only (registered name / reg / VAT / company channel). People + address are own steps. */
+function CompanyInfo({
   f, set, errors, fullFica, companyPeople, isSupplier,
 }: IdentityBodyProps & { companyPeople: boolean; isSupplier: boolean }) {
   return (
-    <>
-      <div className="mt-6">
-        <SectLabel n="01">Company</SectLabel>
-        <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
-          <TextField label="Registered name" k="companyName" f={f} set={set} errors={errors} required span
-            placeholder={isSupplier ? "DW Plumbing CC" : "Coastline Holdings (Pty) Ltd"} />
-          <TextField label="CIPC reg. number" k="companyReg" f={f} set={set} errors={errors} placeholder="2023/123456/07" />
-          {fullFica && <TextField label="VAT number" k="vatNumber" f={f} set={set} errors={errors} placeholder="Optional" />}
-          {companyPeople && <TextField label="Company email" k="companyEmail" f={f} set={set} errors={errors} type="email" placeholder="info@company.co.za" />}
-          {companyPeople && <TextField label="Company phone" k="companyPhone" f={f} set={set} errors={errors} type="tel" placeholder="021 000 0000" />}
-        </div>
+    <div className="mt-6">
+      <SectLabel n="01">Company</SectLabel>
+      <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
+        <TextField label="Registered name" k="companyName" f={f} set={set} errors={errors} required span
+          placeholder={isSupplier ? "DW Plumbing CC" : "Coastline Holdings (Pty) Ltd"} />
+        <TextField label="CIPC reg. number" k="companyReg" f={f} set={set} errors={errors} placeholder="2023/123456/07" />
+        {fullFica && <TextField label="VAT number" k="vatNumber" f={f} set={set} errors={errors} placeholder="Optional" />}
+        {companyPeople && <TextField label="Company email" k="companyEmail" f={f} set={set} errors={errors} type="email" placeholder="info@company.co.za" />}
+        {companyPeople && <TextField label="Company phone" k="companyPhone" f={f} set={set} errors={errors} type="tel" placeholder="021 000 0000" />}
       </div>
-
-      {fullFica && <CompanyAddressSection addresses={f.addresses ?? []} onChange={(a) => set("addresses", a)} error={errors.addresses} />}
-
-      <div className="mt-6">
-        <SectLabel n={fullFica ? "03" : "02"}>People</SectLabel>
-        <p className="mb-3 text-[13px] leading-snug text-muted-foreground">
-          The people you deal with at this company — add as many as you need. Mark who&apos;s the main contact;
-          a person&apos;s function routes the right messages to them (accounts → statements, maintenance → repairs).
-        </p>
-        <PeopleRepeater people={f.people ?? []} onChange={(ppl) => set("people", ppl)} error={errors.people} fica={fullFica} />
-      </div>
-    </>
+    </div>
   )
 }
 
-export function IdentityStep({
-  role, entity, setEntity, f, set, errors, fullFica, companyPeople, lockEntity,
-}: Readonly<{
+// ── Step bodies (one focused section per wizard step) ─────────────────────────
+type StepBodyProps = Readonly<{
   role: PartyRole; entity: PartyEntity; setEntity: (v: PartyEntity) => void
-  f: PartyFormState; set: SetFn; errors: PartyErrors; fullFica: boolean; companyPeople: boolean
-  lockEntity?: boolean
-}>) {
+  f: PartyFormState; set: SetFn; errors: PartyErrors
+  fullFica: boolean; companyPeople: boolean; lockEntity?: boolean; hideWelcomePack?: boolean
+}>
+
+export function IdentityStep({ role, entity, setEntity, f, set, errors, fullFica, companyPeople, lockEntity }: StepBodyProps) {
   const lockedLabel = entity === "individual" ? "Individual" : "Company"
   return (
     <>
@@ -181,108 +171,74 @@ export function IdentityStep({
       {entity === "individual" ? (
         <IndividualIdentity f={f} set={set} errors={errors} fullFica={fullFica} />
       ) : (
-        <CompanyIdentity f={f} set={set} errors={errors} fullFica={fullFica} companyPeople={companyPeople} isSupplier={role === "supplier"} />
+        <CompanyInfo f={f} set={set} errors={errors} fullFica={fullFica} companyPeople={companyPeople} isSupplier={role === "supplier"} />
       )}
     </>
   )
 }
 
-// ── Step 2 — Role-specific details ────────────────────────────────────────────
-export function DetailsStep({
-  role, f, set, errors, hideWelcomePack,
-}: Readonly<{ role: PartyRole; f: PartyFormState; set: SetFn; errors: PartyErrors; hideWelcomePack?: boolean }>) {
-  if (role === "tenant") {
-    return (
-      <>
-        <div>
-          <SectLabel n="01">POPIA consent</SectLabel>
-          <div className="mb-3 rounded-lg border border-border bg-muted/30 p-4">
-            <p className="text-sm font-medium text-foreground">Information notice — processing of personal information</p>
-            <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
-              Personal information is processed to manage the lease, rental payments, communication, inspections and the
-              deposit. Stored securely, not shared with third parties except to fulfil these purposes. The tenant may
-              access, correct or request deletion at any time.
-            </p>
-          </div>
-          <CheckRow gate checked={!!f.popiaConsent} onChange={(v) => set("popiaConsent", v)}>
-            The tenant has been informed of the above and consents to the processing of their personal information.
-          </CheckRow>
-          {errors.popiaConsent && <span className="mt-1 block text-xs text-destructive">{errors.popiaConsent}</span>}
-        </div>
-        <div className="mt-6">
-          <SectLabel n="02">Background · optional</SectLabel>
-          <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
-            <TextField label="Employer" k="employer" f={f} set={set} errors={errors} placeholder="Company or employer" />
-            <TextField label="Occupation" k="occupation" f={f} set={set} errors={errors} placeholder="e.g. Engineer" />
-            <TextField label="Internal notes (not visible to tenant)" k="notes" f={f} set={set} errors={errors} span placeholder="Optional" />
-          </div>
-        </div>
-      </>
-    )
-  }
+function PeopleBody({ f, set, errors, fullFica }: StepBodyProps) {
+  return (
+    <div>
+      <SectLabel n="01">People</SectLabel>
+      <p className="mb-3 text-[13px] leading-snug text-muted-foreground">
+        The people you deal with at this company — add as many as you need. Mark who&apos;s the main contact;
+        a person&apos;s function routes the right messages to them (accounts → statements, maintenance → repairs).
+      </p>
+      <PeopleRepeater people={f.people ?? []} onChange={(ppl) => set("people", ppl)} error={errors.people} fica={fullFica} />
+    </div>
+  )
+}
 
-  if (role === "supplier") {
-    return (
-      <>
-        <div>
-          <SectLabel n="01">Specialities *</SectLabel>
-          <p className="mb-3 text-[13px] leading-snug text-muted-foreground">
-            Pick everything this supplier does — these drive which jobs they&apos;re suggested for.
-          </p>
-          <ChipPicker value={f.specialities || []} onChange={(v) => set("specialities", v)} options={SPECIALITY_OPTIONS} />
-          {errors.specialities && <span className="mt-2.5 block text-xs text-destructive">{errors.specialities}</span>}
-        </div>
+function AddressBody({ role, f, set, errors }: StepBodyProps) {
+  const optional = role === "supplier"
+  return (
+    <CompanyAddressSection
+      n="01" title={optional ? "Address · optional" : "Registered / street address"} optional={optional}
+      addresses={f.addresses ?? []} onChange={(a) => set("addresses", a)} error={errors.addresses}
+    />
+  )
+}
 
-        <div className="mt-6">
-          <SectLabel n="02">Rates · optional</SectLabel>
-          <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
-            <TextField label="Call-out rate (R)" k="callOutRate" f={f} set={set} errors={errors} type="number" placeholder="e.g. 450" />
-            <TextField label="Hourly rate (R)" k="hourlyRate" f={f} set={set} errors={errors} type="number" placeholder="e.g. 350" />
-          </div>
-        </div>
+function SpecialitiesBody({ f, set, errors }: StepBodyProps) {
+  return (
+    <div>
+      <SectLabel n="01">Specialities *</SectLabel>
+      <p className="mb-3 text-[13px] leading-snug text-muted-foreground">
+        Pick everything this supplier does — these drive which jobs they&apos;re suggested for.
+      </p>
+      <ChipPicker value={f.specialities || []} onChange={(v) => set("specialities", v)} options={SPECIALITY_OPTIONS} />
+      {errors.specialities && <span className="mt-2.5 block text-xs text-destructive">{errors.specialities}</span>}
+    </div>
+  )
+}
 
-        <div className="mt-6">
-          <SectLabel n="03">VAT · optional</SectLabel>
-          <CheckRow checked={!!f.vatRegistered} onChange={(v) => set("vatRegistered", v)}>
-            VAT registered
-          </CheckRow>
-          {f.vatRegistered && (
-            <div className="mt-3.5">
-              <TextField label="VAT number" k="vatNumber" f={f} set={set} errors={errors} placeholder="4xxxxxxxxx" />
-            </div>
-          )}
-        </div>
-
-        <CompanyAddressSection
-          n="04" title="Address · optional" optional
-          addresses={f.addresses ?? []} onChange={(a) => set("addresses", a)} error={errors.addresses}
-        />
-
-        <div className="mt-6">
-          <SectLabel n="05">Banking · optional</SectLabel>
-          <p className="mb-3 text-[13px] leading-snug text-muted-foreground">
-            Add the supplier&apos;s bank account(s). Many suppliers (e.g. utilities) keep one account per bank —
-            add each so payments can route same-bank. The first account is the primary.
-          </p>
-          <BankAccountsRepeater accounts={f.bankAccounts ?? []} onChange={(a) => set("bankAccounts", a)} />
-        </div>
-
-        <div className="mt-6">
-          <SectLabel n="06">Status &amp; notes</SectLabel>
-          <CheckRow checked={f.isActive !== false} onChange={(v) => set("isActive", v)}>
-            Active — available to assign to new maintenance jobs.
-          </CheckRow>
-          <div className="mt-3.5">
-            <TextField label="Internal notes" k="notes" f={f} set={set} errors={errors} span placeholder="Preferred areas, callout terms…" />
-          </div>
-        </div>
-      </>
-    )
-  }
-
-  // landlord
+function RatesStatusBody({ f, set, errors }: StepBodyProps) {
   return (
     <>
+      <div>
+        <SectLabel n="01">Rates · optional</SectLabel>
+        <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
+          <TextField label="Call-out rate (R)" k="callOutRate" f={f} set={set} errors={errors} type="number" placeholder="e.g. 450" />
+          <TextField label="Hourly rate (R)" k="hourlyRate" f={f} set={set} errors={errors} type="number" placeholder="e.g. 350" />
+        </div>
+      </div>
+      <div className="mt-6">
+        <SectLabel n="02">Status &amp; notes</SectLabel>
+        <CheckRow checked={f.isActive !== false} onChange={(v) => set("isActive", v)}>
+          Active — available to assign to new maintenance jobs.
+        </CheckRow>
+        <div className="mt-3.5">
+          <TextField label="Internal notes" k="notes" f={f} set={set} errors={errors} span placeholder="Preferred areas, callout terms…" />
+        </div>
+      </div>
+    </>
+  )
+}
+
+function BankingBody({ role, f, set, errors }: StepBodyProps) {
+  if (role === "landlord") {
+    return (
       <div>
         <SectLabel n="01">Payout account(s) · optional</SectLabel>
         <p className="mb-3 text-[13px] leading-snug text-muted-foreground">
@@ -291,23 +247,95 @@ export function DetailsStep({
         </p>
         <BankAccountsRepeater accounts={f.bankAccounts ?? []} onChange={(a) => set("bankAccounts", a)} />
       </div>
-      {/* Hidden on the "add me as landlord" self path — you don't send yourself a welcome pack. */}
-      {!hideWelcomePack && (
-        <div className="mt-6">
-          <SectLabel n="02">Welcome pack</SectLabel>
-          <div className="mb-3 rounded-lg border border-amber-300/60 bg-amber-50/60 p-4">
-            <p className="text-sm font-medium text-foreground">Send a branded welcome pack?</p>
-            <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-              Portfolio overview, rental analysis and a compliance calendar — branded with your agency details.
-            </p>
+    )
+  }
+  // supplier
+  return (
+    <>
+      <div>
+        <SectLabel n="01">Bank account(s) · optional</SectLabel>
+        <p className="mb-3 text-[13px] leading-snug text-muted-foreground">
+          Add the supplier&apos;s bank account(s). Many suppliers (e.g. utilities) keep one account per bank —
+          add each so payments can route same-bank. The first account is the primary.
+        </p>
+        <BankAccountsRepeater accounts={f.bankAccounts ?? []} onChange={(a) => set("bankAccounts", a)} />
+      </div>
+      <div className="mt-6">
+        <SectLabel n="02">VAT · optional</SectLabel>
+        <CheckRow checked={!!f.vatRegistered} onChange={(v) => set("vatRegistered", v)}>
+          VAT registered
+        </CheckRow>
+        {f.vatRegistered && (
+          <div className="mt-3.5">
+            <TextField label="VAT number" k="vatNumber" f={f} set={set} errors={errors} placeholder="4xxxxxxxxx" />
           </div>
-          <CheckRow checked={f.sendWelcomePack !== false} onChange={(v) => set("sendWelcomePack", v)}>
-            Generate the welcome pack once this landlord is added.
-          </CheckRow>
-        </div>
-      )}
+        )}
+      </div>
     </>
   )
+}
+
+function ConsentBody({ f, set, errors }: StepBodyProps) {
+  return (
+    <>
+      <div>
+        <SectLabel n="01">POPIA consent</SectLabel>
+        <div className="mb-3 rounded-lg border border-border bg-muted/30 p-4">
+          <p className="text-sm font-medium text-foreground">Information notice — processing of personal information</p>
+          <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
+            Personal information is processed to manage the lease, rental payments, communication, inspections and the
+            deposit. Stored securely, not shared with third parties except to fulfil these purposes. The tenant may
+            access, correct or request deletion at any time.
+          </p>
+        </div>
+        <CheckRow gate checked={!!f.popiaConsent} onChange={(v) => set("popiaConsent", v)}>
+          The tenant has been informed of the above and consents to the processing of their personal information.
+        </CheckRow>
+        {errors.popiaConsent && <span className="mt-1 block text-xs text-destructive">{errors.popiaConsent}</span>}
+      </div>
+      <div className="mt-6">
+        <SectLabel n="02">Background · optional</SectLabel>
+        <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
+          <TextField label="Employer" k="employer" f={f} set={set} errors={errors} placeholder="Company or employer" />
+          <TextField label="Occupation" k="occupation" f={f} set={set} errors={errors} placeholder="e.g. Engineer" />
+          <TextField label="Internal notes (not visible to tenant)" k="notes" f={f} set={set} errors={errors} span placeholder="Optional" />
+        </div>
+      </div>
+    </>
+  )
+}
+
+function WelcomeBody({ f, set }: StepBodyProps) {
+  return (
+    <div>
+      <SectLabel n="01">Welcome pack</SectLabel>
+      <div className="mb-3 rounded-lg border border-amber-300/60 bg-amber-50/60 p-4">
+        <p className="text-sm font-medium text-foreground">Send a branded welcome pack?</p>
+        <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
+          Portfolio overview, rental analysis and a compliance calendar — branded with your agency details.
+        </p>
+      </div>
+      <CheckRow checked={f.sendWelcomePack !== false} onChange={(v) => set("sendWelcomePack", v)}>
+        Generate the welcome pack once this landlord is added.
+      </CheckRow>
+    </div>
+  )
+}
+
+/** Render the body for one wizard step (the flow drives this via the step plan's ids). */
+export function PartyStepBody({ stepId, ...props }: StepBodyProps & { stepId: PartyStepId }) {
+  switch (stepId) {
+    case "identity":     return <IdentityStep {...props} />
+    case "people":       return <PeopleBody {...props} />
+    case "specialities": return <SpecialitiesBody {...props} />
+    case "rates":        return <RatesStatusBody {...props} />
+    case "banking":      return <BankingBody {...props} />
+    case "address":      return <AddressBody {...props} />
+    case "consent":      return <ConsentBody {...props} />
+    case "welcome":      return <WelcomeBody {...props} />
+    case "confirm":      return <ReviewStep role={props.role} entity={props.entity} f={props.f} />
+    default:             return null
+  }
 }
 
 // ── Step 3 — Review ───────────────────────────────────────────────────────────

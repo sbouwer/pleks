@@ -1,50 +1,39 @@
 "use client"
 
 /**
- * components/parties/usePartyFlow.tsx — the host-agnostic "add a party" brain
+ * components/parties/usePartyFlow.tsx — the host-agnostic "add/edit a party" brain
  *
- * Notes:  Owns the entity/form/step/validation/submit state for a landlord/tenant/supplier add and
- *         exposes everything a host shell needs to render it (steps, title, subtitle, body, primary
- *         label, next/back/goTo). Lifted out of AddPartyModal so the SAME flow can run either
- *         standalone (its own WizardModal → SuccessView) or inline as a sub-flow inside another
- *         modal (e.g. the property wizard's Owner step → save-and-return). Pass `onDone` to take over
- *         what happens after a successful create: omit it for the standalone success view, or provide
- *         it for a sub-flow that selects the new party and returns to its host. Copy/fields/validation
- *         live in lib/parties — this only orchestrates them.
+ * Notes:  Owns entity/form/step/validation/submit state and exposes everything a host shell needs to render
+ *         the wizard. Steps are data-driven (buildPartySteps per role/entity) so the flow is many focused
+ *         side-steps rather than one long Details screen; each step validates only its own section, and the
+ *         body for a step id comes from PartyStepBody. Runs standalone (its own WizardModal → SuccessView)
+ *         or inline as a sub-flow (pass onDone). Edit mode pre-fills + relabels + locks the entity toggle.
  */
 import { useState } from "react"
 import type { WizardModalStep } from "@/components/ui/wizard-modal"
 import { PARTY_ROLES, type PartyRole, type PartyEntity } from "@/lib/parties/partyConfig"
 import {
-  validateIdentity, validateDetails,
   type PartyFormState, type PartyErrors, type AddPartyInput, type AddPartyResult, type PartyPerson, type PartyAddressInput,
 } from "@/lib/parties/partyValidation"
-import { IdentityStep, DetailsStep, ReviewStep } from "./partySteps"
-
-const STEPS: ReadonlyArray<WizardModalStep> = [
-  { id: "identity", label: "Identity", hint: "In progress" },
-  { id: "details",  label: "Details",  hint: "In progress" },
-  { id: "confirm",  label: "Confirm",  hint: "In progress" },
-]
+import { buildPartySteps } from "@/lib/parties/partyStepPlan"
+import { PartyStepBody } from "./partySteps"
 
 type FlowMode = "add" | "edit"
 
-function stepHeading(step: number, singular: string, detailsTitle: string, mode: FlowMode): string {
-  if (step === 0) return mode === "edit" ? `Edit ${singular.toLowerCase()}` : `Add a ${singular.toLowerCase()}`
-  if (step === 1) return detailsTitle
-  return mode === "edit" ? "Review changes" : "Review & confirm"
+function headingFor(stepId: string, label: string, isConfirm: boolean, mode: FlowMode, singular: string): string {
+  if (stepId === "identity") return mode === "edit" ? `Edit ${singular.toLowerCase()}` : `Add a ${singular.toLowerCase()}`
+  if (isConfirm) return mode === "edit" ? "Review changes" : "Review & confirm"
+  return label
 }
 
-function stepSubtitle(step: number, blurb: string, singular: string, mode: FlowMode): string | undefined {
-  if (step === 0) return mode === "edit" ? undefined : blurb
-  if (step === 2) return mode === "edit"
-    ? `Check the changes before you save.`
-    : `Check everything before you add the ${singular.toLowerCase()}.`
+function subtitleFor(stepId: string, isConfirm: boolean, mode: FlowMode, blurb: string, singular: string): string | undefined {
+  if (stepId === "identity") return mode === "edit" ? undefined : blurb
+  if (isConfirm) return mode === "edit" ? "Check the changes before you save." : `Check everything before you add the ${singular.toLowerCase()}.`
   return undefined
 }
 
-function primaryLabelFor(step: number, submitting: boolean, singular: string, mode: FlowMode): string {
-  if (step !== 2) return "Continue"
+function primaryLabelFor(isConfirm: boolean, submitting: boolean, mode: FlowMode, singular: string): string {
+  if (!isConfirm) return "Continue"
   if (mode === "edit") return submitting ? "Saving…" : "Save changes"
   return submitting ? "Adding…" : `Add ${singular.toLowerCase()}`
 }
@@ -61,7 +50,7 @@ export interface UsePartyFlowOptions {
   /** Hide the landlord "welcome pack" prompt (the self "add me as landlord" path). */
   hideWelcomePack?: boolean
   /** "edit" pre-fills the form and switches the copy to save-changes; the entity toggle is locked. */
-  mode?:         FlowMode
+  mode?:          FlowMode
   initialEntity?: PartyEntity
   initialForm?:   PartyFormState
 }
@@ -90,7 +79,9 @@ export interface PartyFlow {
   prefill:         (values: Partial<PartyFormState>) => void
 }
 
-export function usePartyFlow({ role, onSubmit, onDone, hideWelcomePack, mode = "add", initialEntity, initialForm }: UsePartyFlowOptions): PartyFlow {
+export function usePartyFlow({
+  role, onSubmit, onDone, hideWelcomePack, mode = "add", initialEntity, initialForm,
+}: UsePartyFlowOptions): PartyFlow {
   const cfg = PARTY_ROLES[role]
   const [entity, setEntity] = useState<PartyEntity>(initialEntity ?? "individual")
   const [f, setF] = useState<PartyFormState>(initialForm ?? {})
@@ -99,11 +90,16 @@ export function usePartyFlow({ role, onSubmit, onDone, hideWelcomePack, mode = "
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState<AddPartyResult | null>(null)
 
+  const hideWelcome = hideWelcomePack || mode === "edit"
+  const stepDefs = buildPartySteps(role, entity, cfg, hideWelcome)
+  const safeStep = Math.min(step, stepDefs.length - 1)
+  const current = stepDefs[safeStep]
+  const isConfirm = current.id === "confirm"
+
   const set = (k: keyof PartyFormState, v: string | string[] | boolean | PartyPerson[] | PartyAddressInput[]) =>
     setF((p) => ({ ...p, [k]: v }))
 
-  const prefill = (values: Partial<PartyFormState>) =>
-    setF((p) => ({ ...p, ...values }))
+  const prefill = (values: Partial<PartyFormState>) => setF((p) => ({ ...p, ...values }))
 
   function reset() {
     setEntity(initialEntity ?? "individual"); setF(initialForm ?? {}); setErrors({}); setStep(0); setDone(null)
@@ -124,39 +120,34 @@ export function usePartyFlow({ role, onSubmit, onDone, hideWelcomePack, mode = "
   }
 
   function next() {
-    if (step === 0) {
-      const e = validateIdentity(entity, f, cfg)
-      setErrors(e)
-      if (Object.keys(e).length === 0) setStep(1)
-    } else if (step === 1) {
-      const e = validateDetails(role, f)
-      setErrors(e)
-      if (Object.keys(e).length === 0) setStep(2)
-    } else {
-      void submit()
-    }
+    if (isConfirm) { void submit(); return }
+    const e = current.validate ? current.validate(entity, f) : {}
+    setErrors(e)
+    if (Object.keys(e).length === 0) setStep(safeStep + 1)
   }
 
-  function back() { if (step > 0) setStep(step - 1) }
+  function back() { if (safeStep > 0) setStep(safeStep - 1) }
   function goTo(index: number) { setStep(index); setErrors({}) }
 
   const body = (
-    <>
-      {step === 0 && (
-        <IdentityStep role={role} entity={entity} setEntity={changeEntity} f={f} set={set} errors={errors} fullFica={cfg.fullFica} companyPeople={cfg.companyPeople} lockEntity={mode === "edit"} />
-      )}
-      {step === 1 && <DetailsStep role={role} f={f} set={set} errors={errors} hideWelcomePack={hideWelcomePack || mode === "edit"} />}
-      {step === 2 && <ReviewStep role={role} entity={entity} f={f} />}
-    </>
+    <PartyStepBody
+      stepId={current.id}
+      role={role} entity={entity} setEntity={changeEntity}
+      f={f} set={set} errors={errors}
+      fullFica={cfg.fullFica} companyPeople={cfg.companyPeople}
+      lockEntity={mode === "edit"} hideWelcomePack={hideWelcome}
+    />
   )
 
+  const steps: ReadonlyArray<WizardModalStep> = stepDefs.map((s) => ({ id: s.id, label: s.label, hint: "In progress" }))
+
   return {
-    role, entity, f, step, done,
-    steps:           STEPS,
+    role, entity, f, step: safeStep, done,
+    steps,
     eyebrow:         `${mode === "edit" ? "Edit" : "Add"} ${cfg.singular.toLowerCase()}`,
-    title:           stepHeading(step, cfg.singular, cfg.detailsTitle, mode),
-    subtitle:        stepSubtitle(step, cfg.blurb, cfg.singular, mode),
-    primaryLabel:    primaryLabelFor(step, submitting, cfg.singular, mode),
+    title:           headingFor(current.id, current.label, isConfirm, mode, cfg.singular),
+    subtitle:        subtitleFor(current.id, isConfirm, mode, cfg.blurb, cfg.singular),
+    primaryLabel:    primaryLabelFor(isConfirm, submitting, mode, cfg.singular),
     primaryDisabled: submitting,
     body, next, back, goTo, reset, prefill,
   }

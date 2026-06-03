@@ -229,3 +229,68 @@ export function validateDetails(role: PartyRole, f: PartyFormState): PartyErrors
   }
   return e
 }
+
+// ── Per-step validators (multi-step wizard) ───────────────────────────────────
+// The flow is split into focused steps; each step validates only its own section.
+
+/** Identity step: individual → personal + SA-ID; company → registered name only (people/address are own steps). */
+export function validateIdentityCore(entity: PartyEntity, f: PartyFormState): PartyErrors {
+  const e: PartyErrors = {}
+  const need = (k: keyof PartyFormState) => {
+    const v = f[k]
+    if (typeof v !== "string" || !v.trim()) e[k] = "Required"
+  }
+  if (entity === "individual") validateIndividualIdentity(f, e, need)
+  else need("companyName")
+  return e
+}
+
+/** People step (company): ≥1 person, all named + functioned, exactly one primary; FICA → ≥1 valid signatory. */
+export function validatePeopleStep(f: PartyFormState, fullFica: boolean): PartyErrors {
+  const e: PartyErrors = {}
+  const people = f.people ?? []
+  if (people.length === 0) { e.people = "Add at least one contact person."; return e }
+  if (people.some((p) => !p.firstName?.trim() || !p.lastName?.trim() || !p.companyFunction)) {
+    e.people = "Each person needs a first name, last name and a function."; return e
+  }
+  if (people.filter((p) => p.isPrimary).length !== 1) {
+    e.people = "Mark exactly one person as the primary contact."; return e
+  }
+  if (fullFica) {
+    const signatories = people.filter((p) => p.isSignatory)
+    if (signatories.length === 0) { e.people = "Mark at least one person as a signatory — they sign for the company and need FICA."; return e }
+    if (signatories.some(signatoryHasBadId)) { e.people = "Every signatory needs a valid ID number (FICA)." }
+  }
+  return e
+}
+
+/** Address step: physical required when `requirePhysical`; any opened block must be complete (line1 + city) or cleared. */
+export function validateAddressStep(f: PartyFormState, requirePhysical: boolean): PartyErrors {
+  const e: PartyErrors = {}
+  const list = f.addresses ?? []
+  if (requirePhysical) {
+    const phys = list.find((a) => a.type === "physical")
+    if (!phys?.line1?.trim() || !phys?.city?.trim()) { e.addresses = "A street address (line 1 + city) is required."; return e }
+  }
+  for (const a of list) {
+    const touched = a.line1?.trim() || a.city?.trim() || a.suburb?.trim() || a.postal?.trim() || a.line2?.trim()
+    if (touched && (!a.line1?.trim() || !a.city?.trim())) {
+      e.addresses = `Complete the ${a.type} address (line 1 + city) or clear it.`; return e
+    }
+  }
+  return e
+}
+
+/** Specialities step (supplier): at least one. */
+export function validateSpecialitiesStep(f: PartyFormState): PartyErrors {
+  const e: PartyErrors = {}
+  if (!f.specialities || f.specialities.length === 0) e.specialities = "Pick at least one speciality."
+  return e
+}
+
+/** Consent step (tenant): POPIA gate. */
+export function validateConsentStep(f: PartyFormState): PartyErrors {
+  const e: PartyErrors = {}
+  if (!f.popiaConsent) e.popiaConsent = "POPIA consent is required to continue."
+  return e
+}
