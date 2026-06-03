@@ -55,14 +55,19 @@ interface TenantContactSectionProps {
   entityId: string
   phones: ContactPhone[]
   emails: ContactEmail[]
+  // contacts.primary_phone/email — the add/edit modal writes these (not child rows); shown when no child rows exist.
+  fallbackPhone?: string | null
+  fallbackEmail?: string | null
 }
 
-export function TenantContactSection({ entityId, phones, emails }: Readonly<TenantContactSectionProps>) {
+export function TenantContactSection({ entityId, phones, emails, fallbackPhone, fallbackEmail }: Readonly<TenantContactSectionProps>) {
   const [editing, setEditing] = useState(false)
 
   const primaryPhone = phones.find((p) => p.is_primary) ?? phones[0] ?? null
   const extraPhones = phones.length > 1 ? phones.length - 1 : 0
   const primaryEmail = emails.find((e) => e.is_primary) ?? emails[0] ?? null
+  const phoneDisplay = primaryPhone?.number ?? fallbackPhone ?? null
+  const emailDisplay = primaryEmail?.email ?? fallbackEmail ?? null
 
   return (
     <div>
@@ -80,10 +85,10 @@ export function TenantContactSection({ entityId, phones, emails }: Readonly<Tena
         />
       ) : (
         <div>
-          {primaryPhone ? (
+          {phoneDisplay ? (
             <DetailRow label="Phone">
-              <a href={`tel:${primaryPhone.number}`} className="hover:underline">
-                {primaryPhone.number}
+              <a href={`tel:${phoneDisplay}`} className="hover:underline">
+                {phoneDisplay}
               </a>
               {extraPhones > 0 && (
                 <span className="text-muted-foreground ml-1">(+{extraPhones} more)</span>
@@ -94,10 +99,10 @@ export function TenantContactSection({ entityId, phones, emails }: Readonly<Tena
               <span className="text-muted-foreground">—</span>
             </DetailRow>
           )}
-          {primaryEmail ? (
+          {emailDisplay ? (
             <DetailRow label="Email">
-              <a href={`mailto:${primaryEmail.email}`} className="hover:underline break-all">
-                {primaryEmail.email}
+              <a href={`mailto:${emailDisplay}`} className="hover:underline break-all">
+                {emailDisplay}
               </a>
             </DetailRow>
           ) : (

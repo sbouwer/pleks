@@ -307,7 +307,7 @@ export default async function LandlordDetailPage({ params }: Props) {
         />
       </DetailSection>
       <DetailSection>
-        <LandlordContactSection entityId={id} phones={phones ?? []} emails={emails ?? []} />
+        <LandlordContactSection entityId={id} phones={phones ?? []} emails={emails ?? []} fallbackPhone={landlord.phone} fallbackEmail={landlord.email} />
       </DetailSection>
       <DetailSection>
         <LandlordAddressSection entityId={id} address={(addresses ?? [])[0] ?? null} />

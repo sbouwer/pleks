@@ -255,7 +255,7 @@ export default async function ContractorDetailPage({ params }: Props) {
 
       {/* Former sidebar sections — now grid body blocks (each self-titled with its own inline edit). */}
       <DetailSection>
-        <ContractorContactSection entityId={id} phones={phones ?? []} emails={emails ?? []} />
+        <ContractorContactSection entityId={id} phones={phones ?? []} emails={emails ?? []} fallbackPhone={contractor.phone} fallbackEmail={contractor.email} />
       </DetailSection>
       <DetailSection>
         <ContractorRatesSection

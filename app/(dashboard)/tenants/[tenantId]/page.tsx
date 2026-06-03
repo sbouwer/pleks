@@ -239,7 +239,7 @@ export default async function TenantDetailPage({
       actions={<DetailQuickbar actions={actions} />}
     >
       <DetailSection>
-        <TenantContactSection entityId={tenantId} phones={phones ?? []} emails={emails ?? []} />
+        <TenantContactSection entityId={tenantId} phones={phones ?? []} emails={emails ?? []} fallbackPhone={tenant.phone ?? null} fallbackEmail={tenant.email ?? null} />
       </DetailSection>
       <DetailSection>
         <TenantIdentitySection

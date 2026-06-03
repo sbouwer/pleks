@@ -108,10 +108,13 @@ interface LandlordContactSectionProps {
   entityId: string
   phones: ContactPhone[]
   emails: ContactEmail[]
+  // contacts.primary_phone/email — the add/edit modal writes these (not child rows); shown when no child rows exist.
+  fallbackPhone?: string | null
+  fallbackEmail?: string | null
 }
 
 export function LandlordContactSection({
-  entityId, phones, emails,
+  entityId, phones, emails, fallbackPhone, fallbackEmail,
 }: Readonly<LandlordContactSectionProps>) {
   const [editing, setEditing] = useState(false)
 
@@ -119,6 +122,8 @@ export function LandlordContactSection({
   const primaryEmail = emails.find((e) => e.is_primary) ?? emails[0] ?? null
   const extraPhones = phones.length > 1 ? phones.length - 1 : 0
   const extraEmails = emails.length > 1 ? emails.length - 1 : 0
+  const phoneDisplay = primaryPhone?.number ?? fallbackPhone ?? null
+  const emailDisplay = primaryEmail?.email ?? fallbackEmail ?? null
 
   return (
     <div>
@@ -138,27 +143,27 @@ export function LandlordContactSection({
         />
       ) : (
         <div>
-          {primaryPhone ? (
+          {phoneDisplay ? (
             <DetailRow label="Phone">
-              <a href={`tel:${primaryPhone.number}`} className="hover:underline">
-                {primaryPhone.number}
+              <a href={`tel:${phoneDisplay}`} className="hover:underline">
+                {phoneDisplay}
               </a>
               {extraPhones > 0 && (
                 <span className="text-muted-foreground ml-1">(+{extraPhones} more)</span>
               )}
             </DetailRow>
           ) : null}
-          {primaryEmail ? (
+          {emailDisplay ? (
             <DetailRow label="Email">
-              <a href={`mailto:${primaryEmail.email}`} className="hover:underline break-all">
-                {primaryEmail.email}
+              <a href={`mailto:${emailDisplay}`} className="hover:underline break-all">
+                {emailDisplay}
               </a>
               {extraEmails > 0 && (
                 <span className="text-muted-foreground ml-1">(+{extraEmails} more)</span>
               )}
             </DetailRow>
           ) : null}
-          {!primaryPhone && !primaryEmail && (
+          {!phoneDisplay && !emailDisplay && (
             <p className="text-sm text-muted-foreground">No contact details.</p>
           )}
         </div>
