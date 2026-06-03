@@ -156,8 +156,8 @@ function AddPersonForm({
 }
 
 export function CompanyPeopleSection({
-  people, companyContactId, fica,
-}: Readonly<{ people: CompanyPerson[]; companyContactId: string; fica: boolean }>) {
+  people, companyContactId, fica, variant = "card",
+}: Readonly<{ people: CompanyPerson[]; companyContactId: string; fica: boolean; variant?: "card" | "bare" }>) {
   const router = useRouter()
   const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT)
@@ -184,8 +184,8 @@ export function CompanyPeopleSection({
     })
   }
 
-  return (
-    <DetailCard title="People" count={people.length}>
+  const body = (
+    <>
       {people.length === 0 && !adding && <p className="text-sm text-muted-foreground">No people added yet.</p>}
 
       {people.length > 0 && (
@@ -201,6 +201,9 @@ export function CompanyPeopleSection({
           <Plus className="h-4 w-4" /> Add a person
         </button>
       )}
-    </DetailCard>
+    </>
   )
+
+  if (variant === "bare") return body
+  return <DetailCard title="People" count={people.length}>{body}</DetailCard>
 }

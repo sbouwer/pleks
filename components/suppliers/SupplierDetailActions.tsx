@@ -19,20 +19,13 @@ import { EditPartyModal } from "@/components/parties/EditPartyModal"
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { usePermissions } from "@/hooks/usePermissions"
 import { fetchContractorParty, updateContractorParty } from "@/lib/actions/parties"
-import { cn } from "@/lib/utils"
 
-/** Borderless functional icon (matches the Edit button's pa-edit style). */
-function FnIcon({ icon, label, onClick, disabled, danger }: Readonly<{
-  icon: React.ReactNode; label: string; onClick: () => void; disabled?: boolean; danger?: boolean
+/** Borderless functional icon using the action-language pa-edit class (amber corner accent + amber-wash hover). */
+function FnIcon({ icon, label, onClick, disabled }: Readonly<{
+  icon: React.ReactNode; label: string; onClick: () => void; disabled?: boolean
 }>) {
   return (
-    <button
-      type="button" aria-label={label} title={label} onClick={onClick} disabled={disabled}
-      className={cn(
-        "inline-flex h-8 w-8 items-center justify-center rounded-[var(--r-button)] text-muted-foreground transition-colors disabled:opacity-50",
-        danger ? "hover:bg-destructive/10 hover:text-destructive" : "hover:bg-primary/10 hover:text-foreground",
-      )}
-    >
+    <button type="button" aria-label={label} title={label} onClick={onClick} disabled={disabled} className="pa-edit">
       {icon}
     </button>
   )
@@ -74,7 +67,7 @@ export function SupplierDetailActions({
 
       <FnIcon icon={<Pencil className="size-3.5" />} label="Edit supplier" onClick={() => setEditOpen(true)} />
       {isAdmin && (
-        <FnIcon icon={<Archive className="size-3.5" />} label="Archive supplier" danger onClick={() => setConfirmOpen(true)} />
+        <FnIcon icon={<Archive className="size-3.5" />} label="Archive supplier" onClick={() => setConfirmOpen(true)} />
       )}
 
       <ConfirmDialog

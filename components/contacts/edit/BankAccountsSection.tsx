@@ -12,7 +12,7 @@
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Plus } from "lucide-react"
+import { Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Field, UnderlineInput, UnderlineSelect, DashedAddButton } from "@/components/ui/door-form"
 import { EditButton } from "@/components/ui/actions"
@@ -136,9 +136,10 @@ function AccountRow({
             <button type="button" disabled={isPending} onClick={() => mutate("PATCH", { is_primary: true, account_name: account.account_name, bank_name: account.bank_name, account_number: account.account_number, branch_code: account.branch_code, account_type: account.account_type, label: account.label }, "Primary updated")}
               className="text-[11px] text-muted-foreground hover:text-foreground transition-colors">Make primary</button>
           )}
-          <EditButton mode="label" label="Edit" onClick={onEdit} />
-          <button type="button" disabled={isPending} onClick={() => mutate("DELETE", {}, "Bank account removed")}
-            className="text-[11px] text-muted-foreground hover:text-destructive transition-colors">Remove</button>
+          <EditButton label="Edit account" onClick={onEdit} />
+          <button type="button" aria-label="Remove account" title="Remove account" disabled={isPending} onClick={() => mutate("DELETE", {}, "Bank account removed")} className="pa-edit">
+            <Trash2 className="size-3.5" />
+          </button>
         </div>
       </div>
     </div>

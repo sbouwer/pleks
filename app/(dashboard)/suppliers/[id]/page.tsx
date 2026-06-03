@@ -10,7 +10,8 @@
  */
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
-import { Wrench, Landmark, Zap, Phone, Mail, MessageCircle, Users, MapPin, type LucideIcon } from "lucide-react"
+import Link from "next/link"
+import { Wrench, Landmark, Zap, Phone, Mail, MessageCircle, MapPin, type LucideIcon } from "lucide-react"
 import { DetailPageLayout, DetailFullWidth } from "@/components/detail/DetailPageLayout"
 import { DetailTypeBadge } from "@/components/detail/DetailTypeBadge"
 import { supplierArchetypeConfig } from "@/lib/suppliers/archetype"
@@ -18,9 +19,8 @@ import { SupplierDetailActions } from "@/components/suppliers/SupplierDetailActi
 import type { DetailFact, DetailStatus } from "@/lib/detail/types"
 import { DetailCard, DetailStatGrid } from "@/components/detail/DetailCard"
 import { RelationshipCard } from "@/components/contacts/RelationshipCard"
-import { ActivityTimeline } from "@/components/contacts/ActivityTimeline"
 import { BankAccountsSection } from "@/components/contacts/edit/BankAccountsSection"
-import { CompanyPeopleSection } from "@/components/contacts/CompanyPeopleSection"
+import { SupplierPeople } from "@/components/suppliers/SupplierPeople"
 import { fetchCompanyPeople } from "@/lib/contacts/companyPeople"
 import { ContractorPortalSection } from "@/components/contractors/ContractorPortalSection"
 import { formatZAR } from "@/lib/constants"
@@ -44,16 +44,18 @@ function buildAccountStats(a: Readonly<{
   vatRegistered: boolean | null | undefined
 }>): { label: string; value: string }[] {
   const specialitiesLabel = (a.specialities ?? []).length > 0 ? (a.specialities ?? []).join(", ") : "—"
-  const stats: { label: string; value: string }[] = [{ label: "Trade", value: specialitiesLabel }]
-  if (a.callOutRateCents) stats.push({ label: "Call-out", value: formatZAR(a.callOutRateCents) })
-  if (a.hourlyRateCents) stats.push({ label: "Hourly", value: formatZAR(a.hourlyRateCents) })
-  stats.push({ label: "Open jobs", value: String(a.activeJobCount) })
-  stats.push({ label: "Completed", value: String(a.totalCompleted) })
-  stats.push({ label: "Total invoiced", value: formatZAR(a.totalInvoiced) })
-  if (a.avgRating != null) stats.push({ label: "Avg rating", value: `${a.avgRating}/5` })
-  stats.push({ label: "Reg no.", value: a.regNo || "—" })
-  stats.push({ label: "VAT", value: a.vatRegistered ? "Registered" : "Not registered" })
-  return stats
+  // Fixed 8-cell layout so the pairings hold regardless of which rates are set:
+  // Trade · Total invoiced / Call-out · Hourly / Jobs · Avg rating / Reg no · VAT
+  return [
+    { label: "Trade", value: specialitiesLabel },
+    { label: "Total invoiced", value: formatZAR(a.totalInvoiced) },
+    { label: "Call-out", value: a.callOutRateCents ? formatZAR(a.callOutRateCents) : "—" },
+    { label: "Hourly", value: a.hourlyRateCents ? formatZAR(a.hourlyRateCents) : "—" },
+    { label: "Jobs", value: `${a.activeJobCount} open · ${a.totalCompleted} done` },
+    { label: "Avg rating", value: a.avgRating != null ? `${a.avgRating}/5` : "—" },
+    { label: "Reg no.", value: a.regNo || "—" },
+    { label: "VAT", value: a.vatRegistered ? "Registered" : "Not registered" },
+  ]
 }
 
 /** Why archiving is blocked (open obligations), or null if allowed. Server enforces the same guard. */
@@ -306,7 +308,7 @@ export default async function ContractorDetailPage({ params }: Props) {
   const primaryEmail = emails?.[0]?.email ?? contractor.email ?? null
   const activeJobCount = (activeJobs ?? []).length
   // primary-vs-child fallback above (project_pleks_contact_primary_vs_child); identity bits below.
-  const { addressStr, contactPerson, extraPeople, waHref } = buildSupplierIdentity({
+  const { addressStr, waHref } = buildSupplierIdentity({
     entityType: contractor.entity_type,
     companyPeople,
     address: (addresses ?? [])[0],
@@ -372,11 +374,8 @@ export default async function ContractorDetailPage({ params }: Props) {
               <ContactLine icon={Phone} href={primaryPhone ? `tel:${primaryPhone}` : undefined}>{primaryPhone ?? <span className="text-muted-foreground">—</span>}</ContactLine>
               <ContactLine icon={Mail} href={primaryEmail ? `mailto:${primaryEmail}` : undefined}>{primaryEmail ?? <span className="text-muted-foreground">—</span>}</ContactLine>
               {waHref && <ContactLine icon={MessageCircle} href={waHref}>WhatsApp</ContactLine>}
-              {contactPerson && (
-                <ContactLine icon={Users}>
-                  {contactPerson}
-                  {extraPeople > 0 && <span className="text-muted-foreground"> · +{extraPeople} more</span>}
-                </ContactLine>
+              {contractor.entity_type === "organisation" && (
+                <SupplierPeople people={companyPeople} companyContactId={contractor.contact_id} />
               )}
               <ContactLine icon={MapPin}>{addressStr ?? <span className="text-muted-foreground">—</span>}</ContactLine>
             </div>
@@ -385,11 +384,6 @@ export default async function ContractorDetailPage({ params }: Props) {
       <DetailCard title="Account profile" flush>
         <DetailStatGrid stats={accountStats} />
       </DetailCard>
-      {contractor.entity_type === "organisation" && (
-        <DetailFullWidth>
-          <CompanyPeopleSection people={companyPeople} companyContactId={contractor.contact_id} fica={false} />
-        </DetailFullWidth>
-      )}
       <BankAccountsSection
         entityType="suppliers"
         entityId={id}
@@ -433,13 +427,22 @@ export default async function ContractorDetailPage({ params }: Props) {
         {recentInvoices.length === 0 ? (
           <p className="text-sm text-muted-foreground">No invoices yet.</p>
         ) : (
-          <ActivityTimeline
-            items={recentInvoices.map((inv) => ({
-              dotColor: inv.status === "paid" ? "#1D9E75" : "#D85A30",
-              title: `${inv.invoice_number ?? "Invoice"} — ${formatZAR(inv.amount_incl_vat_cents)} (${inv.status})`,
-              time: new Date(inv.invoice_date).toLocaleDateString("en-ZA"),
-            }))}
-          />
+          <div className="space-y-0.5">
+            {recentInvoices.map((inv) => (
+              <Link
+                key={inv.id}
+                href={`/payments/invoices/${inv.id}`}
+                className="flex items-center justify-between gap-3 rounded-[var(--r-button)] px-2 py-1.5 text-sm transition-colors hover:bg-muted/50"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: inv.status === "paid" ? "#1D9E75" : "#D85A30" }} />
+                  <span className="truncate">{inv.invoice_number ?? "Invoice"} — {formatZAR(inv.amount_incl_vat_cents)}</span>
+                  <span className="shrink-0 text-xs capitalize text-muted-foreground">· {inv.status.replaceAll("_", " ")}</span>
+                </span>
+                <span className="shrink-0 text-xs text-muted-foreground">{new Date(inv.invoice_date).toLocaleDateString("en-ZA")}</span>
+              </Link>
+            ))}
+          </div>
         )}
       </DetailCard>
 
