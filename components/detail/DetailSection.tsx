@@ -8,8 +8,9 @@
  *         a titled header + count badge keep using SectionCard; this is for the self-titling edit sections.
  */
 import type { ReactNode } from "react"
-import { Card } from "@/components/ui/card"
 
 export function DetailSection({ children }: Readonly<{ children: ReactNode }>) {
-  return <Card className="p-4">{children}</Card>
+  // Same chrome as DetailCard (square, amber bottom-border accent) so the self-titled edit sections
+  // (banking, portal, …) match the titled DetailCards in the grid.
+  return <div className="rounded-[var(--r-button)] border border-border border-b-2 border-b-primary bg-card p-4">{children}</div>
 }

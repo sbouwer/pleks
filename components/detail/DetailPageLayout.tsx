@@ -42,7 +42,7 @@ export function DetailPageLayout({
         actions={actions}
         tabs={tabs}
       />
-      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">{children}</div>
+      <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2">{children}</div>
     </div>
   )
 }
