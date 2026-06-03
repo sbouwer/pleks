@@ -192,9 +192,9 @@ function MobileRow({ req }: Readonly<{ req: MaintenanceItemExtended }>) {
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-interface Props { orgId: string }
+interface Props { orgId: string; contractorFilter?: string | null }
 
-export function MaintenancePageClient({ orgId }: Readonly<Props>) {
+export function MaintenancePageClient({ orgId, contractorFilter }: Readonly<Props>) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const queryKey = OPERATIONAL_QUERY_KEYS.maintenance(orgId)
@@ -203,11 +203,15 @@ export function MaintenancePageClient({ orgId }: Readonly<Props>) {
   const [sortField, setSortField] = useState<SortField>("age")
   const [sortDir, setSortDir] = useState<SortDir>("desc")
 
-  const { data: list = [], dataUpdatedAt } = useQuery({
+  const { data: allItems = [], dataUpdatedAt } = useQuery({
     queryKey,
     queryFn: () => fetchMaintenanceAction(orgId),
     staleTime: STALE_TIME.maintenance,
   })
+  // Optional ?contractor= scope (e.g. from a supplier's "View work orders" quick link).
+  const list = contractorFilter
+    ? allItems.filter((r) => (r as { contractor_id?: string | null }).contractor_id === contractorFilter)
+    : allItems
 
   function handleSort(field: SortField) {
     if (sortField === field) {
@@ -235,6 +239,13 @@ export function MaintenancePageClient({ orgId }: Readonly<Props>) {
 
   return (
     <div>
+      {contractorFilter && (
+        <div className="mb-4 flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground">Showing work orders for one supplier</span>
+          <button type="button" onClick={() => router.push("/maintenance")} className="text-brand hover:underline">Show all</button>
+        </div>
+      )}
+
       {/* ── Mobile ───────────────────────────────────────────────────────── */}
       <div className="lg:hidden pb-4">
         <div className="flex items-center justify-between mb-3">

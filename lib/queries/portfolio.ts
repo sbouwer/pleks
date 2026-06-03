@@ -117,7 +117,7 @@ export async function fetchInspections(supabase: SupabaseClient, orgId: string) 
 export async function fetchMaintenance(supabase: SupabaseClient, orgId: string) {
   const { data, error } = await supabase
     .from("maintenance_requests")
-    .select("id, title, category, urgency, status, work_order_number, logged_by, reported_via, created_at, units(unit_number, properties(name, address_line1, suburb, city))")
+    .select("id, title, category, urgency, status, work_order_number, contractor_id, logged_by, reported_via, created_at, units(unit_number, properties(name, address_line1, suburb, city))")
     .eq("org_id", orgId)
     .order("created_at", { ascending: false })
   if (error) { console.error("fetchMaintenance failed:", error.message); return [] }

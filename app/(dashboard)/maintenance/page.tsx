@@ -14,10 +14,13 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { OPERATIONAL_QUERY_KEYS, STALE_TIME, fetchMaintenance } from "@/lib/queries/portfolio"
 import { MaintenancePageClient } from "./MaintenancePageClient"
 
-export default async function MaintenancePage() {
+interface Props { searchParams: Promise<{ contractor?: string }> }
+
+export default async function MaintenancePage({ searchParams }: Readonly<Props>) {
   const membership = await getServerOrgMembership()
   if (!membership) redirect("/login")
 
+  const contractorFilter = (await searchParams).contractor ?? null
   const { org_id: orgId } = membership
   const queryClient = new QueryClient()
   const supabase = await createServiceClient()
@@ -30,7 +33,7 @@ export default async function MaintenancePage() {
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <MaintenancePageClient orgId={orgId} />
+      <MaintenancePageClient orgId={orgId} contractorFilter={contractorFilter} />
     </HydrationBoundary>
   )
 }

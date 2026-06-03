@@ -136,6 +136,21 @@ export async function DELETE(req: NextRequest) {
   const { contractorId, contactId } = await req.json()
   if (!contractorId || !contactId) return NextResponse.json({ error: "Missing ids" }, { status: 400 })
 
+  // Guard: archiving is a SOFT delete (deleted_at) — historical work orders + invoices are retained — but
+  // block it while obligations are open: active work orders or unpaid invoices must be resolved first.
+  const [{ data: activeJobs }, { data: openInvoices }] = await Promise.all([
+    service.from("maintenance_requests").select("id").eq("contractor_id", contractorId).eq("org_id", membership.org_id)
+      .not("status", "in", "(completed,closed,cancelled,rejected)").limit(1),
+    service.from("supplier_invoices").select("id").eq("contractor_id", contractorId).eq("org_id", membership.org_id)
+      .not("status", "in", "(paid,rejected,owner_direct_recorded)").limit(1),
+  ])
+  if ((activeJobs ?? []).length > 0) {
+    return NextResponse.json({ error: "This supplier has active work orders — close or reassign them first." }, { status: 409 })
+  }
+  if ((openInvoices ?? []).length > 0) {
+    return NextResponse.json({ error: "This supplier has unpaid invoices — resolve them before archiving." }, { status: 409 })
+  }
+
   await service.from("contractors").update({ deleted_at: new Date().toISOString() }).eq("id", contractorId).eq("org_id", membership.org_id)
   await service.from("contacts").update({ deleted_at: new Date().toISOString() }).eq("id", contactId).eq("org_id", membership.org_id)
 

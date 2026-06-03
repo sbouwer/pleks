@@ -338,7 +338,7 @@ export default async function ContractorDetailPage({ params }: Props) {
       status={status}
       badge={<DetailTypeBadge label={arch.badgeLabel} icon={archIcon} />}
       facts={facts}
-      actions={<SupplierDetailActions supplierId={id} />}
+      actions={<SupplierDetailActions supplierId={id} contactId={contractor.contact_id} />}
     >
       {contractor.entity_type === "organisation" && (
         <DetailFullWidth>

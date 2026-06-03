@@ -26,20 +26,26 @@ const STATUS_MAP: Record<string, "pending" | "completed" | "arrears" | "schedule
   owner_direct_recorded: "completed",
 }
 
-export default async function InvoicesPage() {
+interface Props { searchParams: Promise<{ contractor?: string }> }
+
+export default async function InvoicesPage({ searchParams }: Readonly<Props>) {
+  const contractorFilter = (await searchParams).contractor ?? null
   const gw = await gatewaySSR()
   if (!gw) redirect("/login")
   const { db, orgId } = gw
 
-  const { data, error } = await db
+  let query = db
     .from("supplier_invoices")
     .select("id, invoice_number, description, amount_incl_vat_cents, invoice_date, status, contractor_view(first_name, last_name, company_name), properties(name)")
     .eq("org_id", orgId)
-    .order("invoice_date", { ascending: false })
-    .limit(100)
+  if (contractorFilter) query = query.eq("contractor_id", contractorFilter)
+  const { data, error } = await query.order("invoice_date", { ascending: false }).limit(100)
 
   if (error) console.error("fetchInvoices failed:", error.message)
   const list = data ?? []
+  const firstContractor = list[0]?.contractor_view as unknown as { first_name?: string; last_name?: string; company_name?: string } | null
+  const personName = [firstContractor?.first_name, firstContractor?.last_name].filter(Boolean).join(" ")
+  const filterName = contractorFilter ? (firstContractor?.company_name ?? (personName || "this supplier")) : null
 
   return (
     <div>
@@ -49,6 +55,13 @@ export default async function InvoicesPage() {
           <p className="text-sm text-muted-foreground">{list.length} invoice{list.length === 1 ? "" : "s"}</p>
         </div>
       </div>
+
+      {contractorFilter && (
+        <div className="mb-4 flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground">Filtered to {filterName}</span>
+          <Link href="/billing/invoices" className="text-brand hover:underline">Show all</Link>
+        </div>
+      )}
 
       {list.length === 0 ? (
         <EmptyState
