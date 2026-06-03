@@ -10,11 +10,10 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
-import { ActionButton, EditButton, IconButton } from "@/components/ui/actions"
+import { ActionButton, EditButton, DeleteButton } from "@/components/ui/actions"
 import { Badge } from "@/components/ui/badge"
 import { ListSearchBar, ListCard, SortHeader, useListSort } from "@/components/ui/resource-list"
 import { toast } from "sonner"
-import { Trash2 } from "lucide-react"
 import { useOrg } from "@/hooks/useOrg"
 import { usePermissions } from "@/hooks/usePermissions"
 import { PORTFOLIO_QUERY_KEYS } from "@/lib/queries/portfolio"
@@ -172,13 +171,7 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
                       <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <EditButton label="Edit landlord" onClick={() => setEditId(l.id)} />
                         {isAdmin && (
-                          <IconButton
-                            icon={<Trash2 className="size-3.5" />}
-                            label="Delete landlord"
-                            onClick={() => handleDelete(l)}
-                            disabled={isDeleting}
-                            className="pa-iconbtn--destructive"
-                          />
+                          <DeleteButton label="Delete landlord" itemName="this landlord" loading={isDeleting} onConfirm={() => handleDelete(l)} />
                         )}
                       </div>
                     </td>
