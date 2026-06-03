@@ -13,7 +13,7 @@ import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Crown, Calculator, Wrench, FileText, User, Phone, Mail, Plus, Trash2, Loader2 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
-import { SectionCard } from "./SectionCard"
+import { DetailCard } from "@/components/detail/DetailCard"
 import { COMPANY_FUNCTION_LABEL } from "@/lib/contacts/contactScope"
 import { COMPANY_FUNCTION_OPTIONS } from "@/lib/parties/partyConfig"
 import { validateSAId } from "@/lib/parties/partyValidation"
@@ -185,7 +185,7 @@ export function CompanyPeopleSection({
   }
 
   return (
-    <SectionCard title="People" count={people.length}>
+    <DetailCard title="People" count={people.length}>
       {people.length === 0 && !adding && <p className="text-sm text-muted-foreground">No people added yet.</p>}
 
       {people.length > 0 && (
@@ -201,6 +201,6 @@ export function CompanyPeopleSection({
           <Plus className="h-4 w-4" /> Add a person
         </button>
       )}
-    </SectionCard>
+    </DetailCard>
   )
 }

@@ -56,6 +56,13 @@ function buildAccountStats(a: Readonly<{
   return stats
 }
 
+/** Why archiving is blocked (open obligations), or null if allowed. Server enforces the same guard. */
+function archiveBlockReason(activeJobCount: number, openInvoiceCount: number): string | null {
+  if (activeJobCount > 0) return "This supplier has active work orders — close or reassign them first."
+  if (openInvoiceCount > 0) return "This supplier has unpaid invoices — resolve them before archiving."
+  return null
+}
+
 /** WhatsApp deep link (SA 0 → 27), or null. */
 function waLink(phone: string | null): string | null {
   if (!phone) return null
@@ -93,7 +100,7 @@ function ContactLine({ icon: Icon, href, children }: Readonly<{ icon: LucideIcon
 }
 
 async function fetchInvoiceData(service: Awaited<ReturnType<typeof createServiceClient>>, contractorId: string) {
-  const [{ data: invData }, { data: invTotal }] = await Promise.all([
+  const [{ data: invData }, { data: invTotal }, { count: openCount }] = await Promise.all([
     service
       .from("supplier_invoices")
       .select("id, invoice_number, amount_incl_vat_cents, status, invoice_date")
@@ -105,10 +112,16 @@ async function fetchInvoiceData(service: Awaited<ReturnType<typeof createService
       .select("amount_incl_vat_cents")
       .eq("contractor_id", contractorId)
       .eq("status", "paid"),
+    service
+      .from("supplier_invoices")
+      .select("id", { count: "exact", head: true })
+      .eq("contractor_id", contractorId)
+      .not("status", "in", "(paid,rejected,owner_direct_recorded)"),
   ])
   return {
     recentInvoices: (invData ?? []) as Array<{ id: string; invoice_number: string | null; amount_incl_vat_cents: number; status: string; invoice_date: string }>,
     totalInvoiced: (invTotal ?? []).reduce((sum, i) => sum + (i.amount_incl_vat_cents || 0), 0),
+    openInvoiceCount: openCount ?? 0,
   }
 }
 
@@ -256,7 +269,7 @@ export default async function ContractorDetailPage({ params }: Props) {
     .eq("status", "completed")
 
   // Recent invoices
-  const { recentInvoices, totalInvoiced } = await fetchInvoiceData(service, id)
+  const { recentInvoices, totalInvoiced, openInvoiceCount } = await fetchInvoiceData(service, id)
 
   // Delay event + response time stats
   const allContractorJobIds = [
@@ -319,6 +332,9 @@ export default async function ContractorDetailPage({ params }: Props) {
   const arch = supplierArchetypeConfig(contractor.supplier_type)
   const archIcon = { contractor: Wrench, scheme: Landmark, utility: Zap }[arch.archetype]
 
+  // Pre-check for a styled "can't archive because …" message instead of a failed request.
+  const archiveBlock = archiveBlockReason(activeJobCount, openInvoiceCount)
+
   const facts: DetailFact[] = [
     { k: "Type", v: contractor.entity_type === "organisation" ? "Company" : "Individual" },
     { k: "Specialities", v: (contractor.specialities ?? []).length > 0 ? (contractor.specialities ?? []).join(", ") : "—" },
@@ -338,14 +354,8 @@ export default async function ContractorDetailPage({ params }: Props) {
       status={status}
       badge={<DetailTypeBadge label={arch.badgeLabel} icon={archIcon} />}
       facts={facts}
-      actions={<SupplierDetailActions supplierId={id} contactId={contractor.contact_id} />}
+      actions={<SupplierDetailActions supplierId={id} contactId={contractor.contact_id} supplierName={displayName} archiveBlock={archiveBlock} />}
     >
-      {contractor.entity_type === "organisation" && (
-        <DetailFullWidth>
-          <CompanyPeopleSection people={companyPeople} companyContactId={contractor.contact_id} fica={false} />
-        </DetailFullWidth>
-      )}
-
       {/* Row 1 — identity · Account profile (read-only; edit via the header Edit modal). */}
       <DetailCard title={arch.badgeLabel}>
           <div className="space-y-3">
@@ -375,6 +385,11 @@ export default async function ContractorDetailPage({ params }: Props) {
       <DetailCard title="Account profile" flush>
         <DetailStatGrid stats={accountStats} />
       </DetailCard>
+      {contractor.entity_type === "organisation" && (
+        <DetailFullWidth>
+          <CompanyPeopleSection people={companyPeople} companyContactId={contractor.contact_id} fica={false} />
+        </DetailFullWidth>
+      )}
       <BankAccountsSection
         entityType="suppliers"
         entityId={id}
