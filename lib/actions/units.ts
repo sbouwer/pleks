@@ -1,13 +1,12 @@
 "use server"
 
 /**
- * lib/actions/units.ts — FILL: one-line purpose
+ * lib/actions/units.ts — server actions for units (create, update, status, features, lease rule-set write-back)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   requireAgentWriteAccess (subscription-gated) on every mutation
+ * Data:   units, unit_status_history; clause profile via syncUnitClauseProfile
+ * Notes:  writeBackUnitRuleSet enriches the unit from lease creation — it only fills currently-empty
+ *         unit columns (ADDENDUM_LEASE_CREATION_MODAL §3); populated values are never overwritten.
  */
 import { SupabaseClient } from "@supabase/supabase-js"
 import { requireAgentWriteAccess } from "@/lib/auth/server"
@@ -236,6 +235,47 @@ export async function updateAskingRent(unitId: string, rentCents: number): Promi
     .update({ asking_rent_cents: rentCents })
     .eq("id", unitId)
 
+  if (error) return { error: error.message }
+
+  revalidatePath("/properties")
+  return {}
+}
+
+/**
+ * Write lease-creation rule-set values back to the unit (ADDENDUM_LEASE_CREATION_MODAL §3).
+ *
+ * Only fills unit columns that are currently EMPTY (null asking_rent / 0-or-null parking_bays). A column
+ * that already carries a value is left untouched — the per-lease figure stays lease-local. Best-effort:
+ * never throws; lease creation does not depend on it succeeding.
+ */
+export async function writeBackUnitRuleSet(
+  unitId: string,
+  values: { askingRentCents?: number | null; parkingBays?: number | null },
+): Promise<{ error?: string }> {
+  const gw = await requireAgentWriteAccess("edit_property")
+  const { db, orgId } = gw
+
+  const { data: unit, error: readErr } = await db
+    .from("units")
+    .select("asking_rent_cents, parking_bays")
+    .eq("id", unitId)
+    .eq("org_id", orgId)
+    .single()
+  if (readErr || !unit) return { error: readErr?.message ?? "Unit not found" }
+
+  const patch: Record<string, number> = {}
+  // asking_rent_cents: fill only if the unit has none and the lease carries a positive value.
+  if ((unit.asking_rent_cents === null || unit.asking_rent_cents === undefined) && values.askingRentCents && values.askingRentCents > 0) {
+    patch.asking_rent_cents = values.askingRentCents
+  }
+  // parking_bays: fill only if the unit has none (null/0) and the lease carries a positive value.
+  if (!unit.parking_bays && values.parkingBays && values.parkingBays > 0) {
+    patch.parking_bays = values.parkingBays
+  }
+
+  if (Object.keys(patch).length === 0) return {}
+
+  const { error } = await db.from("units").update(patch).eq("id", unitId).eq("org_id", orgId)
   if (error) return { error: error.message }
 
   revalidatePath("/properties")

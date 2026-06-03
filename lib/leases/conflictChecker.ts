@@ -9,7 +9,7 @@
  *  4. Alternative utilities clause on sectional title property
  */
 
-import type { AnnexureCRules } from "@/components/leases/LeaseWizard"
+import type { AnnexureCRules } from "@/components/leases/wizardData"
 
 export interface ClauseConflict {
   id: string
