@@ -10,7 +10,7 @@
  *         it via AddTenantProvider and returns with the new tenant selected. Registers a validate-then-commit
  *         submit handler the modal footer's Continue invokes.
  */
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useOrg } from "@/hooks/useOrg"
 import { Card, CardContent } from "@/components/ui/card"
 import { CheckCircle2, UserRound, ChevronDown, Plus, X } from "lucide-react"
@@ -86,8 +86,19 @@ export function TenantStep({ register }: Readonly<Props>) {
     // eslint-disable-next-line react-hooks/purity
     return Date.now() - new Date(sizeBandsCapturedAt).getTime() > 365 * 24 * 60 * 60 * 1000
   }, [sizeBandsCapturedAt])
-  const showBandsPrompt = tenantIsJuristic && !isSoleProp && (turnoverUnder2m === null || assetUnder2m === null || bandsStale)
   const showFranchiseFlag = tenantIsJuristic && !isSoleProp && tenantId !== ""
+
+  // The size-band prompt is latched: it opens when a juristic non-sole-prop non-franchise tenant lacks
+  // fresh bands, and stays open while the user picks turnover/asset radios (picking both must NOT dismiss
+  // it before they save) — it closes only on save or a structural change (franchise/sole-prop/no tenant).
+  const [showBands, setShowBands] = useState(false)
+  useEffect(() => {
+    const needed = tenantIsJuristic && !isSoleProp && tenantId !== "" && !isFranchiseAgreement &&
+      (turnoverUnder2m === null || assetUnder2m === null || bandsStale)
+    if (needed) setShowBands(true)
+    else if (isFranchiseAgreement || isSoleProp || !tenantIsJuristic || tenantId === "") setShowBands(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- turnover/asset deliberately excluded so picking a band doesn't dismiss the still-unsaved prompt
+  }, [tenantIsJuristic, isSoleProp, tenantId, isFranchiseAgreement, bandsStale])
 
   function handleSelectMain(t: PickedTenant) {
     setTenantId(t.id)
@@ -113,6 +124,8 @@ export function TenantStep({ register }: Readonly<Props>) {
     })
     setSavingBands(false)
     setSizeBandsCapturedAt(new Date().toISOString())
+    setShowBands(false)
+    setError("")
   }
 
   function handleSelectCo(t: PickedTenant) {
@@ -136,7 +149,7 @@ export function TenantStep({ register }: Readonly<Props>) {
 
   function submit(): boolean {
     if (!tenantId) { setError("Please select a tenant"); return false }
-    if (showBandsPrompt && !savingBands) {
+    if (showBands && (turnoverUnder2m === null || assetUnder2m === null)) {
       setError("Confirm the tenant's annual turnover and asset value before continuing.")
       return false
     }
@@ -159,11 +172,6 @@ export function TenantStep({ register }: Readonly<Props>) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="font-heading text-xl mb-1">Tenant</h2>
-        <p className="text-sm text-muted-foreground">Who is moving in?</p>
-      </div>
-
       {/* Primary tenant */}
       {tenantId && tenantName ? (
         <TenantRow label="Primary tenant" tenantName={tenantName} orgId={org} onSelect={handleSelectMain} />
@@ -234,7 +242,7 @@ export function TenantStep({ register }: Readonly<Props>) {
                   type="radio"
                   checked={isFranchiseAgreement === (v === "yes")}
                   onChange={() => setIsFranchiseAgreement(v === "yes")}
-                  className="accent-brand"
+                  className="accent-primary"
                 />
                 {v === "yes" ? "Yes — franchise agreement" : "No"}
               </label>
@@ -244,7 +252,7 @@ export function TenantStep({ register }: Readonly<Props>) {
       )}
 
       {/* Stale / missing size bands — only for juristic non-franchise non-sole-prop */}
-      {showBandsPrompt && !isFranchiseAgreement && (
+      {showBands && !isFranchiseAgreement && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 px-4 py-3 space-y-3">
           <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
             Confirm {tenantName}&apos;s size for CPA determination
@@ -261,8 +269,8 @@ export function TenantStep({ register }: Readonly<Props>) {
                     <input
                       type="radio"
                       checked={String(turnoverUnder2m) === v}
-                      onChange={() => setTurnoverUnder2m(v === "true")}
-                      className="accent-brand"
+                      onChange={() => { setTurnoverUnder2m(v === "true"); setError("") }}
+                      className="accent-primary"
                     />
                     {l}
                   </label>
@@ -277,8 +285,8 @@ export function TenantStep({ register }: Readonly<Props>) {
                     <input
                       type="radio"
                       checked={String(assetUnder2m) === v}
-                      onChange={() => setAssetUnder2m(v === "true")}
-                      className="accent-brand"
+                      onChange={() => { setAssetUnder2m(v === "true"); setError("") }}
+                      className="accent-primary"
                     />
                     {l}
                   </label>

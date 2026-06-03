@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card"
 import { CheckCircle2, ChevronDown, ChevronRight, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { contactDisplayName } from "@/lib/contacts/displayName"
 import { useLeaseWizard } from "../LeaseWizardContext"
 import type { LocalCharge } from "../wizardData"
 import type { StepHandle } from "../stepHandle"
@@ -150,10 +151,7 @@ function InlineCombobox<T extends { id: string }>({
 }
 
 function rowToName(row: { first_name?: string | null; last_name?: string | null; company_name?: string | null; entity_type?: string | null } | null) {
-  if (!row) return ""
-  return row.entity_type === "juristic"
-    ? (row.company_name ?? "Company")
-    : [row.first_name, row.last_name].filter(Boolean).join(" ")
+  return contactDisplayName(row, "")
 }
 
 interface Props {
@@ -186,10 +184,16 @@ export function PropertyBuildingUnitStep({ register }: Readonly<Props>) {
       .order("name")
       .then(({ data: rows, error: err }) => {
         if (err) console.error("PropertyBuildingUnitStep: load properties failed:", err.message)
-        setProperties((rows as Property[]) ?? [])
+        const list = (rows as Property[]) ?? []
+        setProperties(list)
         setLoadingProps(false)
+        // Sole property (e.g. Owner tier) → auto-select so it's visibly chosen, not silently skipped.
+        if (list.length === 1 && !data.propertyId) {
+          setPropertyId(list[0].id)
+          setLeaseType(list[0].type === "commercial" ? "commercial" : "residential")
+        }
       })
-  }, [orgId])
+  }, [orgId, data.propertyId])
 
   // Load buildings + units for the selected property; auto-select a single building.
   useEffect(() => {
@@ -217,10 +221,12 @@ export function PropertyBuildingUnitStep({ register }: Readonly<Props>) {
       if (buildingsRes.error) console.error("PropertyBuildingUnitStep: load buildings failed:", buildingsRes.error.message)
       if (unitsRes.error) console.error("PropertyBuildingUnitStep: load units failed:", unitsRes.error.message)
       const bRows = (buildingsRes.data as Building[]) ?? []
+      const uRows = (unitsRes.data as Unit[]) ?? []
       setBuildings(bRows)
-      setUnits((unitsRes.data as Unit[]) ?? [])
-      // Auto-select + collapse a single building.
+      setUnits(uRows)
+      // Auto-select + collapse a single building / sole unit so a 1-property/1-unit org isn't asked to "pick".
       if (bRows.length === 1) setBuildingId((prev) => prev || bRows[0].id)
+      if (bRows.length <= 1 && uRows.length === 1) setUnitId((prev) => prev || uRows[0].id)
       setLoadingUnits(false)
     }
     void fetchPropertyChildren()
@@ -333,11 +339,6 @@ export function PropertyBuildingUnitStep({ register }: Readonly<Props>) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="font-heading text-xl mb-1">Property &amp; unit</h2>
-        <p className="text-sm text-muted-foreground">Select which unit this lease is for.</p>
-      </div>
-
       {isPreFilled && data.propertyName && data.unitLabel ? (
         <Card className="border-brand/30 bg-brand/5">
           <CardContent className="pt-4">

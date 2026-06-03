@@ -124,13 +124,6 @@ export function LeaseDetailsStep({ register }: Readonly<Props>) {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h2 className="font-heading text-xl mb-1">Lease details</h2>
-        <p className="text-sm text-muted-foreground">
-          Terms, charges, clauses, and annexures — prefilled from the unit. Adjust anything that differs.
-        </p>
-      </div>
-
       <SectionShell title="Lease terms" subtitle="Financial details and duration.">
         <TermsSection
           value={terms}

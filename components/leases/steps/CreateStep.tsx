@@ -200,12 +200,9 @@ export function CreateStep({ register, disclaimerAccepted }: Readonly<Props>) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="font-heading text-xl mb-1">Create lease</h2>
-        <p className="text-sm text-muted-foreground">
-          {data.unitLabel ? `${data.unitLabel} — ${data.propertyName}` : "Choose how to create this lease."}
-        </p>
-      </div>
+      {data.unitLabel && (
+        <p className="text-sm text-muted-foreground">{data.unitLabel} — {data.propertyName}</p>
+      )}
 
       <p className="text-sm font-medium">How would you like to create this lease?</p>
 
