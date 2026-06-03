@@ -997,3 +997,7 @@ CREATE INDEX IF NOT EXISTS idx_contacts_org_contact
 -- exactly one primary person per company
 CREATE UNIQUE INDEX IF NOT EXISTS uq_contacts_org_primary
   ON contacts(organisation_contact_id) WHERE is_primary_contact AND organisation_contact_id IS NOT NULL;
+
+-- BUILD_25A_AMENDMENT: at most one address per type per contact (physical/postal/billing). UI enforces
+-- one block per type in the add flow; this hardens it at the DB (contact_addresses has no soft-delete).
+CREATE UNIQUE INDEX IF NOT EXISTS uq_contact_addresses_type ON contact_addresses(contact_id, address_type);
