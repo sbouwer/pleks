@@ -73,18 +73,3 @@ export function SectLabel({ n, children }: Readonly<{ n?: string; children: Reac
 export function DoorCard({ className, children }: Readonly<{ className?: string; children: React.ReactNode }>) {
   return <div className={cn("rounded-[var(--r-button)] border border-border bg-muted/20 p-3.5", className)}>{children}</div>
 }
-
-/** Dashed-border add button (matches the party repeaters). */
-export function DashedAddButton({
-  onClick, children,
-}: Readonly<{ onClick: () => void; children: React.ReactNode }>) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="inline-flex items-center gap-1.5 rounded-[var(--r-button)] border border-dashed border-border px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
-    >
-      {children}
-    </button>
-  )
-}

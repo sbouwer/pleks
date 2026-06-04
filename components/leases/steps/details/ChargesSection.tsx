@@ -11,9 +11,10 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
-import { Field, UnderlineInput, UnderlineSelect, DashedAddButton } from "@/components/ui/door-form"
+import { Field, UnderlineInput, UnderlineSelect } from "@/components/ui/door-form"
+import { AddInline } from "@/components/ui/actions"
 import { Badge } from "@/components/ui/badge"
-import { Plus, Trash2, X } from "lucide-react"
+import { Trash2, X } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import type { LocalCharge, LocalOnceOffCharge } from "../../wizardData"
 
@@ -216,7 +217,7 @@ export function ChargesSection({ charges, onceOffCharges, onChangeCharges, onCha
             <h4 className="text-sm font-medium">Recurring charges</h4>
             {totalCharges > 0 && <p className="text-xs text-muted-foreground">{formatZAR(totalCharges)}/month in additional charges</p>}
           </div>
-          {!showAddCharge && <DashedAddButton onClick={() => setShowAddCharge(true)}><Plus className="size-4" /> Add charge</DashedAddButton>}
+          {!showAddCharge && <AddInline label="Add charge" onClick={() => setShowAddCharge(true)} />}
         </div>
 
         {charges.length > 0 ? (
@@ -253,7 +254,7 @@ export function ChargesSection({ charges, onceOffCharges, onChangeCharges, onCha
             <h4 className="text-sm font-medium">Once-off charges</h4>
             <p className="text-xs text-muted-foreground">Contract fees, inspection fees, key deposits, etc.</p>
           </div>
-          {!showAddOnceOff && <DashedAddButton onClick={() => setShowAddOnceOff(true)}><Plus className="size-4" /> Add charge</DashedAddButton>}
+          {!showAddOnceOff && <AddInline label="Add charge" onClick={() => setShowAddOnceOff(true)} />}
         </div>
 
         {onceOffCharges.length > 0 ? (

@@ -8,8 +8,9 @@
  * Notes:  Lifted from the old AnnexuresStep, stripped of its own step-nav. Four collapsible annexures (A–D).
  */
 import { useState } from "react"
-import { Field, UnderlineInput, UnderlineSelect, DashedAddButton } from "@/components/ui/door-form"
-import { ChevronDown, ChevronUp, Plus, X } from "lucide-react"
+import { Field, UnderlineInput, UnderlineSelect } from "@/components/ui/door-form"
+import { AddInline } from "@/components/ui/actions"
+import { ChevronDown, ChevronUp, X } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import type { LocalCharge, LocalOnceOffCharge, AnnexureCRules, SpecialTerm } from "../../wizardData"
 
@@ -163,9 +164,7 @@ export function AnnexuresSection({
           {specialTerms.length === 0 && (
             <p className="text-sm text-muted-foreground">No special agreements — Annexure D will state &quot;No special agreements apply.&quot;</p>
           )}
-          <DashedAddButton onClick={() => onChangeSpecialTerms([...specialTerms, { type: "custom", detail: "" }])}>
-            <Plus className="size-3.5" /> Add special agreement
-          </DashedAddButton>
+          <AddInline label="Add special agreement" onClick={() => onChangeSpecialTerms([...specialTerms, { type: "custom", detail: "" }])} />
         </div>
       </AnnexureSection>
     </div>
