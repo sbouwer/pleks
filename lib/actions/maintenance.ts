@@ -16,6 +16,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { triageMaintenanceRequest, deriveSeverityFromTriage } from "@/lib/ai/maintenanceTriage"
+import { workOrderCategoryCode } from "@/lib/maintenance/categories"
 import { hasFeature } from "@/lib/tier/gates"
 import { getOrgTier } from "@/lib/tier/getOrgTier"
 import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
@@ -122,11 +123,12 @@ export async function createMaintenanceRequest(formData: FormData) {
   // Fetch building maintenance_rhythm to inform SLA notes
   let buildingRhythm: string | null = null
   if (buildingId) {
-    const { data: bld } = await db
+    const { data: bld, error: bldError } = await db
       .from("buildings")
       .select("maintenance_rhythm, heritage_pre_approval_required, heritage_approved_contractors_only")
       .eq("id", buildingId)
       .single()
+    if (bldError) console.error("createMaintenanceRequest buildings read failed:", bldError.message)
     buildingRhythm = bld?.maintenance_rhythm ?? null
     // Warn on heritage pre-approval requirement in special_instructions
     if (bld?.heritage_pre_approval_required) {
@@ -154,15 +156,20 @@ export async function createMaintenanceRequest(formData: FormData) {
     triage = { category: "other", urgency: "routine", urgency_reason: "Manual — upgrade for AI triage", suggested_action: "", severity: "routine", insurance_relevant: false }
   }
 
-  // Generate work order number
-  const year = new Date().getFullYear()
+  // Generate work order number: WO-YYYYMM-<CAT>-NNNNN
+  //   YYYYMM = creation month · CAT = 3-letter category code (workOrderCategoryCode) ·
+  //   NNNNN  = per-org running counter (zero-padded to 5). Category is known at triage time,
+  //   so the number is mintable at creation even before a contractor is assigned.
+  const now = new Date()
+  const yearMonth = `${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, "0")}`
+  const catCode = workOrderCategoryCode(triage.category)
   const { count } = await db
     .from("maintenance_requests")
     .select("id", { count: "exact", head: true })
     .eq("org_id", orgId)
 
-  const seq = ((count || 0) + 1).toString().padStart(4, "0")
-  const workOrderNumber = `WO-${year}-${seq}`
+  const seq = ((count || 0) + 1).toString().padStart(5, "0")
+  const workOrderNumber = `WO-${yearMonth}-${catCode}-${seq}`
 
   const { data: request, error } = await db
     .from("maintenance_requests")
@@ -260,11 +267,12 @@ async function prepareWorkOrderSent(
     extraUpdates.work_order_token = token
   }
 
-  const { data: contractor } = await db
+  const { data: contractor, error: contractorError } = await db
     .from("contractors")
     .select("first_name, last_name, company_name, email, contact_id")
     .eq("id", req.contractor_id)
     .single()
+  if (contractorError) console.error("contractors read failed:", contractorError.message)
 
   const contractorDisplayName = (contractor?.company_name as string | null)
     || [contractor?.first_name, contractor?.last_name].filter(Boolean).join(" ")
@@ -318,9 +326,10 @@ async function sendWorkOrderEmail({ db, userId, requestId, req, recipientEmail, 
   const service = await createServiceClient()
   for (const ph of rawPhotos.slice(0, 6)) {
     try {
-      const { data: signed } = await service.storage
+      const { data: signed, error: signedError } = await service.storage
         .from("maintenance-photos")
         .createSignedUrl(ph.storage_path as string, 60 * 60 * 24 * 7)
+      if (signedError) console.error("work-order photo signed-url failed:", signedError.message)
       if (signed?.signedUrl) {
         woPhotos.push({ url: signed.signedUrl, caption: `Before · ${new Date(ph.created_at as string).toLocaleDateString("en-ZA")}` })
       }
@@ -389,12 +398,13 @@ export async function updateMaintenanceStatus(
 
   if (error) return { error: error.message }
 
-  const { data: req } = await db
+  const { data: req, error: reqError } = await db
     .from("maintenance_requests")
     .select("org_id")
     .eq("id", requestId)
     .single()
 
+  if (reqError) console.error("maintenance_requests read failed:", reqError.message)
   if (req) {
     await db.from("audit_log").insert({
       org_id: req.org_id,
@@ -418,7 +428,7 @@ export async function fetchUnitsForProperty(propertyId: string) {
   const gw = await gateway()
   if (!gw) return []
   const { db, orgId } = gw
-  const { data } = await db
+  const { data, error } = await db
     .from("units")
     .select("id, unit_number, access_instructions, prospective_tenant_id")
     .eq("property_id", propertyId)
@@ -426,6 +436,7 @@ export async function fetchUnitsForProperty(propertyId: string) {
     .eq("is_archived", false)
     .is("deleted_at", null)
     .order("unit_number")
+  if (error) console.error("fetchUnitsForProperty failed:", error.message)
   return (data ?? []) as Array<{ id: string; unit_number: string; access_instructions: string | null; prospective_tenant_id: string | null }>
 }
 
@@ -439,7 +450,7 @@ export async function fetchTenantForUnit(
   const { db } = gw
   const TENANT_STATUSES = ["draft", "pending_signing", "active", "notice", "month_to_month"]
 
-  const { data: lease } = await db
+  const { data: lease, error: leaseError } = await db
     .from("leases")
     .select("id, tenant_id")
     .eq("unit_id", unitId)
@@ -448,12 +459,14 @@ export async function fetchTenantForUnit(
     .limit(1)
     .maybeSingle()
 
+  if (leaseError) console.error("fetchTenantForUnit leases read failed:", leaseError.message)
   if (lease?.tenant_id) {
-    const { data: tv } = await db
+    const { data: tv, error: tvError } = await db
       .from("tenant_view")
       .select("first_name, last_name, phone")
       .eq("id", lease.tenant_id)
       .maybeSingle()
+    if (tvError) console.error("fetchTenantForUnit tenant_view (lease) read failed:", tvError.message)
     const name = `${tv?.first_name ?? ""} ${tv?.last_name ?? ""}`.trim()
     return {
       tenant: { id: lease.tenant_id as string, name, phone: (tv?.phone as string | null) ?? null },
@@ -462,11 +475,12 @@ export async function fetchTenantForUnit(
   }
 
   if (prospectiveTenantId) {
-    const { data: tv } = await db
+    const { data: tv, error: tvError } = await db
       .from("tenant_view")
       .select("first_name, last_name, phone")
       .eq("id", prospectiveTenantId)
       .maybeSingle()
+    if (tvError) console.error("fetchTenantForUnit tenant_view (prospective) read failed:", tvError.message)
     if (tv) {
       const name = `${tv.first_name ?? ""} ${tv.last_name ?? ""}`.trim()
       return { tenant: { id: prospectiveTenantId, name, phone: (tv.phone as string | null) ?? null }, leaseId: null }
@@ -481,38 +495,42 @@ export async function fetchPropertyContactsAction(propertyId: string) {
   const gw = await gateway()
   if (!gw) return []
   const { db } = gw
-  const { data: prop } = await db
+  const { data: prop, error: propError } = await db
     .from("properties")
     .select("managing_agent_id, landlord_id")
     .eq("id", propertyId)
     .maybeSingle()
+  if (propError) console.error("fetchPropertyContactsAction properties read failed:", propError.message)
   if (!prop) return []
 
   const contacts: Array<{ role: string; label: string; name: string; phone: string }> = []
 
   if (prop.managing_agent_id) {
-    const { data: profile } = await db
+    const { data: profile, error: profileError } = await db
       .from("user_profiles")
       .select("full_name, phone")
       .eq("id", prop.managing_agent_id)
       .maybeSingle()
+    if (profileError) console.error("fetchPropertyContactsAction user_profiles read failed:", profileError.message)
     if (profile?.full_name) {
       contacts.push({ role: "agent", label: `Agent \u2014 ${profile.full_name}`, name: profile.full_name as string, phone: (profile.phone as string | null) ?? "" })
     }
   }
 
   if (prop.landlord_id) {
-    const { data: landlordRow } = await db
+    const { data: landlordRow, error: landlordRowError } = await db
       .from("landlords")
       .select("contact_id")
       .eq("id", prop.landlord_id)
       .maybeSingle()
+    if (landlordRowError) console.error("fetchPropertyContactsAction landlords read failed:", landlordRowError.message)
     if (landlordRow?.contact_id) {
-      const { data: contact } = await db
+      const { data: contact, error: contactError } = await db
         .from("contacts")
         .select("first_name, last_name, primary_phone")
         .eq("id", landlordRow.contact_id)
         .maybeSingle()
+      if (contactError) console.error("fetchPropertyContactsAction contacts read failed:", contactError.message)
       if (contact) {
         const name = [contact.first_name, contact.last_name].filter(Boolean).join(" ")
         if (name) contacts.push({ role: "landlord", label: `Landlord \u2014 ${name}`, name, phone: (contact.primary_phone as string | null) ?? "" })
@@ -604,7 +622,8 @@ export async function addMaintenanceNote(
   if (!trimmed) return { error: "Note cannot be empty" }
   if (trimmed.length > 1000) return { error: "Note exceeds 1,000 character limit" }
 
-  const { data: profile } = await db.from("user_profiles").select("full_name").eq("id", userId).maybeSingle()
+  const { data: profile, error: profileError } = await db.from("user_profiles").select("full_name").eq("id", userId).maybeSingle()
+  if (profileError) console.error("addMaintenanceNote user_profiles read failed:", profileError.message)
   const actorName = (profile?.full_name as string | null) ?? null
 
   const { error: noteError } = await db.from("audit_log").insert({
@@ -622,12 +641,13 @@ export async function addMaintenanceNote(
   if (notifyLandlord) {
     try {
       const service = await createServiceClient()
-      const { data: req } = await service
+      const { data: req, error: reqError } = await service
         .from("maintenance_requests")
         .select("title, work_order_number, unit_id, property_id")
         .eq("id", requestId)
         .single()
 
+      if (reqError) console.error("addMaintenanceNote maintenance_requests read failed:", reqError.message)
       if (req?.property_id) {
         const [unitRes, propRes, orgSettings] = await Promise.all([
           req.unit_id
@@ -728,7 +748,8 @@ export async function cancelMaintenanceRequest(
 
   if (updateErr) return { error: updateErr.message }
 
-  const { data: cancelProfile } = await db.from("user_profiles").select("full_name").eq("id", userId).maybeSingle()
+  const { data: cancelProfile, error: cancelProfileError } = await db.from("user_profiles").select("full_name").eq("id", userId).maybeSingle()
+  if (cancelProfileError) console.error("cancelMaintenanceRequest user_profiles read failed:", cancelProfileError.message)
   const cancelActorName = (cancelProfile?.full_name as string | null) ?? null
 
   await db.from("audit_log").insert([
@@ -859,7 +880,8 @@ export async function changeContractor(
 
   if (updateErr) return { error: updateErr.message }
 
-  const { data: changeProfile } = await db.from("user_profiles").select("full_name").eq("id", userId).maybeSingle()
+  const { data: changeProfile, error: changeProfileError } = await db.from("user_profiles").select("full_name").eq("id", userId).maybeSingle()
+  if (changeProfileError) console.error("changeMaintenanceContractor user_profiles read failed:", changeProfileError.message)
   const changeActorName = (changeProfile?.full_name as string | null) ?? null
 
   await db.from("audit_log").insert([

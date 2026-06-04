@@ -6,6 +6,7 @@
  * Notes:  Falls back to keyword classifier when API key absent or API fails.
  */
 import { createMessage } from "@/lib/ai/client"
+import { MAINTENANCE_CATEGORY_VALUES } from "@/lib/maintenance/categories"
 
 export interface TriageResult {
   category: string
@@ -20,7 +21,7 @@ const SYSTEM_PROMPT = `You are a property maintenance triage assistant for South
 
 Given a maintenance request title and description, classify it into:
 
-1. **category** — one of: electrical, plumbing, hvac, structural, roofing, windows_doors, appliances, garden, pest_control, painting, flooring, security, access_control, cleaning, other
+1. **category** — one of: ${MAINTENANCE_CATEGORY_VALUES.join(", ")}
 
 2. **urgency** — one of:
    - emergency: immediate risk to health, safety, or property (burst pipe, gas leak, no power to whole unit, fire damage, structural failure)
@@ -66,7 +67,7 @@ export async function triageMaintenanceRequest(
     const text = message.content[0].type === "text" ? message.content[0].text.trim() : ""
     const raw = JSON.parse(text) as Partial<TriageResult>
 
-    const validCategories = ["electrical", "plumbing", "hvac", "structural", "roofing", "windows_doors", "appliances", "garden", "pest_control", "painting", "flooring", "security", "access_control", "cleaning", "other"]
+    const validCategories = MAINTENANCE_CATEGORY_VALUES
     const validUrgencies  = ["emergency", "urgent", "routine", "cosmetic"]
     const validSeverities = ["routine", "elevated", "urgent", "critical"] as const
 

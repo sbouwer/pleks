@@ -59,7 +59,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "completed",   label: "Completed" },
 ]
 
-type SortField = "title" | "unit" | "status" | "age" | "urgency"
+type SortField = "title" | "supplier" | "unit" | "status" | "age" | "urgency"
 type SortDir = "asc" | "desc"
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -91,6 +91,12 @@ function sortList(list: MaintenanceItem[], field: SortField, dir: SortDir): Main
       cmp = (URGENCY_ORDER[a.urgency ?? "routine"] ?? 2) - (URGENCY_ORDER[b.urgency ?? "routine"] ?? 2)
     } else if (field === "title") {
       cmp = (a.title ?? "").localeCompare(b.title ?? "")
+    } else if (field === "supplier") {
+      // Assigned contractors sort alphabetically; unassigned ("") always sorts last on asc.
+      const sa = supplierNameOf(a), sb = supplierNameOf(b)
+      if (sa && sb) cmp = sa.localeCompare(sb)
+      else if (sa) cmp = -1
+      else if (sb) cmp = 1
     } else if (field === "unit") {
       const ua = a.units as unknown as { unit_number: string; properties: { name: string } } | null
       const ub = b.units as unknown as { unit_number: string; properties: { name: string } } | null
@@ -105,7 +111,10 @@ function sortList(list: MaintenanceItem[], field: SortField, dir: SortDir): Main
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-ZA", { day: "numeric", month: "short" })
+  const d = new Date(iso)
+  const base = d.toLocaleDateString("en-ZA", { day: "numeric", month: "short" })
+  const yy = (d.getFullYear() % 100).toString().padStart(2, "0")
+  return `${base} '${yy}`
 }
 
 // ── Sort header ────────────────────────────────────────────────────────────────
@@ -130,8 +139,17 @@ function ColHeader({ col, label, sortField, sortDir, onSort }: Readonly<{
 
 // ── Row ────────────────────────────────────────────────────────────────────────
 
+/** Assigned supplier's display name (company first, else person), or "" when unassigned. */
+function supplierNameOf(req: MaintenanceItem): string {
+  const c = (req as { contractor_view?: { first_name?: string; last_name?: string; company_name?: string } | null }).contractor_view
+  if (!c) return ""
+  return c.company_name || [c.first_name, c.last_name].filter(Boolean).join(" ")
+}
+
 function MaintenanceRow({ req, onClick }: Readonly<{ req: MaintenanceItemExtended; onClick: () => void }>) {
   const unit = req.units as unknown as { unit_number: string; properties: { name: string } } | null
+  const supplierName = supplierNameOf(req)
+  const unitLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "—"
   const chip = STATUS_CHIP[req.status] ?? { label: req.status.replaceAll("_", " "), cls: "bg-muted text-muted-foreground" }
   const sla = getSlaState(req)
   let dateCls = "text-muted-foreground"
@@ -148,20 +166,23 @@ function MaintenanceRow({ req, onClick }: Readonly<{ req: MaintenanceItemExtende
         <div className={`w-2 h-2 rounded-full ${dot}`} />
       </td>
       <td className="px-4 py-3 font-medium text-sm">
-        {req.title}
+        <div className="max-w-[180px] truncate" title={req.title}>{req.title}</div>
       </td>
-      <td className="px-4 py-3 text-xs font-mono text-muted-foreground hidden sm:table-cell whitespace-nowrap">
+      <td className="px-4 py-3 text-sm text-muted-foreground hidden sm:table-cell">
+        <div className="max-w-[150px] truncate" title={supplierName || undefined}>{supplierName || "—"}</div>
+      </td>
+      <td className="px-4 py-3 text-xs font-mono text-muted-foreground hidden lg:table-cell whitespace-nowrap">
         {req.work_order_number ?? "—"}
       </td>
       <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">
-        {unit ? `${unit.unit_number}, ${unit.properties.name}` : "—"}
+        <div className="max-w-[150px] truncate" title={unitLabel}>{unitLabel}</div>
       </td>
       <td className="px-4 py-3">
         <span className={`inline-block text-[10.5px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${chip.cls}`}>
           {chip.label}
         </span>
       </td>
-      <td className={`px-4 py-3 text-xs whitespace-nowrap hidden lg:table-cell ${dateCls}`}>
+      <td className={`pl-4 pr-6 py-3 text-xs whitespace-nowrap hidden lg:table-cell ${dateCls}`}>
         {formatDate(req.created_at)}
       </td>
     </tr>
@@ -229,8 +250,7 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
     ? list.filter((r) => {
         const u = r.units as unknown as { unit_number?: string; properties?: { name?: string; address_line1?: string; suburb?: string; city?: string } } | null
         const p = u?.properties
-        const c = (r as { contractor_view?: { first_name?: string; last_name?: string; company_name?: string } | null }).contractor_view
-        return [r.title, r.work_order_number, u?.unit_number, p?.name, p?.address_line1, p?.suburb, p?.city, c?.company_name, c?.first_name, c?.last_name]
+        return [r.title, r.work_order_number, u?.unit_number, p?.name, p?.address_line1, p?.suburb, p?.city, supplierNameOf(r)]
           .filter(Boolean).join(" ").toLowerCase().includes(q)
       })
     : list
@@ -342,7 +362,7 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
 
         {list.length > 0 && (
           <div className="mb-4">
-            <ListSearchBar value={search} onChange={setSearch} placeholder="Search by title, unit, property, address or supplier…" />
+            <ListSearchBar value={search} onChange={setSearch} placeholder="Search by title, unit, property, address or contractor…" />
           </div>
         )}
 
@@ -398,7 +418,10 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
                   <th className="px-4 py-2.5 text-left">
                     <ColHeader col="title" label="Title" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                   </th>
-                  <th className="px-4 py-2.5 text-left hidden sm:table-cell whitespace-nowrap">
+                  <th className="px-4 py-2.5 text-left hidden sm:table-cell">
+                    <ColHeader col="supplier" label="Contractor" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                  </th>
+                  <th className="px-4 py-2.5 text-left hidden lg:table-cell whitespace-nowrap">
                     <span className="text-xs font-medium text-muted-foreground">WO #</span>
                   </th>
                   <th className="px-4 py-2.5 text-left hidden md:table-cell">
@@ -407,7 +430,7 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
                   <th className="px-4 py-2.5 text-left">
                     <ColHeader col="status" label="Status" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                   </th>
-                  <th className="px-4 py-2.5 text-left hidden lg:table-cell">
+                  <th className="pl-4 pr-6 py-2.5 text-left hidden lg:table-cell">
                     <ColHeader col="age" label="Date" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                   </th>
                 </tr>
