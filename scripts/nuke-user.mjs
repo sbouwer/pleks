@@ -129,7 +129,7 @@ async function main() {
   console.log("\nDeleting...")
 
   // ── Step 1: tos_acceptances (immutable trigger bypassed via session_replication_role) ──
-  console.log("  [1/5] tos_acceptances...")
+  console.log("  [1/6] tos_acceptances...")
   const tosOrgClause = orgId && isSoleOwner ? `OR org_id = '${orgId}'` : ""
   await runSql(`
     DO $$
@@ -140,12 +140,12 @@ async function main() {
   `)
 
   // ── Step 2: consent_log (no ON DELETE CASCADE on user_id FK) ─────────────
-  console.log("  [2/5] consent_log...")
+  console.log("  [2/6] consent_log...")
   await runSql(`DELETE FROM consent_log WHERE user_id = '${userId}'`)
 
   // ── Step 3: All org-scoped data (retry-on-FK cascade loop) ───────────────
   if (orgId && isSoleOwner) {
-    console.log("  [3/5] org data cascade...")
+    console.log("  [3/6] org data cascade...")
     await runSql(`
       DO $$
       DECLARE
@@ -186,21 +186,52 @@ async function main() {
       END $$;
     `)
 
-    console.log("  [4/5] subscriptions + org row...")
+    console.log("  [4/6] subscriptions + org row...")
     await runSql(`DELETE FROM subscriptions WHERE org_id = '${orgId}'`)
     await runSql(`DELETE FROM organisations  WHERE id     = '${orgId}'`)
   } else {
-    console.log("  [3/5] skipped org cascade (not sole owner)")
-    console.log("  [4/5] skipped")
+    console.log("  [3/6] skipped org cascade (not sole owner)")
+    console.log("  [4/6] skipped")
   }
 
   // ── Step 5: Delete auth user (cascades user_profiles, user_orgs, auth_events) ──
-  console.log("  [5/5] auth user...")
+  console.log("  [5/6] auth user...")
   const { error: deleteErr } = await admin.auth.admin.deleteUser(userId)
   if (deleteErr) {
     console.error(`\nFailed to delete auth user: ${deleteErr.message}`)
     console.error("Manual cleanup may be needed — user_profiles, user_orgs, auth_events may remain.")
     process.exit(1)
+  }
+
+  // ── Step 6: Verify (post-delete audit) ─────────────────────────────────
+  console.log("  [6/6] post-delete audit...")
+  const remaining = await runSql(`
+    SELECT c.table_schema, c.table_name, c.column_name
+    FROM   information_schema.columns c
+    JOIN   information_schema.tables t
+          ON  t.table_schema = c.table_schema
+          AND t.table_name   = c.table_name
+          AND t.table_type   = 'BASE TABLE'
+    WHERE  c.table_schema IN ('public', 'auth')
+      AND  c.column_name IN ('user_id', 'created_by', 'changed_by', 'invited_by',
+                            'submitted_by', 'delegated_to', 'delegated_by',
+                            'compliance_confirmed_by', 'clause_edit_confirmed_by',
+                            'auth_user_id', 'owner_id', 'actor_id')
+  `)
+
+  const orphans = []
+  for (const { table_schema, table_name, column_name } of remaining) {
+    const r = await runSql(
+      `SELECT count(*)::int AS n FROM ${table_schema}.${table_name} WHERE ${column_name} = '${userId}'`
+    ).catch(() => [{ n: -1 }])  // permission denied → -1
+    if (r[0].n > 0) orphans.push(`  ${table_schema}.${table_name}.${column_name}: ${r[0].n} row(s)`)
+  }
+
+  if (orphans.length) {
+    console.warn(`\n⚠  ${orphans.length} table(s) still reference this user:`)
+    orphans.forEach(o => console.warn(o))
+    console.warn("\nNuke is INCOMPLETE. Investigate before treating the test as fresh.")
+    process.exit(2)
   }
 
   console.log(`\n✓ ${email} nuked.`)
