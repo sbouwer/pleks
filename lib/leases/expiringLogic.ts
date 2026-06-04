@@ -1,11 +1,9 @@
 /**
- * lib/leases/expiringLogic.ts — FILL: one-line purpose
+ * lib/leases/expiringLogic.ts — "expiring soon" + expiry-urgency helpers for fixed-term leases
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  "Expiring soon" = a fixed-term lease whose end date is still in the FUTURE and within
+ *         notice_period_days + 30. A lease already past its end date is NOT expiring — under CPA s14 /
+ *         tacit relocation it continues month-to-month, so it's excluded here.
  */
 interface LeaseForExpiry {
   end_date: string | null
@@ -21,13 +19,15 @@ interface LeaseForUrgency {
 export type ExpiryUrgency = "expired" | "critical" | "warning" | "safe"
 
 /**
- * True if a fixed-term lease is expiring within notice_period_days + 30 days.
- * This replaces any fixed 90-day cutoff — each lease uses its own notice period.
+ * True if a fixed-term lease is expiring within notice_period_days + 30 days — and not already lapsed.
+ * Each lease uses its own notice period. An end date in the past is excluded (the lease has rolled to
+ * month-to-month under CPA s14, so it is no longer "expiring").
  */
 export function isExpiringSoon(lease: LeaseForExpiry): boolean {
   if (!lease.is_fixed_term || !lease.end_date) return false
   const now = new Date()
   const endDate = new Date(lease.end_date)
+  if (endDate < now) return false
   const bufferDays = (lease.notice_period_days || 20) + 30
   const threshold = new Date(now.getTime() + bufferDays * 86400000)
   return endDate <= threshold

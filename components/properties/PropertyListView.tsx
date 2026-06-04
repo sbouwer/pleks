@@ -18,6 +18,7 @@ import { PortfolioMetrics } from "./PropertyMetrics"
 import { PropertyFilters } from "./PropertyFilters"
 import { PropertyList } from "./PropertyList"
 import { ArchivedPropertyList } from "./ArchivedPropertyList"
+import { isInForceLease } from "@/lib/leases/rentRoll"
 import type { PropertyListItem } from "./PropertyList"
 
 interface Props {
@@ -34,8 +35,14 @@ export function PropertyListView({ properties, view, arrearsPct, archived }: Rea
     sum + p.units.filter(u => !u.is_archived && u.status === "occupied").length, 0)
   const rentRollCents = properties.reduce((sum, p) =>
     sum + p.units.filter(u => !u.is_archived).reduce((us, u) => {
-      const activeLease = u.leases.find(l => l.status === "active")
-      return us + (activeLease?.rent_amount_cents ?? 0)
+      const lease = u.leases.find(l => isInForceLease(l.status))
+      return us + (lease?.rent_amount_cents ?? 0)
+    }, 0), 0)
+  // Potential income: in-force rent where let, asking rent where vacant.
+  const potentialCents = properties.reduce((sum, p) =>
+    sum + p.units.filter(u => !u.is_archived).reduce((us, u) => {
+      const lease = u.leases.find(l => isInForceLease(l.status))
+      return us + (lease?.rent_amount_cents ?? u.asking_rent_cents ?? 0)
     }, 0), 0)
   const occupancyPct = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0
 
@@ -124,6 +131,7 @@ export function PropertyListView({ properties, view, arrearsPct, archived }: Rea
           occupiedUnits={occupiedUnits}
           occupancyPct={occupancyPct}
           rentRollCents={rentRollCents}
+          potentialCents={potentialCents}
           arrearsPct={arrearsPct}
         />
 

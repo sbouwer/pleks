@@ -1,15 +1,16 @@
 "use client"
 
 /**
- * app/(dashboard)/leases/LeaseRow.tsx — Single lease row card in the desktop lease list
+ * app/(dashboard)/leases/LeaseRow.tsx — single lease as a table row (<tr>) in the desktop lease list
  *
  * Route:  /leases
  * Auth:   gateway (dashboard layout)
  * Data:   SerializedLease prop from LeaseListTabs
- * Notes:  The tenant-name button uses e.stopPropagation so the parent Link still works
+ * Notes:  Table-row style matching the properties/suppliers lists (divided rows, hover, click-to-open).
+ *         The tenant-name button stops propagation so it can navigate to the tenant independently.
  */
 
-import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { buildTenantDisplay } from "@/lib/leases/tenantDisplay"
 import { getExpiryUrgency, getExpiryColor } from "@/lib/leases/expiringLogic"
 import { formatZAR } from "@/lib/constants"
@@ -77,7 +78,7 @@ const STATUS_LABELS: Record<string, string> = {
   cancelled:       "Cancelled",
 }
 
-function Avatar({ initials, size = 30 }: { initials: string; size?: number }) {
+function Avatar({ initials, size = 28 }: { initials: string; size?: number }) {
   return (
     <div
       className="flex shrink-0 items-center justify-center rounded-full bg-brand/20 font-semibold text-brand"
@@ -89,6 +90,7 @@ function Avatar({ initials, size = 30 }: { initials: string; size?: number }) {
 }
 
 export function LeaseRow({ lease }: { lease: SerializedLease }) {
+  const router = useRouter()
   const tv = lease.tenant_view
   const primary = {
     id: tv?.id ?? lease.tenant_id,
@@ -112,14 +114,11 @@ export function LeaseRow({ lease }: { lease: SerializedLease }) {
   const hasCoTenants = display.coTenants.length > 0
 
   const unit = lease.units
-  const propertyLabel = unit
-    ? `${unit.unit_number} — ${unit.properties.name}`
-    : "No unit"
+  const propertyLabel = unit ? `${unit.unit_number} — ${unit.properties.name}` : "No unit"
   const areaLabel = unit?.properties.suburb && unit.properties.city
     ? `${unit.properties.suburb}, ${unit.properties.city}`
     : unit?.properties.city ?? ""
 
-  // Term column calculations
   const urgency = getExpiryUrgency(lease)
   const color = getExpiryColor(urgency)
   const now = new Date()
@@ -134,100 +133,85 @@ export function LeaseRow({ lease }: { lease: SerializedLease }) {
     const elapsed = Math.max(0, (now.getTime() - start.getTime()) / 86400000)
     progressPct = Math.min(100, Math.round((elapsed / total) * 100))
     daysRemaining = Math.max(0, Math.ceil((end.getTime() - now.getTime()) / 86400000))
-    const notStarted = now < start
     const fmt = (d: Date) => d.toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "2-digit" })
-    termLabel = `${fmt(start)} → ${fmt(end)}`
-    if (notStarted) {
-      const daysUntilStart = Math.ceil((start.getTime() - now.getTime()) / 86400000)
-      termLabel = `${fmt(start)} → ${fmt(end)} · starts in ${daysUntilStart}d`
-    }
+    termLabel = now < start
+      ? `${fmt(start)} → ${fmt(end)} · starts in ${Math.ceil((start.getTime() - now.getTime()) / 86400000)}d`
+      : `${fmt(start)} → ${fmt(end)}`
+  }
+
+  let remainingLabel = ""
+  if (lease.end_date) {
+    if (urgency === "expired") remainingLabel = "Expired"
+    else if (lease.start_date && now < new Date(lease.start_date)) {
+      remainingLabel = `${Math.round((new Date(lease.end_date).getTime() - new Date(lease.start_date).getTime()) / 86400000)}d term`
+    } else remainingLabel = `${daysRemaining}d remaining`
   }
 
   return (
-    <Link
-      href={`/leases/${lease.id}`}
-      className="grid grid-cols-[2fr_3fr_1fr_1.5fr_auto] items-center gap-4 rounded-lg border bg-card px-4 py-3 transition-colors hover:bg-muted/40"
+    <tr
+      className="cursor-pointer transition-colors hover:bg-muted/20"
+      onClick={() => router.push(`/leases/${lease.id}`)}
     >
-      {/* Col 1: Property / Unit */}
-      <div className="min-w-0">
+      {/* Property / Unit */}
+      <td className="px-3 py-3 align-top">
         <p className="truncate text-sm font-medium">{propertyLabel}</p>
         {areaLabel && <p className="truncate text-xs text-muted-foreground">{areaLabel}</p>}
-      </div>
+      </td>
 
-      {/* Col 2: Tenants */}
-      <div className="flex min-w-0 items-center gap-2.5">
-        {/* Avatar: pill for multi-tenant, circle for single */}
-        {hasCoTenants ? (
-          <div
-            className="flex shrink-0 flex-col overflow-hidden rounded-full bg-brand/20"
-            style={{ width: 28, minHeight: 50 }}
-          >
-            <div className="flex flex-1 items-center justify-center text-[10px] font-semibold text-brand">
-              {display.primary.initials}
+      {/* Tenants */}
+      <td className="px-3 py-3 align-top">
+        <div className="flex min-w-0 items-center gap-2.5">
+          {hasCoTenants ? (
+            <div className="flex shrink-0 flex-col overflow-hidden rounded-full bg-brand/20" style={{ width: 28, minHeight: 44 }}>
+              <div className="flex flex-1 items-center justify-center text-[10px] font-semibold text-brand">{display.primary.initials}</div>
+              <div className="mx-1.5 border-t border-brand/25" />
+              <div className="flex flex-1 items-center justify-center text-[9px] font-semibold text-brand/70">
+                {display.coTenants.length === 1 ? display.coTenants[0].initials : `+${display.coTenants.length}`}
+              </div>
             </div>
-            <div className="mx-1.5 border-t border-brand/25" />
-            <div className="flex flex-1 items-center justify-center text-[9px] font-semibold text-brand/70">
-              {display.coTenants.length === 1 ? display.coTenants[0].initials : `+${display.coTenants.length}`}
-            </div>
+          ) : (
+            <Avatar initials={display.primary.initials} size={28} />
+          )}
+          <div className="min-w-0 flex-1">
+            <button
+              type="button"
+              className="block w-full truncate text-left text-sm font-medium hover:underline"
+              onClick={(e) => { e.stopPropagation(); router.push(`/tenants/${display.primary.tenantId}`) }}
+            >
+              {display.displayText}
+            </button>
+            <p className={`text-xs ${lease.hasArrears ? "text-red-500" : "text-muted-foreground"}`}>
+              {hasCoTenants ? "Tenants" : "Tenant"}{lease.hasArrears ? " · Arrears" : ""}
+            </p>
           </div>
-        ) : (
-          <Avatar initials={display.primary.initials} size={28} />
-        )}
-
-        <div className="min-w-0 flex-1">
-          {/* Tenant name — clickable independently */}
-          <button
-            type="button"
-            className="block w-full truncate text-left text-sm font-medium hover:underline"
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              window.location.href = `/tenants/${display.primary.tenantId}`
-            }}
-          >
-            {display.displayText}
-          </button>
-          <p className={`text-xs ${lease.hasArrears ? "text-red-500" : "text-muted-foreground"}`}>
-            {hasCoTenants ? "Tenants" : "Tenant"}
-            {lease.hasArrears ? " · Arrears" : ""}
-          </p>
         </div>
-      </div>
+      </td>
 
-      {/* Col 3: Rent */}
-      <div>
-        <p className="text-[15px] font-medium">{formatZAR(lease.rent_amount_cents)}</p>
+      {/* Rent */}
+      <td className="px-3 py-3 align-top">
+        <p className="text-sm font-medium">{formatZAR(lease.rent_amount_cents)}</p>
         <p className="text-xs text-muted-foreground">/mo</p>
-      </div>
+      </td>
 
-      {/* Col 4: Term */}
-      <div className="min-w-0">
+      {/* Term */}
+      <td className="px-3 py-3 align-top">
         <p className="truncate text-xs text-muted-foreground">{termLabel}</p>
         {lease.end_date && (
           <>
-            <div className="my-1 h-1 w-full overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full rounded-full transition-all"
-                style={{ width: `${progressPct}%`, backgroundColor: color }}
-              />
+            <div className="my-1 h-1 w-full max-w-[140px] overflow-hidden rounded-full bg-muted">
+              <div className="h-full rounded-full transition-all" style={{ width: `${progressPct}%`, backgroundColor: color }} />
             </div>
-            <p className="text-[11px] font-medium" style={{ color }}>
-              {(() => {
-                if (urgency === "expired") return "Expired"
-                if (now < new Date(lease.start_date!)) return `${Math.round((new Date(lease.end_date).getTime() - new Date(lease.start_date!).getTime()) / 86400000)}d term`
-                return `${daysRemaining}d remaining`
-              })()}
-            </p>
+            <p className="text-[11px] font-medium" style={{ color }}>{remainingLabel}</p>
           </>
         )}
-      </div>
+      </td>
 
-      {/* Col 5: Status */}
-      <div>
-        <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${STATUS_STYLES[lease.status] ?? STATUS_STYLES.draft}`}>
+      {/* Status */}
+      <td className="px-3 py-3 align-top">
+        <span className={`inline-block rounded-full px-2.5 py-1 text-[11px] font-medium ${STATUS_STYLES[lease.status] ?? STATUS_STYLES.draft}`}>
           {STATUS_LABELS[lease.status] ?? lease.status}
         </span>
-      </div>
-    </Link>
+      </td>
+    </tr>
   )
 }

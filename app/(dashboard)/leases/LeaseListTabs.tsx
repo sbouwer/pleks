@@ -17,11 +17,12 @@ import { useState, useMemo } from "react"
 import Link from "next/link"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { FileText } from "lucide-react"
-import { ListToolbar, ToolbarFilter, ListCard } from "@/components/ui/resource-list"
+import { ListToolbar, ToolbarFilter, ListCard, SortHeader, useListSort } from "@/components/ui/resource-list"
 import { LeaseRow, type SerializedLease } from "./LeaseRow"
 import { LeaseListFooter } from "./LeaseListFooter"
 import { isExpiringSoon, getExpiryUrgency, getExpiryColor } from "@/lib/leases/expiringLogic"
 import { buildTenantDisplay } from "@/lib/leases/tenantDisplay"
+import { isInForceLease } from "@/lib/leases/rentRoll"
 import { formatZAR } from "@/lib/constants"
 
 type StatusFilter = "active" | "notice" | "expiring" | "draft" | "all"
@@ -65,16 +66,6 @@ function filterByStatus(leases: SerializedLease[], tab: StatusFilter): Serialize
   }
 }
 
-function isInCurrentQuarter(dateStr: string | null): boolean {
-  if (!dateStr) return false
-  const date = new Date(dateStr)
-  const now = new Date()
-  return (
-    date.getFullYear() === now.getFullYear() &&
-    Math.floor(date.getMonth() / 3) === Math.floor(now.getMonth() / 3)
-  )
-}
-
 function leaseSearchHaystack(lease: SerializedLease): string {
   const tv = lease.tenant_view
   const tenantName = tv
@@ -89,6 +80,13 @@ function leaseSearchHaystack(lease: SerializedLease): string {
   const unit = lease.units
   const unitText = unit ? `${unit.unit_number} ${unit.properties.name} ${unit.properties.suburb ?? ""} ${unit.properties.city ?? ""}` : ""
   return `${tenantName} ${coTenantNames} ${unitText}`.toLowerCase()
+}
+
+type LeaseSortKey = "property" | "tenant" | "rent" | "term" | "status"
+
+function leaseTenantName(lease: SerializedLease): string {
+  const tv = lease.tenant_view
+  return (tv?.company_name || `${tv?.first_name ?? ""} ${tv?.last_name ?? ""}`).trim().toLowerCase()
 }
 
 /** Card-view tile (the "Cards" toggle) — mirrors the row's derived data: tenant, property/unit, rent, term, status. */
@@ -196,6 +194,21 @@ export function LeaseListTabs({ leases }: LeaseListTabsProps) {
     return byStatus.filter((l) => leaseSearchHaystack(l).includes(q))
   }, [byStatus, search])
 
+  const { sortKey, sortDir, onSort } = useListSort<LeaseSortKey>("property")
+  const sorted = useMemo(() => {
+    const arr = [...filtered]
+    arr.sort((a, b) => {
+      let cmp = 0
+      if (sortKey === "property") cmp = (a.units?.properties.name ?? "").localeCompare(b.units?.properties.name ?? "")
+      else if (sortKey === "tenant") cmp = leaseTenantName(a).localeCompare(leaseTenantName(b))
+      else if (sortKey === "rent") cmp = a.rent_amount_cents - b.rent_amount_cents
+      else if (sortKey === "term") cmp = (a.end_date ?? "").localeCompare(b.end_date ?? "")
+      else cmp = a.status.localeCompare(b.status)
+      return sortDir === "asc" ? cmp : -cmp
+    })
+    return arr
+  }, [filtered, sortKey, sortDir])
+
   const hasDraftHint = statusFilter === "active" && !search && counts.draft > 0
   const draftWord = counts.draft === 1 ? "lease" : "leases"
   const emptyDescription = hasDraftHint
@@ -205,22 +218,25 @@ export function LeaseListTabs({ leases }: LeaseListTabsProps) {
     ? { label: "View drafts", onClick: () => setStatusFilter("draft") }
     : undefined
 
-  // Footer metrics — based on filtered set
+  // KPI strip — portfolio-wide (stable, not filter-dependent) so the rent roll matches the properties list.
   const footerMetrics = useMemo(() => {
-    const active = filtered.filter((l) => ["active", "month_to_month", "notice"].includes(l.status))
-    const totalRent = active.reduce((s, l) => s + l.rent_amount_cents, 0)
-    const avgRent = active.length > 0 ? Math.round(totalRent / active.length) : 0
-    const escalationsDue = filtered.filter((l) => isInCurrentQuarter(l.escalation_review_date)).length
-    const cpaNoticesDue = filtered.filter((l) =>
+    const inForce = leases.filter((l) => isInForceLease(l.status))
+    const totalRent = inForce.reduce((s, l) => s + l.rent_amount_cents, 0)
+    const avgRent = inForce.length > 0 ? Math.round(totalRent / inForce.length) : 0
+    const expiringSoon = leases.filter((l) => ["active", "month_to_month"].includes(l.status) && isExpiringSoon(l)).length
+    const cpaNoticesDue = leases.filter((l) =>
       l.cpa_applies && l.is_fixed_term && !l.auto_renewal_notice_sent_at && isExpiringSoon(l)
     ).length
-    return { totalRent, avgRent, escalationsDue, cpaNoticesDue }
-  }, [filtered])
+    return { totalRent, avgRent, activeCount: inForce.length, totalCount: leases.length, expiringSoon, cpaNoticesDue }
+  }, [leases])
 
   const countWord = filtered.length === 1 ? "lease" : "leases"
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
+      {/* Summary KPI strip (matches the properties list) */}
+      <LeaseListFooter {...footerMetrics} />
+
       {/* Shared toolbar: list/grid · status filter · search */}
       <ListToolbar
         search={search}
@@ -256,19 +272,22 @@ export function LeaseListTabs({ leases }: LeaseListTabsProps) {
 
       {filtered.length > 0 && view === "list" && (
         <ListCard fill>
-          {/* Sticky column headers */}
-          <div className="sticky top-0 z-10 grid grid-cols-[2fr_3fr_1fr_1.5fr_auto] gap-4 bg-card px-4 py-2">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Property / Unit</p>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Tenants</p>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Rent</p>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Term</p>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Status</p>
-          </div>
-          <div className="space-y-1.5 px-2 pb-2">
-            {filtered.map((lease) => (
-              <LeaseRow key={lease.id} lease={lease} />
-            ))}
-          </div>
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 z-10 border-b border-border/60 bg-card">
+              <tr>
+                <th className="px-3 py-2.5 text-left"><SortHeader col="property" label="Property / Unit" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
+                <th className="px-3 py-2.5 text-left"><SortHeader col="tenant" label="Tenants" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
+                <th className="px-3 py-2.5 text-left"><SortHeader col="rent" label="Rent" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
+                <th className="px-3 py-2.5 text-left"><SortHeader col="term" label="Term" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
+                <th className="px-3 py-2.5 text-left"><SortHeader col="status" label="Status" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/40">
+              {sorted.map((lease) => (
+                <LeaseRow key={lease.id} lease={lease} />
+              ))}
+            </tbody>
+          </table>
         </ListCard>
       )}
 
@@ -279,11 +298,6 @@ export function LeaseListTabs({ leases }: LeaseListTabsProps) {
           ))}
         </div>
       )}
-
-      {/* Footer metrics — auto-height row below the scroll area */}
-      <div className="shrink-0">
-        <LeaseListFooter {...footerMetrics} />
-      </div>
     </div>
   )
 }

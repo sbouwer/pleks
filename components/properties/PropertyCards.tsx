@@ -14,6 +14,7 @@ import { EmptyResourceState } from "@/components/ui/empty-resource-state"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import { PortfolioMetrics } from "./PropertyMetrics"
 import { PropertyCard } from "./PropertyCard"
+import { isInForceLease } from "@/lib/leases/rentRoll"
 import { TIER_LIMITS } from "@/lib/constants"
 import type { Tier } from "@/lib/constants"
 
@@ -24,7 +25,7 @@ export interface PropertyCardData {
   address_line1: string
   city: string
   is_sectional_title?: boolean | null
-  units: { id: string; status: string; is_archived: boolean; leases: { rent_amount_cents: number; status: string }[] }[]
+  units: { id: string; status: string; is_archived: boolean; asking_rent_cents: number | null; leases: { rent_amount_cents: number; status: string }[] }[]
 }
 
 interface Props {
@@ -43,8 +44,13 @@ export function PropertyCards({ properties, tier, totalUnitCount, arrearsPct }: 
     sum + p.units.filter(u => !u.is_archived && u.status === "occupied").length, 0)
   const rentRollCents = properties.reduce((sum, p) =>
     sum + p.units.filter(u => !u.is_archived).reduce((us, u) => {
-      const activeLease = u.leases.find(l => l.status === "active")
-      return us + (activeLease?.rent_amount_cents ?? 0)
+      const lease = u.leases.find(l => isInForceLease(l.status))
+      return us + (lease?.rent_amount_cents ?? 0)
+    }, 0), 0)
+  const potentialCents = properties.reduce((sum, p) =>
+    sum + p.units.filter(u => !u.is_archived).reduce((us, u) => {
+      const lease = u.leases.find(l => isInForceLease(l.status))
+      return us + (lease?.rent_amount_cents ?? u.asking_rent_cents ?? 0)
     }, 0), 0)
   const occupancyPct = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0
 
@@ -79,6 +85,7 @@ export function PropertyCards({ properties, tier, totalUnitCount, arrearsPct }: 
         occupiedUnits={occupiedUnits}
         occupancyPct={occupancyPct}
         rentRollCents={rentRollCents}
+        potentialCents={potentialCents}
         arrearsPct={arrearsPct}
       />
 

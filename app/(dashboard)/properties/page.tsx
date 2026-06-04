@@ -210,7 +210,7 @@ export default async function PropertiesPage({
       .from("properties")
       .select(`
         id, name, type, address_line1, city, province,
-        units(id, status, is_archived, leases(id, status, rent_amount_cents))
+        units(id, status, is_archived, asking_rent_cents, leases(id, status, rent_amount_cents))
       `)
       .eq("org_id", orgId)
       .is("deleted_at", null)
@@ -235,7 +235,7 @@ export default async function PropertiesPage({
     .from("properties")
     .select(`
       id, name, type, address_line1, city, province, landlord_id,
-      units(id, status, is_archived, leases(id, status, rent_amount_cents))
+      units(id, status, is_archived, asking_rent_cents, leases(id, status, rent_amount_cents))
     `)
     .eq("org_id", orgId)
   listQuery = archived ? listQuery.not("deleted_at", "is", null) : listQuery.is("deleted_at", null)

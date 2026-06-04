@@ -103,12 +103,14 @@ interface PortfolioMetricsProps {
   readonly occupiedUnits: number
   readonly occupancyPct: number
   readonly rentRollCents: number
+  /** potential income = in-force rent where let + asking rent on vacant units. */
+  readonly potentialCents?: number
   /** % of due rent currently unpaid (org-wide). */
   readonly arrearsPct?: number
 }
 
 /** Connected KPI strip (same panel style as the dashboard) for the properties list. */
-export function PortfolioMetrics({ propertyCount, unitCount, occupiedUnits, occupancyPct, rentRollCents, arrearsPct = 0 }: PortfolioMetricsProps) {
+export function PortfolioMetrics({ propertyCount, unitCount, occupiedUnits, occupancyPct, rentRollCents, potentialCents, arrearsPct = 0 }: PortfolioMetricsProps) {
   const vacant = Math.max(0, unitCount - occupiedUnits)
   const unitWord = unitCount === 1 ? "unit" : "units"
   let occDot = "#EF4444"
@@ -120,7 +122,7 @@ export function PortfolioMetrics({ propertyCount, unitCount, occupiedUnits, occu
     <div className="mb-5 grid grid-cols-2 overflow-hidden rounded-[var(--r-button)] border border-border border-b-2 border-b-primary md:grid-cols-4">
       <KpiCard label="Properties" value={String(propertyCount)} subtext={`${unitCount} ${unitWord}`} className="border-b border-r border-border md:border-b-0" />
       <KpiCard label="Occupancy" value={`${occupancyPct}%`} subtext={vacant > 0 ? `${occupiedUnits} rented · ${vacant} vacant` : "Fully occupied"} subtextVariant={vacant > 0 ? "warning" : "success"} dotColor={occDot} className="border-b border-border md:border-b-0 md:border-r" />
-      <KpiCard label="Rent roll" value={formatZARAbbrev(rentRollCents)} subtext="per month" className="border-r border-border" />
+      <KpiCard label="Rent roll" value={formatZARAbbrev(rentRollCents)} subtext={potentialCents != null ? `${formatZARAbbrev(potentialCents)} potential` : "per month"} className="border-r border-border" />
       <KpiCard label="Arrears" value={`${arrearsPct}%`} subtext={hasArrears ? "of rent overdue" : "Fully collected"} subtextVariant={hasArrears ? "danger" : "success"} dotColor={hasArrears ? "#EF4444" : "#1D9E75"} />
     </div>
   )

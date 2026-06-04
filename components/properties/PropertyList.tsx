@@ -14,6 +14,7 @@ import { useRouter } from "next/navigation"
 import { formatZARAbbrev } from "@/lib/constants"
 import { cn } from "@/lib/utils"
 import { ListCard, SortHeader, useListSort } from "@/components/ui/resource-list"
+import { isInForceLease } from "@/lib/leases/rentRoll"
 import { PropertyCard } from "./PropertyCard"
 import type { PropertyCardData } from "./PropertyCards"
 
@@ -65,7 +66,7 @@ export function PropertyList({ properties, view }: Props) {
         {filtered.map((p) => {
           const activeUnits = p.units.filter(u => !u.is_archived)
           const occupied = activeUnits.filter(u => u.status === "occupied").length
-          const rentRoll = activeUnits.reduce((sum, u) => sum + (u.leases.find(l => l.status === "active")?.rent_amount_cents ?? 0), 0)
+          const rentRoll = activeUnits.reduce((sum, u) => sum + (u.leases.find(l => isInForceLease(l.status))?.rent_amount_cents ?? 0), 0)
           return (
             <PropertyCard
               key={p.id}
@@ -99,8 +100,8 @@ export function PropertyList({ properties, view }: Props) {
       bv = bUnits.length > 0 ? bUnits.filter(u => u.status === "occupied").length / bUnits.length : 0
     }
     if (sortKey === "rentRoll") {
-      av = aUnits.reduce((s, u) => s + (u.leases.find(l => l.status === "active")?.rent_amount_cents ?? 0), 0)
-      bv = bUnits.reduce((s, u) => s + (u.leases.find(l => l.status === "active")?.rent_amount_cents ?? 0), 0)
+      av = aUnits.reduce((s, u) => s + (u.leases.find(l => isInForceLease(l.status))?.rent_amount_cents ?? 0), 0)
+      bv = bUnits.reduce((s, u) => s + (u.leases.find(l => isInForceLease(l.status))?.rent_amount_cents ?? 0), 0)
     }
     return sortDir === "asc" ? av - bv : bv - av
   })
@@ -137,7 +138,7 @@ export function PropertyList({ properties, view }: Props) {
             else if (occPct >= 70) { occBarColor = "bg-amber-500" }
             else { occBarColor = "bg-red-500" }
             const rentRoll = activeUnits.reduce((s, u) =>
-              s + (u.leases.find(l => l.status === "active")?.rent_amount_cents ?? 0), 0)
+              s + (u.leases.find(l => isInForceLease(l.status))?.rent_amount_cents ?? 0), 0)
 
             return (
               <tr
