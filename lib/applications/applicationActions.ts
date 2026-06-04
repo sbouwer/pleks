@@ -6,7 +6,8 @@
  * Called from ApplicationActions.tsx (client component).
  */
 
-import { createServiceClient } from "@/lib/supabase/server"
+import { gateway } from "@/lib/supabase/gateway"
+import { recordAudit } from "@/lib/audit/recordAudit"
 import { revalidatePath } from "next/cache"
 import { buildEmailContext } from "./buildEmailContext"
 import {
@@ -15,15 +16,26 @@ import {
   sendDeclinedStage2,
 } from "./emails"
 
-export async function declineStage1Action(applicationId: string) {
-  const service = await createServiceClient()
+// Agent application decisions: org-scoped (gateway) + audited (ADDENDUM_AUDIT_HARDENING). gateway()
+// yields the same service-role db plus the actor + org, so these gain a who/when trail and an org filter.
 
-  const { error } = await service
+export async function declineStage1Action(applicationId: string) {
+  const gw = await gateway()
+  if (!gw) return { error: "Unauthorized" }
+  const { db, userId, orgId } = gw
+
+  const { error } = await db
     .from("applications")
     .update({ stage1_status: "not_shortlisted", not_shortlisted_reason: "Declined by agent" })
     .eq("id", applicationId)
+    .eq("org_id", orgId)
 
   if (error) return { error: error.message }
+
+  await recordAudit(db, {
+    orgId, actorId: userId, action: "UPDATE", table: "applications", recordId: applicationId,
+    after: { action: "application_declined_stage1", reason: "Declined by agent" },
+  })
 
   // Send Email 5: Not shortlisted
   try {
@@ -36,9 +48,11 @@ export async function declineStage1Action(applicationId: string) {
 }
 
 export async function approveAction(applicationId: string, agentId: string, tenantId: string) {
-  const service = await createServiceClient()
+  const gw = await gateway()
+  if (!gw) return { error: "Unauthorized" }
+  const { db, userId, orgId } = gw
 
-  const { error } = await service
+  const { error } = await db
     .from("applications")
     .update({
       stage2_status: "approved",
@@ -47,8 +61,14 @@ export async function approveAction(applicationId: string, agentId: string, tena
       tenant_id: tenantId,
     })
     .eq("id", applicationId)
+    .eq("org_id", orgId)
 
   if (error) return { error: error.message }
+
+  await recordAudit(db, {
+    orgId, actorId: userId, action: "UPDATE", table: "applications", recordId: applicationId,
+    after: { action: "application_approved", tenant_id: tenantId },
+  })
 
   // Send Email 8: Approved
   try {
@@ -61,9 +81,11 @@ export async function approveAction(applicationId: string, agentId: string, tena
 }
 
 export async function declineStage2Action(applicationId: string) {
-  const service = await createServiceClient()
+  const gw = await gateway()
+  if (!gw) return { error: "Unauthorized" }
+  const { db, userId, orgId } = gw
 
-  const { error } = await service
+  const { error } = await db
     .from("applications")
     .update({
       stage2_status: "declined",
@@ -71,8 +93,14 @@ export async function declineStage2Action(applicationId: string) {
       reviewed_at: new Date().toISOString(),
     })
     .eq("id", applicationId)
+    .eq("org_id", orgId)
 
   if (error) return { error: error.message }
+
+  await recordAudit(db, {
+    orgId, actorId: userId, action: "UPDATE", table: "applications", recordId: applicationId,
+    after: { action: "application_declined_stage2", reason: "Declined after screening" },
+  })
 
   // Send Email 9: Declined after screening
   try {
