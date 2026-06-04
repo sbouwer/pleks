@@ -246,7 +246,7 @@ export async function fetchCalendarEvents(
   ] = await Promise.all([
     service
       .from("inspections")
-      .select("id, type, scheduled_date, scheduled_time_from, scheduled_time_to, status, units(unit_number, properties(name))")
+      .select("id, type:inspection_type, scheduled_date, scheduled_time_from, scheduled_time_to, status, units(unit_number, properties(name))")
       .eq("org_id", orgId)
       .in("status", ["scheduled"])
       .gte("scheduled_date", rangeStart)
@@ -309,7 +309,7 @@ export async function fetchOverdueAlerts(
   const [overdueInspections, overdueDeposits, cpaMissed] = await Promise.all([
     service
       .from("inspections")
-      .select("id, type, scheduled_date, units(unit_number, properties(name))")
+      .select("id, type:inspection_type, scheduled_date, units(unit_number, properties(name))")
       .eq("org_id", orgId)
       .eq("status", "scheduled")
       .lt("scheduled_date", today),

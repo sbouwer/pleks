@@ -246,7 +246,7 @@ async function gatherSubjectData(
 
   const { data: leases, error: leasesError } = await db
     .from("leases")
-    .select("id, start_date, end_date, status, monthly_rental")
+    .select("id, start_date, end_date, status, monthly_rental:rent_amount_cents")
     .eq("org_id", request.org_id)
     .in(
       "id",

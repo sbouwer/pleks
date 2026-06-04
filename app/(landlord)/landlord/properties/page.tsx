@@ -20,7 +20,7 @@ export default async function LandlordPropertiesPage() {
 
   const { data: properties, error: propertiesError } = await service
     .from("properties")
-    .select("id, name, address_line1, suburb, city, unit_count, property_type")
+    .select("id, name, address_line1, suburb, city, unit_count, property_type:type")
     .eq("landlord_id", session.landlordId)
     .is("deleted_at", null)
     .order("name")

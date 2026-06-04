@@ -23,7 +23,7 @@ export default async function AdminSubscriptionsPage() {
   const sevenDays = new Date(new Date().getTime() + 7 * 24 * 60 * 60 * 1000)
   const { data: expiringTrials, error: expiringTrialsError } = await supabase
     .from("subscriptions")
-    .select("org_id, tier, status, trial_ends_at, founding_agent, amount_cents, period_end, organisations(name)")
+    .select("org_id, tier, status, trial_ends_at, founding_agent, amount_cents, period_end:current_period_end, organisations(name)")
     .eq("status", "trialing")
     .eq("trial_converted", false)
     .lte("trial_ends_at", sevenDays.toISOString())
@@ -34,7 +34,7 @@ export default async function AdminSubscriptionsPage() {
   // All subscriptions
   const { data: subs, error: subsError } = await supabase
     .from("subscriptions")
-    .select("org_id, tier, status, amount_cents, period_end, trial_ends_at, founding_agent, organisations(name)")
+    .select("org_id, tier, status, amount_cents, period_end:current_period_end, trial_ends_at, founding_agent, organisations(name)")
     .order("created_at", { ascending: false })
     logQueryError("AdminSubscriptionsPage subscriptions", subsError)
 

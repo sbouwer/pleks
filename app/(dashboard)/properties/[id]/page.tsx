@@ -193,7 +193,7 @@ async function fetchOverviewData(
       .in("status", ["pending", "partial", "overdue"]),
     service
       .from("inspections")
-      .select("id, type, scheduled_date, units(unit_number, properties(name))")
+      .select("id, type:inspection_type, scheduled_date, units(unit_number, properties(name))")
       .eq("property_id", propertyId)
       .order("created_at", { ascending: false })
       .limit(3),
@@ -380,7 +380,7 @@ async function fetchOperationsData(
   ] = await Promise.all([
     service
       .from("inspections")
-      .select("id, type, status, scheduled_date, units(unit_number)")
+      .select("id, type:inspection_type, status, scheduled_date, units(unit_number)")
       .eq("property_id", propertyId)
       .in("status", ["scheduled", "in_progress"])
       .order("scheduled_date", { ascending: true })

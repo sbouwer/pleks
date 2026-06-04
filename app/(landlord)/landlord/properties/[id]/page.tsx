@@ -27,7 +27,7 @@ export default async function LandlordPropertyDetailPage({ params }: Props) {
   // Verify property belongs to this landlord
   const { data: property, error: propertyError } = await service
     .from("properties")
-    .select("id, name, address_line1, suburb, city, unit_count, property_type, landlord_id")
+    .select("id, name, address_line1, suburb, city, unit_count, property_type:type, landlord_id")
     .eq("id", propertyId)
     .eq("landlord_id", session.landlordId)
     .is("deleted_at", null)
