@@ -9,6 +9,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { recordAudit } from "@/lib/audit/recordAudit"
 import { reformatRule } from "@/lib/rules/reformat"
 import { TIER_REFORMAT_LIMITS } from "@/lib/rules/templates"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -98,13 +99,9 @@ export async function POST(req: NextRequest) {
     .eq("id", propertyId)
 
   // Audit log
-  await supabase.from("audit_log").insert({
-    org_id: membership.org_id,
-    user_id: user.id,
-    action: "ai_reformat_rule",
-    entity_type: "property",
-    entity_id: propertyId,
-    metadata: { input_length: text.length },
+  await recordAudit(supabase, {
+    orgId: membership.org_id, actorId: user.id, action: "UPDATE", table: "properties", recordId: propertyId,
+    after: { action: "ai_reformat_rule", entity_type: "property", input_length: text.length },
   })
 
   const remaining = totalAllowed - (used + 1)

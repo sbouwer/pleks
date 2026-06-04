@@ -9,6 +9,7 @@
  *         L4+P1 fire in activateLeaseCascade. L11 fires from lease-expiry-check cron.
  */
 import { requireAgentWriteAccess } from "@/lib/auth/server"
+import { recordAudit } from "@/lib/audit/recordAudit"
 import type { GatewayContext } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
@@ -443,13 +444,10 @@ export async function markAsSigned(leaseId: string) {
     .eq("org_id", orgId)
   if (cpaUpdateErr) return { error: cpaUpdateErr.message }
 
-  await db.from("audit_log").insert({
-    org_id: orgId,
-    user_id: userId,
-    action: "cpa_determination_snapshot",
-    table_name: "leases",
-    record_id: leaseId,
-    new_values: {
+  await recordAudit(db, {
+    orgId, actorId: userId, action: "UPDATE", table: "leases", recordId: leaseId,
+    after: {
+      action: "cpa_determination_snapshot",
       cpa_applies_at_signing: cpaDetermination.applies,
       cpa_determination_category: cpaDetermination.category,
     },

@@ -1,13 +1,13 @@
 /**
- * lib/import/importRunner.ts — FILL: one-line purpose
+ * lib/import/importRunner.ts — bulk CSV/XLSX import engine (properties / units / tenants / leases)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   service client passed in via ImportContext; org-scoped by the caller (agent import flow)
+ * Data:   properties, units, tenants, leases, contacts (+ contact_bank_accounts), audit_log
+ * Notes:  Phased pipeline (parse → route → create → audit). Writes one bulk_import audit row at the
+ *         end, keyed to the import session. Per-entity creates are not individually audited.
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { recordAudit } from "@/lib/audit/recordAudit"
 import { normaliseDate, normaliseCurrencyCents } from "./normalise"
 import { normaliseBranchCode, hashBankAccount, maskBankAccount } from "./bankImport"
 
@@ -1003,11 +1003,11 @@ async function writeNotes(
 
 async function writeAuditLog(ctx: ImportContext): Promise<void> {
   try {
-    await ctx.supabase.from("audit_log").insert({
-      org_id: ctx.orgId,
-      user_id: ctx.agentId,
-      action: "bulk_import",
-      details: {
+    await recordAudit(ctx.supabase, {
+      orgId: ctx.orgId, actorId: ctx.agentId, action: "INSERT",
+      table: "import_sessions", recordId: ctx.importSessionId ?? ctx.orgId,
+      after: {
+        action: "bulk_import",
         properties_created: ctx.result.propertiesCreated,
         units_created: ctx.result.unitsCreated,
         tenants_created: ctx.result.tenantsCreated,

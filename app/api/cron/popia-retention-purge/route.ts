@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
+import { recordAudit } from "@/lib/audit/recordAudit"
 import { isErasableNow, type DataCategory } from "@/lib/popia/retention"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -55,11 +56,9 @@ async function purgeRejectedApplications(
     })
     if ("erasable" in decision && decision.erasable) {
       await db.from("applications").delete().eq("id", row.id)
-      await db.from("audit_log").insert({
-        event_type: "retention_purge",
-        table_name: "applications",
-        record_id: row.id,
-        values: { category: "rejected_applications" },
+      await recordAudit(db, {
+        orgId, actorId: null, action: "DELETE", table: "applications", recordId: row.id,
+        after: { action: "retention_purge", category: "rejected_applications" },
       })
       result.deleted++
     } else {

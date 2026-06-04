@@ -12,6 +12,7 @@
 import { createHash } from 'node:crypto'
 import { renderToBuffer } from '@react-pdf/renderer'
 import { createServiceClient } from '@/lib/supabase/server'
+import { recordAudit } from '@/lib/audit/recordAudit'
 import { ScreeningResponseLetter } from '@/lib/reports/popia/screening_response'
 import type { ScreeningResponseData } from '@/lib/reports/popia/screening_response'
 import type { MaterialFlag } from '@/lib/screening/fitScoreEngine.v1'
@@ -164,17 +165,13 @@ export async function generateScreeningL2Response(
 
   // ── 7. Audit log with POPIA s23 discriminator ─────────────────────────────
 
-  await db.from('audit_log').insert({
-    org_id:     orgId,
-    user_id:    actorUserId,
-    action:     'UPDATE',
-    table_name: 'applications',
-    record_id:  applicationId,
-    new_values: {
-      action:                    'popia_s23_response_generated',
-      subject_user_id:           subjectUserId,
-      storage_path:              storagePath,
-      manifest_hash:             manifestHash,
+  await recordAudit(db, {
+    orgId, actorId: actorUserId, action: 'UPDATE', table: 'applications', recordId: applicationId,
+    after: {
+      action:          'popia_s23_response_generated',
+      subject_user_id: subjectUserId,
+      storage_path:    storagePath,
+      manifest_hash:   manifestHash,
     },
   })
 

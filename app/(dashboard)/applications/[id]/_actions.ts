@@ -12,6 +12,7 @@
 "use server"
 
 import { gateway } from "@/lib/supabase/gateway"
+import { recordAudit } from "@/lib/audit/recordAudit"
 import { decryptNullable } from "@/lib/crypto/encryption"
 import { generateScreeningL2Response } from "@/lib/popia/handlers/screening"
 
@@ -46,13 +47,9 @@ export async function revealIdNumber(applicationId: string): Promise<{ value: st
   const plain = decryptNullable(app.id_number)
 
   // Audit log — action='UPDATE' with discriminator in new_values per §8.7
-  await db.from('audit_log').insert({
-    org_id:     orgId,
-    user_id:    userId,
-    action:     'UPDATE',
-    table_name: 'applications',
-    record_id:  applicationId,
-    new_values: { action: 'id_number_revealed', id_type: app.id_type },
+  await recordAudit(db, {
+    orgId, actorId: userId, action: 'UPDATE', table: 'applications', recordId: applicationId,
+    after: { action: 'id_number_revealed', id_type: app.id_type },
   })
 
   return { value: plain }

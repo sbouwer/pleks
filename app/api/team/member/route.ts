@@ -1,14 +1,15 @@
 /**
- * app/api/team/member/route.ts — FILL: one-line purpose
+ * app/api/team/member/route.ts — team member role / profile edit (PATCH) + removal (DELETE)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /api/team/member
+ * Auth:   authenticated; role/admin changes + removal require caller isAdmin (owner for is_admin)
+ * Data:   user_orgs (role/additional_roles/is_admin, soft-delete on removal), user_profiles, audit_log
+ * Notes:  Access-control changes (role/admin/removal) are audited via recordAudit — user_orgs is too
+ *         broadly mutated for the require-audit ESLint rule, so these are hand-placed. See ADDENDUM_AUDIT_HARDENING.
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { recordAudit } from "@/lib/audit/recordAudit"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { getMembership } from "@/lib/supabase/getMembership"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -153,6 +154,19 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (errors.length > 0) return NextResponse.json({ error: errors.join("; ") }, { status: 500 })
+
+  // Audit access-control changes (role / additional_roles / is_admin) — not pure profile edits.
+  const accessChanged = "role" in body || "additional_roles" in body || "is_admin" in body
+  if (accessChanged) {
+    await recordAudit(service, {
+      orgId, actorId: user.id, action: "UPDATE", table: "user_orgs", recordId: target.id,
+      after: {
+        action: "member_access_updated", target_user_id: userId,
+        role: body.role, additional_roles: body.additional_roles, is_admin: body.is_admin,
+      },
+    })
+  }
+
   return NextResponse.json({ ok: true })
 }
 
@@ -211,6 +225,11 @@ export async function DELETE(req: NextRequest) {
     .eq("org_id", orgId)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  await recordAudit(service, {
+    orgId, actorId: user.id, action: "DELETE", table: "user_orgs", recordId: memberOrgId,
+    after: { action: "member_removed", target_user_id: target.user_id, role: target.role },
+  })
 
   return NextResponse.json({ ok: true })
 }
