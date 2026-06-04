@@ -15,6 +15,96 @@ import { PropertyListView } from "@/components/properties/PropertyListView"
 import type { SinglePropertyData } from "@/components/properties/SinglePropertyView"
 import type { PropertyListItem } from "@/components/properties/PropertyList"
 
+type GatewayDB = NonNullable<Awaited<ReturnType<typeof gatewaySSR>>>["db"]
+
+/** Org-wide arrears: % of due rent currently unpaid (drives the Arrears KPI card). */
+async function fetchArrearsPct(db: GatewayDB, orgId: string): Promise<number> {
+  const today = new Date().toISOString().slice(0, 10)
+  const { data, error } = await db
+    .from("rent_invoices")
+    .select("total_amount_cents, amount_paid_cents")
+    .eq("org_id", orgId)
+    .lte("due_date", today)
+  if (error) console.error("[properties] arrears fetch failed:", error.message)
+  let due = 0
+  let unpaid = 0
+  for (const inv of data ?? []) {
+    due += inv.total_amount_cents
+    unpaid += Math.max(0, inv.total_amount_cents - (inv.amount_paid_cents ?? 0))
+  }
+  return due > 0 ? Math.round((unpaid / due) * 100) : 0
+}
+
+function filterProperties(properties: PropertyListItem[], q: string, statusFilter: string): PropertyListItem[] {
+  let out = properties
+  if (q) {
+    out = out.filter((p) =>
+      p.name.toLowerCase().includes(q) || p.address_line1.toLowerCase().includes(q) || p.city.toLowerCase().includes(q))
+  }
+  if (statusFilter === "vacancies") {
+    out = out.filter((p) => p.units.some((u) => !u.is_archived && u.status !== "occupied"))
+  } else if (statusFilter === "occupied") {
+    out = out.filter((p) => {
+      const active = p.units.filter((u) => !u.is_archived)
+      return active.length > 0 && active.every((u) => u.status === "occupied")
+    })
+  }
+  return out
+}
+
+/** Attach landlord (owner) display names for the list's Landlord column. */
+async function attachLandlordNames(db: GatewayDB, orgId: string, properties: PropertyListItem[]): Promise<PropertyListItem[]> {
+  const ids = [...new Set(
+    properties.map((p) => (p as unknown as { landlord_id?: string | null }).landlord_id).filter(Boolean),
+  )] as string[]
+  if (ids.length === 0) return properties
+  const { data, error } = await db
+    .from("landlords")
+    .select("id, contact:contacts(first_name, last_name, company_name)")
+    .in("id", ids)
+    .eq("org_id", orgId)
+  if (error) console.error("[properties] landlord names fetch failed:", error.message)
+  const nameById = new Map<string, string>()
+  for (const ll of data ?? []) {
+    const c = (Array.isArray(ll.contact) ? ll.contact[0] : ll.contact) as { first_name: string | null; last_name: string | null; company_name: string | null } | null
+    const name = c?.company_name || [c?.first_name, c?.last_name].filter(Boolean).join(" ").trim()
+    if (name) nameById.set(ll.id, name)
+  }
+  return properties.map((p) => ({
+    ...p,
+    landlordName: nameById.get((p as unknown as { landlord_id?: string | null }).landlord_id ?? "") ?? null,
+  }))
+}
+
+/** Per-property rent collection rate (% of due rent paid) for the list's Collection column. */
+async function attachCollection(db: GatewayDB, orgId: string, properties: PropertyListItem[]): Promise<PropertyListItem[]> {
+  const unitToProp = new Map<string, string>()
+  for (const p of properties) {
+    for (const u of p.units) unitToProp.set(u.id, p.id)
+  }
+  if (unitToProp.size === 0) return properties
+  const today = new Date().toISOString().slice(0, 10)
+  const { data, error } = await db
+    .from("rent_invoices")
+    .select("unit_id, total_amount_cents, amount_paid_cents")
+    .eq("org_id", orgId)
+    .lte("due_date", today)
+  if (error) console.error("[properties] collection fetch failed:", error.message)
+  const agg = new Map<string, { due: number; paid: number }>()
+  for (const inv of data ?? []) {
+    const propId = unitToProp.get(inv.unit_id as string)
+    if (!propId) continue
+    const a = agg.get(propId) ?? { due: 0, paid: 0 }
+    a.due += inv.total_amount_cents
+    a.paid += Math.min(inv.amount_paid_cents ?? 0, inv.total_amount_cents)
+    agg.set(propId, a)
+  }
+  return properties.map((p) => {
+    const a = agg.get(p.id)
+    return { ...p, collectionPct: a && a.due > 0 ? Math.round((a.paid / a.due) * 100) : null }
+  })
+}
+
 export default async function PropertiesPage({
   searchParams,
 }: Readonly<{
@@ -112,21 +202,7 @@ export default async function PropertiesPage({
     )
   }
 
-  // Org-wide arrears: % of due rent currently unpaid (drives the Arrears KPI card on steward + list views).
-  const today = new Date().toISOString().slice(0, 10)
-  const { data: dueInvoices, error: invErr } = await db
-    .from("rent_invoices")
-    .select("total_amount_cents, amount_paid_cents")
-    .eq("org_id", orgId)
-    .lte("due_date", today)
-  if (invErr) console.error("[properties] arrears fetch failed:", invErr.message)
-  let dueCents = 0
-  let unpaidCents = 0
-  for (const inv of dueInvoices ?? []) {
-    dueCents += inv.total_amount_cents
-    unpaidCents += Math.max(0, inv.total_amount_cents - (inv.amount_paid_cents ?? 0))
-  }
-  const arrearsPct = dueCents > 0 ? Math.round((unpaidCents / dueCents) * 100) : 0
+  const arrearsPct = await fetchArrearsPct(db, orgId)
 
   // ── Steward tier: enriched card grid ──────────────────────────────────────
   if (tier === "steward") {
@@ -157,7 +233,7 @@ export default async function PropertiesPage({
   const { data: rawProperties, error: listErr } = await db
     .from("properties")
     .select(`
-      id, name, type, address_line1, city, province,
+      id, name, type, address_line1, city, province, landlord_id,
       units(id, status, is_archived, leases(id, status, rent_amount_cents))
     `)
     .eq("org_id", orgId)
@@ -165,28 +241,9 @@ export default async function PropertiesPage({
     .order("created_at", { ascending: false })
 
   if (listErr) console.error("[properties] list fetch failed:", listErr.message)
-  let properties = (rawProperties ?? []) as unknown as PropertyListItem[]
-
-  // Apply search filter (server-side on the fetched data)
-  if (q) {
-    properties = properties.filter(p =>
-      p.name.toLowerCase().includes(q) ||
-      p.address_line1.toLowerCase().includes(q) ||
-      p.city.toLowerCase().includes(q)
-    )
-  }
-
-  // Apply status filter
-  if (statusFilter === "vacancies") {
-    properties = properties.filter(p =>
-      p.units.some(u => !u.is_archived && u.status !== "occupied")
-    )
-  } else if (statusFilter === "occupied") {
-    properties = properties.filter(p => {
-      const active = p.units.filter(u => !u.is_archived)
-      return active.length > 0 && active.every(u => u.status === "occupied")
-    })
-  }
+  let properties = filterProperties((rawProperties ?? []) as unknown as PropertyListItem[], q, statusFilter)
+  properties = await attachLandlordNames(db, orgId, properties)
+  properties = await attachCollection(db, orgId, properties)
 
   return (
     <PropertyListView

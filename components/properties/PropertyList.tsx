@@ -19,6 +19,8 @@ import type { PropertyCardData } from "./PropertyCards"
 
 export interface PropertyListItem extends PropertyCardData {
   landlordName: string | null
+  /** rent collection rate % (paid vs due, this property) — null when nothing is due yet. */
+  collectionPct?: number | null
 }
 
 type SortKey = "name" | "units" | "occupancy" | "rentRoll"
@@ -26,10 +28,18 @@ type SortKey = "name" | "units" | "occupancy" | "rentRoll"
 function CollectionBadge({ pct }: { pct: number | null }) {
   if (pct == null) return <span className="text-muted-foreground text-xs">—</span>
   let cls: string
-  if (pct >= 95) { cls = "text-green-500" }
-  else if (pct >= 85) { cls = "text-amber-500" }
-  else { cls = "text-red-500" }
-  return <span className={cn("text-xs font-medium", cls)}>{pct}%</span>
+  let bar: string
+  if (pct >= 95) { cls = "text-green-500"; bar = "bg-green-500" }
+  else if (pct >= 85) { cls = "text-amber-500"; bar = "bg-amber-500" }
+  else { cls = "text-red-500"; bar = "bg-red-500" }
+  return (
+    <div className="flex items-center gap-2">
+      <div className="w-12 h-1.5 rounded-full bg-border overflow-hidden">
+        <div className={cn("h-full rounded-full", bar)} style={{ width: `${Math.min(100, pct)}%` }} />
+      </div>
+      <span className={cn("text-xs font-medium", cls)}>{pct}%</span>
+    </div>
+  )
 }
 
 const PLAIN_TH = "px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70"
@@ -169,7 +179,7 @@ export function PropertyList({ properties, view }: Props) {
                   {rentRoll > 0 ? formatZARAbbrev(rentRoll) : "—"}
                 </td>
                 <td className="px-3 py-3">
-                  <CollectionBadge pct={null} />
+                  <CollectionBadge pct={p.collectionPct ?? null} />
                 </td>
               </tr>
             )
