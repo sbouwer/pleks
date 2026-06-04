@@ -1,11 +1,11 @@
 /**
- * app/(dashboard)/maintenance/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/maintenance/page.tsx — maintenance requests / work-orders list
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /maintenance
+ * Auth:   getServerOrgMembership (agent workspace); redirects to /login if no org
+ * Data:   fetchMaintenance(serviceClient, orgId), prefetched into React Query cache
+ * Notes:  ?contractor=<id> scopes the list to one supplier (from a supplier's "View work
+ *         orders" quick link); the optional ?name= rides along purely for the banner label.
  */
 import { HydrationBoundary, QueryClient, dehydrate } from "@tanstack/react-query"
 import { redirect } from "next/navigation"
@@ -14,13 +14,15 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { OPERATIONAL_QUERY_KEYS, STALE_TIME, fetchMaintenance } from "@/lib/queries/portfolio"
 import { MaintenancePageClient } from "./MaintenancePageClient"
 
-interface Props { searchParams: Promise<{ contractor?: string }> }
+interface Props { searchParams: Promise<{ contractor?: string; name?: string }> }
 
 export default async function MaintenancePage({ searchParams }: Readonly<Props>) {
   const membership = await getServerOrgMembership()
   if (!membership) redirect("/login")
 
-  const contractorFilter = (await searchParams).contractor ?? null
+  const sp = await searchParams
+  const contractorFilter = sp.contractor ?? null
+  const contractorName = sp.name ?? null
   const { org_id: orgId } = membership
   const queryClient = new QueryClient()
   const supabase = await createServiceClient()
@@ -33,7 +35,7 @@ export default async function MaintenancePage({ searchParams }: Readonly<Props>)
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <MaintenancePageClient orgId={orgId} contractorFilter={contractorFilter} />
+      <MaintenancePageClient orgId={orgId} contractorFilter={contractorFilter} contractorName={contractorName} />
     </HydrationBoundary>
   )
 }

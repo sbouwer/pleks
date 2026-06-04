@@ -60,7 +60,7 @@ export function SupplierDetailActions({
 
   return (
     <div className="flex items-center gap-1">
-      <IconButton icon={<Wrench className="size-3.5" />} label="View work orders" onClick={() => router.push(`/maintenance?contractor=${supplierId}`)} />
+      <IconButton icon={<Wrench className="size-3.5" />} label="View work orders" onClick={() => router.push(`/maintenance?contractor=${supplierId}&name=${encodeURIComponent(supplierName)}`)} />
       <IconButton icon={<Receipt className="size-3.5" />} label="View invoices" onClick={() => router.push(`/billing/invoices?contractor=${supplierId}`)} />
 
       <span aria-hidden className="mx-1 h-5 w-px bg-border" />

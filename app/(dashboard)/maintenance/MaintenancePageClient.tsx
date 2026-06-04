@@ -192,9 +192,9 @@ function MobileRow({ req }: Readonly<{ req: MaintenanceItemExtended }>) {
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-interface Props { orgId: string; contractorFilter?: string | null }
+interface Props { orgId: string; contractorFilter?: string | null; contractorName?: string | null }
 
-export function MaintenancePageClient({ orgId, contractorFilter }: Readonly<Props>) {
+export function MaintenancePageClient({ orgId, contractorFilter, contractorName }: Readonly<Props>) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const queryKey = OPERATIONAL_QUERY_KEYS.maintenance(orgId)
@@ -237,15 +237,22 @@ export function MaintenancePageClient({ orgId, contractorFilter }: Readonly<Prop
   const filtered = sortList(tabFiltered, sortField, sortDir) as MaintenanceItemExtended[]
   const actionCount = list.filter(r => matchesTab(r, "action")).length
 
+  // Supplier-scoped view (from a supplier's "View work orders" link). Rendered BELOW each header —
+  // the page header is sticky with a negative top margin, so a banner above it gets clipped.
+  const filterBanner = contractorFilter ? (
+    <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-brand/30 bg-brand/5 px-3.5 py-2 text-sm">
+      <span className="flex min-w-0 items-center gap-2 text-foreground">
+        <Wrench className="h-3.5 w-3.5 shrink-0 text-brand" />
+        <span className="min-w-0">
+          Showing work orders for <span className="font-semibold">{contractorName || "this supplier"}</span>
+        </span>
+      </span>
+      <button type="button" onClick={() => router.push("/maintenance")} className="shrink-0 text-brand hover:underline">Show all</button>
+    </div>
+  ) : null
+
   return (
     <div>
-      {contractorFilter && (
-        <div className="mb-4 flex items-center gap-2 text-sm">
-          <span className="text-muted-foreground">Showing work orders for one supplier</span>
-          <button type="button" onClick={() => router.push("/maintenance")} className="text-brand hover:underline">Show all</button>
-        </div>
-      )}
-
       {/* ── Mobile ───────────────────────────────────────────────────────── */}
       <div className="lg:hidden pb-4">
         <div className="flex items-center justify-between mb-3">
@@ -255,6 +262,8 @@ export function MaintenancePageClient({ orgId, contractorFilter }: Readonly<Prop
           </div>
           <AddButton label="Log" onClick={() => router.push("/maintenance/new")} />
         </div>
+
+        {filterBanner}
 
         {emergencies.length > 0 && (
           <div className="rounded-lg border border-danger/30 bg-danger/5 px-3 py-2 mb-3 flex items-start gap-2">
@@ -308,6 +317,8 @@ export function MaintenancePageClient({ orgId, contractorFilter }: Readonly<Prop
           }
           action={<AddButton label="Log request" onClick={() => router.push("/maintenance/new")} />}
         />
+
+        {filterBanner}
 
         {emergencies.length > 0 && (
           <div className="rounded-lg border border-danger/30 bg-danger/5 px-4 py-2.5 mb-4 flex items-start gap-3">
