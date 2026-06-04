@@ -56,7 +56,7 @@ export function DetailStatGrid({
           )}
         >
           <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{s.label}</p>
-          <p className={cn("mt-0.5 font-heading text-[15px] leading-snug break-words", s.tone === "ok" && "text-emerald-600")}>{s.value}</p>
+          <p title={s.value} className={cn("mt-0.5 truncate font-heading text-[15px] leading-snug", s.tone === "ok" && "text-emerald-600")}>{s.value}</p>
         </div>
       ))}
     </div>

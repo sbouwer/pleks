@@ -34,9 +34,9 @@ function StatusPill({ status }: Readonly<{ status: DetailStatus }>) {
 
 function Fact({ fact }: Readonly<{ fact: DetailFact }>) {
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="flex min-w-0 max-w-[200px] flex-col gap-0.5">
       <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">{fact.k}</span>
-      <span className={cn("text-[13px] font-semibold text-foreground", fact.mono && "font-mono tabular-nums", fact.tone === "ok" && "text-success")}>
+      <span title={fact.v} className={cn("truncate text-[13px] font-semibold text-foreground", fact.mono && "font-mono tabular-nums", fact.tone === "ok" && "text-success")}>
         {fact.v}
       </span>
     </div>
