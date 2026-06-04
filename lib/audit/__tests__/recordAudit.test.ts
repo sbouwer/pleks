@@ -21,13 +21,15 @@ describe("recordAudit sanitiser", () => {
     expect(out).toEqual({ iban_masked: "••••6819", card_number_masked: "••••1111" })
   })
 
-  it("drops never-log identifiers and secrets entirely", () => {
+  it("drops never-log identifiers and secrets entirely (incl. _enc / _hash variants)", () => {
     const out = sanitise({
-      id_number: "9001015009087", id_number_hash: "abc123", password: "hunter2",
-      token: "tok_live_x", cvv: "123", keep: "yes",
+      id_number: "9001015009087", id_number_hash: "abc123", id_number_enc: "enc:xyz",
+      account_number_enc: "enc:123", account_number_hash: "h:456",
+      password: "hunter2", token: "tok_live_x", cvv: "123", keep: "yes",
     })
     expect(out).toEqual({ keep: "yes" })
     expect(JSON.stringify(out)).not.toContain("9001015009087")
+    expect(JSON.stringify(out)).not.toContain("enc:")
   })
 
   it("masks short / non-string account numbers without leaking", () => {

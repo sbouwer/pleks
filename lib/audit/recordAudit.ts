@@ -34,11 +34,13 @@ export interface RecordAuditInput {
   context?: { ipAddress?: string | null; userAgent?: string | null }
 }
 
-/** Keys whose values are DROPPED entirely before write — raw identifiers / secrets / decrypted PII. */
+/** Keys whose values are DROPPED entirely before write — raw identifiers / secrets / decrypted PII.
+ *  Encrypted (_enc) and hashed (_hash) variants are still personal data (D-5) — drop them too. */
 const NEVER_LOG = new Set<string>([
-  "id_number", "id_number_hash", "id_number_decrypted",
+  "id_number", "id_number_hash", "id_number_enc", "id_number_decrypted",
+  "account_number_enc", "account_number_hash", "account_number_decrypted",
   "password", "password_hash", "secret", "token", "access_token", "refresh_token",
-  "cvv", "pin", "account_number_decrypted",
+  "cvv", "pin",
 ])
 
 /** Keys MASKED to last-4 (so the audit still says WHICH account, never the full number). */

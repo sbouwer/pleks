@@ -21,6 +21,7 @@
 
 const T1_TABLES = new Set([
   "contact_bank_accounts", // payout banking — mutable config, the original F1 fraud vector
+  "tenant_bank_accounts",  // parallel tenant banking table (D-5) — same fraud surface, same rule
 ])
 const MUTATORS = new Set(["insert", "update", "delete", "upsert"])
 
