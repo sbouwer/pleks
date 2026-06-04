@@ -11,7 +11,7 @@
  */
 import { useState, useEffect } from "react"
 import { FileText, X } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 
 interface WelcomePackBannerProps {
   orgId: string
@@ -49,9 +49,9 @@ export function WelcomePackBanner({ orgId, landlordId, landlordName }: Readonly<
         </p>
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        <Button size="sm" onClick={() => window.open(url, "_blank")}>
+        <ActionButton tone="primary" size="sm" onClick={() => window.open(url, "_blank")}>
           Generate Welcome Pack
-        </Button>
+        </ActionButton>
         <button
           onClick={handleDismiss}
           className="text-muted-foreground hover:text-foreground transition-colors"

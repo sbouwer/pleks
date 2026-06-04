@@ -14,7 +14,7 @@ import { useState, useEffect, useRef } from "react"
 import { useParams } from "next/navigation"
 import { formatZAR, APPLICATION_FEE_CENTS, JOINT_APPLICATION_FEE_CENTS } from "@/lib/constants"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { CreditCard, Landmark, ShieldCheck, Loader2 } from "lucide-react"
 
 export default function PaymentPage() {
@@ -160,14 +160,14 @@ export default function PaymentPage() {
       </form>
 
       {/* Pay button */}
-      <Button
+      <ActionButton
+        tone="primary"
         className="w-full h-12 text-base font-semibold"
-        size="lg"
         disabled={processing}
         onClick={handlePay}
       >
         {processing ? "Redirecting to PayFast..." : `Pay ${formatZAR(fee)} with PayFast`}
-      </Button>
+      </ActionButton>
     </div>
   )
 }

@@ -8,7 +8,7 @@
 "use client"
 
 import { Shield, FileSearch, FilePen, Trash2, Ban, Pause, Download, MinusCircle, Bomb } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { cn } from "@/lib/utils"
 import type { RequestType } from "@/lib/popia/requests"
 
@@ -84,9 +84,9 @@ export function RequestTypePicker({ onSelect, className }: Readonly<RequestTypeP
       {OPTIONS.map((opt) => {
         const Icon = opt.icon
         return (
-          <Button
+          <ActionButton
             key={opt.type}
-            variant="outline"
+            tone="secondary"
             className={cn(
               "h-auto flex-col items-start gap-1 p-4 text-left",
               opt.destructive && "border-destructive/30 hover:border-destructive/60",
@@ -100,7 +100,7 @@ export function RequestTypePicker({ onSelect, className }: Readonly<RequestTypeP
               </span>
             </div>
             <p className="text-xs text-muted-foreground font-normal">{opt.description}</p>
-          </Button>
+          </ActionButton>
         )
       })}
 

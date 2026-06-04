@@ -8,7 +8,7 @@
  */
 import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { Label } from "@/components/ui/label"
@@ -113,10 +113,10 @@ export function PrimeRateWidget({ currentRate, effectiveSince }: Readonly<PrimeR
                   />
                 </div>
                 <div className="flex gap-3 justify-end">
-                  <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-                  <Button onClick={handleSave} disabled={loading}>
+                  <ActionButton tone="secondary" onClick={() => setOpen(false)}>Cancel</ActionButton>
+                  <ActionButton tone="primary" onClick={handleSave} disabled={loading}>
                     {loading ? "Saving..." : "Save"}
-                  </Button>
+                  </ActionButton>
                 </div>
               </div>
             </DialogContent>

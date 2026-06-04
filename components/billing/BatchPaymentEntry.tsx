@@ -11,7 +11,7 @@
 import { useEffect, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { FormSelect } from "@/components/ui/FormSelect"
@@ -327,13 +327,14 @@ export function BatchPaymentEntry() {
           {fullCount > 0 && ` · ${fullCount} paid in full`}
           {partialCount > 0 && ` · ${partialCount} partial`}
         </p>
-        <Button
+        <ActionButton
+          tone="primary"
           size="sm"
           onClick={handleRecordAll}
           disabled={isPending || rows.every((r) => Number.parseFloat(r.amount) <= 0)}
         >
           {isPending ? "Recording…" : "Record all payments"}
-        </Button>
+        </ActionButton>
       </div>
     </div>
   )

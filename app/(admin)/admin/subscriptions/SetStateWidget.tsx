@@ -10,7 +10,7 @@
  */
 import { useState, useTransition } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 
 const STATUSES = [
   "active",
@@ -91,13 +91,14 @@ export function SetStateWidget({ orgs }: Readonly<{ orgs: OrgOption[] }>) {
             </select>
           </div>
 
-          <Button
+          <ActionButton
+            tone="primary"
             onClick={handleSubmit}
             disabled={pending || !orgId}
             className="bg-violet-600 hover:bg-violet-700 text-white"
           >
             {pending ? "Applying…" : "Force state"}
-          </Button>
+          </ActionButton>
         </div>
 
         {result && (

@@ -13,7 +13,7 @@
 import { useState } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { ShieldCheck } from "lucide-react"
 import { ConsentCodeEntry } from "@/components/consent/ConsentCodeEntry"
 import { createClient } from "@/lib/supabase/client"
@@ -218,22 +218,22 @@ export default function Stage2ConsentPage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <div className="flex flex-col gap-3">
-        <Button
+        <ActionButton
+          tone="primary"
           className="w-full h-12 text-base font-semibold"
-          size="lg"
           disabled={!agreed || submitting}
           onClick={() => void handleAgree()}
         >
           {submitting ? "Processing…" : "Agree and continue →"}
-        </Button>
+        </ActionButton>
 
-        <Button
-          variant="ghost"
+        <ActionButton
+          tone="secondary"
           className="w-full"
           onClick={() => void handleDecline()}
         >
           Decline — withdraw my application
-        </Button>
+        </ActionButton>
       </div>
     </div>
   )

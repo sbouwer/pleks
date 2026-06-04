@@ -9,7 +9,7 @@
  * Data:   where data comes from, any non-obvious access pattern
  * Notes:  gotchas, invariants, why-not-X decisions
  */
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 
 export function WaitlistExport({
   entries,
@@ -33,8 +33,8 @@ export function WaitlistExport({
   }
 
   return (
-    <Button variant="outline" onClick={handleExport}>
+    <ActionButton tone="secondary" onClick={handleExport}>
       Export CSV
-    </Button>
+    </ActionButton>
   )
 }

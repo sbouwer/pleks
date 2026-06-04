@@ -10,7 +10,7 @@ import { useState, useMemo } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { validateSAIdNumber } from "@/lib/crypto/idNumber"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { Label } from "@/components/ui/label"
@@ -294,9 +294,9 @@ export default function DetailsPage() {
 
       {serverError && <p className="text-sm text-destructive">{serverError}</p>}
 
-      <Button className="w-full h-12 text-base font-semibold" onClick={handleContinue} disabled={submitting}>
+      <ActionButton tone="primary" className="w-full h-12 text-base font-semibold" onClick={handleContinue} disabled={submitting}>
         {submitting ? <><Loader2 className="size-4 mr-2 animate-spin" />Creating application…</> : "Next: Documents →"}
-      </Button>
+      </ActionButton>
     </div>
   )
 }

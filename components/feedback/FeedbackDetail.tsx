@@ -9,7 +9,7 @@
 
 import { useState } from "react"
 import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
@@ -131,9 +131,9 @@ export function FeedbackDetail({ submission, isAdmin }: FeedbackDetailProps) {
                 className="text-sm resize-none"
               />
             </div>
-            <Button size="sm" variant="outline" onClick={handleStatusSave} disabled={savingNote}>
+            <ActionButton tone="secondary" size="sm" onClick={handleStatusSave} disabled={savingNote}>
               {savingNote ? "Saving…" : "Save"}
-            </Button>
+            </ActionButton>
           </div>
         </div>
       )}
@@ -173,9 +173,9 @@ export function FeedbackDetail({ submission, isAdmin }: FeedbackDetailProps) {
           className="text-sm"
         />
         <div className="flex justify-end">
-          <Button type="submit" size="sm" disabled={savingRpl || replyBody.trim().length < 5}>
+          <ActionButton type="submit" tone="primary" size="sm" disabled={savingRpl || replyBody.trim().length < 5}>
             {savingRpl ? "Sending…" : "Send reply"}
-          </Button>
+          </ActionButton>
         </div>
       </form>
     </div>

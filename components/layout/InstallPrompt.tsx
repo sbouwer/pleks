@@ -8,7 +8,7 @@
  *         doesn't reappear after every browser session.
  */
 import { useEffect, useState } from "react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>
@@ -64,8 +64,8 @@ export function InstallPrompt() {
         Quick access + offline inspections when you&apos;re in the field.
       </p>
       <div className="flex gap-2">
-        <Button size="sm" onClick={handleInstall} className="flex-1">Add to home screen</Button>
-        <Button size="sm" variant="outline" onClick={handleDismiss}>Later</Button>
+        <ActionButton tone="primary" size="sm" onClick={handleInstall} className="flex-1">Add to home screen</ActionButton>
+        <ActionButton tone="secondary" size="sm" onClick={handleDismiss}>Later</ActionButton>
       </div>
     </div>
   )

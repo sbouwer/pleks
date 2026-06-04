@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useOrg } from "@/hooks/useOrg"
 import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Check, AlertTriangle, Loader2, RefreshCw, Plug, Unplug } from "lucide-react"
@@ -235,9 +236,9 @@ export function BankFeedSection({ tier }: Readonly<BankFeedSectionProps>) {
                       <Badge variant="secondary" className="text-[10px]">
                         R250/mo
                       </Badge>
-                      <Button
+                      <ActionButton
                         size="sm"
-                        variant="outline"
+                        tone="secondary"
                         disabled={syncingId === conn.id}
                         onClick={() => handleSync(conn.id)}
                       >
@@ -245,10 +246,10 @@ export function BankFeedSection({ tier }: Readonly<BankFeedSectionProps>) {
                           ? <Loader2 className="size-3.5 animate-spin" />
                           : <RefreshCw className="size-3.5" />}
                         <span className="ml-1 hidden sm:inline">Sync</span>
-                      </Button>
-                      <Button
+                      </ActionButton>
+                      <ActionButton
                         size="sm"
-                        variant="destructive"
+                        tone="destructive"
                         disabled={disconnectingId === conn.id}
                         onClick={() => handleDisconnect(conn.id)}
                       >
@@ -256,7 +257,7 @@ export function BankFeedSection({ tier }: Readonly<BankFeedSectionProps>) {
                           ? <Loader2 className="size-3.5 animate-spin" />
                           : <Unplug className="size-3.5" />}
                         <span className="ml-1 hidden sm:inline">Disconnect</span>
-                      </Button>
+                      </ActionButton>
                     </div>
                   </CardContent>
                 </Card>
@@ -270,11 +271,11 @@ export function BankFeedSection({ tier }: Readonly<BankFeedSectionProps>) {
             </p>
           )}
 
-          <Button variant="outline" size="sm" onClick={handleConnect} disabled={connecting}>
+          <ActionButton tone="secondary" size="sm" onClick={handleConnect} disabled={connecting}>
             {connecting
               ? <><Loader2 className="size-3.5 mr-1.5 animate-spin" /> Connecting…</>
               : <><Plug className="size-3.5 mr-1.5" /> Connect bank account</>}
-          </Button>
+          </ActionButton>
         </>
       )}
     </div>

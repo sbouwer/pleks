@@ -9,7 +9,7 @@
  * Data:   where data comes from, any non-obvious access pattern
  * Notes:  gotchas, invariants, why-not-X decisions
  */
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 
 export function AdminLogout() {
   async function handleLogout() {
@@ -18,8 +18,8 @@ export function AdminLogout() {
   }
 
   return (
-    <Button variant="ghost" size="sm" className="text-xs" onClick={handleLogout}>
+    <ActionButton tone="secondary" size="sm" className="text-xs" onClick={handleLogout}>
       Logout
-    </Button>
+    </ActionButton>
   )
 }

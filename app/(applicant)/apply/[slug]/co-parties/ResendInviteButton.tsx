@@ -7,7 +7,7 @@
 "use client"
 
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { resendDirectorInvite } from "@/lib/applications/commercial"
 import { RefreshCw } from "lucide-react"
 
@@ -39,14 +39,14 @@ export function ResendInviteButton({ coApplicantId, applicationId, orgId }: Prop
   }
 
   return (
-    <Button
-      variant="outline"
+    <ActionButton
+      tone="secondary"
       size="sm"
       disabled={state === "sending" || state === "sent"}
       onClick={handleResend}
     >
       <RefreshCw className="size-3.5 mr-1.5" />
       {buttonLabel(state)}
-    </Button>
+    </ActionButton>
   )
 }

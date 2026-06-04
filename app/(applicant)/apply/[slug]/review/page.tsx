@@ -10,7 +10,7 @@ import { useState, useEffect } from "react"
 import { useRouter, useParams, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { formatZAR } from "@/lib/constants"
 import { Loader2, CheckCircle2 } from "lucide-react"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -226,13 +226,14 @@ export default function ReviewPage() {
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <Button
+      <ActionButton
+        tone="primary"
         className="w-full h-12 text-base font-semibold"
         disabled={!consented || submitting}
         onClick={handleSubmit}
       >
         {submitting ? <><Loader2 className="size-4 mr-2 animate-spin" />Submitting…</> : "Submit application →"}
-      </Button>
+      </ActionButton>
     </div>
   )
 }

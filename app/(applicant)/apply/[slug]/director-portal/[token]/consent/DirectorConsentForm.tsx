@@ -11,7 +11,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Card, CardContent } from "@/components/ui/card"
 import { ConsentCodeEntry } from "@/components/consent/ConsentCodeEntry"
 
@@ -146,13 +146,14 @@ export function DirectorConsentForm({ coApplicantId, token, slug, firstName, has
 
         {error && <p className="text-sm text-destructive">{error}</p>}
 
-        <Button
+        <ActionButton
+          tone="primary"
           className="w-full"
           disabled={!agreed || step === "submitting"}
           onClick={() => void handleContinue()}
         >
           {getButtonLabel(step, hasPhone)}
-        </Button>
+        </ActionButton>
       </CardContent>
     </Card>
   )

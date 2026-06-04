@@ -12,7 +12,7 @@
 import { useState } from "react"
 import { X, Plus, Check } from "lucide-react"
 import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import type { RoomEntry } from "@/lib/units/roomListGenerator"
 
 interface RoomListProps {
@@ -126,9 +126,9 @@ export function RoomList({ rooms, onChange }: RoomListProps) {
           placeholder="Add room... (e.g. Scullery)"
           className="h-8 text-sm"
         />
-        <Button type="button" variant="outline" size="sm" onClick={addCustomRoom}>
+        <ActionButton type="button" tone="secondary" size="sm" onClick={addCustomRoom}>
           Add
-        </Button>
+        </ActionButton>
       </div>
     </div>
   )

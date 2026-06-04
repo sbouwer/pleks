@@ -10,7 +10,7 @@ import { useState, useEffect } from "react"
 import { useRouter, useParams, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Upload, FileText, CheckCircle2, Loader2, AlertCircle } from "lucide-react"
 
 interface DocSlot {
@@ -240,13 +240,14 @@ export default function DocumentsPage() {
         </CardContent>
       </Card>
 
-      <Button
+      <ActionButton
+        tone="primary"
         className="w-full h-12 text-base font-semibold"
         disabled={!allRequiredDone || submitting}
         onClick={handleContinue}
       >
         {submitting ? <><Loader2 className="size-4 mr-2 animate-spin" />Saving…</> : "Next: Review →"}
-      </Button>
+      </ActionButton>
 
       {!allRequiredDone && (
         <p className="text-xs text-center text-muted-foreground">Upload all {documents.length} required documents to continue.</p>

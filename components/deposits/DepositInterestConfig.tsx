@@ -11,7 +11,7 @@
  */
 import { useEffect, useState, useTransition } from "react"
 import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { FormSelect } from "@/components/ui/FormSelect"
@@ -155,9 +155,9 @@ export function DepositInterestConfig({ propertyId = null, unitId = null, curren
               <p className="text-sm text-muted-foreground mt-0.5">No config — interest will not be auto-accrued</p>
             )}
           </div>
-          <Button variant="outline" size="sm" onClick={showForm ? () => setShowForm(false) : openForm}>
+          <ActionButton tone="secondary" size="sm" onClick={showForm ? () => setShowForm(false) : openForm}>
             {toggleButtonLabel}
-          </Button>
+          </ActionButton>
         </div>
       </CardHeader>
 
@@ -233,9 +233,9 @@ export function DepositInterestConfig({ propertyId = null, unitId = null, curren
             </div>
           </div>
 
-          <Button size="sm" onClick={handleSave} disabled={isPending}>
+          <ActionButton tone="primary" size="sm" onClick={handleSave} disabled={isPending}>
             {saveButtonLabel}
-          </Button>
+          </ActionButton>
         </CardContent>
       )}
 

@@ -12,7 +12,7 @@
 
 import { toast } from "sonner"
 import { Copy, ExternalLink } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import type { BugContext } from "@/lib/feedback/bug-context"
 
 const VERCEL_LOGS_URL = "https://vercel.com/stean-bouwers-projects/pleks/logs"
@@ -78,9 +78,9 @@ export function BugDiagnosticsPanel({ ctx, submitterId }: Readonly<{ ctx: BugCon
       )}
 
       <div className="flex flex-wrap gap-2 pt-1">
-        <Button size="sm" variant="outline" onClick={() => copy(logFilter, "Supabase log filter")}>
+        <ActionButton tone="secondary" size="sm" onClick={() => copy(logFilter, "Supabase log filter")}>
           <Copy className="h-3.5 w-3.5" /> Copy Supabase log filter
-        </Button>
+        </ActionButton>
         <a
           href={VERCEL_LOGS_URL}
           target="_blank"

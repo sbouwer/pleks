@@ -8,7 +8,7 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Loader2 } from "lucide-react"
 
 interface Props {
@@ -33,14 +33,14 @@ export function PayFastForm({ url, data, label = "Pay securely →" }: Props) {
           <input key={name} type="hidden" name={name} value={value} />
         ))}
       </form>
-      <Button
+      <ActionButton
+        tone="primary"
         className="w-full h-12 text-base font-semibold"
-        size="lg"
         disabled={submitting}
         onClick={handlePay}
       >
         {submitting ? <><Loader2 className="size-4 animate-spin mr-2" />Redirecting to PayFast…</> : label}
-      </Button>
+      </ActionButton>
     </>
   )
 }

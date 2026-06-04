@@ -10,7 +10,7 @@
 
 import { useState } from "react"
 import { CheckSquare, Square, Trash2, Lock, Minus } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { cn } from "@/lib/utils"
 import type { AcknowledgedCarveout } from "@/lib/popia/erasure"
 
@@ -141,17 +141,17 @@ export function NukeCarveoutDisclosure({
       )}
 
       <div className="flex gap-3 pt-2">
-        <Button variant="outline" onClick={onCancel} className="flex-1">
+        <ActionButton tone="secondary" onClick={onCancel} className="flex-1">
           Cancel
-        </Button>
-        <Button
-          variant="destructive"
+        </ActionButton>
+        <ActionButton
+          tone="destructive"
           disabled={!allTicked && carveouts.length > 0}
           onClick={() => onConfirmed(carveouts.filter((c) => acknowledged.has(c.category)))}
           className="flex-1"
         >
           Submit erasure request
-        </Button>
+        </ActionButton>
       </div>
     </div>
   )

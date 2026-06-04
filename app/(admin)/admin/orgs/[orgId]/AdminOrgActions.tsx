@@ -11,7 +11,7 @@
  */
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import {
   Select,
   SelectContent,
@@ -89,15 +89,15 @@ export function AdminOrgActions({
   return (
     <div className="flex flex-wrap items-end gap-4">
       {!isFoundingAgent && (
-        <Button variant="outline" disabled={loading === "founding"} onClick={handleActivateFoundingAgent}>
+        <ActionButton tone="secondary" disabled={loading === "founding"} onClick={handleActivateFoundingAgent}>
           {loading === "founding" ? "Activating..." : "Activate founding agent"}
-        </Button>
+        </ActionButton>
       )}
 
       {canStartTrial && (
-        <Button variant="outline" disabled={loading === "trial"} onClick={handleStartTrial}>
+        <ActionButton tone="secondary" disabled={loading === "trial"} onClick={handleStartTrial}>
           {loading === "trial" ? "Starting..." : "Start 14-day trial"}
-        </Button>
+        </ActionButton>
       )}
 
       <div className="flex items-end gap-2">
@@ -113,9 +113,9 @@ export function AdminOrgActions({
             </SelectContent>
           </Select>
         </div>
-        <Button variant="outline" disabled={loading === "tier" || newTier === currentTier} onClick={handleChangeTier}>
+        <ActionButton tone="secondary" disabled={loading === "tier" || newTier === currentTier} onClick={handleChangeTier}>
           {loading === "tier" ? "Updating..." : "Update"}
-        </Button>
+        </ActionButton>
       </div>
     </div>
   )

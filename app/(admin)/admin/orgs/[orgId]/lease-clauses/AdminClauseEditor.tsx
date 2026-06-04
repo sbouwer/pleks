@@ -11,7 +11,7 @@
  */
 import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
@@ -102,9 +102,9 @@ export function AdminClauseEditor({ orgId, clauses }: Readonly<AdminClauseEditor
                   )}
                 </div>
                 {!isEditing && (
-                  <Button variant="outline" size="sm" onClick={() => startEdit(clause)}>
+                  <ActionButton tone="secondary" size="sm" onClick={() => startEdit(clause)}>
                     Edit
-                  </Button>
+                  </ActionButton>
                 )}
               </div>
 
@@ -120,17 +120,17 @@ export function AdminClauseEditor({ orgId, clauses }: Readonly<AdminClauseEditor
                     Do not remove tokens that exist in the standard wording.
                   </p>
                   <div className="flex items-center gap-2">
-                    <Button size="sm" onClick={() => handleSave(clause.clause_key)} disabled={saving}>
+                    <ActionButton tone="primary" size="sm" onClick={() => handleSave(clause.clause_key)} disabled={saving}>
                       {saving ? "Saving..." : "Save custom wording"}
-                    </Button>
+                    </ActionButton>
                     {hasCustom && (
-                      <Button size="sm" variant="outline" onClick={() => handleReset(clause.clause_key)} disabled={saving}>
+                      <ActionButton tone="secondary" size="sm" onClick={() => handleReset(clause.clause_key)} disabled={saving}>
                         Reset to standard
-                      </Button>
+                      </ActionButton>
                     )}
-                    <Button size="sm" variant="ghost" onClick={() => setEditingKey(null)}>
+                    <ActionButton tone="secondary" size="sm" onClick={() => setEditingKey(null)}>
                       Cancel
-                    </Button>
+                    </ActionButton>
                   </div>
                 </div>
               )}

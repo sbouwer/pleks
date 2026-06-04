@@ -9,7 +9,7 @@
  * Data:   where data comes from, any non-obvious access pattern
  * Notes:  gotchas, invariants, why-not-X decisions
  */
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 
 interface EmptyStateProps {
   readonly icon: React.ReactNode
@@ -30,7 +30,7 @@ export function EmptyState({ icon, title, description, action }: EmptyStateProps
       <h3 className="text-lg font-medium mb-1">{title}</h3>
       <p className="text-muted-foreground text-sm max-w-md mb-6">{description}</p>
       {action && (
-        <Button onClick={action.onClick}>{action.label}</Button>
+        <ActionButton tone="primary" onClick={action.onClick}>{action.label}</ActionButton>
       )}
     </div>
   )

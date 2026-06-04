@@ -9,7 +9,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Card, CardContent } from "@/components/ui/card"
 import { Smartphone, RotateCcw, CheckCircle2 } from "lucide-react"
 
@@ -164,13 +164,14 @@ export function ConsentCodeEntry({
 
         {error && <p className="text-sm text-destructive">{error}</p>}
 
-        <Button
+        <ActionButton
+          tone="primary"
           className="w-full"
           disabled={loading || code.length !== 6 || secondsLeft === 0}
           onClick={() => void handleVerify()}
         >
           {loading ? "Verifying…" : "Verify code"}
-        </Button>
+        </ActionButton>
 
         <div className="flex justify-center">
           <button
