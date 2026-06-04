@@ -7,7 +7,7 @@
 "use client"
 
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 
@@ -101,9 +101,9 @@ export function InformationOfficerForm({ orgId, initialValues, isAdmin }: Readon
 
       {isAdmin && (
         <div className="flex items-center gap-3">
-          <Button onClick={handleSave} disabled={saving}>
+          <ActionButton tone="primary" onClick={handleSave} disabled={saving}>
             {saving ? "Saving..." : "Save"}
-          </Button>
+          </ActionButton>
           {saved && <span className="text-sm text-green-600">Saved</span>}
           {error && <span className="text-sm text-destructive">{error}</span>}
         </div>

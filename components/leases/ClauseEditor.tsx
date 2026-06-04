@@ -10,7 +10,7 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 import { useState, useRef, useCallback } from "react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 
@@ -152,13 +152,13 @@ export function ClauseEditor({
               a property attorney before making changes.
             </p>
           </div>
-          <Button
-            variant="outline"
+          <ActionButton
+            tone="secondary"
             size="sm"
             onClick={() => setShowEditor(true)}
           >
             I understand, edit anyway
-          </Button>
+          </ActionButton>
         </div>
       )}
 
@@ -213,17 +213,17 @@ export function ClauseEditor({
           />
 
           <div className="flex items-center gap-2">
-            <Button size="sm" onClick={handleSave} disabled={saving}>
+            <ActionButton size="sm" tone="primary" onClick={handleSave} disabled={saving}>
               {saving ? "Saving..." : "Save changes"}
-            </Button>
+            </ActionButton>
             {customBody && (
-              <Button size="sm" variant="outline" onClick={handleReset} disabled={saving}>
+              <ActionButton size="sm" tone="secondary" onClick={handleReset} disabled={saving}>
                 Reset to standard
-              </Button>
+              </ActionButton>
             )}
-            <Button size="sm" variant="ghost" onClick={handleCancel}>
+            <ActionButton size="sm" tone="secondary" onClick={handleCancel}>
               Cancel
-            </Button>
+            </ActionButton>
           </div>
         </div>
       )}

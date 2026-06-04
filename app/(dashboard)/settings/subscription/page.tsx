@@ -20,7 +20,6 @@ import { TIER_PRICING, TIER_LIMITS, formatZAR } from "@/lib/constants"
 import { TIER_FEATURES } from "@/lib/tier/gates"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ActionButton } from "@/components/ui/actions"
-import { Button } from "@/components/ui/button"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogFooter,
@@ -188,12 +187,12 @@ function PauseDialog({
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
+          <ActionButton tone="secondary" onClick={() => onOpenChange(false)} disabled={pending}>
             Cancel
-          </Button>
-          <Button onClick={handleSubmit} disabled={pending}>
+          </ActionButton>
+          <ActionButton tone="primary" onClick={handleSubmit} disabled={pending}>
             {pending ? "Pausing…" : "Pause subscription"}
-          </Button>
+          </ActionButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -283,12 +282,12 @@ function CancelDialog({
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <DialogFooter>
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
+              <ActionButton tone="secondary" onClick={() => onOpenChange(false)} disabled={pending}>
                 Keep subscription
-              </Button>
-              <Button variant="destructive" onClick={handleInitiate} disabled={pending}>
+              </ActionButton>
+              <ActionButton tone="destructive" onClick={handleInitiate} disabled={pending}>
                 {pending ? "Confirming…" : "Cancel subscription"}
-              </Button>
+              </ActionButton>
             </DialogFooter>
           </>
         )}
@@ -315,16 +314,16 @@ function CancelDialog({
               {error && <p className="text-sm text-destructive">{error}</p>}
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => { setStep("confirm"); setTotpCode("") }} disabled={pending}>
+              <ActionButton tone="secondary" onClick={() => { setStep("confirm"); setTotpCode("") }} disabled={pending}>
                 Back
-              </Button>
-              <Button
-                variant="destructive"
+              </ActionButton>
+              <ActionButton
+                tone="destructive"
                 onClick={handleTotpVerify}
                 disabled={pending || totpCode.length < 6}
               >
                 {pending ? "Verifying…" : "Confirm cancellation"}
-              </Button>
+              </ActionButton>
             </DialogFooter>
           </>
         )}
@@ -339,7 +338,7 @@ function CancelDialog({
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
-              <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+              <ActionButton tone="secondary" onClick={() => onOpenChange(false)}>Close</ActionButton>
             </DialogFooter>
           </>
         )}
@@ -495,9 +494,9 @@ function BillingPageInner() {
             until you resume.
             {fullSub?.pause_reason && ` Reason: ${fullSub.pause_reason}`}
           </p>
-          <Button size="sm" onClick={handleResume} disabled={resumePending}>
+          <ActionButton tone="primary" size="sm" onClick={handleResume} disabled={resumePending}>
             {resumePending ? "Resuming…" : "Resume subscription"}
-          </Button>
+          </ActionButton>
         </div>
       )}
 
@@ -651,23 +650,23 @@ function BillingPageInner() {
             {(canPause || canResume || canCancel) && (
               <div className="pt-2 border-t border-rule flex flex-col gap-2">
                 {canResume && (
-                  <Button variant="outline" className="w-full" onClick={handleResume} disabled={resumePending}>
+                  <ActionButton tone="secondary" className="w-full" onClick={handleResume} disabled={resumePending}>
                     {resumePending ? "Resuming…" : "Resume subscription"}
-                  </Button>
+                  </ActionButton>
                 )}
                 {canPause && (
-                  <Button variant="outline" className="w-full" onClick={() => setPauseOpen(true)}>
+                  <ActionButton tone="secondary" className="w-full" onClick={() => setPauseOpen(true)}>
                     Pause subscription
-                  </Button>
+                  </ActionButton>
                 )}
                 {canCancel && tier !== "owner" && (
-                  <Button
-                    variant="ghost"
+                  <ActionButton
+                    tone="secondary"
                     className="w-full text-muted-foreground hover:text-destructive"
                     onClick={() => setCancelOpen(true)}
                   >
                     Cancel subscription
-                  </Button>
+                  </ActionButton>
                 )}
               </div>
             )}

@@ -11,7 +11,7 @@
  */
 import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton, IconButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { Label } from "@/components/ui/label"
@@ -185,9 +185,7 @@ export function LeaseCharges({ leaseId }: Readonly<LeaseChargesProps>) {
               <p className="text-xs text-amber-500">Deducted from owner payment</p>
             )}
           </div>
-          <Button variant="ghost" size="icon" className="size-7 text-muted-foreground hover:text-danger" onClick={() => handleRemove(c.id)}>
-            <Trash2 className="size-3.5" />
-          </Button>
+          <IconButton icon={<Trash2 className="size-3.5" />} label="Remove charge" className="size-7 text-muted-foreground hover:text-danger" onClick={() => handleRemove(c.id)} />
         </div>
       ))}
     </div>
@@ -204,9 +202,9 @@ export function LeaseCharges({ leaseId }: Readonly<LeaseChargesProps>) {
             </p>
           )}
         </div>
-        <Button size="sm" variant="outline" onClick={() => setShowAdd(true)}>
-          <Plus className="size-4 mr-1" /> Add charge
-        </Button>
+        <ActionButton size="sm" tone="secondary" icon={<Plus className="size-4" />} onClick={() => setShowAdd(true)}>
+          Add charge
+        </ActionButton>
       </CardHeader>
       <CardContent>
         {loading ? (
@@ -277,10 +275,10 @@ export function LeaseCharges({ leaseId }: Readonly<LeaseChargesProps>) {
               )}
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => { setShowAdd(false); resetForm() }}>Cancel</Button>
-              <Button onClick={handleSave} disabled={saving || !description.trim() || !amount}>
+              <ActionButton tone="secondary" onClick={() => { setShowAdd(false); resetForm() }}>Cancel</ActionButton>
+              <ActionButton tone="primary" onClick={handleSave} disabled={saving || !description.trim() || !amount}>
                 {saving ? "Adding..." : "Add charge"}
-              </Button>
+              </ActionButton>
             </DialogFooter>
           </DialogContent>
         </Dialog>

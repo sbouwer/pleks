@@ -9,7 +9,7 @@
  */
 import Link from "next/link"
 import { MapPin, Home } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { AddPropertyButton } from "./AddPropertyButton"
 import { EmptyResourceState } from "@/components/ui/empty-resource-state"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
@@ -93,12 +93,12 @@ export function PropertyListView({ properties, view, tier, totalUnitCount }: Rea
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <a href={mapsUrl} target="_blank" rel="noreferrer">
-                        <Button size="sm" variant="outline" className="h-7 text-xs px-2.5 gap-1">
-                          <MapPin className="size-3" /> Maps
-                        </Button>
+                        <ActionButton size="sm" tone="secondary" icon={<MapPin className="size-3" />} className="h-7 text-xs px-2.5 gap-1">
+                          Maps
+                        </ActionButton>
                       </a>
                       <Link href={`/properties/${p.id}`}>
-                        <Button size="sm" variant="ghost" className="h-7 text-xs px-2">→</Button>
+                        <ActionButton size="sm" tone="secondary" className="h-7 text-xs px-2">→</ActionButton>
                       </Link>
                     </div>
                   </div>

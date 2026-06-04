@@ -9,10 +9,9 @@
  *         Recurring + once-off charge editors.
  */
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { Field, UnderlineInput, UnderlineSelect } from "@/components/ui/door-form"
-import { AddInline } from "@/components/ui/actions"
+import { AddInline, ActionButton } from "@/components/ui/actions"
 import { Badge } from "@/components/ui/badge"
 import { Trash2, X } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
@@ -138,8 +137,8 @@ function RecurringForm({ onAdd, onCancel }: Readonly<{ onAdd: (c: LocalCharge) =
         Deduct from owner payment
       </label>
       <div className="flex justify-end gap-2">
-        <Button size="sm" variant="outline" onClick={onCancel}>Cancel</Button>
-        <Button size="sm" onClick={handleAdd} disabled={!description.trim() || !amount}>Add</Button>
+        <ActionButton size="sm" tone="secondary" onClick={onCancel}>Cancel</ActionButton>
+        <ActionButton size="sm" tone="primary" onClick={handleAdd} disabled={!description.trim() || !amount}>Add</ActionButton>
       </div>
     </FormCard>
   )
@@ -184,8 +183,8 @@ function OnceOffForm({ onAdd, onCancel }: Readonly<{ onAdd: (c: LocalOnceOffChar
         </Field>
       </div>
       <div className="flex justify-end gap-2">
-        <Button size="sm" variant="outline" onClick={onCancel}>Cancel</Button>
-        <Button size="sm" onClick={handleAdd} disabled={!description.trim() || !amount}>Add</Button>
+        <ActionButton size="sm" tone="secondary" onClick={onCancel}>Cancel</ActionButton>
+        <ActionButton size="sm" tone="primary" onClick={handleAdd} disabled={!description.trim() || !amount}>Add</ActionButton>
       </div>
     </FormCard>
   )

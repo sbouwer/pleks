@@ -11,7 +11,7 @@
  */
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -76,17 +76,17 @@ export function EnableMultiBuildingDialog({
         </div>
 
         <DialogFooter>
-          <Button
+          <ActionButton
             type="button"
-            variant="outline"
+            tone="secondary"
             onClick={() => onOpenChange(false)}
             disabled={isPending}
           >
             Cancel
-          </Button>
-          <Button type="button" onClick={handleEnable} disabled={isPending}>
+          </ActionButton>
+          <ActionButton type="button" tone="primary" onClick={handleEnable} disabled={isPending}>
             {isPending ? "Enabling…" : "Enable"}
-          </Button>
+          </ActionButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>

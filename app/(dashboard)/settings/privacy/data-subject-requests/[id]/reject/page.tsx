@@ -11,7 +11,7 @@
 import { useRouter, useParams } from "next/navigation"
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton, IconButton } from "@/components/ui/actions"
 import { Textarea } from "@/components/ui/textarea"
 import { ChevronLeft, XCircle } from "lucide-react"
 
@@ -60,14 +60,12 @@ export default function RejectRequestPage() {
   return (
     <div className="max-w-lg mx-auto px-4 py-8 space-y-6">
       <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
+        <IconButton
+          icon={<ChevronLeft className="size-4" />}
+          label="Go back"
           className="size-8"
           onClick={() => router.back()}
-        >
-          <ChevronLeft className="size-4" />
-        </Button>
+        />
         <h1 className="text-lg font-semibold">Reject request</h1>
       </div>
 
@@ -112,18 +110,18 @@ export default function RejectRequestPage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       <div className="flex gap-3">
-        <Button variant="outline" onClick={() => router.back()} disabled={submitting}>
+        <ActionButton tone="secondary" onClick={() => router.back()} disabled={submitting}>
           Cancel
-        </Button>
-        <Button
-          variant="destructive"
+        </ActionButton>
+        <ActionButton
+          tone="destructive"
           onClick={handleSubmit}
           disabled={!basis || !notes.trim() || submitting}
           className="flex-1"
         >
           <XCircle className="size-4 mr-2" />
           {submitting ? "Rejecting..." : "Reject request"}
-        </Button>
+        </ActionButton>
       </div>
 
       <p className="text-xs text-muted-foreground">

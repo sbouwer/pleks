@@ -11,7 +11,7 @@
  */
 import { useState } from "react"
 import { ChevronDown, ChevronRight, Check } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { renderRuleBody } from "@/lib/rules/templates"
@@ -129,20 +129,19 @@ export function RuleTemplateToggle({
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">{previewText}</p>
           <div className="flex gap-2">
-            <Button type="button" size="sm" className="h-7 text-xs" onClick={handleSaveParams} disabled={saving}>
-              <Check className="h-3 w-3 mr-1" />
+            <ActionButton type="button" size="sm" tone="primary" className="h-7 text-xs" icon={<Check className="h-3 w-3" />} onClick={handleSaveParams} disabled={saving}>
               {saving ? "Saving..." : "Save"}
-            </Button>
-            <Button
+            </ActionButton>
+            <ActionButton
               type="button"
               size="sm"
-              variant="ghost"
+              tone="secondary"
               className="h-7 text-xs"
               onClick={() => setExpanded(false)}
               disabled={saving}
             >
               Cancel
-            </Button>
+            </ActionButton>
           </div>
         </div>
       )}

@@ -11,7 +11,7 @@
  */
 import { useState } from "react"
 import { Monitor } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 
 export function DesktopOnlyCard({
   title,
@@ -35,9 +35,9 @@ export function DesktopOnlyCard({
         <h2 className="font-heading text-lg font-semibold">{title}</h2>
         <p className="text-sm text-muted-foreground max-w-xs">{description}</p>
       </div>
-      <Button variant="outline" size="sm" onClick={handleCopy}>
+      <ActionButton tone="secondary" size="sm" onClick={handleCopy}>
         {copied ? "Copied!" : "Copy link"}
-      </Button>
+      </ActionButton>
     </div>
   )
 }

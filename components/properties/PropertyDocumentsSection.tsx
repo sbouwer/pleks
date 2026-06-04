@@ -11,7 +11,7 @@
  */
 import { useState, useTransition, useRef } from "react"
 import { uploadPropertyDocument, deletePropertyDocument, getDocumentSignedUrl } from "@/lib/actions/documents"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Upload, Trash2, FileText, Loader2, ExternalLink } from "lucide-react"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { FormSelect } from "@/components/ui/FormSelect"
@@ -119,14 +119,14 @@ export function PropertyDocumentsSection({ propertyId, initialDocuments }: Prope
     <div className="rounded-xl border bg-card">
       <div className="flex items-center justify-between border-b px-4 py-3">
         <h3 className="text-sm font-semibold">Documents</h3>
-        <Button
+        <ActionButton
           size="sm"
-          variant="outline"
+          tone="secondary"
+          icon={<Upload className="h-3.5 w-3.5" />}
           onClick={() => setShowForm((v) => !v)}
         >
-          <Upload className="h-3.5 w-3.5 mr-1.5" />
           Upload
-        </Button>
+        </ActionButton>
       </div>
 
       {showForm && (
@@ -169,13 +169,13 @@ export function PropertyDocumentsSection({ propertyId, initialDocuments }: Prope
               </div>
             </div>
             <div className="flex gap-2">
-              <Button type="submit" size="sm" disabled={uploading}>
+              <ActionButton type="submit" size="sm" tone="primary" disabled={uploading}>
                 {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
                 {uploading ? "Uploading…" : "Upload"}
-              </Button>
-              <Button type="button" size="sm" variant="ghost" onClick={() => setShowForm(false)}>
+              </ActionButton>
+              <ActionButton type="button" size="sm" tone="secondary" onClick={() => setShowForm(false)}>
                 Cancel
-              </Button>
+              </ActionButton>
             </div>
           </form>
         </div>

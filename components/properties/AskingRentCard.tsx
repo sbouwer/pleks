@@ -10,7 +10,7 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -99,12 +99,12 @@ export function AskingRentCard({ unitId, currentRentCents }: Readonly<Props>) {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>
+            <ActionButton tone="secondary" onClick={() => setOpen(false)}>
               Cancel
-            </Button>
-            <Button onClick={handleSave} disabled={saving || !rent}>
+            </ActionButton>
+            <ActionButton tone="primary" onClick={handleSave} disabled={saving || !rent}>
               {saving ? "Saving…" : "Save"}
-            </Button>
+            </ActionButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>

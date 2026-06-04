@@ -18,7 +18,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { toast } from "sonner"
 
 interface ClauseEditConfirmModalProps {
@@ -96,12 +96,12 @@ export function ClauseEditConfirmModal({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onCancel} disabled={submitting}>
+          <ActionButton tone="secondary" onClick={onCancel} disabled={submitting}>
             Cancel
-          </Button>
-          <Button onClick={handleConfirm} disabled={!checked || submitting}>
+          </ActionButton>
+          <ActionButton tone="primary" onClick={handleConfirm} disabled={!checked || submitting}>
             {submitting ? "Confirming..." : "I confirm, continue \u2192"}
-          </Button>
+          </ActionButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>

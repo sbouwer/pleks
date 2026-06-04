@@ -14,6 +14,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { createClient } from "@/lib/supabase/client"
@@ -72,17 +73,17 @@ export function JobStatusActions({ requestId, status }: JobStatusActionsProps) {
 
       {/* New job — acknowledge */}
       {status === "work_order_sent" && (
-        <Button className="w-full h-12" onClick={() => updateStatus("acknowledged")} disabled={submitting}>
+        <ActionButton tone="primary" className="w-full h-12" onClick={() => updateStatus("acknowledged")} disabled={submitting}>
           {submitting ? "Updating..." : "Acknowledge Job"}
-        </Button>
+        </ActionButton>
       )}
 
       {/* Quote approved or acknowledged — start work */}
       {(status === "quote_approved" || status === "acknowledged") && (
         <div className="flex gap-3">
-          <Button className="flex-1 h-12" onClick={() => updateStatus("in_progress")} disabled={submitting}>
+          <ActionButton tone="primary" className="flex-1 h-12" onClick={() => updateStatus("in_progress")} disabled={submitting}>
             Start Work
-          </Button>
+          </ActionButton>
         </div>
       )}
 
@@ -90,9 +91,9 @@ export function JobStatusActions({ requestId, status }: JobStatusActionsProps) {
       {status === "in_progress" && (
         <>
           {!showCompletion ? (
-            <Button className="w-full h-12" onClick={() => setShowCompletion(true)}>
+            <ActionButton tone="primary" className="w-full h-12" onClick={() => setShowCompletion(true)}>
               Mark Complete
-            </Button>
+            </ActionButton>
           ) : (
             <Card>
               <CardHeader><CardTitle className="text-sm">Completion Report</CardTitle></CardHeader>
@@ -104,10 +105,10 @@ export function JobStatusActions({ requestId, status }: JobStatusActionsProps) {
                   rows={4}
                 />
                 <div className="flex gap-3">
-                  <Button className="flex-1" onClick={handleComplete} disabled={submitting}>
+                  <ActionButton tone="primary" className="flex-1" onClick={handleComplete} disabled={submitting}>
                     {submitting ? "Submitting..." : "Submit Completion"}
-                  </Button>
-                  <Button variant="outline" onClick={() => setShowCompletion(false)}>Cancel</Button>
+                  </ActionButton>
+                  <ActionButton tone="secondary" onClick={() => setShowCompletion(false)}>Cancel</ActionButton>
                 </div>
               </CardContent>
             </Card>

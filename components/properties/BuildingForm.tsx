@@ -12,7 +12,7 @@
 import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { Label } from "@/components/ui/label"
@@ -280,16 +280,16 @@ export function BuildingForm({ propertyId, building }: Readonly<Props>) {
       </section>
 
       <div className="flex items-center gap-3 pt-2">
-        <Button type="submit" disabled={loading}>
+        <ActionButton type="submit" tone="primary" disabled={loading}>
           {(() => {
             if (loading) return "Saving…"
             if (isEditing) return "Save changes"
             return "Add building"
           })()}
-        </Button>
-        <Button type="button" variant="outline" onClick={() => router.push(`/properties/${propertyId}`)} disabled={loading}>
+        </ActionButton>
+        <ActionButton type="button" tone="secondary" onClick={() => router.push(`/properties/${propertyId}`)} disabled={loading}>
           Cancel
-        </Button>
+        </ActionButton>
       </div>
     </form>
   )

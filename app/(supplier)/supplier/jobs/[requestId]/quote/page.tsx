@@ -11,7 +11,7 @@
 import { useState } from "react"
 import { useRouter, useParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -174,16 +174,16 @@ export default function QuoteSubmissionPage() {
                 </div>
               </div>
               {lineItems.length > 1 && (
-                <Button variant="ghost" size="sm" onClick={() => removeLineItem(i)} className="mt-1">
+                <ActionButton tone="secondary" size="sm" onClick={() => removeLineItem(i)} className="mt-1">
                   <Trash2 className="size-4" />
-                </Button>
+                </ActionButton>
               )}
             </div>
           ))}
-          <Button variant="outline" size="sm" onClick={addLineItem}>
+          <ActionButton tone="secondary" size="sm" onClick={addLineItem}>
             <Plus className="size-3.5 mr-1.5" />
             Add line item
-          </Button>
+          </ActionButton>
         </CardContent>
       </Card>
 
@@ -248,13 +248,14 @@ export default function QuoteSubmissionPage() {
       </div>
 
       {/* Submit */}
-      <Button
+      <ActionButton
+        tone="primary"
         className="w-full h-12 text-base font-semibold"
         onClick={handleSubmit}
         disabled={submitting}
       >
         {submitting ? "Submitting..." : "Submit Quote"}
-      </Button>
+      </ActionButton>
     </div>
   )
 }

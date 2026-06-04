@@ -14,7 +14,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { updateMaintenanceStatus } from "@/lib/actions/maintenance"
@@ -82,7 +82,7 @@ interface Contractor {
   last_name: string | null
   company_name: string | null
   phone: string | null
-  trade: string | null
+  specialities: string[] | null
 }
 
 interface LocalNote {
@@ -254,8 +254,8 @@ export function MobileMaintenanceView({
     try {
       const supabase = createClient()
       const { data, error } = await supabase
-        .from("contractors")
-        .select("id, first_name, last_name, company_name, phone, trade")
+        .from("contractor_view")
+        .select("id, first_name, last_name, company_name, phone, specialities")
         .eq("org_id", orgId)
         .eq("is_active", true)
         .order("company_name")
@@ -351,7 +351,7 @@ export function MobileMaintenanceView({
               <div className="flex items-center gap-2">
                 <p className="text-sm text-muted-foreground">{tenantPhone}</p>
                 <a href={`tel:${tenantPhone}`}>
-                  <Button size="sm" variant="outline" className="h-7 text-xs">📞 Call</Button>
+                  <ActionButton size="sm" tone="secondary" className="h-7 text-xs">📞 Call</ActionButton>
                 </a>
               </div>
             )}
@@ -371,7 +371,7 @@ export function MobileMaintenanceView({
               <div className="flex items-center gap-2">
                 <p className="text-sm text-muted-foreground">{contractorPhone}</p>
                 <a href={`tel:${contractorPhone}`}>
-                  <Button size="sm" variant="outline" className="h-7 text-xs">📞 Call</Button>
+                  <ActionButton size="sm" tone="secondary" className="h-7 text-xs">📞 Call</ActionButton>
                 </a>
               </div>
             )}
@@ -379,9 +379,9 @@ export function MobileMaintenanceView({
         ) : (
           <p className="text-sm text-muted-foreground">Not assigned</p>
         )}
-        <Button size="sm" variant="outline" className="mt-2 w-full" onClick={handleOpenAssignSheet}>
+        <ActionButton size="sm" tone="secondary" className="mt-2 w-full" onClick={handleOpenAssignSheet}>
           Assign contractor
-        </Button>
+        </ActionButton>
       </div>
 
       {/* Photos */}
@@ -398,15 +398,15 @@ export function MobileMaintenanceView({
           ref={photoInputRef}
           onChange={handlePhotoCapture}
         />
-        <Button
+        <ActionButton
           size="sm"
-          variant="outline"
+          tone="secondary"
           className="mt-2 w-full"
           disabled={uploadingPhoto}
           onClick={() => photoInputRef.current?.click()}
         >
           {uploadingPhoto ? "Uploading…" : "📷 Add photo"}
-        </Button>
+        </ActionButton>
       </div>
 
       {/* Notes */}
@@ -440,30 +440,30 @@ export function MobileMaintenanceView({
               onChange={(e) => setNoteText(e.target.value)}
             />
             <div className="flex gap-2">
-              <Button size="sm" onClick={handleSubmitNote} disabled={submittingNote || !noteText.trim()}>
+              <ActionButton size="sm" tone="primary" onClick={handleSubmitNote} disabled={submittingNote || !noteText.trim()}>
                 {submittingNote ? "Saving…" : "Save note"}
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => { setShowNoteInput(false); setNoteText("") }}>
+              </ActionButton>
+              <ActionButton size="sm" tone="secondary" onClick={() => { setShowNoteInput(false); setNoteText("") }}>
                 Cancel
-              </Button>
+              </ActionButton>
             </div>
           </div>
         )}
 
         {!showNoteInput && (
           <div className="flex gap-2">
-            <Button size="sm" variant="outline" className="flex-1" onClick={() => setShowNoteInput(true)}>
+            <ActionButton size="sm" tone="secondary" className="flex-1" onClick={() => setShowNoteInput(true)}>
               Add note
-            </Button>
+            </ActionButton>
             {voiceSupported && (
-              <Button
+              <ActionButton
                 size="sm"
-                variant={voiceActive ? "default" : "outline"}
+                tone={voiceActive ? "primary" : "secondary"}
                 className="flex-1"
                 onClick={handleVoiceNote}
               >
                 {voiceActive ? "⏹ Stop" : "🎙 Voice note"}
-              </Button>
+              </ActionButton>
             )}
           </div>
         )}
@@ -491,21 +491,21 @@ export function MobileMaintenanceView({
         <div className="flex flex-wrap gap-2">
           {status === "pending_review" && (
             <>
-              <Button size="sm" onClick={() => handleStatus("approved")}>Approve</Button>
-              <Button size="sm" variant="outline" onClick={() => handleStatus("rejected")}>Reject</Button>
+              <ActionButton size="sm" tone="primary" onClick={() => handleStatus("approved")}>Approve</ActionButton>
+              <ActionButton size="sm" tone="secondary" onClick={() => handleStatus("rejected")}>Reject</ActionButton>
             </>
           )}
           {status === "approved" && (
-            <Button size="sm" onClick={() => handleStatus("work_order_sent")}>Send Work Order</Button>
+            <ActionButton size="sm" tone="primary" onClick={() => handleStatus("work_order_sent")}>Send Work Order</ActionButton>
           )}
           {status === "in_progress" && (
-            <Button size="sm" onClick={() => handleStatus("pending_completion")}>Mark pending completion</Button>
+            <ActionButton size="sm" tone="primary" onClick={() => handleStatus("pending_completion")}>Mark pending completion</ActionButton>
           )}
           {status === "completed" && (
-            <Button size="sm" variant="outline" onClick={() => handleStatus("closed")}>Close</Button>
+            <ActionButton size="sm" tone="secondary" onClick={() => handleStatus("closed")}>Close</ActionButton>
           )}
           {!["completed", "closed", "cancelled", "rejected"].includes(status) && (
-            <Button size="sm" variant="outline" onClick={() => handleStatus("cancelled")}>Cancel</Button>
+            <ActionButton size="sm" tone="secondary" onClick={() => handleStatus("cancelled")}>Cancel</ActionButton>
           )}
         </div>
       </div>
@@ -533,7 +533,7 @@ export function MobileMaintenanceView({
                   onClick={() => handleAssign(c)}
                 >
                   <p className="font-medium text-sm">{name}</p>
-                  {c.trade && <p className="text-xs text-muted-foreground">{c.trade}</p>}
+                  {c.specialities && c.specialities.length > 0 && <p className="text-xs text-muted-foreground">{c.specialities.join(", ")}</p>}
                   {c.phone && <p className="text-xs text-muted-foreground">{c.phone}</p>}
                   {assigningId === c.id && (
                     <p className="text-xs text-muted-foreground mt-1">Assigning…</p>

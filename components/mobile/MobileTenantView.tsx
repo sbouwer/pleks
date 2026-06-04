@@ -8,7 +8,7 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { formatZAR } from "@/lib/constants"
 
 interface MobileLeaseInfo {
@@ -95,7 +95,7 @@ export function MobileTenantView({
           <div className="flex items-center justify-between">
             <p className="text-sm">{primaryPhone}</p>
             <a href={`tel:${primaryPhone}`}>
-              <Button size="sm" variant="outline" className="h-7 text-xs px-3">📞 Call</Button>
+              <ActionButton size="sm" tone="secondary" className="h-7 text-xs px-3">📞 Call</ActionButton>
             </a>
           </div>
         ) : (
@@ -105,7 +105,7 @@ export function MobileTenantView({
           <div className="flex items-center justify-between">
             <p className="text-sm truncate mr-2">{primaryEmail}</p>
             <a href={`mailto:${primaryEmail}`}>
-              <Button size="sm" variant="outline" className="h-7 text-xs px-3 shrink-0">Email</Button>
+              <ActionButton size="sm" tone="secondary" className="h-7 text-xs px-3 shrink-0">Email</ActionButton>
             </a>
           </div>
         )}
@@ -160,7 +160,7 @@ export function MobileTenantView({
 
       {/* View full details */}
       <Link href={`/tenants/${tenantId}`} className="block">
-        <Button variant="outline" className="w-full text-sm">View full details →</Button>
+        <ActionButton tone="secondary" className="w-full text-sm">View full details →</ActionButton>
       </Link>
     </div>
   )

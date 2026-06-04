@@ -11,7 +11,7 @@
  */
 import { useState, useEffect } from "react"
 import { Plus, GripVertical, Pencil, Trash2, Check, X } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import { RuleTemplateToggle } from "./RuleTemplateToggle"
@@ -225,23 +225,24 @@ export function PropertyRulesEditor({
             </p>
           </div>
           <div className="flex gap-2 shrink-0">
-            <Button
+            <ActionButton
               type="button"
               size="sm"
+              tone="primary"
               className="h-7 text-xs"
               onClick={() => handleAddSuggestions(unaddedSuggestedKeys)}
             >
               Add suggested
-            </Button>
-            <Button
+            </ActionButton>
+            <ActionButton
               type="button"
               size="sm"
-              variant="ghost"
+              tone="secondary"
               className="h-7 text-xs"
               onClick={() => setSuggestionsAcknowledged(true)}
             >
               Skip
-            </Button>
+            </ActionButton>
           </div>
         </div>
       )}
@@ -285,16 +286,16 @@ export function PropertyRulesEditor({
             Custom rules
           </p>
           {!showAddCustom && (
-            <Button
+            <ActionButton
               type="button"
               size="sm"
-              variant="outline"
+              tone="secondary"
               className="h-7 text-xs"
+              icon={<Plus className="h-3.5 w-3.5" />}
               onClick={() => setShowAddCustom(true)}
             >
-              <Plus className="h-3.5 w-3.5 mr-1" />
               Add custom rule
-            </Button>
+            </ActionButton>
           )}
         </div>
 
@@ -323,26 +324,28 @@ export function PropertyRulesEditor({
                         autoFocus
                       />
                       <div className="flex gap-2">
-                        <Button
+                        <ActionButton
                           type="button"
                           size="sm"
+                          tone="primary"
                           className="h-7 text-xs"
+                          icon={<Check className="h-3 w-3" />}
                           onClick={() => handleSaveEdit(rule.id)}
                           disabled={saving}
                         >
-                          <Check className="h-3 w-3 mr-1" />
                           {saving ? "Saving..." : "Save"}
-                        </Button>
-                        <Button
+                        </ActionButton>
+                        <ActionButton
                           type="button"
                           size="sm"
-                          variant="ghost"
+                          tone="secondary"
                           className="h-7 text-xs"
+                          icon={<X className="h-3 w-3" />}
                           onClick={() => { setEditingRuleId(null); setEditingText("") }}
                           disabled={saving}
                         >
-                          <X className="h-3 w-3 mr-1" /> Cancel
-                        </Button>
+                          Cancel
+                        </ActionButton>
                       </div>
                     </div>
                   ) : (

@@ -12,7 +12,7 @@
 
 import { useState, useCallback } from "react"
 import { CheckCircle2, AlertTriangle, Clock, RefreshCw } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { PayFastForm } from "@/components/payfast/PayFastForm"
 import { cn } from "@/lib/utils"
 import type { LatestPull } from "../../properties/[id]/PropertyVerificationCard"
@@ -260,8 +260,8 @@ export function LandlordVerificationCard({
           <span className="text-sm font-medium">CIPC status</span>
         </div>
         {!isInProgress && (
-          <Button
-            variant="outline"
+          <ActionButton
+            tone="secondary"
             size="sm"
             className="h-7 text-xs"
             disabled={loading}
@@ -270,7 +270,7 @@ export function LandlordVerificationCard({
             {forceReVerify
               ? <><RefreshCw className="h-3 w-3 mr-1" />Re-verify {PRODUCT_PRICE}</>
               : `Verify — ${PRODUCT_PRICE}`}
-          </Button>
+          </ActionButton>
         )}
       </div>
 
@@ -339,10 +339,10 @@ export function LandlordVerificationCard({
                 </p>
                 <p className="text-sm">Force a new verification?</p>
                 <div className="flex gap-3 justify-end">
-                  <Button variant="outline" onClick={() => setModal({ open: false })}>Cancel</Button>
-                  <Button disabled={loading} onClick={() => handleVerify(true)}>
+                  <ActionButton tone="secondary" onClick={() => setModal({ open: false })}>Cancel</ActionButton>
+                  <ActionButton tone="primary" disabled={loading} onClick={() => handleVerify(true)}>
                     Re-verify — {PRODUCT_PRICE}
-                  </Button>
+                  </ActionButton>
                 </div>
               </>
             )}
@@ -363,7 +363,7 @@ export function LandlordVerificationCard({
                   You will be redirected to PayFast to complete payment. Results appear within ~30 seconds of payment confirmation.
                 </p>
                 <div className="flex gap-3 justify-end">
-                  <Button variant="outline" onClick={() => setModal({ open: false })}>Cancel</Button>
+                  <ActionButton tone="secondary" onClick={() => setModal({ open: false })}>Cancel</ActionButton>
                   <PayFastForm
                     url={modal.formData.url}
                     data={modal.formData.data}
@@ -380,9 +380,9 @@ export function LandlordVerificationCard({
                   <Clock className="h-4 w-4 animate-pulse" />
                   <span>~20–30 seconds</span>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => setModal({ open: false })}>
+                <ActionButton tone="secondary" size="sm" onClick={() => setModal({ open: false })}>
                   Run in background
-                </Button>
+                </ActionButton>
               </>
             )}
           </div>

@@ -9,7 +9,7 @@
  *         button, it reports unresolved-conflict state up via onBlockedChange so the modal footer can block.
  */
 import { useState, useEffect, useRef } from "react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { ClauseConfigurator } from "@/components/leases/ClauseConfigurator"
 import { AlertTriangle, CheckCircle2, Info, X } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -180,18 +180,19 @@ export function ClausesSection({
                 {!isAck && (
                   <div className="flex gap-2 mt-3 flex-wrap">
                     {conflict.quickFix && (
-                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => applyQuickFix(conflict)}>
+                      <ActionButton size="sm" tone="secondary" className="h-7 text-xs" onClick={() => applyQuickFix(conflict)}>
                         {conflict.quickFix.label}
-                      </Button>
+                      </ActionButton>
                     )}
-                    <Button
+                    <ActionButton
                       size="sm"
-                      variant="outline"
+                      tone="secondary"
                       className="h-7 text-xs border-amber-300 text-amber-700 hover:bg-amber-50 dark:text-amber-400"
+                      icon={<CheckCircle2 className="size-3" />}
                       onClick={() => acknowledge(conflict.id)}
                     >
-                      <CheckCircle2 className="size-3 mr-1" /> Acknowledge risk
-                    </Button>
+                      Acknowledge risk
+                    </ActionButton>
                   </div>
                 )}
               </div>

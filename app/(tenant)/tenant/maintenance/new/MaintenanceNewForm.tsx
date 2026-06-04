@@ -12,7 +12,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -180,13 +180,14 @@ export function MaintenanceNewForm({
             </p>
           </div>
 
-          <Button
+          <ActionButton
+            tone="primary"
             onClick={handleNext1}
             disabled={!category || description.trim().length < 20}
           >
             Next — set urgency
             <ChevronRight className="ml-1.5 h-4 w-4" />
-          </Button>
+          </ActionButton>
         </div>
       )}
 
@@ -234,14 +235,14 @@ export function MaintenanceNewForm({
           </div>
 
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setStep(1)}>
+            <ActionButton tone="secondary" onClick={() => setStep(1)}>
               <ChevronLeft className="mr-1.5 h-4 w-4" />
               Back
-            </Button>
-            <Button onClick={handleNext2} disabled={!urgency}>
+            </ActionButton>
+            <ActionButton tone="primary" onClick={handleNext2} disabled={!urgency}>
               Next — review & confirm
               <ChevronRight className="ml-1.5 h-4 w-4" />
-            </Button>
+            </ActionButton>
           </div>
         </div>
       )}
@@ -316,17 +317,18 @@ export function MaintenanceNewForm({
           </div>
 
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setStep(2)} disabled={submitting}>
+            <ActionButton tone="secondary" onClick={() => setStep(2)} disabled={submitting}>
               <ChevronLeft className="mr-1.5 h-4 w-4" />
               Back
-            </Button>
-            <Button
+            </ActionButton>
+            <ActionButton
+              tone="primary"
               onClick={handleSubmit}
               disabled={!consentChecked || submitting}
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
               Submit request
-            </Button>
+            </ActionButton>
           </div>
         </div>
       )}

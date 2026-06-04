@@ -14,7 +14,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { SignOffFlow } from "@/components/mobile/SignOffFlow"
 import { updateItemCondition, updateInspectionStatus } from "@/lib/actions/inspections"
@@ -292,15 +292,15 @@ function ItemRow({ item, inspectionId, roomId, moveInPhotoUrl, onUpdate }: ItemR
           ref={photoRef}
           onChange={handlePhotoCapture}
         />
-        <Button
+        <ActionButton
           size="sm"
-          variant="outline"
+          tone="secondary"
           className="h-7 text-xs shrink-0"
           disabled={uploading}
           onClick={() => photoRef.current?.click()}
         >
           {uploading ? "…" : "📷"}
-        </Button>
+        </ActionButton>
       </div>
     </div>
   )
@@ -505,8 +505,9 @@ export function MobileInspectionView({
                   }
                 }}
               />
-              <Button
+              <ActionButton
                 size="sm"
+                tone="primary"
                 disabled={!customItemName.trim()}
                 onClick={() => {
                   if (customItemName.trim()) {
@@ -517,14 +518,14 @@ export function MobileInspectionView({
                 }}
               >
                 Add
-              </Button>
-              <Button
+              </ActionButton>
+              <ActionButton
                 size="sm"
-                variant="ghost"
+                tone="secondary"
                 onClick={() => { setAddingCustom(false); setCustomItemName("") }}
               >
                 Cancel
-              </Button>
+              </ActionButton>
             </div>
           ) : (
             <button
@@ -541,9 +542,9 @@ export function MobileInspectionView({
           <p className="text-sm text-center text-success font-medium">✅ All items inspected</p>
         )}
 
-        <Button className="w-full" variant="outline" onClick={() => setSelectedRoomId(null)}>
+        <ActionButton className="w-full" tone="secondary" onClick={() => setSelectedRoomId(null)}>
           ← Back to rooms
-        </Button>
+        </ActionButton>
       </div>
     )
   }
@@ -623,41 +624,43 @@ export function MobileInspectionView({
       {/* Quick actions */}
       <div className="space-y-2">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Quick actions</p>
-        <Button
+        <ActionButton
           size="sm"
-          variant={voiceActive ? "default" : "outline"}
+          tone={voiceActive ? "primary" : "secondary"}
           className="w-full"
           onClick={handleVoiceSummary}
         >
           {voiceActive ? "⏹ Stop recording" : "🎙 Voice summary"}
-        </Button>
-        <Button
+        </ActionButton>
+        <ActionButton
           size="sm"
-          variant="outline"
+          tone="secondary"
           className="w-full"
           onClick={() => setSignOffOpen(true)}
         >
           {signOffComplete ? "✅ Signed off" : "✍️ Sign off"}
-        </Button>
+        </ActionButton>
         {status === "scheduled" && (
-          <Button
+          <ActionButton
             size="sm"
+            tone="primary"
             className="w-full"
             disabled={updatingStatus}
             onClick={() => handleStatusAction("in_progress")}
           >
             {updatingStatus ? "Starting…" : "▶ Start inspection"}
-          </Button>
+          </ActionButton>
         )}
         {status === "in_progress" && (
-          <Button
+          <ActionButton
             size="sm"
+            tone="primary"
             className="w-full"
             disabled={updatingStatus}
             onClick={() => handleStatusAction("completed")}
           >
             {updatingStatus ? "Completing…" : "✅ Complete inspection"}
-          </Button>
+          </ActionButton>
         )}
       </div>
 

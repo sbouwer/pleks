@@ -11,7 +11,7 @@
  */
 import { useState } from "react"
 import { Sparkles, Check, X } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 
@@ -89,17 +89,17 @@ export function CustomRuleInput({
           directly — you can always edit the text manually.
         </p>
         <div className="flex gap-2">
-          <Button
+          <ActionButton
             type="button"
             size="sm"
-            variant="outline"
+            tone="secondary"
             onClick={() => { setShowTopUpPrompt(false); setEditingFormatted(false) }}
           >
             Write manually
-          </Button>
-          <Button type="button" size="sm" disabled className="opacity-50">
+          </ActionButton>
+          <ActionButton type="button" size="sm" tone="primary" disabled className="opacity-50">
             Top up R50 (coming soon)
-          </Button>
+          </ActionButton>
         </div>
       </div>
     )
@@ -165,38 +165,39 @@ export function CustomRuleInput({
 
       <div className="flex items-center gap-2 flex-wrap">
         {!formattedText && canReformat && (
-          <Button
+          <ActionButton
             type="button"
             size="sm"
-            variant="outline"
+            tone="secondary"
+            icon={<Sparkles className="h-3.5 w-3.5" />}
             onClick={handleReformat}
             disabled={reformatting || !rawText.trim()}
           >
-            <Sparkles className="h-3.5 w-3.5 mr-1.5" />
             {reformatting ? "Reformatting..." : `Reformat with AI (${creditsRemaining} left)`}
-          </Button>
+          </ActionButton>
         )}
 
         {formattedText ? (
-          <Button
+          <ActionButton
             type="button"
             size="sm"
+            tone="primary"
+            icon={<Check className="h-3.5 w-3.5" />}
             onClick={() => handleSave(true)}
             disabled={saving}
           >
-            <Check className="h-3.5 w-3.5 mr-1" />
             {saving ? "Saving..." : "Save this rule"}
-          </Button>
+          </ActionButton>
         ) : (
-          <Button
+          <ActionButton
             type="button"
             size="sm"
-            variant={canReformat ? "ghost" : "default"}
+            tone={canReformat ? "secondary" : "primary"}
             onClick={() => handleSave(false)}
             disabled={saving || !rawText.trim()}
           >
             {saving ? "Saving..." : "Save as-is"}
-          </Button>
+          </ActionButton>
         )}
       </div>
 
@@ -207,9 +208,9 @@ export function CustomRuleInput({
             <Sparkles className="h-3 w-3 inline mr-1 text-brand/70" />
             Want rules that match your lease&apos;s professional tone? AI reformat: 5 credits for R50.
           </p>
-          <Button type="button" size="sm" variant="outline" className="h-7 text-xs shrink-0" disabled>
+          <ActionButton type="button" size="sm" tone="secondary" className="h-7 text-xs shrink-0" disabled>
             Purchase (coming soon)
-          </Button>
+          </ActionButton>
         </div>
       )}
 

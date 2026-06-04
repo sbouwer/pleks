@@ -12,7 +12,7 @@ import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -176,10 +176,9 @@ function AddWarrantyDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger>
-        <Button size="sm" variant="outline" className="h-7 text-xs gap-1" type="button">
-          <Plus className="size-3.5" />
+        <ActionButton size="sm" tone="secondary" className="h-7 text-xs gap-1" type="button" icon={<Plus className="size-3.5" />}>
           Add
-        </Button>
+        </ActionButton>
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
@@ -283,12 +282,12 @@ function AddWarrantyDialog({
           </div>
 
           <div className="flex gap-2 pt-1">
-            <Button size="sm" onClick={handleSubmit} disabled={isPending}>
+            <ActionButton size="sm" tone="primary" onClick={handleSubmit} disabled={isPending}>
               {isPending ? "Saving…" : "Save warranty"}
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setOpen(false)} disabled={isPending}>
+            </ActionButton>
+            <ActionButton size="sm" tone="secondary" onClick={() => setOpen(false)} disabled={isPending}>
               Cancel
-            </Button>
+            </ActionButton>
           </div>
         </div>
       </DialogContent>

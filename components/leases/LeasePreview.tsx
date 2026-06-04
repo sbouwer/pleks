@@ -12,7 +12,7 @@
 
 import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
 import { Download, Loader2, Lock } from "lucide-react"
@@ -536,19 +536,19 @@ export function LeasePreview({ open, onOpenChange, leaseType: initialLeaseType }
                       Your lease is generated automatically when you create one from the Leases page.
                     </p>
                   </div>
-                  <Button variant="outline" onClick={() => globalThis.location.assign("/settings/subscription")}>
+                  <ActionButton tone="secondary" onClick={() => globalThis.location.assign("/settings/subscription")}>
                     View plans
-                  </Button>
+                  </ActionButton>
                 </>
               ) : (
                 <>
-                  <Button onClick={handleDownload} disabled={downloading} className="gap-2">
+                  <ActionButton tone="primary" onClick={handleDownload} disabled={downloading} className="gap-2">
                     {downloading
                       ? <Loader2 className="size-4 animate-spin" />
                       : <Download className="size-4" />
                     }
                     {downloading ? "Generating…" : "Download sample (.docx)"}
-                  </Button>
+                  </ActionButton>
                   <p className="text-xs text-muted-foreground">
                     Watermarked &quot;SAMPLE — NOT FOR SIGNING&quot;. Contains placeholder data only.
                   </p>

@@ -10,7 +10,7 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 import { X } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 
 interface Props {
   tier: string | null
@@ -116,9 +116,9 @@ export function LeaseTemplateIntro({ tier, onDismiss }: Readonly<Props>) {
       </div>
 
       <div className="flex justify-end">
-        <Button size="sm" onClick={onDismiss}>
+        <ActionButton size="sm" tone="primary" onClick={onDismiss}>
           Got it, let&rsquo;s go
-        </Button>
+        </ActionButton>
       </div>
     </div>
   )

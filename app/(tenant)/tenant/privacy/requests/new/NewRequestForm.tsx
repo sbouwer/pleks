@@ -11,7 +11,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { useState } from "react"
 import { RequestTypePicker } from "@/components/popia/RequestTypePicker"
 import { NukeCarveoutDisclosure } from "@/components/popia/NukeCarveoutDisclosure"
-import { Button } from "@/components/ui/button"
+import { ActionButton, IconButton } from "@/components/ui/actions"
 import { Textarea } from "@/components/ui/textarea"
 import { ChevronLeft } from "lucide-react"
 import type { RequestType } from "@/lib/popia/requests"
@@ -81,9 +81,9 @@ export default function NewRequestForm() {
           Your request has been received. The agency has 30 calendar days to respond. You will
           receive an email when the status changes.
         </p>
-        <Button onClick={() => router.push("/tenant/privacy/requests")} variant="outline">
+        <ActionButton tone="secondary" onClick={() => router.push("/tenant/privacy/requests")}>
           View your requests
-        </Button>
+        </ActionButton>
       </div>
     )
   }
@@ -91,17 +91,15 @@ export default function NewRequestForm() {
   return (
     <div className="max-w-lg mx-auto py-8 px-4 space-y-6">
       <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
+        <IconButton
+          icon={<ChevronLeft className="size-4" />}
+          label="Go back"
           className="size-8"
           onClick={() => {
             if (step === "form" || step === "nuke_disclosure") setStep("pick")
             else router.push("/tenant/privacy")
           }}
-        >
-          <ChevronLeft className="size-4" />
-        </Button>
+        />
         <h1 className="text-lg font-semibold">
           {step === "pick" && "What would you like to do?"}
           {step === "nuke_disclosure" && "Full erasure — please read carefully"}
@@ -164,12 +162,12 @@ export default function NewRequestForm() {
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex gap-3">
-            <Button variant="outline" onClick={() => setStep("pick")} disabled={step === "submitting"}>
+            <ActionButton tone="secondary" onClick={() => setStep("pick")} disabled={step === "submitting"}>
               Back
-            </Button>
-            <Button onClick={handleSubmit} disabled={step === "submitting"} className="flex-1">
+            </ActionButton>
+            <ActionButton tone="primary" onClick={handleSubmit} disabled={step === "submitting"} className="flex-1">
               {step === "submitting" ? "Submitting..." : "Submit request"}
-            </Button>
+            </ActionButton>
           </div>
         </div>
       )}

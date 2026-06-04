@@ -10,7 +10,7 @@
  *         onAccepted lets the host react (e.g. unblock the footer's Create action).
  */
 import { useState, useEffect, useRef } from "react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { recordLeaseDisclaimerAcceptance } from "@/lib/actions/consent"
 
 // Structured sections for clean rendering
@@ -157,13 +157,14 @@ export function LeaseDisclaimerGate({ children, initialAccepted, onAccepted }: R
                 ? "You can now accept the disclaimer."
                 : "Scroll to the bottom to enable acceptance."}
             </p>
-            <Button
+            <ActionButton
+              tone="primary"
               onClick={handleAccept}
               disabled={!canAccept || accepting}
               size="sm"
             >
               {accepting ? "Recording…" : "I accept"}
-            </Button>
+            </ActionButton>
           </div>
         </div>
       </div>

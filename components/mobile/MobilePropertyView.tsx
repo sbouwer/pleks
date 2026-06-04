@@ -8,7 +8,7 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { formatZAR } from "@/lib/constants"
 
 interface MobileUnit {
@@ -73,10 +73,10 @@ export function MobilePropertyView({
         {type && <p className="text-xs text-muted-foreground capitalize mt-0.5">{type}</p>}
         <div className="flex gap-2 mt-3">
           <a href={mapsUrl} target="_blank" rel="noreferrer">
-            <Button size="sm" variant="outline" className="h-7 text-xs px-3">📍 Maps</Button>
+            <ActionButton size="sm" tone="secondary" className="h-7 text-xs px-3">📍 Maps</ActionButton>
           </a>
           <Link href={`/properties/${propertyId}/edit`}>
-            <Button size="sm" variant="outline" className="h-7 text-xs px-3">Edit</Button>
+            <ActionButton size="sm" tone="secondary" className="h-7 text-xs px-3">Edit</ActionButton>
           </Link>
         </div>
       </div>
@@ -110,7 +110,7 @@ export function MobilePropertyView({
             <div className="flex items-center justify-between">
               <p className="text-xs text-muted-foreground">{landlordPhone}</p>
               <a href={`tel:${landlordPhone}`}>
-                <Button size="sm" variant="outline" className="h-6 text-xs px-2.5">Call</Button>
+                <ActionButton size="sm" tone="secondary" className="h-6 text-xs px-2.5">Call</ActionButton>
               </a>
             </div>
           )}
@@ -153,7 +153,7 @@ export function MobilePropertyView({
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium">{totalMaintenanceCount} open maintenance job{totalMaintenanceCount === 1 ? "" : "s"}</p>
             <Link href={`/maintenance?property=${propertyId}`}>
-              <Button size="sm" variant="outline" className="h-7 text-xs px-3">View</Button>
+              <ActionButton size="sm" tone="secondary" className="h-7 text-xs px-3">View</ActionButton>
             </Link>
           </div>
         </div>
@@ -161,7 +161,7 @@ export function MobilePropertyView({
 
       {/* Full details */}
       <Link href={`/properties/${propertyId}/financials`} className="block">
-        <Button variant="outline" className="w-full text-sm">Financials →</Button>
+        <ActionButton tone="secondary" className="w-full text-sm">Financials →</ActionButton>
       </Link>
     </div>
   )

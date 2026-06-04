@@ -11,7 +11,7 @@
  */
 
 import { useState } from "react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
@@ -116,9 +116,9 @@ export function PortalAccountClient({
           />
         </div>
 
-        <Button size="sm" onClick={handleSave} disabled={saving}>
+        <ActionButton tone="primary" size="sm" onClick={handleSave} disabled={saving}>
           {saving ? "Saving…" : "Save changes"}
-        </Button>
+        </ActionButton>
       </div>
 
     </div>

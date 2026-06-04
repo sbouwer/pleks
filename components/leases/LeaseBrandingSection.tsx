@@ -11,7 +11,7 @@
  */
 import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Pencil, X, Check, Upload } from "lucide-react"
@@ -114,9 +114,9 @@ export function LeaseBrandingSection() {
             </p>
           </div>
           {!editing && (
-            <Button variant="outline" size="sm" className="shrink-0" onClick={startEdit}>
-              <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
-            </Button>
+            <ActionButton tone="secondary" size="sm" className="shrink-0" icon={<Pencil className="h-3.5 w-3.5" />} onClick={startEdit}>
+              Edit
+            </ActionButton>
           )}
         </div>
       </CardHeader>
@@ -251,13 +251,12 @@ export function LeaseBrandingSection() {
               </div>
             </div>
             <div className="flex gap-2 pt-1">
-              <Button size="sm" onClick={save} disabled={saving}>
-                <Check className="h-3.5 w-3.5 mr-1" />
+              <ActionButton size="sm" tone="primary" icon={<Check className="h-3.5 w-3.5" />} onClick={save} disabled={saving}>
                 {saving ? "Saving..." : "Save"}
-              </Button>
-              <Button variant="outline" size="sm" onClick={cancelEdit} disabled={saving}>
-                <X className="h-3.5 w-3.5 mr-1" /> Cancel
-              </Button>
+              </ActionButton>
+              <ActionButton tone="secondary" size="sm" icon={<X className="h-3.5 w-3.5" />} onClick={cancelEdit} disabled={saving}>
+                Cancel
+              </ActionButton>
             </div>
           </div>
         )}

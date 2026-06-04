@@ -13,7 +13,7 @@
 
 import { useState, useCallback } from "react"
 import { CheckCircle2, AlertTriangle, Clock, RefreshCw } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { PayFastForm } from "@/components/payfast/PayFastForm"
 
 export interface LatestPull {
@@ -125,8 +125,8 @@ function PullRow({
           <span className="text-sm font-medium">{label}</span>
         </div>
         {canAccessIntelligence && !isInProgress && (
-          <Button
-            variant="outline"
+          <ActionButton
+            tone="secondary"
             size="sm"
             className="h-7 text-xs"
             onClick={isComplete || isNoData ? onReVerify : onVerify}
@@ -134,7 +134,7 @@ function PullRow({
             {isComplete || isNoData
               ? <><RefreshCw className="h-3 w-3 mr-1" />Re-verify {price}</>
               : `Verify — ${price}`}
-          </Button>
+          </ActionButton>
         )}
         {!canAccessIntelligence && (
           <span className="text-xs text-muted-foreground">Steward+</span>
@@ -316,13 +316,14 @@ export function PropertyVerificationCard({
                 </p>
                 <p className="text-sm">Force a new verification?</p>
                 <div className="flex gap-3 justify-end">
-                  <Button variant="outline" onClick={() => setModal({ open: false })}>Cancel</Button>
-                  <Button
+                  <ActionButton tone="secondary" onClick={() => setModal({ open: false })}>Cancel</ActionButton>
+                  <ActionButton
+                    tone="primary"
                     disabled={loading}
                     onClick={() => handleVerify(modal.product, true)}
                   >
                     Re-verify — {PRODUCT_PRICES[modal.product]}
-                  </Button>
+                  </ActionButton>
                 </div>
               </>
             )}
@@ -343,7 +344,7 @@ export function PropertyVerificationCard({
                   You will be redirected to PayFast to complete payment. Results appear within ~30 seconds of payment confirmation.
                 </p>
                 <div className="flex gap-3 justify-end">
-                  <Button variant="outline" onClick={() => setModal({ open: false })}>Cancel</Button>
+                  <ActionButton tone="secondary" onClick={() => setModal({ open: false })}>Cancel</ActionButton>
                   <PayFastForm
                     url={modal.formData.url}
                     data={modal.formData.data}
@@ -360,9 +361,9 @@ export function PropertyVerificationCard({
                   <Clock className="h-4 w-4 animate-pulse" />
                   <span>~20–30 seconds</span>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => setModal({ open: false })}>
+                <ActionButton tone="secondary" size="sm" onClick={() => setModal({ open: false })}>
                   Run in background
-                </Button>
+                </ActionButton>
               </>
             )}
           </div>

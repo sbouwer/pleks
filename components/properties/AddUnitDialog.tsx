@@ -29,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
@@ -244,9 +244,9 @@ export function AddUnitDialog({
             </div>
           </div>
 
-          <Button type="submit" className="w-full" disabled={isPending}>
+          <ActionButton type="submit" tone="primary" className="w-full" disabled={isPending}>
             {isPending ? "Adding..." : "Add unit"}
-          </Button>
+          </ActionButton>
 
           {/* Enable multi-building link — only in single-building mode */}
           {!isMultiBuilding && onRequestMultiBuilding && (
