@@ -223,13 +223,14 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
   }
 
   const emergencies = list.filter(r => r.urgency === "emergency" && !["completed", "closed", "cancelled", "rejected"].includes(r.status))
-  // Search by title / WO number / unit / property name + address (street line, suburb, town).
+  // Search by title / WO number / unit / property name + address (street line, suburb, town) / supplier.
   const q = search.trim().toLowerCase()
   const searched = q
     ? list.filter((r) => {
         const u = r.units as unknown as { unit_number?: string; properties?: { name?: string; address_line1?: string; suburb?: string; city?: string } } | null
         const p = u?.properties
-        return [r.title, r.work_order_number, u?.unit_number, p?.name, p?.address_line1, p?.suburb, p?.city]
+        const c = (r as { contractor_view?: { first_name?: string; last_name?: string; company_name?: string } | null }).contractor_view
+        return [r.title, r.work_order_number, u?.unit_number, p?.name, p?.address_line1, p?.suburb, p?.city, c?.company_name, c?.first_name, c?.last_name]
           .filter(Boolean).join(" ").toLowerCase().includes(q)
       })
     : list
@@ -341,7 +342,7 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
 
         {list.length > 0 && (
           <div className="mb-4">
-            <ListSearchBar value={search} onChange={setSearch} placeholder="Search by title, unit, property or address…" />
+            <ListSearchBar value={search} onChange={setSearch} placeholder="Search by title, unit, property, address or supplier…" />
           </div>
         )}
 
