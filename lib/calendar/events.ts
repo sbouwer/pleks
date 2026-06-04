@@ -65,20 +65,13 @@ function unitSuffix(leaseUnit: UnitRef): string {
   return leaseUnit ? ` — ${leaseUnit.unit_number}` : ""
 }
 
-function leaseExpiryColour(daysUntil: number): string {
-  if (daysUntil <= 7) return "#ef4444"
-  if (daysUntil <= 30) return "#f59e0b"
-  return "#8b5cf6"
-}
-
 function makeLeaseExpiryEvent(lease: { id: string; end_date: string }, leaseUnit: UnitRef): CalendarEvent {
-  const daysUntil = Math.ceil((new Date(lease.end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
   return {
     id: `lease-exp-${lease.id}`,
     title: `Lease expiry${unitSuffix(leaseUnit)}`,
     date: lease.end_date,
     eventType: "lease_expiry",
-    colour: leaseExpiryColour(daysUntil),
+    colour: EVENT_COLOURS.lease_expiry,
     propertyName: leaseUnit?.properties.name ?? "",
     unitNumber: leaseUnit?.unit_number,
     link: `/leases/${lease.id}`,

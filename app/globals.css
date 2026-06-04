@@ -727,3 +727,6 @@ table.ledger tr.paid td:first-child::before {
 .calendar-wrapper .fc-scrollgrid-section > * > *,
 .calendar-wrapper .fc-list { border-radius: 0 !important; }
 .calendar-wrapper .fc-scrollgrid { border-left: 0; border-top: 0; }
+/* Events are clickable (navigate) — show the pointer so it reads as interactive. */
+.calendar-wrapper .fc-event,
+.calendar-wrapper .fc-event * { cursor: pointer; }

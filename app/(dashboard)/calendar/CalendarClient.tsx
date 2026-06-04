@@ -6,10 +6,10 @@
  * Route:  /calendar
  * Auth:   gateway (dashboard layout); Portfolio/Firm tier
  * Data:   CalendarEvent[] + overdue alerts from the server page
- * Notes:  Joint toolbar (view tabs · Type/Property filters · search) matching the list pages; search
- *         matches property / tenant / unit (via the event title + property + unit). The overdue banner is
- *         a compact chip that expands the DeadlineAlert. Fills the viewport (FullCalendar height=100% in a
- *         flex-1 box) and themes via the --fc-* overrides in globals.css.
+ * Notes:  Joint toolbar (view tabs · Type filter · entity search) matching the list pages. Search is a
+ *         select-from-results combobox over property / tenant / landlord — picking one filters the calendar
+ *         to its property/ies. The overdue chip opens a Modal listing the overdue items (click to navigate).
+ *         Fills the viewport (FullCalendar height=100%, expandRows) and themes via --fc-* in globals.css.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import FullCalendar from "@fullcalendar/react"
@@ -22,8 +22,14 @@ import { useRouter } from "next/navigation"
 import { AlertTriangle, Search, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ToolbarFilter } from "@/components/ui/resource-list"
-import { DeadlineAlert } from "@/components/calendar/DeadlineAlert"
+import { Modal } from "@/components/ui/actions"
 import type { CalendarEvent, EventType, CalendarSearchEntity } from "@/lib/calendar/events"
+
+const ALERT_LABEL: Record<string, string> = {
+  cpa_deadline: "CPA notice missed",
+  deposit_deadline: "Deposit return overdue",
+  inspection_overdue: "Overdue inspection",
+}
 
 interface CalendarClientProps {
   events: CalendarEvent[]
@@ -58,13 +64,24 @@ function eventMatchesFilter(eventType: EventType, filter: string): boolean {
   return true
 }
 
+/** Pick a readable text colour (near-black vs white) for a given event background, by luminance. */
+function readableText(hex: string): string {
+  const h = hex.replace("#", "")
+  if (h.length < 6) return "#ffffff"
+  const r = parseInt(h.slice(0, 2), 16)
+  const g = parseInt(h.slice(2, 4), 16)
+  const b = parseInt(h.slice(4, 6), 16)
+  return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? "#1f2937" : "#ffffff"
+}
+
 function EventContent({ info }: { info: EventContentArg }) {
   const eventType = info.event.extendedProps.eventType as EventType
   const isOverdue = eventType === "inspection_overdue" || eventType === "cpa_deadline"
+  const bg = info.event.backgroundColor
   return (
     <div
-      className="flex w-full items-center gap-1 truncate rounded px-1 py-0.5 text-[11px] font-medium text-white"
-      style={{ backgroundColor: info.event.backgroundColor }}
+      className="flex w-full items-center gap-1 truncate rounded px-1 py-0.5 text-[11px] font-semibold"
+      style={{ backgroundColor: bg, color: readableText(bg) }}
     >
       {isOverdue && <span className="shrink-0">⚠</span>}
       <span className="truncate">{info.event.title}</span>
@@ -225,9 +242,6 @@ export function CalendarClient({ events, alerts, searchEntities, isFirm }: Calen
         )}
       </div>
 
-      {/* Overdue detail — collapsed by default, opened from the chip */}
-      {showAlerts && alerts.length > 0 && <DeadlineAlert alerts={alerts} />}
-
       {view !== "listWeek" && (
         <p className="shrink-0 text-xs text-muted-foreground md:hidden">
           Tip: switch to List view for a better mobile experience.
@@ -245,7 +259,8 @@ export function CalendarClient({ events, alerts, searchEntities, isFirm }: Calen
           eventClick={handleEventClick}
           headerToolbar={{ left: "prev,next today", center: "title", right: "" }}
           height="100%"
-          dayMaxEvents={4}
+          expandRows={true}
+          dayMaxEvents={true}
           businessHours={{ daysOfWeek: [1, 2, 3, 4, 5], startTime: "08:00", endTime: "17:00" }}
           weekends={true}
           nowIndicator={true}
@@ -270,6 +285,29 @@ export function CalendarClient({ events, alerts, searchEntities, isFirm }: Calen
           Team view is available for Firm accounts — coming soon.
         </p>
       )}
+
+      <Modal open={showAlerts} onClose={() => setShowAlerts(false)} title="Overdue items">
+        <div className="space-y-1">
+          {alerts.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => { router.push(a.link); setShowAlerts(false) }}
+              className="flex w-full items-center justify-between gap-3 rounded-[var(--r-button)] px-3 py-2.5 text-left transition-colors hover:bg-muted/50"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-medium">{ALERT_LABEL[a.eventType] ?? a.title}</p>
+                <p className="text-xs text-muted-foreground">
+                  {a.unitNumber ?? "Unit"}{a.propertyName ? `, ${a.propertyName}` : ""}
+                  {" · "}
+                  {new Date(a.date).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}
+                </p>
+              </div>
+              <span className="shrink-0 text-muted-foreground">→</span>
+            </button>
+          ))}
+        </div>
+      </Modal>
     </div>
   )
 }
