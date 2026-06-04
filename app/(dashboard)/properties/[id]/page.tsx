@@ -206,7 +206,7 @@ async function fetchOverviewData(
     managingAgentId
       ? service.from("user_orgs").select("user_profiles(full_name)").eq("user_id", managingAgentId).eq("org_id", orgId).limit(1)
       : Promise.resolve({ data: null }),
-    service.from("contractors").select("name").eq("org_id", orgId).limit(1),
+    service.from("contractors").select("id").eq("org_id", orgId).limit(1),
     service.from("user_orgs").select("user_id, role, user_profiles(id, full_name)").eq("org_id", orgId).is("deleted_at", null),
     service.from("property_intelligence_pulls").select("id, product_type, status, completed_at, extracted_facts_jsonb, subject_label").eq("property_id", propertyId).eq("org_id", orgId).eq("product_type", "deeds_search").in("status", ["complete", "no_data_found", "failed", "running", "pending"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     service.from("property_intelligence_pulls").select("id, product_type, status, completed_at, extracted_facts_jsonb, subject_label").eq("property_id", propertyId).eq("org_id", orgId).eq("product_type", "lightstone_erf_short").in("status", ["complete", "no_data_found", "failed", "running", "pending"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),

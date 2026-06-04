@@ -175,7 +175,7 @@ export async function sendDocument(
     const { data: lease, error: leaseError } = await db
       .from("leases")
       .select(
-        "id, rent_cents, tenants(full_name), units(unit_number, properties(name))"
+        "id, rent_cents:rent_amount_cents, tenants(full_name), units(unit_number, properties(name))"
       )
       .eq("id", leaseId)
       .eq("org_id", orgId)

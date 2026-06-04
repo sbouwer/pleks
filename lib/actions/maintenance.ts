@@ -268,7 +268,7 @@ async function prepareWorkOrderSent(
   }
 
   const { data: contractor, error: contractorError } = await db
-    .from("contractors")
+    .from("contractor_view")
     .select("first_name, last_name, company_name, email, contact_id")
     .eq("id", req.contractor_id)
     .single()
@@ -781,7 +781,7 @@ async function notifyCancelledContractor({ orgId, userId, requestId, req }: { or
   try {
     const service = await createServiceClient()
     const [contractorRes, unitRes, orgSettings] = await Promise.all([
-      service.from("contractors").select("first_name, last_name, company_name, email, contact_id").eq("id", req.contractor_id).single(),
+      service.from("contractor_view").select("first_name, last_name, company_name, email, contact_id").eq("id", req.contractor_id).single(),
       req.unit_id ? service.from("units").select("unit_number, properties(name)").eq("id", req.unit_id).single() : Promise.resolve({ data: null }),
       fetchOrgSettings(orgId),
     ])
@@ -861,7 +861,7 @@ export async function changeContractor(
 
   // Validate new contractor belongs to org
   const { data: newC, error: newCErr } = await db
-    .from("contractors")
+    .from("contractor_view")
     .select("id, first_name, last_name, company_name, email, contact_id")
     .eq("id", newContractorId)
     .eq("org_id", orgId)
@@ -903,7 +903,7 @@ export async function changeContractor(
       const service = await createServiceClient()
       const [oldCRes, unitRes, orgSettings] = await Promise.all([
         req.contractor_id
-          ? service.from("contractors").select("first_name, last_name, company_name, email, contact_id").eq("id", req.contractor_id as string).single()
+          ? service.from("contractor_view").select("first_name, last_name, company_name, email, contact_id").eq("id", req.contractor_id as string).single()
           : Promise.resolve({ data: null }),
         req.unit_id
           ? service.from("units").select("unit_number, properties(name)").eq("id", req.unit_id).single()
