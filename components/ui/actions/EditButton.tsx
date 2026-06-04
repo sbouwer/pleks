@@ -21,6 +21,7 @@ export const EditButton = React.forwardRef<HTMLButtonElement, Props>(
         ref={ref}
         type="button"
         aria-label={mode === "icon" ? label : undefined}
+        title={mode === "icon" ? label : undefined}
         className={cn("pa-edit", mode === "label" && "with-label", className)}
         {...rest}
       >

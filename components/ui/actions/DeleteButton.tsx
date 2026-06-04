@@ -11,12 +11,13 @@
  */
 import { useState } from "react"
 import { Trash2 } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 
 export function DeleteButton({
   onConfirm, itemName, title, description, confirmLabel = "Delete", label = "Delete",
-  mode = "icon", loading, disabled, blockReason, className,
+  mode = "icon", icon: Icon = Trash2, loading, disabled, blockReason, className,
 }: Readonly<{
   onConfirm: () => void
   /** name shown in the default title ("Delete {itemName}?"). */
@@ -26,6 +27,8 @@ export function DeleteButton({
   confirmLabel?: string
   label?: string
   mode?: "icon" | "label"
+  /** glyph for the trigger — defaults to a trash can; pass Archive for soft-delete/archive actions. */
+  icon?: LucideIcon
   loading?: boolean
   disabled?: boolean
   /** when set, the dialog explains the delete is blocked instead of confirming. */
@@ -44,7 +47,7 @@ export function DeleteButton({
         onClick={() => setOpen(true)}
         className={cn("pa-edit", className)}
       >
-        <Trash2 className="size-3.5" />
+        <Icon className="size-3.5" />
         {mode === "label" && <span>{label}</span>}
       </button>
 

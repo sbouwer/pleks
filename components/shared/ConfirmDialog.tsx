@@ -37,8 +37,9 @@ export function ConfirmDialog({
       onClose={() => onOpenChange(false)}
       title={title}
       actions={
-        <>
-          <ActionButton tone="secondary" onClick={() => onOpenChange(false)} disabled={loading}>
+        // Split layout (cancel left / confirm right) to match the WizardModal footer.
+        <div className="flex w-full items-center justify-between gap-3">
+          <ActionButton tone="secondary" className="pa-cancel-glow" onClick={() => onOpenChange(false)} disabled={loading}>
             {cancelLabel}
           </ActionButton>
           <ActionButton
@@ -48,7 +49,7 @@ export function ConfirmDialog({
           >
             {loading ? "Loading..." : confirmLabel}
           </ActionButton>
-        </>
+        </div>
       }
     >
       <p className="text-sm">{description}</p>

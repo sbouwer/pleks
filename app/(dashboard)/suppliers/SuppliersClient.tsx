@@ -17,7 +17,7 @@ import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
 import { usePermissions } from "@/hooks/usePermissions"
-import { RotateCcw } from "lucide-react"
+import { RotateCcw, Archive } from "lucide-react"
 import { PORTFOLIO_QUERY_KEYS } from "@/lib/queries/portfolio"
 import { AddPartyModal } from "@/components/parties/AddPartyModal"
 import { EditPartyModal } from "@/components/parties/EditPartyModal"
@@ -274,7 +274,9 @@ export function SuppliersClient({ contractors: initial, orgId }: Readonly<Props>
                         <EditButton label="Edit supplier" onClick={() => setEditId(c.id)} />
                         {isAdmin && (
                           <DeleteButton
+                            icon={Archive}
                             label="Archive supplier"
+                            title={`Archive ${c.company_name ?? "this supplier"}?`}
                             itemName={c.company_name ?? "this supplier"}
                             description="They leave your active list, but historical work orders and invoices are kept. Active obligations block removal."
                             confirmLabel="Archive"

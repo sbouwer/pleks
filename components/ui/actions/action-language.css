@@ -14,7 +14,7 @@
      --r-sm, --pub-sans, --pub-mono
 
    Five primitives:
-     .pa-primary        solid amber. bar OR icon, never both.
+     .pa-primary        dark/white fill + amber bar → amber fill on hover. bar OR icon, never both.
      .pa-secondary      ghost. paper-sunk + amber bracket on hover.
      .pa-destructive    red outline. red wash on hover.
      .pa-link           amber inline link with arrow.
@@ -46,25 +46,26 @@
 }
 
 /* ── Primary ──────────────────────────────────────────────────────────── */
+/* Dark/white fill + amber bar, flips to amber fill on hover — the "add contractor"
+   button look. Light theme = dark fill; dark theme = white fill; both → amber on
+   hover. One canonical primary across CTAs, modals (Save changes), and confirms. */
 .pa-primary {
   display: inline-flex; align-items: center; gap: 10px;
-  background: var(--amber); color: var(--ink);
+  background: var(--foreground); color: var(--background);
   padding: 10px 16px 10px 12px;
   border: 0; border-radius: var(--r-button);
   font-family: var(--pub-sans); font-size: 14px; font-weight: 600;
   letter-spacing: -0.005em;
-  cursor: pointer; transition: filter .15s, box-shadow .15s;
+  cursor: pointer; transition: background .15s, color .15s;
 }
 .pa-primary::before {
-  content: ""; width: 3px; height: 14px; background: var(--ink);
+  content: ""; width: 3px; height: 14px; background: var(--primary);
   flex-shrink: 0; transition: background .15s;
 }
 .pa-primary.has-icon { padding-left: 14px; }
 .pa-primary.has-icon::before { display: none; }
-.pa-primary:hover:not(:disabled) {
-  filter: brightness(0.94);
-  box-shadow: 0 0 0 3px oklch(0.68 0.14 65 / 0.22);
-}
+.pa-primary:hover:not(:disabled) { background: var(--primary); color: var(--primary-foreground); }
+.pa-primary:hover:not(:disabled)::before { background: var(--primary-foreground); }
 .pa-primary:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px oklch(0.68 0.14 65 / 0.4);
@@ -100,6 +101,17 @@
 .pa-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
 .pa-secondary svg { width: 16px; height: 16px; opacity: 0.7; flex-shrink: 0; }
 
+/* ── Cancel / discard (modal footers) ─────────────────────────────────────
+   A secondary with an amber outline + hover glow, so it's never dark-on-dark on
+   the dark modal surface. Use alongside .pa-secondary. */
+.pa-cancel-glow { border: 1px solid color-mix(in oklab, var(--amber) 50%, transparent); }
+.pa-cancel-glow:hover:not(:disabled),
+.pa-cancel-glow:focus-visible {
+  border-color: var(--amber);
+  background: color-mix(in oklab, var(--amber) 14%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--amber) 18%, transparent);
+}
+
 /* ── Small size (compact inline contexts) ─────────────────────────────────
    Two-class selectors beat the single-class tone padding without !important. */
 .pa-primary.pa-sm, .pa-secondary.pa-sm, .pa-destructive.pa-sm {
@@ -108,6 +120,9 @@
 .pa-primary.pa-sm::before { height: 12px; }
 .pa-primary.pa-sm, .pa-destructive.pa-sm { padding-left: 10px; }
 .pa-primary.pa-sm svg, .pa-secondary.pa-sm svg, .pa-destructive.pa-sm svg { width: 14px; height: 14px; }
+
+/* Large size (hero / empty-state CTA) */
+.pa-primary.pa-lg, .pa-secondary.pa-lg { padding: 12px 20px; font-size: 15px; }
 
 /* ── Destructive ──────────────────────────────────────────────────────── */
 .pa-destructive {
@@ -277,8 +292,15 @@
   height: 4px; background: var(--amber);
   border-radius: 0 0 var(--r-button) var(--r-button);
 }
+/* Card grammar (matches the detail cards): amber dash + bold title over a divider rule. */
 .pa-modal-head {
-  display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+  display: flex; align-items: center; gap: 10px;
+  padding-bottom: 12px; margin-bottom: 16px;
+  border-bottom: 1px solid var(--rule);
+}
+.pa-modal-head::before {
+  content: ""; width: 16px; height: 2px; border-radius: 1px;
+  background: var(--amber); flex-shrink: 0;
 }
 .pa-modal-head svg { width: 18px; height: 18px; color: var(--amber-ink); flex-shrink: 0; }
 .pa-modal-title {
@@ -298,8 +320,8 @@
 }
 
 /* ── Dark-mode adjustments (.pleks-portal[data-theme="dark"]) ────────── */
-.pleks-portal[data-theme="dark"] .pa-primary { color: var(--paper); }
-.pleks-portal[data-theme="dark"] .pa-primary::before { background: var(--paper); }
+/* pa-primary fill is theme-aware (var(--foreground)/var(--background)) so it needs no
+   dark override — white fill + dark text in dark, dark fill + light text in light. */
 /* Ghost hover: paper-sunk is darker than the surface in dark mode — flip to paper-raised */
 .pleks-portal[data-theme="dark"] .pa-secondary:hover:not(:disabled) { background: var(--paper-raised); }
 .pleks-portal[data-theme="dark"] .pa-secondary:focus-visible { background: var(--paper-raised); }

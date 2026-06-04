@@ -15,6 +15,7 @@
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
 import { X, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { ActionButton } from "@/components/ui/actions"
 import { usePortalTheme } from "@/components/layout/PortalThemeProvider"
 
 export interface WizardModalStep {
@@ -68,9 +69,9 @@ function RailStep({
       aria-current={active ? "step" : undefined}
       onClick={clickable ? () => onSelect?.(index) : undefined}
       className={cn(
-        "relative flex w-full shrink-0 items-start gap-3 rounded-md px-2.5 py-2.5 text-left transition-colors",
-        active && "bg-primary/10",
-        clickable ? "cursor-pointer hover:bg-card" : "cursor-default",
+        "relative flex w-full shrink-0 items-start gap-3 rounded-[var(--r-button)] px-2.5 py-2.5 text-left transition-colors",
+        active && "bg-primary/15",
+        clickable ? "cursor-pointer hover:bg-primary/10" : "cursor-default",
       )}
     >
       {/* connector line to the next step (vertical rail only) */}
@@ -94,11 +95,11 @@ function RailStep({
         {done ? <Check className="h-3 w-3" strokeWidth={2.4} /> : index + 1}
       </span>
       <span className="flex min-w-0 flex-col pt-0.5">
-        <span className={cn("text-[13px] font-medium leading-tight", active || done ? "text-foreground" : "text-muted-foreground")}>
+        <span className={cn("font-sans text-sm font-medium leading-tight", active || done ? "text-foreground" : "text-muted-foreground")}>
           {step.label}
         </span>
         {active && step.hint && (
-          <span className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.08em] text-muted-foreground/70">{step.hint}</span>
+          <span className="mt-0.5 font-sans text-[10px] font-semibold uppercase tracking-[0.1em] text-primary">{step.hint}</span>
         )}
       </span>
     </button>
@@ -184,25 +185,14 @@ export function WizardModal({
                   )}
                   <div className="flex items-center justify-between gap-3 px-6 py-4 md:px-8">
                     <div className="flex items-center gap-4">
-                      <button
-                        type="button"
-                        onClick={onBack}
-                        className="rounded-[var(--r-button)] border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-                      >
+                      <ActionButton tone="secondary" onClick={onBack} className="pa-cancel-glow">
                         {backLabel}
-                      </button>
+                      </ActionButton>
                       {footerSlot}
                     </div>
-                    {/* mockup primary: dark fill + amber bar + light text · hover: amber fill + dark bar */}
-                    <button
-                      type="button"
-                      onClick={onPrimary}
-                      disabled={primaryDisabled}
-                      className="group inline-flex items-center gap-2.5 rounded-[var(--r-button)] bg-foreground py-2.5 pl-3 pr-4 text-sm font-semibold text-background transition-colors hover:bg-primary hover:text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-foreground disabled:hover:text-background"
-                    >
-                      <span aria-hidden className="h-3.5 w-[3px] shrink-0 bg-primary transition-colors group-hover:bg-primary-foreground" />
+                    <ActionButton tone="primary" onClick={onPrimary} disabled={primaryDisabled}>
                       {primaryLabel}
-                    </button>
+                    </ActionButton>
                   </div>
                 </div>
               </>
