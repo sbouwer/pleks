@@ -1,11 +1,9 @@
 /**
- * lib/leases/bankDetails.ts — FILL: one-line purpose
+ * lib/leases/bankDetails.ts — trust-account bank details for lease generation (DocuSeal Annexure A)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   service client (server-only); org-scoped
+ * Data:   bank_accounts WHERE type='trust' for the org; returns a not-configured fallback when absent
+ * Notes:  maybeSingle (not single) — a trust account is optional, so 0 rows is normal, not an error.
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -32,8 +30,8 @@ export async function getLessorBankDetails(orgId: string): Promise<LessorBankDet
     .eq("org_id", orgId)
     .eq("type", "trust")
     .limit(1)
-    .single()
-    logQueryError("getLessorBankDetails bank_accounts", trustAccountError)
+    .maybeSingle()
+  logQueryError("getLessorBankDetails bank_accounts", trustAccountError)
 
   if (!trustAccount) {
     return {
