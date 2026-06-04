@@ -10,7 +10,7 @@
 import { cookies } from "next/headers"
 import Link from "next/link"
 import { ShieldAlert } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 
 export const metadata = { title: "Not available here" }
 
@@ -55,8 +55,8 @@ export default async function ForbiddenPage() {
           : "This page isn't available in your current workspace."}
       </p>
       <div className="flex flex-col sm:flex-row gap-3">
-        <Button render={<Link href="/auth/resolver" />}>Go to my workspace</Button>
-        <Button variant="ghost" render={<Link href="/login" />}>Sign out</Button>
+        <ActionButton asChild tone="primary"><Link href="/auth/resolver">Go to my workspace</Link></ActionButton>
+        <ActionButton asChild tone="secondary"><Link href="/login">Sign out</Link></ActionButton>
       </div>
     </div>
   )

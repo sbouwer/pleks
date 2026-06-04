@@ -12,7 +12,7 @@ import { notFound } from "next/navigation"
 import { createServiceClient } from "@/lib/supabase/server"
 import { formatZAR, APPLICATION_FEE_CENTS } from "@/lib/constants"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { MapPin, Bed, Bath, Calendar, CheckCircle2 } from "lucide-react"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
@@ -153,13 +153,11 @@ export default async function ListingPage({
       </Card>
 
       {/* CTA */}
-      <Button
-        className="w-full h-14 text-base font-semibold"
-        size="lg"
-        render={<Link href={`/apply/${slug}/details`} />}
-      >
-        Apply now →
-      </Button>
+      <ActionButton asChild tone="primary" className="w-full h-14 text-base font-semibold">
+        <Link href={`/apply/${slug}/details`}>
+          Apply now →
+        </Link>
+      </ActionButton>
     </div>
   )
 }

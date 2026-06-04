@@ -11,7 +11,7 @@
  */
 
 import { Lock } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Card, CardContent } from "@/components/ui/card"
 import Link from "next/link"
 
@@ -46,9 +46,11 @@ export function UpgradeCTA({ feature }: Readonly<{ feature: string }>) {
         <p className="text-muted-foreground text-sm mb-4">
           Upgrade your plan to access this feature.
         </p>
-        <Button variant="default" render={<Link href="/settings" />}>
-          Upgrade Plan
-        </Button>
+        <ActionButton asChild tone="primary">
+          <Link href="/settings">
+            Upgrade Plan
+          </Link>
+        </ActionButton>
       </CardContent>
     </Card>
   )

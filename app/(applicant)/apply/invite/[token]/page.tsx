@@ -12,7 +12,7 @@ import { notFound } from "next/navigation"
 import { createServiceClient } from "@/lib/supabase/server"
 import { formatZAR, APPLICATION_FEE_CENTS, JOINT_APPLICATION_FEE_CENTS } from "@/lib/constants"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Badge } from "@/components/ui/badge"
 import { MapPin, Clock, CheckCircle2, RefreshCw } from "lucide-react"
 import { getRecentCompletedCheck } from "@/lib/screening/checkRecentReport"
@@ -151,25 +151,21 @@ export default async function InvitePage({
             <p className="text-xs text-muted-foreground">
               Instead of running a new check, you can share those results with this landlord — at no additional cost.
             </p>
-            <Button
-              className="w-full"
-              variant="outline"
-              render={<Link href={`/apply/invite/${token}/consent?reuse=${recentCheck.application_id}`} />}
-            >
-              Share my existing report — Free
-            </Button>
+            <ActionButton asChild tone="secondary" className="w-full">
+              <Link href={`/apply/invite/${token}/consent?reuse=${recentCheck.application_id}`}>
+                Share my existing report — Free
+              </Link>
+            </ActionButton>
           </CardContent>
         </Card>
       )}
 
       {/* Actions */}
-      <Button
-        className="w-full h-12 text-base font-semibold"
-        size="lg"
-        render={<Link href={`/apply/invite/${token}/consent`} />}
-      >
-        {canReuse ? "Run a new check instead" : "Proceed to consent and payment"}
-      </Button>
+      <ActionButton asChild tone="primary" className="w-full h-12 text-base font-semibold">
+        <Link href={`/apply/invite/${token}/consent`}>
+          {canReuse ? "Run a new check instead" : "Proceed to consent and payment"}
+        </Link>
+      </ActionButton>
 
       <div className="text-center">
         <button className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground transition-colors">

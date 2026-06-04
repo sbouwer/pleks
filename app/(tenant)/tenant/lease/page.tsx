@@ -13,7 +13,7 @@ import { getTenantSession } from "@/lib/portal/getTenantSession"
 import { createServiceClient } from "@/lib/supabase/server"
 import { formatZAR } from "@/lib/constants"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { FileText, Download } from "lucide-react"
 
 function termRemaining(endDate: string | null) {
@@ -183,10 +183,12 @@ export default async function PortalLeasePage() {
               <p className="text-xs text-muted-foreground">PDF document</p>
             </div>
           </div>
-          <Button variant="outline" size="sm" render={<Link href={`/api/portal/lease/${leaseId}/download`} />}>
-            <Download className="h-4 w-4 mr-1.5" />
-            Download
-          </Button>
+          <ActionButton asChild tone="secondary" size="sm">
+            <Link href={`/api/portal/lease/${leaseId}/download`}>
+              <Download className="h-4 w-4 mr-1.5" />
+              Download
+            </Link>
+          </ActionButton>
         </div>
       )}
     </div>

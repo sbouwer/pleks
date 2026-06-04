@@ -13,7 +13,7 @@ import { notFound } from "next/navigation"
 import { createServiceClient } from "@/lib/supabase/server"
 import { formatZAR } from "@/lib/constants"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import Link from "next/link"
 import { CheckCircle2, Clock, Circle } from "lucide-react"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -177,9 +177,11 @@ export default async function DirectorPortalPage({
                 </div>
               </div>
               {!step.done && (
-                <Button size="sm" variant="outline" render={<Link href={step.href} />}>
-                  Start →
-                </Button>
+                <ActionButton asChild tone="secondary" size="sm">
+                  <Link href={step.href}>
+                    Start →
+                  </Link>
+                </ActionButton>
               )}
             </div>
           ))}

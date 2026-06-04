@@ -18,7 +18,6 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
 import { ActionButton, IconButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -252,25 +251,23 @@ export function ListingCreateDialog({ open, onOpenChange, unit, property, orgId 
                   onClick={copyUrl}
                   icon={copied ? <Check className="size-4 text-green-500" /> : <Copy className="size-4" />}
                 />
-                <Button variant="outline" size="icon" render={<a href={listingUrl} target="_blank" rel="noreferrer" />}>
-                  <ExternalLink className="size-4" />
-                </Button>
+                <ActionButton asChild tone="secondary">
+                  <a href={listingUrl} target="_blank" rel="noreferrer">
+                    <ExternalLink className="size-4" />
+                  </a>
+                </ActionButton>
               </div>
 
               <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  render={
-                    <a
-                      href={`https://wa.me/?text=${whatsappText}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    />
-                  }
-                >
-                  Share via WhatsApp
-                </Button>
+                <ActionButton asChild tone="secondary" className="flex-1">
+                  <a
+                    href={`https://wa.me/?text=${whatsappText}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Share via WhatsApp
+                  </a>
+                </ActionButton>
               </div>
             </div>
 

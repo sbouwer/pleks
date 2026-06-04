@@ -11,7 +11,7 @@ import { getTenantSession } from "@/lib/portal/getTenantSession"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { ChevronLeft, ExternalLink } from "lucide-react"
 import { logQueryError } from "@/lib/supabase/logQueryError"
 
@@ -67,14 +67,11 @@ export default async function RequestDetailPage({ params }: Readonly<{ params: P
   return (
     <div className="max-w-lg mx-auto py-8 px-4 space-y-6">
       <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-8"
-          render={<Link href="/tenant/privacy/requests" />}
-        >
-          <ChevronLeft className="size-4" />
-        </Button>
+        <ActionButton asChild tone="secondary" className="size-8">
+          <Link href="/tenant/privacy/requests">
+            <ChevronLeft className="size-4" />
+          </Link>
+        </ActionButton>
         <div>
           <h1 className="text-lg font-semibold capitalize">
             {request.request_type.replaceAll("_", " ")} request
@@ -118,12 +115,11 @@ export default async function RequestDetailPage({ params }: Readonly<{ params: P
       </Card>
 
       {request.export_id && (
-        <Button
-          className="w-full"
-          render={<Link href={`/api/popia/request/${request.id}/download`} />}
-        >
-          Download your data export <ExternalLink className="size-4 ml-2" />
-        </Button>
+        <ActionButton asChild tone="primary" className="w-full">
+          <Link href={`/api/popia/request/${request.id}/download`}>
+            Download your data export <ExternalLink className="size-4 ml-2" />
+          </Link>
+        </ActionButton>
       )}
 
       {request.status === "rejected" && (

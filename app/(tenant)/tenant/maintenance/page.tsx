@@ -11,7 +11,7 @@ import { redirect } from "next/navigation"
 import Link from "next/link"
 import { getTenantSession } from "@/lib/portal/getTenantSession"
 import { createServiceClient } from "@/lib/supabase/server"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { Wrench, Plus } from "lucide-react"
@@ -67,10 +67,12 @@ export default async function PortalMaintenancePage() {
           <h1 className="font-heading text-3xl">Maintenance</h1>
           <p className="text-sm text-muted-foreground">{list.length} request{list.length === 1 ? "" : "s"}</p>
         </div>
-        <Button render={<Link href="/tenant/maintenance/new" />}>
-          <Plus className="h-4 w-4 mr-1.5" />
-          Report issue
-        </Button>
+        <ActionButton asChild tone="primary">
+          <Link href="/tenant/maintenance/new">
+            <Plus className="h-4 w-4 mr-1.5" />
+            Report issue
+          </Link>
+        </ActionButton>
       </div>
 
       {list.length === 0 ? (

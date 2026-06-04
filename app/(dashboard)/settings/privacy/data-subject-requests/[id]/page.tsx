@@ -13,7 +13,7 @@ import { gatewaySSR } from "@/lib/supabase/gateway"
 import { createServiceClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { ChevronLeft, AlertTriangle, Clock, CheckCircle2, XCircle } from "lucide-react"
 import type { DataSubjectRequest } from "@/lib/popia/requests"
 
@@ -83,14 +83,11 @@ export default async function DataSubjectRequestDetailPage({
   return (
     <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
       <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-8"
-          render={<Link href="/settings/privacy/data-subject-requests" />}
-        >
-          <ChevronLeft className="size-4" />
-        </Button>
+        <ActionButton asChild tone="secondary" className="size-8">
+          <Link href="/settings/privacy/data-subject-requests">
+            <ChevronLeft className="size-4" />
+          </Link>
+        </ActionButton>
         <div>
           <h1 className="text-lg font-semibold capitalize">
             {r.request_type.replaceAll("_", " ")} request
@@ -208,22 +205,20 @@ export default async function DataSubjectRequestDetailPage({
               : "Review the request and approve or reject. The subject is notified by email."}
           </p>
           <div className="flex gap-3">
-            <Button
-              className="flex-1"
-              render={<Link href={`/api/popia/request/${r.id}/approve`} />}
-            >
-              <CheckCircle2 className="size-4 mr-2" />
-              {r.request_type === "access" || r.request_type === "portability"
-                ? "Generate export"
-                : "Approve request"}
-            </Button>
-            <Button
-              variant="outline"
-              render={<Link href={`/settings/privacy/data-subject-requests/${r.id}/reject`} />}
-            >
-              <XCircle className="size-4 mr-2" />
-              Reject
-            </Button>
+            <ActionButton asChild tone="primary" className="flex-1">
+              <Link href={`/api/popia/request/${r.id}/approve`}>
+                <CheckCircle2 className="size-4 mr-2" />
+                {r.request_type === "access" || r.request_type === "portability"
+                  ? "Generate export"
+                  : "Approve request"}
+              </Link>
+            </ActionButton>
+            <ActionButton asChild tone="secondary">
+              <Link href={`/settings/privacy/data-subject-requests/${r.id}/reject`}>
+                <XCircle className="size-4 mr-2" />
+                Reject
+              </Link>
+            </ActionButton>
           </div>
 
           {isDestructive && (

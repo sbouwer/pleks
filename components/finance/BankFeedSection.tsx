@@ -13,8 +13,7 @@
 import { useEffect, useRef, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useOrg } from "@/hooks/useOrg"
-import { Button } from "@/components/ui/button"
-import { ActionButton } from "@/components/ui/actions"
+import { ActionButton, InlineLink } from "@/components/ui/actions"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Check, AlertTriangle, Loader2, RefreshCw, Plug, Unplug } from "lucide-react"
@@ -187,9 +186,9 @@ export function BankFeedSection({ tier }: Readonly<BankFeedSectionProps>) {
     return (
       <div className="rounded-md border border-border p-4 text-sm text-muted-foreground">
         Live bank feeds are available on Steward tier and above (R250/account/month).
-        <Button variant="link" size="sm" className="ml-2 p-0 h-auto" render={<a href="/settings/subscription" />}>
+        <InlineLink href="/settings/subscription" className="ml-2 p-0 h-auto">
           Upgrade
-        </Button>
+        </InlineLink>
       </div>
     )
   }

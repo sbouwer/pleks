@@ -13,7 +13,7 @@ import { gatewaySSR } from "@/lib/supabase/gateway"
 import { createServiceClient } from "@/lib/supabase/server"
 import { getRequestStats, getOverdueRequests } from "@/lib/popia/requests"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { CheckCircle2, AlertTriangle, Clock, ShieldCheck } from "lucide-react"
 
 export const metadata = { title: "Compliance dashboard" }
@@ -78,14 +78,11 @@ export default async function ComplianceDashboardPage() {
             )}
           </div>
           {overdueRequests.length > 0 && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="ml-auto h-7 text-xs"
-              render={<Link href="/settings/privacy/data-subject-requests" />}
-            >
-              View overdue
-            </Button>
+            <ActionButton asChild tone="secondary" size="sm" className="ml-auto h-7 text-xs">
+              <Link href="/settings/privacy/data-subject-requests">
+                View overdue
+              </Link>
+            </ActionButton>
           )}
         </CardContent>
       </Card>
@@ -151,16 +148,22 @@ export default async function ComplianceDashboardPage() {
 
       {/* Links */}
       <div className="flex flex-wrap gap-3">
-        <Button variant="outline" size="sm" render={<Link href="/settings/privacy/data-subject-requests" />}>
-          <ShieldCheck className="size-4 mr-2" />
-          Request inbox
-        </Button>
-        <Button variant="outline" size="sm" render={<Link href="/settings/privacy/retention" />}>
-          Retention policies
-        </Button>
-        <Button variant="outline" size="sm" render={<Link href="/settings/privacy/information-officer" />}>
-          Information Officer
-        </Button>
+        <ActionButton asChild tone="secondary" size="sm">
+          <Link href="/settings/privacy/data-subject-requests">
+            <ShieldCheck className="size-4 mr-2" />
+            Request inbox
+          </Link>
+        </ActionButton>
+        <ActionButton asChild tone="secondary" size="sm">
+          <Link href="/settings/privacy/retention">
+            Retention policies
+          </Link>
+        </ActionButton>
+        <ActionButton asChild tone="secondary" size="sm">
+          <Link href="/settings/privacy/information-officer">
+            Information Officer
+          </Link>
+        </ActionButton>
       </div>
     </div>
   )

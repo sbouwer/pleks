@@ -8,7 +8,7 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Building2, Pencil, Plus, AlertTriangle } from "lucide-react"
@@ -66,9 +66,11 @@ export function PropertyBuildingsSection({ propertyId, buildings }: Readonly<Pro
         <h2 className="text-lg font-medium">
           {isMultiBuilding ? `Buildings (${visible.length})` : "Building"}
         </h2>
-        <Button size="sm" render={<Link href={`/properties/${propertyId}/buildings/new`} />}>
-          <Plus className="h-4 w-4 mr-1" /> Add building
-        </Button>
+        <ActionButton asChild tone="primary" size="sm">
+          <Link href={`/properties/${propertyId}/buildings/new`}>
+            <Plus className="h-4 w-4 mr-1" /> Add building
+          </Link>
+        </ActionButton>
       </div>
 
       {visible.length === 0 ? (

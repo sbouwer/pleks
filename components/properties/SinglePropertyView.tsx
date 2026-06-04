@@ -5,8 +5,7 @@
  * Data:   passed as props from the parent server component
  */
 import Link from "next/link"
-import { InlineLink } from "@/components/ui/actions"
-import { Button } from "@/components/ui/button"
+import { ActionButton, InlineLink } from "@/components/ui/actions"
 import { Edit, Home, MapPin, Phone, Mail } from "lucide-react"
 import { EmptyResourceState } from "@/components/ui/empty-resource-state"
 import { AddPropertyButton } from "./AddPropertyButton"
@@ -311,9 +310,11 @@ export function SinglePropertyView({ property, currentInvoice = null, orgId = ""
             </a>
           </p>
         </div>
-        <Button variant="outline" size="sm" render={<Link href={`/properties/${property.id}/edit`} />}>
-          <Edit className="size-3.5 mr-1.5" /> Edit property
-        </Button>
+        <ActionButton asChild tone="secondary" size="sm">
+          <Link href={`/properties/${property.id}/edit`}>
+            <Edit className="size-3.5 mr-1.5" /> Edit property
+          </Link>
+        </ActionButton>
       </div>
 
       {/* Metrics strip — 3 cards */}

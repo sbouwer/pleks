@@ -15,7 +15,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { getRequestStats } from "@/lib/popia/requests"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { ChevronRight, Clock, AlertTriangle } from "lucide-react"
 import type { DataSubjectRequest } from "@/lib/popia/requests"
 
@@ -110,15 +110,11 @@ export default async function DataSubjectRequestsPage({
           { label: "Overdue", href: "?status=under_review" },
           { label: "Completed", href: "?status=completed" },
         ].map(({ label, href }) => (
-          <Button
-            key={label}
-            variant="outline"
-            size="sm"
-            className="h-7 text-xs"
-            render={<Link href={href} />}
-          >
-            {label}
-          </Button>
+          <ActionButton key={label} asChild tone="secondary" size="sm" className="h-7 text-xs">
+            <Link href={href}>
+              {label}
+            </Link>
+          </ActionButton>
         ))}
       </div>
 

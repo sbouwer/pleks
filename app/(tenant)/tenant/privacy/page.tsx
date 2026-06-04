@@ -13,7 +13,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { listControllersForSubject } from "@/lib/popia/requests"
 import { SovereignDataBadge } from "@/components/popia/SovereignDataBadge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Badge } from "@/components/ui/badge"
 import { ChevronRight, ExternalLink } from "lucide-react"
 
@@ -73,14 +73,11 @@ export default async function TenantPrivacyPage() {
                 {ctrl.data_categories.join(" · ")}
               </p>
               {ctrl.org_id && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-xs"
-                  render={<Link href={`/tenant/privacy/requests/new?org=${ctrl.org_id}`} />}
-                >
-                  Open request <ChevronRight className="size-3 ml-1" />
-                </Button>
+                <ActionButton asChild tone="secondary" size="sm" className="h-7 text-xs">
+                  <Link href={`/tenant/privacy/requests/new?org=${ctrl.org_id}`}>
+                    Open request <ChevronRight className="size-3 ml-1" />
+                  </Link>
+                </ActionButton>
               )}
             </CardContent>
           </Card>
@@ -94,14 +91,11 @@ export default async function TenantPrivacyPage() {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm">Previous requests</CardTitle>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 text-xs"
-                render={<Link href="/tenant/privacy/requests" />}
-              >
-                View all
-              </Button>
+              <ActionButton asChild tone="secondary" size="sm" className="h-7 text-xs">
+                <Link href="/tenant/privacy/requests">
+                  View all
+                </Link>
+              </ActionButton>
             </div>
           </CardHeader>
           <CardContent className="divide-y">
@@ -129,20 +123,16 @@ export default async function TenantPrivacyPage() {
       )}
 
       <div className="grid grid-cols-2 gap-3">
-        <Button
-          variant="outline"
-          size="sm"
-          render={<Link href="/tenant/privacy/consent-history" />}
-        >
-          Consent history
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          render={<Link href="/tenant/privacy/retention" />}
-        >
-          Data retention
-        </Button>
+        <ActionButton asChild tone="secondary" size="sm">
+          <Link href="/tenant/privacy/consent-history">
+            Consent history
+          </Link>
+        </ActionButton>
+        <ActionButton asChild tone="secondary" size="sm">
+          <Link href="/tenant/privacy/retention">
+            Data retention
+          </Link>
+        </ActionButton>
       </div>
 
       <p className="text-xs text-muted-foreground">

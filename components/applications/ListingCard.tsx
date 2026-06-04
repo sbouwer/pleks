@@ -9,7 +9,6 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { ActionButton, IconButton } from "@/components/ui/actions"
 import { Copy, Check, ExternalLink, Pause, Play, CheckSquare } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
@@ -107,9 +106,11 @@ export function ListingCard({ listing, unitLabel, propertyName }: Props) {
               onClick={copyUrl}
               icon={copied ? <Check className="size-3.5 text-green-500" /> : <Copy className="size-3.5" />}
             />
-            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" render={<a href={listingUrl} target="_blank" rel="noreferrer" />}>
-              <ExternalLink className="size-3.5" />
-            </Button>
+            <ActionButton asChild tone="secondary" className="h-7 w-7 shrink-0">
+              <a href={listingUrl} target="_blank" rel="noreferrer">
+                <ExternalLink className="size-3.5" />
+              </a>
+            </ActionButton>
           </div>
         )}
 

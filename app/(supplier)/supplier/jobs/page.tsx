@@ -9,7 +9,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Badge } from "@/components/ui/badge"
 import { getSupplierSession } from "@/lib/portal/getSupplierSession"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -99,9 +99,11 @@ export default async function ContractorJobsPage() {
                         </p>
                       )}
                     </div>
-                    <Button size="sm" variant="outline" render={<Link href={`/supplier/jobs/${job.id}`} />}>
-                      View
-                    </Button>
+                    <ActionButton asChild tone="secondary" size="sm">
+                      <Link href={`/supplier/jobs/${job.id}`}>
+                        View
+                      </Link>
+                    </ActionButton>
                   </div>
                 </CardContent>
               </Card>

@@ -13,7 +13,6 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
 import { ActionButton } from "@/components/ui/actions"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -59,16 +58,20 @@ export function JobStatusActions({ requestId, status }: JobStatusActionsProps) {
     <div className="space-y-3">
       {/* Quote requested */}
       {status === "pending_quote" && (
-        <Button className="w-full h-12 text-base font-semibold" render={<Link href={`/supplier/jobs/${requestId}/quote`} />}>
-          Submit Quote
-        </Button>
+        <ActionButton asChild tone="primary" className="w-full h-12 text-base font-semibold">
+          <Link href={`/supplier/jobs/${requestId}/quote`}>
+            Submit Quote
+          </Link>
+        </ActionButton>
       )}
 
       {/* Quote rejected — can resubmit */}
       {status === "quote_rejected" && (
-        <Button className="w-full h-12" render={<Link href={`/supplier/jobs/${requestId}/quote`} />}>
-          Submit Revised Quote
-        </Button>
+        <ActionButton asChild tone="primary" className="w-full h-12">
+          <Link href={`/supplier/jobs/${requestId}/quote`}>
+            Submit Revised Quote
+          </Link>
+        </ActionButton>
       )}
 
       {/* New job — acknowledge */}
@@ -118,9 +121,11 @@ export function JobStatusActions({ requestId, status }: JobStatusActionsProps) {
 
       {/* Completed — submit invoice */}
       {(status === "pending_completion" || status === "completed") && (
-        <Button variant="outline" className="w-full h-12" render={<Link href={`/supplier/invoices`} />}>
-          Submit Invoice
-        </Button>
+        <ActionButton asChild tone="secondary" className="w-full h-12">
+          <Link href={`/supplier/invoices`}>
+            Submit Invoice
+          </Link>
+        </ActionButton>
       )}
     </div>
   )

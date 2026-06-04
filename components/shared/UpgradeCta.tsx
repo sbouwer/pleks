@@ -12,7 +12,7 @@
 
 import { useState, useEffect } from "react"
 import { X, ArrowUpRight } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import Link from "next/link"
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
@@ -61,14 +61,11 @@ export function UpgradeCta({ title, description, dismissKey }: UpgradeCtaProps) 
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium">{title}</p>
         <p className="text-sm text-muted-foreground mt-0.5">{description}</p>
-        <Button
-          size="sm"
-          variant="outline"
-          className="mt-3 h-7 text-xs gap-1"
-          render={<Link href="/settings/subscription" />}
-        >
-          Compare plans <ArrowUpRight className="size-3" />
-        </Button>
+        <ActionButton asChild tone="secondary" size="sm" className="mt-3 h-7 text-xs gap-1">
+          <Link href="/settings/subscription">
+            Compare plans <ArrowUpRight className="size-3" />
+          </Link>
+        </ActionButton>
       </div>
       <button
         onClick={dismiss}
