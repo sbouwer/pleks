@@ -94,7 +94,7 @@ export function SuppliersPageClient({ orgId }: Props) {
         action={<AddContractorButton orgId={orgId} supplierType={activeTab} />}
       />
       {tabsRow}
-      <SuppliersClient contractors={contractors} orgId={orgId} />
+      <SuppliersClient contractors={contractors} orgId={orgId} noun={{ singular: tabInfo.singular, plural: tabInfo.plural }} />
     </div>
   )
 }

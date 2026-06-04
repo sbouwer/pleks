@@ -13,8 +13,9 @@
  *           • useListSort + SortHeader — the click-to-sort column header. Each page keeps its own
  *             columns/rows and supplies the comparator; this only owns the key/direction + affordance.
  */
-import { useState, type ReactNode } from "react"
-import { Search, X, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
+import { useState, useRef, useEffect, type ReactNode } from "react"
+import { Search, X, ArrowUpDown, ArrowUp, ArrowDown, List, LayoutGrid, ChevronDown, Check } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 export function ListSearchBar({
   value, onChange, placeholder = "Search…",
@@ -79,12 +80,151 @@ export function SortHeader<K extends string>({
     <button
       type="button"
       onClick={() => onSort(col)}
-      className={`flex items-center gap-0.5 whitespace-nowrap text-xs font-medium text-muted-foreground transition-colors hover:text-foreground ${align === "right" ? "ml-auto flex-row-reverse" : ""}`}
+      className={`flex items-center gap-0.5 whitespace-nowrap text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70 transition-colors hover:text-foreground ${align === "right" ? "ml-auto flex-row-reverse" : ""}`}
     >
       {label}
       {!active && <ArrowUpDown className="ml-1 inline size-3.5 text-muted-foreground/50" />}
       {active && sortDir === "asc" && <ArrowUp className="ml-1 inline size-3.5 text-primary" />}
       {active && sortDir === "desc" && <ArrowDown className="ml-1 inline size-3.5 text-primary" />}
     </button>
+  )
+}
+
+/* ── Joint list toolbar ───────────────────────────────────────────────────────
+   The "iconic square compartments" row atop a list: [filters: status · …] ·
+   [Search] · [List/Grid]. Each control is a square (--r-button) bordered bg-card
+   box at a shared h-11; gaps separate them. Search grows to fill. View toggle +
+   filter slot are optional, so a list with no cards mode / no filters still uses
+   the same bar. */
+export type ListView = "list" | "cards"
+
+const COMPARTMENT = "h-11 rounded-[var(--r-button)] border border-border bg-card"
+
+function ViewToggle({ view, onView }: Readonly<{ view: ListView; onView: (v: ListView) => void }>) {
+  const seg = (v: ListView, icon: ReactNode, label: string) => (
+    <button
+      type="button"
+      onClick={() => onView(v)}
+      aria-pressed={view === v}
+      aria-label={label}
+      title={label}
+      className={cn(
+        "flex h-full items-center gap-1.5 rounded-[calc(var(--r-button)-2px)] px-3 text-xs font-medium transition-colors",
+        view === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+      )}
+    >
+      {icon}
+      <span className="hidden sm:inline">{label}</span>
+    </button>
+  )
+  return (
+    <div className={cn(COMPARTMENT, "inline-flex shrink-0 items-center p-1")}>
+      {seg("list", <List className="size-3.5" />, "List")}
+      {seg("cards", <LayoutGrid className="size-3.5" />, "Cards")}
+    </div>
+  )
+}
+
+/** Square-compartment filter dropdown. A custom popover (NOT a native <select>) so it: opens BELOW the
+ *  trigger, uses the square pill style + a themed dark popup, and supports multi-select with checkboxes.
+ *  The trigger reads "Label: summary" — e.g. "Status: Active", "Categories: All", "Categories: Plumbing +2".
+ *  Single-select passes a 0/1-length `selected` array; multi-select passes `multiple` + the full array. */
+export function ToolbarFilter({
+  label, options, selected, onChange, multiple = false,
+}: Readonly<{
+  label: string
+  options: ReadonlyArray<{ value: string; label: string }>
+  selected: string[]
+  onChange: (next: string[]) => void
+  multiple?: boolean
+}>) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function onDoc(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    function onEsc(e: KeyboardEvent) { if (e.key === "Escape") setOpen(false) }
+    document.addEventListener("mousedown", onDoc)
+    document.addEventListener("keydown", onEsc)
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onEsc) }
+  }, [open])
+
+  const labelFor = (v: string) => options.find((o) => o.value === v)?.label ?? v
+  let summary = "All"
+  if (selected.length === 1) summary = labelFor(selected[0] ?? "")
+  else if (selected.length > 1) summary = `${labelFor(selected[0] ?? "")} +${selected.length - 1}`
+
+  function pick(v: string) {
+    if (multiple) {
+      onChange(selected.includes(v) ? selected.filter((x) => x !== v) : [...selected, v])
+    } else {
+      onChange([v])
+      setOpen(false)
+    }
+  }
+
+  return (
+    <div className="relative shrink-0" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className={cn(COMPARTMENT, "flex items-center gap-1.5 px-3.5 text-sm text-foreground transition-colors hover:bg-muted/30", open && "border-primary/60 ring-2 ring-primary/15")}
+      >
+        <span className="text-muted-foreground">{label}:</span>
+        <span className="font-medium">{summary}</span>
+        <ChevronDown className={cn("size-4 text-muted-foreground transition-transform", open && "rotate-180")} />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-[calc(100%+4px)] z-50 min-w-[12rem] overflow-hidden rounded-[var(--r-button)] border border-border bg-popover p-1 shadow-lg">
+          {options.map((o) => {
+            const checked = selected.includes(o.value)
+            return (
+              <button
+                key={o.value}
+                type="button"
+                onClick={() => pick(o.value)}
+                className="flex w-full items-center gap-2.5 rounded-[calc(var(--r-button)-1px)] px-2.5 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted/50"
+              >
+                {multiple ? (
+                  <span className={cn("grid size-4 shrink-0 place-items-center rounded-[2px] border", checked ? "border-primary bg-primary text-primary-foreground" : "border-border")}>
+                    {checked && <Check className="size-3" strokeWidth={3} />}
+                  </span>
+                ) : (
+                  <span className="grid size-4 shrink-0 place-items-center">{checked && <Check className="size-3.5 text-primary" strokeWidth={3} />}</span>
+                )}
+                <span className={cn(checked && "font-medium")}>{o.label}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function ListToolbar({
+  search, onSearch, placeholder = "Search…", view, onView, filters,
+}: Readonly<{
+  search: string
+  onSearch: (v: string) => void
+  placeholder?: string
+  /** omit view/onView to drop the list/grid compartment (lists with no cards mode) */
+  view?: ListView
+  onView?: (v: ListView) => void
+  /** one or more ToolbarSelect compartments (or any control) shown between the toggle and search */
+  filters?: ReactNode
+}>) {
+  return (
+    <div className="flex items-center gap-2">
+      {filters}
+      <div className="min-w-0 flex-1">
+        <ListSearchBar value={search} onChange={onSearch} placeholder={placeholder} />
+      </div>
+      {view && onView && <ViewToggle view={view} onView={onView} />}
+    </div>
   )
 }

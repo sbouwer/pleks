@@ -12,7 +12,7 @@ import { useState } from "react"
 import { EditButton, DeleteButton } from "@/components/ui/actions"
 import { AddButton } from "@/components/ui/add-button"
 import { Badge } from "@/components/ui/badge"
-import { ListSearchBar, ListCard, SortHeader, useListSort } from "@/components/ui/resource-list"
+import { ListToolbar, ToolbarFilter, ListCard, SortHeader, useListSort } from "@/components/ui/resource-list"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
@@ -44,32 +44,111 @@ export interface Contractor {
 interface Props {
   contractors: Contractor[]
   orgId: string
+  /** noun for the active tab (contractor / managing scheme / utility) — used in counts + empty copy */
+  noun?: { singular: string; plural: string }
 }
 
 type SortKey = "company" | "contact" | "phone" | "email" | "status"
 
-export function SuppliersClient({ contractors: initial, orgId }: Readonly<Props>) {
+/** Card-view tile (the "Cards" toggle) — mirrors the list row's data + hover edit/archive actions. */
+function SupplierCard({
+  c, isAdmin, isDeleting, onOpen, onEdit, onArchive,
+}: Readonly<{
+  c: Contractor
+  isAdmin: boolean
+  isDeleting: boolean
+  onOpen: () => void
+  onEdit: () => void
+  onArchive: () => void
+}>) {
+  const displayName = c.company_name || `${c.first_name ?? ""} ${c.last_name ?? ""}`.trim() || "Unnamed"
+  const specs = (c.specialities ?? []).slice(0, 3)
+  const extra = (c.specialities ?? []).length - 3
+  return (
+    <div
+      onClick={onOpen}
+      className="group relative flex cursor-pointer flex-col gap-3 rounded-[var(--r-button)] border border-border bg-card p-4 transition-colors hover:border-primary/40"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">{displayName}</p>
+          {c.entity_type && (
+            <p className="text-[11px] text-muted-foreground">{c.entity_type === "organisation" ? "Company" : "Individual"}</p>
+          )}
+        </div>
+        {c.is_active ? (
+          <Badge variant="secondary" className="shrink-0 text-[10px] bg-green-500/10 text-green-600 dark:text-green-400">Active</Badge>
+        ) : (
+          <Badge variant="secondary" className="shrink-0 text-[10px] bg-surface-elevated">Inactive</Badge>
+        )}
+      </div>
+
+      {specs.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {specs.map((s) => (
+            <Badge key={s} variant="secondary" className="text-[10px] bg-brand/8 text-brand">{s}</Badge>
+          ))}
+          {extra > 0 && <Badge variant="secondary" className="text-[10px] bg-surface-elevated text-muted-foreground">+{extra} more</Badge>}
+        </div>
+      )}
+
+      <div className="space-y-0.5 text-xs text-muted-foreground">
+        {c.phone && <p className="truncate">{c.phone}</p>}
+        {c.email && <p className="truncate">{c.email}</p>}
+        {!c.phone && !c.email && <p className="text-muted-foreground/40">No contact details</p>}
+      </div>
+
+      <div
+        className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <EditButton label="Edit supplier" onClick={onEdit} />
+        {isAdmin && (
+          <DeleteButton
+            icon={Archive}
+            label="Archive supplier"
+            title={`Archive ${c.company_name ?? "this supplier"}?`}
+            itemName={c.company_name ?? "this supplier"}
+            description="They leave your active list, but historical work orders and invoices are kept. Active obligations block removal."
+            confirmLabel="Archive"
+            loading={isDeleting}
+            onConfirm={onArchive}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
+export function SuppliersClient({
+  contractors: initial, orgId, noun = { singular: "contractor", plural: "contractors" },
+}: Readonly<Props>) {
   const router = useRouter()
   const queryClient = useQueryClient()
   const [search, setSearch] = useState("")
-  const [activeFilter, setActiveFilter] = useState<string | null>(null)
+  const [categories, setCategories] = useState<string[]>([])
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [editId, setEditId] = useState<string | null>(null)
+  const [view, setView] = useState<"list" | "cards">("list")
   const { sortKey, sortDir, onSort } = useListSort<SortKey>("company")
 
   const { isAdmin } = usePermissions()
 
-  const [showArchived, setShowArchived] = useState(false)
+  const [status, setStatus] = useState<"active" | "archived">("active")
   const [archived, setArchived] = useState<ArchivedSupplier[]>([])
   const [loadingArchived, setLoadingArchived] = useState(false)
+  const [archivedLoaded, setArchivedLoaded] = useState(false)
   const [reactivatingId, setReactivatingId] = useState<string | null>(null)
 
-  async function toggleArchived() {
-    if (showArchived) { setShowArchived(false); return }
-    setLoadingArchived(true)
-    setArchived(await fetchArchivedSuppliers())
-    setLoadingArchived(false)
-    setShowArchived(true)
+  async function changeStatus(v: string) {
+    const next = v === "archived" ? "archived" : "active"
+    setStatus(next)
+    if (next === "archived" && !archivedLoaded && !loadingArchived) {
+      setLoadingArchived(true)
+      setArchived(await fetchArchivedSuppliers())
+      setArchivedLoaded(true)
+      setLoadingArchived(false)
+    }
   }
 
   async function handleReactivate(s: ArchivedSupplier) {
@@ -92,7 +171,7 @@ export function SuppliersClient({ contractors: initial, orgId }: Readonly<Props>
       const matchSearch = !search || name.includes(search.toLowerCase()) ||
         c.email?.toLowerCase().includes(search.toLowerCase()) ||
         c.phone?.includes(search)
-      const matchFilter = !activeFilter || (c.specialities ?? []).includes(activeFilter)
+      const matchFilter = categories.length === 0 || (c.specialities ?? []).some((s) => categories.includes(s))
       return matchSearch && matchFilter
     })
     .sort((a, b) => {
@@ -140,45 +219,86 @@ export function SuppliersClient({ contractors: initial, orgId }: Readonly<Props>
     }
   }
 
+  const word = (n: number) => (n === 1 ? noun.singular : noun.plural)
+  let countLabel: string
+  if (status === "archived") {
+    countLabel = `${archived.length} archived ${word(archived.length)}`
+  } else {
+    const catWord = categories.length === 1 ? "category" : "categories"
+    const filterNote = categories.length > 0 ? ` · ${categories.length} ${catWord}` : ""
+    countLabel = `${filtered.length} of ${initial.length} ${word(initial.length)}${filterNote}`
+  }
+
   return (
     <div className="space-y-4">
-      {/* Search + filter */}
-      <div className="flex flex-col gap-3">
-        <ListSearchBar value={search} onChange={setSearch} placeholder="Search by name, email or phone…" />
+      {/* Joint toolbar: list/grid · specialities dropdown · search */}
+      <ListToolbar
+        search={search}
+        onSearch={setSearch}
+        placeholder="Search by name, email or phone…"
+        view={view}
+        onView={setView}
+        filters={
+          <>
+            <ToolbarFilter
+              label="Status"
+              selected={[status]}
+              onChange={(next) => changeStatus(next[0] ?? "active")}
+              options={[{ value: "active", label: "Active" }, { value: "archived", label: "Archived" }]}
+            />
+            {status === "active" && allSpecialities.length > 0 && (
+              <ToolbarFilter
+                label="Categories"
+                multiple
+                selected={categories}
+                onChange={setCategories}
+                options={allSpecialities.map((s) => ({ value: s, label: s }))}
+              />
+            )}
+          </>
+        }
+      />
 
-        {allSpecialities.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {allSpecialities.map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setActiveFilter(activeFilter === s ? null : s)}
-                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                  activeFilter === s
-                    ? "border-brand bg-brand/10 text-brand font-medium"
-                    : "border-border text-muted-foreground hover:border-brand/50"
-                }`}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      <p className="text-xs text-muted-foreground">{countLabel}</p>
 
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-muted-foreground">
-          {filtered.length} of {initial.length} contractor{initial.length === 1 ? "" : "s"}
-          {activeFilter && ` · filtered by "${activeFilter}"`}
-        </p>
-        <button type="button" onClick={toggleArchived} className="text-xs text-muted-foreground transition-colors hover:text-foreground hover:underline">
-          {showArchived ? "Hide archived" : "Show archived"}
-        </button>
-      </div>
+      {status === "archived" && (
+        <>
+          {loadingArchived && <p className="text-sm text-muted-foreground py-8 text-center">Loading…</p>}
+          {!loadingArchived && archived.length === 0 && (
+            <p className="text-sm text-muted-foreground py-8 text-center">No archived {noun.plural}.</p>
+          )}
+          {!loadingArchived && archived.length > 0 && (
+            <ListCard>
+              <div className="divide-y divide-border/50">
+                {archived.map((s) => (
+                  <div key={s.id} className="flex items-center justify-between px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{s.name}</p>
+                      <p className="text-xs text-muted-foreground">Archived</p>
+                    </div>
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => handleReactivate(s)}
+                        disabled={reactivatingId === s.id}
+                        className="inline-flex items-center gap-1.5 rounded-[var(--r-button)] border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
+                      >
+                        <RotateCcw className="size-3.5" /> {reactivatingId === s.id ? "Reactivating…" : "Reactivate"}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </ListCard>
+          )}
+        </>
+      )}
 
-      {filtered.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-8 text-center">No contractors match your search.</p>
-      ) : (
+      {status === "active" && filtered.length === 0 && (
+        <p className="text-sm text-muted-foreground py-8 text-center">No {noun.plural} match your search.</p>
+      )}
+
+      {status === "active" && filtered.length > 0 && view === "list" && (
         <ListCard>
           <table className="w-full text-sm">
             <thead>
@@ -294,35 +414,19 @@ export function SuppliersClient({ contractors: initial, orgId }: Readonly<Props>
         </ListCard>
       )}
 
-      {showArchived && (
-        <div className="space-y-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Archived suppliers</p>
-          {loadingArchived && <p className="text-sm text-muted-foreground">Loading…</p>}
-          {!loadingArchived && archived.length === 0 && <p className="text-sm text-muted-foreground">No archived suppliers.</p>}
-          {!loadingArchived && archived.length > 0 && (
-            <ListCard>
-              <div className="divide-y divide-border">
-                {archived.map((s) => (
-                  <div key={s.id} className="flex items-center justify-between px-4 py-2.5">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{s.name}</p>
-                      <p className="text-xs text-muted-foreground">Archived</p>
-                    </div>
-                    {isAdmin && (
-                      <button
-                        type="button"
-                        onClick={() => handleReactivate(s)}
-                        disabled={reactivatingId === s.id}
-                        className="inline-flex items-center gap-1.5 rounded-[var(--r-button)] border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
-                      >
-                        <RotateCcw className="size-3.5" /> {reactivatingId === s.id ? "Reactivating…" : "Reactivate"}
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </ListCard>
-          )}
+      {status === "active" && filtered.length > 0 && view === "cards" && (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {filtered.map((c) => (
+            <SupplierCard
+              key={c.id}
+              c={c}
+              isAdmin={isAdmin}
+              isDeleting={deletingId === c.id}
+              onOpen={() => router.push(`/suppliers/${c.id}`)}
+              onEdit={() => setEditId(c.id)}
+              onArchive={() => handleDelete(c)}
+            />
+          ))}
         </div>
       )}
 
