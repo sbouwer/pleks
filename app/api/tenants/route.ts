@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { getMembership } from "@/lib/supabase/getMembership"
 import { tenantHasInForceLease } from "@/lib/parties/archive"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 interface TenantPatchBody {
   tenantId: string; contactId: string
@@ -75,9 +76,9 @@ export async function PATCH(req: NextRequest) {
       .eq("id", body.tenantId)
       .eq("org_id", membership.org_id)
     if (restoreError) return NextResponse.json({ error: restoreError.message }, { status: 500 })
-    await service.from("audit_log").insert({
-      org_id: membership.org_id, table_name: "tenants", record_id: body.tenantId,
-      action: "RESTORE", changed_by: user.id, new_values: { deleted_at: null },
+    await recordAudit(service, {
+      orgId: membership.org_id, actorId: user.id, action: "UPDATE",
+      table: "tenants", recordId: body.tenantId, after: { action: "tenant_restored", deleted_at: null },
     })
     return NextResponse.json({ ok: true })
   }
@@ -136,9 +137,10 @@ export async function DELETE(req: NextRequest) {
     .eq("org_id", membership.org_id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  await service.from("audit_log").insert({
-    org_id: membership.org_id, table_name: "tenants", record_id: tenantId,
-    action: "ARCHIVE", changed_by: user.id, new_values: { deleted_at: new Date().toISOString() },
+  await recordAudit(service, {
+    orgId: membership.org_id, actorId: user.id, action: "DELETE",
+    table: "tenants", recordId: tenantId,
+    after: { action: "tenant_archived", deleted_at: new Date().toISOString() },
   })
 
   return NextResponse.json({ ok: true })

@@ -65,11 +65,11 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 export async function PATCH(req: NextRequest, { params }: RouteContext) {
   const ctx = await resolve(req, (await params).id)
   if ("error" in ctx) return ctx.error
-  return respond(await updateSubRecord(ctx.service, ctx.orgId, ctx.contactId, ctx.body))
+  return respond(await updateSubRecord(ctx.service, ctx.orgId, ctx.contactId, ctx.userId, ctx.body))
 }
 
 export async function DELETE(req: NextRequest, { params }: RouteContext) {
   const ctx = await resolve(req, (await params).id)
   if ("error" in ctx) return ctx.error
-  return respond(await deleteSubRecord(ctx.service, ctx.orgId, ctx.contactId, ctx.body))
+  return respond(await deleteSubRecord(ctx.service, ctx.orgId, ctx.contactId, ctx.userId, ctx.body))
 }

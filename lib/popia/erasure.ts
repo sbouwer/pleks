@@ -13,6 +13,7 @@
  *         executeErasure() runs inside a single Supabase RPC transaction.
  */
 import { createServiceClient } from "@/lib/supabase/server"
+import { recordAudit } from "@/lib/audit/recordAudit"
 import { isErasableNow, type DataCategory } from "./retention"
 import type { DataSubjectRequest } from "./requests"
 import { logQueryError } from "@/lib/supabase/logQueryError"
@@ -266,7 +267,7 @@ async function deleteRecordsForSubject(
 
     for (const row of rows ?? []) {
       await db.from("applications").delete().eq("id", row.id)
-      await logAudit(db, actor_user_id, "popia_erasure", "applications", row.id, requestId)
+      await logAudit(db, subject.org_id, actor_user_id, "popia_erasure", "applications", row.id, requestId)
       affected++
     }
   }
@@ -297,7 +298,7 @@ async function anonymiseRecordsForSubject(
         .from("communication_log")
         .update({ content: "[redacted — POPIA erasure]", metadata: null })
         .eq("id", row.id)
-      await logAudit(db, actor_user_id, "popia_anonymise", "communication_log", row.id, requestId)
+      await logAudit(db, subject.org_id, actor_user_id, "popia_anonymise", "communication_log", row.id, requestId)
       affected++
     }
   }
@@ -307,17 +308,23 @@ async function anonymiseRecordsForSubject(
 
 async function logAudit(
   db: DbClient,
+  orgId: string,
   userId: string,
-  eventType: string,
+  eventType: string,   // semantic descriptor: "popia_erasure" | "popia_anonymise"
   table: string,
   recordId: string,
   requestId: string,
 ): Promise<void> {
-  await db.from("audit_log").insert({
-    user_id: userId,
-    event_type: eventType,
-    table_name: table,
-    record_id: recordId,
-    values: { request_id: requestId },
+  // F0 fix (ADDENDUM_AUDIT_HARDENING): the previous body wrote phantom columns
+  // (user_id/event_type/values + no org_id) → silent 42703 → POPIA erasure trail recorded NOTHING.
+  // Route through the canonical writer with the real columns. Erasure = DELETE, anonymise = UPDATE;
+  // the semantic descriptor lives in new_values.action.
+  await recordAudit(db, {
+    orgId,
+    actorId: userId,
+    action: eventType === "popia_anonymise" ? "UPDATE" : "DELETE",
+    table,
+    recordId,
+    after: { action: eventType, request_id: requestId },
   })
 }

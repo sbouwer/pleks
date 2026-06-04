@@ -88,25 +88,25 @@ function updateAddress(service: Service, contactId: string, id: string, b: SubRe
   }).eq("id", id).eq("contact_id", contactId)
 }
 
-export async function updateSubRecord(service: Service, orgId: string, contactId: string, b: SubRecordBody): Promise<SubRecordResult> {
+export async function updateSubRecord(service: Service, orgId: string, contactId: string, userId: string, b: SubRecordBody): Promise<SubRecordResult> {
   if (!b.id) return fail("Missing id", 400)
   switch (b.type) {
     case "phone": return wrap(await updatePhone(service, contactId, b.id, b))
     case "email": return wrap(await updateEmail(service, contactId, b.id, b))
     case "address": return wrap(await updateAddress(service, contactId, b.id, b))
-    case "bank_account": return wrap(await editBankAccount(service, orgId, contactId, b.id, b))
+    case "bank_account": return wrap(await editBankAccount(service, orgId, contactId, b.id, userId, b))
     default: return fail("Invalid type", 400)
   }
 }
 
 // ── Delete ──────────────────────────────────────────────────────────────────
-export async function deleteSubRecord(service: Service, orgId: string, contactId: string, b: SubRecordBody): Promise<SubRecordResult> {
+export async function deleteSubRecord(service: Service, orgId: string, contactId: string, userId: string, b: SubRecordBody): Promise<SubRecordResult> {
   if (!b.id) return fail("Missing id", 400)
   switch (b.type) {
     case "phone": return wrap(await service.from("contact_phones").delete().eq("id", b.id).eq("contact_id", contactId))
     case "email": return wrap(await service.from("contact_emails").delete().eq("id", b.id).eq("contact_id", contactId))
     case "address": return wrap(await service.from("contact_addresses").delete().eq("id", b.id).eq("contact_id", contactId))
-    case "bank_account": return wrap(await removeBankAccount(service, orgId, contactId, b.id))
+    case "bank_account": return wrap(await removeBankAccount(service, orgId, contactId, b.id, userId))
     default: return fail("Invalid type", 400)
   }
 }
