@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { randomBytes } from "crypto"
 import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 function getServiceClient() {
   return createClient(
@@ -26,12 +27,13 @@ export async function POST(req: NextRequest) {
   const service = getServiceClient()
 
   // Validate slug → find listing
-  const { data: listing } = await service
+  const { data: listing, error: listingError } = await service
     .from("listings")
     .select("id, org_id, unit_id, property_id, asking_rent_cents")
     .eq("public_slug", body.slug)
     .eq("status", "active")
     .maybeSingle()
+    logQueryError("POST listings", listingError)
 
   if (!listing) {
     return NextResponse.json({ error: "Listing not found or no longer active" }, { status: 404 })

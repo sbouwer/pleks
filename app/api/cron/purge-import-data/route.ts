@@ -9,6 +9,7 @@
  */
 import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // Purge expired import extra data (POPIA compliance)
 export async function GET(req: NextRequest) {
@@ -18,11 +19,12 @@ export async function GET(req: NextRequest) {
 
   const supabase = await createServiceClient()
 
-  const { data: expired } = await supabase
+  const { data: expired, error: expiredError } = await supabase
     .from("import_sessions")
     .select("id, org_id")
     .not("extra_data", "is", null)
     .lt("extra_data_expires_at", new Date().toISOString())
+    logQueryError("GET import_sessions", expiredError)
 
   let purged = 0
   for (const session of expired ?? []) {

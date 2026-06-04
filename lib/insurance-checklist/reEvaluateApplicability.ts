@@ -8,6 +8,7 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface ApplicabilityContext {
   scenarioType: string | null
@@ -45,10 +46,11 @@ export async function reEvaluateChecklistApplicability(propertyId: string): Prom
     return { added: [], removed: [] }
   }
 
-  const { data: units } = await db
+  const { data: units, error: unitsError } = await db
     .from("units")
     .select("furnishing_status")
     .eq("property_id", propertyId)
+    logQueryError("reEvaluateChecklistApplicability units", unitsError)
 
   const hasFurnishedUnits = (units ?? []).some(
     (u) => u.furnishing_status === "semi_furnished" || u.furnishing_status === "furnished"

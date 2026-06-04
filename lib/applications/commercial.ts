@@ -13,6 +13,7 @@
 
 import { createServiceClient } from "@/lib/supabase/server"
 import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const DIRECTOR_TOKEN_TTL_DAYS = 14
 
@@ -266,13 +267,14 @@ export async function replaceDirector(
   }
 
   // Flag any existing payment for manual refund (14C will surface this to agent)
-  const { data: existingPayment } = await service
+  const { data: existingPayment, error: existingPaymentError } = await service
     .from("application_screening_payments")
     .select("id, fee_cents, paid_at")
     .eq("application_id", applicationId)
     .eq("subject_type", "co_applicant")
     .eq("subject_id", oldCoApplicantId)
     .maybeSingle()
+    logQueryError("replaceDirector application_screening_payments", existingPaymentError)
 
   if (existingPayment?.paid_at) {
     const { error: refundFlagErr } = await service

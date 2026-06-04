@@ -13,6 +13,7 @@ import { hasFeature } from "@/lib/tier/gates"
 import { getOrgTier } from "@/lib/tier/getOrgTier"
 import { createServiceClient } from "@/lib/supabase/server"
 import { sendWhatsAppMessage } from "@/lib/messaging/whatsapp/provider"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export interface WhatsAppTemplate {
   name:          string     // pre-approved Meta template name, e.g. "inspection_reminder_v1"
@@ -50,7 +51,7 @@ export async function sendWhatsApp(
   const tier = await getOrgTier(orgId)
   if (!hasFeature(tier, "whatsapp_notifications")) {
     const service = await createServiceClient()
-    const { data: log } = await service.from("communication_log").insert({
+    const { data: log, error: logError } = await service.from("communication_log").insert({
       org_id:       orgId,
       channel:      "whatsapp",
       direction:    "outbound",
@@ -60,6 +61,7 @@ export async function sendWhatsApp(
       sent_to_phone: to,
       template_key: audit?.templateKey ?? null,
     }).select("id").single()
+    logQueryError("sendWhatsApp communication_log", logError)
     return { sent: false, skipped: true, reason: "WhatsApp not available on Owner tier", logId: log?.id ?? undefined }
   }
 
@@ -92,19 +94,21 @@ export async function sendWhatsApp(
   })
 
   if (sendResult.error) {
-    const { data: log } = await service.from("communication_log").insert({
+    const { data: log, error: logError2 } = await service.from("communication_log").insert({
       ...sharedLogFields,
       status:        "failed",
       failed_reason: sendResult.error,
     }).select("id").single()
+    logQueryError("sendWhatsApp communication_log", logError2)
     return { sent: false, reason: sendResult.error, logId: log?.id ?? undefined }
   }
 
-  const { data: log } = await service.from("communication_log").insert({
+  const { data: log, error: logError3 } = await service.from("communication_log").insert({
     ...sharedLogFields,
     status:      "sent",
     external_id: sendResult.messageId ?? null,
   }).select("id").single()
+    logQueryError("sendWhatsApp communication_log", logError3)
 
   return { sent: true, logId: log?.id ?? undefined }
 }

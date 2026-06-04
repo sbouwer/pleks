@@ -7,6 +7,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -30,13 +31,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     request.subject_user_id === user.id ||
     request.subject_email?.toLowerCase() === user.email?.toLowerCase()
 
-  const { data: orgMembership } = await (await db)
+  const { data: orgMembership, error: orgMembershipError } = await (await db)
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .eq("org_id", request.org_id)
     .is("deleted_at", null)
     .single()
+    logQueryError("GET user_orgs", orgMembershipError)
 
   const isOrgMember = !!orgMembership
 

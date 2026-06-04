@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { getServerOrgMembership } from "@/lib/auth/server"
 import { getServerUser } from "@/lib/auth/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // GET /api/user/preferences
 // Returns { preferences, tier }
@@ -22,13 +23,14 @@ export async function GET() {
   if (!user || !membership) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const supabase = await createClient()
-  const { data } = await supabase
+  const { data, error: queryError } = await supabase
     .from("user_orgs")
     .select("preferences")
     .eq("user_id", user.id)
     .eq("org_id", membership.org_id)
     .is("deleted_at", null)
     .single()
+    logQueryError("GET user_orgs", queryError)
 
   return NextResponse.json({
     preferences: (data?.preferences as Record<string, unknown>) ?? {},
@@ -52,13 +54,14 @@ export async function PATCH(req: NextRequest) {
   const supabase = await createClient()
 
   // Read current preferences, merge single key
-  const { data: current } = await supabase
+  const { data: current, error: currentError } = await supabase
     .from("user_orgs")
     .select("preferences")
     .eq("user_id", user.id)
     .eq("org_id", membership.org_id)
     .is("deleted_at", null)
     .single()
+    logQueryError("PATCH user_orgs", currentError)
 
   const merged = { ...((current?.preferences as Record<string, unknown>) ?? {}), [key]: value }
 

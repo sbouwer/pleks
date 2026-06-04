@@ -16,6 +16,7 @@ import { safeRedirect } from "@/lib/auth/safe-redirect"
 import { createServiceClient } from "@/lib/supabase/server"
 import { verifyPasskeyAal, jwtIdentity, PASSKEY_AAL_COOKIE } from "@/lib/auth/passkey-aal"
 import { passkeyAalRevoked } from "@/lib/auth/passkey-aal-db"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // ── Minimal Supabase interface — only what the resolver needs ─────────────────
 interface ResolverSupabase {
@@ -167,11 +168,12 @@ export async function collectResolverFacts(
   // membership resolves — welcome branch only fires when membership exists, but
   // reading here avoids a second createServiceClient() call later for consent.
   const service = await createServiceClient()
-  const { data: profile } = await service
+  const { data: profile, error: profileError } = await service
     .from("user_profiles")
     .select("onboarding_state, welcome_seen")
     .eq("id", user.id)
     .maybeSingle()
+    logQueryError("collectResolverFacts user_profiles", profileError)
   const welcomeSeen = profile?.welcome_seen ?? false  // default false → show Welcome rather than skip
 
   // ── Membership (canonical DB) ─────────────────────────────────────────────
@@ -242,12 +244,13 @@ export async function collectResolverFacts(
   const hasVerifiedFactor = totpVerified || passkeyExists
 
   // ── Consent — has user ever accepted any ToS version? ─────────────────────
-  const { data: anyAcceptance } = await service
+  const { data: anyAcceptance, error: anyAcceptanceError } = await service
     .from("tos_acceptances")
     .select("id")
     .eq("user_id", user.id)
     .limit(1)
     .maybeSingle()
+    logQueryError("collectResolverFacts tos_acceptances", anyAcceptanceError)
   const everAccepted = !!anyAcceptance
 
   return {

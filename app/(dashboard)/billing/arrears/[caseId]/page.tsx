@@ -15,6 +15,7 @@ import { formatZAR } from "@/lib/constants"
 import { ArrearsActions } from "./ArrearsActions"
 import { InterestSection } from "./InterestSection"
 import { BackLink } from "@/components/ui/BackLink"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 function getArrearsBadgeStatus(status: string) {
   if (status === "open") return "arrears"
@@ -32,34 +33,38 @@ export default async function ArrearsDetailPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  const { data: arrearsCase } = await supabase
+  const { data: arrearsCase, error: arrearsCaseError } = await supabase
     .from("arrears_cases")
     .select("*, tenant_view(first_name, last_name, company_name, entity_type, email, phone), units(unit_number, properties(name))")
     .eq("id", caseId)
     .single()
+    logQueryError("ArrearsDetailPage arrears_cases", arrearsCaseError)
 
   if (!arrearsCase) notFound()
 
-  const { data: actions } = await supabase
+  const { data: actions, error: actionsError } = await supabase
     .from("arrears_actions")
     .select("*")
     .eq("case_id", caseId)
     .order("created_at", { ascending: false })
+    logQueryError("ArrearsDetailPage arrears_actions", actionsError)
 
   // Fetch lease interest settings and current prime rate
-  const { data: leaseData } = await supabase
+  const { data: leaseData, error: leaseDataError } = await supabase
     .from("leases")
     .select("arrears_interest_enabled, arrears_interest_margin_percent")
     .eq("id", arrearsCase.lease_id)
     .single()
+    logQueryError("ArrearsDetailPage leases", leaseDataError)
 
   const serviceSupabase = await createServiceClient()
-  const { data: primeRate } = await serviceSupabase
+  const { data: primeRate, error: primeRateError } = await serviceSupabase
     .from("prime_rates")
     .select("rate_percent")
     .order("effective_date", { ascending: false })
     .limit(1)
     .single()
+    logQueryError("ArrearsDetailPage prime_rates", primeRateError)
 
   const tenant = arrearsCase.tenant_view as unknown as { first_name: string; last_name: string; company_name: string; entity_type: string; email: string; phone: string } | null
   const unit = arrearsCase.units as unknown as { unit_number: string; properties: { name: string } } | null

@@ -8,6 +8,7 @@
  *         use the bank feed feature).
  */
 import type { OrgRule } from "../types"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const DRIFT_THRESHOLD_MS = 14 * 86_400_000
 
@@ -52,13 +53,14 @@ export const trustReconciliationDriftRule: OrgRule = {
   },
 
   async action({ supabase, org, now }) {
-    const { data: latest } = await supabase
+    const { data: latest, error: latestError } = await supabase
       .from("bank_statement_imports")
       .select("created_at, reconciled_at, reconciled, balance_discrepancy_cents")
       .eq("org_id", org.id)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle()
+    logQueryError("action bank_statement_imports", latestError)
 
     const lastActivity = latest?.reconciled_at ?? latest?.created_at ?? null
     const daysSince = lastActivity

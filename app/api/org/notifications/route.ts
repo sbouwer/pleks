@@ -9,6 +9,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const DEFAULT_SETTINGS = {
   email_from_name: null as string | null,
@@ -31,12 +32,13 @@ async function getOrgId(supabase: Awaited<ReturnType<typeof createClient>>) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  const { data } = await supabase
+  const { data, error: queryError } = await supabase
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
+    logQueryError("getOrgId user_orgs", queryError)
 
   return data?.org_id ?? null
 }
@@ -47,11 +49,12 @@ export async function GET() {
   const orgId = await getOrgId(supabase)
   if (!orgId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { data: org } = await supabase
+  const { data: org, error: orgError } = await supabase
     .from("organisations")
     .select("notification_settings")
     .eq("id", orgId)
     .single()
+    logQueryError("GET organisations", orgError)
 
   const settings = { ...DEFAULT_SETTINGS, ...(org?.notification_settings as Partial<NotificationSettings> ?? {}) }
   return NextResponse.json(settings)
@@ -66,11 +69,12 @@ export async function PATCH(req: NextRequest) {
   const body = await req.json() as Partial<NotificationSettings>
 
   // Fetch current settings and merge
-  const { data: org } = await supabase
+  const { data: org, error: orgError } = await supabase
     .from("organisations")
     .select("notification_settings")
     .eq("id", orgId)
     .single()
+    logQueryError("PATCH organisations", orgError)
 
   const current = { ...DEFAULT_SETTINGS, ...(org?.notification_settings as Partial<NotificationSettings> ?? {}) }
   const updated = { ...current, ...body }

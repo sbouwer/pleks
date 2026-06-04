@@ -19,6 +19,7 @@ import { ActionButton, InlineLink } from "@/components/ui/actions"
 import { closeTrustPeriod, type OutstandingItem } from "@/lib/trust/close"
 import { AlertTriangle, CheckCircle2, Plus, X } from "lucide-react"
 import { SovereignBadge, type SovereignBadgeProps } from "@/components/trust/SovereignBadge"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const ITEM_TYPES: { value: OutstandingItem["item_type"]; label: string }[] = [
   { value: "deposit_in_transit", label: "Deposit in transit" },
@@ -58,7 +59,8 @@ async function fetchBadgeProps(
   ba: { bank_name: string; account_number: string | null } | null,
 ): Promise<Extract<SovereignBadgeProps, { variant: "agent" }> | null> {
   if (!ba) return null
-  const { data: org } = await db.from("organisations").select("name, trading_as, ppra_ffc_number").eq("id", orgId).single()
+  const { data: org, error: orgError } = await db.from("organisations").select("name, trading_as, ppra_ffc_number").eq("id", orgId).single()
+    logQueryError("fetchBadgeProps organisations", orgError)
   if (!org) return null
   return {
     variant: "agent",
@@ -112,11 +114,12 @@ function TrustCloseContent() {
     setSession(sess)
 
     // Fetch bank account info separately to avoid join type complexity
-    const { data: ba } = await db
+    const { data: ba, error: baError } = await db
       .from("bank_accounts")
       .select("bank_name, account_number")
       .eq("id", sess.bank_account_id)
       .single()
+    logQueryError("load bank_accounts", baError)
     const baTyped = ba ? { bank_name: ba.bank_name as string, account_number: ba.account_number as string | null } : null
     if (baTyped) setBankAcct(baTyped)
     const badge = await fetchBadgeProps(db, orgId, baTyped)

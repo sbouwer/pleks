@@ -9,6 +9,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -28,13 +29,14 @@ export async function POST(req: NextRequest) {
   }
 
   // Verify user belongs to this org
-  const { data: membership } = await supabase
+  const { data: membership, error: membershipError } = await supabase
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .eq("org_id", orgId)
     .is("deleted_at", null)
     .single()
+    logQueryError("POST user_orgs", membershipError)
 
   if (!membership) {
     return NextResponse.json({ error: "Not a member of this organisation" }, { status: 403 })

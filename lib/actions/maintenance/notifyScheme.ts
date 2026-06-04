@@ -16,6 +16,7 @@ import {
   CriticalIncidentSchemeEmail,
   type CriticalIncidentSchemeProps,
 } from "@/lib/comms/templates/maintenance/critical-incident-scheme"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface NotifySchemeParams {
   orgId: string
@@ -37,30 +38,33 @@ export async function notifyScheme(params: NotifySchemeParams): Promise<{ skippe
   const db = await createServiceClient()
 
   // Fetch the managing scheme for this property
-  const { data: property } = await db
+  const { data: property, error: propertyError } = await db
     .from("properties")
     .select("managing_scheme_id")
     .eq("id", params.propertyId)
     .single()
+    logQueryError("notifyScheme properties", propertyError)
 
   if (!property?.managing_scheme_id) return { skipped: "no_managing_scheme" }
 
-  const { data: scheme } = await db
+  const { data: scheme, error: schemeError } = await db
     .from("managing_schemes")
     .select("id, name, managing_agent_contact_id, emergency_contact_id")
     .eq("id", property.managing_scheme_id)
     .single()
+    logQueryError("notifyScheme managing_schemes", schemeError)
 
   if (!scheme) return { skipped: "scheme_not_found" }
 
   const contactId = scheme.managing_agent_contact_id ?? scheme.emergency_contact_id
   if (!contactId) return { skipped: "no_scheme_contact" }
 
-  const { data: contact } = await db
+  const { data: contact, error: contactError } = await db
     .from("contacts")
     .select("id, first_name, last_name, email")
     .eq("id", contactId)
     .single()
+    logQueryError("notifyScheme contacts", contactError)
 
   if (!contact?.email) return { skipped: "no_scheme_email" }
 

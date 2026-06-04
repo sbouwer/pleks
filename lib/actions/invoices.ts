@@ -13,6 +13,7 @@
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { revalidatePath } from "next/cache"
 import { calculateVAT } from "@/lib/finance/vatCalculation"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function createSupplierInvoice(formData: FormData) {
   const gw = await requireAgentWriteAccess("accept_quote")
@@ -90,11 +91,12 @@ export async function markInvoicePaid(invoiceId: string, reference?: string) {
   const gw = await requireAgentWriteAccess("accept_quote")
   const { db, userId } = gw
 
-  const { data: invoice } = await db
+  const { data: invoice, error: invoiceError } = await db
     .from("supplier_invoices")
     .select("org_id, payment_source")
     .eq("id", invoiceId)
     .single()
+    logQueryError("markInvoicePaid supplier_invoices", invoiceError)
 
   if (!invoice) return { error: "Invoice not found" }
 

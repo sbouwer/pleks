@@ -13,6 +13,7 @@
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { cache } from "react"
 import { setSentryUser } from "@/lib/observability/user-context"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export interface SupplierSession {
   /** auth.users.id — suppliers are real auth users; use for own-row scoping (auth_user_id). */
@@ -28,7 +29,7 @@ export const getSupplierSession = cache(async (): Promise<SupplierSession | null
   if (!user) return null
 
   const service = await createServiceClient()
-  const { data: contractor } = await service
+  const { data: contractor, error: contractorError } = await service
     .from("contractors")
     .select("id, org_id, portal_access_enabled, deleted_at, contacts(first_name, last_name, company_name)")
     .eq("auth_user_id", user.id)
@@ -36,6 +37,7 @@ export const getSupplierSession = cache(async (): Promise<SupplierSession | null
     .is("deleted_at", null)
     .limit(1)
     .maybeSingle()
+    logQueryError("getSupplierSession contractors", contractorError)
   if (!contractor) return null
 
   const contact = contractor.contacts as unknown as

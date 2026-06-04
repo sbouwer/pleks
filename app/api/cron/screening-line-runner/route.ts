@@ -16,6 +16,7 @@ import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
 import { runStandardBundle } from "@/lib/screening/bundle-runner"
 import { runFitScoreOrchestrator } from "@/lib/screening/fitScoreOrchestrator"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const BATCH_SIZE = 50
 
@@ -85,20 +86,22 @@ async function processLine(
   // If another runner already claimed it, 0 rows are returned and we skip.
   let claimed: { id: string }[] | null = null
   if (line.subject_type === "company") {
-    const { data } = await service
+    const { data, error: queryError } = await service
       .from("applications")
       .update({ searchworx_check_status: "running" })
       .eq("id", line.application_id)
       .in("searchworx_check_status", ["pending", "not_run"])
       .select("id")
+    logQueryError("processLine applications", queryError)
     claimed = data
   } else {
-    const { data } = await service
+    const { data, error: queryError2 } = await service
       .from("application_co_applicants")
       .update({ searchworx_check_status: "running" })
       .eq("id", line.subject_id)
       .in("searchworx_check_status", ["pending", "not_run"])
       .select("id")
+    logQueryError("processLine application_co_applicants", queryError2)
     claimed = data
   }
 

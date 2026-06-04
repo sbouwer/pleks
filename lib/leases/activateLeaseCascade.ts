@@ -21,6 +21,7 @@ import { DepositReceivedEmail } from "@/lib/comms/templates/tenant/deposits/depo
 import { LeaseActivatedEmail } from "@/lib/comms/templates/tenant/leases/lease-activated"
 import { LeaseSignedEmail } from "@/lib/comms/templates/tenant/leases/lease-signed"
 import { PortalTenantInviteEmail } from "@/lib/comms/templates/tenant/portal/tenant-invite"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export interface CascadeStep {
   step: string
@@ -125,22 +126,24 @@ async function stepSendDepositReceived(
   }
   try {
     // Fetch tenant contact
-    const { data: tenant } = await supabase
+    const { data: tenant, error: tenantError } = await supabase
       .from("tenant_view")
       .select("first_name, last_name, email, phone")
       .eq("id", lease.tenant_id)
       .single()
+    logQueryError("stepSendDepositReceived tenant_view", tenantError)
 
     if (!tenant?.email) {
       return { step: "Send deposit.received comm", status: "skipped", detail: "No tenant email" }
     }
 
     // Fetch property label for email body
-    const { data: unit } = await supabase
+    const { data: unit, error: unitError } = await supabase
       .from("units")
       .select("unit_number, properties(address_line1, suburb, city)")
       .eq("id", lease.unit_id)
       .maybeSingle()
+    logQueryError("stepSendDepositReceived units", unitError)
 
     type PropRow = { address_line1: string; suburb: string | null; city: string }
     const raw = unit as unknown as { unit_number: string; properties: PropRow | PropRow[] | null } | null
@@ -199,9 +202,10 @@ async function stepGenerateFirstInvoice(
     const ratio = isProRata ? (daysInMonth - startDay + 1) / daysInMonth : 1
     const proRataRent = Math.round(lease.rent_amount_cents * ratio)
 
-    const { data: charges } = await supabase
+    const { data: charges, error: chargesError } = await supabase
       .from("lease_charges").select("amount_cents, description")
       .eq("lease_id", leaseId).eq("is_active", true)
+    logQueryError("stepGenerateFirstInvoice lease_charges", chargesError)
 
     const chargesTotal = (charges ?? []).reduce((sum: number, c: { amount_cents: number }) => sum + c.amount_cents, 0)
     const proRataCharges = Math.round(chargesTotal * ratio)
@@ -233,8 +237,9 @@ async function stepScheduleMoveIn(
   orgId: string,
 ): Promise<CascadeStep> {
   try {
-    const { data: existing } = await supabase
+    const { data: existing, error: existingError } = await supabase
       .from("inspections").select("id").eq("lease_id", leaseId).eq("inspection_type", "move_in").limit(1)
+    logQueryError("stepScheduleMoveIn inspections", existingError)
 
     if (existing?.length) return { step: "Move-in inspection", status: "skipped", detail: "Already scheduled" }
 
@@ -366,11 +371,12 @@ async function stepSendPortalInvite(
 ): Promise<CascadeStep> {
   try {
     // Check idempotency guard on tenants table (tenant_view doesn't expose portal_invite_sent_at)
-    const { data: tenantRecord } = await supabase
+    const { data: tenantRecord, error: tenantRecordError } = await supabase
       .from("tenants")
       .select("portal_invite_sent_at")
       .eq("id", lease.tenant_id)
       .single()
+    logQueryError("stepSendPortalInvite tenants", tenantRecordError)
 
     if (tenantRecord?.portal_invite_sent_at) {
       return { step: "Portal auto-invite (P1)", status: "skipped", detail: "Already invited" }

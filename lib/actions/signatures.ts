@@ -10,6 +10,7 @@ import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { gateway } from "@/lib/supabase/gateway"
 import { createServiceClient } from "@/lib/supabase/server"
 import { randomUUID } from "node:crypto"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function saveSignatureDataUrl(
   dataUrl: string,
@@ -169,12 +170,13 @@ export async function checkTokenConsumed(token: string): Promise<{ consumed: boo
   if (!gw) return { consumed: false }
   const { db, userId } = gw
 
-  const { data } = await db
+  const { data, error: queryError } = await db
     .from("signature_sign_tokens")
     .select("consumed_at")
     .eq("token", token)
     .eq("user_id", userId)
     .single()
+    logQueryError("checkTokenConsumed signature_sign_tokens", queryError)
 
   return { consumed: !!data?.consumed_at }
 }

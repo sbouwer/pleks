@@ -11,18 +11,20 @@ import Link from "next/link"
 import { InlineLink } from "@/components/ui/actions"
 import { formatZAR } from "@/lib/constants"
 import { AlertTriangle, ChevronRight, CheckCircle2, Clock } from "lucide-react"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function LandlordDashboardPage() {
   const session = await getLandlordSession()
   const service = await createServiceClient()
 
   // Properties owned by this landlord
-  const { data: properties } = await service
+  const { data: properties, error: propertiesError } = await service
     .from("properties")
     .select("id, name, unit_count")
     .eq("landlord_id", session.landlordId)
     .is("deleted_at", null)
     .order("name")
+    logQueryError("LandlordDashboardPage properties", propertiesError)
 
   const propertyIds = (properties ?? []).map((p) => p.id)
 

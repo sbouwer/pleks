@@ -8,6 +8,7 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 import { getCachedServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export interface ExpiringLease {
   id: string
@@ -28,7 +29,7 @@ export async function getExpiringLeases(orgId: string): Promise<ExpiringLease[]>
   const twelveMonthsOut = new Date(now)
   twelveMonthsOut.setMonth(twelveMonthsOut.getMonth() + 12)
 
-  const { data: leases } = await supabase
+  const { data: leases, error: leasesError } = await supabase
     .from("leases")
     .select(`
       id, start_date, end_date, status, cpa_applies, auto_renewal_notice_sent_at,
@@ -41,6 +42,7 @@ export async function getExpiringLeases(orgId: string): Promise<ExpiringLease[]>
     .lte("end_date", twelveMonthsOut.toISOString())
     .order("end_date", { ascending: true })
     .limit(8)
+    logQueryError("getExpiringLeases leases", leasesError)
 
   const sixtyDaysOut = new Date(now)
   sixtyDaysOut.setDate(now.getDate() + 60)

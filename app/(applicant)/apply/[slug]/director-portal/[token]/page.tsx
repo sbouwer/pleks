@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { CheckCircle2, Clock, Circle } from "lucide-react"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface DirectorPortalData {
   firstName: string | null
@@ -64,11 +65,12 @@ export default async function DirectorPortalPage({
   }
 
   // Fetch application + listing context
-  const { data: app } = await service
+  const { data: app, error: appError } = await service
     .from("applications")
     .select("listings(public_slug, units(unit_number, properties(name)))")
     .eq("id", coApp.primary_application_id)
     .single()
+    logQueryError("DirectorPortalPage applications", appError)
 
   const listing = app?.listings as unknown as {
     public_slug: string
@@ -80,13 +82,14 @@ export default async function DirectorPortalPage({
     : "the property"
 
   // Check payment status
-  const { data: payment } = await service
+  const { data: payment, error: paymentError } = await service
     .from("application_screening_payments")
     .select("paid_at")
     .eq("application_id", coApp.primary_application_id)
     .eq("subject_type", "co_applicant")
     .eq("subject_id", coApp.id)
     .maybeSingle()
+    logQueryError("DirectorPortalPage application_screening_payments", paymentError)
 
   const data: DirectorPortalData = {
     firstName:      coApp.first_name,

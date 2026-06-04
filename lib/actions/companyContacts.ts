@@ -12,6 +12,7 @@
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { hashIdNumber } from "@/lib/crypto/idNumber"
 import { validateSAId } from "@/lib/parties/partyValidation"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export interface AddCompanyPersonInput {
   companyContactId: string
@@ -46,8 +47,9 @@ export async function addCompanyPerson(input: AddCompanyPersonInput): Promise<{ 
     const idErr = signatoryIdError(input)
     if (idErr) return { ok: false, error: idErr }
 
-    const { data: company } = await db
+    const { data: company, error: companyError } = await db
       .from("contacts").select("id, entity_type").eq("id", input.companyContactId).eq("org_id", orgId).single()
+    logQueryError("addCompanyPerson contacts", companyError)
     if (!company) return { ok: false, error: "Company not found." }
     if (company.entity_type !== "organisation") return { ok: false, error: "Only a company contact can have people." }
 
@@ -88,19 +90,21 @@ export async function removeCompanyPerson(input: { personId: string }): Promise<
   try {
     const { db, orgId } = await requireAgentWriteAccess("remove_company_person")
 
-    const { data: person } = await db
+    const { data: person, error: personError } = await db
       .from("contacts").select("id, organisation_contact_id, is_primary_contact")
       .eq("id", input.personId).eq("org_id", orgId).eq("primary_role", "company_contact").single()
+    logQueryError("removeCompanyPerson contacts", personError)
     if (!person?.organisation_contact_id) return { ok: false, error: "Person not found." }
 
     await db.from("contacts").update({ deleted_at: new Date().toISOString() }).eq("id", input.personId).eq("org_id", orgId)
 
     // Removing the primary → promote another remaining person so exactly one primary survives.
     if (person.is_primary_contact) {
-      const { data: remaining } = await db
+      const { data: remaining, error: remainingError } = await db
         .from("contacts").select("id")
         .eq("organisation_contact_id", person.organisation_contact_id).eq("org_id", orgId)
         .is("deleted_at", null).limit(1)
+        logQueryError("removeCompanyPerson contacts", remainingError)
       if (remaining?.[0]) {
         await db.from("contacts").update({ is_primary_contact: true }).eq("id", remaining[0].id).eq("org_id", orgId)
       }

@@ -15,6 +15,7 @@ import { NextResponse } from "next/server"
 import * as Sentry from "@sentry/nextjs"
 import { validatePayFastITN } from "@/lib/payfast/validate"
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(req: Request) {
   const rawBody = await req.text()
@@ -47,11 +48,12 @@ export async function POST(req: Request) {
     const now     = new Date().toISOString()
 
     // Idempotency — if pull is already past 'pending', PayFast is retrying a delivered ITN
-    const { data: pull } = await service
+    const { data: pull, error: pullError } = await service
       .from("property_intelligence_pulls")
       .select("id, status, retail_cents")
       .eq("id", pullId)
       .single()
+    logQueryError("POST property_intelligence_pulls", pullError)
 
     if (!pull) {
       return NextResponse.json({ error: "Pull not found" }, { status: 404 })
@@ -61,7 +63,7 @@ export async function POST(req: Request) {
     }
 
     // Record payment
-    const { data: payment } = await service
+    const { data: payment, error: paymentError } = await service
       .from("payments")
       .insert({
         org_id:                orgId,
@@ -74,6 +76,7 @@ export async function POST(req: Request) {
       })
       .select("id")
       .single()
+    logQueryError("POST payments", paymentError)
 
     // Advance pull to 'running' and link payment
     await service

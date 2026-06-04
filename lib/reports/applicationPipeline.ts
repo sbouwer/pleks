@@ -10,6 +10,7 @@
 import { toDateStr } from "./periods"
 import { createServiceClient } from "@/lib/supabase/server"
 import type { ApplicationPipelineData, ReportFilters } from "./types"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function buildApplicationPipeline(filters: ReportFilters): Promise<ApplicationPipelineData> {
   const supabase = await createServiceClient()
@@ -19,7 +20,7 @@ export async function buildApplicationPipeline(filters: ReportFilters): Promise<
   const toStr = toDateStr(to)
 
   // Get listings
-  const { data: listings } = await supabase
+  const { data: listings, error: listingsError } = await supabase
     .from("listings")
     .select(`
       id, views_count, applications_count,
@@ -27,9 +28,10 @@ export async function buildApplicationPipeline(filters: ReportFilters): Promise<
       properties(name)
     `)
     .eq("org_id", orgId)
+    logQueryError("buildApplicationPipeline listings", listingsError)
 
   // Get applications in period
-  const { data: applications } = await supabase
+  const { data: applications, error: applicationsError } = await supabase
     .from("applications")
     .select(`
       id, listing_id, stage1_status, stage2_status, fee_status,
@@ -38,6 +40,7 @@ export async function buildApplicationPipeline(filters: ReportFilters): Promise<
     .eq("org_id", orgId)
     .gte("created_at", fromStr)
     .lte("created_at", toStr)
+    logQueryError("buildApplicationPipeline applications", applicationsError)
 
   const apps = applications ?? []
   const listingData = listings ?? []

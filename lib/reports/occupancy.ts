@@ -9,6 +9,7 @@
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import type { OccupancyData, OccupancyRow, ReportFilters, VacancyDetail } from "./types"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function buildOccupancyReport(filters: ReportFilters): Promise<OccupancyData> {
   const supabase = await createServiceClient()
@@ -25,13 +26,14 @@ export async function buildOccupancyReport(filters: ReportFilters): Promise<Occu
   const propIds = properties?.map((p) => p.id) ?? []
   const propMap = new Map(properties?.map((p) => [p.id, p.name]) ?? [])
 
-  const { data: units } = await supabase
+  const { data: units, error: unitsError } = await supabase
     .from("units")
     .select("id, property_id, unit_number, status")
     .eq("org_id", orgId)
     .in("property_id", propIds)
     .is("deleted_at", null)
     .eq("is_archived", false)
+    logQueryError("buildOccupancyReport units", unitsError)
 
   const allUnits = units ?? []
 
@@ -73,13 +75,14 @@ export async function buildOccupancyReport(filters: ReportFilters): Promise<Occu
   const now = new Date()
 
   for (const unit of vacantUnits) {
-    const { data: history } = await supabase
+    const { data: history, error: historyError } = await supabase
       .from("unit_status_history")
       .select("created_at")
       .eq("unit_id", unit.id)
       .eq("to_status", "vacant")
       .order("created_at", { ascending: false })
       .limit(1)
+    logQueryError("buildOccupancyReport unit_status_history", historyError)
 
     const vacantSince = history?.[0]?.created_at ? new Date(history[0].created_at) : new Date()
     const daysVacant = Math.floor((now.getTime() - vacantSince.getTime()) / (1000 * 60 * 60 * 24))

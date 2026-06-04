@@ -8,6 +8,7 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface Photo {
   id: string
@@ -25,7 +26,8 @@ interface PhotoWithUrl extends Photo {
 }
 
 async function getSignedUrl(supabase: Awaited<ReturnType<typeof createServiceClient>>, path: string): Promise<string | null> {
-  const { data } = await supabase.storage.from("inspection-photos").createSignedUrl(path, 3600)
+  const { data, error: queryError } = await supabase.storage.from("inspection-photos").createSignedUrl(path, 3600)
+    logQueryError("getSignedUrl inspection-photos", queryError)
   return data?.signedUrl ?? null
 }
 
@@ -70,11 +72,12 @@ export async function PhotoComparison({ inspectionId, orgId }: { inspectionId: s
 
   let moveInMap = new Map<string, Photo>()
   if (moveInIds.length > 0) {
-    const { data: moveInPhotos } = await supabase
+    const { data: moveInPhotos, error: moveInPhotosError } = await supabase
       .from("inspection_photos")
       .select("id, storage_path_original, caption")
       .in("id", moveInIds)
       .eq("org_id", orgId)
+    logQueryError("PhotoComparison inspection_photos", moveInPhotosError)
 
     if (moveInPhotos) {
       moveInMap = new Map((moveInPhotos as unknown as Photo[]).map((p) => [p.id, p]))

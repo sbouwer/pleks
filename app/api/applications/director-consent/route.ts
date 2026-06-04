@@ -10,6 +10,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(req: NextRequest) {
   const { coApplicantId, token, verificationId } = await req.json() as {
@@ -51,11 +52,12 @@ export async function POST(req: NextRequest) {
   // Re-verify the SMS verification server-side if provided (ADDENDUM_14F)
   let verificationMethod = "none"
   if (verificationId) {
-    const { data: verif } = await service
+    const { data: verif, error: verifError } = await service
       .from("consent_verifications")
       .select("status, consent_type, target_phone_e164, code_verified_at")
       .eq("id", verificationId)
       .single()
+    logQueryError("POST consent_verifications", verifError)
 
     if (verif?.status !== "verified") {
       return NextResponse.json({ error: "SMS verification not confirmed" }, { status: 403 })

@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
 import { createHash } from "node:crypto"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 function sha256(input: string) {
   return createHash("sha256").update(input).digest("hex")
@@ -36,9 +37,10 @@ export async function POST(req: NextRequest) {
   // Correlation possible within a 24h window; historical tracking impossible beyond that day.
   const dailySalt = new Date().toISOString().slice(0, 10)
 
-  const { data: exists } = await supabase.rpc("check_email_exists", {
+  const { data: exists, error: existsError } = await supabase.rpc("check_email_exists", {
     p_email: email.trim(),
   })
+    logQueryError("POST rpc:check_email_exists", existsError)
 
   // Log to auth_events — POPIA-minimised: hash email + salt-hashed IP, never raw values
   await supabase.from("auth_events").insert({

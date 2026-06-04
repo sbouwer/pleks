@@ -10,6 +10,7 @@ import { redirect, notFound } from "next/navigation"
 import { InlineLink } from "@/components/ui/actions"
 import { formatZAR } from "@/lib/constants"
 import { getOwnerLedger, type OwnerLedgerEntry } from "@/lib/finance/ownerLedger"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 function BalancePill({ cents }: Readonly<{ cents: number }>) {
   return (
@@ -30,21 +31,23 @@ export default async function OwnerLedgerPage({
 
   const service = await createServiceClient()
 
-  const { data: membership } = await service
+  const { data: membership, error: membershipError } = await service
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
+    logQueryError("OwnerLedgerPage user_orgs", membershipError)
   if (!membership) redirect("/onboarding")
   const orgId = membership.org_id
 
-  const { data: landlord } = await service
+  const { data: landlord, error: landlordError } = await service
     .from("landlord_view")
     .select("id, first_name, last_name, company_name, entity_type")
     .eq("id", landlordId)
     .eq("org_id", orgId)
     .single()
+    logQueryError("OwnerLedgerPage landlord_view", landlordError)
   if (!landlord) notFound()
 
   const displayName = landlord.company_name

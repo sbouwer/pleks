@@ -19,6 +19,7 @@ import {
   buildPreMoveoutSms,
   buildPreMoveoutWhatsApp,
 } from "@/lib/comms/templates/tenant/deposits/deposit-pre-moveout"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const DAYS_BEFORE = 15
 
@@ -51,20 +52,22 @@ export async function GET(req: NextRequest) {
 
   for (const lease of leases ?? []) {
     try {
-      const { data: tenant } = await service
+      const { data: tenant, error: tenantError } = await service
         .from("tenant_view")
         .select("first_name, last_name, email, phone")
         .eq("id", lease.tenant_id)
         .single()
+        logQueryError("GET tenant_view", tenantError)
 
       if (!tenant?.email && !tenant?.phone) { skipped++; continue }
 
       // Fetch property label
-      const { data: unitRow } = await service
+      const { data: unitRow, error: unitRowError } = await service
         .from("leases")
         .select("units(unit_number, properties(address_line1, suburb, city))")
         .eq("id", lease.id)
         .maybeSingle()
+        logQueryError("GET leases", unitRowError)
 
       type PropRow = { address_line1: string; suburb: string | null; city: string }
       type UnitRow = { unit_number: string; properties: PropRow | PropRow[] | null }

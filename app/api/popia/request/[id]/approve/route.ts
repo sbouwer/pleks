@@ -15,6 +15,7 @@ import { transitionRequestStatus } from "@/lib/popia/requests"
 import { generateExport } from "@/lib/popia/export"
 import { executeErasure } from "@/lib/popia/erasure"
 import type { DataSubjectRequest } from "@/lib/popia/requests"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -39,13 +40,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   // Must be org staff
-  const { data: membership } = await (await db)
+  const { data: membership, error: membershipError } = await (await db)
     .from("user_orgs")
     .select("is_admin, role")
     .eq("user_id", user.id)
     .eq("org_id", request.org_id)
     .is("deleted_at", null)
     .single()
+    logQueryError("POST user_orgs", membershipError)
 
   if (!membership) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 

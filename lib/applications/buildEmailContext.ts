@@ -8,6 +8,7 @@
 import { createServiceClient } from "@/lib/supabase/server"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import { getOrgDisplayName } from "@/lib/org/displayName"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export interface AppEmailContext {
   appSummary: {
@@ -67,14 +68,15 @@ export async function buildEmailContext(applicationId: string): Promise<AppEmail
   // Org display fields (for getOrgDisplayName + email/phone). Branding (address + logo URL) comes
   // from the canonical fetchOrgSettings below — buildBranding reads orgSettings.address/.brand_logo_url
   // keys a raw org row doesn't have, so a raw row here would silently drop the logo + address.
-  const { data: org } = await service
+  const { data: org, error: orgError } = await service
     .from("organisations")
     .select("name, type, trading_as, first_name, last_name, title, initials, email, phone")
     .eq("id", app.org_id as string)
     .single()
+    logQueryError("buildEmailContext organisations", orgError)
 
   // Fetch agent email
-  const { data: agentRow } = await service
+  const { data: agentRow, error: agentRowError } = await service
     .from("user_orgs")
     .select("user_profiles(email)")
     .eq("org_id", app.org_id as string)
@@ -82,17 +84,19 @@ export async function buildEmailContext(applicationId: string): Promise<AppEmail
     .is("deleted_at", null)
     .limit(1)
     .maybeSingle()
+    logQueryError("buildEmailContext user_orgs", agentRowError)
 
   const agentEmail = (agentRow?.user_profiles as unknown as { email: string } | null)?.email ?? undefined
 
   // Fetch most recent access token
-  const { data: tokenRow } = await service
+  const { data: tokenRow, error: tokenRowError } = await service
     .from("application_tokens")
     .select("token")
     .eq("application_id", applicationId)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle()
+    logQueryError("buildEmailContext application_tokens", tokenRowError)
 
   const bankData = app.bank_statement_extracted as Record<string, unknown> | null
   const branding = buildBranding(await fetchOrgSettings(app.org_id as string))

@@ -12,15 +12,17 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatDateShort } from "@/lib/reports/periods"
 import { WaitlistExport } from "./WaitlistExport"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function AdminWaitlistPage() {
   await requireAdminAuth()
   const supabase = await createServiceClient()
 
-  const { data: entries, count } = await supabase
+  const { data: entries, count, error: entriesError } = await supabase
     .from("waitlist")
     .select("email, role, created_at", { count: "exact" })
     .order("created_at", { ascending: false })
+    logQueryError("AdminWaitlistPage waitlist", entriesError)
 
   const rows = entries ?? []
 

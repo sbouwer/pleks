@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { formatDateShort } from "@/lib/reports/periods"
 import { LeaseRequestActions } from "./LeaseRequestActions"
 import { InlineLink } from "@/components/ui/actions"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface LeaseRequest {
   id: string
@@ -34,10 +35,11 @@ export default async function AdminLeaseRequestsPage() {
   await requireAdminAuth()
   const supabase = await createServiceClient()
 
-  const { data: requests } = await supabase
+  const { data: requests, error: requestsError } = await supabase
     .from("custom_lease_requests")
     .select("id, org_id, submitted_by, template_path, notes, status, created_at")
     .order("created_at", { ascending: false })
+    logQueryError("AdminLeaseRequestsPage custom_lease_requests", requestsError)
 
   // Resolve org names
   const orgIds = [

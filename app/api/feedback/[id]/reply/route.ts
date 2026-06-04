@@ -10,6 +10,7 @@ import { NextRequest } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { isAdminAuthenticated } from "@/lib/admin/auth"
 import { getFeedbackSubmissionById, addFeedbackReply } from "@/lib/feedback/queries"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(
   req: NextRequest,
@@ -29,13 +30,14 @@ export async function POST(
 
   if (!isAdminReply) {
     const service = await createServiceClient()
-    const { data: membership } = await service
+    const { data: membership, error: membershipError } = await service
       .from("user_orgs")
       .select("role, is_admin")
       .eq("user_id", user.id)
       .eq("org_id", submission.org_id)
       .is("deleted_at", null)
       .maybeSingle()
+    logQueryError("POST user_orgs", membershipError)
     const m = membership as { role: string; is_admin: boolean } | null
     if (m && (m.role === "owner" || m.is_admin === true)) {
       isAdminReply = true

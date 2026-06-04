@@ -21,6 +21,7 @@ import { BackLink } from "@/components/ui/BackLink"
 import { FitScoreReport } from "@/lib/reports/screening/_web/FitScoreReport"
 import { FitScorePdfDownload } from "./_components/FitScorePdfDownload"
 import { IdReveal } from "./_components/IdReveal"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function ApplicationDetailPage({
   params,
@@ -65,7 +66,7 @@ export default async function ApplicationDetailPage({
 
   if (appErr || !app) notFound()
 
-  const { data: coApplicants } = await db
+  const { data: coApplicants, error: coApplicantsError } = await db
     .from("application_co_applicants")
     .select(`
       id, first_name, last_name, id_type, co_applicant_index,
@@ -76,6 +77,7 @@ export default async function ApplicationDetailPage({
     `)
     .eq("primary_application_id", id)
     .order("co_applicant_index", { ascending: true })
+    logQueryError("ApplicationDetailPage application_co_applicants", coApplicantsError)
 
   const [{ data: idCap }, { data: s23Cap }, { data: orgRow }] = await Promise.all([
     db

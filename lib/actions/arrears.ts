@@ -12,6 +12,7 @@
 
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { revalidatePath } from "next/cache"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function updateArrearsStatus(
   caseId: string,
@@ -42,7 +43,8 @@ export async function updateArrearsStatus(
   const { error } = await db.from("arrears_cases").update(updates).eq("id", caseId)
   if (error) return { error: error.message }
 
-  const { data: arrearsCase } = await db.from("arrears_cases").select("org_id").eq("id", caseId).single()
+  const { data: arrearsCase, error: arrearsCaseError } = await db.from("arrears_cases").select("org_id").eq("id", caseId).single()
+    logQueryError("updateArrearsStatus arrears_cases", arrearsCaseError)
 
   if (arrearsCase) {
     // Log action
@@ -92,7 +94,8 @@ export async function recordPaymentArrangement(
 
   if (error) return { error: error.message }
 
-  const { data: arrearsCase } = await db.from("arrears_cases").select("org_id").eq("id", caseId).single()
+  const { data: arrearsCase, error: arrearsCaseError } = await db.from("arrears_cases").select("org_id").eq("id", caseId).single()
+    logQueryError("recordPaymentArrangement arrears_cases", arrearsCaseError)
 
   if (arrearsCase) {
     await db.from("arrears_actions").insert({

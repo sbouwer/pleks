@@ -9,6 +9,7 @@
  */
 import { getAutoClausesForFeatures } from "./featureClauseMap"
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 /**
  * Syncs the unit_clause_defaults table based on unit features.
@@ -26,10 +27,11 @@ export async function syncUnitClauseProfile(
 ): Promise<void> {
   const autoClauses = getAutoClausesForFeatures(features)
 
-  const { data: existing } = await supabase
+  const { data: existing, error: existingError } = await supabase
     .from("unit_clause_defaults")
     .select("id, clause_key, enabled, auto_set")
     .eq("unit_id", unitId)
+    logQueryError("syncUnitClauseProfile unit_clause_defaults", existingError)
 
   const existingMap = new Map((existing ?? []).map((e) => [e.clause_key, e]))
 

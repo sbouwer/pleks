@@ -8,6 +8,7 @@ import { generateRegistrationOptions } from "@simplewebauthn/server"
 import type { AuthenticatorTransportFuture } from "@simplewebauthn/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { getRpConfig } from "@/lib/auth/passkeys/rp-config"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(req: Request) {
   let rp
@@ -25,12 +26,13 @@ export async function POST(req: Request) {
 
   const serviceDb = await createServiceClient()
 
-  const { data: existing } = await serviceDb
+  const { data: existing, error: existingError } = await serviceDb
     .from("user_passkeys")
     .select("credential_id, transports")
     .eq("user_id", user.id)
     .eq("rp_id", rp.rpId)
     .is("revoked_at", null)
+    logQueryError("POST user_passkeys", existingError)
 
   const options = await generateRegistrationOptions({
     rpName: rp.rpName,

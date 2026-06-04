@@ -25,6 +25,7 @@ import { canSend, ensurePreferences } from "./preferences"
 import type { OrgBranding } from "./templates/layout"
 export type { OrgBranding } from "./templates/layout"
 import type { ReactElement } from "react"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 function getResend() {
   return new Resend(process.env.RESEND_API_KEY)
@@ -88,11 +89,12 @@ interface OrgSettings {
 
 export async function fetchOrgSettings(orgId: string): Promise<OrgSettings | null> {
   const service = await createServiceClient()
-  const { data } = await service
+  const { data, error: queryError } = await service
     .from("organisations")
     .select("name, email, phone, address_line1:addr_line1, city:addr_city, brand_logo_path, brand_accent_color, custom_from_address, notification_settings, emergency_phone, emergency_contact_name")
     .eq("id", orgId)
     .single()
+    logQueryError("fetchOrgSettings organisations", queryError)
   if (!data) return null
 
   const logoPath = data.brand_logo_path as string | null
@@ -145,7 +147,7 @@ async function logToDb(
     ? createHash("sha256").update(params.bodyFull).digest("hex")
     : null
 
-  const { data: log } = await service
+  const { data: log, error: logError } = await service
     .from("communication_log")
     .insert({
       org_id: params.orgId,
@@ -175,6 +177,7 @@ async function logToDb(
     })
     .select("id")
     .single()
+    logQueryError("logToDb communication_log", logError)
   return log?.id ?? ""
 }
 

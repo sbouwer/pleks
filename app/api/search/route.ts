@@ -9,6 +9,7 @@
  */
 import { NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 type SearchResult = {
   type: string
@@ -80,13 +81,14 @@ export async function GET(req: Request) {
 
   const supabase = await createServiceClient()
 
-  const { data: membership } = await supabase
+  const { data: membership, error: membershipError } = await supabase
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .limit(1)
     .maybeSingle()
+    logQueryError("GET user_orgs", membershipError)
 
   if (!membership) return NextResponse.json({ results: [] })
   const orgId = membership.org_id

@@ -8,6 +8,7 @@
  *         Never mix subject-side and agency-side parameter shapes — the types enforce this.
  */
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -107,11 +108,12 @@ export async function listControllersForSubject(userId: string): Promise<Control
   }
 
   // Tenant memberships
-  const { data: tenantLinks } = await (await db)
+  const { data: tenantLinks, error: tenantLinksError } = await (await db)
     .from("user_orgs_tenants")
     .select("org_id, organisations(name)")
     .eq("user_id", userId)
     .is("deleted_at", null)
+    logQueryError("listControllersForSubject user_orgs_tenants", tenantLinksError)
 
   for (const link of (tenantLinks ?? []) as OrgLink[]) {
     const name = orgName(link)
@@ -126,11 +128,12 @@ export async function listControllersForSubject(userId: string): Promise<Control
   }
 
   // Landlord memberships
-  const { data: landlordLinks } = await (await db)
+  const { data: landlordLinks, error: landlordLinksError } = await (await db)
     .from("user_orgs_landlords")
     .select("org_id, organisations(name)")
     .eq("user_id", userId)
     .is("deleted_at", null)
+    logQueryError("listControllersForSubject user_orgs_landlords", landlordLinksError)
 
   for (const link of (landlordLinks ?? []) as OrgLink[]) {
     const name = orgName(link)
@@ -146,11 +149,12 @@ export async function listControllersForSubject(userId: string): Promise<Control
   }
 
   // Supplier/contractor memberships
-  const { data: supplierLinks } = await (await db)
+  const { data: supplierLinks, error: supplierLinksError } = await (await db)
     .from("user_orgs_contractors")
     .select("org_id, organisations(name)")
     .eq("user_id", userId)
     .is("deleted_at", null)
+    logQueryError("listControllersForSubject user_orgs_contractors", supplierLinksError)
 
   for (const link of (supplierLinks ?? []) as OrgLink[]) {
     const name = orgName(link)

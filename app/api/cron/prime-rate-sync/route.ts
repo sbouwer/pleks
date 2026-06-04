@@ -9,6 +9,7 @@
  */
 import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 /**
  * Fetches the current SA prime lending rate from API Ninjas and upserts it
@@ -58,12 +59,13 @@ export async function GET(req: NextRequest) {
   const today = new Date().toISOString().slice(0, 10)
 
   // Check most recent stored rate
-  const { data: latest } = await supabase
+  const { data: latest, error: latestError } = await supabase
     .from("prime_rates")
     .select("rate_percent, effective_date")
     .order("effective_date", { ascending: false })
     .limit(1)
     .single()
+    logQueryError("GET prime_rates", latestError)
 
   if (latest && Number(latest.rate_percent) === fetchedRate) {
     return Response.json({ status: "unchanged", rate: fetchedRate, since: latest.effective_date })

@@ -8,6 +8,7 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 type SupabaseServiceClient = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -21,12 +22,13 @@ async function applyInterestCharges(
   leaseId: string,
   remaining: number
 ): Promise<{ interestApplied: number; remaining: number }> {
-  const { data: charges } = await supabase
+  const { data: charges, error: chargesError } = await supabase
     .from("arrears_interest_charges")
     .select("id, interest_cents, arrears_case_id")
     .eq("lease_id", leaseId)
     .eq("waived", false)
     .order("charge_date", { ascending: true })
+    logQueryError("applyInterestCharges arrears_interest_charges", chargesError)
 
   if (!charges?.length) return { interestApplied: 0, remaining }
 
@@ -62,12 +64,13 @@ async function applyRentInvoices(
   leaseId: string,
   remaining: number
 ): Promise<{ rentApplied: number; remaining: number }> {
-  const { data: invoices } = await supabase
+  const { data: invoices, error: invoicesError } = await supabase
     .from("rent_invoices")
     .select("id, balance_cents, due_date")
     .eq("lease_id", leaseId)
     .in("status", ["open", "partial", "overdue"])
     .order("due_date", { ascending: true })
+    logQueryError("applyRentInvoices rent_invoices", invoicesError)
 
   let rentApplied = 0
   for (const invoice of invoices ?? []) {

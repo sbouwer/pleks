@@ -18,6 +18,7 @@ import {
   buildInspectionReminderSms,
   buildInspectionReminderWhatsApp,
 } from "@/lib/comms/templates/tenant/inspections/inspection-reminder"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const INSPECTION_TYPE_LABELS: Record<string, string> = {
   move_in:     "Move-in Inspection",
@@ -69,11 +70,12 @@ export async function GET(req: NextRequest) {
       }
       if (!tenant?.email && !tenant?.phone) { skipped++; continue }
 
-      const { data: unitRow } = await service
+      const { data: unitRow, error: unitRowError } = await service
         .from("units")
         .select("unit_number, properties(address_line1, suburb, city)")
         .eq("id", inspection.unit_id)
         .maybeSingle()
+        logQueryError("GET units", unitRowError)
 
       type PropRow = { address_line1: string; suburb: string | null; city: string }
       type UnitRow = { unit_number: string; properties: PropRow | PropRow[] | null }

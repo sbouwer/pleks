@@ -11,16 +11,18 @@
  */
 import { createClient } from "@/lib/supabase/server"
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function inviteLandlord(landlordId: string, agentId: string) {
   const supabase = await createClient()
   const service = await createServiceClient()
 
-  const { data: landlord } = await supabase
+  const { data: landlord, error: landlordError } = await supabase
     .from("landlord_view")
     .select("id, org_id, email, first_name, last_name, company_name, portal_status")
     .eq("id", landlordId)
     .single()
+    logQueryError("inviteLandlord landlord_view", landlordError)
 
   if (!landlord) return { error: "Landlord not found" }
   if (landlord.portal_status === "active") return { error: "Landlord already has portal access" }

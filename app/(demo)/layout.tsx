@@ -6,6 +6,7 @@
  */
 import { createClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // /demo is an APEX_PREFIX served from www.pleks.co.za — suppress the PWA manifest
 // (its start_url is on app.pleks.co.za) to avoid the cross-origin start_url warning.
@@ -17,12 +18,13 @@ export default async function DemoLayout({ children }: Readonly<{ children: Reac
   const { data: { user } } = await supabase.auth.getUser()
 
   if (user) {
-    const { data: membership } = await supabase
+    const { data: membership, error: membershipError } = await supabase
       .from("user_orgs")
       .select("org_id")
       .eq("user_id", user.id)
       .is("deleted_at", null)
       .single()
+    logQueryError("DemoLayout user_orgs", membershipError)
 
     if (membership) redirect("/dashboard")
   }

@@ -12,6 +12,7 @@
  */
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function GET(
   _req: Request,
@@ -40,13 +41,14 @@ export async function GET(
     return NextResponse.json({ error: "Token expired" }, { status: 410 })
   }
 
-  const { data: payment } = await service
+  const { data: payment, error: paymentError } = await service
     .from("application_screening_payments")
     .select("paid_at")
     .eq("application_id", coApp.primary_application_id)
     .eq("subject_type", "co_applicant")
     .eq("subject_id", coApp.id)
     .maybeSingle()
+    logQueryError("GET application_screening_payments", paymentError)
 
   return NextResponse.json({
     firstName:      coApp.first_name,

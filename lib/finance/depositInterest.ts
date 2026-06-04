@@ -10,6 +10,7 @@
 import { differenceInDays, format, startOfMonth } from "date-fns"
 import { createServiceClient } from "@/lib/supabase/server"
 import { resolveDepositInterestConfig, resolveEffectiveRate } from "@/lib/deposits/interestConfig"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 /**
  * Pure calculation — used by both the server action and the cron route.
@@ -45,7 +46,7 @@ export async function accrueDepositInterest(
 }> {
   const supabase = await createServiceClient()
 
-  const { data: lease } = await supabase
+  const { data: lease, error: leaseError } = await supabase
     .from("leases")
     .select(`
       id, org_id, tenant_id, unit_id, property_id,
@@ -56,6 +57,7 @@ export async function accrueDepositInterest(
     `)
     .eq("id", leaseId)
     .single()
+    logQueryError("accrueDepositInterest leases", leaseError)
 
   if (!lease?.deposit_amount_cents) {
     return { interestCents: 0, fromDate: upToDate, toDate: upToDate, ratePercent: 0 }

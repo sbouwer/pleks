@@ -7,6 +7,7 @@
 import { NextRequest } from "next/server"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { yodlee } from "@/lib/yodlee/client"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface FastLinkCallbackData {
   providerAccountId: string
@@ -27,11 +28,12 @@ export async function POST(req: NextRequest) {
 
   try {
     // Get the Yodlee user token to fetch account details
-    const { data: org } = await db
+    const { data: org, error: orgError } = await db
       .from("organisations")
       .select("yodlee_user_id")
       .eq("id", orgId)
       .single()
+    logQueryError("POST organisations", orgError)
 
     if (!org?.yodlee_user_id) return Response.json({ error: "No Yodlee user for org" }, { status: 400 })
 

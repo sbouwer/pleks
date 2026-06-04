@@ -7,6 +7,7 @@
  *         the partial-unique never trips; the first account a contact gets is forced primary.
  */
 import type { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 type Service = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -36,8 +37,9 @@ function fields(input: BankAccountInput) {
 }
 
 export async function addBankAccount(service: Service, orgId: string, contactId: string, userId: string, input: BankAccountInput) {
-  const { data: existing } = await service
+  const { data: existing, error: existingError } = await service
     .from("contact_bank_accounts").select("id").eq("contact_id", contactId).eq("org_id", orgId)
+    logQueryError("addBankAccount contact_bank_accounts", existingError)
   const wantPrimary = input.is_primary || (existing ?? []).length === 0
   if (wantPrimary) {
     await service.from("contact_bank_accounts").update({ is_primary: false }).eq("contact_id", contactId).eq("org_id", orgId)

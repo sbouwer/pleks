@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { sendReviewReminder } from "@/lib/applications/emails"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 function getServiceClient() {
   return createClient(
@@ -34,12 +35,13 @@ export async function GET(req: NextRequest) {
   const cutoff24h = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString()
 
   // ── 1. Agent review reminders (unreviewed 24h+) ───────────────────────────
-  const { data: unreviewedApps } = await service
+  const { data: unreviewedApps, error: unreviewedAppsError } = await service
     .from("applications")
     .select("id, first_name, last_name, prescreen_score, created_at, org_id, listings(public_slug, units(unit_number, properties(name)))")
     .eq("stage1_status", "pre_screen_complete")
     .is("prescreened_at", null)
     .lt("created_at", cutoff24h)
+    logQueryError("GET applications", unreviewedAppsError)
 
   // Group by org
   const byOrg = new Map<string, typeof unreviewedApps>()
@@ -51,13 +53,14 @@ export async function GET(req: NextRequest) {
 
   for (const [orgId, apps] of byOrg.entries()) {
     // Fetch org + agent
-    const { data: org } = await service
+    const { data: org, error: orgError } = await service
       .from("organisations")
       .select("name, email, phone, brand_accent_color")
       .eq("id", orgId)
       .single()
+    logQueryError("GET organisations", orgError)
 
-    const { data: agentRow } = await service
+    const { data: agentRow, error: agentRowError } = await service
       .from("user_orgs")
       .select("user_profiles(email, full_name)")
       .eq("org_id", orgId)
@@ -65,6 +68,7 @@ export async function GET(req: NextRequest) {
       .is("deleted_at", null)
       .limit(1)
       .maybeSingle()
+    logQueryError("GET user_orgs", agentRowError)
 
     const agentProfile = agentRow?.user_profiles as unknown as { email: string; full_name: string } | null
     if (!agentProfile?.email) continue
@@ -89,12 +93,13 @@ export async function GET(req: NextRequest) {
 
   // ── 2. Shortlisted but Stage 2 not started after 3 days ──────────────────
   const cutoff3d = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString()
-  const { data: stalledApps } = await service
+  const { data: stalledApps, error: stalledAppsError } = await service
     .from("applications")
     .select("id, first_name, last_name, applicant_email, org_id, stage1_status, stage2_status, updated_at")
     .eq("stage1_status", "shortlisted")
     .eq("stage2_status", "invited")
     .lt("updated_at", cutoff3d)
+    logQueryError("GET applications", stalledAppsError)
 
   // TODO: send screening reminder emails to applicants
   // Omitted for brevity — same pattern as above using sendShortlistInvitation resend

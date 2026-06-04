@@ -12,6 +12,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { startTrial } from "@/lib/trial/startTrial"
 import { onTierChanged } from "@/lib/tier/onTierChanged"
 import type { Tier } from "@/lib/constants"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function activateFoundingAgent(orgId: string) {
   const supabase = await createServiceClient()
@@ -51,12 +52,13 @@ export async function changeTier(orgId: string, newTier: string) {
   const supabase = await createServiceClient()
 
   // Read the raw tier we're replacing, for the tier-change hook (ADDENDUM_01C §4).
-  const { data: oldSub } = await supabase
+  const { data: oldSub, error: oldSubError } = await supabase
     .from("subscriptions")
     .select("tier")
     .eq("org_id", orgId)
     .in("status", ["active", "trialing"])
     .maybeSingle()
+    logQueryError("changeTier subscriptions", oldSubError)
   const oldTier = (oldSub?.tier ?? null) as Tier | null
 
   await supabase

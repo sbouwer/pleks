@@ -14,6 +14,7 @@ import { type Tier } from "@/lib/constants"
 import { hasFeature } from "@/lib/tier/gates"
 import { getEffectiveTier } from "@/lib/tier/effectiveTier"
 import { computeTrialDaysLeft } from "@/lib/trial/utils"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export function useTier() {
   const { orgId } = useOrg()
@@ -22,13 +23,14 @@ export function useTier() {
   const { data, isLoading } = useQuery({
     queryKey: ["subscription", orgId],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error: queryError } = await supabase
         .from("subscriptions")
         .select("tier, status, current_period_end, trial_tier, trial_ends_at, trial_converted")
         .eq("org_id", orgId)
         .in("status", ["active", "trialing"])
         .limit(1)
         .single()
+        logQueryError("{ data, isLoading } subscriptions", queryError)
       return data
     },
     enabled: !!orgId,

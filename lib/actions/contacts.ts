@@ -9,6 +9,7 @@
  */
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { revalidatePath } from "next/cache"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function updateContactJuristicFields(params: {
   contactId: string
@@ -20,12 +21,13 @@ export async function updateContactJuristicFields(params: {
   const { db, orgId } = gw
 
   // Verify the contact belongs to this org (via tenant or landlord)
-  const { data: contact } = await db
+  const { data: contact, error: contactError } = await db
     .from("contacts")
     .select("id")
     .eq("id", params.contactId)
     .eq("org_id", orgId)
     .single()
+    logQueryError("updateContactJuristicFields contacts", contactError)
 
   if (!contact) return { error: "Contact not found" }
 

@@ -11,6 +11,7 @@ import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { generateOwnerStatement } from "@/lib/statements/generateOwnerStatement"
 import { startOfMonth, endOfMonth, subMonths } from "date-fns"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function GET(req: Request) {
   const cronSecret = req.headers.get("x-cron-secret") || new URL(req.url).searchParams.get("secret")
@@ -26,20 +27,22 @@ export async function GET(req: Request) {
   let generated = 0
 
   // Get all properties with owner_email
-  const { data: properties } = await supabase
+  const { data: properties, error: propertiesError } = await supabase
     .from("properties")
     .select("id")
     .not("owner_email", "is", null)
     .is("deleted_at", null)
+    logQueryError("GET properties", propertiesError)
 
   for (const property of properties || []) {
     // Skip if already generated
-    const { data: existing } = await supabase
+    const { data: existing, error: existingError } = await supabase
       .from("owner_statements")
       .select("id")
       .eq("property_id", property.id)
       .eq("period_month", periodFromStr)
       .limit(1)
+    logQueryError("GET owner_statements", existingError)
 
     if (existing && existing.length > 0) continue
 

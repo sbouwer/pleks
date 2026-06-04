@@ -8,6 +8,7 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export interface LessorBankDetails {
   bankName: string
@@ -25,13 +26,14 @@ export interface LessorBankDetails {
 export async function getLessorBankDetails(orgId: string): Promise<LessorBankDetails> {
   const supabase = await createServiceClient()
 
-  const { data: trustAccount } = await supabase
+  const { data: trustAccount, error: trustAccountError } = await supabase
     .from("bank_accounts")
     .select("bank_name, account_holder, account_number, branch_code")
     .eq("org_id", orgId)
     .eq("type", "trust")
     .limit(1)
     .single()
+    logQueryError("getLessorBankDetails bank_accounts", trustAccountError)
 
   if (!trustAccount) {
     return {

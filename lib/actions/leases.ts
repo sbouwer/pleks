@@ -17,6 +17,7 @@ import { routeAndSend } from "@/lib/messaging/router"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { LeaseCreatedEmail } from "@/lib/comms/templates/tenant/leases/lease-created"
 import { LeaseNoticeAcknowledgedEmail } from "@/lib/comms/templates/tenant/leases/lease-notice-acknowledged"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 type LeaseFormFields = {
   unitId: string
@@ -163,8 +164,9 @@ async function saveClauseSelections(db: DbClient, formData: FormData, leaseId: s
   }
 
   // HOA supremacy clause — auto-insert (non-removable) for sectional title properties with a managing scheme
-  const { data: propMeta } = await db
+  const { data: propMeta, error: propMetaError } = await db
     .from("properties").select("is_sectional_title, managing_scheme_id").eq("id", propertyId).single()
+    logQueryError("saveClauseSelections properties", propMetaError)
   if (propMeta?.is_sectional_title && propMeta.managing_scheme_id) {
     await db.from("lease_clause_selections").upsert({
       org_id: orgId, lease_id: leaseId, clause_key: "hoa_supremacy", enabled: true,
@@ -467,11 +469,12 @@ export async function sendForSigning(leaseId: string) {
   const gw = await requireAgentWriteAccess("create_lease")
   const { db, userId, orgId } = gw
 
-  const { data: lease } = await db
+  const { data: lease, error: leaseError } = await db
     .from("leases")
     .select("status, generated_doc_path, tenant_id, rent_amount_cents, start_date, unit_id")
     .eq("id", leaseId)
     .single()
+    logQueryError("sendForSigning leases", leaseError)
 
   if (!lease) return { error: "Lease not found" }
   if (lease.status !== "draft") return { error: "Lease has already been sent for signing" }
@@ -538,7 +541,8 @@ export async function giveNotice(leaseId: string, givenBy: "tenant" | "landlord"
   const gw = await requireAgentWriteAccess("terminate_lease")
   const { db, userId } = gw
 
-  const { data: lease } = await db.from("leases").select("*").eq("id", leaseId).single()
+  const { data: lease, error: leaseError } = await db.from("leases").select("*").eq("id", leaseId).single()
+    logQueryError("giveNotice leases", leaseError)
   if (!lease) return { error: "Lease not found" }
 
   const noticeDate = new Date()
@@ -648,7 +652,8 @@ export async function addLeaseCoTenant(leaseId: string, tenantId: string): Promi
   const gw = await requireAgentWriteAccess("edit_lease")
   const { db, orgId } = gw
 
-  const { data: lease } = await db.from("leases").select("org_id").eq("id", leaseId).single()
+  const { data: lease, error: leaseError } = await db.from("leases").select("org_id").eq("id", leaseId).single()
+    logQueryError("addLeaseCoTenant leases", leaseError)
   if (lease?.org_id !== orgId) return { error: "Lease not found" }
 
   const { error } = await db.from("lease_co_tenants").insert({ org_id: orgId, lease_id: leaseId, tenant_id: tenantId })
@@ -662,7 +667,8 @@ export async function removeLeaseCoTenant(leaseId: string, tenantId: string): Pr
   const gw = await requireAgentWriteAccess("edit_lease")
   const { db, orgId } = gw
 
-  const { data: lease } = await db.from("leases").select("org_id").eq("id", leaseId).single()
+  const { data: lease, error: leaseError } = await db.from("leases").select("org_id").eq("id", leaseId).single()
+    logQueryError("removeLeaseCoTenant leases", leaseError)
   if (lease?.org_id !== orgId) return { error: "Lease not found" }
 
   const { error } = await db.from("lease_co_tenants").delete().eq("lease_id", leaseId).eq("tenant_id", tenantId)

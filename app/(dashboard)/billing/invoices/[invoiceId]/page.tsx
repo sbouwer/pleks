@@ -14,6 +14,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge"
 import { formatZAR } from "@/lib/constants"
 import { InvoiceActions } from "./InvoiceActions"
 import { BackLink } from "@/components/ui/BackLink"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const STATUS_MAP: Record<string, "pending" | "completed" | "arrears" | "scheduled"> = {
   submitted: "pending",
@@ -35,12 +36,13 @@ export default async function InvoiceDetailPage({
   if (!gw) redirect("/login")
   const { db, orgId } = gw
 
-  const { data: invoice } = await db
+  const { data: invoice, error: invoiceError } = await db
     .from("supplier_invoices")
     .select("*, contractor_view(first_name, last_name, company_name, email, phone, vat_number), properties(name, address_line1), maintenance_requests(title, work_order_number)")
     .eq("id", invoiceId)
     .eq("org_id", orgId)
     .single()
+    logQueryError("InvoiceDetailPage supplier_invoices", invoiceError)
 
   if (!invoice) notFound()
 

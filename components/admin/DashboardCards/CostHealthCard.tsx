@@ -6,6 +6,7 @@
  * Notes:  Flags negative-margin orgs (cost > revenue) in red. Requires ADDENDUM_00H data.
  */
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface CostRow {
   org_id: string
@@ -19,12 +20,13 @@ async function fetchCostOutliers(): Promise<{ rows: CostRow[]; period: string | 
   const db = await createServiceClient()
 
   // Find the most recent snapshot period
-  const { data: latest } = await db
+  const { data: latest, error: latestError } = await db
     .from("platform_cost_snapshots")
     .select("period")
     .order("period", { ascending: false })
     .limit(1)
     .single()
+    logQueryError("fetchCostOutliers platform_cost_snapshots", latestError)
 
   if (!latest?.period) return { rows: [], period: null }
 

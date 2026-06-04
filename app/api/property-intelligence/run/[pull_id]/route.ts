@@ -26,6 +26,7 @@ import { refundPayment }         from "@/lib/payfast/adhoc"
 import { IntelligenceReportPdf, type IntelligenceReportData } from "@/lib/property-intelligence/IntelligenceReportPdf"
 import { PRODUCT_LABELS } from "@/lib/property-intelligence/types"
 import { SearchworxError, type SearchworxResult } from "@/lib/searchworx/client"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // ─── Product dispatch ─────────────────────────────────────────────────────────
 
@@ -188,8 +189,9 @@ export async function POST(
       return NextResponse.json({ ok: true, skipped: true })
     }
 
-    const { data: org } = await service
+    const { data: org, error: orgError } = await service
       .from("organisations").select("name, trading_as").eq("id", pull.org_id as string).single()
+    logQueryError("POST organisations", orgError)
 
     const { data: { user } } = await service.auth.admin.getUserById(pull.created_by_user_id as string)
     const pulledByEmail = user?.email ?? "agent"

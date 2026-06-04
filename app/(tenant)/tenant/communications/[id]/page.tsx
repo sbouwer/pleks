@@ -17,6 +17,7 @@ import { recordPortalView } from "@/lib/actions/portal-comms"
 import { Badge } from "@/components/ui/badge"
 import { Mail, MessageSquare, CheckCircle2, XCircle, AlertTriangle, ChevronLeft } from "lucide-react"
 import Link from "next/link"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 function isTemplateMandatory(key: string | null): boolean {
   if (!key) return false
@@ -56,11 +57,12 @@ export default async function CommDetailPage({ params }: { params: Promise<{ id:
   if (error || !comm) notFound()
 
   // Fetch delivery events for timeline
-  const { data: events } = await service
+  const { data: events, error: eventsError } = await service
     .from("communication_delivery_events")
     .select("id, event_type, provider, occurred_at")
     .eq("communication_log_id", id)
     .order("occurred_at", { ascending: true })
+    logQueryError("CommDetailPage communication_delivery_events", eventsError)
 
   const hasPortalView = (events ?? []).some((e) => e.event_type === "portal_view")
   const mandatory = isTemplateMandatory(comm.template_key as string | null)

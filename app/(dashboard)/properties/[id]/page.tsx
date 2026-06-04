@@ -29,6 +29,7 @@ import { SCENARIOS, type ScenarioType } from "@/lib/properties/scenarios"
 import { MobilePropertyView } from "@/components/mobile/MobilePropertyView"
 import { formatZAR } from "@/lib/constants"
 import { subtractBusinessDays } from "@/lib/dates/saPublicHolidays"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -623,24 +624,26 @@ export default async function PropertyDetailPage({
 
   const service = await createServiceClient()
 
-  const { data: property } = await service
+  const { data: property, error: propertyError } = await service
     .from("properties")
     .select("*")
     .eq("id", id)
     .eq("org_id", orgId)
     .is("deleted_at", null)
     .single()
+    logQueryError("PropertyDetailPage properties", propertyError)
 
   if (!property) notFound()
 
   // Always fetch base units for mobile view + header stats
-  const { data: baseUnits } = await service
+  const { data: baseUnits, error: baseUnitsError } = await service
     .from("units")
     .select("id, status, asking_rent_cents, unit_number")
     .eq("property_id", id)
     .eq("org_id", orgId)
     .is("deleted_at", null)
     .eq("is_archived", false)
+    logQueryError("PropertyDetailPage units", baseUnitsError)
 
   const addressParts  = [property.address_line1, property.suburb, property.city, property.province].filter(Boolean)
   const fullAddress   = addressParts.join(", ")

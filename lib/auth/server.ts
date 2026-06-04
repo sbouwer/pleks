@@ -20,6 +20,7 @@ import {
   type SubscriptionState,
   type SubscriptionStatus,
 } from "@/lib/subscriptions/state"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 /**
  * Cached per-request server auth helpers.
@@ -67,12 +68,13 @@ export const getServerOrgMembership = cache(async () => {
 
   // 2. DB query (cookie miss — proxy.ts will refresh on next request)
   const supabase = await createClient()
-  const { data } = await supabase
+  const { data, error: queryError } = await supabase
     .from("user_orgs")
     .select("org_id, role")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
+    logQueryError("getServerOrgMembership user_orgs", queryError)
 
   if (data) setSentryUser({ id: user.id, org_id: data.org_id, role: data.role })
   return data ? { ...data, tier: null } : null

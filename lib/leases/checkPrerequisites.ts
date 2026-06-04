@@ -8,6 +8,7 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 import { SupabaseClient } from "@supabase/supabase-js"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export interface PrerequisiteResult {
   key: string
@@ -113,12 +114,13 @@ function checkClausesExternal(isUploadedLease: boolean): PrerequisiteResult {
 }
 
 async function checkTrustAccount(supabase: SupabaseClient, orgId: string): Promise<PrerequisiteResult> {
-  const { data: trustAccount } = await supabase
+  const { data: trustAccount, error: trustAccountError } = await supabase
     .from("bank_accounts")
     .select("id")
     .eq("org_id", orgId)
     .eq("type", "trust")
     .limit(1)
+    logQueryError("checkTrustAccount bank_accounts", trustAccountError)
   if (trustAccount && trustAccount.length > 0) {
     return { key: "trust_account", label: "Trust account configured", status: "pass", message: "Trust account banking details are on file" }
   }
@@ -130,12 +132,13 @@ async function checkTrustAccount(supabase: SupabaseClient, orgId: string): Promi
 }
 
 async function checkMoveInInspection(supabase: SupabaseClient, leaseId: string): Promise<PrerequisiteResult | null> {
-  const { data: inspection } = await supabase
+  const { data: inspection, error: inspectionError } = await supabase
     .from("inspections")
     .select("id")
     .eq("lease_id", leaseId)
     .eq("inspection_type", "move_in")
     .limit(1)
+    logQueryError("checkMoveInInspection inspections", inspectionError)
   if (!inspection || inspection.length === 0) {
     return {
       key: "move_in_inspection",
@@ -149,11 +152,12 @@ async function checkMoveInInspection(supabase: SupabaseClient, leaseId: string):
 }
 
 async function checkClausesStored(supabase: SupabaseClient, leaseId: string): Promise<PrerequisiteResult> {
-  const { data: clauseSelections } = await supabase
+  const { data: clauseSelections, error: clauseSelectionsError } = await supabase
     .from("lease_clause_selections")
     .select("id")
     .eq("lease_id", leaseId)
     .limit(1)
+    logQueryError("checkClausesStored lease_clause_selections", clauseSelectionsError)
   if (clauseSelections && clauseSelections.length > 0) {
     return { key: "clauses", label: "Clauses saved", status: "pass", message: "Clause selections are saved for this lease" }
   }
@@ -172,11 +176,12 @@ export async function checkLeasePrerequisites(
   const items: PrerequisiteResult[] = []
 
   // Fetch lease with unit, property, and tenant in one query
-  const { data: lease } = await supabase
+  const { data: lease, error: leaseError } = await supabase
     .from("leases")
     .select("*, units(unit_number, assigned_agent_id, properties(id, landlord_id, managing_agent_id)), tenant_view(id, first_name, last_name)")
     .eq("id", leaseId)
     .single()
+    logQueryError("checkLeasePrerequisites leases", leaseError)
 
   if (!lease) {
     throw new Error("Lease not found")

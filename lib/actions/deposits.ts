@@ -21,6 +21,7 @@ import {
   type DeductionItem,
   type DepositChargeItem,
 } from "@/lib/comms/templates/tenant/deposits/deposit-return-schedule"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 function formatZARLocal(cents: number): string {
   return "R " + (cents / 100).toLocaleString("en-ZA", { minimumFractionDigits: 2 })
@@ -72,23 +73,25 @@ export async function sendDepositSchedule(leaseId: string): Promise<{ success?: 
 
   if (chargesErr) return { error: chargesErr.message }
 
-  const { data: timer } = await db
+  const { data: timer, error: timerError } = await db
     .from("deposit_timers")
     .select("deadline, return_days")
     .eq("lease_id", leaseId)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle()
+    logQueryError("sendDepositSchedule deposit_timers", timerError)
 
   if (!timer?.deadline) {
     return { error: "Deposit timer not configured. The deposit deadline must be set up before the return schedule can be sent. Please configure the deposit timer first." }
   }
 
-  const { data: lease } = await db
+  const { data: lease, error: leaseError } = await db
     .from("leases")
     .select("start_date, end_date, units(unit_number, properties(address_line1, suburb, city))")
     .eq("id", leaseId)
     .maybeSingle()
+    logQueryError("sendDepositSchedule leases", leaseError)
 
   type PropRow = { address_line1: string; suburb: string | null; city: string }
   type UnitRow = { unit_number: string; properties: PropRow | PropRow[] | null }

@@ -9,6 +9,7 @@ import { generateAuthenticationOptions } from "@simplewebauthn/server"
 import type { AuthenticatorTransportFuture } from "@simplewebauthn/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { getRpConfig } from "@/lib/auth/passkeys/rp-config"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(req: Request) {
   let rp
@@ -31,12 +32,13 @@ export async function POST(req: Request) {
     userId = found?.id
 
     if (userId) {
-      const { data: creds } = await serviceDb
+      const { data: creds, error: credsError } = await serviceDb
         .from("user_passkeys")
         .select("credential_id, transports")
         .eq("user_id", userId)
         .eq("rp_id", rp.rpId)
         .is("revoked_at", null)
+        logQueryError("POST user_passkeys", credsError)
 
       allowCredentials = (creds ?? []).map(c => ({
         id: c.credential_id as string,  // base64url text

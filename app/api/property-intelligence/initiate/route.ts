@@ -18,6 +18,7 @@ import type { Tier } from "@/lib/constants"
 import { buildPropertyIntelligenceFeeForm, PI_RETAIL_CENTS, PI_COST_CENTS } from "@/lib/payfast/forms"
 import { chargeAdhoc } from "@/lib/payfast/adhoc"
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const VALID_PRODUCT_TYPES = ["deeds_search", "lightstone_erf_short", "cipc_company", "cipc_director"] as const
 type ProductType = typeof VALID_PRODUCT_TYPES[number]
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
     // Recent-pull suppression (D-14A-05): 30-day window per product + subject
     if (!forceRun) {
       const cutoff = new Date(Date.now() - SUPPRESSION_DAYS * 24 * 60 * 60 * 1000).toISOString()
-      const { data: recent } = await db
+      const { data: recent, error: recentError } = await db
         .from("property_intelligence_pulls")
         .select("id, created_at, status")
         .eq("org_id", orgId)
@@ -69,6 +70,7 @@ export async function POST(req: NextRequest) {
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle()
+        logQueryError("POST property_intelligence_pulls", recentError)
 
       if (recent) {
         return NextResponse.json({
@@ -104,7 +106,7 @@ export async function POST(req: NextRequest) {
 
     // Check for saved card (service client — bypasses RLS on this read)
     const service = await createServiceClient()
-    const { data: savedToken } = await service
+    const { data: savedToken, error: savedTokenError } = await service
       .from("organisation_payment_tokens")
       .select("payfast_token")
       .eq("org_id", orgId)
@@ -112,6 +114,7 @@ export async function POST(req: NextRequest) {
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle()
+    logQueryError("POST organisation_payment_tokens", savedTokenError)
 
     if (savedToken?.payfast_token) {
       // 1-click adhoc charge path

@@ -16,6 +16,7 @@ import {
   sendPaymentReminder,
   sendAccountFrozen,
 } from "@/lib/subscriptions/emails"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const GRACE_DAYS = 14
 const REMINDER_WINDOW_DAYS = { min: 9, max: 11 } // ~4 days in from 14-day window
@@ -65,13 +66,14 @@ export async function GET(req: NextRequest) {
 
   // ── Helper: check if a billing cascade email was already sent this cycle ───
   async function alreadySent(orgId: string, templateKey: string, sinceDate: Date) {
-    const { data } = await supabase
+    const { data, error: queryError } = await supabase
       .from("communication_log")
       .select("id")
       .eq("org_id", orgId)
       .eq("template_key", templateKey)
       .gte("created_at", sinceDate.toISOString())
       .limit(1)
+    logQueryError("alreadySent communication_log", queryError)
     return (data?.length ?? 0) > 0
   }
 

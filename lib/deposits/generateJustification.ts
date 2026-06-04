@@ -9,6 +9,7 @@
  */
 import { createClient } from "@/lib/supabase/server"
 import { createMessage } from "@/lib/ai/client"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const WEAR_TEAR_SYSTEM_PROMPT = `You are a South African property management specialist writing itemised deduction justifications for a deposit reconciliation.
 
@@ -29,20 +30,22 @@ TONE AND FORMAT:
 export async function generateDeductionJustification(deductionItemId: string) {
   const supabase = await createClient()
 
-  const { data: item } = await supabase
+  const { data: item, error: itemError } = await supabase
     .from("deposit_deduction_items")
     .select("id, lease_id, room, item_description, classification, deduction_amount_cents, quote_amount_cents")
     .eq("id", deductionItemId)
     .single()
+    logQueryError("generateDeductionJustification deposit_deduction_items", itemError)
 
   if (!item || item.classification !== "tenant_damage") return
 
   // Tier gate — AI justification requires Steward+ (ai_inspection feature)
-  const { data: leaseForTier } = await supabase
+  const { data: leaseForTier, error: leaseForTierError } = await supabase
     .from("leases")
     .select("org_id")
     .eq("id", item.lease_id)
     .single()
+    logQueryError("generateDeductionJustification leases", leaseForTierError)
 
   if (leaseForTier) {
     const { hasFeature } = await import("@/lib/tier/gates")
@@ -68,11 +71,12 @@ export async function generateDeductionJustification(deductionItemId: string) {
   }
 
   // Get lease duration
-  const { data: lease } = await supabase
+  const { data: lease, error: leaseError } = await supabase
     .from("leases")
     .select("start_date, end_date")
     .eq("id", item.lease_id)
     .single()
+    logQueryError("generateDeductionJustification leases", leaseError)
 
   const leaseDuration = lease?.start_date && lease?.end_date
     ? Math.round((new Date(lease.end_date).getTime() - new Date(lease.start_date).getTime()) / (1000 * 60 * 60 * 24 * 30))

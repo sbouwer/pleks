@@ -35,6 +35,7 @@ import {
 import { toast } from "sonner"
 import { Plus, Trash2, ChevronUp, ChevronDown, ArrowUpDown, ShieldAlert } from "lucide-react"
 import { EditButton, InlineLink } from "@/components/ui/actions"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -734,8 +735,9 @@ export function TeamSettingsClient() {
     // additional_roles + is_admin — §5/§8 migrations; graceful fallback
     const rolesMap   = new Map<string, string[]>()
     const adminMap   = new Map<string, boolean>()
-    const { data: rolesData } = await supabase
+    const { data: rolesData, error: rolesDataError } = await supabase
       .from("user_orgs").select("id, additional_roles, is_admin").in("id", memberIds)
+    logQueryError("loadMembers user_orgs", rolesDataError)
     for (const r of (rolesData as unknown as { id: string; additional_roles: string[]; is_admin: boolean }[]) ?? []) {
       rolesMap.set(r.id, r.additional_roles ?? [])
       adminMap.set(r.id, r.is_admin ?? false)
@@ -743,10 +745,11 @@ export function TeamSettingsClient() {
 
     // personal + emergency fields — §5-6 migration; graceful fallback
     const profileMap = new Map<string, Partial<Member["user_profiles"]>>()
-    const { data: profileData } = await supabase
+    const { data: profileData, error: profileDataError } = await supabase
       .from("user_profiles")
       .select("id, title, first_name, last_name, mobile, emergency_phone, emergency_contact_name")
       .in("id", userIds)
+    logQueryError("loadMembers user_profiles", profileDataError)
     for (const p of (profileData as unknown as (Partial<Member["user_profiles"]> & { id: string })[]) ?? []) {
       profileMap.set(p.id, p)
     }
@@ -764,8 +767,9 @@ export function TeamSettingsClient() {
 
   async function loadOrgRoles(supabase: ReturnType<typeof createClient>) {
     if (!orgId) return
-    const { data } = await supabase
+    const { data, error: queryError } = await supabase
       .from("organisations").select("custom_roles").eq("id", orgId).single()
+    logQueryError("loadOrgRoles organisations", queryError)
     const saved = (data as unknown as { custom_roles: string[] } | null)?.custom_roles ?? []
     // Merge: system defaults first, then org-specific custom labels
     setOrgRoles([...DEFAULT_ROLES, ...saved.filter((r) => !DEFAULT_ROLES.includes(r))])
@@ -853,8 +857,9 @@ export function TeamSettingsClient() {
     } else {
       toast.success(`Invite sent to ${inviteEmail}`)
       setInviteEmail(""); setInviteRole("")
-      const { data } = await supabase.from("invites").select("id, email, role")
+      const { data, error: queryError } = await supabase.from("invites").select("id, email, role")
         .eq("org_id", orgId).is("accepted_at", null)
+        logQueryError("handleInvite invites", queryError)
       setPending((data as unknown as PendingInvite[]) ?? [])
     }
     setLoading(false)

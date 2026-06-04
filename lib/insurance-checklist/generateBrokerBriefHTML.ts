@@ -5,6 +5,7 @@
  */
 
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface BriefItem {
   sort_order: number
@@ -72,7 +73,7 @@ type Db = Awaited<ReturnType<typeof createServiceClient>>
 interface TenantInfo { tenantName: string | null; leaseStart: string | null }
 
 async function fetchTenant(db: Db, propertyId: string): Promise<TenantInfo> {
-  const { data: lease } = await db
+  const { data: lease, error: leaseError } = await db
     .from("leases")
     .select("start_date, tenants(contacts(first_name, last_name, company_name, entity_type))")
     .eq("property_id", propertyId)
@@ -80,6 +81,7 @@ async function fetchTenant(db: Db, propertyId: string): Promise<TenantInfo> {
     .order("created_at", { ascending: false })
     .limit(1)
     .single()
+    logQueryError("fetchTenant leases", leaseError)
 
   const tc = (lease as unknown as {
     tenants?: { contacts?: { first_name?: string | null; last_name?: string | null; company_name?: string | null; entity_type?: string } | null } | null
@@ -98,11 +100,12 @@ interface SchemeInfo { bodyCorpName: string | null; bodyCorpAgent: string | null
 
 async function fetchScheme(db: Db, schemeId: string | null): Promise<SchemeInfo> {
   if (!schemeId) return { bodyCorpName: null, bodyCorpAgent: null }
-  const { data: scheme } = await db
+  const { data: scheme, error: schemeError } = await db
     .from("managing_schemes")
     .select("name, managing_agent_name")
     .eq("id", schemeId)
     .single()
+    logQueryError("fetchScheme managing_schemes", schemeError)
   return {
     bodyCorpName:  (scheme?.name as string | null) ?? null,
     bodyCorpAgent: (scheme?.managing_agent_name as string | null) ?? null,
@@ -117,7 +120,7 @@ async function fetchAgentInfo(
   fallbackName: string,
   fallbackEmail: string | null,
 ): Promise<AgentInfo> {
-  const { data: agentRow } = await db
+  const { data: agentRow, error: agentRowError } = await db
     .from("user_orgs")
     .select("user_id")
     .eq("org_id", orgId)
@@ -125,6 +128,7 @@ async function fetchAgentInfo(
     .eq("role", "admin")
     .limit(1)
     .single()
+    logQueryError("fetchAgentInfo user_orgs", agentRowError)
 
   if (!agentRow?.user_id) return { agentName: fallbackName, agentEmail: fallbackEmail }
 
@@ -156,12 +160,13 @@ export async function fetchBrokerBriefData(propertyId: string): Promise<BrokerBr
 
   const org = prop.organisations as unknown as { name: string; email: string | null; phone: string | null } | null
 
-  const { data: brokerRow } = await db
+  const { data: brokerRow, error: brokerRowError } = await db
     .from("property_brokers")
     .select("contacts(first_name, last_name, company_name, primary_email, primary_phone)")
     .eq("property_id", propertyId)
     .eq("is_primary", true)
     .single()
+    logQueryError("fetchBrokerBriefData property_brokers", brokerRowError)
 
   const broker = brokerRow?.contacts as unknown as {
     first_name: string | null; last_name: string | null
@@ -170,11 +175,12 @@ export async function fetchBrokerBriefData(propertyId: string): Promise<BrokerBr
 
   if (!broker) return null
 
-  const { data: checklistRows } = await db
+  const { data: checklistRows, error: checklistRowsError } = await db
     .from("property_insurance_checklists")
     .select("item_code, insurance_checklist_items(sort_order, label, is_auto_derived)")
     .eq("property_id", propertyId)
     .neq("state", "not_applicable")
+    logQueryError("fetchBrokerBriefData property_insurance_checklists", checklistRowsError)
 
   const items: BriefItem[] = (checklistRows ?? [])
     .filter((r) => {

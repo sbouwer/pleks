@@ -22,6 +22,7 @@ import {
   buildIncomeCollectionHTML,
 } from "@/lib/reports/generatePDF"
 import type { ReportFilters } from "@/lib/reports/types"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // Runs daily at 09:00 — checks for reports due today
 export async function GET(req: NextRequest) {
@@ -34,22 +35,24 @@ export async function GET(req: NextRequest) {
   const dayOfMonth = today.getDate()
 
   // Find scheduled reports due today, Firm tier only
-  const { data: configs } = await supabase
+  const { data: configs, error: configsError } = await supabase
     .from("report_configs")
     .select("*")
     .eq("is_scheduled", true)
     .eq("schedule_day", dayOfMonth)
+    logQueryError("GET report_configs", configsError)
 
   let sent = 0
 
   for (const config of configs ?? []) {
     // Verify Firm tier
-    const { data: sub } = await supabase
+    const { data: sub, error: subError } = await supabase
       .from("subscriptions")
       .select("tier")
       .eq("org_id", config.org_id)
       .eq("status", "active")
       .single()
+    logQueryError("GET subscriptions", subError)
 
     if (sub?.tier !== "firm") continue
 

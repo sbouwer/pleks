@@ -13,6 +13,7 @@
 
 import { createHmac, randomBytes, randomInt, timingSafeEqual } from "node:crypto"
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export type ConsentType =
   | "standard_bundle"
@@ -98,11 +99,12 @@ export async function checkRateLimit(identifier: string): Promise<RateLimitResul
   const service = await createServiceClient()
   const now = new Date()
 
-  const { data: row } = await service
+  const { data: row, error: rowError } = await service
     .from("consent_verification_rate_limits")
     .select("*")
     .eq("identifier", identifier)
     .maybeSingle()
+    logQueryError("checkRateLimit consent_verification_rate_limits", rowError)
 
   if (!row) return { allowed: true }
 
@@ -134,11 +136,12 @@ export async function recordSend(identifier: string): Promise<void> {
   const service = await createServiceClient()
   const now = new Date()
 
-  const { data: existing } = await service
+  const { data: existing, error: existingError } = await service
     .from("consent_verification_rate_limits")
     .select("sends_window_start, sends_in_window")
     .eq("identifier", identifier)
     .maybeSingle()
+    logQueryError("recordSend consent_verification_rate_limits", existingError)
 
   if (!existing) {
     await service.from("consent_verification_rate_limits").insert({
@@ -166,11 +169,12 @@ export async function recordFailedAttempt(identifier: string): Promise<void> {
   const service = await createServiceClient()
   const now = new Date()
 
-  const { data: existing } = await service
+  const { data: existing, error: existingError } = await service
     .from("consent_verification_rate_limits")
     .select("*")
     .eq("identifier", identifier)
     .maybeSingle()
+    logQueryError("recordFailedAttempt consent_verification_rate_limits", existingError)
 
   if (!existing) {
     await service.from("consent_verification_rate_limits").insert({

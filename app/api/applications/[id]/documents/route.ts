@@ -13,6 +13,7 @@ import { buildExtractionPrompt } from "@/lib/screening/bankStatementExtraction"
 import { calculatePreScreenScore, getPreScreenIndicator } from "@/lib/screening/preScreenScore"
 import { hasFeature } from "@/lib/tier/gates"
 import { getOrgTier } from "@/lib/tier/getOrgTier"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(
   req: Request,
@@ -30,21 +31,23 @@ export async function POST(
   }).eq("id", applicationId)
 
   // Get application + listing
-  const { data: application } = await supabase
+  const { data: application, error: applicationError } = await supabase
     .from("applications")
     .select("id, org_id, first_name, last_name, gross_monthly_income_cents, employment_type, listing_id, current_rent_cents, current_housing_status")
     .eq("id", applicationId)
     .single()
+    logQueryError("POST applications", applicationError)
 
   if (!application) {
     return NextResponse.json({ error: "Application not found" }, { status: 404 })
   }
 
-  const { data: listing } = await supabase
+  const { data: listing, error: listingError } = await supabase
     .from("listings")
     .select("asking_rent_cents")
     .eq("id", application.listing_id)
     .single()
+    logQueryError("POST listings", listingError)
 
   let extractedIncome: number | null = null
 
@@ -52,9 +55,10 @@ export async function POST(
   const tier = await getOrgTier(application.org_id)
   if (bankStatementPath && process.env.ANTHROPIC_API_KEY && hasFeature(tier, "ai_full")) {
     try {
-      const { data: fileData } = await supabase.storage
+      const { data: fileData, error: fileDataError } = await supabase.storage
         .from("application-docs")
         .download(bankStatementPath)
+        logQueryError("POST application-docs", fileDataError)
 
       if (fileData) {
         const text = await fileData.text()

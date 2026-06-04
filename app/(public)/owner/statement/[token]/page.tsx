@@ -12,6 +12,7 @@ import { notFound } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatZAR } from "@/lib/constants"
 import Image from "next/image"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function OwnerPortalPage({
   params,
@@ -21,11 +22,12 @@ export default async function OwnerPortalPage({
   const { token } = await params
   const supabase = await createServiceClient()
 
-  const { data: stmt } = await supabase
+  const { data: stmt, error: stmtError } = await supabase
     .from("owner_statements")
     .select("*, properties(name, address_line1, city, owner_name)")
     .eq("portal_token", token)
     .single()
+    logQueryError("OwnerPortalPage owner_statements", stmtError)
 
   if (!stmt) notFound()
 

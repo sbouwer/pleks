@@ -10,6 +10,7 @@
 import { redirect } from "next/navigation"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { ConfigurationForm } from "./ConfigurationForm"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface OrgSettings {
   preferences_version?: number
@@ -27,11 +28,12 @@ export default async function ConfigurationPage() {
   if (!gw) redirect("/login")
   const { db, orgId } = gw
 
-  const { data: org } = await db
+  const { data: org, error: orgError } = await db
     .from("organisations")
     .select("settings")
     .eq("id", orgId)
     .single()
+    logQueryError("ConfigurationPage organisations", orgError)
 
   const rawSettings = (org?.settings ?? {}) as OrgSettings
   const communication = rawSettings.communication ?? {}

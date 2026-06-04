@@ -7,16 +7,18 @@
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { getLandlordSession } from "@/lib/portal/getLandlordSession"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function LandlordProfilePage() {
   const session = await getLandlordSession()
   const service = await createServiceClient()
 
-  const { data: org } = await service
+  const { data: org, error: orgError } = await service
     .from("organisations")
     .select("name, email, phone")
     .eq("id", session.orgId)
     .single()
+    logQueryError("LandlordProfilePage organisations", orgError)
 
   return (
     <div className="max-w-md space-y-6">

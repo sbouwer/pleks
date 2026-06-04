@@ -12,6 +12,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { calculateManagementFee } from "@/lib/finance/managementFee"
 import { getOrgCapabilities } from "@/lib/org/capabilities"
 import type { OrgType } from "@/lib/constants"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function generateOwnerStatement(
   propertyId: string,
@@ -20,11 +21,12 @@ export async function generateOwnerStatement(
 ) {
   const supabase = await createServiceClient()
 
-  const { data: property } = await supabase
+  const { data: property, error: propertyError } = await supabase
     .from("properties")
     .select("*, organisations(*)")
     .eq("id", propertyId)
     .single()
+    logQueryError("generateOwnerStatement properties", propertyError)
 
   if (!property) return null
 
@@ -37,11 +39,12 @@ export async function generateOwnerStatement(
   const periodToStr = periodTo.toISOString().split("T")[0]
 
   // Income: rent invoices for units at this property
-  const { data: units } = await supabase
+  const { data: units, error: unitsError } = await supabase
     .from("units")
     .select("id")
     .eq("property_id", propertyId)
     .eq("is_archived", false)
+    logQueryError("generateOwnerStatement units", unitsError)
 
   const unitIds = (units || []).map((u) => u.id)
 
@@ -76,12 +79,13 @@ export async function generateOwnerStatement(
   const grossIncomeCents = incomeLines.reduce((sum, l) => sum + l.amount_paid_cents, 0)
 
   // Expenses: paid supplier invoices for this property in this period
-  const { data: expenses } = await supabase
+  const { data: expenses, error: expensesError } = await supabase
     .from("supplier_invoices")
     .select("*, contractor_view(first_name, last_name, company_name)")
     .eq("property_id", propertyId)
     .in("status", ["paid", "owner_direct_recorded"])
     .eq("statement_month", periodFromStr)
+    logQueryError("generateOwnerStatement supplier_invoices", expensesError)
 
   const expenseLines = (expenses || []).map((exp) => ({
     description: exp.statement_line_description || exp.description,
@@ -114,7 +118,7 @@ export async function generateOwnerStatement(
     }))
 
   // Create statement
-  const { data: statement } = await supabase
+  const { data: statement, error: statementError } = await supabase
     .from("owner_statements")
     .insert({
       org_id: property.org_id,
@@ -135,6 +139,7 @@ export async function generateOwnerStatement(
     })
     .select("id")
     .single()
+    logQueryError("generateOwnerStatement owner_statements", statementError)
 
   if (!statement) return null
 

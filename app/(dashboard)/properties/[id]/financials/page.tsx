@@ -11,6 +11,7 @@ import Link from "next/link"
 import { InlineLink } from "@/components/ui/actions"
 import { formatZAR } from "@/lib/constants"
 import { getPropertyPnL } from "@/lib/finance/propertyPnL"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const PERIOD_PRESETS = [
   { label: "This month", value: "this_month" },
@@ -67,22 +68,24 @@ export default async function PropertyFinancialsPage({
 
   const service = await createServiceClient()
 
-  const { data: membership } = await service
+  const { data: membership, error: membershipError } = await service
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
+    logQueryError("PropertyFinancialsPage user_orgs", membershipError)
   if (!membership) redirect("/onboarding")
   const orgId = membership.org_id
 
-  const { data: property } = await service
+  const { data: property, error: propertyError } = await service
     .from("properties")
     .select("id, name, address_line1, suburb")
     .eq("id", propertyId)
     .eq("org_id", orgId)
     .is("deleted_at", null)
     .single()
+    logQueryError("PropertyFinancialsPage properties", propertyError)
   if (!property) notFound()
 
   const pnl = await getPropertyPnL(service, orgId, propertyId, from, to)

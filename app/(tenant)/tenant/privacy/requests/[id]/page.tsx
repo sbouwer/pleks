@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, ExternalLink } from "lucide-react"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const STATUS_LABELS: Record<string, string> = {
   new: "Received",
@@ -44,11 +45,12 @@ export default async function RequestDetailPage({ params }: Readonly<{ params: P
   if (!user) redirect("/login")
 
   const db = createServiceClient()
-  const { data: request } = await (await db)
+  const { data: request, error: requestError } = await (await db)
     .from("data_subject_requests")
     .select("*")
     .eq("id", id)
     .single()
+    logQueryError("RequestDetailPage data_subject_requests", requestError)
 
   if (!request) notFound()
 

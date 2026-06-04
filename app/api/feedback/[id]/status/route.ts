@@ -9,6 +9,7 @@ import { NextRequest } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { isAdminAuthenticated } from "@/lib/admin/auth"
 import { getFeedbackSubmissionById, updateFeedbackStatus, type FeedbackStatus } from "@/lib/feedback/queries"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const VALID_STATUSES: FeedbackStatus[] = ["open", "in_progress", "resolved", "wont_fix"]
 
@@ -30,13 +31,14 @@ export async function PATCH(
   if (!isPlatformAdmin) {
     // Require org admin (owner role or is_admin flag)
     const service = await createServiceClient()
-    const { data: membership } = await service
+    const { data: membership, error: membershipError } = await service
       .from("user_orgs")
       .select("role, is_admin")
       .eq("user_id", user.id)
       .eq("org_id", submission.org_id)
       .is("deleted_at", null)
       .maybeSingle()
+    logQueryError("PATCH user_orgs", membershipError)
     const m = membership as { role: string; is_admin: boolean } | null
     if (!m || (m.role !== "owner" && m.is_admin !== true)) {
       return Response.json({ error: "Forbidden" }, { status: 403 })

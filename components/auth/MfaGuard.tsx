@@ -13,6 +13,7 @@
 import { useEffect } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const AGENT_ROLES = ["owner", "property_manager", "agent", "accountant", "maintenance_manager"]
 
@@ -64,11 +65,12 @@ export function MfaGuard() {
 
       // If user has no factors at all (nextLevel=aal1), check profile flag
       if (aal?.nextLevel === "aal1") {
-        const { data: profile } = await supabase
+        const { data: profile, error: profileError } = await supabase
           .from("user_profiles")
           .select("mfa_recovery_pending")
           .eq("id", user.id)
           .maybeSingle()
+        logQueryError("check user_profiles", profileError)
 
         // If this is a completely fresh agent account (no factors and not yet prompted),
         // redirect to enrolment. The login page also handles this for returning users.

@@ -11,6 +11,7 @@ import Link from "next/link"
 import { ListChecks, ArrowRight } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface Props {
   orgId:            string
@@ -63,7 +64,7 @@ export async function PropertySetupCards({ orgId, totalProperties, isAdmin }: Re
   const service = await createServiceClient()
   const cutoffIso = new Date(new Date().getTime() - SEVEN_DAYS_MS).toISOString()
 
-  const { data: recentImport } = await service
+  const { data: recentImport, error: recentImportError } = await service
     .from("import_sessions")
     .select("id, completed_at")
     .eq("org_id", orgId)
@@ -72,6 +73,7 @@ export async function PropertySetupCards({ orgId, totalProperties, isAdmin }: Re
     .order("completed_at", { ascending: false })
     .limit(1)
     .maybeSingle()
+    logQueryError("PropertySetupCards import_sessions", recentImportError)
 
   if (!recentImport) return null
 

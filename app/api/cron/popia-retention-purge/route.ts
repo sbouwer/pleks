@@ -16,6 +16,7 @@ import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
 import { isErasableNow, type DataCategory } from "@/lib/popia/retention"
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 type CatResult = { evaluated: number; deleted: number; skipped_carveout: number }
 type CatSummary = { orgs_processed: number; deleted: number; skipped: number; errors: string[] }
@@ -38,12 +39,13 @@ async function purgeRejectedApplications(
   cutoff.setMonth(cutoff.getMonth() - 12)
   const result: CatResult = { evaluated: 0, deleted: 0, skipped_carveout: 0 }
 
-  const { data: rows } = await db
+  const { data: rows, error: rowsError } = await db
     .from("applications")
     .select("id, created_at")
     .eq("org_id", orgId)
     .in("status", ["rejected", "withdrawn"])
     .lt("decided_at", cutoff.toISOString())
+    logQueryError("purgeRejectedApplications applications", rowsError)
 
   for (const row of rows ?? []) {
     result.evaluated++
@@ -76,11 +78,12 @@ async function runForOrg(
   now: Date,
   summary: Record<string, CatSummary>,
 ): Promise<void> {
-  const { data: runRow } = await db
+  const { data: runRow, error: runRowError } = await db
     .from("retention_purge_runs")
     .insert({ org_id: orgId, status: "running", records_by_category: {} })
     .select("id")
     .single()
+    logQueryError("runForOrg retention_purge_runs", runRowError)
   const runId = runRow?.id
 
   const aggregated: Record<string, CatResult> = {}

@@ -20,6 +20,7 @@ import {
   sendPurgeWarningFinal,
 } from "@/lib/subscriptions/emails"
 import { purgeOrg } from "@/lib/subscriptions/purge"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.pleks.co.za"
 const ELEVEN_MONTHS_MS = 11 * 30 * 24 * 60 * 60 * 1000
@@ -118,12 +119,13 @@ async function processFinalWarnSub(
 ): Promise<boolean> {
   if (await hasActiveLeases(supabase, sub.org_id)) return false
 
-  const { data: prior } = await supabase
+  const { data: prior, error: priorError } = await supabase
     .from("communication_log")
     .select("id")
     .eq("org_id", sub.org_id)
     .eq("template_key", "subscription.purge_warning_final")
     .limit(1)
+    logQueryError("processFinalWarnSub communication_log", priorError)
   if (prior && prior.length > 0) return false
 
   const { contact } = await fetchOrgContact(supabase, sub.org_id)

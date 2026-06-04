@@ -13,6 +13,7 @@ import { formatZAR } from "@/lib/constants"
 import { buildDirectorFeeForm } from "@/lib/payfast/forms"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { PayFastForm } from "@/components/payfast/PayFastForm"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function DirectorPaymentPage({
   params,
@@ -36,24 +37,26 @@ export default async function DirectorPaymentPage({
   }
 
   // Check if already paid
-  const { data: existingPayment } = await service
+  const { data: existingPayment, error: existingPaymentError } = await service
     .from("application_screening_payments")
     .select("paid_at")
     .eq("application_id", coApp.primary_application_id)
     .eq("subject_type", "co_applicant")
     .eq("subject_id", coApp.id)
     .maybeSingle()
+    logQueryError("DirectorPaymentPage application_screening_payments", existingPaymentError)
 
   if (existingPayment?.paid_at) {
     redirect(`/apply/${slug}/director-portal/${token}`)
   }
 
   // Fetch listing for display context
-  const { data: app } = await service
+  const { data: app, error: appError } = await service
     .from("applications")
     .select("listings(units(unit_number, properties(name)))")
     .eq("id", coApp.primary_application_id)
     .single()
+    logQueryError("DirectorPaymentPage applications", appError)
 
   const listing = app?.listings as unknown as {
     units: { unit_number: string; properties: { name: string } }

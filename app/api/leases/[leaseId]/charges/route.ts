@@ -13,6 +13,7 @@ import * as React from "react"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { routeAndSend } from "@/lib/messaging/router"
 import { LeaseAmendedEmail } from "@/lib/comms/templates/tenant/leases/lease-amended"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 type SupabaseUserClient = Awaited<ReturnType<typeof createClient>>
 
@@ -25,11 +26,12 @@ async function fireLeaseAmendedComm(
   userId: string,
   charge: ChargeComm,
 ): Promise<void> {
-  const { data: lease } = await supabase
+  const { data: lease, error: leaseError } = await supabase
     .from("leases")
     .select("status, tenant_id, unit_id")
     .eq("id", leaseId)
     .single()
+    logQueryError("fireLeaseAmendedComm leases", leaseError)
   if (lease?.status !== "active" || !lease.tenant_id) return
 
   const [tenantRes, unitRes, orgSettings] = await Promise.all([
@@ -81,12 +83,13 @@ export async function GET(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { data: charges } = await supabase
+  const { data: charges, error: chargesError } = await supabase
     .from("lease_charges")
     .select("*, contractor_view(first_name, last_name, company_name)")
     .eq("lease_id", leaseId)
     .eq("is_active", true)
     .order("charge_type")
+    logQueryError("GET lease_charges", chargesError)
 
   return NextResponse.json({ charges: charges ?? [] })
 }
@@ -101,12 +104,13 @@ export async function POST(
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const service = await createServiceClient()
-  const { data: membership } = await service
+  const { data: membership, error: membershipError } = await service
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
+    logQueryError("POST user_orgs", membershipError)
 
   if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
 
@@ -173,24 +177,26 @@ export async function DELETE(
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const service = await createServiceClient()
-  const { data: membership } = await service
+  const { data: membership, error: membershipError } = await service
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
+    logQueryError("DELETE user_orgs", membershipError)
   if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
 
   const { chargeId } = await req.json()
   if (!chargeId) return NextResponse.json({ error: "chargeId required" }, { status: 400 })
 
   // Fetch charge before deactivating (need description/amount for L6 comm)
-  const { data: charge } = await supabase
+  const { data: charge, error: chargeError } = await supabase
     .from("lease_charges")
     .select("description, amount_cents, start_date")
     .eq("id", chargeId)
     .eq("lease_id", leaseId)
     .single()
+    logQueryError("DELETE lease_charges", chargeError)
 
   // Soft deactivate (don't delete — historical invoices reference it)
   await supabase

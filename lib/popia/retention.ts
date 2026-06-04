@@ -8,6 +8,7 @@
  *         D-POPIA-02 defaults are baked in; retention_policies_snapshot overrides them.
  */
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // ─── Category enum ────────────────────────────────────────────────────────────
 // Every table-group purged by the cron or erasure cascade is mapped to a category.
@@ -201,12 +202,13 @@ export async function isErasableNow(
 
 export async function getRetentionPolicies(orgId: string): Promise<RetentionPoliciesSnapshot> {
   const db = createServiceClient()
-  const { data } = await (await db)
+  const { data, error: queryError } = await (await db)
     .from("retention_policies_snapshot")
     .select("org_id, effective_from, policies")
     .eq("org_id", orgId)
     .is("superseded_at", null)
     .single()
+    logQueryError("getRetentionPolicies retention_policies_snapshot", queryError)
 
   if (data?.policies) {
     return data as RetentionPoliciesSnapshot
@@ -229,7 +231,7 @@ export async function getRetentionForSubject(
 ): Promise<{ category: DataCategory; decision: RetentionDecision }[]> {
   // Fetch the subject's active lease to determine context
   const db = createServiceClient()
-  const { data: leases } = await (await db)
+  const { data: leases, error: leasesError } = await (await db)
     .from("leases")
     .select("status, end_date")
     .eq("org_id", orgId)
@@ -243,6 +245,7 @@ export async function getRetentionForSubject(
     )
     .order("start_date", { ascending: false })
     .limit(1)
+    logQueryError("getRetentionForSubject leases", leasesError)
 
   const latestLease = leases?.[0]
   const lease_active = latestLease?.status === "active"

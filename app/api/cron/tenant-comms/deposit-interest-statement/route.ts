@@ -16,6 +16,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { routeAndSend } from "@/lib/messaging/router"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { DepositInterestStatementEmail } from "@/lib/comms/templates/tenant/deposits/deposit-interest-statement"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function GET(req: NextRequest) {
   if (req.headers.get("x-cron-secret") !== process.env.CRON_SECRET) {
@@ -54,11 +55,12 @@ export async function GET(req: NextRequest) {
       const leaseStartYear = new Date(lease.start_date as string).getFullYear()
       if (leaseStartYear >= currentYear) { skipped++; continue }
 
-      const { data: tenant } = await service
+      const { data: tenant, error: tenantError } = await service
         .from("tenant_view")
         .select("first_name, last_name, email, phone")
         .eq("id", lease.tenant_id)
         .single()
+        logQueryError("GET tenant_view", tenantError)
 
       if (!tenant?.email) { skipped++; continue }
 
@@ -67,13 +69,14 @@ export async function GET(req: NextRequest) {
       const periodFrom = new Date(today)
       periodFrom.setFullYear(periodFrom.getFullYear() - 1)
 
-      const { data: interestTxns } = await service
+      const { data: interestTxns, error: interestTxnsError } = await service
         .from("deposit_transactions")
         .select("amount_cents, effective_rate_percent")
         .eq("lease_id", lease.id)
         .eq("transaction_type", "interest_accrued")
         .gte("transaction_date", periodFrom.toISOString().split("T")[0])
         .lte("transaction_date", periodTo.toISOString().split("T")[0])
+        logQueryError("GET deposit_transactions", interestTxnsError)
 
       const interestThisPeriod = (interestTxns ?? []).reduce(
         (sum, t) => sum + (t.amount_cents as number),
@@ -81,11 +84,12 @@ export async function GET(req: NextRequest) {
       )
 
       // Sum all interest ever accrued (cumulative)
-      const { data: allInterest } = await service
+      const { data: allInterest, error: allInterestError } = await service
         .from("deposit_transactions")
         .select("amount_cents")
         .eq("lease_id", lease.id)
         .eq("transaction_type", "interest_accrued")
+        logQueryError("GET deposit_transactions", allInterestError)
 
       const cumulativeInterest = (allInterest ?? []).reduce(
         (sum, t) => sum + (t.amount_cents as number),
@@ -99,11 +103,12 @@ export async function GET(req: NextRequest) {
         ?? 0
 
       // Property label
-      const { data: unitRow } = await service
+      const { data: unitRow, error: unitRowError } = await service
         .from("leases")
         .select("units(unit_number, properties(address_line1, suburb, city))")
         .eq("id", lease.id)
         .maybeSingle()
+        logQueryError("GET leases", unitRowError)
 
       type PropRow = { address_line1: string; suburb: string | null; city: string }
       type UnitRow = { unit_number: string; properties: PropRow | PropRow[] | null }

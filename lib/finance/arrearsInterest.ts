@@ -9,6 +9,7 @@
  */
 import { format } from "date-fns"
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 /**
  * Accrue one day of interest on an arrears case.
@@ -24,7 +25,7 @@ export async function accrueArrearsInterest(
 ): Promise<{ interestCents: number; skipped: boolean }> {
   const supabase = await createServiceClient()
 
-  const { data: arrearsCase } = await supabase
+  const { data: arrearsCase, error: arrearsCaseError } = await supabase
     .from("arrears_cases")
     .select(`
       id, org_id, lease_id, tenant_id,
@@ -36,6 +37,7 @@ export async function accrueArrearsInterest(
     `)
     .eq("id", caseId)
     .single()
+    logQueryError("accrueArrearsInterest arrears_cases", arrearsCaseError)
 
   if (!arrearsCase) return { interestCents: 0, skipped: true }
 
@@ -64,8 +66,9 @@ export async function accrueArrearsInterest(
   const marginPercent = lease.arrears_interest_margin_percent ?? 2
 
   // Get prime rate for this date
-  const { data: primeData } = await supabase
+  const { data: primeData, error: primeDataError } = await supabase
     .rpc("get_prime_rate_on", { check_date: chargeDate })
+    logQueryError("accrueArrearsInterest rpc:get_prime_rate_on", primeDataError)
 
   const primeRate: number = (primeData as number | null) ?? 11.25
   const effectiveRate = primeRate + marginPercent
@@ -116,11 +119,12 @@ export async function waiveArrearsInterest(
 ): Promise<{ waivedCents: number; chargesWaived: number }> {
   const supabase = await createServiceClient()
 
-  const { data: charges } = await supabase
+  const { data: charges, error: chargesError } = await supabase
     .from("arrears_interest_charges")
     .select("id, interest_cents")
     .eq("arrears_case_id", caseId)
     .eq("waived", false)
+    logQueryError("waiveArrearsInterest arrears_interest_charges", chargesError)
 
   if (!charges || charges.length === 0) {
     return { waivedCents: 0, chargesWaived: 0 }
@@ -143,11 +147,12 @@ export async function waiveArrearsInterest(
   await supabase.rpc("refresh_arrears_interest_total", { p_case_id: caseId })
 
   // Audit log
-  const { data: ac } = await supabase
+  const { data: ac, error: acError } = await supabase
     .from("arrears_cases")
     .select("org_id")
     .eq("id", caseId)
     .single()
+    logQueryError("waiveArrearsInterest arrears_cases", acError)
 
   if (ac) {
     await supabase.from("audit_log").insert({

@@ -11,6 +11,7 @@
  */
 import { useQueries } from "@tanstack/react-query"
 import { createClient } from "@/lib/supabase/client"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export interface MobileHomeBadges {
   properties: number
@@ -122,10 +123,11 @@ export function useMobileHomeBadges(): MobileHomeBadges {
       {
         queryKey: ["mobile-badge", "arrears_cents"],
         queryFn: async () => {
-          const { data } = await supabase
+          const { data, error: queryError } = await supabase
             .from("arrears_cases")
             .select("total_arrears_cents")
             .eq("status", "open")
+            logQueryError("results arrears_cases", queryError)
           return (data ?? []).reduce((sum, r) => sum + (r.total_arrears_cents ?? 0), 0)
         },
         staleTime: STALE,
@@ -137,9 +139,10 @@ export function useMobileHomeBadges(): MobileHomeBadges {
           // No flat `deposits` table — deposits live in the deposit_transactions ledger.
           // "Currently held" = net of credits (deposit_received, interest) minus debits
           // (deductions, returns, forfeits). Clamp ≥ 0.
-          const { data } = await supabase
+          const { data, error: queryError } = await supabase
             .from("deposit_transactions")
             .select("amount_cents, direction")
+            logQueryError("results deposit_transactions", queryError)
           const net = (data ?? []).reduce(
             (sum, r) => sum + (r.direction === "credit" ? (r.amount_cents ?? 0) : -(r.amount_cents ?? 0)),
             0,
@@ -154,10 +157,11 @@ export function useMobileHomeBadges(): MobileHomeBadges {
         queryFn: async () => {
           // payments has no status (every row is money received) and no paid_at — the date
           // column is payment_date. "Collected this month" = sum since the 1st.
-          const { data } = await supabase
+          const { data, error: queryError } = await supabase
             .from("payments")
             .select("amount_cents")
             .gte("payment_date", firstOfMonth)
+            logQueryError("results payments", queryError)
           return (data ?? []).reduce((sum, r) => sum + (r.amount_cents ?? 0), 0)
         },
         staleTime: STALE,

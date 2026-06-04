@@ -15,26 +15,29 @@ import { buildWelcomePackHTML, type WelcomePackToolbar } from "@/lib/reports/gen
 import { getReportBranding } from "@/lib/reports/reportBranding"
 import { REPORT_TIER_ACCESS } from "@/lib/reports/types"
 import { sendEmail } from "@/lib/comms/send-email"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // ── Shared auth + tier check ──────────────────────────────────────────────────
 
 async function verifyAccess(user: { id: string }, orgId: string) {
   const supabase = await createClient()
-  const { data: membership } = await supabase
+  const { data: membership, error: membershipError } = await supabase
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .eq("org_id", orgId)
     .is("deleted_at", null)
     .single()
+    logQueryError("verifyAccess user_orgs", membershipError)
   if (!membership) return { error: "Forbidden" }
 
-  const { data: sub } = await supabase
+  const { data: sub, error: subError } = await supabase
     .from("subscriptions")
     .select("tier")
     .eq("org_id", orgId)
     .eq("status", "active")
     .single()
+    logQueryError("verifyAccess subscriptions", subError)
 
   const tier = sub?.tier ?? "owner"
   const allowed = REPORT_TIER_ACCESS["landlord_welcome_pack"]
@@ -62,11 +65,12 @@ export async function GET(req: NextRequest) {
   if (access.error) return Response.json({ error: access.error }, { status: 403 })
 
   const service = await createServiceClient()
-  const { data: landlordRow } = await service
+  const { data: landlordRow, error: landlordRowError } = await service
     .from("landlord_view")
     .select("email")
     .eq("id", landlordId)
     .maybeSingle()
+    logQueryError("GET landlord_view", landlordRowError)
 
   const [data, orgInfo] = await Promise.all([
     buildWelcomePackData(orgId, landlordId),
@@ -106,11 +110,12 @@ export async function POST(req: NextRequest) {
   if (access.error) return Response.json({ error: access.error }, { status: 403 })
 
   const service = await createServiceClient()
-  const { data: landlordRow } = await service
+  const { data: landlordRow, error: landlordRowError } = await service
     .from("landlord_view")
     .select("email, first_name, last_name, company_name")
     .eq("id", landlordId)
     .maybeSingle()
+    logQueryError("POST landlord_view", landlordRowError)
 
   const landlordEmail = (landlordRow?.email as string | null | undefined) ?? null
   if (!landlordEmail) {

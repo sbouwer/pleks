@@ -14,6 +14,7 @@ import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { createPropertyInfoRequest } from "@/lib/actions/propertyInfoRequests"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function saveInsurancePolicy(propertyId: string, formData: FormData) {
   const gw = await requireAgentWriteAccess("edit_property")
@@ -87,18 +88,20 @@ export async function createInsuranceChecklistOwnerRequest(
 
   if (prop.landlord_id) {
     const service = await createServiceClient()
-    const { data: landlordRow } = await service
+    const { data: landlordRow, error: landlordRowError } = await service
       .from("landlords")
       .select("contact_id")
       .eq("id", prop.landlord_id)
       .maybeSingle()
+    logQueryError("createInsuranceChecklistOwnerRequest landlords", landlordRowError)
 
     if (landlordRow?.contact_id) {
-      const { data: contact } = await service
+      const { data: contact, error: contactError } = await service
         .from("contacts")
         .select("first_name, last_name, email")
         .eq("id", landlordRow.contact_id as string)
         .maybeSingle()
+        logQueryError("createInsuranceChecklistOwnerRequest contacts", contactError)
 
       if (contact) {
         recipientEmail = (contact.email as string | null) ?? null

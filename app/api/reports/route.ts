@@ -36,6 +36,7 @@ import { buildContractorPerformance } from "@/lib/reports/contractorPerformance"
 import { buildMaintenanceSla } from "@/lib/reports/maintenanceSla"
 import type { ReportPeriodType, ReportType } from "@/lib/reports/types"
 import { REPORT_TIER_ACCESS } from "@/lib/reports/types"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function GET(req: NextRequest) {
   const supabase = await createClient()
@@ -55,23 +56,25 @@ export async function GET(req: NextRequest) {
   }
 
   // Verify user belongs to org
-  const { data: membership } = await supabase
+  const { data: membership, error: membershipError } = await supabase
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .eq("org_id", orgId)
     .is("deleted_at", null)
     .single()
+    logQueryError("GET user_orgs", membershipError)
 
   if (!membership) return Response.json({ error: "Forbidden" }, { status: 403 })
 
   // Check tier access
-  const { data: sub } = await supabase
+  const { data: sub, error: subError } = await supabase
     .from("subscriptions")
     .select("tier")
     .eq("org_id", orgId)
     .eq("status", "active")
     .single()
+    logQueryError("GET subscriptions", subError)
 
   const tier = sub?.tier ?? "owner"
   const allowed = REPORT_TIER_ACCESS[reportType]

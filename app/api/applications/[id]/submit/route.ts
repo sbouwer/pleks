@@ -12,6 +12,7 @@ import { createClient } from "@supabase/supabase-js"
 import { calculatePrescreen } from "@/lib/applications/prescreen"
 import { sendApplicationReceived, sendAgentApplicationNotification } from "@/lib/applications/emails"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 function getServiceClient() {
   return createClient(
@@ -28,24 +29,26 @@ export async function POST(req: NextRequest, { params }: Props) {
   const service = getServiceClient()
 
   // Validate token belongs to this application
-  const { data: tokenRow } = await service
+  const { data: tokenRow, error: tokenRowError } = await service
     .from("application_tokens")
     .select("application_id, applicant_email")
     .eq("token", body.token)
     .eq("application_id", id)
     .gt("expires_at", new Date().toISOString())
     .maybeSingle()
+    logQueryError("POST application_tokens", tokenRowError)
 
   if (!tokenRow) {
     return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 })
   }
 
   // Fetch application + listing
-  const { data: app } = await service
+  const { data: app, error: appError } = await service
     .from("applications")
     .select("*, listings(id, public_slug, asking_rent_cents, applications_count, units(unit_number, properties(id, name, city, managing_agent_id)), org_id)")
     .eq("id", id)
     .single()
+    logQueryError("POST applications", appError)
 
   if (!app) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
@@ -80,14 +83,15 @@ export async function POST(req: NextRequest, { params }: Props) {
   }).eq("id", id)
 
   // Fetch org for branding
-  const { data: org } = await service
+  const { data: org, error: orgError } = await service
     .from("organisations")
     .select("name, email, phone, brand_accent_color")
     .eq("id", app.org_id as string)
     .single()
+    logQueryError("POST organisations", orgError)
 
   // Fetch agent email
-  const { data: agentRow } = await service
+  const { data: agentRow, error: agentRowError } = await service
     .from("user_orgs")
     .select("user_id, user_profiles(email)")
     .eq("org_id", app.org_id as string)
@@ -95,6 +99,7 @@ export async function POST(req: NextRequest, { params }: Props) {
     .is("deleted_at", null)
     .limit(1)
     .maybeSingle()
+    logQueryError("POST user_orgs", agentRowError)
 
   const agentEmail = (agentRow?.user_profiles as unknown as { email: string } | null)?.email ?? null
 

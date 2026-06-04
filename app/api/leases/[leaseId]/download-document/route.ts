@@ -9,6 +9,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function GET(
   _req: NextRequest,
@@ -19,11 +20,12 @@ export async function GET(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { data: lease } = await supabase
+  const { data: lease, error: leaseError } = await supabase
     .from("leases")
     .select("external_document_path, generated_doc_path")
     .eq("id", leaseId)
     .single()
+    logQueryError("GET leases", leaseError)
 
   if (!lease) return NextResponse.json({ error: "Lease not found" }, { status: 404 })
 
@@ -31,9 +33,10 @@ export async function GET(
   if (!docPath) return NextResponse.json({ error: "No document" }, { status: 404 })
 
   const serviceSupabase = await createServiceClient()
-  const { data } = await serviceSupabase.storage
+  const { data, error: queryError } = await serviceSupabase.storage
     .from("documents")
     .createSignedUrl(docPath, 3600)
+    logQueryError("GET documents", queryError)
 
   return NextResponse.json({ url: data?.signedUrl ?? null })
 }

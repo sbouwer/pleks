@@ -12,6 +12,7 @@ import { getServerOrgMembership } from "@/lib/auth/server"
 import { redirect, notFound } from "next/navigation"
 import { BuildingForm } from "@/components/properties/BuildingForm"
 import { BackLink } from "@/components/ui/BackLink"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function NewBuildingPage({
   params,
@@ -23,13 +24,14 @@ export default async function NewBuildingPage({
   if (!membership) redirect("/login")
 
   const supabase = await createServiceClient()
-  const { data: property } = await supabase
+  const { data: property, error: propertyError } = await supabase
     .from("properties")
     .select("id, name")
     .eq("id", id)
     .eq("org_id", membership.org_id)
     .is("deleted_at", null)
     .single()
+    logQueryError("NewBuildingPage properties", propertyError)
 
   if (!property) notFound()
 

@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { getSupplierSession } from "@/lib/portal/getSupplierSession"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function ContractorDashboard() {
   const session = await getSupplierSession()
@@ -21,12 +22,13 @@ export default async function ContractorDashboard() {
   const contractorName = session.displayName
 
   // Get job counts (scoped to this supplier)
-  const { data: jobs } = await service
+  const { data: jobs, error: jobsError } = await service
     .from("maintenance_requests")
     .select("id, status, title, urgency, created_at, properties(name), units(unit_number)")
     .eq("contractor_id", session.contractorId)
     .not("status", "in", '("cancelled","closed")')
     .order("created_at", { ascending: false })
+    logQueryError("ContractorDashboard maintenance_requests", jobsError)
 
   const allJobs = jobs ?? []
   const newJobs = allJobs.filter((j) => j.status === "work_order_sent" || j.status === "pending_quote")
@@ -34,11 +36,12 @@ export default async function ContractorDashboard() {
   const inProgress = allJobs.filter((j) => ["acknowledged", "in_progress", "quote_approved"].includes(j.status))
 
   // Pending invoices
-  const { data: pendingInvoices } = await service
+  const { data: pendingInvoices, error: pendingInvoicesError } = await service
     .from("supplier_invoices")
     .select("id")
     .eq("contractor_id", session.contractorId)
     .eq("status", "pending")
+    logQueryError("ContractorDashboard supplier_invoices", pendingInvoicesError)
 
   const urgencyColors: Record<string, string> = {
     emergency: "bg-red-100 text-red-700",

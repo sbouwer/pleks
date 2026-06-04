@@ -10,16 +10,18 @@
 import { NextRequest, NextResponse } from "next/server"
 import { isAdminAuthenticated } from "@/lib/admin/auth"
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // Public GET — returns current prime rate (no auth needed)
 export async function GET() {
   const supabase = await createServiceClient()
-  const { data } = await supabase
+  const { data, error: queryError } = await supabase
     .from("prime_rates")
     .select("rate_percent, effective_date, notes")
     .order("effective_date", { ascending: false })
     .limit(1)
     .single()
+    logQueryError("GET prime_rates", queryError)
 
   return NextResponse.json({
     rate_percent: data?.rate_percent ?? 10.25,

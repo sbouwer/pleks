@@ -20,6 +20,7 @@ import {
   checkRateLimit, recordSend, type ConsentType,
 } from "@/lib/consent/verification"
 import { sendConsentSMS } from "@/lib/sms/sendConsentSMS"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const SMS_TEMPLATE = (code: string, special: boolean) =>
   special
@@ -45,12 +46,13 @@ async function resolveTokenContext(
   isDirector: boolean,
 ): Promise<TokenContextResult> {
   if (isDirector) {
-    const { data: coApp } = await service
+    const { data: coApp, error: coAppError } = await service
       .from("application_co_applicants")
       .select("id, applicant_phone, primary_application_id, org_id, declined_at, access_token_expires")
       .eq("access_token", token)
       .is("declined_at", null)
       .single()
+    logQueryError("resolveTokenContext application_co_applicants", coAppError)
 
     if (!coApp) {
       return { ok: false, response: NextResponse.json({ error: "Invalid or expired director token" }, { status: 404 }) }
@@ -71,22 +73,24 @@ async function resolveTokenContext(
   }
 
   // Applicant invite token path (F6: expires_at filter)
-  const { data: tokenRow } = await service
+  const { data: tokenRow, error: tokenRowError } = await service
     .from("application_tokens")
     .select("application_id")
     .eq("token", token)
     .gt("expires_at", new Date().toISOString())
     .maybeSingle()
+    logQueryError("resolveTokenContext application_tokens", tokenRowError)
 
   if (!tokenRow) {
     return { ok: false, response: NextResponse.json({ error: "Invalid or expired applicant token" }, { status: 404 }) }
   }
 
-  const { data: app } = await service
+  const { data: app, error: appError } = await service
     .from("applications")
     .select("applicant_phone, org_id")
     .eq("id", tokenRow.application_id as string)
     .single()
+    logQueryError("resolveTokenContext applications", appError)
 
   if (!app) {
     return { ok: false, response: NextResponse.json({ error: "Application not found" }, { status: 404 }) }

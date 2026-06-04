@@ -7,6 +7,7 @@
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { logAuthEvent } from "@/lib/auth/events"
 import { revokePasskeyAalForUser } from "@/lib/auth/passkey-aal-server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(req: Request) {
   const supabase = await createClient()
@@ -19,13 +20,14 @@ export async function POST(req: Request) {
   const serviceDb = await createServiceClient()
 
   // Verify ownership before revoking
-  const { data: pk } = await serviceDb
+  const { data: pk, error: pkError } = await serviceDb
     .from("user_passkeys")
     .select("id, label, device_type")
     .eq("id", passkeyId)
     .eq("user_id", user.id)
     .is("revoked_at", null)
     .maybeSingle()
+    logQueryError("POST user_passkeys", pkError)
 
   if (!pk) return new Response("Not found", { status: 404 })
 

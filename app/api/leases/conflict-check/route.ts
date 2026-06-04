@@ -10,6 +10,7 @@ import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import type { AnnexureCRules } from "@/components/leases/wizardData"
 import type { ClauseConflict } from "@/lib/leases/conflictChecker"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 /**
  * POST /api/leases/conflict-check
@@ -36,10 +37,11 @@ export async function POST(req: Request) {
   }
 
   // Fetch clause bodies from the library for enabled optional clauses
-  const { data: clauses } = await supabase
+  const { data: clauses, error: clausesError } = await supabase
     .from("lease_clause_library")
     .select("clause_key, title, body_template")
     .in("clause_key", enabledClauseKeys)
+    logQueryError("POST lease_clause_library", clausesError)
 
   if (!clauses?.length) return NextResponse.json({ conflicts: [] })
 

@@ -13,6 +13,7 @@ import { redirect, notFound } from "next/navigation"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { COMBINED_DATA_CONTROLLERS } from "@/lib/searchworx/products/combinedConsumerCreditReport"
 import { FileDown, Clock, CheckCircle2, ShieldCheck, ExternalLink } from "lucide-react"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -73,10 +74,11 @@ export default async function ScreeningPage({
   const signedLinks: { label: string; url: string }[] = []
   for (const line of pdfLines) {
     if (!line.pdf_storage_path) continue
-    const { data: signed } = await service
+    const { data: signed, error: signedError } = await service
       .storage
       .from("screening-reports")
-      .createSignedUrl(line.pdf_storage_path, 3600)  // 1-hour expiry
+      .createSignedUrl(line.pdf_storage_path, 3600)
+    logQueryError("ScreeningPage screening-reports", signedError)  // 1-hour expiry
     if (signed?.signedUrl) {
       signedLinks.push({
         label: productKeyLabel(line.product_key),

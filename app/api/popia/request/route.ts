@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { createDataSubjectRequest } from "@/lib/popia/requests"
 import type { RequestType } from "@/lib/popia/requests"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -36,11 +37,12 @@ export async function POST(req: NextRequest) {
   // Verify org exists (subject_user_id will be null if the user is not found in user_orgs —
   // that's valid for agency-initiated or email-submitted requests)
   const db = createServiceClient()
-  const { data: org } = await (await db)
+  const { data: org, error: orgError } = await (await db)
     .from("organisations")
     .select("id")
     .eq("id", body.org_id)
     .single()
+    logQueryError("POST organisations", orgError)
 
   if (!org) {
     return NextResponse.json({ error: "Organisation not found" }, { status: 404 })

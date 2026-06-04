@@ -9,6 +9,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function GET(
   _req: NextRequest,
@@ -19,11 +20,12 @@ export async function GET(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { data: lease } = await supabase
+  const { data: lease, error: leaseError } = await supabase
     .from("leases")
     .select("unit_id, property_id, tenant_id, lease_type, rent_amount_cents, deposit_amount_cents, escalation_percent, payment_due_day, escalation_type")
     .eq("id", leaseId)
     .single()
+    logQueryError("GET leases", leaseError)
 
   if (!lease) return NextResponse.json({ error: "Lease not found" }, { status: 404 })
 

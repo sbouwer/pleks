@@ -16,6 +16,7 @@ import { routeAndSend } from "@/lib/messaging/router"
 import { fetchOrgSettings, buildBranding, type OrgBranding } from "@/lib/comms/send-email"
 import { MonthlyStatementEmail, type StatementInvoiceRow, type StatementPaymentRow } from "@/lib/comms/templates/tenant/rent/monthly-statement"
 import { startOfMonth, endOfMonth, subMonths } from "date-fns"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 type ServiceClient = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -46,11 +47,12 @@ interface LeaseStatementContext {
 }
 
 async function buildPropertyLabel(service: ServiceClient, unitId: string): Promise<string> {
-  const { data: unitRow } = await service
+  const { data: unitRow, error: unitRowError } = await service
     .from("units")
     .select("unit_number, properties(address_line1, suburb, city)")
     .eq("id", unitId)
     .single()
+    logQueryError("buildPropertyLabel units", unitRowError)
   type PropRow = { address_line1: string | null; suburb: string | null; city: string | null }
   type UnitRow = { unit_number: string | null; properties: PropRow | PropRow[] | null }
   const unitData = unitRow as unknown as UnitRow | null
@@ -96,20 +98,22 @@ async function buildPaymentRows(service: ServiceClient, leaseId: string, periodF
 }
 
 async function getClosingBalance(service: ServiceClient, leaseId: string): Promise<number> {
-  const { data } = await service
+  const { data, error: queryError } = await service
     .from("rent_invoices")
     .select("balance_cents")
     .eq("lease_id", leaseId)
     .in("status", ["open", "partial", "overdue"])
+    logQueryError("getClosingBalance rent_invoices", queryError)
   return (data ?? []).reduce((sum, r) => sum + ((r.balance_cents as number | null) ?? 0), 0)
 }
 
 async function sendLeaseStatement(service: ServiceClient, ctx: LeaseStatementContext): Promise<boolean> {
-  const { data: tenant } = await service
+  const { data: tenant, error: tenantError } = await service
     .from("tenant_view")
     .select("first_name, last_name, email, phone")
     .eq("id", ctx.tenantId)
     .single()
+    logQueryError("sendLeaseStatement tenant_view", tenantError)
 
   if (!tenant?.email) return false
 

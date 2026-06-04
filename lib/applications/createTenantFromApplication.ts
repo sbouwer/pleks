@@ -10,6 +10,7 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 import { createClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function createTenantFromApplication(
   applicationId: string,
@@ -17,7 +18,7 @@ export async function createTenantFromApplication(
 ): Promise<{ tenantId: string } | { error: string }> {
   const supabase = await createClient()
 
-  const { data: application } = await supabase
+  const { data: application, error: applicationError } = await supabase
     .from("applications")
     .select(`
       id, org_id, first_name, last_name, applicant_email, applicant_phone,
@@ -28,6 +29,7 @@ export async function createTenantFromApplication(
     `)
     .eq("id", applicationId)
     .single()
+    logQueryError("createTenantFromApplication applications", applicationError)
 
   if (!application) return { error: "Application not found" }
 
@@ -38,22 +40,24 @@ export async function createTenantFromApplication(
 
   // Deduplication — check if contact with same ID hash already exists in org
   if (application.id_number_hash) {
-    const { data: existingContact } = await supabase
+    const { data: existingContact, error: existingContactError } = await supabase
       .from("contacts")
       .select("id")
       .eq("org_id", application.org_id)
       .eq("id_number_hash", application.id_number_hash)
       .is("deleted_at", null)
       .single()
+    logQueryError("createTenantFromApplication contacts", existingContactError)
 
     if (existingContact) {
       // Find the tenant linked to this contact
-      const { data: existingTenant } = await supabase
+      const { data: existingTenant, error: existingTenantError } = await supabase
         .from("tenants")
         .select("id")
         .eq("contact_id", existingContact.id)
         .is("deleted_at", null)
         .single()
+        logQueryError("createTenantFromApplication tenants", existingTenantError)
 
       if (existingTenant) {
         await supabase.from("applications")

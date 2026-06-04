@@ -13,6 +13,7 @@ import { notFound } from "next/navigation"
 import Image from "next/image"
 import { formatZAR } from "@/lib/constants"
 import { ContractorTrackingClient } from "./ContractorTrackingClient"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface Props {
   params: Promise<{ workOrderNumber: string }>
@@ -25,7 +26,7 @@ export default async function WorkOrderPage({ params, searchParams }: Props) {
 
   const supabase = await createServiceClient()
 
-  const { data: req } = await supabase
+  const { data: req, error: reqError } = await supabase
     .from("maintenance_requests")
     .select(`
       id, work_order_number, work_order_token, work_order_token_revoked_at,
@@ -37,6 +38,7 @@ export default async function WorkOrderPage({ params, searchParams }: Props) {
     `)
     .eq("work_order_number", workOrderNumber)
     .single()
+    logQueryError("WorkOrderPage maintenance_requests", reqError)
 
   if (!req) notFound()
 

@@ -14,6 +14,7 @@ import { revalidatePath } from "next/cache"
 import { addDays } from "date-fns"
 import { buildEmailContext } from "@/lib/applications/buildEmailContext"
 import { sendShortlistInvitation as sendShortlistEmail } from "@/lib/applications/emails"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function sendShortlistInvitation(
   applicationId: string,
@@ -21,16 +22,17 @@ export async function sendShortlistInvitation(
 ) {
   const supabase = await createClient()
 
-  const { data: application } = await supabase
+  const { data: application, error: applicationError } = await supabase
     .from("applications")
     .select("id, applicant_email, first_name, org_id, listing_id")
     .eq("id", applicationId)
     .single()
+    logQueryError("sendShortlistInvitation applications", applicationError)
 
   if (!application) return { error: "Application not found" }
 
   // Create shortlist invite token (7-day expiry)
-  const { data: inviteToken } = await supabase
+  const { data: inviteToken, error: inviteTokenError } = await supabase
     .from("application_tokens")
     .insert({
       application_id: applicationId,
@@ -40,6 +42,7 @@ export async function sendShortlistInvitation(
     })
     .select("token")
     .single()
+    logQueryError("sendShortlistInvitation application_tokens", inviteTokenError)
 
   if (!inviteToken) return { error: "Failed to create invite token" }
 

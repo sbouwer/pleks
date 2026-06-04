@@ -10,6 +10,7 @@
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { type AuditLogRow } from "./audit-severity"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export const PAGE_SIZE = 50
 
@@ -108,7 +109,8 @@ export async function getAuditEntry(id: string): Promise<AuditEntry | null> {
   const orgId = data.org_id as string | null
   let org_name: string | undefined
   if (orgId) {
-    const { data: org } = await db.from("organisations").select("name").eq("id", orgId).single()
+    const { data: org, error: orgError } = await db.from("organisations").select("name").eq("id", orgId).single()
+    logQueryError("getAuditEntry organisations", orgError)
     org_name = org?.name as string | undefined
   }
 
@@ -124,6 +126,7 @@ export async function getDistinctTableNames(): Promise<string[]> {
   const db = await createServiceClient()
   // RPC does SELECT DISTINCT at the DB level — avoids the PostgREST row-limit
   // truncation that occurs when one table accumulates many audit entries.
-  const { data } = await db.rpc("get_distinct_audit_tables")
+  const { data, error: queryError } = await db.rpc("get_distinct_audit_tables")
+    logQueryError("getDistinctTableNames rpc:get_distinct_audit_tables", queryError)
   return (data ?? []).map((r: { table_name: string }) => r.table_name)
 }

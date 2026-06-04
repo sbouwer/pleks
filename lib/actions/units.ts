@@ -13,6 +13,7 @@ import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 import { syncUnitClauseProfile } from "@/lib/leases/syncUnitClauseProfile"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -104,11 +105,12 @@ async function upsertInspectionProfile(
   }
 
   // Get or create the profile
-  const { data: existing } = await db
+  const { data: existing, error: existingError } = await db
     .from("unit_inspection_profiles")
     .select("id")
     .eq("unit_id", unitId)
     .maybeSingle()
+    logQueryError("upsertInspectionProfile unit_inspection_profiles", existingError)
 
   let profileId: string
 
@@ -291,11 +293,12 @@ export async function updateUnitStatus(
   const gw = await requireAgentWriteAccess("edit_property")
   const { db, userId } = gw
 
-  const { data: unit } = await db
+  const { data: unit, error: unitError } = await db
     .from("units")
     .select("status, org_id")
     .eq("id", unitId)
     .single()
+    logQueryError("updateUnitStatus units", unitError)
 
   if (!unit) return { error: "Unit not found" }
 
@@ -383,7 +386,8 @@ export async function updateUnitFeatures(unitId: string, propertyId: string, fea
   const gw = await requireAgentWriteAccess("edit_property")
   const { db } = gw
 
-  const { data: unit } = await db.from("units").select("org_id").eq("id", unitId).single()
+  const { data: unit, error: unitError } = await db.from("units").select("org_id").eq("id", unitId).single()
+    logQueryError("updateUnitFeatures units", unitError)
   if (!unit) return { error: "Unit not found" }
   const { error } = await db.from("units").update({ features }).eq("id", unitId)
   if (error) return { error: error.message }

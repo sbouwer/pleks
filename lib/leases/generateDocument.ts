@@ -12,6 +12,7 @@ import { getLessorBankDetails } from "@/lib/leases/bankDetails"
 import { parseClauseBody, buildSelfLookup } from "./parseClauseBody"
 import { renderClauseBodyToDocx } from "./renderClauseDocx"
 import { getOrgDisplayName, getOrgLegalName } from "@/lib/org/displayName"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -79,7 +80,7 @@ export async function generateLeaseDocument(
   const supabase = await createServiceClient()
 
   // Load lease + related data
-  const { data: lease } = await supabase
+  const { data: lease, error: leaseError } = await supabase
     .from("leases")
     .select(`
       *,
@@ -88,15 +89,17 @@ export async function generateLeaseDocument(
     `)
     .eq("id", leaseId)
     .single()
+    logQueryError("generateLeaseDocument leases", leaseError)
 
   if (!lease) throw new Error(`Lease ${leaseId} not found`)
 
   // Load org
-  const { data: org } = await supabase
+  const { data: org, error: orgError } = await supabase
     .from("organisations")
     .select("*")
     .eq("id", orgId)
     .single()
+    logQueryError("generateLeaseDocument organisations", orgError)
 
   // Load clause library + co-tenants in parallel
   const leaseType = lease.lease_type ?? "residential"

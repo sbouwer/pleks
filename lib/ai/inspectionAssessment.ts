@@ -8,6 +8,7 @@
 import type { Tier } from "@/lib/constants"
 import { hasFeature } from "@/lib/tier/gates"
 import { createMessage } from "@/lib/ai/client"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export const WEAR_AND_TEAR_SYSTEM_PROMPT = `You are a South African property inspection expert with deep knowledge of the Rental Housing Act 50 of 1999 and industry standards for wear and tear assessment.
 
@@ -69,11 +70,12 @@ export async function runInspectionAssessment(
   const supabase = await createClient()
 
   // Get inspection items that need assessment
-  const { data: items } = await supabase
+  const { data: items, error: itemsError } = await supabase
     .from("inspection_items")
     .select("id, item_name, item_category, condition, condition_notes, inspection_rooms(room_label)")
     .eq("inspection_id", inspectionId)
     .in("condition", ["poor", "damaged", "fair"])
+    logQueryError("runInspectionAssessment inspection_items", itemsError)
 
   if (!items?.length) return []
 
@@ -107,19 +109,21 @@ export async function runInspectionAssessment(
   }
 
   // Get lease duration for context
-  const { data: inspection } = await supabase
+  const { data: inspection, error: inspectionError } = await supabase
     .from("inspections")
     .select("lease_id")
     .eq("id", inspectionId)
     .single()
+    logQueryError("runInspectionAssessment inspections", inspectionError)
 
   let leaseDurationMonths = 12
   if (inspection?.lease_id) {
-    const { data: lease } = await supabase
+    const { data: lease, error: leaseError } = await supabase
       .from("leases")
       .select("start_date, end_date")
       .eq("id", inspection.lease_id)
       .single()
+    logQueryError("runInspectionAssessment leases", leaseError)
 
     if (lease?.start_date && lease?.end_date) {
       leaseDurationMonths = Math.round(

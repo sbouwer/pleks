@@ -12,6 +12,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { getSupplierSession } from "@/lib/portal/getSupplierSession"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function ContractorJobsPage() {
   const session = await getSupplierSession()
@@ -19,7 +20,7 @@ export default async function ContractorJobsPage() {
 
   const service = await createServiceClient()
 
-  const { data: jobs } = await service
+  const { data: jobs, error: jobsError } = await service
     .from("maintenance_requests")
     .select(`
       id, title, status, urgency, category, created_at,
@@ -30,6 +31,7 @@ export default async function ContractorJobsPage() {
     .eq("contractor_id", session.contractorId)
     .not("status", "in", '("cancelled")')
     .order("created_at", { ascending: false })
+    logQueryError("ContractorJobsPage maintenance_requests", jobsError)
 
   const allJobs = jobs ?? []
 

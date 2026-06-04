@@ -18,6 +18,7 @@ import { parseQIF } from "@/lib/recon/qifParser"
 import { parseCSVBank } from "@/lib/recon/csvBankParser"
 import type { ParsedTransaction } from "@/lib/recon/ofxParser"
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 type ImportSource = "upload" | "ofx" | "csv" | "qif" | "yodlee"
 
@@ -108,10 +109,11 @@ async function autoMatchLines(
   }
 
   // Refresh import counters
-  const { data: counts } = await db
+  const { data: counts, error: countsError } = await db
     .from("bank_statement_lines")
     .select("match_status")
     .eq("import_id", importId)
+    logQueryError("autoMatchLines bank_statement_lines", countsError)
 
   const total = counts?.length ?? 0
   const matchedCount = counts?.filter((l) => l.match_status !== "unmatched" && l.match_status !== "ignored").length ?? 0
@@ -293,12 +295,13 @@ export async function signOffReconciliation(importId: string) {
   const gw = await requireAgentWriteAccess("sign_off_recon")
   const { db, userId } = gw
 
-  const { data: unmatched } = await db
+  const { data: unmatched, error: unmatchedError } = await db
     .from("bank_statement_lines")
     .select("id")
     .eq("import_id", importId)
     .eq("match_status", "unmatched")
     .limit(1)
+    logQueryError("signOffReconciliation bank_statement_lines", unmatchedError)
 
   if (unmatched && unmatched.length > 0) {
     return { error: "All transactions must be matched or ignored before sign-off" }
@@ -316,11 +319,12 @@ export async function signOffReconciliation(importId: string) {
 
   if (error) return { error: error.message }
 
-  const { data: imp } = await db
+  const { data: imp, error: impError } = await db
     .from("bank_statement_imports")
     .select("org_id")
     .eq("id", importId)
     .single()
+    logQueryError("signOffReconciliation bank_statement_imports", impError)
 
   if (imp) {
     await db.from("audit_log").insert({

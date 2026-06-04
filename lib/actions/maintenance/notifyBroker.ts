@@ -17,6 +17,7 @@ import {
   CriticalIncidentBrokerEmail,
   type CriticalIncidentBrokerProps,
 } from "@/lib/comms/templates/maintenance/critical-incident-broker"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface NotifyBrokerParams {
   orgId: string
@@ -37,21 +38,23 @@ export async function notifyBroker(params: NotifyBrokerParams): Promise<{ logId?
   const db = await createServiceClient()
 
   // Fetch broker for this property
-  const { data: brokerRow } = await db
+  const { data: brokerRow, error: brokerRowError } = await db
     .from("property_brokers")
     .select("broker_contact_id, auto_notify_critical, notify_channels")
     .eq("property_id", params.propertyId)
     .single()
+    logQueryError("notifyBroker property_brokers", brokerRowError)
 
   if (!brokerRow) return { skipped: "no_broker_assigned" }
   if (!brokerRow.auto_notify_critical) return { skipped: "auto_notify_disabled" }
 
   // Fetch broker contact email
-  const { data: contact } = await db
+  const { data: contact, error: contactError } = await db
     .from("contacts")
     .select("id, first_name, last_name, email")
     .eq("id", brokerRow.broker_contact_id)
     .single()
+    logQueryError("notifyBroker contacts", contactError)
 
   if (!contact?.email) return { skipped: "no_broker_email" }
 
@@ -71,10 +74,11 @@ export async function notifyBroker(params: NotifyBrokerParams): Promise<{ logId?
   const itemCodes = checklist.map((r) => r.item_code as string).filter(Boolean)
   const labelByCode: Record<string, string> = {}
   if (itemCodes.length > 0) {
-    const { data: catalogue } = await db
+    const { data: catalogue, error: catalogueError } = await db
       .from("insurance_checklist_items")
       .select("code, label")
       .in("code", itemCodes)
+    logQueryError("notifyBroker insurance_checklist_items", catalogueError)
     for (const item of catalogue ?? []) {
       labelByCode[item.code as string] = item.label as string
     }

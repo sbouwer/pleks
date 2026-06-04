@@ -9,18 +9,20 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 async function getOrgId(): Promise<string | null> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
   const service = await createServiceClient()
-  const { data } = await service
+  const { data, error: queryError } = await service
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
+    logQueryError("getOrgId user_orgs", queryError)
   return data?.org_id ?? null
 }
 
@@ -64,12 +66,13 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const service = await createServiceClient()
-  const { data: membership } = await service
+  const { data: membership, error: membershipError } = await service
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
+    logQueryError("POST user_orgs", membershipError)
   if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
 
   const { payments } = await req.json() as { payments: PaymentRecord[] }
@@ -83,12 +86,13 @@ export async function POST(req: NextRequest) {
     if (!p.invoiceId || p.amountCents <= 0) continue
 
     // Fetch invoice (verify ownership)
-    const { data: inv } = await service
+    const { data: inv, error: invError } = await service
       .from("rent_invoices")
       .select("id, org_id, lease_id, unit_id, tenant_id, balance_cents, amount_paid_cents, total_amount_cents")
       .eq("id", p.invoiceId)
       .eq("org_id", orgId)
       .single()
+    logQueryError("POST rent_invoices", invError)
 
     if (!inv || inv.balance_cents <= 0) continue
 

@@ -9,6 +9,7 @@
  */
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const VALID_CONTRACTOR_TRANSITIONS: Record<string, string[]> = {
   work_order_sent: ["acknowledged"],
@@ -36,11 +37,12 @@ export async function POST(req: Request) {
   const supabase = await createServiceClient()
 
   // Verify token
-  const { data: request } = await supabase
+  const { data: request, error: requestError } = await supabase
     .from("maintenance_requests")
     .select("id, status, work_order_token, org_id")
     .eq("id", requestId)
     .single()
+    logQueryError("POST maintenance_requests", requestError)
 
   if (!request || request.work_order_token !== token) {
     return NextResponse.json({ error: "Invalid token" }, { status: 403 })

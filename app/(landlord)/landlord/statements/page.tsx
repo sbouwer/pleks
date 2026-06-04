@@ -11,17 +11,19 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { getLandlordSession } from "@/lib/portal/getLandlordSession"
 import { Download } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function LandlordStatementsPage() {
   const session = await getLandlordSession()
   const service = await createServiceClient()
 
-  const { data: properties } = await service
+  const { data: properties, error: propertiesError } = await service
     .from("properties")
     .select("id, name")
     .eq("landlord_id", session.landlordId)
     .is("deleted_at", null)
     .order("name")
+    logQueryError("LandlordStatementsPage properties", propertiesError)
 
   const propertyIds = (properties ?? []).map((p) => p.id)
 

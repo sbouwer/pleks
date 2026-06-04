@@ -18,6 +18,7 @@ import type { User } from "@supabase/supabase-js"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { safeRedirect } from "@/lib/auth/safe-redirect"
 import WelcomeClient from "./WelcomeClient"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface PageProps {
   searchParams: Promise<{ step?: string; redirect?: string }>
@@ -90,20 +91,22 @@ export default async function WelcomePage({ searchParams }: Readonly<PageProps>)
   let delegationCount = 0
   let delegatedByName = ""
   if (orgId) {
-    const { data: delegations } = await service
+    const { data: delegations, error: delegationsError } = await service
       .from("activation_delegations")
       .select("item_key, delegated_by")
       .eq("org_id", orgId)
       .eq("delegated_to", user.id)
+    logQueryError("WelcomePage activation_delegations", delegationsError)
 
     if (delegations && delegations.length > 0) {
       delegationCount = delegations.length
       const ownerId = delegations[0].delegated_by as string
-      const { data: ownerProfile } = await service
+      const { data: ownerProfile, error: ownerProfileError } = await service
         .from("user_profiles")
         .select("full_name")
         .eq("id", ownerId)
         .single()
+        logQueryError("WelcomePage user_profiles", ownerProfileError)
       delegatedByName = ownerProfile?.full_name?.split(" ")[0] ?? "Your manager"
     }
   }

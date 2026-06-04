@@ -9,6 +9,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -32,12 +33,13 @@ export async function POST(req: NextRequest) {
   }
 
   // Get user's org
-  const { data: membership } = await supabase
+  const { data: membership, error: membershipError } = await supabase
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
+    logQueryError("POST user_orgs", membershipError)
 
   if (!membership) {
     return NextResponse.json({ error: "No org" }, { status: 403 })

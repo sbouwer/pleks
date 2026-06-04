@@ -9,6 +9,7 @@
 import { createServiceClient } from "@/lib/supabase/server"
 import type { OperatingHours } from "@/lib/org/operatingHours"
 import { getOperatingHours } from "@/lib/org/operatingHours"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export type { OperatingHours }
 
@@ -76,17 +77,19 @@ export async function getReportBranding(orgId: string): Promise<ReportBranding> 
   // Resolve logo URL — org-assets bucket is private, must use signed URL
   let logoUrl: string | null = org.logo_url ?? null
   if (org.brand_logo_path) {
-    const { data: signed } = await db.storage.from("org-assets").createSignedUrl(org.brand_logo_path, 3600)
+    const { data: signed, error: signedError } = await db.storage.from("org-assets").createSignedUrl(org.brand_logo_path, 3600)
+    logQueryError("getReportBranding org-assets", signedError)
     if (signed?.signedUrl) logoUrl = signed.signedUrl
   }
 
   // Hours columns — added in migration 023; graceful fallback if not yet applied
   let hours = getOperatingHours({ phone: org.lease_phone ?? null })
-  const { data: orgHours } = await db
+  const { data: orgHours, error: orgHoursError } = await db
     .from("organisations")
     .select("office_hours_weekday, office_hours_saturday, office_hours_sunday, office_hours_public_holidays, emergency_phone, emergency_contact_name, emergency_email, emergency_instructions")
     .eq("id", orgId)
     .single()
+    logQueryError("getReportBranding organisations", orgHoursError)
   if (orgHours) {
     const h = orgHours as unknown as Record<string, string | null>
     hours = getOperatingHours({

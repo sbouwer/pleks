@@ -12,6 +12,7 @@ import { redirect, notFound } from "next/navigation"
 import { createUnit } from "@/lib/actions/units"
 import { UnitForm } from "../UnitForm"
 import { BackLink } from "@/components/ui/BackLink"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function NewUnitPage({
   params,
@@ -32,11 +33,12 @@ export default async function NewUnitPage({
   if (!membershipResult.data) redirect("/onboarding")
 
   const service = await createServiceClient()
-  const { data: members } = await service
+  const { data: members, error: membersError } = await service
     .from("user_orgs")
     .select("user_id, role, user_profiles(full_name)")
     .eq("org_id", membershipResult.data.org_id)
     .is("deleted_at", null)
+    logQueryError("NewUnitPage user_orgs", membersError)
 
   const boundAction = createUnit.bind(null, id)
 

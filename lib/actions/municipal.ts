@@ -12,17 +12,19 @@
 
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { revalidatePath } from "next/cache"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function createMunicipalAccount(formData: FormData) {
   const gw = await requireAgentWriteAccess("edit_property")
   const { db } = gw
 
   const propertyId = formData.get("property_id") as string
-  const { data: property } = await db
+  const { data: property, error: propertyError } = await db
     .from("properties")
     .select("org_id")
     .eq("id", propertyId)
     .single()
+    logQueryError("createMunicipalAccount properties", propertyError)
 
   if (!property) return { error: "Property not found" }
 
@@ -53,11 +55,12 @@ export async function uploadMunicipalBill(formData: FormData) {
 
   if (!file) return { error: "File required" }
 
-  const { data: property } = await db
+  const { data: property, error: propertyError } = await db
     .from("properties")
     .select("org_id")
     .eq("id", propertyId)
     .single()
+    logQueryError("uploadMunicipalBill properties", propertyError)
 
   if (!property) return { error: "Property not found" }
 

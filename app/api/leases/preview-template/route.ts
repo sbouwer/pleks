@@ -13,6 +13,7 @@ import { getLessorBankDetails } from "@/lib/leases/bankDetails"
 import { parseClauseBody, buildSelfLookup } from "@/lib/leases/parseClauseBody"
 import { renderClauseBodyToHtml } from "@/lib/leases/renderClauseHtml"
 import { getOrgDisplayName } from "@/lib/org/displayName"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 /** Resolves {{ref:key}} and {{var:field}} tokens only. {{self:N}} is deferred to post-parse. */
 function resolveRefAndVar(body: string, clauseNumberMap: Map<string, number>): string {
@@ -36,12 +37,13 @@ export async function GET(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { data: membership } = await supabase
+  const { data: membership, error: membershipError } = await supabase
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
+    logQueryError("GET user_orgs", membershipError)
 
   if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
 
@@ -69,10 +71,11 @@ export async function GET(req: NextRequest) {
   }
 
   // Fetch org-level toggle defaults
-  const { data: orgDefaults } = await supabase
+  const { data: orgDefaults, error: orgDefaultsError } = await supabase
     .from("org_lease_clause_defaults")
     .select("clause_key, enabled")
     .eq("org_id", membership.org_id)
+    logQueryError("GET org_lease_clause_defaults", orgDefaultsError)
 
   const orgMap = new Map(orgDefaults?.map((d) => [d.clause_key, d.enabled]) ?? [])
 
@@ -143,9 +146,10 @@ export async function GET(req: NextRequest) {
 
   let logoUrl: string | null = null
   if (org?.brand_logo_path) {
-    const { data: signed } = await supabase.storage
+    const { data: signed, error: signedError } = await supabase.storage
       .from("org-assets")
       .createSignedUrl(org.brand_logo_path, 3600)
+    logQueryError("GET org-assets", signedError)
     logoUrl = signed?.signedUrl ?? null
   }
 

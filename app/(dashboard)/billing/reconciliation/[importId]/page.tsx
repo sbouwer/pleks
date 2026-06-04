@@ -14,6 +14,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge"
 import { formatZAR } from "@/lib/constants"
 import { ReconActions } from "./ReconActions"
 import { BackLink } from "@/components/ui/BackLink"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const MATCH_STATUS_MAP: Record<string, "completed" | "active" | "pending" | "arrears"> = {
   matched_exact: "completed",
@@ -35,19 +36,21 @@ export default async function ReconDetailPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  const { data: imp } = await supabase
+  const { data: imp, error: impError } = await supabase
     .from("bank_statement_imports")
     .select("*")
     .eq("id", importId)
     .single()
+    logQueryError("ReconDetailPage bank_statement_imports", impError)
 
   if (!imp) notFound()
 
-  const { data: lines } = await supabase
+  const { data: lines, error: linesError } = await supabase
     .from("bank_statement_lines")
     .select("*")
     .eq("import_id", importId)
     .order("line_sequence")
+    logQueryError("ReconDetailPage bank_statement_lines", linesError)
 
   const allLines = lines || []
   const matched = allLines.filter((l) => l.match_status.startsWith("matched_"))

@@ -11,6 +11,7 @@ import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { buildEmailContext } from "@/lib/applications/buildEmailContext"
 import { sendCoApplicantInvited } from "@/lib/applications/emails"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(
   req: Request,
@@ -20,11 +21,12 @@ export async function POST(
   const body = await req.json()
   const supabase = await createServiceClient()
 
-  const { data: application } = await supabase
+  const { data: application, error: applicationError } = await supabase
     .from("applications")
     .select("org_id, co_applicants_count")
     .eq("id", applicationId)
     .single()
+    logQueryError("POST applications", applicationError)
 
   if (!application) {
     return NextResponse.json({ error: "Application not found" }, { status: 404 })

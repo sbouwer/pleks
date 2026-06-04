@@ -11,6 +11,7 @@
  */
 import { createClient } from "@/lib/supabase/server"
 import { addDays } from "date-fns"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function startTrial(
   orgId: string,
@@ -19,11 +20,12 @@ export async function startTrial(
   const supabase = await createClient()
 
   // Check if already trialing or on a paid plan
-  const { data: existing } = await supabase
+  const { data: existing, error: existingError } = await supabase
     .from("subscriptions")
     .select("status, tier, trial_ends_at")
     .eq("org_id", orgId)
     .single()
+    logQueryError("startTrial subscriptions", existingError)
 
   if (existing?.status === "trialing") {
     return { success: false, error: "Trial already active" }

@@ -18,6 +18,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Check, AlertTriangle, Loader2, RefreshCw, Plug, Unplug } from "lucide-react"
 import { toast } from "sonner"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface BankFeedConnection {
   id: string
@@ -112,12 +113,13 @@ export function BankFeedSection({ tier }: Readonly<BankFeedSectionProps>) {
               toast.success("Bank account connected")
               // Refresh connections
               const supabase = createClient()
-              const { data: fresh } = await supabase
+              const { data: fresh, error: freshError } = await supabase
                 .from("bank_feed_connections")
                 .select("id, bank_name, account_mask, account_type, status, last_synced_at, last_sync_status, last_sync_txn_count, last_sync_matched_count, last_sync_error")
                 .eq("org_id", orgId!)
                 .neq("status", "disconnected")
                 .order("created_at", { ascending: true })
+                logQueryError("BankFeedSection bank_feed_connections", freshError)
               setConnections((fresh ?? []) as BankFeedConnection[])
             } else {
               toast.error("Failed to save connection")

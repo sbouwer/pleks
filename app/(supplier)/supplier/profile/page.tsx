@@ -10,17 +10,19 @@ import { redirect } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { getSupplierSession } from "@/lib/portal/getSupplierSession"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function ContractorProfilePage() {
   const session = await getSupplierSession()
   if (!session) redirect("/login?role=supplier")
 
   const service = await createServiceClient()
-  const { data: primary } = await service
+  const { data: primary, error: primaryError } = await service
     .from("contractor_view")
     .select("*, organisations(name)")
     .eq("id", session.contractorId)
     .maybeSingle()
+    logQueryError("ContractorProfilePage contractor_view", primaryError)
 
   if (!primary) redirect("/login?role=supplier")
 

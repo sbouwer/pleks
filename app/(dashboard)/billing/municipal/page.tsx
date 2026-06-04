@@ -15,6 +15,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { FileText } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const EXTRACTION_MAP: Record<string, "pending" | "active" | "completed" | "arrears"> = {
   pending: "pending",
@@ -30,11 +31,12 @@ export default async function MunicipalBillsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  const { data: bills } = await supabase
+  const { data: bills, error: billsError } = await supabase
     .from("municipal_bills")
     .select("id, billing_month, total_amount_due_cents, extraction_status, payment_status, original_filename, properties(name), municipal_accounts(municipality_name)")
     .order("created_at", { ascending: false })
     .limit(50)
+    logQueryError("MunicipalBillsPage municipal_bills", billsError)
 
   const list = bills || []
 

@@ -8,6 +8,7 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 import { getCachedServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export interface UnpaidOwnerRow {
   statement_id: string
@@ -31,7 +32,7 @@ export async function getUnpaidOwners(orgId: string, periodMonth?: Date): Promis
   const now = new Date()
   const month = periodMonth ?? new Date(now.getFullYear(), now.getMonth(), 1)
 
-  const { data: statements } = await supabase
+  const { data: statements, error: statementsError } = await supabase
     .from("owner_statements")
     .select(`
       id, property_id, net_to_owner_cents, owner_payment_status,
@@ -42,6 +43,7 @@ export async function getUnpaidOwners(orgId: string, periodMonth?: Date): Promis
     .gte("period_from", month.toISOString())
     .in("owner_payment_status", ["pending", "on_hold", "partial"])
     .order("net_to_owner_cents", { ascending: false })
+    logQueryError("getUnpaidOwners owner_statements", statementsError)
 
   const stmts = statements ?? []
 
@@ -52,10 +54,11 @@ export async function getUnpaidOwners(orgId: string, periodMonth?: Date): Promis
 
   const ownerNames = new Map<string, string>()
   if (ownerIds.length > 0) {
-    const { data: owners } = await supabase
+    const { data: owners, error: ownersError } = await supabase
       .from("landlord_view")
       .select("id, first_name, last_name, company_name")
       .in("id", ownerIds)
+    logQueryError("getUnpaidOwners landlord_view", ownersError)
 
     for (const o of owners ?? []) {
       ownerNames.set(o.id, o.company_name ?? `${o.first_name} ${o.last_name}`)

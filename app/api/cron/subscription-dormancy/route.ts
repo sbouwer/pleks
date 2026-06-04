@@ -16,6 +16,7 @@ import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { buildBranding } from "@/lib/comms/send-email"
 import { sendDormancyWarning, sendDormancyFinal } from "@/lib/subscriptions/emails"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const DORMANCY_DAYS       = parseInt(process.env.DORMANCY_DAYS       ?? "60", 10)
 const DORMANCY_WARN_DAYS  = parseInt(process.env.DORMANCY_WARN_DAYS  ?? "30", 10)
@@ -25,7 +26,7 @@ type SupabaseClient = Awaited<ReturnType<typeof createServiceClient>>
 type OrgRow = Record<string, unknown> & { id: string; name: string }
 
 async function fetchOrgContact(supabase: SupabaseClient, orgId: string, orgName: string, orgRow: Record<string, unknown> | null) {
-  const { data: adminRow } = await supabase
+  const { data: adminRow, error: adminRowError } = await supabase
     .from("user_orgs")
     .select("user_profiles(email, full_name)")
     .eq("org_id", orgId)
@@ -34,6 +35,7 @@ async function fetchOrgContact(supabase: SupabaseClient, orgId: string, orgName:
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle()
+    logQueryError("fetchOrgContact user_orgs", adminRowError)
 
   const profile = adminRow?.user_profiles as unknown as { email: string; full_name?: string } | null
   if (!profile?.email) return null

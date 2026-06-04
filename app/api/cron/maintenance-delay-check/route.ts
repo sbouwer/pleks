@@ -16,6 +16,7 @@ import * as React from "react"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { routeAndSend } from "@/lib/messaging/router"
 import { MaintenanceDelayEmail } from "@/lib/comms/templates/tenant/maintenance/maintenance-delay"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 type Service = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -44,13 +45,14 @@ async function maybeInsertDelayEvent(
   orgId: string,
   delayType: string,
 ): Promise<boolean> {
-  const { data: existing } = await service
+  const { data: existing, error: existingError } = await service
     .from("maintenance_delay_events")
     .select("id")
     .eq("maintenance_id", maintenanceId)
     .eq("delay_type", delayType)
     .limit(1)
     .maybeSingle()
+    logQueryError("maybeInsertDelayEvent maintenance_delay_events", existingError)
 
   if (existing) return false
 
@@ -71,11 +73,12 @@ async function fireDelayComm(
   orgId: string,
   delayType: string,
 ): Promise<void> {
-  const { data: req } = await service
+  const { data: req, error: reqError } = await service
     .from("maintenance_requests")
     .select("tenant_id, unit_id, title")
     .eq("id", maintenanceId)
     .single()
+    logQueryError("fireDelayComm maintenance_requests", reqError)
 
   if (!req?.tenant_id) return
 
@@ -166,12 +169,13 @@ export async function GET(req: NextRequest) {
     console.error("[maintenance-delay-check] work_order_sent query failed:", err2.message)
   } else {
     for (const item of unacknowledged ?? []) {
-      const { data: updates } = await service
+      const { data: updates, error: updatesError } = await service
         .from("contractor_updates")
         .select("id")
         .eq("request_id", item.id)
         .limit(1)
         .maybeSingle()
+        logQueryError("GET contractor_updates", updatesError)
 
       if (!updates) {
         const inserted = await maybeInsertDelayEvent(service, item.id, item.org_id, "contractor_no_response")

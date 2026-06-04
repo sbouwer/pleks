@@ -20,24 +20,27 @@ import { PhotoComparison } from "./PhotoComparison"
 import { createServiceClient } from "@/lib/supabase/server"
 import { MobileInspectionView, type InspectionItem } from "@/components/mobile/MobileInspectionView"
 import { BackLink } from "@/components/ui/BackLink"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 /** For move-out/periodic inspections: returns a map of itemId → signed move-in photo URL. */
 async function fetchMoveInPhotos(inspectionId: string): Promise<Record<string, string>> {
   const service = await createServiceClient()
-  const { data: photos } = await service
+  const { data: photos, error: photosError } = await service
     .from("inspection_photos")
     .select("item_id, move_in_photo_id")
     .eq("inspection_id", inspectionId)
     .not("item_id", "is", null)
     .not("move_in_photo_id", "is", null)
+    logQueryError("fetchMoveInPhotos inspection_photos", photosError)
 
   if (!photos || photos.length === 0) return {}
 
   const moveInIds = photos.map((p) => p.move_in_photo_id as string)
-  const { data: moveInPhotos } = await service
+  const { data: moveInPhotos, error: moveInPhotosError } = await service
     .from("inspection_photos")
     .select("id, storage_path_original")
     .in("id", moveInIds)
+    logQueryError("fetchMoveInPhotos inspection_photos", moveInPhotosError)
 
   const pathById = new Map((moveInPhotos ?? []).map((p) => [p.id, p.storage_path_original as string]))
   const result: Record<string, string> = {}
@@ -46,7 +49,8 @@ async function fetchMoveInPhotos(inspectionId: string): Promise<Record<string, s
     if (!photo.item_id || !photo.move_in_photo_id) continue
     const path = pathById.get(photo.move_in_photo_id)
     if (!path) continue
-    const { data: signed } = await service.storage.from("inspection-photos").createSignedUrl(path, 3600)
+    const { data: signed, error: signedError } = await service.storage.from("inspection-photos").createSignedUrl(path, 3600)
+    logQueryError("fetchMoveInPhotos inspection-photos", signedError)
     if (signed?.signedUrl) result[photo.item_id] = signed.signedUrl
   }
 
@@ -95,11 +99,12 @@ export default async function InspectionDetailPage({
   let rooms = existingRooms
   if (!rooms?.length) {
     await seedInspectionRooms(gw.db, inspectionId, gw.orgId, inspection.lease_type ?? "residential")
-    const { data: seeded } = await gw.db
+    const { data: seeded, error: seededError } = await gw.db
       .from("inspection_rooms")
       .select("*, inspection_items(*)")
       .eq("inspection_id", inspectionId)
       .order("display_order")
+    logQueryError("InspectionDetailPage inspection_rooms", seededError)
     rooms = seeded
   }
 

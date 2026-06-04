@@ -10,6 +10,7 @@
 import { toDateStr } from "./periods"
 import { createServiceClient } from "@/lib/supabase/server"
 import type { OwnerPortfolioData, OwnerPortfolioRow, ReportFilters } from "./types"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function buildOwnerPortfolio(filters: ReportFilters): Promise<OwnerPortfolioData> {
   const supabase = await createServiceClient()
@@ -37,12 +38,13 @@ export async function buildOwnerPortfolio(filters: ReportFilters): Promise<Owner
   const stmts = statements ?? []
 
   // Get unit counts per property
-  const { data: unitCounts } = await supabase
+  const { data: unitCounts, error: unitCountsError } = await supabase
     .from("units")
     .select("property_id")
     .eq("org_id", orgId)
     .is("deleted_at", null)
     .eq("is_archived", false)
+    logQueryError("buildOwnerPortfolio units", unitCountsError)
 
   const unitsPerProp = new Map<string, number>()
   for (const u of unitCounts ?? []) {
@@ -81,10 +83,11 @@ export async function buildOwnerPortfolio(filters: ReportFilters): Promise<Owner
   // Resolve owner names from tenants table (owners are stored as tenant records)
   const ownerIds = Array.from(ownerMap.keys()).filter((id) => id.length === 36) // UUID check
   if (ownerIds.length > 0) {
-    const { data: owners } = await supabase
+    const { data: owners, error: ownersError } = await supabase
       .from("landlord_view")
       .select("id, first_name, last_name, company_name")
       .in("id", ownerIds)
+    logQueryError("buildOwnerPortfolio landlord_view", ownersError)
 
     for (const owner of owners ?? []) {
       const row = ownerMap.get(owner.id)
@@ -102,12 +105,13 @@ export async function buildOwnerPortfolio(filters: ReportFilters): Promise<Owner
   const totalDeposits = owners.reduce((s, o) => s + o.deposits_held_cents, 0)
 
   // Management fee income
-  const { data: feeInvoices } = await supabase
+  const { data: feeInvoices, error: feeInvoicesError } = await supabase
     .from("management_fee_invoices")
     .select("total_cents")
     .eq("org_id", orgId)
     .gte("period_month", fromStr)
     .lte("period_month", toStr)
+    logQueryError("buildOwnerPortfolio management_fee_invoices", feeInvoicesError)
 
   const mgmtFeeIncome = (feeInvoices ?? []).reduce((s, f) => s + (f.total_cents ?? 0), 0)
 

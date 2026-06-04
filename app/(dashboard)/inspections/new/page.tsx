@@ -14,6 +14,7 @@ import { NewInspectionForm } from "./NewInspectionForm"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { BackLink } from "@/components/ui/BackLink"
 import { contactDisplayName } from "@/lib/contacts/displayName"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface Props {
   searchParams: Promise<Record<string, string>>
@@ -21,7 +22,8 @@ interface Props {
 
 async function resolvePropertyId(supabase: SupabaseClient, unitId: string | null, propertyId: string | null) {
   if (propertyId || !unitId) return propertyId
-  const { data } = await supabase.from("units").select("property_id").eq("id", unitId).single()
+  const { data, error: queryError } = await supabase.from("units").select("property_id").eq("id", unitId).single()
+    logQueryError("resolvePropertyId units", queryError)
   return data?.property_id ?? null
 }
 
@@ -34,11 +36,12 @@ function buildUnitLabel(unit: { unit_number: string | null; bedrooms: number | n
 
 async function resolveTenantName(supabase: SupabaseClient, tenantId: string | null) {
   if (!tenantId) return null
-  const { data: tv } = await supabase
+  const { data: tv, error: tvError } = await supabase
     .from("tenant_view")
     .select("first_name, last_name, company_name, entity_type")
     .eq("id", tenantId)
     .single()
+    logQueryError("resolveTenantName tenant_view", tvError)
   if (!tv) return null
   return contactDisplayName(tv, "")
 }

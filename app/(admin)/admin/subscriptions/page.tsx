@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge"
 import { formatDateShort } from "@/lib/reports/periods"
 import { formatZAR } from "@/lib/constants"
 import { SetStateWidget } from "./SetStateWidget"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function AdminSubscriptionsPage() {
   await requireAdminAuth()
@@ -20,7 +21,7 @@ export default async function AdminSubscriptionsPage() {
 
   // Expiring trials (within 7 days)
   const sevenDays = new Date(new Date().getTime() + 7 * 24 * 60 * 60 * 1000)
-  const { data: expiringTrials } = await supabase
+  const { data: expiringTrials, error: expiringTrialsError } = await supabase
     .from("subscriptions")
     .select("org_id, tier, status, trial_ends_at, founding_agent, amount_cents, period_end, organisations(name)")
     .eq("status", "trialing")
@@ -28,12 +29,14 @@ export default async function AdminSubscriptionsPage() {
     .lte("trial_ends_at", sevenDays.toISOString())
     .gte("trial_ends_at", new Date().toISOString())
     .order("trial_ends_at", { ascending: true })
+    logQueryError("AdminSubscriptionsPage subscriptions", expiringTrialsError)
 
   // All subscriptions
-  const { data: subs } = await supabase
+  const { data: subs, error: subsError } = await supabase
     .from("subscriptions")
     .select("org_id, tier, status, amount_cents, period_end, trial_ends_at, founding_agent, organisations(name)")
     .order("created_at", { ascending: false })
+    logQueryError("AdminSubscriptionsPage subscriptions", subsError)
 
   const expiringOrgIds = new Set((expiringTrials ?? []).map((t) => t.org_id))
 

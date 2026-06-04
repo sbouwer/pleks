@@ -10,6 +10,7 @@
 import { toDateStr } from "./periods"
 import { createServiceClient } from "@/lib/supabase/server"
 import type { TenantPaymentHistoryData, TenantPaymentHistoryRow, ReportFilters } from "./types"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function buildTenantPaymentHistory(filters: ReportFilters): Promise<TenantPaymentHistoryData> {
   const db = await createServiceClient()
@@ -69,11 +70,12 @@ export async function buildTenantPaymentHistory(filters: ReportFilters): Promise
 
   const leaseMap = new Map((leases ?? []).map((l) => [l.id, l]))
   const tenantIds = Array.from(tenantMap.keys())
-  const { data: tenants } = await db
+  const { data: tenants, error: tenantsError } = await db
     .from("tenant_view")
     .select("id, first_name, last_name, company_name, entity_type")
     .eq("org_id", orgId)
     .in("id", tenantIds)
+    logQueryError("buildTenantPaymentHistory tenant_view", tenantsError)
   const tenantInfoMap = new Map((tenants ?? []).map((t) => [t.id, t]))
 
   const rows: TenantPaymentHistoryRow[] = []

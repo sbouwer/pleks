@@ -12,6 +12,7 @@
 import { createServiceClient } from "@/lib/supabase/server"
 import { isErasableNow, type DataCategory } from "./retention"
 import type { DataSubjectRequest } from "./requests"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -252,12 +253,13 @@ async function deleteRecordsForSubject(
   let affected = 0
 
   if (category === "rejected_applications" && subject.user_id) {
-    const { data: rows } = await db
+    const { data: rows, error: rowsError } = await db
       .from("applications")
       .select("id")
       .eq("org_id", subject.org_id)
       .eq("user_id", subject.user_id)
       .in("status", ["rejected", "withdrawn"])
+    logQueryError("deleteRecordsForSubject applications", rowsError)
 
     for (const row of rows ?? []) {
       await db.from("applications").delete().eq("id", row.id)
@@ -280,11 +282,12 @@ async function anonymiseRecordsForSubject(
 
   if (category === "communications" && subject.user_id) {
     // Null-out PII content while keeping delivery metadata for regulatory audit
-    const { data: rows } = await db
+    const { data: rows, error: rowsError } = await db
       .from("communication_log")
       .select("id")
       .eq("org_id", subject.org_id)
       .eq("user_id", subject.user_id)
+    logQueryError("anonymiseRecordsForSubject communication_log", rowsError)
 
     for (const row of rows ?? []) {
       await db

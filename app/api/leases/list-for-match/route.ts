@@ -9,6 +9,7 @@
  */
 import { NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function GET() {
   const supabase = await createClient()
@@ -16,21 +17,23 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const service = await createServiceClient()
-  const { data: membership } = await service
+  const { data: membership, error: membershipError } = await service
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
+    logQueryError("GET user_orgs", membershipError)
 
   if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
 
-  const { data: leases } = await supabase
+  const { data: leases, error: leasesError } = await supabase
     .from("leases")
     .select("id, status, rent_amount_cents, units(unit_number, properties(name)), tenant_view(first_name, last_name)")
     .eq("org_id", membership.org_id)
     .in("status", ["active", "notice", "month_to_month", "expired"])
     .order("created_at", { ascending: false })
+    logQueryError("GET leases", leasesError)
 
   const mapped = (leases ?? []).map((l) => {
     const unit = l.units as unknown as { unit_number: string; properties: { name: string } } | null

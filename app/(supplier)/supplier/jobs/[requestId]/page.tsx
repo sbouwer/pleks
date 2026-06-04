@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { formatZAR } from "@/lib/constants"
 import { JobStatusActions } from "./JobStatusActions"
 import { getSupplierSession } from "@/lib/portal/getSupplierSession"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function ContractorJobDetailPage({
   params,
@@ -26,7 +27,7 @@ export default async function ContractorJobDetailPage({
 
   const supabase = await createServiceClient()
 
-  const { data: job } = await supabase
+  const { data: job, error: jobError } = await supabase
     .from("maintenance_requests")
     .select(`
       id, title, description, status, urgency, category,
@@ -40,6 +41,7 @@ export default async function ContractorJobDetailPage({
     .eq("id", requestId)
     .eq("contractor_id", session.contractorId)
     .maybeSingle()
+    logQueryError("ContractorJobDetailPage maintenance_requests", jobError)
 
   if (!job) redirect("/supplier/jobs")
 
@@ -48,18 +50,20 @@ export default async function ContractorJobDetailPage({
   const tenant = job.tenant_view as unknown as { first_name: string; last_name: string; phone: string } | null
 
   // Get quotes for this job
-  const { data: quotes } = await supabase
+  const { data: quotes, error: quotesError } = await supabase
     .from("maintenance_quotes")
     .select("id, status, total_incl_vat_cents, submitted_at, rejection_reason")
     .eq("request_id", requestId)
     .order("created_at", { ascending: false })
+    logQueryError("ContractorJobDetailPage maintenance_quotes", quotesError)
 
   // Get photos
-  const { data: photos } = await supabase
+  const { data: photos, error: photosError } = await supabase
     .from("maintenance_photos")
     .select("id, storage_path, caption, photo_phase")
     .eq("request_id", requestId)
     .order("created_at")
+    logQueryError("ContractorJobDetailPage maintenance_photos", photosError)
 
   const tenantPhotos = (photos ?? []).filter((p) => p.photo_phase === "before")
   const latestQuote = (quotes ?? [])[0]

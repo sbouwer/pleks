@@ -13,6 +13,7 @@ import { InlineLink } from "@/components/ui/actions"
 import { Download } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import { LandlordMaintenanceCard } from "@/components/portal/LandlordMaintenanceCard"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface Props {
   params: Promise<{ id: string }>
@@ -24,13 +25,14 @@ export default async function LandlordPropertyDetailPage({ params }: Props) {
   const service = await createServiceClient()
 
   // Verify property belongs to this landlord
-  const { data: property } = await service
+  const { data: property, error: propertyError } = await service
     .from("properties")
     .select("id, name, address_line1, suburb, city, unit_count, property_type, landlord_id")
     .eq("id", propertyId)
     .eq("landlord_id", session.landlordId)
     .is("deleted_at", null)
     .single()
+    logQueryError("LandlordPropertyDetailPage properties", propertyError)
 
   if (!property) notFound()
 

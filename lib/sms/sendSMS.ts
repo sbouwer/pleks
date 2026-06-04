@@ -10,6 +10,7 @@
 import { hasFeature } from "@/lib/tier/gates"
 import { getOrgTier } from "@/lib/tier/getOrgTier"
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export interface SMSAuditParams {
   templateKey?: string
@@ -47,7 +48,7 @@ export async function sendSMS(
   const tier = await getOrgTier(orgId)
   if (!hasFeature(tier, "sms_notifications")) {
     const service = await createServiceClient()
-    const { data: log } = await service.from("communication_log").insert({
+    const { data: log, error: logError } = await service.from("communication_log").insert({
       org_id: orgId,
       channel: "sms",
       direction: "outbound",
@@ -57,6 +58,7 @@ export async function sendSMS(
       sent_to_phone: to,
       template_key: audit?.templateKey ?? null,
     }).select("id").single()
+    logQueryError("sendSMS communication_log", logError)
     return { sent: false, skipped: true, reason: "SMS not available on Owner tier", logId: log?.id ?? undefined }
   }
 
@@ -112,31 +114,34 @@ export async function sendSMS(
     if (!response.ok) {
       const text = await response.text()
       const reason = `AT API error: ${response.status} ${text}`
-      const { data: log } = await service.from("communication_log").insert({
+      const { data: log, error: logError2 } = await service.from("communication_log").insert({
         ...sharedLogFields,
         status: "failed",
         failed_reason: reason,
       }).select("id").single()
+        logQueryError("sendSMS communication_log", logError2)
       return { sent: false, reason, logId: log?.id ?? undefined }
     }
 
     const body = await response.json() as ATResponse
     const messageId = body.SMSMessageData?.Recipients?.[0]?.messageId ?? null
 
-    const { data: log } = await service.from("communication_log").insert({
+    const { data: log, error: logError3 } = await service.from("communication_log").insert({
       ...sharedLogFields,
       status: "sent",
       external_id: messageId,
     }).select("id").single()
+    logQueryError("sendSMS communication_log", logError3)
 
     return { sent: true, logId: log?.id ?? undefined }
   } catch (err) {
     const reason = err instanceof Error ? err.message : "SMS send failed"
-    const { data: log } = await service.from("communication_log").insert({
+    const { data: log, error: logError4 } = await service.from("communication_log").insert({
       ...sharedLogFields,
       status: "failed",
       failed_reason: reason,
     }).select("id").single()
+    logQueryError("sendSMS communication_log", logError4)
     return { sent: false, reason, logId: log?.id ?? undefined }
   }
 }

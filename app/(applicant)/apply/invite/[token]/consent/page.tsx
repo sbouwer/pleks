@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button"
 import { ShieldCheck } from "lucide-react"
 import { ConsentCodeEntry } from "@/components/consent/ConsentCodeEntry"
 import { createClient } from "@/lib/supabase/client"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 type Step = "consent" | "verify"
 
@@ -93,11 +94,12 @@ export default function Stage2ConsentPage() {
     if (!confirm("Are you sure you want to withdraw your application?")) return
 
     const supabase = createClient()
-    const { data: tokenData } = await supabase
+    const { data: tokenData, error: tokenDataError } = await supabase
       .from("application_tokens")
       .select("application_id")
       .eq("token", token)
       .single()
+    logQueryError("handleDecline application_tokens", tokenDataError)
 
     if (tokenData) {
       await supabase.from("applications").update({

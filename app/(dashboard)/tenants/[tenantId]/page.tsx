@@ -21,6 +21,7 @@ import { StatGrid } from "@/components/contacts/StatGrid"
 import { TenantContactSection, TenantIdentitySection, TenantEmploymentSection, TenantAddressSection, TenantJuristicSection } from "./TenantSections"
 import { MobileTenantView } from "@/components/mobile/MobileTenantView"
 import { formatZAR } from "@/lib/constants"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -113,32 +114,35 @@ export default async function TenantDetailPage({
 
   const service = await createServiceClient()
 
-  const { data: membership } = await service
+  const { data: membership, error: membershipError } = await service
     .from("user_orgs")
     .select("org_id, role")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
+    logQueryError("TenantDetailPage user_orgs", membershipError)
 
   if (!membership) redirect("/onboarding")
 
-  const { data: tenant } = await service
+  const { data: tenant, error: tenantError } = await service
     .from("tenant_view")
     .select("*")
     .eq("id", tenantId)
     .eq("org_id", membership.org_id)
     .is("deleted_at", null)
     .single()
+    logQueryError("TenantDetailPage tenant_view", tenantError)
 
   if (!tenant) notFound()
 
   // Identity extras (title/gender) not on tenant_view — shown on the identity card
-  const { data: tenantIdentityExtra } = await service
+  const { data: tenantIdentityExtra, error: tenantIdentityExtraError } = await service
     .from("contacts")
     .select("title, gender")
     .eq("id", tenant.contact_id)
     .eq("org_id", membership.org_id)
     .single()
+    logQueryError("TenantDetailPage contacts", tenantIdentityExtraError)
 
   const [
     { data: phones },
@@ -182,13 +186,14 @@ export default async function TenantDetailPage({
 
   let arrearsCase: ArrearsCase | null = null
   try {
-    const { data } = await service
+    const { data, error: queryError } = await service
       .from("arrears_cases")
       .select("total_arrears_cents, interest_accrued_cents, status, months_in_arrears")
       .eq("tenant_id", tenantId)
       .in("status", ["open", "payment_arrangement", "legal"])
       .limit(1)
       .maybeSingle()
+    logQueryError("TenantDetailPage arrears_cases", queryError)
     arrearsCase = data
   } catch {
     arrearsCase = null

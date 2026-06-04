@@ -89,6 +89,7 @@ import {
 import { getReportBranding } from "@/lib/reports/reportBranding"
 import type { ReportFilters, ReportPeriodType } from "@/lib/reports/types"
 import { REPORT_TIER_ACCESS } from "@/lib/reports/types"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 async function buildCSV(reportType: string, filters: ReportFilters): Promise<string | null> {
   switch (reportType) {
@@ -182,12 +183,13 @@ export async function GET(req: NextRequest) {
   if (!membership) return Response.json({ error: "Forbidden" }, { status: 403 })
   if (!membership.isAdmin) return Response.json({ error: "Admin access required to export reports" }, { status: 403 })
 
-  const { data: sub } = await supabase
+  const { data: sub, error: subError } = await supabase
     .from("subscriptions")
     .select("tier")
     .eq("org_id", orgId)
     .eq("status", "active")
     .single()
+    logQueryError("GET subscriptions", subError)
 
   const tier = sub?.tier ?? "owner"
   const allowed = REPORT_TIER_ACCESS[reportType as keyof typeof REPORT_TIER_ACCESS]

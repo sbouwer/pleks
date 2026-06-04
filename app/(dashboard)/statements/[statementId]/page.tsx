@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { BackLink } from "@/components/ui/BackLink"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { formatZAR } from "@/lib/constants"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function StatementDetailPage({
   params,
@@ -24,11 +25,12 @@ export default async function StatementDetailPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  const { data: stmt } = await supabase
+  const { data: stmt, error: stmtError } = await supabase
     .from("owner_statements")
     .select("*, properties(name, address_line1, city, owner_name, owner_email)")
     .eq("id", statementId)
     .single()
+    logQueryError("StatementDetailPage owner_statements", stmtError)
 
   if (!stmt) notFound()
 

@@ -15,6 +15,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { recordTosAcceptance } from "@/lib/subscriptions/acceptance"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import { AUTH_COOKIE_OPTS } from "@/lib/auth/cookie-config"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const ONE_YEAR = 60 * 60 * 24 * 365
 
@@ -24,12 +25,13 @@ export async function POST() {
   if (!user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 })
 
   const service = await createServiceClient()
-  const { data: membership } = await service
+  const { data: membership, error: membershipError } = await service
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
+    logQueryError("POST user_orgs", membershipError)
   if (!membership) return NextResponse.json({ error: "no_org" }, { status: 400 })
 
   const h = await headers()

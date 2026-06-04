@@ -8,6 +8,7 @@ import { NextRequest } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { buildTenantStatementHTML } from "@/lib/pdf/tenantStatement"
 import { redirect } from "next/navigation"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function GET(
   req: NextRequest,
@@ -24,22 +25,24 @@ export async function GET(
 
   const service = await createServiceClient()
 
-  const { data: membership } = await service
+  const { data: membership, error: membershipError } = await service
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
+    logQueryError("GET user_orgs", membershipError)
   if (!membership) return new Response("Unauthorized", { status: 401 })
   const orgId = membership.org_id
 
   // Tenant info
-  const { data: tenant } = await service
+  const { data: tenant, error: tenantError } = await service
     .from("tenant_view")
     .select("id, org_id, first_name, last_name, company_name, entity_type")
     .eq("id", tenantId)
     .eq("org_id", orgId)
     .maybeSingle()
+    logQueryError("GET tenant_view", tenantError)
   if (!tenant) return new Response("Not found", { status: 404 })
 
   const tenantName = tenant.entity_type === "company"
@@ -129,11 +132,12 @@ export async function GET(
   const totalPaid = payments.reduce((s, p) => s + p.amount_cents, 0)
 
   // Org info
-  const { data: org } = await service
+  const { data: org, error: orgError } = await service
     .from("organisations")
     .select("name, logo_url, address_line1:addr_line1, suburb:addr_suburb, city:addr_city")
     .eq("id", orgId)
     .single()
+    logQueryError("GET organisations", orgError)
 
   const orgAddress = [org?.address_line1, org?.suburb, org?.city].filter(Boolean).join(", ")
 

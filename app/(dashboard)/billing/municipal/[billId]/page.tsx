@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { BackLink } from "@/components/ui/BackLink"
 import { formatZAR } from "@/lib/constants"
 import { MunicipalBillActions } from "./MunicipalBillActions"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function MunicipalBillDetailPage({
   params,
@@ -24,11 +25,12 @@ export default async function MunicipalBillDetailPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  const { data: bill } = await supabase
+  const { data: bill, error: billError } = await supabase
     .from("municipal_bills")
     .select("*, properties(name, address_line1), municipal_accounts(municipality_name, account_number)")
     .eq("id", billId)
     .single()
+    logQueryError("MunicipalBillDetailPage municipal_bills", billError)
 
   if (!bill) notFound()
 

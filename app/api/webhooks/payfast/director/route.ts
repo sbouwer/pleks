@@ -12,6 +12,7 @@ import { NextResponse } from "next/server"
 import * as Sentry from "@sentry/nextjs"
 import { validatePayFastITN } from "@/lib/payfast/validate"
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(req: Request) {
   const rawBody = await req.text()
@@ -42,13 +43,14 @@ export async function POST(req: Request) {
     const now = new Date().toISOString()
 
     // Idempotency: if already paid, skip — PayFast retries the same ITN on timeout
-    const { data: existing } = await service
+    const { data: existing, error: existingError } = await service
       .from("application_screening_payments")
       .select("id, paid_at")
       .eq("application_id", applicationId)
       .eq("subject_type", "co_applicant")
       .eq("subject_id", coApplicantId)
       .maybeSingle()
+    logQueryError("POST application_screening_payments", existingError)
 
     if (existing?.paid_at) {
       return NextResponse.json({ ok: true })

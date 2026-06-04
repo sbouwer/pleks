@@ -12,19 +12,21 @@ import { buildTenantWelcomePackHTML, type TenantWelcomePackToolbar } from "@/lib
 import { getReportBranding } from "@/lib/reports/reportBranding"
 import { type OrgType } from "@/lib/constants"
 import { getOrgCapabilities } from "@/lib/org/capabilities"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 
 // ── Shared auth check ─────────────────────────────────────────────────────────
 
 async function verifyAccess(userId: string, orgId: string) {
   const supabase = await createClient()
-  const { data: membership } = await supabase
+  const { data: membership, error: membershipError } = await supabase
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", userId)
     .eq("org_id", orgId)
     .is("deleted_at", null)
     .single()
+    logQueryError("verifyAccess user_orgs", membershipError)
   return membership ? { ok: true } : { error: "Forbidden" }
 }
 
@@ -32,11 +34,12 @@ async function verifyAccess(userId: string, orgId: string) {
 
 async function getLeaseOrgId(leaseId: string): Promise<string | null> {
   const service = await createServiceClient()
-  const { data } = await service
+  const { data, error: queryError } = await service
     .from("leases")
     .select("org_id")
     .eq("id", leaseId)
     .maybeSingle()
+    logQueryError("getLeaseOrgId leases", queryError)
   return (data as { org_id: string } | null)?.org_id ?? null
 }
 

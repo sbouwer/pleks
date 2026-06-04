@@ -6,6 +6,7 @@
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import type { RentRollData, RentRollRow, ReportFilters } from "./types"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function buildRentRoll(filters: ReportFilters): Promise<RentRollData> {
   const supabase = await createServiceClient()
@@ -26,7 +27,7 @@ export async function buildRentRoll(filters: ReportFilters): Promise<RentRollDat
   const unitIds = allUnits.map((u) => u.id)
 
   // Get active leases for these units
-  const { data: leases } = await supabase
+  const { data: leases, error: leasesError } = await supabase
     .from("leases")
     .select(`
       id, unit_id, start_date, end_date, is_fixed_term,
@@ -37,6 +38,7 @@ export async function buildRentRoll(filters: ReportFilters): Promise<RentRollDat
     .eq("org_id", orgId)
     .in("unit_id", unitIds)
     .in("status", ["active"])
+    logQueryError("buildRentRoll leases", leasesError)
 
   const leaseByUnit = new Map<string, typeof leases extends (infer T)[] | null ? T : never>()
   for (const l of leases ?? []) {
@@ -44,11 +46,12 @@ export async function buildRentRoll(filters: ReportFilters): Promise<RentRollDat
   }
 
   // Get arrears for active cases
-  const { data: arrearsCases } = await supabase
+  const { data: arrearsCases, error: arrearsCasesError } = await supabase
     .from("arrears_cases")
     .select("unit_id, total_arrears_cents")
     .eq("org_id", orgId)
     .in("status", ["open", "arrangement"])
+    logQueryError("buildRentRoll arrears_cases", arrearsCasesError)
 
   const arrearsByUnit = new Map<string, number>()
   for (const c of arrearsCases ?? []) {
@@ -56,11 +59,12 @@ export async function buildRentRoll(filters: ReportFilters): Promise<RentRollDat
   }
 
   // Get last payment per unit
-  const { data: lastPayments } = await supabase
+  const { data: lastPayments, error: lastPaymentsError } = await supabase
     .from("payments")
     .select("lease_id, payment_date, payment_method")
     .eq("org_id", orgId)
     .order("payment_date", { ascending: false })
+    logQueryError("buildRentRoll payments", lastPaymentsError)
 
   const lastPaymentByLease = new Map<string, { date: string; method: string }>()
   for (const p of lastPayments ?? []) {

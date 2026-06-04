@@ -9,6 +9,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -17,12 +18,13 @@ export async function POST(req: NextRequest) {
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { data: membership } = await supabase
+  const { data: membership, error: membershipError2 } = await supabase
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
+    logQueryError("POST user_orgs", membershipError2)
 
   if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
 
@@ -58,9 +60,10 @@ export async function POST(req: NextRequest) {
     .update({ brand_logo_path: storagePath } as unknown as Record<string, unknown>)
     .eq("id", membership.org_id)
 
-  const { data: signed } = await supabase.storage
+  const { data: signed, error: signedError } = await supabase.storage
     .from("org-assets")
     .createSignedUrl(storagePath, 3600)
+    logQueryError("POST org-assets", signedError)
 
   return NextResponse.json({ logoUrl: signed?.signedUrl ?? null })
 }

@@ -12,6 +12,7 @@
 
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { revalidatePath } from "next/cache"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function createDocumentTemplate(
   formData: FormData
@@ -142,12 +143,13 @@ export async function toggleFavourite(
   const gw = await requireAgentWriteAccess("send_manual_comm")
   const { db, userId } = gw
 
-  const { data: existing } = await db
+  const { data: existing, error: existingError } = await db
     .from("user_template_favourites")
     .select("user_id")
     .eq("user_id", userId)
     .eq("template_id", templateId)
     .maybeSingle()
+    logQueryError("toggleFavourite user_template_favourites", existingError)
 
   if (existing) {
     await db

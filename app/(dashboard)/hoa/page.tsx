@@ -12,18 +12,20 @@ import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { InlineLink } from "@/components/ui/actions"
 import { Badge } from "@/components/ui/badge"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function HOAListPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  const { data: membership } = await supabase
+  const { data: membership, error: membershipError } = await supabase
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
+    logQueryError("HOAListPage user_orgs", membershipError)
 
   if (!membership) redirect("/onboarding")
   const orgId = membership.org_id
@@ -32,12 +34,13 @@ export default async function HOAListPage() {
   if (!caps?.hasHOA) redirect("/dashboard")
 
   // Firm tier check
-  const { data: sub } = await supabase
+  const { data: sub, error: subError } = await supabase
     .from("subscriptions")
     .select("tier")
     .eq("org_id", orgId)
     .eq("status", "active")
     .single()
+    logQueryError("HOAListPage subscriptions", subError)
 
   if (sub?.tier !== "firm") {
     return (
@@ -58,7 +61,7 @@ export default async function HOAListPage() {
     )
   }
 
-  const { data: hoaEntities } = await supabase
+  const { data: hoaEntities, error: hoaEntitiesError } = await supabase
     .from("hoa_entities")
     .select(`
       id, name, entity_type, is_active,
@@ -67,6 +70,7 @@ export default async function HOAListPage() {
     `)
     .eq("org_id", orgId)
     .order("name")
+    logQueryError("HOAListPage hoa_entities", hoaEntitiesError)
 
   return (
     <div>

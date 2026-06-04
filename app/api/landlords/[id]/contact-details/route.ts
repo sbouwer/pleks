@@ -11,22 +11,25 @@ import { createClient, createServiceClient } from "@/lib/supabase/server"
 import {
   createSubRecord, updateSubRecord, deleteSubRecord, type SubRecordBody, type SubRecordResult,
 } from "@/lib/contacts/contactSubRecords"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface RouteContext {
   params: Promise<{ id: string }>
 }
 
 async function getMembership(service: Awaited<ReturnType<typeof createServiceClient>>, userId: string) {
-  const { data } = await service
+  const { data, error: queryError } = await service
     .from("user_orgs").select("org_id, role").eq("user_id", userId).is("deleted_at", null).single()
+    logQueryError("getMembership user_orgs", queryError)
   return data
 }
 
 async function verifyLandlordOwnership(
   service: Awaited<ReturnType<typeof createServiceClient>>, landlordId: string, contactId: string, orgId: string,
 ): Promise<boolean> {
-  const { data } = await service
+  const { data, error: queryError } = await service
     .from("landlords").select("id").eq("id", landlordId).eq("contact_id", contactId).eq("org_id", orgId).single()
+    logQueryError("verifyLandlordOwnership landlords", queryError)
   return !!data
 }
 

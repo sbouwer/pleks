@@ -16,6 +16,7 @@ import { allocatePayment } from "@/lib/finance/paymentAllocation"
 import { routeAndSend } from "@/lib/messaging/router"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { PaymentReceivedEmail } from "@/lib/comms/templates/tenant/rent/payment-received"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function recordPayment(formData: FormData) {
   const gw = await requireAgentWriteAccess("record_payment")
@@ -28,11 +29,12 @@ export async function recordPayment(formData: FormData) {
   const reference = formData.get("reference") as string || null
 
   // Get invoice details
-  const { data: invoice } = await db
+  const { data: invoice, error: invoiceError } = await db
     .from("rent_invoices")
     .select("id, lease_id, tenant_id, total_amount_cents, amount_paid_cents, balance_cents, org_id, unit_id")
     .eq("id", invoiceId)
     .single()
+    logQueryError("recordPayment rent_invoices", invoiceError)
 
   if (!invoice) return { error: "Invoice not found" }
 
@@ -114,21 +116,23 @@ export async function recordPayment(formData: FormData) {
   // BUILD_63 Phase 7 (F2) — fire rent.payment_received comm if tenant has an email
   if (invoice.tenant_id) {
     try {
-      const { data: tenant } = await db
+      const { data: tenant, error: tenantError } = await db
         .from("tenant_view")
         .select("first_name, last_name, email, phone")
         .eq("id", invoice.tenant_id)
         .single()
+        logQueryError("recordPayment tenant_view", tenantError)
 
       if (tenant?.email) {
         const orgSettings = await fetchOrgSettings(orgId)
         const branding = buildBranding(orgSettings)
         const tenantName = [tenant.first_name, tenant.last_name].filter(Boolean).join(" ") || "Tenant"
-        const { data: inv } = await db
+        const { data: inv, error: invError } = await db
           .from("rent_invoices")
           .select("invoice_number, balance_cents")
           .eq("id", invoiceId)
           .single()
+        logQueryError("recordPayment rent_invoices", invError)
         const invoiceNumber = (inv?.invoice_number as string | null) ?? invoiceId.slice(0, 8).toUpperCase()
         const outstandingBalance = (inv?.balance_cents as number | null) ?? Math.max(0, newBalance)
 

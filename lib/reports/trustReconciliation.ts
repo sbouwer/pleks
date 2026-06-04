@@ -10,6 +10,7 @@
 import { toDateStr } from "./periods"
 import { createServiceClient } from "@/lib/supabase/server"
 import type { TrustReconciliationData, TrustReconRow, ReportFilters } from "./types"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function buildTrustReconciliation(filters: ReportFilters): Promise<TrustReconciliationData> {
   const db = await createServiceClient()
@@ -30,11 +31,12 @@ export async function buildTrustReconciliation(filters: ReportFilters): Promise<
   if (error) console.error("trustReconciliation:", error.message)
 
   // Opening balance: all transactions before period
-  const { data: priorData } = await db
+  const { data: priorData, error: priorDataError } = await db
     .from("trust_transactions")
     .select("direction, amount_cents")
     .eq("org_id", orgId)
     .lt("created_at", fromStr)
+    logQueryError("buildTrustReconciliation trust_transactions", priorDataError)
 
   const openingBalance = (priorData ?? []).reduce(
     (s, t) => s + (t.direction === "credit" ? (t.amount_cents ?? 0) : -(t.amount_cents ?? 0)),

@@ -10,18 +10,20 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { format } from "date-fns"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 async function getOrgIdAndUser(): Promise<{ orgId: string; userId: string } | null> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
   const service = await createServiceClient()
-  const { data } = await service
+  const { data, error: queryError } = await service
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
+    logQueryError("getOrgIdAndUser user_orgs", queryError)
   if (!data) return null
   return { orgId: data.org_id, userId: user.id }
 }
@@ -122,11 +124,12 @@ export async function POST(req: NextRequest) {
       .eq("id", existing.id)
 
     // Audit: ended
-    const { data: endedConfig } = await service
+    const { data: endedConfig, error: endedConfigError } = await service
       .from("deposit_interest_config")
       .select("*")
       .eq("id", existing.id)
       .single()
+    logQueryError("POST deposit_interest_config", endedConfigError)
 
     if (endedConfig) {
       await service.from("deposit_interest_config_audit").insert({

@@ -12,6 +12,7 @@ import { cookies } from "next/headers"
 import { createClient } from "@/lib/supabase/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { getEffectiveTier } from "@/lib/tier/effectiveTier"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 /**
  * POST /api/auth/refresh-tier
@@ -31,18 +32,19 @@ export async function POST() {
   const service = await createServiceClient()
 
   // Get org membership
-  const { data: orgRow } = await service
+  const { data: orgRow, error: orgRowError } = await service
     .from("user_orgs")
     .select("org_id, role")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .limit(1)
     .maybeSingle()
+    logQueryError("POST user_orgs", orgRowError)
 
   if (!orgRow) return NextResponse.json({ error: "No org" }, { status: 404 })
 
   // Get current subscription
-  const { data: sub } = await service
+  const { data: sub, error: subError } = await service
     .from("subscriptions")
     .select("tier, status, trial_tier, trial_ends_at, trial_converted")
     .eq("org_id", orgRow.org_id)
@@ -50,6 +52,7 @@ export async function POST() {
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle()
+    logQueryError("POST subscriptions", subError)
 
   const tier = sub ? getEffectiveTier(sub) : "owner"
 

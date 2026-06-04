@@ -10,6 +10,7 @@
 import { toDateStr } from "./periods"
 import { createServiceClient } from "@/lib/supabase/server"
 import type { MaintenanceCostData, MaintenanceCostRow, ReportFilters } from "./types"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function buildMaintenanceCostReport(filters: ReportFilters): Promise<MaintenanceCostData> {
   const supabase = await createServiceClient()
@@ -74,12 +75,13 @@ export async function buildMaintenanceCostReport(filters: ReportFilters): Promis
     .sort((a, b) => b.spend_cents - a.spend_cents)
 
   // By property — need unit counts per property
-  const { data: unitCounts } = await supabase
+  const { data: unitCounts, error: unitCountsError } = await supabase
     .from("units")
     .select("property_id")
     .eq("org_id", orgId)
     .is("deleted_at", null)
     .eq("is_archived", false)
+    logQueryError("buildMaintenanceCostReport units", unitCountsError)
 
   const unitsPerProp = new Map<string, number>()
   for (const u of unitCounts ?? []) {

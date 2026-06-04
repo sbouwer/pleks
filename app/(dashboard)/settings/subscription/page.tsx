@@ -44,6 +44,7 @@ import {
   type InitiateCancellationResult,
 } from "./actions"
 import type { SubscriptionStatus } from "@/lib/subscriptions/state"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // ── AI usage section ──────────────────────────────────────────────────────────
 
@@ -366,12 +367,13 @@ function useFullSubState(orgId: string | null) {
     let cancelled = false
     const supabase = createClient()
     async function load() {
-      const { data } = await supabase
+      const { data, error: queryError } = await supabase
         .from("subscriptions")
         .select("status, paused_at, pause_reason, pending_cancellation_since, cancelled_at, purge_eligible_at")
         .eq("org_id", orgId)
         .not("status", "eq", "purged")
         .maybeSingle()
+        logQueryError("load subscriptions", queryError)
       if (!cancelled) setState(data as FullSubState | null)
     }
     load()
@@ -420,11 +422,12 @@ function BillingPageInner() {
     let cancelled = false
     const supabase = createClient()
     async function load() {
-      const { data } = await supabase
+      const { data, error: queryError } = await supabase
         .from("organisations")
         .select("founding_agent, founding_agent_price_cents, founding_agent_expires_at")
         .eq("id", orgId)
         .single()
+        logQueryError("load organisations", queryError)
       if (!cancelled && data) {
         setFoundingCtx({
           tier,

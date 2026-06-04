@@ -10,6 +10,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const AT_USERNAME = process.env.AT_WEBHOOK_USERNAME
 
@@ -62,11 +63,12 @@ export async function POST(req: NextRequest) {
     if (!eventType) continue
 
     // Match against communication_log by external_id (AT message ID stored at send time)
-    const { data: logRecord } = await service
+    const { data: logRecord, error: logRecordError } = await service
       .from("communication_log")
       .select("id, org_id")
       .eq("external_id", item.id)
       .maybeSingle()
+    logQueryError("POST communication_log", logRecordError)
 
     if (!logRecord) continue
 

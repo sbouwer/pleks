@@ -13,6 +13,7 @@ import { createClient } from "@/lib/supabase/server"
 import { parseCSV, detectTpnFormat, type ImportResult } from "./csvParser"
 import { convertTpnExport } from "./tpnParser"
 import { validateTenantRow } from "./validators"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function importTenants(
   csvText: string,
@@ -43,13 +44,14 @@ export async function importTenants(
     results.errors.push(...errors.filter((e) => e.severity === "warning"))
 
     // Deduplication: check by email in contacts
-    const { data: existing } = await supabase
+    const { data: existing, error: existingError } = await supabase
       .from("contacts")
       .select("id")
       .eq("org_id", orgId)
       .ilike("primary_email", row.email)
       .is("deleted_at", null)
       .limit(1)
+    logQueryError("importTenants contacts", existingError)
 
     if (existing && existing.length > 0) {
       results.errors.push({
@@ -63,7 +65,7 @@ export async function importTenants(
     }
 
     // Create contact first
-    const { data: contact } = await supabase.from("contacts").insert({
+    const { data: contact, error: contactError } = await supabase.from("contacts").insert({
       org_id: orgId,
       entity_type: "individual",
       primary_role: "tenant",
@@ -75,6 +77,7 @@ export async function importTenants(
       id_number: row.id_number ?? null,
       created_by: agentId,
     }).select("id").single()
+    logQueryError("importTenants contacts", contactError)
 
     if (!contact) continue
 

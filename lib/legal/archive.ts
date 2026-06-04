@@ -10,6 +10,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // Legal pages live on pleks.co.za, not app.pleks.co.za — LEGAL_SITE_URL must be set in prod
 const LEGAL_SITE_URL = process.env.LEGAL_SITE_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
@@ -30,9 +31,10 @@ export async function runLegalArchiveStep(
   const result: LegalArchiveResult = {}
 
   for (const { type, version, path } of DOCS) {
-    const { data: existing } = await supabase.storage
+    const { data: existing, error: existingError } = await supabase.storage
       .from("legal-archive")
       .list(type, { search: `${version}.html` })
+    logQueryError("runLegalArchiveStep legal-archive", existingError)
 
     if (existing?.length) {
       result[type] = { version, outcome: "skipped" }

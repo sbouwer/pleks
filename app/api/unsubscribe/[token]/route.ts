@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 function getServiceClient() {
   return createClient(
@@ -36,11 +37,12 @@ export async function PATCH(req: NextRequest, { params }: Props) {
   const service = getServiceClient()
 
   // Verify token exists
-  const { data: existing } = await service
+  const { data: existing, error: existingError } = await service
     .from("communication_preferences")
     .select("id")
     .eq("unsubscribe_token", token)
     .maybeSingle()
+    logQueryError("PATCH communication_preferences", existingError)
 
   if (!existing) {
     return NextResponse.json({ error: "Invalid token" }, { status: 404 })

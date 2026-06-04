@@ -22,6 +22,7 @@ import { toast } from "sonner"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { DesktopOnlyCard } from "@/components/mobile/DesktopOnlyCard"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface ImportRecord {
   id: string
@@ -82,11 +83,12 @@ export default function ReconciliationPage() {
 
     void (async () => {
       await loadImports()
-      const { data } = await supabase
+      const { data, error: queryError } = await supabase
         .from("bank_feed_connections")
         .select("id, bank_name, account_mask, status, last_sync_txn_count, last_sync_matched_count, last_synced_at")
         .eq("org_id", orgId)
         .eq("status", "active")
+        logQueryError("page bank_feed_connections", queryError)
       setFeedConnections(data ?? [])
     })()
   }, [orgId]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -97,11 +99,12 @@ export default function ReconciliationPage() {
     const formData = new FormData(e.currentTarget)
 
     const supabase = createClient()
-    const { data: accounts } = await supabase
+    const { data: accounts, error: accountsError } = await supabase
       .from("bank_accounts")
       .select("id")
       .eq("org_id", orgId!)
       .limit(1)
+    logQueryError("handleUpload bank_accounts", accountsError)
 
     if (!accounts?.length) {
       toast.error("Add a bank account in Settings → Compliance first")

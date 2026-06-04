@@ -7,6 +7,7 @@
 import { createClient } from "@supabase/supabase-js"
 import { notFound } from "next/navigation"
 import { UnsubscribeClient } from "./UnsubscribeClient"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface Props {
   params: Promise<{ token: string }>
@@ -23,20 +24,22 @@ export default async function UnsubscribePage({ params }: Props) {
   const { token } = await params
   const service = getServiceClient()
 
-  const { data: prefs } = await service
+  const { data: prefs, error: prefsError } = await service
     .from("communication_preferences")
     .select("*")
     .eq("unsubscribe_token", token)
     .maybeSingle()
+    logQueryError("UnsubscribePage communication_preferences", prefsError)
 
   if (!prefs) notFound()
 
   // Fetch org name for display
-  const { data: org } = await service
+  const { data: org, error: orgError } = await service
     .from("organisations")
     .select("name")
     .eq("id", prefs.org_id)
     .single()
+    logQueryError("UnsubscribePage organisations", orgError)
 
   return (
     <UnsubscribeClient

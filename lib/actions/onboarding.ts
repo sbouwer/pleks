@@ -18,6 +18,7 @@ import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import { AUTH_COOKIE_OPTS } from "@/lib/auth/cookie-config"
 import { assertEmailAvailableForRole, isPersonalEmailDomain } from "@/lib/auth/email-policy"
 import { mapPostgresMembershipError, MembershipRaceLost } from "@/lib/auth/membership"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export interface OnboardingData {
   userType: "owner" | "agent" | "agency" | "family" | "exploring"
@@ -239,12 +240,13 @@ async function resolveUserId(
     const user = await resolveAuthenticatedUser(data, service)
     if (!user) return { error: "Session expired — please sign in again.", errorType: "auth_required" }
 
-    const { data: existing } = await service
+    const { data: existing, error: existingError } = await service
       .from("user_orgs")
       .select("org_id")
       .eq("user_id", user.id)
       .is("deleted_at", null)
       .single()
+    logQueryError("resolveUserId user_orgs", existingError)
 
     if (existing) return { error: "Account already set up", errorType: "already_exists" }
     return { userId: user.id }

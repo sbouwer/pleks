@@ -12,6 +12,7 @@ import { getServerOrgMembership } from "@/lib/auth/server"
 import { redirect, notFound } from "next/navigation"
 import { BackLink } from "@/components/ui/BackLink"
 import { SchemeEditForm } from "./SchemeEditForm"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function SchemeEditPage({
   params,
@@ -25,13 +26,14 @@ export default async function SchemeEditPage({
   const supabase = await createServiceClient()
   const orgId = membership.org_id
 
-  const { data: property } = await supabase
+  const { data: property, error: propertyError } = await supabase
     .from("properties")
     .select("id, name, managing_scheme_id")
     .eq("id", propertyId)
     .eq("org_id", orgId)
     .is("deleted_at", null)
     .single()
+    logQueryError("SchemeEditPage properties", propertyError)
 
   if (!property) notFound()
 
@@ -39,13 +41,14 @@ export default async function SchemeEditPage({
 
   let scheme: Record<string, unknown> | null = null
   if (managingSchemeId) {
-    const { data } = await supabase
+    const { data, error: queryError } = await supabase
       .from("managing_schemes")
       .select("id, name, scheme_type, csos_registration_number, levy_cycle, csos_ombud_contact, notes")
       .eq("id", managingSchemeId)
       .eq("org_id", orgId)
       .is("deleted_at", null)
       .single()
+    logQueryError("SchemeEditPage managing_schemes", queryError)
     scheme = data as Record<string, unknown> | null
   }
 

@@ -11,6 +11,7 @@
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { sendWhatsAppMessage } from "./provider"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 type Db = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -276,11 +277,12 @@ function getPeriodDate(): string {
  * This is the final fallback before "professional".
  */
 async function resolveTone(db: Db, orgId: string): Promise<ToneVariant> {
-  const { data: org } = await db
+  const { data: org, error: orgError } = await db
     .from("organisations")
     .select("settings")
     .eq("id", orgId)
     .single()
+    logQueryError("resolveTone organisations", orgError)
 
   const settings = (org?.settings ?? {}) as Record<string, unknown>
   const communication = (settings.communication ?? {}) as Record<string, unknown>

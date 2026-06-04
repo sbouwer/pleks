@@ -9,6 +9,7 @@
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import type { DepositInterestConfig } from "./rateUtils"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export type { DepositInterestConfig } from "./rateUtils"
 export { describeRate } from "./rateUtils"
@@ -65,13 +66,14 @@ export async function resolveDepositInterestConfig(
  */
 export async function getPrimeRateOn(date: string): Promise<number | null> {
   const supabase = await createServiceClient()
-  const { data } = await supabase
+  const { data, error: queryError } = await supabase
     .from("prime_rates")
     .select("rate_percent")
     .lte("effective_date", date)
     .order("effective_date", { ascending: false })
     .limit(1)
     .single()
+    logQueryError("getPrimeRateOn prime_rates", queryError)
   return data?.rate_percent ?? null
 }
 

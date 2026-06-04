@@ -17,6 +17,7 @@ import {
   AlertTriangle, CheckCircle2, Clock, Phone, Bell,
 } from "lucide-react"
 import { getTemplate } from "@/lib/comms/template-registry"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 function isTemplateMandatory(key: string | null): boolean {
   if (!key) return false
@@ -125,11 +126,12 @@ export default async function PortalDashboard() {
   const mandatoryCommIds = allComms.filter((c) => isTemplateMandatory(c.template_key)).map((c) => c.id)
   let unreadMandatoryCount = 0
   if (mandatoryCommIds.length > 0) {
-    const { data: viewedIds } = await service
+    const { data: viewedIds, error: viewedIdsError } = await service
       .from("communication_delivery_events")
       .select("communication_log_id")
       .in("communication_log_id", mandatoryCommIds)
       .eq("event_type", "portal_view")
+    logQueryError("PortalDashboard communication_delivery_events", viewedIdsError)
     const viewed = new Set((viewedIds ?? []).map((r) => r.communication_log_id))
     unreadMandatoryCount = mandatoryCommIds.filter((id) => !viewed.has(id)).length
   }
@@ -143,11 +145,12 @@ export default async function PortalDashboard() {
   let emergencyContactName: string | null = orgData?.emergency_contact_name ?? null
 
   if (isAgentTier && property?.managing_agent_id) {
-    const { data: agentProfile } = await service
+    const { data: agentProfile, error: agentProfileError } = await service
       .from("user_profiles")
       .select("emergency_phone, emergency_contact_name, full_name")
       .eq("id", property.managing_agent_id)
       .single()
+    logQueryError("PortalDashboard user_profiles", agentProfileError)
     const agent = agentProfile as unknown as { emergency_phone: string | null; emergency_contact_name: string | null; full_name: string | null } | null
     if (agent?.emergency_phone) {
       emergencyPhone = agent.emergency_phone

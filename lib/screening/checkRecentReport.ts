@@ -9,6 +9,7 @@
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { subDays } from "date-fns"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export interface RecentCheck {
   application_id: string
@@ -25,7 +26,7 @@ export async function getRecentCompletedCheck(
   const supabase = await createServiceClient()
   const cutoff = subDays(new Date(), withinDays)
 
-  const { data } = await supabase
+  const { data, error: queryError } = await supabase
     .from("applications")
     .select(`
       id, fitscore, fitscore_components,
@@ -39,6 +40,7 @@ export async function getRecentCompletedCheck(
     .order("searchworx_checked_at", { ascending: false })
     .limit(1)
     .single()
+    logQueryError("getRecentCompletedCheck applications", queryError)
 
   if (!data) return null
 

@@ -9,6 +9,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // GET /api/hoa/[hoaId]/levy-schedules — list all schedules for this HOA
 export async function GET(
@@ -41,22 +42,24 @@ export async function POST(
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   // Resolve org membership
-  const { data: membership } = await supabase
+  const { data: membership, error: membershipError } = await supabase
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
+    logQueryError("POST user_orgs", membershipError)
 
   if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
 
   // Verify HOA belongs to user's org
-  const { data: hoa } = await supabase
+  const { data: hoa, error: hoaError } = await supabase
     .from("hoa_entities")
     .select("id")
     .eq("id", hoaId)
     .eq("org_id", membership.org_id)
     .single()
+    logQueryError("POST hoa_entities", hoaError)
 
   if (!hoa) return NextResponse.json({ error: "HOA not found" }, { status: 404 })
 

@@ -15,6 +15,7 @@ import {
   type UnitContext,
   type RoomSuggestion,
 } from "@/lib/inspections/templateEngine"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 /**
  * Seeds inspection_rooms + inspection_items in two batched inserts.
@@ -86,10 +87,11 @@ export async function seedInspectionRooms(
     // Inject landlord-owned items for furnished / semi-furnished units
     const furnishingStatus = unit?.furnishing_status ?? null
     if (furnishingStatus && furnishingStatus !== "unfurnished") {
-      const { data: furnishings } = await db
+      const { data: furnishings, error: furnishingsError } = await db
         .from("unit_furnishings")
         .select("category, item_name")
         .eq("unit_id", unitId)
+        logQueryError("seedInspectionRooms unit_furnishings", furnishingsError)
       if (furnishings?.length) {
         rooms = injectFurnishingItems(rooms, furnishings)
       }

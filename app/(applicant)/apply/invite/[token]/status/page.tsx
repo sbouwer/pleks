@@ -15,6 +15,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { CheckCircle2, Clock, Circle, Loader2 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { formatZAR, APPLICATION_FEE_CENTS } from "@/lib/constants"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const STEPS = [
   { key: "submitted", label: "Application submitted" },
@@ -49,11 +50,12 @@ export default function Stage2StatusPage() {
     let channelRef: ReturnType<typeof supabase.channel> | null = null
 
     async function load() {
-      const { data: tokenData } = await supabase
+      const { data: tokenData, error: tokenDataError } = await supabase
         .from("application_tokens")
         .select("application_id")
         .eq("token", token)
         .single()
+        logQueryError("load application_tokens", tokenDataError)
 
       if (!tokenData) {
         setLoading(false)
@@ -62,11 +64,12 @@ export default function Stage2StatusPage() {
 
       setApplicationId(tokenData.application_id)
 
-      const { data: app } = await supabase
+      const { data: app, error: appError } = await supabase
         .from("applications")
         .select("stage2_status, fee_status")
         .eq("id", tokenData.application_id)
         .single()
+        logQueryError("load applications", appError)
 
       if (app) {
         setStage2Status(app.stage2_status)

@@ -11,18 +11,20 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { generateLeaseDocument } from "@/lib/leases/generateDocument"
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { data: membership } = await supabase
+  const { data: membership, error: membershipError } = await supabase
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
+    logQueryError("POST user_orgs", membershipError)
 
   if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
 
@@ -36,9 +38,10 @@ export async function POST(req: NextRequest) {
 
   // Get a signed download URL
   const serviceSupabase = await createServiceClient()
-  const { data: signedUrl } = await serviceSupabase.storage
+  const { data: signedUrl, error: signedUrlError } = await serviceSupabase.storage
     .from("documents")
-    .createSignedUrl(result.storagePath, 3600) // 1 hour
+    .createSignedUrl(result.storagePath, 3600)
+    logQueryError("POST documents", signedUrlError) // 1 hour
 
   return NextResponse.json({
     ok: true,

@@ -13,6 +13,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { AlertTriangle } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const STATUS_MAP: Record<string, "arrears" | "pending" | "active" | "completed"> = {
   open: "arrears",
@@ -30,11 +31,12 @@ export default async function ArrearsPage() {
   if (!gw) redirect("/login")
 
   const { db, orgId } = gw
-  const { data: cases } = await db
+  const { data: cases, error: casesError } = await db
     .from("arrears_cases")
     .select("id, status, total_arrears_cents, months_in_arrears, current_step, lease_type, tenant_view(first_name, last_name, company_name, entity_type), units(unit_number, properties(name))")
     .eq("org_id", orgId)
     .order("total_arrears_cents", { ascending: false })
+    logQueryError("ArrearsPage arrears_cases", casesError)
 
   const list = cases || []
   const openCases = list.filter((c) => ["open", "payment_arrangement", "legal"].includes(c.status))

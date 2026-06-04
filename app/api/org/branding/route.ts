@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { getOrgDisplayName } from "@/lib/org/displayName"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const BRANDING_FIELDS = [
   "lease_logo_path",
@@ -26,12 +27,13 @@ type BrandingField = (typeof BRANDING_FIELDS)[number]
 type BrandingPatch = Partial<Record<BrandingField, string | null>>
 
 async function resolveOrgId(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
-  const { data: membership } = await supabase
+  const { data: membership, error: membershipError } = await supabase
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", userId)
     .is("deleted_at", null)
     .single()
+    logQueryError("resolveOrgId user_orgs", membershipError)
   return membership?.org_id ?? null
 }
 
@@ -89,9 +91,10 @@ export async function GET() {
   // Generate a signed URL for the logo if a path is stored
   let logoUrl: string | null = null
   if (orgData.lease_logo_path) {
-    const { data: signed } = await supabase.storage
+    const { data: signed, error: signedError } = await supabase.storage
       .from("org-assets")
       .createSignedUrl(orgData.lease_logo_path, 3600)
+    logQueryError("GET org-assets", signedError)
     logoUrl = signed?.signedUrl ?? null
   }
 

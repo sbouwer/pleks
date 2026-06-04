@@ -10,6 +10,7 @@ import { NextResponse } from "next/server"
 import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
 import { sendCreditReportToApplicant } from "@/lib/screening/sendCreditReport"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(req: Request) {
   const body = await req.json()
@@ -23,11 +24,12 @@ export async function POST(req: Request) {
 
   const supabase = await createServiceClient()
 
-  const { data: application } = await supabase
+  const { data: application, error: applicationError } = await supabase
     .from("applications")
     .select("id, org_id")
     .eq("id", applicationId)
     .single()
+    logQueryError("POST applications", applicationError)
 
   if (!application) {
     return NextResponse.json({ error: "Application not found" }, { status: 404 })

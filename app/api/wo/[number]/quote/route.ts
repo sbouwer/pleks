@@ -9,6 +9,7 @@
  */
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface LineItem {
   description: string
@@ -37,11 +38,12 @@ export async function POST(req: Request) {
   const supabase = await createServiceClient()
 
   // Verify token + get org_id and contractor_id
-  const { data: request } = await supabase
+  const { data: request, error: requestError } = await supabase
     .from("maintenance_requests")
     .select("id, org_id, contractor_id, work_order_token, status")
     .eq("id", requestId)
     .single()
+    logQueryError("POST maintenance_requests", requestError)
 
   if (!request || request.work_order_token !== token) {
     return NextResponse.json({ error: "Invalid token" }, { status: 403 })

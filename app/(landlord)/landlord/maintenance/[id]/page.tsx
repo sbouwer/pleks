@@ -14,6 +14,7 @@ import Link from "next/link"
 import { ChevronLeft } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import { LandlordMaintenanceCard } from "@/components/portal/LandlordMaintenanceCard"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface Props {
   params: Promise<{ id: string }>
@@ -44,7 +45,7 @@ export default async function LandlordMaintenanceDetailPage({ params }: Props) {
   const service = await createServiceClient()
 
   // Fetch request — verify it belongs to a property owned by this landlord
-  const { data: req } = await service
+  const { data: req, error: reqError } = await service
     .from("maintenance_requests")
     .select(`
       id, title, description, category, urgency, status, created_at, completed_at,
@@ -56,6 +57,7 @@ export default async function LandlordMaintenanceDetailPage({ params }: Props) {
     `)
     .eq("id", requestId)
     .single()
+    logQueryError("LandlordMaintenanceDetailPage maintenance_requests", reqError)
 
   if (!req) notFound()
 
@@ -66,11 +68,12 @@ export default async function LandlordMaintenanceDetailPage({ params }: Props) {
   const contractorName = contractor ? (contractor.company_name || `${contractor.first_name ?? ""} ${contractor.last_name ?? ""}`.trim()) : null
 
   // Timeline entries from contractor_updates
-  const { data: updates } = await service
+  const { data: updates, error: updatesError } = await service
     .from("contractor_updates")
     .select("new_status, notes, created_at")
     .eq("request_id", requestId)
     .order("created_at", { ascending: true })
+    logQueryError("LandlordMaintenanceDetailPage contractor_updates", updatesError)
 
   return (
     <div className="max-w-2xl space-y-6">

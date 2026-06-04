@@ -4,6 +4,7 @@
 
 import { createServiceClient } from "@/lib/supabase/server"
 import { getServerUser } from "@/lib/auth/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export const DISCLAIMER_VERSION = "v1"
 
@@ -62,7 +63,7 @@ export async function hasAcceptedLeaseDisclaimer(): Promise<boolean> {
   if (!user) return false
 
   const supabase = await createServiceClient()
-  const { data } = await supabase
+  const { data, error: queryError } = await supabase
     .from("consent_log")
     .select("id")
     .eq("user_id", user.id)
@@ -70,6 +71,7 @@ export async function hasAcceptedLeaseDisclaimer(): Promise<boolean> {
     .eq("consent_version", DISCLAIMER_VERSION)
     .limit(1)
     .maybeSingle()
+    logQueryError("hasAcceptedLeaseDisclaimer consent_log", queryError)
 
   return !!data
 }

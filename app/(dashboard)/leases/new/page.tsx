@@ -15,6 +15,7 @@ import { redirect } from "next/navigation"
 import { hasAcceptedLeaseDisclaimer } from "@/lib/leases/disclaimer"
 import { contactDisplayName } from "@/lib/contacts/displayName"
 import { NewLeaseRoute } from "./NewLeaseRoute"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface Props {
   searchParams: Promise<Record<string, string>>
@@ -65,16 +66,17 @@ async function prefillOwnerTier(
   orgId: string,
   existingTenantId: string | null,
 ): Promise<OwnerPrefillResult | null> {
-  const { data: ownerProp } = await supabase
+  const { data: ownerProp, error: ownerPropError } = await supabase
     .from("properties")
     .select("id")
     .eq("org_id", orgId)
     .is("deleted_at", null)
     .limit(1)
     .single()
+    logQueryError("prefillOwnerTier properties", ownerPropError)
   if (!ownerProp) return null
 
-  const { data: ownerUnit } = await supabase
+  const { data: ownerUnit, error: ownerUnitError } = await supabase
     .from("units")
     .select("id, prospective_tenant_id, prospective_co_tenant_ids")
     .eq("property_id", ownerProp.id)
@@ -82,6 +84,7 @@ async function prefillOwnerTier(
     .eq("is_archived", false)
     .limit(1)
     .single()
+    logQueryError("prefillOwnerTier units", ownerUnitError)
 
   const u = ownerUnit as unknown as { id: string; prospective_tenant_id?: string | null; prospective_co_tenant_ids?: string[] } | null
   const noTenantResult: OwnerPrefillResult = { propertyId: ownerProp.id, unitId: u?.id ?? "", tenantId: null, resolvedTenantName: null, resolvedCoTenants: [] }

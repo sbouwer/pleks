@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { recordDownload } from "@/lib/popia/export"
 import { signedDownloadUrl } from "@/lib/exports/bundle"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const TTL = 7 * 24 * 60 * 60  // 7 days in seconds
 
@@ -36,13 +37,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     request.subject_user_id === user.id ||
     (request.subject_email as string)?.toLowerCase() === user.email?.toLowerCase()
 
-  const { data: membership } = await (await db)
+  const { data: membership, error: membershipError } = await (await db)
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .eq("org_id", request.org_id)
     .is("deleted_at", null)
     .single()
+    logQueryError("GET user_orgs", membershipError)
 
   if (!isSubject && !membership) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
@@ -51,11 +53,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   // Load export
-  const { data: popia_export } = await (await db)
+  const { data: popia_export, error: popia_exportError } = await (await db)
     .from("popia_exports")
     .select("id, pdf_storage_path, json_storage_path, zip_storage_path, manifest_hash, expires_at")
     .eq("id", request.export_id)
     .single()
+    logQueryError("GET popia_exports", popia_exportError)
 
   if (!popia_export) return NextResponse.json({ error: "Export not found" }, { status: 404 })
 

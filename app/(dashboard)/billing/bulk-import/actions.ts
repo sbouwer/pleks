@@ -148,6 +148,7 @@ export async function matchCsvRows(rows: ParsedRow[]): Promise<{ matched: Matche
 }
 
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 async function processOnePayment(db: SupabaseClient, p: ConfirmedPayment, receiptNumber: string, userId: string, orgId: string): Promise<boolean> {
   const { data: payment, error } = await db
@@ -171,11 +172,12 @@ async function processOnePayment(db: SupabaseClient, p: ConfirmedPayment, receip
 
   if (error || !payment) return false
 
-  const { data: inv } = await db
+  const { data: inv, error: invError } = await db
     .from("rent_invoices")
     .select("total_amount_cents, amount_paid_cents, unit_id")
     .eq("id", p.invoiceId)
     .single()
+    logQueryError("processOnePayment rent_invoices", invError)
 
   if (inv) {
     const newPaid = (inv.amount_paid_cents ?? 0) + p.amountCents

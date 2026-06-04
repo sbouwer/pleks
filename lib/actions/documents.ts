@@ -10,6 +10,7 @@ import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { gateway } from "@/lib/supabase/gateway"
 import { revalidatePath } from "next/cache"
 import { Resend } from "resend"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function uploadPropertyDocument(formData: FormData) {
   const gw = await requireAgentWriteAccess("edit_property")
@@ -26,11 +27,12 @@ export async function uploadPropertyDocument(formData: FormData) {
   }
 
   // Get org_id
-  const { data: property } = await db
+  const { data: property, error: propertyError } = await db
     .from("properties")
     .select("org_id")
     .eq("id", propertyId)
     .single()
+    logQueryError("uploadPropertyDocument properties", propertyError)
 
   if (!property) return { error: "Property not found" }
 
@@ -68,11 +70,12 @@ export async function deletePropertyDocument(documentId: string, propertyId: str
   const { db, userId, isAdmin } = gw
   if (!isAdmin) return { error: "Admin access required" }
 
-  const { data: doc } = await db
+  const { data: doc, error: docError } = await db
     .from("property_documents")
     .select("storage_path, org_id")
     .eq("id", documentId)
     .single()
+    logQueryError("deletePropertyDocument property_documents", docError)
 
   if (!doc) return { error: "Document not found" }
 
@@ -101,9 +104,10 @@ export async function getDocumentSignedUrl(storagePath: string) {
   if (!gw) return null
   const { db } = gw
 
-  const { data } = await db.storage
+  const { data, error: queryError } = await db.storage
     .from("property-documents")
     .createSignedUrl(storagePath, 3600)
+    logQueryError("getDocumentSignedUrl property-documents", queryError)
 
   return data?.signedUrl || null
 }
@@ -168,7 +172,7 @@ export async function sendDocument(
   }
 
   if (leaseId) {
-    const { data: lease } = await db
+    const { data: lease, error: leaseError } = await db
       .from("leases")
       .select(
         "id, rent_cents, tenants(full_name), units(unit_number, properties(name))"
@@ -176,6 +180,7 @@ export async function sendDocument(
       .eq("id", leaseId)
       .eq("org_id", orgId)
       .single()
+    logQueryError("sendDocument leases", leaseError)
 
     if (lease) {
       const leaseData = lease as unknown as {

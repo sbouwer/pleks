@@ -12,6 +12,7 @@ import { notFound } from "next/navigation"
 import Image from "next/image"
 import { formatZAR } from "@/lib/constants"
 import { LandlordApprovalClient } from "./LandlordApprovalClient"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface Props {
   params: Promise<{ token: string }>
@@ -22,7 +23,7 @@ export default async function LandlordApprovalPage({ params }: Props) {
 
   const supabase = await createServiceClient()
 
-  const { data: req } = await supabase
+  const { data: req, error: reqError } = await supabase
     .from("maintenance_requests")
     .select(`
       id, title, description, category, urgency, status,
@@ -33,6 +34,7 @@ export default async function LandlordApprovalPage({ params }: Props) {
     `)
     .eq("landlord_approval_token", token)
     .single()
+    logQueryError("LandlordApprovalPage maintenance_requests", reqError)
 
   if (!req) notFound()
 

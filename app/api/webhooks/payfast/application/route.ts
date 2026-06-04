@@ -11,6 +11,7 @@ import { validatePayFastITN } from "@/lib/payfast/validate"
 import { createServiceClient } from "@/lib/supabase/server"
 import { buildEmailContext } from "@/lib/applications/buildEmailContext"
 import { sendPaymentReceived } from "@/lib/applications/emails"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(req: Request) {
   const rawBody = await req.text()
@@ -61,11 +62,12 @@ export async function POST(req: Request) {
     } catch (e) { console.error("sendPaymentReceived failed:", e) }
 
     // Audit log
-    const { data: app } = await supabase
+    const { data: app, error: appError } = await supabase
       .from("applications")
       .select("org_id")
       .eq("id", applicationId)
       .single()
+    logQueryError("POST applications", appError)
 
     if (app) {
       await supabase.from("audit_log").insert({

@@ -9,6 +9,7 @@ import { gatewaySSR } from "@/lib/supabase/gateway"
 import { yodlee } from "@/lib/yodlee/client"
 import { transformYodleeTransaction } from "@/lib/yodlee/transform"
 import { syncYodleeTransactions } from "@/lib/actions/recon"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const RATE_LIMIT_HOURS = 1
 const MAX_SYNCS_PER_WINDOW = 4
@@ -36,11 +37,12 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "Rate limit — too many syncs. Try again later." }, { status: 429 })
   }
 
-  const { data: org } = await db
+  const { data: org, error: orgError } = await db
     .from("organisations")
     .select("yodlee_user_id")
     .eq("id", orgId)
     .single()
+    logQueryError("POST organisations", orgError)
 
   if (!org?.yodlee_user_id) return Response.json({ error: "No Yodlee user" }, { status: 400 })
 

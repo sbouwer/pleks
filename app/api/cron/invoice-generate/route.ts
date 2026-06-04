@@ -13,6 +13,7 @@ import { startOfMonth, endOfMonth, setDate } from "date-fns"
 import { routeAndSend } from "@/lib/messaging/router"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { InvoiceIssuedEmail } from "@/lib/comms/templates/tenant/rent/invoice-issued"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 function buildPaymentReference(lastName: string | null, unitNumber: string | null): string {
   const surname = (lastName ?? "TENANT")
@@ -53,13 +54,14 @@ async function fetchChargesByLease(
 ): Promise<Map<string, ChargeRow[]>> {
   const map = new Map<string, ChargeRow[]>()
   if (leaseIds.length === 0) return map
-  const { data } = await supabase
+  const { data, error: queryError } = await supabase
     .from("lease_charges")
     .select("lease_id, charge_type, description, amount_cents")
     .in("lease_id", leaseIds)
     .eq("is_active", true)
     .lte("start_date", periodTo)
     .or(`end_date.is.null,end_date.gte.${periodFrom}`)
+    logQueryError("fetchChargesByLease lease_charges", queryError)
   for (const c of (data ?? []) as ChargeRow[]) {
     const rows = map.get(c.lease_id) ?? []
     rows.push(c)
@@ -133,22 +135,24 @@ export async function GET(req: Request) {
   let generated = 0
 
   // Get all active leases with tenant + unit for payment reference
-  const { data: leases } = await supabase
+  const { data: leases, error: leasesError } = await supabase
     .from("leases")
     .select("id, org_id, unit_id, property_id, tenant_id, rent_amount_cents, payment_due_day, tenant_view(first_name, last_name, email, phone), units(unit_number, properties(address_line1, suburb, city))")
     .in("status", ["active", "month_to_month", "notice"])
+    logQueryError("GET leases", leasesError)
 
   const leaseIds = (leases ?? []).map((l) => l.id)
   const chargesByLease = await fetchChargesByLease(supabase, leaseIds, periodFrom, periodTo)
 
   for (const lease of leases || []) {
     // Check no duplicate
-    const { data: existing } = await supabase
+    const { data: existing, error: existingError } = await supabase
       .from("rent_invoices")
       .select("id")
       .eq("lease_id", lease.id)
       .eq("period_from", periodFrom)
       .limit(1)
+    logQueryError("GET rent_invoices", existingError)
 
     if (existing && existing.length > 0) continue
 

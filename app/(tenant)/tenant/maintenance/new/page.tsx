@@ -11,13 +11,15 @@ import { redirect } from "next/navigation"
 import { getTenantSession } from "@/lib/portal/getTenantSession"
 import { createServiceClient } from "@/lib/supabase/server"
 import { MaintenanceNewForm } from "./MaintenanceNewForm"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 async function resolveClauseNumbers(leaseId: string, orgId: string, service: Awaited<ReturnType<typeof createServiceClient>>) {
-  const { data: selections } = await service
+  const { data: selections, error: selectionsError } = await service
     .from("lease_clause_selections")
     .select("clause_key, order_position")
     .eq("lease_id", leaseId)
     .in("clause_key", ["maintenance_and_repairs", "maintenance_tenant_obligations"])
+    logQueryError("resolveClauseNumbers lease_clause_selections", selectionsError)
 
   if (!selections || selections.length === 0) return { maintenanceClause: null, tenantLiabilityClause: null }
 

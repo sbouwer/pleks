@@ -18,6 +18,7 @@ import { NextRequest } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { sendInfoRequestEmail, sendInfoRequestSelfTrackNudge } from "@/lib/info-requests/sendInfoRequestEmail"
 import type { InfoRequestTopic } from "@/lib/info-requests/sendInfoRequestEmail"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 function getServiceClient() {
   return createClient(
@@ -33,11 +34,12 @@ const DAY_MS = 24 * 60 * 60 * 1000
 // ── Cron run health tracking ──────────────────────────────────────────────────
 
 async function startJob(service: ServiceClient): Promise<string | null> {
-  const { data } = await service.from("cron_runs").insert({
+  const { data, error: queryError } = await service.from("cron_runs").insert({
     job_name:   "expire-info-requests",
     started_at: new Date().toISOString(),
     status:     "running",
   }).select("id").single()
+    logQueryError("startJob cron_runs", queryError)
   return (data?.id as string) ?? null
 }
 
@@ -65,12 +67,13 @@ async function finishJob(
 
 async function expireStale(service: ServiceClient): Promise<number> {
   const nowIso = new Date().toISOString()
-  const { data: stale } = await service
+  const { data: stale, error: staleError } = await service
     .from("property_info_requests")
     .select("id")
     .in("status", ["pending", "sent"])
     .lt("expires_at", nowIso)
     .limit(500)
+    logQueryError("expireStale property_info_requests", staleError)
 
   const ids = (stale ?? []).map((r) => r.id as string)
   if (ids.length === 0) return 0
@@ -161,7 +164,7 @@ async function sendRemindersForWindow(
   const sendCutoffIso = new Date(now - minDaysSinceSend * DAY_MS).toISOString()
   const cooldownCutoffIso = new Date(now - cooldownDays * DAY_MS).toISOString()
 
-  const { data: rows } = await service
+  const { data: rows, error: rowsError } = await service
     .from("property_info_requests")
     .select("id, org_id, property_id, topic, recipient_email, recipient_type, token, reminder_count, sent_at, last_reminder_at")
     .eq("status", "sent")
@@ -171,6 +174,7 @@ async function sendRemindersForWindow(
     .lt("reminder_count", maxReminders)
     .or(`last_reminder_at.is.null,last_reminder_at.lt.${cooldownCutoffIso}`)
     .limit(500)
+    logQueryError("sendRemindersForWindow property_info_requests", rowsError)
 
   let sent = 0
   for (const row of (rows ?? []) as ReminderRow[]) {
@@ -183,7 +187,7 @@ async function sendRemindersForWindow(
 
 async function sendSelfTrackNudges(service: ServiceClient): Promise<number> {
   const cutoffIso = new Date(Date.now() - 30 * DAY_MS).toISOString()
-  const { data: rows } = await service
+  const { data: rows, error: rowsError } = await service
     .from("property_info_requests")
     .select("id, org_id, property_id, topic, requested_by, last_reminder_at")
     .eq("status", "pending")
@@ -191,6 +195,7 @@ async function sendSelfTrackNudges(service: ServiceClient): Promise<number> {
     .lt("created_at", cutoffIso)
     .is("last_reminder_at", null)
     .limit(500)
+    logQueryError("sendSelfTrackNudges property_info_requests", rowsError)
 
   if (!rows || rows.length === 0) return 0
 

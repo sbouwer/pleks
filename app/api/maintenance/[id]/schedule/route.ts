@@ -12,6 +12,7 @@ import * as React from "react"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { routeAndSend } from "@/lib/messaging/router"
 import { MaintenanceScheduledEmail } from "@/lib/comms/templates/tenant/maintenance/maintenance-scheduled"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(
   req: NextRequest,
@@ -25,12 +26,13 @@ export async function POST(
 
   const service = await createServiceClient()
 
-  const { data: membership } = await service
+  const { data: membership, error: membershipError } = await service
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
+    logQueryError("POST user_orgs", membershipError)
 
   if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
 
@@ -46,12 +48,13 @@ export async function POST(
     return NextResponse.json({ error: "scheduledDate is required" }, { status: 400 })
   }
 
-  const { data: current } = await service
+  const { data: current, error: currentError } = await service
     .from("maintenance_requests")
     .select("scheduled_date, tenant_notified_of_schedule")
     .eq("id", requestId)
     .eq("org_id", orgId)
     .single()
+    logQueryError("POST maintenance_requests", currentError)
 
   const scheduleChanged =
     current?.scheduled_date !== body.scheduledDate ||
@@ -102,11 +105,12 @@ async function sendM3Comm(
   body: ScheduleBody,
 ): Promise<void> {
   try {
-    const { data: req } = await service
+    const { data: req, error: reqError } = await service
       .from("maintenance_requests")
       .select("tenant_id, unit_id, title, contractor_id")
       .eq("id", requestId)
       .single()
+    logQueryError("sendM3Comm maintenance_requests", reqError)
     if (!req?.tenant_id) return
 
     const [tenantRes, unitRes, contractorRes, orgSettings] = await Promise.all([

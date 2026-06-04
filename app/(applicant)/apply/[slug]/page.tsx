@@ -14,6 +14,7 @@ import { formatZAR, APPLICATION_FEE_CENTS } from "@/lib/constants"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { MapPin, Bed, Bath, Calendar, CheckCircle2 } from "lucide-react"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function ListingPage({
   params,
@@ -23,12 +24,13 @@ export default async function ListingPage({
   const { slug } = await params
   const service = await createServiceClient()
 
-  const { data: listing } = await service
+  const { data: listing, error: listingError } = await service
     .from("listings")
     .select("*, units(unit_number, bedrooms, bathrooms, size_m2, properties(name, address_line1, city))")
     .eq("public_slug", slug)
     .eq("status", "active")
     .maybeSingle()
+    logQueryError("ListingPage listings", listingError)
 
   if (!listing) notFound()
 

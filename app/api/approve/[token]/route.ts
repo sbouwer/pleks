@@ -9,6 +9,7 @@
  */
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
@@ -23,11 +24,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   const supabase = await createServiceClient()
 
   // Verify token
-  const { data: request } = await supabase
+  const { data: request, error: requestError } = await supabase
     .from("maintenance_requests")
     .select("id, status, landlord_approval_token, org_id")
     .eq("id", requestId)
     .single()
+    logQueryError("POST maintenance_requests", requestError)
 
   if (!request || request.landlord_approval_token !== token) {
     return NextResponse.json({ error: "Invalid token" }, { status: 403 })

@@ -17,6 +17,7 @@ import { assembleReportData } from "@/lib/screening/assembleReportData"
 import { AgentSingleReport } from "@/lib/reports/screening/agent_single"
 import { AgentMultiReport } from "@/lib/reports/screening/agent_multi"
 import type { FitScoreReportData } from "@/lib/reports/screening/_primitives/theme"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export const dynamic = "force-dynamic"
 
@@ -59,7 +60,7 @@ export async function GET(
   if (appErr || !app) return new Response('Not found', { status: 404 })
   if (!app.fitscore_band) return new Response('FitScore not yet computed', { status: 422 })
 
-  const { data: coApplicants } = await db
+  const { data: coApplicants, error: coApplicantsError } = await db
     .from('application_co_applicants')
     .select(`
       id, id_type, first_name, last_name, co_applicant_index,
@@ -70,12 +71,14 @@ export async function GET(
     `)
     .eq('primary_application_id', id)
     .order('co_applicant_index', { ascending: true })
+    logQueryError("GET application_co_applicants", coApplicantsError)
 
-  const { data: orgRow } = await db
+  const { data: orgRow, error: orgRowError } = await db
     .from('organisations')
     .select('name')
     .eq('id', orgId)
     .single()
+    logQueryError("GET organisations", orgRowError)
 
   const data = assembleReportData(app, coApplicants ?? [], orgRow?.name ?? 'Pleks')
   if (!data) return new Response('Incomplete FitScore data', { status: 422 })

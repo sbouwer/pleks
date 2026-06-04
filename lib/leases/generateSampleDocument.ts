@@ -10,6 +10,7 @@
 import { createServiceClient } from "@/lib/supabase/server"
 import { buildDocx } from "@/lib/leases/generateDocument"
 import type { LeaseVariables, ResolvedClause } from "@/lib/leases/generateDocument"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // Placeholder values used in every sample document
 function sampleVariables(leaseType: string): LeaseVariables {
@@ -69,17 +70,19 @@ export async function generateSampleLeaseDocument(
   const supabase = await createServiceClient()
 
   // Load clause library
-  const { data: library } = await supabase
+  const { data: library, error: libraryError } = await supabase
     .from("lease_clause_library")
     .select("*")
     .in("lease_type", [leaseType, "both"])
     .order("sort_order")
+    logQueryError("generateSampleLeaseDocument lease_clause_library", libraryError)
 
   // Load org-level defaults (toggle preferences)
-  const { data: orgDefaults } = await supabase
+  const { data: orgDefaults, error: orgDefaultsError } = await supabase
     .from("org_lease_clause_defaults")
     .select("clause_key, enabled")
     .eq("org_id", orgId)
+    logQueryError("generateSampleLeaseDocument org_lease_clause_defaults", orgDefaultsError)
 
   const orgDefaultMap = new Map(orgDefaults?.map((d) => [d.clause_key, d.enabled]) ?? [])
 

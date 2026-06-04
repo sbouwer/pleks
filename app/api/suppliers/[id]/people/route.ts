@@ -10,18 +10,20 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface RouteContext {
   params: Promise<{ id: string }>
 }
 
 async function getMembership(service: Awaited<ReturnType<typeof createServiceClient>>, userId: string) {
-  const { data } = await service
+  const { data, error: queryError } = await service
     .from("user_orgs")
     .select("org_id, role")
     .eq("user_id", userId)
     .is("deleted_at", null)
     .single()
+    logQueryError("getMembership user_orgs", queryError)
   return data
 }
 
@@ -29,12 +31,14 @@ async function getMembership(service: Awaited<ReturnType<typeof createServiceCli
 async function getSupplierCompanyContact(
   service: Awaited<ReturnType<typeof createServiceClient>>, contractorId: string, orgId: string,
 ): Promise<{ ok: true; contactId: string } | { ok: false; status: number; error: string }> {
-  const { data: contractor } = await service
+  const { data: contractor, error: contractorError } = await service
     .from("contractors").select("contact_id").eq("id", contractorId).eq("org_id", orgId).single()
+    logQueryError("getSupplierCompanyContact contractors", contractorError)
   if (!contractor) return { ok: false, status: 404, error: "Contractor not found" }
 
-  const { data: company } = await service
+  const { data: company, error: companyError } = await service
     .from("contacts").select("id, entity_type").eq("id", contractor.contact_id).eq("org_id", orgId).single()
+    logQueryError("getSupplierCompanyContact contacts", companyError)
   if (!company) return { ok: false, status: 404, error: "Supplier contact not found" }
   if (company.entity_type !== "organisation") {
     return { ok: false, status: 400, error: "This supplier is an individual — it has no people to add" }
@@ -100,12 +104,13 @@ export async function DELETE(req: NextRequest, { params }: RouteContext) {
   if (!company.ok) return NextResponse.json({ error: company.error }, { status: company.status })
 
   // The person must be a sub-contact of this supplier's company contact.
-  const { data: person } = await service
+  const { data: person, error: personError } = await service
     .from("contacts").select("id")
     .eq("id", contactId)
     .eq("org_id", membership.org_id)
     .eq("organisation_contact_id", company.contactId)
     .single()
+    logQueryError("DELETE contacts", personError)
   if (!person) return NextResponse.json({ error: "Person not found" }, { status: 404 })
 
   await service.from("contacts")

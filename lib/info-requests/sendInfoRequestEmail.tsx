@@ -39,6 +39,7 @@ import { OtherInfoRequestEmail } from "@/lib/comms/templates/info-requests/other
 import { OtherInfoRequestReminder } from "@/lib/comms/templates/info-requests/other-reminder"
 import { InfoRequestCompletionNotify } from "@/lib/comms/templates/info-requests/completion-notify"
 import { InfoRequestSelfTrackNudge } from "@/lib/comms/templates/info-requests/self-track-nudge"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -98,11 +99,12 @@ type OwnerTone = "friendly" | "professional" | "firm"
 
 async function fetchOwnerTone(orgId: string): Promise<OwnerTone> {
   const service = await createServiceClient()
-  const { data } = await service
+  const { data, error: queryError } = await service
     .from("organisations")
     .select("settings")
     .eq("id", orgId)
     .single()
+    logQueryError("fetchOwnerTone organisations", queryError)
 
   const settings = (data?.settings ?? {}) as { preferences?: { tone_owner?: OwnerTone } }
   const tone = settings.preferences?.tone_owner
@@ -132,11 +134,12 @@ function pickFirmness(tone: OwnerTone, reminderCount: number): "polite" | "firm"
 
 async function fetchPropertyLabel(propertyId: string): Promise<string> {
   const service = await createServiceClient()
-  const { data } = await service
+  const { data, error: queryError } = await service
     .from("properties")
     .select("name, address_line1, suburb, city")
     .eq("id", propertyId)
     .single()
+    logQueryError("fetchPropertyLabel properties", queryError)
 
   if (!data) return "your property"
   const parts = [

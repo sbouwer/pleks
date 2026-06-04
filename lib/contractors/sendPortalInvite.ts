@@ -12,6 +12,7 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function sendPortalInvite(
   contractorId: string,
@@ -20,11 +21,12 @@ export async function sendPortalInvite(
   const supabase = await createClient()
   const adminClient = await createServiceClient()
 
-  const { data: contractor } = await supabase
+  const { data: contractor, error: contractorError } = await supabase
     .from("contractor_view")
     .select("id, org_id, email, first_name, last_name, company_name, portal_access_enabled")
     .eq("id", contractorId)
     .single()
+    logQueryError("sendPortalInvite contractor_view", contractorError)
 
   if (!contractor) return { error: "Contractor not found" }
   if (contractor.portal_access_enabled) return { error: "Contractor already has portal access" }

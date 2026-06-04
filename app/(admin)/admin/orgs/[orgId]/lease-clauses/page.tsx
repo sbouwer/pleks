@@ -11,6 +11,7 @@ import { requireAdminAuth } from "@/lib/admin/auth"
 import { createServiceClient } from "@/lib/supabase/server"
 import Link from "next/link"
 import { AdminClauseEditor } from "./AdminClauseEditor"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function AdminLeaseClausesPage({
   params,
@@ -21,23 +22,26 @@ export default async function AdminLeaseClausesPage({
   const { orgId } = await params
   const supabase = await createServiceClient()
 
-  const { data: org } = await supabase
+  const { data: org, error: orgError } = await supabase
     .from("organisations")
     .select("name")
     .eq("id", orgId)
     .single()
+    logQueryError("AdminLeaseClausesPage organisations", orgError)
 
-  const { data: library } = await supabase
+  const { data: library, error: libraryError } = await supabase
     .from("lease_clause_library")
     .select("clause_key, title, body_template, is_required, sort_order, lease_type")
     .order("sort_order")
+    logQueryError("AdminLeaseClausesPage lease_clause_library", libraryError)
 
-  const { data: customBodies } = await supabase
+  const { data: customBodies, error: customBodiesError } = await supabase
     .from("lease_clause_selections")
     .select("clause_key, custom_body")
     .eq("org_id", orgId)
     .is("lease_id", null)
     .not("custom_body", "is", null)
+    logQueryError("AdminLeaseClausesPage lease_clause_selections", customBodiesError)
 
   const customMap: Record<string, string> = {}
   for (const c of customBodies ?? []) {

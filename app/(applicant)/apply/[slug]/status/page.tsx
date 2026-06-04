@@ -10,6 +10,7 @@ import { useParams, useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { CheckCircle2, Clock, Circle, Loader2 } from "lucide-react"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface AppData {
   id: string
@@ -69,20 +70,22 @@ export default function StatusPage() {
     const supabase = createClient()
 
     async function load() {
-      const { data: tokenRow } = await supabase
+      const { data: tokenRow, error: tokenRowError } = await supabase
         .from("application_tokens")
         .select("application_id")
         .eq("token", token!)
         .gt("expires_at", new Date().toISOString())
         .maybeSingle()
+        logQueryError("load application_tokens", tokenRowError)
 
       if (!tokenRow) { setLoading(false); return }
 
-      const { data } = await supabase
+      const { data, error: queryError } = await supabase
         .from("applications")
         .select("id, first_name, stage1_status, prescreen_score, applicant_email, listings(public_slug, asking_rent_cents, units(unit_number, properties(name)))")
         .eq("id", tokenRow.application_id)
         .single()
+        logQueryError("load applications", queryError)
 
       if (data) {
         setApp(data as unknown as AppData)

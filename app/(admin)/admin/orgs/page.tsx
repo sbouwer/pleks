@@ -11,15 +11,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { formatDateShort } from "@/lib/reports/periods"
 import { InlineLink } from "@/components/ui/actions"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function AdminOrgsPage() {
   await requireAdminAuth()
   const supabase = await createServiceClient()
 
-  const { data: orgs } = await supabase
+  const { data: orgs, error: orgsError } = await supabase
     .from("organisations")
     .select("id, name, type, founding_agent, created_at")
     .order("created_at", { ascending: false })
+    logQueryError("AdminOrgsPage organisations", orgsError)
 
   // Get subscription data for all orgs
   const orgIds = (orgs ?? []).map((o) => o.id)

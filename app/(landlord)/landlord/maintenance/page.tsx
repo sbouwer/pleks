@@ -12,16 +12,18 @@ import { getLandlordSession } from "@/lib/portal/getLandlordSession"
 import Link from "next/link"
 import { LandlordMaintenanceCard } from "@/components/portal/LandlordMaintenanceCard"
 import { formatZAR } from "@/lib/constants"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function LandlordMaintenancePage() {
   const session = await getLandlordSession()
   const service = await createServiceClient()
 
-  const { data: properties } = await service
+  const { data: properties, error: propertiesError } = await service
     .from("properties")
     .select("id")
     .eq("landlord_id", session.landlordId)
     .is("deleted_at", null)
+    logQueryError("LandlordMaintenancePage properties", propertiesError)
 
   const propertyIds = (properties ?? []).map((p) => p.id)
 

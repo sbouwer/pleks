@@ -10,18 +10,20 @@ import { createClient, createServiceClient } from "@/lib/supabase/server"
 import type { Tier } from "@/lib/constants"
 import { getEffectiveTier } from "./effectiveTier"
 import { getServerOrgMembership } from "@/lib/auth/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 /** Canonical tier — always reads subscriptions via service client.
  *  Use for ALL entitlement gates (canActivateLease, canDowngradeTo, etc.).
  *  The cookie fast-path (getOrgTier) is display-only and forgeable. */
 export async function getOrgTierCanonical(orgId: string): Promise<Tier> {
   const db = await createServiceClient()
-  const { data: sub } = await db
+  const { data: sub, error: subError } = await db
     .from("subscriptions")
     .select("tier, status, trial_tier, trial_ends_at, trial_converted")
     .eq("org_id", orgId)
     .in("status", ["active", "trialing"])
     .maybeSingle()
+    logQueryError("getOrgTierCanonical subscriptions", subError)
   if (!sub) return "owner"
   return getEffectiveTier(sub)
 }
@@ -37,12 +39,13 @@ export async function getOrgTier(orgId: string): Promise<Tier> {
   }
 
   const supabase = await createClient()
-  const { data: sub } = await supabase
+  const { data: sub, error: subError } = await supabase
     .from("subscriptions")
     .select("tier, status, trial_tier, trial_ends_at, trial_converted")
     .eq("org_id", orgId)
     .in("status", ["active", "trialing"])
     .single()
+    logQueryError("getOrgTier subscriptions", subError)
 
   if (!sub) return "owner"
 

@@ -9,6 +9,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -17,12 +18,13 @@ export async function POST(req: NextRequest) {
 
   const service = await createServiceClient()
 
-  const { data: membership } = await service
+  const { data: membership, error: membershipError } = await service
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
+    logQueryError("POST user_orgs", membershipError)
 
   if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
 
@@ -34,7 +36,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Create import session
-  const { data: session } = await service
+  const { data: session, error: sessionError } = await service
     .from("import_sessions")
     .insert({
       org_id: membership.org_id,
@@ -45,6 +47,7 @@ export async function POST(req: NextRequest) {
     })
     .select("id")
     .single()
+    logQueryError("POST import_sessions", sessionError)
 
   try {
     const { runGLImport } = await import("@/lib/import/glImportRunner")

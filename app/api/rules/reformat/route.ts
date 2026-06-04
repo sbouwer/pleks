@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { reformatRule } from "@/lib/rules/reformat"
 import { TIER_REFORMAT_LIMITS } from "@/lib/rules/templates"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // POST /api/rules/reformat
 // Body: { propertyId: string, text: string }
@@ -20,12 +21,13 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { data: membership } = await supabase
+  const { data: membership, error: membershipError } = await supabase
     .from("user_orgs")
     .select("org_id, role")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
+    logQueryError("POST user_orgs", membershipError)
 
   if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
 
@@ -37,22 +39,24 @@ export async function POST(req: NextRequest) {
   }
 
   // Verify property belongs to this org
-  const { data: property } = await supabase
+  const { data: property, error: propertyError } = await supabase
     .from("properties")
     .select("id, ai_reformat_count, ai_reformat_bonus")
     .eq("id", propertyId)
     .eq("org_id", membership.org_id)
     .is("deleted_at", null)
     .single()
+    logQueryError("POST properties", propertyError)
 
   if (!property) return NextResponse.json({ error: "Property not found" }, { status: 404 })
 
   // Get tier limit
-  const { data: sub } = await supabase
+  const { data: sub, error: subError } = await supabase
     .from("subscriptions")
     .select("tier")
     .eq("org_id", membership.org_id)
     .single()
+    logQueryError("POST subscriptions", subError)
 
   const tier = (sub?.tier as string | null) ?? "steward"
   const limit = TIER_REFORMAT_LIMITS[tier] ?? 3

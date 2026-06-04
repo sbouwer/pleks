@@ -15,6 +15,7 @@ import * as Sentry from "@sentry/nextjs"
 import { createServiceClient } from "@/lib/supabase/server"
 import { sendEmail } from "@/lib/comms/send-email"
 import { buildDirectorReminderHtml } from "@/lib/applications/commercial-html"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function GET(req: NextRequest) {
   const secret = req.headers.get("x-cron-secret")
@@ -118,11 +119,12 @@ async function processDirectorLine(service: Svc, line: PendingLine): Promise<Lin
 }
 
 async function expireDirectorLine(service: Svc, line: PendingLine, coApp: CoAppRow): Promise<LineOutcome> {
-  const { data: app } = await service
+  const { data: app, error: appError } = await service
     .from("applications")
     .select("first_name, last_name, applicant_email, listings(public_slug, units(unit_number, properties(name)))")
     .eq("id", line.application_id)
     .single()
+    logQueryError("expireDirectorLine applications", appError)
 
   if (!app) return "skipped"
 
@@ -141,13 +143,14 @@ async function expireDirectorLine(service: Svc, line: PendingLine, coApp: CoAppR
   })
 
   if (line.paid_at) {
-    const { data: payment } = await service
+    const { data: payment, error: paymentError } = await service
       .from("application_screening_payments")
       .select("id, fee_cents")
       .eq("application_id", line.application_id)
       .eq("subject_type", "co_applicant")
       .eq("subject_id", line.subject_id)
       .maybeSingle()
+    logQueryError("expireDirectorLine application_screening_payments", paymentError)
 
     if (payment) {
       await service
@@ -183,11 +186,12 @@ async function sendMilestoneReminder(
   daysElapsed: number,
   sent: Record<string, boolean>,
 ): Promise<LineOutcome> {
-  const { data: app } = await service
+  const { data: app, error: appError } = await service
     .from("applications")
     .select("first_name, last_name, applicant_email, listings(public_slug, units(unit_number, properties(name)))")
     .eq("id", line.application_id)
     .single()
+    logQueryError("sendMilestoneReminder applications", appError)
 
   if (!app) return "skipped"
 
@@ -227,11 +231,12 @@ async function notifyPrimaryContact(
   line: PendingLine,
   ctx: { primaryContactName: string; propertyLabel: string; directorName: string; stage: "t7" | "t10" },
 ): Promise<void> {
-  const { data: app } = await service
+  const { data: app, error: appError } = await service
     .from("applications")
     .select("applicant_email")
     .eq("id", line.application_id)
     .single()
+    logQueryError("notifyPrimaryContact applications", appError)
 
   if (!app?.applicant_email) return
 

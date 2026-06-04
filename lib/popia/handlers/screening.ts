@@ -15,6 +15,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { ScreeningResponseLetter } from '@/lib/reports/popia/screening_response'
 import type { ScreeningResponseData } from '@/lib/reports/popia/screening_response'
 import type { MaterialFlag } from '@/lib/screening/fitScoreEngine.v1'
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -82,11 +83,12 @@ export async function generateScreeningL2Response(
 
   // ── 2. Read org name ──────────────────────────────────────────────────────
 
-  const { data: org } = await db
+  const { data: org, error: orgError } = await db
     .from('organisations')
     .select('name')
     .eq('id', orgId)
     .single()
+    logQueryError("generateScreeningL2Response organisations", orgError)
 
   // ── 3. Build L2 response data (§8.4 — only permitted disclosures) ─────────
 

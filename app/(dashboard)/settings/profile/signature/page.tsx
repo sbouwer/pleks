@@ -10,6 +10,7 @@
 import { redirect } from "next/navigation"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { SignatureSettings } from "./SignatureSettings"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface UserSignatureRow {
   id: string
@@ -23,20 +24,22 @@ export default async function SignaturePage() {
   if (!gw) redirect("/login")
   const { db, userId } = gw
 
-  const { data: signature } = await db
+  const { data: signature, error: signatureError } = await db
     .from("user_signatures")
     .select("id, storage_path, source, created_at")
     .eq("user_id", userId)
     .eq("is_active", true)
     .maybeSingle()
+    logQueryError("SignaturePage user_signatures", signatureError)
 
   let signedUrl: string | null = null
 
   if (signature) {
     const row = signature as UserSignatureRow
-    const { data: urlData } = await db.storage
+    const { data: urlData, error: urlDataError } = await db.storage
       .from("signatures")
       .createSignedUrl(row.storage_path, 3600)
+    logQueryError("SignaturePage signatures", urlDataError)
     signedUrl = urlData?.signedUrl ?? null
   }
 

@@ -13,6 +13,7 @@ import { getTenantSession } from "@/lib/portal/getTenantSession"
 import { createServiceClient } from "@/lib/supabase/server"
 import { Badge } from "@/components/ui/badge"
 import { StatusBadge } from "@/components/shared/StatusBadge"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const URGENCY_LABEL: Record<string, string> = {
   emergency: "🚨 Emergency",
@@ -85,11 +86,12 @@ export default async function PortalMaintenanceDetailPage({
     null
 
   // Contractor updates (status changes from contractor)
-  const { data: updates } = await service
+  const { data: updates, error: updatesError } = await service
     .from("contractor_updates")
     .select("id, new_status, notes, created_at")
     .eq("request_id", requestId)
     .order("created_at", { ascending: true })
+    logQueryError("PortalMaintenanceDetailPage contractor_updates", updatesError)
 
   return (
     <div>

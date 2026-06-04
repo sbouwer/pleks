@@ -12,17 +12,19 @@ import { getLandlordSession } from "@/lib/portal/getLandlordSession"
 import Link from "next/link"
 import { ChevronRight, Building2 } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function LandlordPropertiesPage() {
   const session = await getLandlordSession()
   const service = await createServiceClient()
 
-  const { data: properties } = await service
+  const { data: properties, error: propertiesError } = await service
     .from("properties")
     .select("id, name, address_line1, suburb, city, unit_count, property_type")
     .eq("landlord_id", session.landlordId)
     .is("deleted_at", null)
     .order("name")
+    logQueryError("LandlordPropertiesPage properties", propertiesError)
 
   const propertyIds = (properties ?? []).map((p) => p.id)
 

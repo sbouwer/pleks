@@ -6,6 +6,7 @@
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import type { BugContext } from "@/lib/feedback/bug-context"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export type FeedbackStatus   = "open" | "in_progress" | "resolved" | "wont_fix"
 export type FeedbackCategory = "bug" | "feature" | "general" | "billing" | "ux" | "praise"
@@ -46,36 +47,40 @@ export async function resolveSubmitterContext(
 ): Promise<{ orgId: string; role: FeedbackRole } | null> {
   const service = await createServiceClient()
 
-  const { data: membership } = await service
+  const { data: membership, error: membershipError } = await service
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", userId)
     .is("deleted_at", null)
     .maybeSingle()
+    logQueryError("resolveSubmitterContext user_orgs", membershipError)
   if (membership) return { orgId: (membership as { org_id: string }).org_id, role: "agent" }
 
-  const { data: tenant } = await service
+  const { data: tenant, error: tenantError } = await service
     .from("tenants")
     .select("org_id")
     .eq("auth_user_id", userId)
     .is("deleted_at", null)
     .maybeSingle()
+    logQueryError("resolveSubmitterContext tenants", tenantError)
   if (tenant) return { orgId: (tenant as { org_id: string }).org_id, role: "tenant" }
 
-  const { data: landlord } = await service
+  const { data: landlord, error: landlordError } = await service
     .from("landlords")
     .select("org_id")
     .eq("auth_user_id", userId)
     .is("deleted_at", null)
     .maybeSingle()
+    logQueryError("resolveSubmitterContext landlords", landlordError)
   if (landlord) return { orgId: (landlord as { org_id: string }).org_id, role: "landlord" }
 
-  const { data: contractor } = await service
+  const { data: contractor, error: contractorError } = await service
     .from("contractors")
     .select("org_id")
     .eq("auth_user_id", userId)
     .eq("is_active", true)
     .maybeSingle()
+    logQueryError("resolveSubmitterContext contractors", contractorError)
   if (contractor) return { orgId: (contractor as { org_id: string }).org_id, role: "supplier" }
 
   return null

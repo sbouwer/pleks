@@ -12,6 +12,7 @@ import { redirect, notFound } from "next/navigation"
 import { updateTenant } from "@/lib/actions/tenants"
 import { TenantEditForm } from "./TenantEditForm"
 import { BackLink } from "@/components/ui/BackLink"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function EditTenantPage({
   params,
@@ -23,12 +24,13 @@ export default async function EditTenantPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  const { data: tenant } = await supabase
+  const { data: tenant, error: tenantError } = await supabase
     .from("tenant_view")
     .select("*")
     .eq("id", tenantId)
     .is("deleted_at", null)
     .single()
+    logQueryError("EditTenantPage tenant_view", tenantError)
 
   if (!tenant) notFound()
 

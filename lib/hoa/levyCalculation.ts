@@ -10,6 +10,7 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 import { createClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export interface UnitLevyAmount {
   owner_id: string
@@ -126,10 +127,11 @@ async function resolveCalculationMethod(
       return calcByEqualSplit(owners, schedule.total_budget_cents, schedule.include_vacant_units)
     case "fixed_amount":
     case "percentage_of_budget": {
-      const { data: existing } = await supabase
+      const { data: existing, error: existingError } = await supabase
         .from("levy_unit_amounts")
         .select("unit_id, fixed_cents, percentage")
         .eq("schedule_id", scheduleId)
+        logQueryError("resolveCalculationMethod levy_unit_amounts", existingError)
       const presetMap = new Map((existing ?? []).map((e) => [e.unit_id, e]))
       const method: "fixed_amount" | "percentage_of_budget" = schedule.calculation_method === "fixed_amount" ? "fixed_amount" : "percentage_of_budget"
       return calcByPresetAmounts(owners, schedule.total_budget_cents, method, presetMap)
@@ -171,20 +173,22 @@ export async function calculateLevyAmounts(
 ): Promise<LevyCalculationResult> {
   const supabase = await createClient()
 
-  const { data: schedule } = await supabase
+  const { data: schedule, error: scheduleError } = await supabase
     .from("levy_schedules")
     .select("*")
     .eq("id", scheduleId)
     .single()
+    logQueryError("calculateLevyAmounts levy_schedules", scheduleError)
 
   if (!schedule) throw new Error("Schedule not found")
 
-  const { data: owners } = await supabase
+  const { data: owners, error: ownersError } = await supabase
     .from("hoa_unit_owners")
     .select("id, unit_id, participation_quota, units(floor_area_m2, unit_number, status)")
     .eq("hoa_id", schedule.hoa_id)
     .eq("is_active", true)
     .is("owned_until", null)
+    logQueryError("calculateLevyAmounts hoa_unit_owners", ownersError)
 
   if (!owners?.length) throw new Error("No active owners found")
 

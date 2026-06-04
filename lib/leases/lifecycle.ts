@@ -12,6 +12,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { addDays } from "date-fns"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function logLifecycleEvent(
   leaseId: string,
@@ -56,7 +57,8 @@ export async function processEscalation(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Not authenticated" }
 
-  const { data: lease } = await supabase.from("leases").select("*").eq("id", leaseId).single()
+  const { data: lease, error: leaseError } = await supabase.from("leases").select("*").eq("id", leaseId).single()
+    logQueryError("processEscalation leases", leaseError)
   if (!lease) return { error: "Lease not found" }
 
   const oldRentCents = lease.rent_amount_cents
@@ -116,7 +118,8 @@ export async function createRenewalOffer(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Not authenticated" }
 
-  const { data: lease } = await supabase.from("leases").select("org_id").eq("id", leaseId).single()
+  const { data: lease, error: leaseError } = await supabase.from("leases").select("org_id").eq("id", leaseId).single()
+    logQueryError("createRenewalOffer leases", leaseError)
   if (!lease) return { error: "Lease not found" }
 
   const expiresAt = addDays(new Date(), 10).toISOString()
@@ -154,17 +157,18 @@ export async function acceptRenewalOffer(offerId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: "Not authenticated" }
 
-  const { data: offer } = await supabase
+  const { data: offer, error: offerError } = await supabase
     .from("lease_renewal_offers")
     .select("*, leases(*)")
     .eq("id", offerId)
     .single()
+    logQueryError("acceptRenewalOffer lease_renewal_offers", offerError)
 
   if (!offer) return { error: "Offer not found" }
   const currentLease = offer.leases as Record<string, unknown>
 
   // Create new lease
-  const { data: newLease } = await supabase
+  const { data: newLease, error: newLeaseError } = await supabase
     .from("leases")
     .insert({
       org_id: currentLease.org_id,
@@ -186,6 +190,7 @@ export async function acceptRenewalOffer(offerId: string) {
     })
     .select("id")
     .single()
+    logQueryError("acceptRenewalOffer leases", newLeaseError)
 
   if (!newLease) return { error: "Failed to create renewal lease" }
 

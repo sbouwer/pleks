@@ -12,6 +12,7 @@ import * as React from "react"
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { routeAndSend } from "@/lib/messaging/router"
 import { MaintenanceAssignedEmail } from "@/lib/comms/templates/tenant/maintenance/maintenance-assigned"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(
   req: NextRequest,
@@ -44,12 +45,13 @@ export async function POST(
     return NextResponse.json({ error: "contractorId is required" }, { status: 400 })
   }
 
-  const { data: current } = await service
+  const { data: current, error: currentError } = await service
     .from("maintenance_requests")
     .select("contractor_id")
     .eq("id", requestId)
     .eq("org_id", orgId)
     .single()
+    logQueryError("POST maintenance_requests", currentError)
 
   const contractorChanged = current?.contractor_id !== contractorId
 
@@ -74,17 +76,19 @@ export async function POST(
 
   // M2 — notify tenant that a contractor has been assigned
   try {
-    const { data: maintenanceReq } = await service
+    const { data: maintenanceReq, error: maintenanceReqError } = await service
       .from("maintenance_requests")
       .select("tenant_id, unit_id, title")
       .eq("id", requestId)
       .single()
+    logQueryError("POST maintenance_requests", maintenanceReqError)
 
-    const { data: contractor } = await service
+    const { data: contractor, error: contractorError } = await service
       .from("contractors")
       .select("first_name, last_name, company_name")
       .eq("id", contractorId)
       .single()
+    logQueryError("POST contractors", contractorError)
 
     if (maintenanceReq?.tenant_id) {
       const [tenantRes, unitRes, orgSettings] = await Promise.all([

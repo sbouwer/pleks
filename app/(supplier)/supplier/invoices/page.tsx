@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { formatZAR } from "@/lib/constants"
 import { getSupplierSession } from "@/lib/portal/getSupplierSession"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function ContractorInvoicesPage() {
   const session = await getSupplierSession()
@@ -18,7 +19,7 @@ export default async function ContractorInvoicesPage() {
 
   const service = await createServiceClient()
 
-  const { data: invoices } = await service
+  const { data: invoices, error: invoicesError } = await service
     .from("supplier_invoices")
     .select(`
       id, invoice_number, amount_incl_vat_cents, status, invoice_date,
@@ -26,6 +27,7 @@ export default async function ContractorInvoicesPage() {
     `)
     .eq("contractor_id", session.contractorId)
     .order("invoice_date", { ascending: false })
+    logQueryError("ContractorInvoicesPage supplier_invoices", invoicesError)
 
   const allInvoices = invoices ?? []
   const totalInvoiced = allInvoices.reduce((s, i) => s + (i.amount_incl_vat_cents ?? 0), 0)

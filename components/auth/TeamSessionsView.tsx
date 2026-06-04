@@ -14,6 +14,7 @@ import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Monitor, Smartphone, Loader2 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface TeamMemberActivity {
   userId: string
@@ -56,11 +57,12 @@ export function TeamSessionsView({ orgId }: Props) {
       const userIds = orgMembers.map(m => m.user_id)
 
       // Get latest auth event per user
-      const { data: events } = await supabase
+      const { data: events, error: eventsError } = await supabase
         .from("auth_events")
         .select("user_id, event_type, device_label, created_at")
         .in("user_id", userIds)
         .order("created_at", { ascending: false })
+        logQueryError("load auth_events", eventsError)
 
       type AuthEventRow = { user_id: string; event_type: string; device_label: string | null; created_at: string }
       const latestByUser = new Map<string, AuthEventRow>()

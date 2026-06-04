@@ -43,6 +43,7 @@ import { GET as consentCleanup } from "../consent-cleanup/route"
 import { GET as popiaRetentionPurge } from "../popia-retention-purge/route"
 import { runLegalArchiveStep } from "@/lib/legal/archive"
 import { runRulesEngine, type EngineRuleSummary } from "@/lib/rules/engine"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export const runtime     = "nodejs"
 export const maxDuration = 90   // Hobby caps at 60s; honoured on Pro. ~11s typical run.
@@ -80,11 +81,12 @@ export async function GET(req: NextRequest) {
 
   // Track in cron_runs — read by /api/health/deep cron freshness check
   const service = await createServiceClient()
-  const { data: cronRun } = await service.from("cron_runs").insert({
+  const { data: cronRun, error: cronRunError } = await service.from("cron_runs").insert({
     job_name:   "daily",
     started_at: today.toISOString(),
     status:     "running",
   }).select("id").single()
+    logQueryError("GET cron_runs", cronRunError)
   const cronRunId = cronRun?.id ?? null
 
   // Daily jobs

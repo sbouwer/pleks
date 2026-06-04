@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { inviteLandlord } from "@/lib/portal/inviteLandlord"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const PORTAL_TIERS = new Set(["portfolio", "firm"])
 
@@ -24,33 +25,36 @@ export async function POST(
 
   const service = await createServiceClient()
 
-  const { data: membership } = await service
+  const { data: membership, error: membershipError } = await service
     .from("user_orgs")
     .select("org_id, role")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
+    logQueryError("POST user_orgs", membershipError)
 
   if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
 
   // Tier check
-  const { data: sub } = await service
+  const { data: sub, error: subError } = await service
     .from("subscriptions")
     .select("tier")
     .eq("org_id", membership.org_id)
     .single()
+    logQueryError("POST subscriptions", subError)
 
   if (!PORTAL_TIERS.has(sub?.tier ?? "")) {
     return NextResponse.json({ error: "Landlord portal requires Portfolio or Firm plan" }, { status: 403 })
   }
 
   // Verify landlord belongs to this org
-  const { data: landlord } = await service
+  const { data: landlord, error: landlordError } = await service
     .from("landlords")
     .select("id, org_id, portal_status")
     .eq("id", landlordId)
     .eq("org_id", membership.org_id)
     .single()
+    logQueryError("POST landlords", landlordError)
 
   if (!landlord) return NextResponse.json({ error: "Landlord not found" }, { status: 404 })
 
@@ -76,12 +80,13 @@ export async function DELETE(
 
   const service = await createServiceClient()
 
-  const { data: membership } = await service
+  const { data: membership, error: membershipError } = await service
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
+    logQueryError("DELETE user_orgs", membershipError)
 
   if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
 

@@ -9,6 +9,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const BRAND_FIELDS = [
   "brand_logo_path",
@@ -21,12 +22,13 @@ type BrandField = (typeof BRAND_FIELDS)[number]
 type BrandPatch = Partial<Record<BrandField, string | null>>
 
 async function resolveOrgId(supabase: Awaited<ReturnType<typeof createClient>>, userId: string) {
-  const { data: membership } = await supabase
+  const { data: membership, error: membershipError } = await supabase
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", userId)
     .is("deleted_at", null)
     .single()
+    logQueryError("resolveOrgId user_orgs", membershipError)
   return membership?.org_id ?? null
 }
 
@@ -59,9 +61,10 @@ export async function GET() {
 
   let logoUrl: string | null = null
   if (d.brand_logo_path) {
-    const { data: signed } = await supabase.storage
+    const { data: signed, error: signedError } = await supabase.storage
       .from("org-assets")
       .createSignedUrl(d.brand_logo_path, 3600)
+    logQueryError("GET org-assets", signedError)
     logoUrl = signed?.signedUrl ?? null
   }
 

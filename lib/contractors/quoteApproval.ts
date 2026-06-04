@@ -10,24 +10,27 @@
  * Notes:  gotchas, invariants, why-not-X decisions
  */
 import { createClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function approveQuote(quoteId: string, approvedBy: string) {
   const supabase = await createClient()
 
-  const { data: quote } = await supabase
+  const { data: quote, error: quoteError } = await supabase
     .from("maintenance_quotes")
     .select("id, request_id, org_id, total_incl_vat_cents, contractor_id")
     .eq("id", quoteId)
     .single()
+    logQueryError("approveQuote maintenance_quotes", quoteError)
 
   if (!quote) return { error: "Quote not found" }
 
   // Check if landlord approval is needed
-  const { data: org } = await supabase
+  const { data: org, error: orgError } = await supabase
     .from("organisations")
     .select("maintenance_approval_threshold_cents")
     .eq("id", quote.org_id)
     .single()
+    logQueryError("approveQuote organisations", orgError)
 
   const threshold = (org?.maintenance_approval_threshold_cents as number) ?? 200000
 
@@ -85,11 +88,12 @@ export async function rejectQuote(
 ) {
   const supabase = await createClient()
 
-  const { data: quote } = await supabase
+  const { data: quote, error: quoteError } = await supabase
     .from("maintenance_quotes")
     .select("id, request_id, org_id, contractor_id")
     .eq("id", quoteId)
     .single()
+    logQueryError("rejectQuote maintenance_quotes", quoteError)
 
   if (!quote) return { error: "Quote not found" }
 

@@ -7,6 +7,7 @@
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { redirect } from "next/navigation"
 import { setSentryUser } from "@/lib/observability/user-context"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export interface LandlordSession {
   userId: string
@@ -26,12 +27,13 @@ export async function getLandlordSession(): Promise<LandlordSession> {
 
   const service = await createServiceClient()
 
-  const { data: landlord } = await service
+  const { data: landlord, error: landlordError } = await service
     .from("landlords")
     .select("id, org_id, portal_status, contacts(first_name, last_name, company_name)")
     .eq("auth_user_id", user.id)
     .is("deleted_at", null)
     .single()
+    logQueryError("getLandlordSession landlords", landlordError)
 
   if (!landlord) redirect("/login")
   if (landlord.portal_status === "suspended") redirect("/login")

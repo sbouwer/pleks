@@ -7,19 +7,21 @@
  */
 import Link from "next/link"
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 async function getTopCostOrg(): Promise<{ name: string; ai_cost_cents: number } | null> {
   try {
     const db = await createServiceClient()
     const now = new Date()
     const period = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-01`
-    const { data } = await db
+    const { data, error: queryError } = await db
       .from("platform_cost_snapshots")
       .select("org_id, ai_cost_cents, organisations(name)")
       .eq("period", period)
       .order("ai_cost_cents", { ascending: false })
       .limit(1)
       .single()
+    logQueryError("getTopCostOrg platform_cost_snapshots", queryError)
     if (!data) return null
     const org = (data.organisations as unknown as { name: string } | null)
     return { name: org?.name ?? data.org_id, ai_cost_cents: (data.ai_cost_cents as number) ?? 0 }

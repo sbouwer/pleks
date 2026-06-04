@@ -10,6 +10,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(req: NextRequest) {
   const { token, verificationId } = await req.json() as {
@@ -24,22 +25,24 @@ export async function POST(req: NextRequest) {
   const service = await createServiceClient()
 
   // F6: check expires_at (consistent with send-code applicant path)
-  const { data: tokenRow } = await service
+  const { data: tokenRow, error: tokenRowError } = await service
     .from("application_tokens")
     .select("application_id, applicant_email")
     .eq("token", token)
     .gt("expires_at", new Date().toISOString())
     .maybeSingle()
+    logQueryError("POST application_tokens", tokenRowError)
 
   if (!tokenRow) {
     return NextResponse.json({ error: "Invalid or expired token" }, { status: 403 })
   }
 
-  const { data: app } = await service
+  const { data: app, error: appError } = await service
     .from("applications")
     .select("org_id, stage2_consent_given")
     .eq("id", tokenRow.application_id)
     .single()
+    logQueryError("POST applications", appError)
 
   if (!app) {
     return NextResponse.json({ error: "Application not found" }, { status: 404 })
@@ -52,11 +55,12 @@ export async function POST(req: NextRequest) {
   // Re-verify SMS verification server-side if provided (ADDENDUM_14F)
   let verificationMethod = "none"
   if (verificationId) {
-    const { data: verif } = await service
+    const { data: verif, error: verifError } = await service
       .from("consent_verifications")
       .select("status")
       .eq("id", verificationId)
       .single()
+    logQueryError("POST consent_verifications", verifError)
 
     if (verif?.status !== "verified") {
       return NextResponse.json({ error: "SMS verification not confirmed" }, { status: 403 })

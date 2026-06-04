@@ -10,6 +10,7 @@
 import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { accrueArrearsInterest } from "@/lib/finance/arrearsInterest"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // Daily arrears interest accrual — one charge per open case per day
 export async function GET(req: NextRequest) {
@@ -20,11 +21,12 @@ export async function GET(req: NextRequest) {
   const supabase = await createServiceClient()
 
   // Find all open arrears cases with interest enabled
-  const { data: cases } = await supabase
+  const { data: cases, error: casesError } = await supabase
     .from("arrears_cases")
     .select("id, lease_id, leases(arrears_interest_enabled)")
     .not("status", "in", '("resolved","written_off","vacated_with_debt")')
     .gt("total_arrears_cents", 0)
+    logQueryError("GET arrears_cases", casesError)
 
   const today = new Date()
   let processed = 0

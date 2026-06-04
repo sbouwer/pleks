@@ -10,6 +10,7 @@ import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { gateway } from "@/lib/supabase/gateway"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 function extractBuildingFields(formData: FormData) {
   const buildingType = formData.get("building_type") as string || "residential"
@@ -134,12 +135,13 @@ export async function fetchBuildingsForProperty(propertyId: string) {
   if (!gw) return []
   const { db } = gw
 
-  const { data } = await db
+  const { data, error: queryError } = await db
     .from("buildings")
     .select("id, name, building_type, maintenance_rhythm, is_primary, is_visible_in_ui")
     .eq("property_id", propertyId)
     .is("deleted_at", null)
     .order("is_primary", { ascending: false })
+    logQueryError("fetchBuildingsForProperty buildings", queryError)
 
   return data ?? []
 }

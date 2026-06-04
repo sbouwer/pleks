@@ -17,6 +17,7 @@ import * as React from "react"
 import { routeAndSend } from "@/lib/messaging/router"
 import { LeaseExpiryReminderEmail } from "@/lib/comms/templates/tenant/leases/lease-expiry-reminder"
 import { LeaseTerminatedEmail } from "@/lib/comms/templates/tenant/leases/lease-terminated"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 type Supabase = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -191,7 +192,7 @@ export async function GET(req: Request) {
   let processed = 0
 
   // 1. CPA auto-renewal notices due
-  const { data: needNotice } = await supabase
+  const { data: needNotice, error: needNoticeError } = await supabase
     .from("leases")
     .select("id, org_id, tenant_id, end_date, unit_id, units(unit_number, properties(name))")
     .eq("is_fixed_term", true)
@@ -199,6 +200,7 @@ export async function GET(req: Request) {
     .is("auto_renewal_notice_sent_at", null)
     .eq("status", "active")
     .lte("auto_renewal_notice_due", today)
+    logQueryError("GET leases", needNoticeError)
 
   for (const lease of needNotice || []) {
     await handleCpaRenewal(supabase, lease as CpaLease)
@@ -210,7 +212,7 @@ export async function GET(req: Request) {
   reminderTarget.setDate(reminderTarget.getDate() + 30)
   const reminderTargetStr = reminderTarget.toISOString().split("T")[0]
 
-  const { data: expiringLeases } = await supabase
+  const { data: expiringLeases, error: expiringLeasesError } = await supabase
     .from("leases")
     .select("id, org_id, tenant_id, end_date, unit_id")
     .eq("is_fixed_term", true)
@@ -218,6 +220,7 @@ export async function GET(req: Request) {
     .lte("end_date", reminderTargetStr)
     .gt("end_date", today)
     .is("expiry_reminder_sent_at", null)
+    logQueryError("GET leases", expiringLeasesError)
 
   for (const lease of expiringLeases || []) {
     await handleExpiryReminder(supabase, lease as ExpiryLease)
@@ -225,12 +228,13 @@ export async function GET(req: Request) {
   }
 
   // 3. Auto-convert expired fixed-term leases to month-to-month
-  const { data: expired } = await supabase
+  const { data: expired, error: expiredError } = await supabase
     .from("leases")
     .select("id, org_id")
     .eq("is_fixed_term", true)
     .eq("status", "active")
     .lt("end_date", today)
+    logQueryError("GET leases", expiredError)
 
   for (const lease of expired || []) {
     await supabase.from("leases").update({
@@ -250,11 +254,12 @@ export async function GET(req: Request) {
   }
 
   // 4. Leases in notice period that have passed notice_period_end — L11 term comm
-  const { data: noticeExpired } = await supabase
+  const { data: noticeExpired, error: noticeExpiredError } = await supabase
     .from("leases")
     .select("id, org_id, unit_id, tenant_id")
     .eq("status", "notice")
     .lt("notice_period_end", today)
+    logQueryError("GET leases", noticeExpiredError)
 
   for (const lease of noticeExpired || []) {
     await handleNoticeExpired(supabase, lease as NoticeLease, today)

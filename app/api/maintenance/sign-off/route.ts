@@ -18,6 +18,7 @@ import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { routeAndSend } from "@/lib/messaging/router"
 import { MaintenanceCompletedEmail } from "@/lib/comms/templates/tenant/maintenance/maintenance-completed"
 import { deriveWarrantySubject } from "@/lib/maintenance/warranty"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 type Service = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -185,16 +186,17 @@ async function createWorkmanshipWarranty(
 
   let contractorContactId: string | null = null
   if (request.contractor_id) {
-    const { data: contractor } = await service
+    const { data: contractor, error: contractorError } = await service
       .from("contractors")
       .select("contact_id")
       .eq("id", request.contractor_id)
       .single()
+    logQueryError("createWorkmanshipWarranty contractors", contractorError)
     contractorContactId = contractor?.contact_id ?? null
   }
 
   const completedAt = new Date()
-  const { data: warranty } = await service
+  const { data: warranty, error: warrantyError } = await service
     .from("warranties")
     .insert({
       org_id:                        orgId,
@@ -212,6 +214,7 @@ async function createWorkmanshipWarranty(
     })
     .select("id")
     .single()
+    logQueryError("createWorkmanshipWarranty warranties", warrantyError)
   return warranty?.id ?? null
 }
 
@@ -221,12 +224,13 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const service = await createServiceClient()
-  const { data: membership } = await service
+  const { data: membership, error: membershipError } = await service
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
+    logQueryError("POST user_orgs", membershipError)
   if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
 
   const { requestId, allocations, workmanshipGuaranteeMonths, workmanshipGuaranteeTerms } = await req.json() as {
@@ -240,12 +244,13 @@ export async function POST(req: NextRequest) {
   if (!allocations?.length) return NextResponse.json({ error: "No allocations provided" }, { status: 400 })
 
   // Fetch the request
-  const { data: request } = await service
+  const { data: request, error: requestError } = await service
     .from("maintenance_requests")
     .select("id, org_id, unit_id, property_id, lease_id, actual_cost_cents, status, tenant_id, title, contractor_id")
     .eq("id", requestId)
     .eq("org_id", membership.org_id)
     .single()
+    logQueryError("POST maintenance_requests", requestError)
 
   if (!request) return NextResponse.json({ error: "Request not found" }, { status: 404 })
   if (request.status !== "pending_completion") {

@@ -10,6 +10,7 @@
 import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { accrueDepositInterest } from "@/lib/finance/depositInterest"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // Monthly deposit interest accrual — uses per-lease rate settings
 export async function GET(req: NextRequest) {
@@ -20,11 +21,12 @@ export async function GET(req: NextRequest) {
   const supabase = await createServiceClient()
 
   // Find all active residential leases with deposits
-  const { data: leases } = await supabase
+  const { data: leases, error: leasesError } = await supabase
     .from("leases")
     .select("id")
     .in("status", ["active", "notice", "expired"])
     .gt("deposit_amount_cents", 0)
+    logQueryError("GET leases", leasesError)
 
   const today = new Date()
   let accrued = 0

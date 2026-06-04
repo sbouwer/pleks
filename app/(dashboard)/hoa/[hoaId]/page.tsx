@@ -17,6 +17,7 @@ import { LevyScheduleManager } from "@/components/hoa/LevyScheduleManager"
 import { AGMManager } from "@/components/hoa/AGMManager"
 import { ReserveFundManager } from "@/components/hoa/ReserveFundManager"
 import { BackLink } from "@/components/ui/BackLink"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function HOADetailPage({
   params,
@@ -28,11 +29,12 @@ export default async function HOADetailPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/login")
 
-  const { data: hoa } = await supabase
+  const { data: hoa, error: hoaError } = await supabase
     .from("hoa_entities")
     .select("*, properties(name, address_line1, city)")
     .eq("id", hoaId)
     .single()
+    logQueryError("HOADetailPage hoa_entities", hoaError)
 
   if (!hoa) redirect("/hoa")
 
@@ -189,12 +191,13 @@ export default async function HOADetailPage({
 
 async function HOAOwnersTab({ hoaId }: { hoaId: string }) {
   const supabase = await createClient()
-  const { data: owners } = await supabase
+  const { data: owners, error: ownersError } = await supabase
     .from("hoa_unit_owners")
     .select("*, units(unit_number)")
     .eq("hoa_id", hoaId)
     .eq("is_active", true)
     .order("owner_name")
+    logQueryError("HOAOwnersTab hoa_unit_owners", ownersError)
 
   // Get latest levy status per owner
   const ownerIds = (owners ?? []).map((o) => o.id)
@@ -294,22 +297,24 @@ async function HOALeviesTab({ hoaId }: { hoaId: string }) {
 
 async function HOAAGMTab({ hoaId }: { hoaId: string }) {
   const supabase = await createClient()
-  const { data: records } = await supabase
+  const { data: records, error: recordsError } = await supabase
     .from("agm_records")
     .select("*, agm_resolutions(*)")
     .eq("hoa_id", hoaId)
     .order("meeting_date", { ascending: false })
+    logQueryError("HOAAGMTab agm_records", recordsError)
 
   return <AGMManager hoaId={hoaId} initialRecords={records ?? []} />
 }
 
 async function HOAFinancialsTab({ hoaId, reserveBalance }: Readonly<{ hoaId: string; reserveBalance: number }>) {
   const supabase = await createClient()
-  const { data: entries } = await supabase
+  const { data: entries, error: entriesError } = await supabase
     .from("reserve_fund_entries")
     .select("*")
     .eq("hoa_id", hoaId)
     .order("created_at", { ascending: false })
+    logQueryError("HOAFinancialsTab reserve_fund_entries", entriesError)
 
   return (
     <ReserveFundManager

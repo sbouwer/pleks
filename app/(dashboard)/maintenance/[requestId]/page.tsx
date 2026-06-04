@@ -27,6 +27,7 @@ import { formatZAR } from "@/lib/constants"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { createServiceClient } from "@/lib/supabase/server"
 import { buildUnifiedTimeline } from "@/lib/maintenance/timeline"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const INSURANCE_BADGE: Record<string, { label: string; cls: string }> = {
   reported: { label: "Reported to broker",  cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
@@ -142,9 +143,10 @@ export default async function MaintenanceDetailPage({
       const storagePath = p.storage_path as string | null
       let signedUrl = ""
       if (storagePath) {
-        const { data: signed } = await service.storage
+        const { data: signed, error: signedError } = await service.storage
           .from("maintenance-photos")
-          .createSignedUrl(storagePath, 60 * 60 * 2) // 2-hour URLs for page view
+          .createSignedUrl(storagePath, 60 * 60 * 2)
+        logQueryError("photos maintenance-photos", signedError) // 2-hour URLs for page view
         signedUrl = signed?.signedUrl ?? ""
       }
       return {

@@ -12,6 +12,7 @@
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function createProperty(formData: FormData) {
   const gw = await requireAgentWriteAccess("create_property")
@@ -131,11 +132,12 @@ export async function updateProperty(propertyId: string, formData: FormData) {
   if (error) return { error: error.message }
 
   // Get org_id for audit
-  const { data: prop } = await db
+  const { data: prop, error: propError } = await db
     .from("properties")
     .select("org_id")
     .eq("id", propertyId)
     .single()
+    logQueryError("updateProperty properties", propError)
 
   if (prop) {
     await db.from("audit_log").insert({

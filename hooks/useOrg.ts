@@ -11,6 +11,7 @@ import { useQuery } from "@tanstack/react-query"
 import { createClient } from "@/lib/supabase/client"
 import { getOrgDisplayName, type OrgNameFields } from "@/lib/org/displayName"
 import type { SubscriptionStatus } from "@/lib/subscriptions/state"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export function useOrg() {
   const supabase = createClient()
@@ -20,20 +21,22 @@ export function useOrg() {
     queryFn: async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.user) return null
-      const { data: orgData } = await supabase
+      const { data: orgData, error: orgDataError } = await supabase
         .from("user_orgs")
         .select("org_id, role, organisations(*)")
         .eq("user_id", session.user.id)
         .is("deleted_at", null)
         .limit(1)
         .single()
+        logQueryError("{ data, isLoading } user_orgs", orgDataError)
       if (!orgData) return null
-      const { data: subData } = await supabase
+      const { data: subData, error: subDataError } = await supabase
         .from("subscriptions")
         .select("status, cancelled_at")
         .eq("org_id", orgData.org_id)
         .not("status", "eq", "purged")
         .maybeSingle()
+        logQueryError("{ data, isLoading } subscriptions", subDataError)
       return {
         ...orgData,
         subscriptionStatus: (subData?.status ?? "active") as SubscriptionStatus,

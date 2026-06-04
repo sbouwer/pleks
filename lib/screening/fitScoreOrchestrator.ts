@@ -54,6 +54,7 @@ import { SYNTHESIS_TEMPLATE_VERSION } from "@/lib/screening/prompts/synthesisTem
 import { fetchOrgSettings, buildBranding } from "@/lib/comms/send-email"
 import { sendScreeningComplete } from "@/lib/applications/emails"
 import type { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export const CURRENT_INTERPRETATION_VERSION = 'interpretation.v1.0'
 const RUNTIME_CODE_HASH = process.env.VERCEL_GIT_COMMIT_SHA ?? 'local'
@@ -135,7 +136,7 @@ async function maybeFireScreeningEmail(
   const orgSettings = await fetchOrgSettings(orgId)
 
   // Fetch agent email from user_orgs → user_profiles
-  const { data: agentRow } = await supabase
+  const { data: agentRow, error: agentRowError } = await supabase
     .from('user_orgs')
     .select('user_profiles(email)')
     .eq('org_id', orgId)
@@ -143,6 +144,7 @@ async function maybeFireScreeningEmail(
     .is('deleted_at', null)
     .limit(1)
     .maybeSingle()
+    logQueryError("maybeFireScreeningEmail user_orgs", agentRowError)
   const rawProfile = agentRow?.user_profiles
   const profileEmail: string | undefined = Array.isArray(rawProfile)
     ? rawProfile[0]?.email
@@ -154,18 +156,20 @@ async function maybeFireScreeningEmail(
   let unitLabel = ''
   let propertyName = ''
   if (appRow.unit_id) {
-    const { data: unitRow } = await supabase
+    const { data: unitRow, error: unitRowError } = await supabase
       .from('units')
       .select('unit_number, property_id')
       .eq('id', appRow.unit_id)
       .single()
+    logQueryError("maybeFireScreeningEmail units", unitRowError)
     if (unitRow) {
       unitLabel = (unitRow.unit_number as string | null) ?? ''
-      const { data: propRow } = await supabase
+      const { data: propRow, error: propRowError } = await supabase
         .from('properties')
         .select('name')
         .eq('id', unitRow.property_id as string)
         .single()
+        logQueryError("maybeFireScreeningEmail properties", propRowError)
       propertyName = (propRow?.name as string | null) ?? ''
     }
   }

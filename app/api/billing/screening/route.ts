@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { buildApplicationFeeForm } from "@/lib/payfast/forms"
 import { APPLICATION_FEE_CENTS, JOINT_APPLICATION_FEE_CENTS } from "@/lib/constants"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(req: NextRequest) {
   const { token } = await req.json()
@@ -22,12 +23,13 @@ export async function POST(req: NextRequest) {
   const supabase = await createServiceClient()
 
   // Look up application from token
-  const { data: tokenData } = await supabase
+  const { data: tokenData, error: tokenDataError } = await supabase
     .from("application_tokens")
     .select("application_id, applicant_email, expires_at")
     .eq("token", token)
     .eq("token_type", "shortlist_invite")
     .single()
+    logQueryError("POST application_tokens", tokenDataError)
 
   if (!tokenData) {
     return NextResponse.json({ error: "Invalid token" }, { status: 404 })
@@ -38,7 +40,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Get application details
-  const { data: application } = await supabase
+  const { data: application, error: applicationError } = await supabase
     .from("applications")
     .select(`
       id, org_id, listing_id, has_co_applicant,
@@ -46,6 +48,7 @@ export async function POST(req: NextRequest) {
     `)
     .eq("id", tokenData.application_id)
     .single()
+    logQueryError("POST applications", applicationError)
 
   if (!application) {
     return NextResponse.json({ error: "Application not found" }, { status: 404 })

@@ -10,6 +10,7 @@
 import { createServiceClient } from "@/lib/supabase/server"
 import { generateBundle, signedDownloadUrl } from "@/lib/exports/bundle"
 import type { DataSubjectRequest } from "./requests"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -178,11 +179,12 @@ export async function regenerateExport(
 
 export async function recordDownload(exportId: string): Promise<void> {
   const db = createServiceClient()
-  const { data: current } = await (await db)
+  const { data: current, error: currentError } = await (await db)
     .from("popia_exports")
     .select("download_count, downloaded_at")
     .eq("id", exportId)
     .single()
+    logQueryError("recordDownload popia_exports", currentError)
 
   await (await db)
     .from("popia_exports")
@@ -235,13 +237,14 @@ async function gatherSubjectData(
   db: Awaited<ReturnType<typeof createServiceClient>>,
   request: DataSubjectRequest,
 ): Promise<SubjectDataBundle> {
-  const { data: org } = await db
+  const { data: org, error: orgError } = await db
     .from("organisations")
     .select("name")
     .eq("id", request.org_id)
     .single()
+    logQueryError("gatherSubjectData organisations", orgError)
 
-  const { data: leases } = await db
+  const { data: leases, error: leasesError } = await db
     .from("leases")
     .select("id, start_date, end_date, status, monthly_rental")
     .eq("org_id", request.org_id)
@@ -255,6 +258,7 @@ async function gatherSubjectData(
           (r: { lease_id: string }) => r.lease_id,
         ) ?? [],
     )
+    logQueryError("gatherSubjectData leases", leasesError)
 
   const { count: communications_count } = await db
     .from("communication_log")
@@ -262,7 +266,7 @@ async function gatherSubjectData(
     .eq("org_id", request.org_id)
     .eq("user_id", request.subject_user_id ?? "")
 
-  const { data: inspections } = await db
+  const { data: inspections, error: inspectionsError } = await db
     .from("inspections")
     .select("id, inspection_type, inspection_date, outcome")
     .eq("org_id", request.org_id)
@@ -270,12 +274,14 @@ async function gatherSubjectData(
       "lease_id",
       (leases ?? []).map((l: { id: string }) => l.id),
     )
+    logQueryError("gatherSubjectData inspections", inspectionsError)
 
-  const { data: consent_entries } = await db
+  const { data: consent_entries, error: consent_entriesError } = await db
     .from("consent_log")
     .select("consent_type, consent_version, consent_given, created_at")
     .eq("user_id", request.subject_user_id ?? "")
     .order("created_at", { ascending: false })
+    logQueryError("gatherSubjectData consent_log", consent_entriesError)
 
   return {
     subject_email: request.subject_email,

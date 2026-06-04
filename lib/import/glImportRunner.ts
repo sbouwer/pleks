@@ -9,6 +9,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { GLPropertyBlock, GLTransaction, GLDepositTransaction } from "./parseGLReport"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -85,7 +86,7 @@ async function isDuplicate(
   const fromDate = new Date(date.getTime() - threeDaysMs)
   const toDate = new Date(date.getTime() + threeDaysMs)
 
-  const { data } = await supabase
+  const { data, error: queryError } = await supabase
     .from("trust_transactions")
     .select("id")
     .eq("lease_id", leaseId)
@@ -93,6 +94,7 @@ async function isDuplicate(
     .gte("created_at", fromDate.toISOString())
     .lte("created_at", toDate.toISOString())
     .limit(1)
+    logQueryError("isDuplicate trust_transactions", queryError)
 
   return (data?.length ?? 0) > 0
 }

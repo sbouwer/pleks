@@ -9,6 +9,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { gateway } from "@/lib/supabase/gateway"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function GET(
   _req: NextRequest,
@@ -36,11 +37,12 @@ export async function GET(
   let tenantName: string | null = null
   let tenantPhone: string | null = null
   if (insp.tenant_id) {
-    const { data: tv } = await db
+    const { data: tv, error: tvError } = await db
       .from("tenant_view")
       .select("first_name, last_name, phone")
       .eq("id", insp.tenant_id)
       .single()
+    logQueryError("GET tenant_view", tvError)
     if (tv) {
       tenantName = `${tv.first_name ?? ""} ${tv.last_name ?? ""}`.trim() || null
       tenantPhone = (tv.phone as string | null) ?? null

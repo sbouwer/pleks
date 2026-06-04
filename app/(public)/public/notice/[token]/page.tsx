@@ -15,6 +15,7 @@ import { notFound } from "next/navigation"
 import { AlertTriangle, Building2 } from "lucide-react"
 import { NoticeAcknowledge } from "./NoticeAcknowledge"
 import { recordNoticePageView } from "@/lib/actions/delivery-notice"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface Props {
   params: Promise<{ token: string }>
@@ -58,11 +59,12 @@ export default async function NoticePage({ params }: Props) {
   const { token } = await params
   const service = getService()
 
-  const { data: row } = await service
+  const { data: row, error: rowError } = await service
     .from("delivery_notice_tokens")
     .select("id, org_id, communication_log_id, expires_at, acknowledged_at, tenant_id")
     .eq("token", token)
     .maybeSingle()
+    logQueryError("NoticePage delivery_notice_tokens", rowError)
 
   if (!row) notFound()
   if (new Date(row.expires_at) < new Date()) {

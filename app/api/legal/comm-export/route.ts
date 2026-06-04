@@ -19,6 +19,7 @@ import {
   type CommExportComm,
   type CommExportDeliveryEvent,
 } from "@/lib/comms/CommExportPdf"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export const dynamic = "force-dynamic"
 
@@ -54,11 +55,12 @@ async function fetchComms(service: ServiceClient, leaseId: string, orgId: string
   if (rows.length === 0) return []
 
   const ids = rows.map((r) => r.id as string)
-  const { data: evts } = await service
+  const { data: evts, error: evtsError } = await service
     .from("communication_delivery_events")
     .select("communication_log_id, event_type, provider, occurred_at")
     .in("communication_log_id", ids)
     .order("occurred_at", { ascending: true })
+    logQueryError("fetchComms communication_delivery_events", evtsError)
 
   const evtsByComm = new Map<string, CommExportDeliveryEvent[]>()
   for (const e of evts ?? []) {

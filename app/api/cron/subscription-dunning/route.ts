@@ -13,6 +13,7 @@ import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import { sendPastDueFirst, sendPastDueDay7, sendPausedAuto } from "@/lib/subscriptions/emails"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function GET(req: NextRequest) {
   if (req.headers.get("x-cron-secret") !== process.env.CRON_SECRET) {
@@ -89,23 +90,25 @@ export async function GET(req: NextRequest) {
       autoPaused++
     } else if (daysElapsed === 7) {
       // Check idempotency via comm log
-      const { data: prior } = await supabase
+      const { data: prior, error: priorError } = await supabase
         .from("communication_log")
         .select("id")
         .eq("org_id", sub.org_id)
         .eq("template_key", "subscription.past_due_day7")
         .limit(1)
+        logQueryError("GET communication_log", priorError)
       if (prior && prior.length > 0) continue
       void sendPastDueDay7(contact)
       pastDueDay7++
     } else if (daysElapsed === 0) {
       // First notice — check idempotency
-      const { data: prior } = await supabase
+      const { data: prior, error: priorError2 } = await supabase
         .from("communication_log")
         .select("id")
         .eq("org_id", sub.org_id)
         .eq("template_key", "subscription.past_due_first")
         .limit(1)
+        logQueryError("GET communication_log", priorError2)
       if (prior && prior.length > 0) continue
       void sendPastDueFirst(contact)
       pastDueFirst++

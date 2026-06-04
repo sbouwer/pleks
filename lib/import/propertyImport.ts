@@ -13,6 +13,7 @@ import { createClient } from "@/lib/supabase/server"
 import { parseCSV, detectTpnFormat, type ImportResult } from "./csvParser"
 import { convertTpnExport } from "./tpnParser"
 import { validatePropertyRow } from "./validators"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function importProperties(
   csvText: string,
@@ -45,7 +46,7 @@ export async function importProperties(
     results.errors.push(...errors.filter((e) => e.severity === "warning"))
 
     // Deduplication: check by address + suburb
-    const { data: existing } = await supabase
+    const { data: existing, error: existingError } = await supabase
       .from("properties")
       .select("id")
       .eq("org_id", orgId)
@@ -53,6 +54,7 @@ export async function importProperties(
       .ilike("suburb", row.suburb ?? "")
       .is("deleted_at", null)
       .limit(1)
+    logQueryError("importProperties properties", existingError)
 
     if (existing && existing.length > 0) {
       results.errors.push({
@@ -66,7 +68,7 @@ export async function importProperties(
     }
 
     // Create property
-    const { data: property } = await supabase
+    const { data: property, error: propertyError } = await supabase
       .from("properties")
       .insert({
         org_id: orgId,
@@ -81,6 +83,7 @@ export async function importProperties(
       })
       .select("id")
       .single()
+    logQueryError("importProperties properties", propertyError)
 
     if (!property) {
       results.errors.push({ row: index + 2, field: "property_name", message: "Failed to create property" })

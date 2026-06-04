@@ -11,6 +11,7 @@ import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { getServerOrgMembership } from "@/lib/auth/server"
 import { DetailsForm, type OrgDetails } from "./DetailsForm"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const SELECT_FIELDS = [
   "id", "type", "user_type", "primary_contact_is_user",
@@ -27,11 +28,12 @@ export default async function ProfilePage() {
   if (!membership) redirect("/login")
 
   const supabase = await createClient()
-  const { data: org } = await supabase
+  const { data: org, error: orgError } = await supabase
     .from("organisations")
     .select(SELECT_FIELDS)
     .eq("id", membership.org_id)
     .single()
+    logQueryError("ProfilePage organisations", orgError)
 
   if (!org) redirect("/login")
 

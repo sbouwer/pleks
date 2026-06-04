@@ -11,6 +11,7 @@ import { notFound, redirect } from "next/navigation"
 import { createServiceClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { DirectorConsentForm } from "./DirectorConsentForm"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function DirectorConsentPage({
   params,
@@ -37,11 +38,12 @@ export default async function DirectorConsentPage({
     redirect(`/apply/${slug}/director-portal/${token}`)
   }
 
-  const { data: app } = await service
+  const { data: app, error: appError } = await service
     .from("applications")
     .select("listings(units(unit_number, properties(name, address_line1, city)))")
     .eq("id", coApp.primary_application_id)
     .single()
+    logQueryError("DirectorConsentPage applications", appError)
 
   const listing = app?.listings as unknown as {
     units: { unit_number: string; properties: { name: string; address_line1: string | null; city: string | null } }

@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { transitionRequestStatus } from "@/lib/popia/requests"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -39,13 +40,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   if (error || !request) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  const { data: membership } = await (await db)
+  const { data: membership, error: membershipError } = await (await db)
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .eq("org_id", request.org_id)
     .is("deleted_at", null)
     .single()
+    logQueryError("POST user_orgs", membershipError)
 
   if (!membership) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 

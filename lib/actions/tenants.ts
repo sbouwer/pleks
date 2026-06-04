@@ -12,6 +12,7 @@
 import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function updateTenant(tenantId: string, formData: FormData) {
   const gw = await requireAgentWriteAccess("edit_tenant")
@@ -20,11 +21,12 @@ export async function updateTenant(tenantId: string, formData: FormData) {
   const tenantType = formData.get("tenant_type") as string
 
   // First get the tenant's contact_id
-  const { data: tenantRecord } = await db
+  const { data: tenantRecord, error: tenantRecordError } = await db
     .from("tenants")
     .select("contact_id")
     .eq("id", tenantId)
     .single()
+    logQueryError("updateTenant tenants", tenantRecordError)
 
   if (!tenantRecord) return { error: "Tenant not found" }
 

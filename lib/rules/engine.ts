@@ -17,6 +17,7 @@ import type {
   RuleActionResult,
   SubscriptionTier,
 } from "./types"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -27,7 +28,7 @@ async function isInCooldown(
   cooldownDays: number,
 ): Promise<boolean> {
   const cutoff = new Date(Date.now() - cooldownDays * 86_400_000).toISOString()
-  const { data } = await supabase
+  const { data, error: queryError } = await supabase
     .from("rule_runs")
     .select("id")
     .eq("rule_id", ruleId)
@@ -36,6 +37,7 @@ async function isInCooldown(
     .gte("evaluated_at", cutoff)
     .limit(1)
     .maybeSingle()
+    logQueryError("isInCooldown rule_runs", queryError)
   return !!data
 }
 
@@ -195,7 +197,7 @@ export async function runRulesEngine(
   }
 
   for (const org of orgs ?? []) {
-    const { data: sub } = await supabase
+    const { data: sub, error: subError } = await supabase
       .from("subscriptions")
       .select("tier, status")
       .eq("org_id", org.id)
@@ -203,6 +205,7 @@ export async function runRulesEngine(
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle()
+    logQueryError("runRulesEngine subscriptions", subError)
 
     const tier = ((sub?.tier ?? "owner") as SubscriptionTier)
     const isActive = sub ? ["active", "trialing"].includes(sub.status) : true

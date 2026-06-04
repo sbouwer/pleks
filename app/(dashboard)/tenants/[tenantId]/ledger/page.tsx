@@ -12,6 +12,7 @@ import { formatZAR } from "@/lib/constants"
 import { ArrowLeft, Download } from "lucide-react"
 import { PrintButton } from "./PrintButton"
 import { InlineLink } from "@/components/ui/actions"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 type LedgerEntry = {
   id: string
@@ -112,11 +113,12 @@ export default async function TenantLedgerPage({
   const supabase = await createServiceClient()
 
   // Validate tenant exists and get basic info
-  const { data: tenant } = await supabase
+  const { data: tenant, error: tenantError } = await supabase
     .from("tenant_view")
     .select("id, org_id, first_name, last_name, company_name, entity_type, email")
     .eq("id", tenantId)
     .maybeSingle()
+    logQueryError("TenantLedgerPage tenant_view", tenantError)
 
   if (!tenant) notFound()
 

@@ -14,6 +14,7 @@ import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { recordTosAcceptance } from "@/lib/subscriptions/acceptance"
 import { LEGAL_VERSIONS } from "@/lib/legal-versions"
 import { AUTH_COOKIE_OPTS } from "@/lib/auth/cookie-config"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function acceptCurrentTerms(nextPath: string): Promise<never> {
   const authClient = await createClient()
@@ -21,12 +22,13 @@ export async function acceptCurrentTerms(nextPath: string): Promise<never> {
   if (!user) redirect("/login")
 
   const service = await createServiceClient()
-  const { data: membership } = await service
+  const { data: membership, error: membershipError } = await service
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
+    logQueryError("acceptCurrentTerms user_orgs", membershipError)
 
   if (!membership) redirect("/onboarding")
 

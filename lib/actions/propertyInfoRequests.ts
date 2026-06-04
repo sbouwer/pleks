@@ -14,6 +14,7 @@ import { requireAgentWriteAccess } from "@/lib/auth/server"
 import { createServiceClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { sendInfoRequestEmail } from "@/lib/info-requests/sendInfoRequestEmail"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -67,7 +68,7 @@ export async function createPropertyInfoRequest(
   const service = await createServiceClient()
   const token = generateToken()
 
-  const { data: existingPending } = await service
+  const { data: existingPending, error: existingPendingError } = await service
     .from("property_info_requests")
     .select("id")
     .eq("property_id", params.propertyId)
@@ -75,6 +76,7 @@ export async function createPropertyInfoRequest(
     .in("status", ["pending", "sent"])
     .limit(1)
     .maybeSingle()
+    logQueryError("createPropertyInfoRequest property_info_requests", existingPendingError)
 
   if (existingPending) {
     // De-dup: an open request already exists. Don't create a duplicate.
@@ -223,11 +225,12 @@ export async function sendInfoRequestReminder(requestId: string): Promise<InfoRe
   if (sendResult.ok) {
     // Read-then-write counter increment. Race-safe enough for reminder_count
     // (worst case: a tied increment loses by 1 — not load-bearing).
-    const { data: current } = await service
+    const { data: current, error: currentError } = await service
       .from("property_info_requests")
       .select("reminder_count")
       .eq("id", req.id)
       .single()
+    logQueryError("sendInfoRequestReminder property_info_requests", currentError)
     const nextCount = (current?.reminder_count as number ?? 0) + 1
 
     await service.from("property_info_requests")
@@ -257,11 +260,12 @@ export async function dismissInfoRequest(requestId: string): Promise<InfoRequest
   const { userId, orgId } = gw
 
   const service = await createServiceClient()
-  const { data: req } = await service
+  const { data: req, error: reqError } = await service
     .from("property_info_requests")
     .select("id, property_id, org_id")
     .eq("id", requestId)
     .single()
+    logQueryError("dismissInfoRequest property_info_requests", reqError)
 
   if (!req || (req.org_id as string) !== orgId) return { ok: false, error: "Not authorized" }
 

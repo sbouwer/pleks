@@ -9,6 +9,7 @@ import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { getServerOrgMembership, getCurrentOrgCapabilities } from "@/lib/auth/server"
 import { HoursForm } from "./HoursForm"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const SELECT_FIELDS = [
   "office_hours_monday", "office_hours_tuesday", "office_hours_wednesday", "office_hours_thursday", "office_hours_friday",
@@ -24,11 +25,12 @@ export default async function HoursPage() {
   if (!caps?.hasOpeningHours) redirect("/settings/details")
 
   const supabase = await createClient()
-  const { data: org } = await supabase
+  const { data: org, error: orgError } = await supabase
     .from("organisations")
     .select(SELECT_FIELDS)
     .eq("id", membership.org_id)
     .single()
+    logQueryError("HoursPage organisations", orgError)
 
   if (!org) redirect("/login")
 

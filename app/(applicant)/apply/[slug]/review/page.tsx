@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { formatZAR } from "@/lib/constants"
 import { Loader2, CheckCircle2 } from "lucide-react"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface AppData {
   id: string
@@ -71,11 +72,12 @@ export default function ReviewPage() {
       .then(async ({ data: tokenRow }) => {
         if (!tokenRow) { router.replace(`/apply/${slug}/details`); return }
 
-        const { data } = await supabase
+        const { data, error: queryError } = await supabase
           .from("applications")
           .select("id, first_name, last_name, applicant_email, employment_type, employer_name, gross_monthly_income_cents, prescreen_score, bank_statement_extracted, stage1_status, listings(id, public_slug, asking_rent_cents, units(unit_number, properties(name, city)))")
           .eq("id", tokenRow.application_id)
           .single()
+        logQueryError("page applications", queryError)
 
         setApp(data as unknown as AppData)
         setLoading(false)

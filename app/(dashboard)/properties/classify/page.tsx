@@ -13,6 +13,7 @@ import { ArrowLeft } from "lucide-react"
 import { createServiceClient } from "@/lib/supabase/server"
 import { getServerOrgMembership } from "@/lib/auth/server"
 import { ClassifyList } from "./ClassifyList"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function ClassifyPropertiesPage() {
   const membership = await getServerOrgMembership()
@@ -21,7 +22,7 @@ export default async function ClassifyPropertiesPage() {
 
   const service = await createServiceClient()
 
-  const { data: properties } = await service
+  const { data: properties, error: propertiesError } = await service
     .from("properties")
     .select("id, name, type, address_line1, suburb, city")
     .eq("org_id", orgId)
@@ -29,6 +30,7 @@ export default async function ClassifyPropertiesPage() {
     .is("scenario_type", null)
     .order("created_at", { ascending: false })
     .limit(200)
+    logQueryError("ClassifyPropertiesPage properties", propertiesError)
 
   const rows = properties ?? []
 

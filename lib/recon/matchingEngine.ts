@@ -7,6 +7,7 @@
  */
 import { createMessage } from "@/lib/ai/client"
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export interface MatchResult {
   matchType: "matched_exact" | "matched_fuzzy" | "matched_ai" | "matched_manual"
@@ -38,11 +39,12 @@ export async function matchExact(
   if (normRef.length < 3) return null  // too short to be meaningful
 
   // Fetch open/overdue invoices for this org
-  const { data: invoices } = await ctx.db
+  const { data: invoices, error: invoicesError } = await ctx.db
     .from("rent_invoices")
     .select("id, invoice_number, balance_cents, total_amount_cents")
     .eq("org_id", ctx.orgId)
     .in("status", ["open", "partial", "overdue"])
+    logQueryError("matchExact rent_invoices", invoicesError)
 
   if (!invoices?.length) return null
 
@@ -84,7 +86,7 @@ export async function matchFuzzy(
   const dateTo = new Date(txDate)
   dateTo.setDate(txDate.getDate() + DATE_WINDOW_DAYS)
 
-  const { data: invoices } = await ctx.db
+  const { data: invoices, error: invoicesError } = await ctx.db
     .from("rent_invoices")
     .select("id, invoice_number, balance_cents, total_amount_cents, due_date")
     .eq("org_id", ctx.orgId)
@@ -93,6 +95,7 @@ export async function matchFuzzy(
     .lte("balance_cents", line.amount_cents + AMOUNT_TOLERANCE)
     .gte("due_date", dateFrom.toISOString().split("T")[0])
     .lte("due_date", dateTo.toISOString().split("T")[0])
+    logQueryError("matchFuzzy rent_invoices", invoicesError)
 
   if (!invoices?.length) return null
 
@@ -133,12 +136,13 @@ export async function matchAI(
   },
   ctx: MatchContext,
 ): Promise<MatchResult | null> {
-  const { data: invoices } = await ctx.db
+  const { data: invoices, error: invoicesError } = await ctx.db
     .from("rent_invoices")
     .select("id, invoice_number, balance_cents, due_date")
     .eq("org_id", ctx.orgId)
     .in("status", ["open", "partial", "overdue"])
     .limit(50)
+    logQueryError("matchAI rent_invoices", invoicesError)
 
   if (!invoices?.length) return null
 

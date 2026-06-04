@@ -133,16 +133,26 @@ function enclosingScope(decl) {
   return { fn, scope: fn ?? decl.getSourceFile() }
 }
 
+/** Reserved error names per enclosing scope, so two NEW bindings in one function don't collide
+ *  (collection is read-only, so the AST won't show names we're about to add — track them here). */
+const reservedByScope = new Map() // scope.getStart() -> Set<string>
+
 /** A unique, readable error binding name for this site (e.g. rowsError, rowsError2). */
 function uniqueErrorName(decl, pattern) {
   const local = dataLocalName(pattern)
   const base = `${local && local !== "data" ? local : "query"}Error`
   const { scope } = enclosingScope(decl)
-  const taken = new Set(scope.getDescendantsOfKind(SyntaxKind.Identifier).map((i) => i.getText()))
-  if (!taken.has(base)) return base
+  const key = scope.getStart()
+  let reserved = reservedByScope.get(key)
+  if (!reserved) {
+    reserved = new Set(scope.getDescendantsOfKind(SyntaxKind.Identifier).map((i) => i.getText()))
+    reservedByScope.set(key, reserved)
+  }
+  let name = base
   let i = 2
-  while (taken.has(`${base}${i}`)) i++
-  return `${base}${i}`
+  while (reserved.has(name)) name = `${base}${i++}`
+  reserved.add(name)
+  return name
 }
 
 /** Short context label for the log, e.g. "fetchLeases leases" or "syncJob rpc:do_thing". */
@@ -161,21 +171,26 @@ function buildLabel(decl, awaitedText) {
   return `${base}${target ? ` ${target}` : ""}`
 }
 
-/** Ensure `import { logQueryError } from "@/lib/supabase/logQueryError"` exists in the file. */
-function ensureHelperImport(sf) {
-  const existing = sf.getImportDeclaration((d) => d.getModuleSpecifierValue() === HELPER_MODULE)
-  if (existing) {
-    if (!existing.getNamedImports().some((n) => n.getName() === HELPER_NAME)) existing.addNamedImport(HELPER_NAME)
-  } else {
-    sf.addImportDeclaration({ moduleSpecifier: HELPER_MODULE, namedImports: [HELPER_NAME] })
-  }
+/** Where to insert the helper import in a file: end of the last existing import, or null
+ *  if the file already imports it / has no imports to anchor to. */
+function helperImportEdit(sf) {
+  const imports = sf.getImportDeclarations()
+  if (imports.some((d) => d.getModuleSpecifierValue() === HELPER_MODULE)) return null // already imported
+  if (imports.length === 0) return null // no anchor — record & skip (manual; rare for query files)
+  const last = imports[imports.length - 1]
+  return { start: last.getEnd(), end: last.getEnd(), text: `\nimport { ${HELPER_NAME} } from "${HELPER_MODULE}"` }
 }
 
 for (const sf of project.getSourceFiles()) {
   const filePath = sf.getFilePath()
   if (EXCLUDE.some((re) => re.test(filePath))) continue
   const rel = relative(ROOT, filePath)
+
+  // ── PASS 1 (read-only): collect text edits — never mutate the AST mid-traversal, which is
+  //    what drifted the old insertStatements()-by-index approach across multi-query blocks. ──
+  const edits = [] // { start, end, text }
   let touchedThisFile = false
+  let importBlocked = false
 
   for (const decl of sf.getDescendantsOfKind(SyntaxKind.VariableDeclaration)) {
     const init = decl.getInitializer()
@@ -200,32 +215,40 @@ for (const sf of project.getSourceFiles()) {
     }
     const stmt = decl.getVariableStatement()
     const parent = stmt?.getParent()
-    const canInsert = parent && typeof parent.insertStatements === "function" && typeof parent.getStatements === "function"
+    const canInsert = parent && typeof parent.getStatements === "function"
     if (!stmt || !canInsert) {
       skipped.push({ file: rel, line, reason: "statement not in an insertable block" })
       continue
     }
 
-    // ── SAFE TRANSFORM ──
+    // ── SAFE TRANSFORM (recorded as text edits, applied later in descending offset order) ──
     const errName = uniqueErrorName(decl, nameNode)
     const label = buildLabel(decl, awaitedText)
-    if (WRITE) {
-      // 1) bind `error` (uniquely named) alongside the existing elements
-      const inner = nameNode.getElements().map((e) => e.getText()).join(", ")
-      nameNode.replaceWithText(`{ ${inner}, error: ${errName} }`)
-      // 2) insert the loud-but-harmless log right after (a CALL, not a branch)
-      const statements = parent.getStatements()
-      const idx = statements.findIndex((s) => s.getStart() === stmt.getStart())
-      parent.insertStatements(idx + 1, helperCall(label, errName))
-      touchedThisFile = true
-    }
+    const inner = nameNode.getElements().map((e) => e.getText()).join(", ")
+    // 1) bind `error` (uniquely named): replace the destructure pattern in place
+    edits.push({ start: nameNode.getStart(), end: nameNode.getEnd(), text: `{ ${inner}, error: ${errName} }` })
+    // 2) insert the loud-but-harmless log on the next line (a CALL, not a branch)
+    edits.push({ start: stmt.getEnd(), end: stmt.getEnd(), text: `\n${stmt.getIndentationText()}${helperCall(label, errName)}` })
+    touchedThisFile = true
     transformed.push({ file: rel, line, errName, label })
   }
 
-  if (touchedThisFile) {
-    ensureHelperImport(sf)
-    // Flag a remaining FILL: stub header so it gets a real one before commit (CLAUDE.md).
-    if (/\bFILL:/.test(readFileSync(filePath, "utf8"))) fillHeaderFiles.add(rel)
+  if (!touchedThisFile) continue
+
+  // helper import (text edit too, so offsets stay consistent)
+  const impEdit = helperImportEdit(sf)
+  if (impEdit) edits.push(impEdit)
+  else if (sf.getImportDeclarations().length === 0) importBlocked = true
+
+  if (/\bFILL:/.test(readFileSync(filePath, "utf8"))) fillHeaderFiles.add(rel)
+  if (importBlocked) skipped.push({ file: rel, line: 1, reason: "no import anchor — add logQueryError import manually" })
+
+  // ── PASS 2 (write): apply edits to the source text, last offset first. ──
+  if (WRITE) {
+    let text = sf.getFullText()
+    edits.sort((a, b) => b.start - a.start)
+    for (const e of edits) text = text.slice(0, e.start) + e.text + text.slice(e.end)
+    sf.replaceWithText(text)
   }
 }
 

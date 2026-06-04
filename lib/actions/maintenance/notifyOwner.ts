@@ -16,6 +16,7 @@ import {
   CriticalIncidentOwnerEmail,
   type CriticalIncidentOwnerProps,
 } from "@/lib/comms/templates/maintenance/critical-incident-owner"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 interface NotifyOwnerParams {
   orgId: string
@@ -38,11 +39,12 @@ export async function notifyOwner(params: NotifyOwnerParams): Promise<{ logId?: 
   const db = await createServiceClient()
 
   // Fetch the property landlord contact
-  const { data: landlord } = await db
+  const { data: landlord, error: landlordError } = await db
     .from("landlords")
     .select("contact_id, contacts(first_name, last_name, email)")
     .eq("property_id", params.propertyId)
     .single()
+    logQueryError("notifyOwner landlords", landlordError)
 
   if (!landlord?.contact_id) return { skipped: "no_landlord" }
 

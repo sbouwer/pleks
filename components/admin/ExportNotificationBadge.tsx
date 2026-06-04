@@ -6,10 +6,11 @@
  */
 import Link from "next/link"
 import { createServiceClient } from "@/lib/supabase/server"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function ExportNotificationBadge({ requestedBy }: Readonly<{ requestedBy: string }>) {
   const db = await createServiceClient()
-  const { data } = await db
+  const { data, error: queryError } = await db
     .from("audit_exports")
     .select("id, signed_url, row_count, completed_at, filter_params")
     .eq("requested_by", requestedBy)
@@ -17,6 +18,7 @@ export async function ExportNotificationBadge({ requestedBy }: Readonly<{ reques
     .is("notification_sent_at", null)
     .order("completed_at", { ascending: false })
     .limit(5)
+    logQueryError("ExportNotificationBadge audit_exports", queryError)
 
   const count = (data ?? []).length
   if (count === 0) return null

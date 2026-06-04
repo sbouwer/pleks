@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/shared/EmptyState"
 import { FileText } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const STATUS_MAP: Record<string, "draft" | "scheduled" | "active" | "completed"> = {
   draft: "draft",
@@ -28,12 +29,13 @@ export default async function StatementsPage() {
   if (!gw) redirect("/login")
 
   const { db, orgId } = gw
-  const { data: statements } = await db
+  const { data: statements, error: statementsError } = await db
     .from("owner_statements")
     .select("id, period_month, gross_income_cents, total_expenses_cents, management_fee_cents, net_to_owner_cents, status, owner_payment_status, properties(name)")
     .eq("org_id", orgId)
     .order("period_month", { ascending: false })
     .limit(50)
+    logQueryError("StatementsPage owner_statements", statementsError)
 
   const list = statements || []
 

@@ -6,6 +6,7 @@
 import { NextRequest } from "next/server"
 import { gatewaySSR } from "@/lib/supabase/gateway"
 import { yodlee } from "@/lib/yodlee/client"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function DELETE(
   _req: NextRequest,
@@ -43,11 +44,12 @@ export async function DELETE(
 
   // Best-effort: remove from Yodlee
   try {
-    const { data: org } = await db
+    const { data: org, error: orgError } = await db
       .from("organisations")
       .select("yodlee_user_id")
       .eq("id", orgId)
       .single()
+    logQueryError("DELETE organisations", orgError)
 
     if (org?.yodlee_user_id) {
       const cobrandToken = await yodlee.getCobrandToken()

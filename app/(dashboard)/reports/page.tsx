@@ -13,6 +13,7 @@ import { redirect } from "next/navigation"
 import { getOrgTier } from "@/lib/tier/getOrgTier"
 import { ReportsClient } from "./ReportsClient"
 import { DesktopOnlyCard } from "@/components/mobile/DesktopOnlyCard"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export default async function ReportsPage() {
   const gw = await gatewaySSR()
@@ -49,10 +50,11 @@ export default async function ReportsPage() {
   )]
   const landlords: { id: string; name: string }[] = []
   if (landlordIds.length > 0) {
-    const { data: lvRows } = await service
+    const { data: lvRows, error: lvRowsError } = await service
       .from("landlord_view")
       .select("id, first_name, last_name, company_name, entity_type")
       .in("id", landlordIds)
+    logQueryError("ReportsPage landlord_view", lvRowsError)
     for (const lv of lvRows ?? []) {
       const r = lv as { id: string; first_name: string | null; last_name: string | null; company_name: string | null; entity_type: string }
       const name = r.entity_type === "organisation"

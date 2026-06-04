@@ -13,6 +13,7 @@ import { getReportBranding } from "@/lib/reports/reportBranding"
 import { sendEmail } from "@/lib/comms/send-email"
 import { formatZAR, type OrgType } from "@/lib/constants"
 import { getOrgCapabilities } from "@/lib/org/capabilities"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -29,23 +30,25 @@ export async function POST(req: NextRequest) {
 
   // Get org_id from lease
   const service = await createServiceClient()
-  const { data: leaseRow } = await service
+  const { data: leaseRow, error: leaseRowError } = await service
     .from("leases")
     .select("org_id")
     .eq("id", leaseId)
     .maybeSingle()
+    logQueryError("POST leases", leaseRowError)
 
   const orgId = (leaseRow as { org_id: string } | null)?.org_id
   if (!orgId) return Response.json({ error: "Lease not found" }, { status: 404 })
 
   // Verify membership
-  const { data: membership } = await supabase
+  const { data: membership, error: membershipError } = await supabase
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .eq("org_id", orgId)
     .is("deleted_at", null)
     .single()
+    logQueryError("POST user_orgs", membershipError)
   if (!membership) return Response.json({ error: "Forbidden" }, { status: 403 })
 
   const [data, orgInfo, orgRow] = await Promise.all([

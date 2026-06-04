@@ -25,6 +25,7 @@ import { FinanceTab } from "./FinanceTab"
 import { DocumentsTab, type CommLogRow, type LeaseDocRow } from "./DocumentsTab"
 import { OperationsTab } from "./OperationsTab"
 import { resolveDepositInterestConfig, getPrimeRateOn, describeRate } from "@/lib/deposits/interestConfig"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const VALID_TABS = ["overview", "details", "contacts", "operations", "finance", "communications"] as const
 type Tab = (typeof VALID_TABS)[number]
@@ -284,7 +285,7 @@ async function fetchPortfolioOverviewStatus(
   orgId: string,
   landlordId: string,
 ): Promise<{ sentAt: string | null; outdated: boolean }> {
-  const { data } = await db
+  const { data, error: queryError } = await db
     .from("communication_log")
     .select("created_at")
     .eq("org_id", orgId)
@@ -294,6 +295,7 @@ async function fetchPortfolioOverviewStatus(
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle()
+    logQueryError("fetchPortfolioOverviewStatus communication_log", queryError)
 
   const sentAt = (data as { created_at: string } | null)?.created_at ?? null
   if (!sentAt) return { sentAt: null, outdated: false }

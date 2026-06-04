@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { getMembership } from "@/lib/supabase/getMembership"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 const ALLOWED_PROFILE_FIELDS = ["title", "first_name", "last_name", "mobile", "emergency_phone", "emergency_contact_name"] as const
 const ALLOWED_ORG_FIELDS = ["role", "additional_roles"] as const
@@ -45,7 +46,8 @@ function buildOrgPatch(body: Record<string, unknown>): Record<string, unknown> {
 // Fails silently if the column doesn't exist yet (migration pending).
 async function appendOrgCustomRole(service: SupabaseClient, orgId: string, roleValue: string): Promise<void> {
   if (SYSTEM_ROLE_SLUGS.has(roleValue)) return
-  const { data } = await service.from("organisations").select("custom_roles").eq("id", orgId).single()
+  const { data, error: queryError } = await service.from("organisations").select("custom_roles").eq("id", orgId).single()
+    logQueryError("appendOrgCustomRole organisations", queryError)
   const existing = (data as unknown as { custom_roles: string[] } | null)?.custom_roles ?? []
   if (existing.includes(roleValue)) return
   const { error } = await service.from("organisations")
@@ -111,13 +113,14 @@ export async function PATCH(req: NextRequest) {
   }
 
   // Verify target user is a member of the same org
-  const { data: targetRaw } = await service
+  const { data: targetRaw, error: targetRawError } = await service
     .from("user_orgs")
     .select("id, role")
     .eq("user_id", userId)
     .eq("org_id", orgId)
     .is("deleted_at", null)
     .single()
+    logQueryError("PATCH user_orgs", targetRawError)
 
   if (!targetRaw) {
     return NextResponse.json({ error: "Member not found in org" }, { status: 404 })
@@ -181,13 +184,14 @@ export async function DELETE(req: NextRequest) {
   }
 
   // Resolve target
-  const { data: targetRaw } = await service
+  const { data: targetRaw, error: targetRawError } = await service
     .from("user_orgs")
     .select("id, role, user_id")
     .eq("id", memberOrgId)
     .eq("org_id", orgId)
     .is("deleted_at", null)
     .single()
+    logQueryError("DELETE user_orgs", targetRawError)
 
   if (!targetRaw) return NextResponse.json({ error: "Member not found" }, { status: 404 })
 

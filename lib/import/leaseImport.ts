@@ -12,6 +12,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { parseCSV, type ImportResult } from "./csvParser"
 import { validateLeaseRow } from "./validators"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
@@ -29,12 +30,13 @@ async function resolveUnitByAddress(
   const propertyAddr = parts.slice(1).join(", ").trim()
 
   if (unitNum) {
-    const { data: matchedUnits } = await supabase
+    const { data: matchedUnits, error: matchedUnitsError } = await supabase
       .from("units")
       .select("id, property_id, properties(address_line1)")
       .eq("org_id", orgId)
       .ilike("unit_number", unitNum)
       .is("deleted_at", null)
+    logQueryError("resolveUnitByAddress units", matchedUnitsError)
 
     if (matchedUnits?.length === 1) {
       const u = matchedUnits[0] as UnitRow
@@ -51,7 +53,7 @@ async function resolveUnitByAddress(
   }
 
   // Fallback: broader search by unit number only
-  const { data: unitByNumber } = await supabase
+  const { data: unitByNumber, error: unitByNumberError } = await supabase
     .from("units")
     .select("id, property_id")
     .eq("org_id", orgId)
@@ -59,6 +61,7 @@ async function resolveUnitByAddress(
     .is("deleted_at", null)
     .limit(1)
     .single()
+    logQueryError("resolveUnitByAddress units", unitByNumberError)
 
   if (unitByNumber) {
     return { unitId: unitByNumber.id, propertyId: unitByNumber.property_id }
@@ -150,7 +153,7 @@ export async function importLeases(
     }
 
     // Match tenant by email via tenant_view
-    const { data: tenant } = await supabase
+    const { data: tenant, error: tenantError } = await supabase
       .from("tenant_view")
       .select("id")
       .eq("org_id", orgId)
@@ -158,6 +161,7 @@ export async function importLeases(
       .is("deleted_at", null)
       .limit(1)
       .single()
+    logQueryError("importLeases tenant_view", tenantError)
 
     if (!tenant) {
       results.errors.push({
@@ -190,7 +194,7 @@ export async function importLeases(
     const depositCents = Number.parseInt(row.deposit_held_cents) || 0
     const escalation = Number.parseFloat(row.escalation_percent) || 10
 
-    const { data: lease } = await supabase
+    const { data: lease, error: leaseError } = await supabase
       .from("leases")
       .insert({
         org_id: orgId,
@@ -215,6 +219,7 @@ export async function importLeases(
       })
       .select("id")
       .single()
+    logQueryError("importLeases leases", leaseError)
 
     if (!lease) {
       results.errors.push({ row: index + 2, field: "lease_start", message: "Failed to create lease" })

@@ -13,6 +13,7 @@ import { sendEmail, fetchOrgSettings, buildBranding } from "@/lib/comms/send-ema
 import { resolveCompanyContact } from "@/lib/contacts/resolveCompanyContact"
 import { fetchBrokerBriefData, renderBrokerBriefHTML } from "./generateBrokerBriefHTML"
 import { ChecklistBriefEmail } from "@/lib/comms/templates/insurance/checklist-brief-email"
+import { logQueryError } from "@/lib/supabase/logQueryError"
 
 export interface SendBrokerBriefResult {
   ok:     boolean
@@ -34,12 +35,13 @@ export async function sendBrokerBrief(propertyId: string): Promise<SendBrokerBri
   if (propErr || !prop) return { ok: false, error: "Property not found" }
 
   // Fetch broker contact
-  const { data: brokerRow } = await db
+  const { data: brokerRow, error: brokerRowError } = await db
     .from("property_brokers")
     .select("contact_id, contacts(primary_email, first_name, last_name, company_name)")
     .eq("property_id", propertyId)
     .eq("is_primary", true)
     .single()
+    logQueryError("sendBrokerBrief property_brokers", brokerRowError)
 
   const broker = brokerRow?.contacts as unknown as {
     primary_email: string | null
@@ -100,12 +102,13 @@ export async function sendBrokerBrief(propertyId: string): Promise<SendBrokerBri
   }
 
   // Log to incident_notifications (re-using BUILD_59 audit infra)
-  const { data: brokerContact } = await db
+  const { data: brokerContact, error: brokerContactError } = await db
     .from("property_brokers")
     .select("contact_id")
     .eq("property_id", propertyId)
     .eq("is_primary", true)
     .single()
+    logQueryError("sendBrokerBrief property_brokers", brokerContactError)
 
   await db.from("incident_notifications").insert({
     org_id:               orgId,
