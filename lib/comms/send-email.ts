@@ -91,7 +91,7 @@ export async function fetchOrgSettings(orgId: string): Promise<OrgSettings | nul
   const service = await createServiceClient()
   const { data, error: queryError } = await service
     .from("organisations")
-    .select("name, email, phone, address_line1:addr_line1, city:addr_city, brand_logo_path, brand_accent_color, custom_from_address, notification_settings, emergency_phone, emergency_contact_name")
+    .select("name, email, phone, address_line1:addr_line1, city:addr_city, brand_logo_path, brand_accent_color, notification_settings, emergency_phone, emergency_contact_name")
     .eq("id", orgId)
     .single()
     logQueryError("fetchOrgSettings organisations", queryError)
@@ -113,7 +113,9 @@ export async function fetchOrgSettings(orgId: string): Promise<OrgSettings | nul
     address: [data.address_line1, data.city].filter(Boolean).join(", ") || undefined,
     brand_logo_url,
     brand_accent_color: data.brand_accent_color as string | undefined,
-    custom_from_address: data.custom_from_address as string | undefined,
+    // custom_from_address is not a column on organisations (the verified-custom-domain
+    // from-address was never stored) — omitted so the select doesn't 42703. Senders fall
+    // back to the default From. Wire from a real source if/when the feature lands.
     reply_to_email: notifSettings?.reply_to_email,
     emergency_phone: data.emergency_phone as string | undefined,
     emergency_contact_name: data.emergency_contact_name as string | undefined,

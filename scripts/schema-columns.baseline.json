@@ -46,7 +46,6 @@
   "lib/applications/buildEmailContext.ts::user_profiles::email": 1,
   "lib/calendar/events.ts::inspections::scheduled_time_from": 1,
   "lib/calendar/events.ts::inspections::scheduled_time_to": 1,
-  "lib/comms/send-email.ts::organisations::custom_from_address": 1,
   "lib/deposits/buildDeductionSchedule.ts::inspection_items::estimated_cost_cents": 1,
   "lib/deposits/buildDeductionSchedule.ts::inspection_items::notes": 1,
   "lib/deposits/buildDeductionSchedule.ts::inspection_items::room": 2,
