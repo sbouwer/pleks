@@ -9,6 +9,7 @@
  */
 import { formatZARAbbrev } from "@/lib/constants"
 import { cn } from "@/lib/utils"
+import { MetricCard as KpiCard } from "@/components/ui/metric-card"
 
 interface MetricCardProps {
   label: string
@@ -96,32 +97,31 @@ export function OwnerMetrics({ unitStatus, leaseEndDate, currentInvoice }: Owner
 
 // ── Steward metrics (portfolio summary) ──────────────────────────────────────
 
-function occupancyClass(pct: number): string {
-  if (pct >= 90) return "text-green-500"
-  if (pct >= 70) return "text-amber-500"
-  return "text-red-500"
-}
-
 interface PortfolioMetricsProps {
   readonly propertyCount: number
+  readonly unitCount: number
+  readonly occupiedUnits: number
   readonly occupancyPct: number
   readonly rentRollCents: number
-  readonly attentionCount: number
+  /** % of due rent currently unpaid (org-wide). */
+  readonly arrearsPct?: number
 }
 
-export function PortfolioMetrics({ propertyCount, occupancyPct, rentRollCents, attentionCount }: PortfolioMetricsProps) {
-  const occClass = occupancyClass(occupancyPct)
+/** Connected KPI strip (same panel style as the dashboard) for the properties list. */
+export function PortfolioMetrics({ propertyCount, unitCount, occupiedUnits, occupancyPct, rentRollCents, arrearsPct = 0 }: PortfolioMetricsProps) {
+  const vacant = Math.max(0, unitCount - occupiedUnits)
+  const unitWord = unitCount === 1 ? "unit" : "units"
+  let occDot = "#EF4444"
+  if (occupancyPct >= 90) occDot = "#1D9E75"
+  else if (occupancyPct >= 70) occDot = "#EF9F27"
+  const hasArrears = arrearsPct > 0
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-      <MetricCard label="Properties" value={String(propertyCount)} />
-      <MetricCard label="Occupancy" value={`${occupancyPct}%`} valueClass={occClass} />
-      <MetricCard label="Rent roll" value={formatZARAbbrev(rentRollCents)} sub="per month" />
-      <MetricCard
-        label="Attention"
-        value={String(attentionCount)}
-        valueClass={attentionCount > 0 ? "text-amber-500" : undefined}
-      />
+    <div className="mb-5 grid grid-cols-2 overflow-hidden rounded-[var(--r-button)] border border-border border-b-2 border-b-primary md:grid-cols-4">
+      <KpiCard label="Properties" value={String(propertyCount)} subtext={`${unitCount} ${unitWord}`} className="border-b border-r border-border md:border-b-0" />
+      <KpiCard label="Occupancy" value={`${occupancyPct}%`} subtext={vacant > 0 ? `${occupiedUnits} rented · ${vacant} vacant` : "Fully occupied"} subtextVariant={vacant > 0 ? "warning" : "success"} dotColor={occDot} className="border-b border-border md:border-b-0 md:border-r" />
+      <KpiCard label="Rent roll" value={formatZARAbbrev(rentRollCents)} subtext="per month" className="border-r border-border" />
+      <KpiCard label="Arrears" value={`${arrearsPct}%`} subtext={hasArrears ? "of rent overdue" : "Fully collected"} subtextVariant={hasArrears ? "danger" : "success"} dotColor={hasArrears ? "#EF4444" : "#1D9E75"} />
     </div>
   )
 }

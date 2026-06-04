@@ -12,7 +12,7 @@ import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
 import { ActionButton, EditButton, DeleteButton } from "@/components/ui/actions"
 import { Badge } from "@/components/ui/badge"
-import { ListSearchBar, ListCard, SortHeader, useListSort } from "@/components/ui/resource-list"
+import { ListToolbar, ToolbarFilter, ListCard, SortHeader, useListSort } from "@/components/ui/resource-list"
 import { toast } from "sonner"
 import { useOrg } from "@/hooks/useOrg"
 import { usePermissions } from "@/hooks/usePermissions"
@@ -44,12 +44,14 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
   const { orgId } = useOrg()
   const { isAdmin } = usePermissions()
   const [search, setSearch] = useState("")
+  const [types, setTypes] = useState<string[]>([])
   const { sortKey, sortDir, onSort } = useListSort<SortKey>("name")
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [editId, setEditId] = useState<string | null>(null)
 
   const filtered = initial
     .filter((l) => {
+      if (types.length > 0 && !types.includes(l.entity_type)) return false
       if (!search) return true
       const name = (l.company_name || `${l.first_name ?? ""} ${l.last_name ?? ""}`).toLowerCase()
       return name.includes(search.toLowerCase()) ||
@@ -89,7 +91,20 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
 
   return (
     <div className="space-y-4">
-      <ListSearchBar value={search} onChange={setSearch} placeholder="Search by name, email or phone…" />
+      <ListToolbar
+        search={search}
+        onSearch={setSearch}
+        placeholder="Search by name, email or phone…"
+        filters={
+          <ToolbarFilter
+            label="Type"
+            multiple
+            selected={types}
+            onChange={setTypes}
+            options={[{ value: "individual", label: "Individual" }, { value: "organisation", label: "Company" }]}
+          />
+        }
+      />
 
       <p className="text-xs text-muted-foreground">{filtered.length} of {initial.length} landlord{initial.length === 1 ? "" : "s"}</p>
 

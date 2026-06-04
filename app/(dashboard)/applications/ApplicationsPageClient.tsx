@@ -6,6 +6,10 @@
  * Route:  /applications
  * Auth:   gateway (dashboard layout)
  * Data:   fetchApplicationsAction + server-side listings prop via React Query
+ * Notes:  shared <ListToolbar> drives search (applicant name/email) + a multi-select Stage filter; the four
+ *         stage buckets (pending/active/completed/arrears) mirror the StatusBadge derived from stage1/stage2
+ *         status. Filtering runs before grouping; empty listing groups are hidden while a filter is active.
+ *         No cards/grid view exists, so the toolbar omits the view toggle.
  */
 import { useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
@@ -16,6 +20,7 @@ import { IconButton } from "@/components/ui/actions"
 import { AddButton } from "@/components/ui/add-button"
 import { EmptyResourceState } from "@/components/ui/empty-resource-state"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
+import { ListToolbar, ToolbarFilter } from "@/components/ui/resource-list"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { BulkDecidePanel } from "@/components/applications/BulkDecidePanel"
 import { Users, Copy, Check, ExternalLink } from "lucide-react"
@@ -47,6 +52,22 @@ const STAGE2_MAP: Record<string, "pending" | "active" | "completed" | "arrears">
   declined: "arrears",
   withdrawn: "arrears",
 }
+
+type StageBucket = "pending" | "active" | "completed" | "arrears"
+
+/** The single stage bucket displayed on each card's StatusBadge — stage2 takes precedence over stage1. */
+function appStage(app: { stage1_status: string; stage2_status: string | null }): StageBucket {
+  if (app.stage2_status) return STAGE2_MAP[app.stage2_status] ?? "pending"
+  return STAGE1_MAP[app.stage1_status] ?? "pending"
+}
+
+/** Filter options mirror the displayed StatusBadge labels (Pending / Active / Completed / Arrears). */
+const STAGE_FILTER_OPTIONS: { value: StageBucket; label: string }[] = [
+  { value: "pending", label: "Pending" },
+  { value: "active", label: "Active" },
+  { value: "completed", label: "Completed" },
+  { value: "arrears", label: "Declined / Withdrawn" },
+]
 
 interface ListingShape {
   id: string
@@ -110,6 +131,40 @@ function ListingHeader({ listing, appCount }: { listing: ListingShape; appCount:
   )
 }
 
+/** Group filtered applications under their listing, merged with the server's active/paused listings.
+ *  While a filter is active, listing groups with no matching applications are dropped. */
+function buildMergedGroups<A extends { listings?: unknown }>(
+  filteredList: A[],
+  listings: ListingRow[],
+  isFiltering: boolean,
+): { mergedList: { listing: ListingShape; apps: A[] }[]; noListing: A[] } {
+  const grouped = new Map<string, { listing: ListingShape; apps: A[] }>()
+  const noListing: A[] = []
+  for (const app of filteredList) {
+    const raw = app.listings
+    const listing = (Array.isArray(raw) ? raw[0] : raw) as ListingShape | null | undefined
+    if (!listing?.id) { noListing.push(app); continue }
+    if (!grouped.has(listing.id)) grouped.set(listing.id, { listing, apps: [] })
+    grouped.get(listing.id)!.apps.push(app)
+  }
+  const merged = new Map<string, { listing: ListingShape; apps: A[] }>()
+  for (const sl of listings) {
+    const units = (Array.isArray(sl.units) ? sl.units[0] : sl.units) as { unit_number: string; properties: { name: string } | { name: string }[] } | undefined
+    let props: { name: string } | null = null
+    if (units) props = Array.isArray(units.properties) ? units.properties[0] : units.properties
+    if (!units || !props) continue
+    merged.set(sl.id, {
+      listing: { id: sl.id, public_slug: sl.public_slug, asking_rent_cents: sl.asking_rent_cents, applications_count: sl.applications_count, units: { unit_number: units.unit_number, properties: { name: props.name } } },
+      apps: grouped.get(sl.id)?.apps ?? [],
+    })
+  }
+  for (const [id, entry] of grouped) {
+    if (!merged.has(id)) merged.set(id, entry)
+  }
+  const mergedList = Array.from(merged.values()).filter((entry) => !isFiltering || entry.apps.length > 0)
+  return { mergedList, noListing }
+}
+
 export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -121,42 +176,29 @@ export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
     staleTime: STALE_TIME.applications,
   })
 
+  const [search, setSearch] = useState("")
+  const [stages, setStages] = useState<string[]>([])
+
   const prescreenReady = list.filter((a) => a.stage1_status === "pre_screen_complete")
   const screeningComplete = list.filter((a) => a.stage2_status === "screening_complete")
 
-  // Group applications by listing id
-  const grouped = new Map<string, { listing: ListingShape; apps: typeof list }>()
-  const noListing: typeof list = []
+  // Apply search (applicant name / email) + stage filter before grouping.
+  const q = search.trim().toLowerCase()
+  const filteredList = list.filter((a) => {
+    const name = `${a.first_name || ""} ${a.last_name || ""}`.trim().toLowerCase()
+    const matchSearch = !q || name.includes(q) || (a.applicant_email?.toLowerCase().includes(q) ?? false)
+    const matchStage = stages.length === 0 || stages.includes(appStage(a))
+    return matchSearch && matchStage
+  })
+  const isFiltering = q.length > 0 || stages.length > 0
 
-  for (const app of list) {
-    const raw = app.listings
-    const listing = (Array.isArray(raw) ? raw[0] : raw) as unknown as ListingShape | null | undefined
-    if (!listing?.id) { noListing.push(app); continue }
-    if (!grouped.has(listing.id)) grouped.set(listing.id, { listing, apps: [] })
-    grouped.get(listing.id)!.apps.push(app)
-  }
-
-  // Merge server listings (all active/paused) with grouped applications
-  const merged = new Map<string, { listing: ListingShape; apps: typeof list }>()
-  for (const sl of listings) {
-    const units = (Array.isArray(sl.units) ? sl.units[0] : sl.units) as { unit_number: string; properties: { name: string } | { name: string }[] } | undefined
-    let props: { name: string } | null = null
-    if (units) {
-      props = Array.isArray(units.properties) ? units.properties[0] : units.properties
-    }
-    if (!units || !props) continue
-    merged.set(sl.id, {
-      listing: { id: sl.id, public_slug: sl.public_slug, asking_rent_cents: sl.asking_rent_cents, applications_count: sl.applications_count, units: { unit_number: units.unit_number, properties: { name: props.name } } },
-      apps: grouped.get(sl.id)?.apps ?? [],
-    })
-  }
-  // Add listings from applications that aren't in server list
-  for (const [id, entry] of grouped) {
-    if (!merged.has(id)) merged.set(id, entry)
-  }
-
-  const mergedList = Array.from(merged.values())
+  const { mergedList, noListing } = buildMergedGroups(filteredList, listings, isFiltering)
   const hasContent = mergedList.length > 0 || noListing.length > 0
+  // The toolbar is only meaningful once there's underlying data to filter.
+  const showToolbar = list.length > 0
+  const filteredCount = filteredList.length
+  const appWord = list.length === 1 ? "application" : "applications"
+  const countLabel = isFiltering ? `${filteredCount} of ${list.length} ${appWord}` : `${list.length} ${appWord}`
 
   return (
     <div>
@@ -182,7 +224,31 @@ export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
         action={<AddButton label="New listing" onClick={() => router.push("/properties")} />}
       />
 
-      {!hasContent ? (
+      {showToolbar && (
+        <div className="mb-4 space-y-2">
+          <ListToolbar
+            search={search}
+            onSearch={setSearch}
+            placeholder="Search applicants by name or email…"
+            filters={
+              <ToolbarFilter
+                label="Stage"
+                multiple
+                selected={stages}
+                onChange={setStages}
+                options={STAGE_FILTER_OPTIONS}
+              />
+            }
+          />
+          <p className="text-xs text-muted-foreground">{countLabel}</p>
+        </div>
+      )}
+
+      {showToolbar && isFiltering && !hasContent && (
+        <p className="py-8 text-center text-sm text-muted-foreground">No applications match your filters.</p>
+      )}
+
+      {!hasContent && !(showToolbar && isFiltering) && (
         <EmptyResourceState
           emptyTitle="No active listings"
           emptySub="Listings are created from a unit. Once published, applicants apply via a shareable link and you'll manage everything here — review, shortlist, screen, and approve."
@@ -199,7 +265,9 @@ export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
             </ol>
           </div>
         </EmptyResourceState>
-      ) : (
+      )}
+
+      {hasContent && (
         <div className="space-y-6">
           {mergedList.map(({ listing, apps }) => {
             const bulkEligible = apps.filter((a) => a.stage1_status === "pre_screen_complete" && !a.stage2_status)

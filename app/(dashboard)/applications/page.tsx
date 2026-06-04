@@ -1,11 +1,10 @@
 /**
- * app/(dashboard)/applications/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/applications/page.tsx — server entry for the rental applications list (prefetch + hydrate)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /applications
+ * Auth:   getServerOrgMembership (dashboard gateway) — redirects to /login if no membership
+ * Data:   prefetches fetchApplications into React Query + loads active/paused listings via service client
+ * Notes:  applicant identity is a tenant (no applicants table); list is grouped by listing client-side
  */
 import { HydrationBoundary, QueryClient, dehydrate } from "@tanstack/react-query"
 import { redirect } from "next/navigation"

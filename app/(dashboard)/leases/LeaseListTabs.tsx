@@ -1,31 +1,34 @@
 "use client"
 
 /**
- * app/(dashboard)/leases/LeaseListTabs.tsx — Tabbed lease list with filter counts and footer metrics
+ * app/(dashboard)/leases/LeaseListTabs.tsx — Lease list with shared ListToolbar (status filter + search) and footer metrics
  *
  * Route:  /leases
  * Auth:   gateway (dashboard layout)
  * Data:   SerializedLease array from LeasesPageClient
- * Notes:  Tab buttons are intentional phase-pill UI — do not migrate to ActionButton
+ * Notes:  Status filter values mirror the lease status groupings used across the list
+ *         (active/month_to_month, notice, expiring-soon, draft/pending_signing, all).
+ *         Search matches tenant/co-tenant names, property name and unit number.
  */
 import { useState, useMemo } from "react"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { FileText } from "lucide-react"
+import { ListToolbar, ToolbarFilter } from "@/components/ui/resource-list"
 import { LeaseRow, type SerializedLease } from "./LeaseRow"
 import { LeaseListFooter } from "./LeaseListFooter"
 import { isExpiringSoon } from "@/lib/leases/expiringLogic"
 
-type TabId = "active" | "notice" | "expiring" | "draft" | "all"
+type StatusFilter = "active" | "notice" | "expiring" | "draft" | "all"
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: "active",   label: "Active" },
-  { id: "notice",   label: "Notice" },
-  { id: "expiring", label: "Expiring soon" },
-  { id: "draft",    label: "Draft" },
-  { id: "all",      label: "All" },
+const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
+  { value: "active",   label: "Active" },
+  { value: "notice",   label: "Notice" },
+  { value: "expiring", label: "Expiring soon" },
+  { value: "draft",    label: "Draft" },
+  { value: "all",      label: "All" },
 ]
 
-function filterLeases(leases: SerializedLease[], tab: TabId): SerializedLease[] {
+function filterByStatus(leases: SerializedLease[], tab: StatusFilter): SerializedLease[] {
   switch (tab) {
     case "active":
       return leases.filter((l) => ["active", "month_to_month"].includes(l.status))
@@ -52,14 +55,31 @@ function isInCurrentQuarter(dateStr: string | null): boolean {
   )
 }
 
+function leaseSearchHaystack(lease: SerializedLease): string {
+  const tv = lease.tenant_view
+  const tenantName = tv
+    ? `${tv.company_name ?? ""} ${tv.first_name ?? ""} ${tv.last_name ?? ""}`
+    : ""
+  const coTenantNames = lease.lease_co_tenants
+    .map((ct) => {
+      const c = ct.tenants?.contacts
+      return c ? `${c.company_name ?? ""} ${c.first_name ?? ""} ${c.last_name ?? ""}` : ""
+    })
+    .join(" ")
+  const unit = lease.units
+  const unitText = unit ? `${unit.unit_number} ${unit.properties.name} ${unit.properties.suburb ?? ""} ${unit.properties.city ?? ""}` : ""
+  return `${tenantName} ${coTenantNames} ${unitText}`.toLowerCase()
+}
+
 interface LeaseListTabsProps {
   readonly leases: SerializedLease[]
 }
 
 export function LeaseListTabs({ leases }: LeaseListTabsProps) {
-  const [activeTab, setActiveTab] = useState<TabId>("active")
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("active")
+  const [search, setSearch] = useState("")
 
-  // Tab counts — computed from all leases
+  // Status counts — computed from all leases (drives the count line + draft hint)
   const counts = useMemo(() => ({
     active:   leases.filter((l) => ["active", "month_to_month"].includes(l.status)).length,
     notice:   leases.filter((l) => l.status === "notice").length,
@@ -68,15 +88,21 @@ export function LeaseListTabs({ leases }: LeaseListTabsProps) {
     all:      leases.length,
   }), [leases])
 
-  const filtered = useMemo(() => filterLeases(leases, activeTab), [leases, activeTab])
+  const byStatus = useMemo(() => filterByStatus(leases, statusFilter), [leases, statusFilter])
 
-  const hasDraftHint = activeTab === "active" && counts.draft > 0
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return byStatus
+    return byStatus.filter((l) => leaseSearchHaystack(l).includes(q))
+  }, [byStatus, search])
+
+  const hasDraftHint = statusFilter === "active" && !search && counts.draft > 0
   const draftWord = counts.draft === 1 ? "lease" : "leases"
   const emptyDescription = hasDraftHint
     ? `You have ${counts.draft} draft ${draftWord}`
     : "No leases match this filter."
   const emptyAction = hasDraftHint
-    ? { label: "View drafts", onClick: () => setActiveTab("draft") }
+    ? { label: "View drafts", onClick: () => setStatusFilter("draft") }
     : undefined
 
   // Footer metrics — based on filtered set
@@ -91,34 +117,30 @@ export function LeaseListTabs({ leases }: LeaseListTabsProps) {
     return { totalRent, avgRent, escalationsDue, cpaNoticesDue }
   }, [filtered])
 
+  const countWord = filtered.length === 1 ? "lease" : "leases"
+
   return (
     <div className="flex flex-1 flex-col min-h-0">
-      {/* Tab bar */}
-      <div className="mb-4 flex gap-1 overflow-x-auto border-b pb-0">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex shrink-0 items-center gap-1.5 rounded-t-md px-3 py-2 text-sm font-medium transition-colors ${
-              activeTab === tab.id
-                ? "border-b-2 border-brand text-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {tab.label}
-            <span
-              className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${
-                activeTab === tab.id
-                  ? "bg-brand/15 text-brand"
-                  : "bg-muted text-muted-foreground"
-              }`}
-            >
-              {counts[tab.id]}
-            </span>
-          </button>
-        ))}
-      </div>
+      {/* Shared toolbar: status filter + search (no cards view for leases) */}
+      <ListToolbar
+        search={search}
+        onSearch={setSearch}
+        placeholder="Search by tenant, property or unit…"
+        filters={
+          <ToolbarFilter
+            label="Status"
+            selected={[statusFilter]}
+            onChange={(next) => setStatusFilter((next[0] as StatusFilter) ?? "active")}
+            options={STATUS_OPTIONS}
+          />
+        }
+      />
+
+      <p className="mb-4 mt-3 text-xs text-muted-foreground">
+        {filtered.length} {countWord}
+        {statusFilter === "all" ? "" : ` · ${STATUS_OPTIONS.find((o) => o.value === statusFilter)?.label.toLowerCase()}`}
+        {search ? ` matching “${search}”` : ""}
+      </p>
 
       {/* Column headers */}
       {filtered.length > 0 && (

@@ -1,24 +1,28 @@
 "use client"
 
 /**
- * components/properties/PropertyFilters.tsx — FILL: one-line purpose
+ * components/properties/PropertyFilters.tsx — properties list toolbar (search · status filter · list/cards toggle)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties (Portfolio / Firm tier filterable list)
+ * Auth:   rendered inside PropertyListView under gatewaySSR (parent page)
+ * Data:   none — purely drives the q/status/view URL searchParams the server page reads
+ * Notes:  Uses the shared <ListToolbar> (components/ui/resource-list) so it matches the other lists.
+ *         State is URL-backed (router.push) — refresh/back restores filters. "All statuses" = empty
+ *         selected array; a chosen status maps to the `status` param.
  */
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { useCallback } from "react"
-import { Input } from "@/components/ui/input"
-import { FormSelect } from "@/components/ui/FormSelect"
-import { Search, List, LayoutGrid } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { ListToolbar, ToolbarFilter } from "@/components/ui/resource-list"
 
 interface PropertyFiltersProps {
   view: "list" | "cards"
 }
+
+const STATUS_OPTIONS = [
+  { value: "vacancies", label: "Has vacancies" },
+  { value: "occupied", label: "Fully occupied" },
+  { value: "arrears", label: "Has arrears" },
+]
 
 export function PropertyFilters({ view }: PropertyFiltersProps) {
   const router = useRouter()
@@ -32,53 +36,26 @@ export function PropertyFilters({ view }: PropertyFiltersProps) {
     router.push(`${pathname}?${params.toString()}`)
   }, [router, pathname, searchParams])
 
+  const q = searchParams.get("q") ?? ""
+  const status = searchParams.get("status") ?? ""
+
   return (
-    <div className="flex flex-wrap items-center gap-2 mb-5">
-      {/* Search */}
-      <div className="relative flex-1 min-w-48">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
-        <Input
-          className="pl-8 h-8 text-sm"
-          placeholder="Search properties…"
-          defaultValue={searchParams.get("q") ?? ""}
-          onChange={(e) => set("q", e.target.value)}
-        />
-      </div>
-
-      {/* Status filter */}
-      <FormSelect
-        defaultValue={searchParams.get("status") ?? ""}
-        onValueChange={(v) => set("status", v)}
-        placeholder="All statuses"
-        options={[
-          { value: "", label: "All statuses" },
-          { value: "vacancies", label: "Has vacancies" },
-          { value: "occupied", label: "Fully occupied" },
-          { value: "arrears", label: "Has arrears" },
-        ]}
+    <div className="mb-5">
+      <ListToolbar
+        search={q}
+        onSearch={(v) => set("q", v)}
+        placeholder="Search properties…"
+        view={view}
+        onView={(v) => set("view", v)}
+        filters={
+          <ToolbarFilter
+            label="Status"
+            selected={status ? [status] : []}
+            onChange={(next) => set("status", next[0] ?? "")}
+            options={STATUS_OPTIONS}
+          />
+        }
       />
-
-      {/* View toggle */}
-      <div className="flex items-center border border-border rounded-md overflow-hidden">
-        <button
-          onClick={() => set("view", "list")}
-          className={cn(
-            "flex items-center gap-1.5 px-2.5 py-1.5 text-xs transition-colors",
-            view === "list" ? "bg-brand text-brand-foreground" : "text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <List className="size-3.5" /> List
-        </button>
-        <button
-          onClick={() => set("view", "cards")}
-          className={cn(
-            "flex items-center gap-1.5 px-2.5 py-1.5 text-xs transition-colors",
-            view === "cards" ? "bg-brand text-brand-foreground" : "text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <LayoutGrid className="size-3.5" /> Cards
-        </button>
-      </div>
     </div>
   )
 }

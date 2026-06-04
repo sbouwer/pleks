@@ -31,9 +31,10 @@ interface Props {
   readonly properties: PropertyCardData[]
   readonly tier: Tier
   readonly totalUnitCount: number
+  readonly arrearsPct?: number
 }
 
-export function PropertyCards({ properties, tier, totalUnitCount }: Props) {
+export function PropertyCards({ properties, tier, totalUnitCount, arrearsPct }: Props) {
   const unitLimit = TIER_LIMITS[tier].leases
 
   const totalUnits = properties.reduce((sum, p) =>
@@ -46,7 +47,6 @@ export function PropertyCards({ properties, tier, totalUnitCount }: Props) {
       return us + (activeLease?.rent_amount_cents ?? 0)
     }, 0), 0)
   const occupancyPct = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0
-  const rentRollLabel = new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR", maximumFractionDigits: 0 }).format(rentRollCents / 100)
 
   if (properties.length === 0) {
     return (
@@ -69,15 +69,17 @@ export function PropertyCards({ properties, tier, totalUnitCount }: Props) {
       <ResourcePageHeader
         title="Properties"
         headline="Your portfolio"
-        sub={`${properties.length} ${properties.length === 1 ? "property" : "properties"} · ${totalUnits} active ${totalUnits === 1 ? "unit" : "units"} · ${occupancyPct}% occupied · ${rentRollLabel}/mo rent roll`}
+        sub="Every property and unit you manage — live occupancy and rent roll below."
         action={<AddPropertyButton />}
       />
 
       <PortfolioMetrics
         propertyCount={properties.length}
+        unitCount={totalUnits}
+        occupiedUnits={occupiedUnits}
         occupancyPct={occupancyPct}
         rentRollCents={rentRollCents}
-        attentionCount={0}
+        arrearsPct={arrearsPct}
       />
 
       {/* Near-limit warning for steward */}

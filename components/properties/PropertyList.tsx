@@ -1,30 +1,27 @@
 "use client"
 
 /**
- * components/properties/PropertyList.tsx — FILL: one-line purpose
+ * components/properties/PropertyList.tsx — sortable properties table / cards renderer for the list view
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties (Portfolio / Firm tier)
+ * Auth:   rendered by PropertyListView under gatewaySSR
+ * Data:   PropertyListItem[] prop (already search/status filtered server-side); `view` selects table vs cards
+ * Notes:  Local client-side column sort via the shared useListSort/SortHeader (canonical arrows). Cards view
+ *         renders the PropertyCard grid directly — the page header + KPI strip live in PropertyListView.
  */
-import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { formatZARAbbrev } from "@/lib/constants"
 import { cn } from "@/lib/utils"
-import { ChevronUp, ChevronDown } from "lucide-react"
-import { ListSearchBar, ListCard } from "@/components/ui/resource-list"
-import { PropertyCards } from "./PropertyCards"
+import { ListCard, SortHeader, useListSort } from "@/components/ui/resource-list"
+import { PropertyCard } from "./PropertyCard"
 import type { PropertyCardData } from "./PropertyCards"
-import type { Tier } from "@/lib/constants"
 
 export interface PropertyListItem extends PropertyCardData {
   landlordName: string | null
 }
 
 type SortKey = "name" | "units" | "occupancy" | "rentRoll"
-type SortDir = "asc" | "desc"
 
 function CollectionBadge({ pct }: { pct: number | null }) {
   if (pct == null) return <span className="text-muted-foreground text-xs">—</span>
@@ -35,78 +32,46 @@ function CollectionBadge({ pct }: { pct: number | null }) {
   return <span className={cn("text-xs font-medium", cls)}>{pct}%</span>
 }
 
-function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
-  if (!active) return <ChevronUp className="size-3 text-muted-foreground/40" />
-  return dir === "asc"
-    ? <ChevronUp className="size-3 text-foreground" />
-    : <ChevronDown className="size-3 text-foreground" />
-}
-
-interface ThProps {
-  readonly label: string
-  readonly sortable?: boolean
-  readonly id?: SortKey
-  readonly activeSortKey: SortKey
-  readonly sortDir: SortDir
-  readonly onSort: (key: SortKey) => void
-}
-
-function Th({ label, sortable, id, activeSortKey, sortDir, onSort }: ThProps) {
-  if (!sortable || !id) return (
-    <th className="text-left text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70 px-3 py-2.5">
-      {label}
-    </th>
-  )
-  return (
-    <th
-      className="text-left text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70 px-3 py-2.5 cursor-pointer select-none hover:text-foreground transition-colors"
-      onClick={() => onSort(id)}
-    >
-      <span className="flex items-center gap-1">
-        {label}
-        <SortIcon active={activeSortKey === id} dir={sortDir} />
-      </span>
-    </th>
-  )
-}
+const PLAIN_TH = "px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-widest text-muted-foreground/70"
 
 interface Props {
   readonly properties: PropertyListItem[]
   readonly view: "list" | "cards"
-  readonly tier: Tier
-  readonly totalUnitCount: number
 }
 
-export function PropertyList({ properties, view, tier, totalUnitCount }: Props) {
-  const [sortKey, setSortKey] = useState<SortKey>("name")
-  const [sortDir, setSortDir] = useState<SortDir>("asc")
-  const [search, setSearch] = useState("")
+export function PropertyList({ properties, view }: Props) {
+  const router = useRouter()
+  const { sortKey, sortDir, onSort } = useListSort<SortKey>("name")
 
-  function toggleSort(key: SortKey) {
-    if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc")
-    else { setSortKey(key); setSortDir("asc") }
-  }
-
-  // Search by property name or address (street line / town).
-  const q = search.trim().toLowerCase()
-  const filtered = q
-    ? properties.filter((p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.address_line1.toLowerCase().includes(q) ||
-        p.city.toLowerCase().includes(q))
-    : properties
-
-  const searchBar = (
-    <ListSearchBar value={search} onChange={setSearch} placeholder="Search by name, street or town…" />
-  )
+  // Search + status filtering are handled upstream (PropertyFilters + the page); this just renders.
+  const filtered = properties
 
   if (view === "cards") {
+    if (filtered.length === 0) {
+      return <p className="py-8 text-center text-sm text-muted-foreground">No properties match your search.</p>
+    }
     return (
-      <div className="space-y-4">
-        {searchBar}
-        {filtered.length === 0
-          ? <p className="py-8 text-center text-sm text-muted-foreground">No properties match your search.</p>
-          : <PropertyCards properties={filtered} tier={tier} totalUnitCount={totalUnitCount} />}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {filtered.map((p) => {
+          const activeUnits = p.units.filter(u => !u.is_archived)
+          const occupied = activeUnits.filter(u => u.status === "occupied").length
+          const rentRoll = activeUnits.reduce((sum, u) => sum + (u.leases.find(l => l.status === "active")?.rent_amount_cents ?? 0), 0)
+          return (
+            <PropertyCard
+              key={p.id}
+              id={p.id}
+              name={p.name}
+              type={p.type}
+              addressLine1={p.address_line1}
+              city={p.city}
+              isSectionalTitle={p.is_sectional_title ?? false}
+              totalUnits={activeUnits.length}
+              occupiedUnits={occupied}
+              rentRollCents={rentRoll}
+              attentionCount={0}
+            />
+          )
+        })}
       </div>
     )
   }
@@ -130,22 +95,21 @@ export function PropertyList({ properties, view, tier, totalUnitCount }: Props) 
     return sortDir === "asc" ? av - bv : bv - av
   })
 
+  if (sorted.length === 0) {
+    return <p className="py-8 text-center text-sm text-muted-foreground">No properties match your search.</p>
+  }
+
   return (
-    <div className="space-y-4">
-      {searchBar}
-      {sorted.length === 0 ? (
-        <p className="py-8 text-center text-sm text-muted-foreground">No properties match your search.</p>
-      ) : (
-      <ListCard>
+    <ListCard>
       <table className="w-full text-sm">
         <thead className="border-b border-border/60 bg-muted/30">
           <tr>
-            <Th label="Property" sortable id="name" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-            <Th label="Landlord" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-            <Th label="Units" sortable id="units" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-            <Th label="Occupancy" sortable id="occupancy" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-            <Th label="Rent roll" sortable id="rentRoll" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-            <Th label="Collection" activeSortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+            <th className="px-3 py-2.5 text-left"><SortHeader col="name" label="Property" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
+            <th className={PLAIN_TH}>Landlord</th>
+            <th className="px-3 py-2.5 text-left"><SortHeader col="units" label="Units" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
+            <th className="px-3 py-2.5 text-left"><SortHeader col="occupancy" label="Occupancy" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
+            <th className="px-3 py-2.5 text-left"><SortHeader col="rentRoll" label="Rent roll" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
+            <th className={PLAIN_TH}>Collection</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border/40">
@@ -169,7 +133,7 @@ export function PropertyList({ properties, view, tier, totalUnitCount }: Props) 
               <tr
                 key={p.id}
                 className="hover:bg-muted/20 cursor-pointer transition-colors"
-                onClick={() => window.location.href = `/properties/${p.id}`}
+                onClick={() => router.push(`/properties/${p.id}`)}
               >
                 <td className="px-3 py-3">
                   <div className="flex items-center gap-1.5">
@@ -212,8 +176,6 @@ export function PropertyList({ properties, view, tier, totalUnitCount }: Props) 
           })}
         </tbody>
       </table>
-      </ListCard>
-      )}
-    </div>
+    </ListCard>
   )
 }

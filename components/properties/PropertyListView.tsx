@@ -1,11 +1,11 @@
 /**
- * components/properties/PropertyListView.tsx — FILL: one-line purpose
+ * components/properties/PropertyListView.tsx — Portfolio/Firm tier properties list view (header, metrics, toolbar, list)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /properties (Portfolio / Firm tier)
+ * Auth:   rendered by properties/page.tsx under gatewaySSR
+ * Data:   pre-filtered PropertyListItem[] from the server page (q/status applied server-side)
+ * Notes:  Empty state swaps to EmptyResourceState. Desktop branch renders <PropertyFilters>
+ *         (shared ListToolbar) then <PropertyList>; both consume the URL-driven `view`.
  */
 import Link from "next/link"
 import { MapPin, Home } from "lucide-react"
@@ -18,16 +18,14 @@ import { PortfolioMetrics } from "./PropertyMetrics"
 import { PropertyFilters } from "./PropertyFilters"
 import { PropertyList } from "./PropertyList"
 import type { PropertyListItem } from "./PropertyList"
-import type { Tier } from "@/lib/constants"
 
 interface Props {
   properties: PropertyListItem[]
   view: "list" | "cards"
-  tier: Tier
-  totalUnitCount: number
+  arrearsPct?: number
 }
 
-export function PropertyListView({ properties, view, tier, totalUnitCount }: Readonly<Props>) {
+export function PropertyListView({ properties, view, arrearsPct }: Readonly<Props>) {
   const totalUnits = properties.reduce((sum, p) =>
     sum + p.units.filter(u => !u.is_archived).length, 0)
   const occupiedUnits = properties.reduce((sum, p) =>
@@ -38,7 +36,6 @@ export function PropertyListView({ properties, view, tier, totalUnitCount }: Rea
       return us + (activeLease?.rent_amount_cents ?? 0)
     }, 0), 0)
   const occupancyPct = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0
-  const rentRollLabel = new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR", maximumFractionDigits: 0 }).format(rentRollCents / 100)
 
   if (properties.length === 0) {
     return (
@@ -61,16 +58,7 @@ export function PropertyListView({ properties, view, tier, totalUnitCount }: Rea
       <ResourcePageHeader
         title="Properties"
         headline="Your portfolio"
-        sub={
-          <>
-            <span className="hidden lg:block">
-              {properties.length} {properties.length === 1 ? "property" : "properties"} · {totalUnits} active {totalUnits === 1 ? "unit" : "units"} · {occupancyPct}% occupied · {rentRollLabel}/mo rent roll
-            </span>
-            <span className="lg:hidden">
-              {properties.length} {properties.length === 1 ? "property" : "properties"} · {occupancyPct}% occupied
-            </span>
-          </>
-        }
+        sub="Every property and unit you manage — live occupancy and rent roll below."
         action={<AddPropertyButton />}
       />
 
@@ -112,16 +100,18 @@ export function PropertyListView({ properties, view, tier, totalUnitCount }: Rea
       <div className="hidden lg:block">
         <PortfolioMetrics
           propertyCount={properties.length}
+          unitCount={totalUnits}
+          occupiedUnits={occupiedUnits}
           occupancyPct={occupancyPct}
           rentRollCents={rentRollCents}
-          attentionCount={0}
+          arrearsPct={arrearsPct}
         />
 
         <Suspense>
           <PropertyFilters view={view} />
         </Suspense>
 
-        <PropertyList properties={properties} view={view} tier={tier} totalUnitCount={totalUnitCount} />
+        <PropertyList properties={properties} view={view} />
       </div>
     </div>
   )

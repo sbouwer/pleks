@@ -1,11 +1,11 @@
 /**
- * app/(dashboard)/dashboard/MetricCard.tsx — FILL: one-line purpose
+ * components/ui/metric-card.tsx — KPI metric cell for the connected "KPI strip" panel
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Notes:  The dashboard's metric-card cell, promoted to a shared primitive so the same KPI strip
+ *         (amber dot + uppercase label + big tabular value + optional subtext/progress) is reused
+ *         across the dashboard and the populated list pages instead of each re-deriving it. Render
+ *         several inside one bordered `rounded-[var(--r-button)]` panel (with `border-b-2 border-b-primary`)
+ *         and give each cell the divider classes (border-r / border-b) to get the connected strip.
  */
 import Link from "next/link"
 import { cn } from "@/lib/utils"

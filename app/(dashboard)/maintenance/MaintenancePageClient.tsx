@@ -15,7 +15,7 @@ import Link from "next/link"
 import { AddButton } from "@/components/ui/add-button"
 import { EmptyResourceState } from "@/components/ui/empty-resource-state"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
-import { ListSearchBar, ListCard } from "@/components/ui/resource-list"
+import { ListToolbar, ToolbarFilter, ListCard } from "@/components/ui/resource-list"
 import { Wrench, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
 import { OPERATIONAL_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchMaintenanceAction } from "@/lib/queries/portfolioActions"
@@ -51,12 +51,21 @@ const SLA_HOURS: Record<string, number> = {
   emergency: 4, urgent: 48, routine: 168, cosmetic: 720,
 }
 
+// Status compartment (single-select) — each option is a workflow-state group resolved by matchesTab().
 type Tab = "all" | "action" | "in_progress" | "completed"
-const TABS: { id: Tab; label: string }[] = [
-  { id: "all",         label: "All" },
-  { id: "action",      label: "Needs action" },
-  { id: "in_progress", label: "In progress" },
-  { id: "completed",   label: "Completed" },
+const STATUS_OPTIONS: { value: Tab; label: string }[] = [
+  { value: "all",         label: "All" },
+  { value: "action",      label: "Needs action" },
+  { value: "in_progress", label: "In progress" },
+  { value: "completed",   label: "Completed" },
+]
+
+// Urgency compartment (multi-select) — urgency values from maintenance_requests (URGENCY_DOT/URGENCY_ORDER).
+const URGENCY_OPTIONS: { value: string; label: string }[] = [
+  { value: "emergency", label: "Emergency" },
+  { value: "urgent",    label: "Urgent" },
+  { value: "routine",   label: "Routine" },
+  { value: "cosmetic",  label: "Cosmetic" },
 ]
 
 type SortField = "title" | "supplier" | "unit" | "status" | "age" | "urgency"
@@ -220,6 +229,7 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
   const queryClient = useQueryClient()
   const queryKey = OPERATIONAL_QUERY_KEYS.maintenance(orgId)
   const [activeTab, setActiveTab] = useState<Tab>("all")
+  const [urgencies, setUrgencies] = useState<string[]>([])
   const [search, setSearch] = useState("")
   const [sortField, setSortField] = useState<SortField>("age")
   const [sortDir, setSortDir] = useState<SortDir>("desc")
@@ -255,7 +265,10 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
       })
     : list
   const tabFiltered = searched.filter(r => matchesTab(r, activeTab))
-  const filtered = sortList(tabFiltered, sortField, sortDir) as MaintenanceItemExtended[]
+  const urgencyFiltered = urgencies.length > 0
+    ? tabFiltered.filter(r => urgencies.includes(r.urgency ?? "routine"))
+    : tabFiltered
+  const filtered = sortList(urgencyFiltered, sortField, sortDir) as MaintenanceItemExtended[]
   const actionCount = list.filter(r => matchesTab(r, "action")).length
 
   // Supplier-scoped view (from a supplier's "View work orders" link). On desktop it rides on the right
@@ -360,38 +373,38 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
           </div>
         )}
 
+        {/* Joint toolbar: status compartment · urgency compartment · search. No view toggle (no cards mode). */}
         {list.length > 0 && (
-          <div className="mb-4">
-            <ListSearchBar value={search} onChange={setSearch} placeholder="Search by title, unit, property, address or contractor…" />
-          </div>
-        )}
-
-        {/* Tabs — supplier filter notice rides on the right when scoped via ?contractor=. */}
-        {list.length > 0 && (
-          <div className="flex items-end justify-between gap-4 mb-4 border-b border-border/60">
-            <div className="flex gap-1">
-              {TABS.map(tab => {
-                const count = tab.id === "action" ? actionCount : 0
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-1.5 whitespace-nowrap ${
-                      activeTab === tab.id ? "border-brand text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {tab.label}
-                    {count > 0 && (
-                      <span className="h-4.5 min-w-[18px] px-1 rounded-full bg-brand text-white text-[10px] font-semibold flex items-center justify-center">
-                        {count}
-                      </span>
-                    )}
-                  </button>
-                )
-              })}
+          <div className="mb-2 space-y-2">
+            <ListToolbar
+              search={search}
+              onSearch={setSearch}
+              placeholder="Search by title, unit, property, address or contractor…"
+              filters={
+                <>
+                  <ToolbarFilter
+                    label="Status"
+                    selected={[activeTab]}
+                    onChange={(next) => setActiveTab((next[0] as Tab) ?? "all")}
+                    options={STATUS_OPTIONS}
+                  />
+                  <ToolbarFilter
+                    label="Urgency"
+                    multiple
+                    selected={urgencies}
+                    onChange={setUrgencies}
+                    options={URGENCY_OPTIONS}
+                  />
+                </>
+              }
+            />
+            <div className="flex items-center justify-between gap-4">
+              <p className="text-xs text-muted-foreground">
+                {filtered.length} of {list.length} request{list.length !== 1 ? "s" : ""}
+                {actionCount > 0 && ` · ${actionCount} need action`}
+              </p>
+              {filterNotice}
             </div>
-            {filterNotice && <div className="pb-2">{filterNotice}</div>}
           </div>
         )}
 

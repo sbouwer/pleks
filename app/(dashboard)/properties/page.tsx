@@ -18,8 +18,9 @@ import type { PropertyListItem } from "@/components/properties/PropertyList"
 export default async function PropertiesPage({
   searchParams,
 }: Readonly<{
-  searchParams: Record<string, string>
+  searchParams: Promise<Record<string, string>>
 }>) {
+  const sp = await searchParams
   const gw = await gatewaySSR()
   if (!gw) redirect("/login")
 
@@ -111,6 +112,22 @@ export default async function PropertiesPage({
     )
   }
 
+  // Org-wide arrears: % of due rent currently unpaid (drives the Arrears KPI card on steward + list views).
+  const today = new Date().toISOString().slice(0, 10)
+  const { data: dueInvoices, error: invErr } = await db
+    .from("rent_invoices")
+    .select("total_amount_cents, amount_paid_cents")
+    .eq("org_id", orgId)
+    .lte("due_date", today)
+  if (invErr) console.error("[properties] arrears fetch failed:", invErr.message)
+  let dueCents = 0
+  let unpaidCents = 0
+  for (const inv of dueInvoices ?? []) {
+    dueCents += inv.total_amount_cents
+    unpaidCents += Math.max(0, inv.total_amount_cents - (inv.amount_paid_cents ?? 0))
+  }
+  const arrearsPct = dueCents > 0 ? Math.round((unpaidCents / dueCents) * 100) : 0
+
   // ── Steward tier: enriched card grid ──────────────────────────────────────
   if (tier === "steward") {
     const { data: rawProperties, error: stewardErr } = await db
@@ -129,13 +146,13 @@ export default async function PropertiesPage({
       (sum, p) => sum + p.units.filter(u => !u.is_archived).length, 0
     )
 
-    return <PropertyCards properties={properties} tier={tier} totalUnitCount={totalUnitCount} />
+    return <PropertyCards properties={properties} tier={tier} totalUnitCount={totalUnitCount} arrearsPct={arrearsPct} />
   }
 
   // ── Portfolio / Firm tier: filterable list ────────────────────────────────
-  const q = searchParams.q?.toLowerCase() ?? ""
-  const statusFilter = searchParams.status ?? ""
-  const view = (searchParams.view ?? "list") as "list" | "cards"
+  const q = sp.q?.toLowerCase() ?? ""
+  const statusFilter = sp.status ?? ""
+  const view = (sp.view ?? "list") as "list" | "cards"
 
   const { data: rawProperties, error: listErr } = await db
     .from("properties")
@@ -171,16 +188,11 @@ export default async function PropertiesPage({
     })
   }
 
-  const totalUnitCount = properties.reduce(
-    (sum, p) => sum + p.units.filter(u => !u.is_archived).length, 0
-  )
-
   return (
     <PropertyListView
       properties={properties}
       view={view}
-      tier={tier}
-      totalUnitCount={totalUnitCount}
+      arrearsPct={arrearsPct}
     />
   )
 }

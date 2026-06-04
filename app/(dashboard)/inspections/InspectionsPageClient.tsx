@@ -7,12 +7,14 @@
  * Auth:   gateway (dashboard layout)
  * Data:   fetchInspectionsAction via React Query
  */
+import { useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { AddButton } from "@/components/ui/add-button"
 import { EmptyResourceState } from "@/components/ui/empty-resource-state"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
+import { ListToolbar, ToolbarFilter } from "@/components/ui/resource-list"
 import { Card, CardContent } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { ClipboardCheck } from "lucide-react"
@@ -30,6 +32,18 @@ const STATUS_MAP: Record<string, "scheduled" | "pending" | "active" | "completed
   finalised: "completed",
 }
 
+// Canonical inspections.status values (003_properties.sql CHECK constraint), with
+// human-readable labels for the Status filter.
+const STATUS_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "scheduled", label: "Scheduled" },
+  { value: "in_progress", label: "In progress" },
+  { value: "completed", label: "Completed" },
+  { value: "awaiting_tenant_review", label: "Awaiting tenant review" },
+  { value: "disputed", label: "Disputed" },
+  { value: "dispute_resolved", label: "Dispute resolved" },
+  { value: "finalised", label: "Finalised" },
+]
+
 interface Props { orgId: string }
 
 export function InspectionsPageClient({ orgId }: Readonly<Props>) {
@@ -42,6 +56,25 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
     staleTime: STALE_TIME.inspections,
   })
 
+  const [search, setSearch] = useState("")
+  const [statuses, setStatuses] = useState<string[]>([])
+
+  const filtered = list.filter((insp) => {
+    const unit = insp.units as unknown as { unit_number: string; properties: { name: string } } | null
+    const haystack = [
+      insp.inspection_type?.replaceAll("_", " "),
+      unit?.unit_number,
+      unit?.properties?.name,
+    ].filter(Boolean).join(" ").toLowerCase()
+    const matchSearch = !search || haystack.includes(search.toLowerCase())
+    const matchStatus = statuses.length === 0 || statuses.includes(insp.status)
+    return matchSearch && matchStatus
+  })
+
+  const statusWord = statuses.length === 1 ? "status" : "statuses"
+  const statusNote = statuses.length > 0 ? ` · ${statuses.length} ${statusWord}` : ""
+  const countLabel = `${filtered.length} of ${list.length} inspection${list.length === 1 ? "" : "s"}${statusNote}`
+
   return (
     <div>
       <ResourcePageHeader
@@ -49,16 +82,11 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
         title="Inspections"
         headline="Property inspections"
         sub={
-          (list.length > 0 || dataUpdatedAt > 0) ? (
-            <div className="space-y-0.5">
-              {list.length > 0 && <p>{list.length} inspections</p>}
-              {dataUpdatedAt > 0 && (
-                <span className="flex items-center gap-2 text-xs">
-                  Updated {relativeTime(new Date(dataUpdatedAt))}
-                  <button type="button" className="pa-link" onClick={() => queryClient.invalidateQueries({ queryKey })}>Refresh</button>
-                </span>
-              )}
-            </div>
+          dataUpdatedAt > 0 ? (
+            <span className="flex items-center gap-2 text-xs">
+              Updated {relativeTime(new Date(dataUpdatedAt))}
+              <button type="button" className="pa-link" onClick={() => queryClient.invalidateQueries({ queryKey })}>Refresh</button>
+            </span>
           ) : undefined
         }
         action={<AddButton label="Schedule inspection" onClick={() => router.push("/inspections/new")} />}
@@ -72,8 +100,29 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
           heroAction={<AddButton label="Schedule inspection" showPlus={false} onClick={() => router.push("/inspections/new")} />}
         />
       ) : (
-        <div className="space-y-2">
-          {list.map((insp) => {
+        <div className="space-y-4">
+          <ListToolbar
+            search={search}
+            onSearch={setSearch}
+            placeholder="Search by type, property or unit…"
+            filters={
+              <ToolbarFilter
+                label="Status"
+                multiple
+                selected={statuses}
+                onChange={setStatuses}
+                options={STATUS_OPTIONS}
+              />
+            }
+          />
+
+          <p className="text-xs text-muted-foreground">{countLabel}</p>
+
+          {filtered.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">No inspections match your search.</p>
+          ) : (
+          <div className="space-y-2">
+          {filtered.map((insp) => {
             const unit = insp.units as unknown as { unit_number: string; properties: { name: string } } | null
 
             return (
@@ -104,6 +153,8 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
               </Link>
             )
           })}
+          </div>
+          )}
         </div>
       )}
     </div>
