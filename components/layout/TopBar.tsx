@@ -110,7 +110,7 @@ export function Topbar({
         <button
           type="button"
           onClick={toggle}
-          className="pub-icon-btn pub-icon-btn--raised"
+          className="pa-iconbtn"
           aria-label={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
           title={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
         >
@@ -122,7 +122,7 @@ export function Topbar({
           href={visitSiteHref}
           target="_blank"
           rel="noopener noreferrer"
-          className="pub-icon-btn pub-icon-btn--raised hidden sm:flex"
+          className="pa-iconbtn hidden sm:flex"
           aria-label={visitSiteLabel}
           title={visitSiteLabel}
         >
@@ -134,7 +134,7 @@ export function Topbar({
           <button
             type="button"
             onClick={() => setProfileOpen(p => !p)}
-            className="pub-icon-btn pub-icon-btn--raised pub-icon-btn--active"
+            className="pa-iconbtn"
             aria-label="Account menu"
             title="Account"
           >

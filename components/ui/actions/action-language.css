@@ -304,3 +304,30 @@
 .pleks-portal[data-theme="dark"] .pa-secondary:hover:not(:disabled) { background: var(--paper-raised); }
 .pleks-portal[data-theme="dark"] .pa-secondary:focus-visible { background: var(--paper-raised); }
 .pleks-portal[data-theme="dark"] .pa-modal-close:hover { background: var(--paper-raised); }
+
+/* Icon buttons on dark: the muted resting colour (--ink-soft) is too dim and the default
+   amber-wash hover (≈ the dark surface) is invisible. Brighten the resting icon and give the
+   hover a real amber-tinted fill. Applies in both dark scopes (shared components). */
+.pleks-portal[data-theme="dark"] .pa-edit,
+.pleks-portal[data-theme="dark"] .pa-iconbtn,
+.pleks-portal[data-theme="dark"] .pa-iconstack-icon,
+.pleks-public[data-theme="dark"] .pa-edit,
+.pleks-public[data-theme="dark"] .pa-iconbtn,
+.pleks-public[data-theme="dark"] .pa-iconstack-icon { color: var(--ink); }
+
+.pleks-portal[data-theme="dark"] .pa-edit:hover:not(:disabled),
+.pleks-portal[data-theme="dark"] .pa-edit:focus-visible,
+.pleks-portal[data-theme="dark"] .pa-iconbtn:hover:not(:disabled),
+.pleks-portal[data-theme="dark"] .pa-iconbtn:focus-visible,
+.pleks-portal[data-theme="dark"] .pa-iconstack:hover .pa-iconstack-icon,
+.pleks-portal[data-theme="dark"] .pa-iconstack:focus-visible .pa-iconstack-icon,
+.pleks-public[data-theme="dark"] .pa-edit:hover:not(:disabled),
+.pleks-public[data-theme="dark"] .pa-edit:focus-visible,
+.pleks-public[data-theme="dark"] .pa-iconbtn:hover:not(:disabled),
+.pleks-public[data-theme="dark"] .pa-iconbtn:focus-visible,
+.pleks-public[data-theme="dark"] .pa-iconstack:hover .pa-iconstack-icon,
+.pleks-public[data-theme="dark"] .pa-iconstack:focus-visible .pa-iconstack-icon {
+  background: color-mix(in oklab, var(--amber) 26%, var(--paper-raised));
+  border-color: var(--amber);
+  color: var(--amber-ink);
+}
