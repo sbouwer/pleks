@@ -7,6 +7,9 @@
  * Auth:   gateway (dashboard layout)
  * Data:   fetchMaintenanceAction via React Query; sorted/filtered client-side
  * Notes:  Tabs filter by workflow state; columns sortable by title, unit, status, age, urgency.
+ *         Desktop fill-scrolls: root + desktop column are flex-h-full/flex-1 so the list scrolls
+ *         INSIDE the ListCard (sticky thead) and the page itself doesn't scroll. List/Cards toggle
+ *         switches the table for a card grid; the bespoke ColHeader sort drives both.
  */
 import { useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
@@ -15,7 +18,7 @@ import Link from "next/link"
 import { AddButton } from "@/components/ui/add-button"
 import { EmptyResourceState } from "@/components/ui/empty-resource-state"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
-import { ListToolbar, ToolbarFilter, ListCard } from "@/components/ui/resource-list"
+import { ListToolbar, ToolbarFilter, ListCard, type ListView } from "@/components/ui/resource-list"
 import { Wrench, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
 import { OPERATIONAL_QUERY_KEYS, STALE_TIME } from "@/lib/queries/portfolio"
 import { fetchMaintenanceAction } from "@/lib/queries/portfolioActions"
@@ -220,6 +223,46 @@ function MobileRow({ req }: Readonly<{ req: MaintenanceItemExtended }>) {
   )
 }
 
+// ── Card tile (the "Cards" toggle) ───────────────────────────────────────────────
+
+/** Card-view tile — mirrors the list row's data (title · unit/property · status · urgency · contractor). */
+function MaintenanceCard({ req, onClick }: Readonly<{ req: MaintenanceItemExtended; onClick: () => void }>) {
+  const unit = req.units as unknown as { unit_number: string; properties: { name: string } } | null
+  const supplierName = supplierNameOf(req)
+  const unitLabel = unit ? `${unit.unit_number}, ${unit.properties.name}` : "—"
+  const chip = STATUS_CHIP[req.status] ?? { label: req.status.replaceAll("_", " "), cls: "bg-muted text-muted-foreground" }
+  const dot = URGENCY_DOT[req.urgency ?? "routine"] ?? "bg-muted-foreground/40"
+
+  return (
+    <div
+      onClick={onClick}
+      className="group relative flex cursor-pointer flex-col gap-3 rounded-[var(--r-button)] border border-border bg-card p-4 transition-colors hover:border-primary/40"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 items-start gap-2">
+          <div className={`mt-1.5 size-2 shrink-0 rounded-full ${dot}`} title={req.urgency ?? "routine"} />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium" title={req.title}>{req.title}</p>
+            <p className="truncate text-xs text-muted-foreground" title={unitLabel}>{unitLabel}</p>
+          </div>
+        </div>
+        <span className={`shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[10.5px] font-medium ${chip.cls}`}>
+          {chip.label}
+        </span>
+      </div>
+
+      <div className="text-xs text-muted-foreground">
+        {supplierName ? (
+          <p className="truncate" title={supplierName}>{supplierName}</p>
+        ) : (
+          <p className="text-muted-foreground/40">Unassigned</p>
+        )}
+        {req.work_order_number && <p className="font-mono text-[11px]">{req.work_order_number}</p>}
+      </div>
+    </div>
+  )
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 interface Props { orgId: string; contractorFilter?: string | null; contractorName?: string | null }
@@ -231,6 +274,7 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
   const [activeTab, setActiveTab] = useState<Tab>("all")
   const [urgencies, setUrgencies] = useState<string[]>([])
   const [search, setSearch] = useState("")
+  const [view, setView] = useState<ListView>("list")
   const [sortField, setSortField] = useState<SortField>("age")
   const [sortDir, setSortDir] = useState<SortDir>("desc")
 
@@ -290,9 +334,9 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
   ) : null
 
   return (
-    <div>
+    <div className="flex h-full min-h-0 flex-col">
       {/* ── Mobile ───────────────────────────────────────────────────────── */}
-      <div className="lg:hidden pb-4">
+      <div className="lg:hidden flex min-h-0 flex-1 flex-col pb-4">
         <div className="flex items-center justify-between mb-3">
           <div>
             <h1 className="font-heading text-2xl">Maintenance</h1>
@@ -320,7 +364,7 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
             heroAction={<AddButton label="Log request" showPlus={false} onClick={() => router.push("/maintenance/new")} />}
           />
         ) : (
-          <div className="rounded-xl border border-border bg-surface-elevated px-3">
+          <div className="min-h-0 flex-1 overflow-auto rounded-xl border border-border bg-surface-elevated px-3">
             {sortList(list, "age", "desc").map(req => (
               <MobileRow key={req.id} req={req as MaintenanceItemExtended} />
             ))}
@@ -329,7 +373,7 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
       </div>
 
       {/* ── Desktop ──────────────────────────────────────────────────────── */}
-      <div className="hidden lg:block">
+      <div className="hidden lg:flex min-h-0 flex-1 flex-col gap-4">
         <ResourcePageHeader
           eyebrow="Operations"
           title="Maintenance"
@@ -373,13 +417,15 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
           </div>
         )}
 
-        {/* Joint toolbar: status compartment · urgency compartment · search. No view toggle (no cards mode). */}
+        {/* Joint toolbar: status compartment · urgency compartment · search · List/Cards toggle. */}
         {list.length > 0 && (
-          <div className="mb-2 space-y-2">
+          <div className="space-y-2">
             <ListToolbar
               search={search}
               onSearch={setSearch}
               placeholder="Search by title, unit, property, address or contractor…"
+              view={view}
+              onView={setView}
               filters={
                 <>
                   <ToolbarFilter
@@ -422,10 +468,10 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
         {list.length > 0 && filtered.length === 0 && (
           <p className="text-sm text-muted-foreground py-4">{q ? "No requests match your search." : "No requests in this category."}</p>
         )}
-        {list.length > 0 && filtered.length > 0 && (
-          <ListCard>
+        {list.length > 0 && filtered.length > 0 && view === "list" && (
+          <ListCard fill>
             <table className="w-full text-sm">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-card">
                 <tr className="border-b border-border bg-muted/30">
                   <th className="px-4 py-2.5 w-6" />
                   <th className="px-4 py-2.5 text-left">
@@ -470,6 +516,18 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
               ) : null
             })()}
           </ListCard>
+        )}
+
+        {list.length > 0 && filtered.length > 0 && view === "cards" && (
+          <div className="grid min-h-0 flex-1 gap-3 overflow-auto sm:grid-cols-2 xl:grid-cols-3">
+            {filtered.map(req => (
+              <MaintenanceCard
+                key={req.id}
+                req={req}
+                onClick={() => router.push(`/maintenance/${req.id}`)}
+              />
+            ))}
+          </div>
         )}
       </div>
     </div>

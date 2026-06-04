@@ -14,7 +14,7 @@ import Link from "next/link"
 import { AddButton } from "@/components/ui/add-button"
 import { EmptyResourceState } from "@/components/ui/empty-resource-state"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
-import { ListToolbar, ToolbarFilter } from "@/components/ui/resource-list"
+import { ListToolbar, ToolbarFilter, type ListView } from "@/components/ui/resource-list"
 import { Card, CardContent } from "@/components/ui/card"
 import { StatusBadge } from "@/components/shared/StatusBadge"
 import { ClipboardCheck } from "lucide-react"
@@ -46,6 +46,49 @@ const STATUS_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
 
 interface Props { orgId: string }
 
+// Inspection rows arrive with units→properties joined; this is the narrow shape we read.
+type Inspection = {
+  id: string
+  inspection_type: string
+  status: string
+  lease_type: string
+  scheduled_date?: string | null
+  conducted_date?: string | null
+  units?: unknown
+}
+
+function inspectionDateLabel(insp: Inspection): string {
+  if (insp.scheduled_date) return `Scheduled: ${new Date(insp.scheduled_date).toLocaleDateString("en-ZA")}`
+  if (insp.conducted_date) return `Conducted: ${new Date(insp.conducted_date).toLocaleDateString("en-ZA")}`
+  return ""
+}
+
+/** Card-view tile (the "Cards" toggle) — mirrors the list row's data: type · property/unit · status · date. */
+function InspectionCard({ insp, onOpen }: Readonly<{ insp: Inspection; onOpen: () => void }>) {
+  const unit = insp.units as unknown as { unit_number: string; properties: { name: string } } | null
+  const dateLabel = inspectionDateLabel(insp)
+  return (
+    <div
+      onClick={onOpen}
+      className="group relative flex cursor-pointer flex-col gap-3 rounded-[var(--r-button)] border border-border bg-card p-4 transition-colors hover:border-primary/40"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium capitalize">{insp.inspection_type.replaceAll("_", " ")}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {unit ? `${unit.unit_number}, ${unit.properties.name}` : ""}
+          </p>
+        </div>
+        <StatusBadge status={STATUS_MAP[insp.status] || "scheduled"} />
+      </div>
+      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+        <span className="capitalize">{insp.lease_type}</span>
+        {dateLabel && <span className="truncate">{dateLabel}</span>}
+      </div>
+    </div>
+  )
+}
+
 export function InspectionsPageClient({ orgId }: Readonly<Props>) {
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -58,6 +101,7 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
 
   const [search, setSearch] = useState("")
   const [statuses, setStatuses] = useState<string[]>([])
+  const [view, setView] = useState<ListView>("list")
 
   const filtered = list.filter((insp) => {
     const unit = insp.units as unknown as { unit_number: string; properties: { name: string } } | null
@@ -76,7 +120,7 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
   const countLabel = `${filtered.length} of ${list.length} inspection${list.length === 1 ? "" : "s"}${statusNote}`
 
   return (
-    <div>
+    <div className="flex h-full min-h-0 flex-col">
       <ResourcePageHeader
         eyebrow="Operations"
         title="Inspections"
@@ -100,11 +144,13 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
           heroAction={<AddButton label="Schedule inspection" showPlus={false} onClick={() => router.push("/inspections/new")} />}
         />
       ) : (
-        <div className="space-y-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-4">
           <ListToolbar
             search={search}
             onSearch={setSearch}
             placeholder="Search by type, property or unit…"
+            view={view}
+            onView={setView}
             filters={
               <ToolbarFilter
                 label="Status"
@@ -118,42 +164,52 @@ export function InspectionsPageClient({ orgId }: Readonly<Props>) {
 
           <p className="text-xs text-muted-foreground">{countLabel}</p>
 
-          {filtered.length === 0 ? (
+          {filtered.length === 0 && (
             <p className="text-sm text-muted-foreground py-8 text-center">No inspections match your search.</p>
-          ) : (
-          <div className="space-y-2">
-          {filtered.map((insp) => {
-            const unit = insp.units as unknown as { unit_number: string; properties: { name: string } } | null
+          )}
 
-            return (
-              <Link key={insp.id} href={`/inspections/${insp.id}`}>
-                <Card className="hover:border-brand/50 transition-colors cursor-pointer">
-                  <CardContent className="flex items-center justify-between pt-4 pb-4">
-                    <div className="min-w-0 flex-1 pr-2">
-                      <p className="font-medium capitalize">
-                        {insp.inspection_type.replaceAll("_", " ")}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {unit ? `${unit.unit_number}, ${unit.properties.name}` : ""}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {(() => {
-                          if (insp.scheduled_date) return `Scheduled: ${new Date(insp.scheduled_date as string).toLocaleDateString("en-ZA")}`
-                          if (insp.conducted_date) return `Conducted: ${new Date(insp.conducted_date as string).toLocaleDateString("en-ZA")}`
-                          return ""
-                        })()}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-xs capitalize text-muted-foreground">{insp.lease_type}</span>
-                      <StatusBadge status={STATUS_MAP[insp.status] || "scheduled"} />
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            )
-          })}
-          </div>
+          {filtered.length > 0 && view === "cards" && (
+            <div className="grid min-h-0 flex-1 gap-3 overflow-auto sm:grid-cols-2 xl:grid-cols-3">
+              {filtered.map((insp) => (
+                <InspectionCard
+                  key={insp.id}
+                  insp={insp as unknown as Inspection}
+                  onOpen={() => router.push(`/inspections/${insp.id}`)}
+                />
+              ))}
+            </div>
+          )}
+
+          {filtered.length > 0 && view === "list" && (
+            <div className="min-h-0 flex-1 space-y-2 overflow-auto">
+              {filtered.map((insp) => {
+                const unit = insp.units as unknown as { unit_number: string; properties: { name: string } } | null
+
+                return (
+                  <Link key={insp.id} href={`/inspections/${insp.id}`}>
+                    <Card className="hover:border-brand/50 transition-colors cursor-pointer">
+                      <CardContent className="flex items-center justify-between pt-4 pb-4">
+                        <div className="min-w-0 flex-1 pr-2">
+                          <p className="font-medium capitalize">
+                            {insp.inspection_type.replaceAll("_", " ")}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {unit ? `${unit.unit_number}, ${unit.properties.name}` : ""}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {inspectionDateLabel(insp as unknown as Inspection)}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-xs capitalize text-muted-foreground">{insp.lease_type}</span>
+                          <StatusBadge status={STATUS_MAP[insp.status] || "scheduled"} />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                )
+              })}
+            </div>
           )}
         </div>
       )}

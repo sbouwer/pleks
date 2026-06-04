@@ -9,7 +9,8 @@
  * Notes:  shared <ListToolbar> drives search (applicant name/email) + a multi-select Stage filter; the four
  *         stage buckets (pending/active/completed/arrears) mirror the StatusBadge derived from stage1/stage2
  *         status. Filtering runs before grouping; empty listing groups are hidden while a filter is active.
- *         No cards/grid view exists, so the toolbar omits the view toggle.
+ *         List view = listing-grouped (default); Cards view = a flat applicant grid. Content fill-scrolls
+ *         inside the list area (page itself does not scroll) — mirrors the suppliers reference layout.
  */
 import { useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
@@ -54,6 +55,9 @@ const STAGE2_MAP: Record<string, "pending" | "active" | "completed" | "arrears">
 }
 
 type StageBucket = "pending" | "active" | "completed" | "arrears"
+
+/** One application row as returned by fetchApplications (element of the inferred array). */
+type ApplicationRow = Awaited<ReturnType<typeof fetchApplicationsAction>>[number]
 
 /** The single stage bucket displayed on each card's StatusBadge — stage2 takes precedence over stage1. */
 function appStage(app: { stage1_status: string; stage2_status: string | null }): StageBucket {
@@ -131,6 +135,52 @@ function ListingHeader({ listing, appCount }: { listing: ListingShape; appCount:
   )
 }
 
+/** Resolve the (possibly array-wrapped) listing on an application row to its unit/property label. */
+function appListingLabel(app: { listings?: unknown }): string | null {
+  const raw = (app as { listings?: unknown }).listings
+  const listing = (Array.isArray(raw) ? raw[0] : raw) as ListingShape | null | undefined
+  if (!listing?.units) return null
+  return `${listing.units.unit_number}, ${listing.units.properties.name}`
+}
+
+/** Card-view tile (the "Cards" toggle) — flat applicant tile mirroring the grouped row's data. */
+function ApplicantCard({
+  app, onOpen,
+}: Readonly<{
+  app: ApplicationRow
+  onOpen: () => void
+}>) {
+  const name = `${app.first_name || ""} ${app.last_name || ""}`.trim() || app.applicant_email
+  const listingLabel = appListingLabel(app)
+  const stage: StageBucket = app.stage2_status
+    ? (STAGE2_MAP[app.stage2_status] || "pending")
+    : (STAGE1_MAP[app.stage1_status] || "pending")
+  return (
+    <div
+      onClick={onOpen}
+      className="group relative flex cursor-pointer flex-col gap-3 rounded-[var(--r-button)] border border-border bg-card p-4 transition-colors hover:border-primary/40"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="truncate text-sm font-medium">{name}</p>
+            {app.is_foreign_national && <span className="shrink-0 rounded bg-info-bg px-1.5 py-0.5 text-[10px] text-info">Foreign</span>}
+            {app.has_co_applicant && <span className="shrink-0 rounded bg-surface-elevated px-1.5 py-0.5 text-[10px]">Joint</span>}
+          </div>
+          <p className="truncate text-[11px] text-muted-foreground">{listingLabel ?? "No listing"}</p>
+        </div>
+        <StatusBadge status={stage} />
+      </div>
+
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>{app.gross_monthly_income_cents ? `Income: ${formatZAR(app.gross_monthly_income_cents)}/mo` : ""}</span>
+        {app.fitscore !== null && <span className="font-heading text-base text-foreground">{app.fitscore}/100</span>}
+        {app.prescreen_score !== null && app.fitscore === null && <span>{app.prescreen_score}/45</span>}
+      </div>
+    </div>
+  )
+}
+
 /** Group filtered applications under their listing, merged with the server's active/paused listings.
  *  While a filter is active, listing groups with no matching applications are dropped. */
 function buildMergedGroups<A extends { listings?: unknown }>(
@@ -178,6 +228,7 @@ export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
 
   const [search, setSearch] = useState("")
   const [stages, setStages] = useState<string[]>([])
+  const [view, setView] = useState<"list" | "cards">("list")
 
   const prescreenReady = list.filter((a) => a.stage1_status === "pre_screen_complete")
   const screeningComplete = list.filter((a) => a.stage2_status === "screening_complete")
@@ -201,7 +252,7 @@ export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
   const countLabel = isFiltering ? `${filteredCount} of ${list.length} ${appWord}` : `${list.length} ${appWord}`
 
   return (
-    <div>
+    <div className="flex h-full min-h-0 flex-col">
       <ResourcePageHeader
         eyebrow="Operations"
         title="Applications"
@@ -224,32 +275,35 @@ export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
         action={<AddButton label="New listing" onClick={() => router.push("/properties")} />}
       />
 
-      {showToolbar && (
-        <div className="mb-4 space-y-2">
-          <ListToolbar
-            search={search}
-            onSearch={setSearch}
-            placeholder="Search applicants by name or email…"
-            filters={
-              <ToolbarFilter
-                label="Stage"
-                multiple
-                selected={stages}
-                onChange={setStages}
-                options={STAGE_FILTER_OPTIONS}
-              />
-            }
-          />
-          <p className="text-xs text-muted-foreground">{countLabel}</p>
-        </div>
-      )}
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
+        {showToolbar && (
+          <div className="space-y-2">
+            <ListToolbar
+              search={search}
+              onSearch={setSearch}
+              placeholder="Search applicants by name or email…"
+              view={view}
+              onView={setView}
+              filters={
+                <ToolbarFilter
+                  label="Stage"
+                  multiple
+                  selected={stages}
+                  onChange={setStages}
+                  options={STAGE_FILTER_OPTIONS}
+                />
+              }
+            />
+            <p className="text-xs text-muted-foreground">{countLabel}</p>
+          </div>
+        )}
 
-      {showToolbar && isFiltering && !hasContent && (
-        <p className="py-8 text-center text-sm text-muted-foreground">No applications match your filters.</p>
-      )}
+        {showToolbar && isFiltering && !hasContent && (
+          <p className="py-8 text-center text-sm text-muted-foreground">No applications match your filters.</p>
+        )}
 
-      {!hasContent && !(showToolbar && isFiltering) && (
-        <EmptyResourceState
+        {!hasContent && !(showToolbar && isFiltering) && (
+          <EmptyResourceState
           emptyTitle="No active listings"
           emptySub="Listings are created from a unit. Once published, applicants apply via a shareable link and you'll manage everything here — review, shortlist, screen, and approve."
           icon={<Users className="h-6 w-6" />}
@@ -264,86 +318,104 @@ export function ApplicationsPageClient({ orgId, listings }: Readonly<Props>) {
               <li className="flex gap-2"><span className="shrink-0 font-medium text-primary">4.</span> Come back here to review and decide</li>
             </ol>
           </div>
-        </EmptyResourceState>
-      )}
+          </EmptyResourceState>
+        )}
 
-      {hasContent && (
-        <div className="space-y-6">
-          {mergedList.map(({ listing, apps }) => {
-            const bulkEligible = apps.filter((a) => a.stage1_status === "pre_screen_complete" && !a.stage2_status)
-            return (
-            <div key={listing.id} className="space-y-2">
-              <ListingHeader listing={listing} appCount={apps.length} />
-              {apps.map((app) => {
-                const name = `${app.first_name || ""} ${app.last_name || ""}`.trim() || app.applicant_email
-                return (
-                  <Link key={app.id} href={`/applications/${app.id}`}>
-                    <Card className="hover:border-brand/50 transition-colors cursor-pointer">
-                      <CardContent className="flex items-center justify-between pt-4">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium">{name}</p>
-                            {app.is_foreign_national && <span className="text-xs px-1.5 py-0.5 bg-info-bg text-info rounded">Foreign</span>}
-                            {app.has_co_applicant && <span className="text-xs px-1.5 py-0.5 bg-surface-elevated rounded">Joint</span>}
+        {/* List view (default) — listing-grouped. Scrolls internally; page itself does not scroll. */}
+        {hasContent && view === "list" && (
+          <div className="min-h-0 flex-1 space-y-6 overflow-auto">
+            {mergedList.map(({ listing, apps }) => {
+              const bulkEligible = apps.filter((a) => a.stage1_status === "pre_screen_complete" && !a.stage2_status)
+              return (
+              <div key={listing.id} className="space-y-2">
+                <ListingHeader listing={listing} appCount={apps.length} />
+                {apps.map((app) => {
+                  const name = `${app.first_name || ""} ${app.last_name || ""}`.trim() || app.applicant_email
+                  return (
+                    <Link key={app.id} href={`/applications/${app.id}`}>
+                      <Card className="hover:border-brand/50 transition-colors cursor-pointer">
+                        <CardContent className="flex items-center justify-between pt-4">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium">{name}</p>
+                              {app.is_foreign_national && <span className="text-xs px-1.5 py-0.5 bg-info-bg text-info rounded">Foreign</span>}
+                              {app.has_co_applicant && <span className="text-xs px-1.5 py-0.5 bg-surface-elevated rounded">Joint</span>}
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              {app.gross_monthly_income_cents ? `Income: ${formatZAR(app.gross_monthly_income_cents)}/mo` : ""}
+                            </p>
                           </div>
-                          <p className="text-sm text-muted-foreground">
-                            {app.gross_monthly_income_cents ? `Income: ${formatZAR(app.gross_monthly_income_cents)}/mo` : ""}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          {app.fitscore !== null && <span className="font-heading text-lg">{app.fitscore}/100</span>}
-                          {app.prescreen_score !== null && !app.fitscore && <span className="text-sm text-muted-foreground">{app.prescreen_score}/45</span>}
-                          <StatusBadge status={app.stage2_status ? (STAGE2_MAP[app.stage2_status] || "pending") : (STAGE1_MAP[app.stage1_status] || "pending")} />
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                )
-              })}
-              {bulkEligible.length >= 2 && user && (
-                <BulkDecidePanel
-                  agentId={user.id}
-                  applicants={bulkEligible.map((a) => ({
-                    id: a.id,
-                    name: `${a.first_name || ""} ${a.last_name || ""}`.trim() || a.applicant_email,
-                    prescreenScore: a.prescreen_score ?? null,
-                  }))}
-                  onDone={() => queryClient.invalidateQueries({ queryKey })}
-                />
-              )}
-            </div>
-            )
-          })}
+                          <div className="flex items-center gap-3">
+                            {app.fitscore !== null && <span className="font-heading text-lg">{app.fitscore}/100</span>}
+                            {app.prescreen_score !== null && !app.fitscore && <span className="text-sm text-muted-foreground">{app.prescreen_score}/45</span>}
+                            <StatusBadge status={app.stage2_status ? (STAGE2_MAP[app.stage2_status] || "pending") : (STAGE1_MAP[app.stage1_status] || "pending")} />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  )
+                })}
+                {bulkEligible.length >= 2 && user && (
+                  <BulkDecidePanel
+                    agentId={user.id}
+                    applicants={bulkEligible.map((a) => ({
+                      id: a.id,
+                      name: `${a.first_name || ""} ${a.last_name || ""}`.trim() || a.applicant_email,
+                      prescreenScore: a.prescreen_score ?? null,
+                    }))}
+                    onDone={() => queryClient.invalidateQueries({ queryKey })}
+                  />
+                )}
+              </div>
+              )
+            })}
 
-          {noListing.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-1">Other</p>
-              {noListing.map((app) => {
-                const name = `${app.first_name || ""} ${app.last_name || ""}`.trim() || app.applicant_email
-                return (
-                  <Link key={app.id} href={`/applications/${app.id}`}>
-                    <Card className="hover:border-brand/50 transition-colors cursor-pointer">
-                      <CardContent className="flex items-center justify-between pt-4">
-                        <div>
-                          <p className="font-medium">{name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {app.gross_monthly_income_cents ? `Income: ${formatZAR(app.gross_monthly_income_cents)}/mo` : ""}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          {app.fitscore !== null && <span className="font-heading text-lg">{app.fitscore}/100</span>}
-                          {app.prescreen_score !== null && !app.fitscore && <span className="text-sm text-muted-foreground">{app.prescreen_score}/45</span>}
-                          <StatusBadge status={app.stage2_status ? (STAGE2_MAP[app.stage2_status] || "pending") : (STAGE1_MAP[app.stage1_status] || "pending")} />
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
+            {noListing.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-1">Other</p>
+                {noListing.map((app) => {
+                  const name = `${app.first_name || ""} ${app.last_name || ""}`.trim() || app.applicant_email
+                  return (
+                    <Link key={app.id} href={`/applications/${app.id}`}>
+                      <Card className="hover:border-brand/50 transition-colors cursor-pointer">
+                        <CardContent className="flex items-center justify-between pt-4">
+                          <div>
+                            <p className="font-medium">{name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {app.gross_monthly_income_cents ? `Income: ${formatZAR(app.gross_monthly_income_cents)}/mo` : ""}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            {app.fitscore !== null && <span className="font-heading text-lg">{app.fitscore}/100</span>}
+                            {app.prescreen_score !== null && !app.fitscore && <span className="text-sm text-muted-foreground">{app.prescreen_score}/45</span>}
+                            <StatusBadge status={app.stage2_status ? (STAGE2_MAP[app.stage2_status] || "pending") : (STAGE1_MAP[app.stage1_status] || "pending")} />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Cards view — flat applicant grid over the filtered list (grouping flattened). */}
+        {hasContent && view === "cards" && filteredList.length === 0 && (
+          <p className="py-8 text-center text-sm text-muted-foreground">No applicants yet.</p>
+        )}
+        {hasContent && view === "cards" && filteredList.length > 0 && (
+          <div className="grid min-h-0 flex-1 gap-3 overflow-auto sm:grid-cols-2 xl:grid-cols-3">
+            {filteredList.map((app) => (
+              <ApplicantCard
+                key={app.id}
+                app={app}
+                onOpen={() => router.push(`/applications/${app.id}`)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

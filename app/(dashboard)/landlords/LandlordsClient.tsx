@@ -1,11 +1,14 @@
 "use client"
 
 /**
- * app/(dashboard)/landlords/LandlordsClient.tsx — searchable, sortable landlord list with inline delete
+ * app/(dashboard)/landlords/LandlordsClient.tsx — searchable, sortable landlord list (List/Cards views) with inline delete
  *
  * Route:  /landlords
  * Auth:   dashboard layout (gateway)
  * Data:   landlords prop from server page; invalidates portfolio query cache on delete
+ * Notes:  Fill-scroll — root is flex-1 min-h-0 flex-col; desktop table/cards-grid fill the viewport and
+ *         scroll inside the card (sticky thead), page itself doesn't scroll. Mobile (lg:hidden) keeps its
+ *         own scrolling card list regardless of the desktop List/Cards toggle.
  */
 import { useState } from "react"
 import { useRouter } from "next/navigation"
@@ -38,6 +41,60 @@ interface Props {
 
 type SortKey = "name" | "email" | "phone" | "type"
 
+/** Card-view tile (the "Cards" toggle) — mirrors the list row's data + hover edit/delete actions. */
+function LandlordCard({
+  l, isAdmin, isDeleting, onOpen, onEdit, onDelete,
+}: Readonly<{
+  l: Landlord
+  isAdmin: boolean
+  isDeleting: boolean
+  onOpen: () => void
+  onEdit: () => void
+  onDelete: () => void
+}>) {
+  const displayName = l.company_name || `${l.first_name ?? ""} ${l.last_name ?? ""}`.trim() || "Unnamed"
+  const props = l.properties.slice(0, 3)
+  const extra = l.properties.length - 3
+  return (
+    <div
+      onClick={onOpen}
+      className="group relative flex cursor-pointer flex-col gap-3 rounded-[var(--r-button)] border border-border bg-card p-4 transition-colors hover:border-primary/40"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">{displayName}</p>
+          <p className="text-[11px] text-muted-foreground">{l.entity_type === "organisation" ? "Company" : "Individual"}</p>
+        </div>
+      </div>
+
+      {props.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {props.map((p) => (
+            <Badge key={p} variant="secondary" className="text-[10px]">{p}</Badge>
+          ))}
+          {extra > 0 && <Badge variant="secondary" className="text-[10px] text-muted-foreground">+{extra}</Badge>}
+        </div>
+      )}
+
+      <div className="space-y-0.5 text-xs text-muted-foreground">
+        {l.phone && <p className="truncate">{l.phone}</p>}
+        {l.email && <p className="truncate">{l.email}</p>}
+        {!l.phone && !l.email && <p className="text-muted-foreground/40">No contact details</p>}
+      </div>
+
+      <div
+        className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <EditButton label="Edit landlord" onClick={onEdit} />
+        {isAdmin && (
+          <DeleteButton label="Delete landlord" itemName="this landlord" loading={isDeleting} onConfirm={onDelete} />
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -48,6 +105,7 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
   const { sortKey, sortDir, onSort } = useListSort<SortKey>("name")
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [editId, setEditId] = useState<string | null>(null)
+  const [view, setView] = useState<"list" | "cards">("list")
 
   const filtered = initial
     .filter((l) => {
@@ -90,11 +148,13 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <ListToolbar
         search={search}
         onSearch={setSearch}
         placeholder="Search by name, email or phone…"
+        view={view}
+        onView={setView}
         filters={
           <ToolbarFilter
             label="Type"
@@ -112,8 +172,8 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
         <p className="text-sm text-muted-foreground py-8 text-center">No landlords match your search.</p>
       ) : (
         <>
-          {/* Mobile card list */}
-          <div className="lg:hidden space-y-2">
+          {/* Mobile card list (mobile experience — independent of the desktop list/cards toggle) */}
+          <div className="lg:hidden min-h-0 flex-1 overflow-auto space-y-2">
             {filtered.map((l) => {
               const displayName = l.company_name || `${l.first_name ?? ""} ${l.last_name ?? ""}`.trim() || "Unnamed"
               return (
@@ -139,10 +199,11 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
             })}
           </div>
 
-          {/* Desktop table */}
-          <ListCard className="hidden lg:block">
+          {/* Desktop table (list view) */}
+          {view === "list" && (
+          <ListCard fill className="hidden lg:flex">
           <table className="w-full text-sm">
-            <thead>
+            <thead className="sticky top-0 z-10 bg-card">
               <tr className="border-b border-border bg-muted/30">
                 <th className="px-4 py-2.5 text-left"><SortHeader col="name" label="Name" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
                 <th className="px-4 py-2.5 text-left hidden md:table-cell"><SortHeader col="type" label="Type" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
@@ -196,6 +257,24 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
             </tbody>
           </table>
           </ListCard>
+          )}
+
+          {/* Desktop cards grid (cards view) */}
+          {view === "cards" && (
+            <div className="hidden lg:grid min-h-0 flex-1 gap-3 overflow-auto sm:grid-cols-2 xl:grid-cols-3">
+              {filtered.map((l) => (
+                <LandlordCard
+                  key={l.id}
+                  l={l}
+                  isAdmin={isAdmin}
+                  isDeleting={deletingId === l.id}
+                  onOpen={() => router.push(`/landlords/${l.id}`)}
+                  onEdit={() => setEditId(l.id)}
+                  onDelete={() => handleDelete(l)}
+                />
+              ))}
+            </div>
+          )}
         </>
       )}
 

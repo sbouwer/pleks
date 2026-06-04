@@ -73,7 +73,7 @@ export function TenantsPageClient({ orgId, autoOpenAdd }: Readonly<Props>) {
   }
 
   return (
-    <div>
+    <div className="flex h-full min-h-0 flex-col">
       <ResourcePageHeader
         title="Tenants"
         headline="Your tenants"

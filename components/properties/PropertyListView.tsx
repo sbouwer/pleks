@@ -58,7 +58,7 @@ export function PropertyListView({ properties, view, arrearsPct, archived }: Rea
   // Archived view: status filter + soft-deleted properties with a Reactivate action (no KPI strip).
   if (archived) {
     return (
-      <div>
+      <div className="flex h-full min-h-0 flex-col">
         <ResourcePageHeader
           title="Properties"
           headline="Archived properties"
@@ -74,7 +74,7 @@ export function PropertyListView({ properties, view, arrearsPct, archived }: Rea
   }
 
   return (
-    <div>
+    <div className="flex h-full min-h-0 flex-col">
       <ResourcePageHeader
         title="Properties"
         headline="Your portfolio"
@@ -83,7 +83,7 @@ export function PropertyListView({ properties, view, arrearsPct, archived }: Rea
       />
 
       {/* Mobile property cards */}
-      <div className="lg:hidden">
+      <div className="lg:hidden min-h-0 flex-1 overflow-auto">
         <div className="space-y-2">
             {properties.map((p) => {
               const activeUnits = p.units.filter(u => !u.is_archived)
@@ -117,7 +117,7 @@ export function PropertyListView({ properties, view, arrearsPct, archived }: Rea
       </div>
 
       {/* Desktop view */}
-      <div className="hidden lg:block">
+      <div className="hidden lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
         <PortfolioMetrics
           propertyCount={properties.length}
           unitCount={totalUnits}

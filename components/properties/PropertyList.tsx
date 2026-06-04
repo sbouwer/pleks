@@ -61,7 +61,7 @@ export function PropertyList({ properties, view }: Props) {
       return <p className="py-8 text-center text-sm text-muted-foreground">No properties match your search.</p>
     }
     return (
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-auto md:grid-cols-2 xl:grid-cols-3">
         {filtered.map((p) => {
           const activeUnits = p.units.filter(u => !u.is_archived)
           const occupied = activeUnits.filter(u => u.status === "occupied").length
@@ -110,9 +110,9 @@ export function PropertyList({ properties, view }: Props) {
   }
 
   return (
-    <ListCard>
+    <ListCard fill>
       <table className="w-full text-sm">
-        <thead className="border-b border-border/60 bg-muted/30">
+        <thead className="sticky top-0 z-10 border-b border-border/60 bg-card">
           <tr>
             <th className="px-3 py-2.5 text-left"><SortHeader col="name" label="Property" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
             <th className={PLAIN_TH}>Landlord</th>

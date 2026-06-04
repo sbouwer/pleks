@@ -37,6 +37,49 @@ interface Props {
 
 type SortKey = "name" | "type" | "email" | "phone"
 
+/** Card-view tile (the "Cards" toggle) — mirrors the list row's data + hover edit/delete actions. */
+function TenantCard({
+  t, isAdmin, isDeleting, onOpen, onEdit, onDelete,
+}: Readonly<{
+  t: Tenant
+  isAdmin: boolean
+  isDeleting: boolean
+  onOpen: () => void
+  onEdit: () => void
+  onDelete: () => void
+}>) {
+  const displayName = t.company_name || `${t.first_name ?? ""} ${t.last_name ?? ""}`.trim() || "Unnamed"
+  return (
+    <div
+      onClick={onOpen}
+      className="group relative flex cursor-pointer flex-col gap-3 rounded-[var(--r-button)] border border-border bg-card p-4 transition-colors hover:border-primary/40"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">{displayName}</p>
+          <p className="text-[11px] text-muted-foreground">{t.entity_type === "organisation" ? "Company" : "Individual"}</p>
+        </div>
+      </div>
+
+      <div className="space-y-0.5 text-xs text-muted-foreground">
+        {t.phone && <p className="truncate">{t.phone}</p>}
+        {t.email && <p className="truncate">{t.email}</p>}
+        {!t.phone && !t.email && <p className="text-muted-foreground/40">No contact details</p>}
+      </div>
+
+      <div
+        className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <EditButton label="Edit tenant" onClick={onEdit} />
+        {isAdmin && (
+          <DeleteButton label="Delete tenant" itemName="this tenant" loading={isDeleting} onConfirm={onDelete} />
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function TenantsClient({ tenants: initial }: Readonly<Props>) {
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -44,6 +87,7 @@ export function TenantsClient({ tenants: initial }: Readonly<Props>) {
   const { isAdmin } = usePermissions()
   const [search, setSearch] = useState("")
   const [types, setTypes] = useState<string[]>([])
+  const [view, setView] = useState<"list" | "cards">("list")
   const { sortKey, sortDir, onSort } = useListSort<SortKey>("name")
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [editId, setEditId] = useState<string | null>(null)
@@ -86,11 +130,13 @@ export function TenantsClient({ tenants: initial }: Readonly<Props>) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <ListToolbar
         search={search}
         onSearch={setSearch}
         placeholder="Search by name, email or phone…"
+        view={view}
+        onView={setView}
         filters={
           <ToolbarFilter
             label="Type"
@@ -108,8 +154,8 @@ export function TenantsClient({ tenants: initial }: Readonly<Props>) {
         <p className="text-sm text-muted-foreground py-8 text-center">No tenants match your search.</p>
       ) : (
         <>
-          {/* Mobile card list */}
-          <div className="lg:hidden space-y-2">
+          {/* Mobile card list (always the mobile experience, independent of the list/cards toggle) */}
+          <div className="lg:hidden min-h-0 flex-1 overflow-auto space-y-2">
             {filtered.map((t) => {
               const displayName = t.company_name || `${t.first_name ?? ""} ${t.last_name ?? ""}`.trim() || "Unnamed"
               return (
@@ -132,10 +178,11 @@ export function TenantsClient({ tenants: initial }: Readonly<Props>) {
             })}
           </div>
 
-          {/* Desktop table */}
-          <ListCard className="hidden lg:block">
+          {/* Desktop table (list view) */}
+          {view === "list" && (
+          <ListCard fill className="hidden lg:flex">
             <table className="w-full text-sm">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-card">
                 <tr className="border-b border-border bg-muted/30">
                   <th className="px-4 py-2.5 text-left"><SortHeader col="name" label="Name" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
                   <th className="px-4 py-2.5 text-left hidden md:table-cell"><SortHeader col="type" label="Type" sortKey={sortKey} sortDir={sortDir} onSort={onSort} /></th>
@@ -175,6 +222,24 @@ export function TenantsClient({ tenants: initial }: Readonly<Props>) {
               </tbody>
             </table>
           </ListCard>
+          )}
+
+          {/* Desktop cards grid (cards view) */}
+          {view === "cards" && (
+            <div className="hidden lg:grid min-h-0 flex-1 gap-3 overflow-auto sm:grid-cols-2 xl:grid-cols-3">
+              {filtered.map((t) => (
+                <TenantCard
+                  key={t.id}
+                  t={t}
+                  isAdmin={isAdmin}
+                  isDeleting={deletingId === t.id}
+                  onOpen={() => router.push(`/tenants/${t.id}`)}
+                  onEdit={() => setEditId(t.id)}
+                  onDelete={() => handleDelete(t)}
+                />
+              ))}
+            </div>
+          )}
         </>
       )}
 

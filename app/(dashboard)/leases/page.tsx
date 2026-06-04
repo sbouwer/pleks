@@ -1,11 +1,9 @@
 /**
- * app/(dashboard)/leases/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/leases/page.tsx — Leases page: prefetches the lease list and hydrates the client shell
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /leases
+ * Auth:   getServerOrgMembership (dashboard layout gateway); redirects to /login if no membership
+ * Data:   fetchLeases prefetched server-side into react-query, dehydrated into LeasesPageClient
  */
 import { HydrationBoundary, QueryClient, dehydrate } from "@tanstack/react-query"
 import { redirect } from "next/navigation"

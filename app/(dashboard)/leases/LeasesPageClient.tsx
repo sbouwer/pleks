@@ -101,7 +101,7 @@ export function LeasesPageClient({ orgId }: Props) {
   }
 
   return (
-    <div className="flex h-full flex-col gap-4">
+    <div className="flex h-full min-h-0 flex-col gap-4">
       <ResourcePageHeader
         title="Leases"
         headline="Your leases"
@@ -115,7 +115,7 @@ export function LeasesPageClient({ orgId }: Props) {
       />
 
       {/* Mobile lease cards */}
-      <div className="lg:hidden space-y-2">
+      <div className="lg:hidden min-h-0 flex-1 space-y-2 overflow-auto">
         {serialised.length === 0 ? (
           <p className="text-sm text-muted-foreground py-6 text-center">No leases yet.</p>
         ) : (
@@ -148,7 +148,7 @@ export function LeasesPageClient({ orgId }: Props) {
       </div>
 
       {/* Desktop tabs */}
-      <div className="hidden lg:block">
+      <div className="hidden min-h-0 flex-1 lg:flex lg:flex-col">
         <LeaseListTabs leases={serialised} />
       </div>
     </div>
