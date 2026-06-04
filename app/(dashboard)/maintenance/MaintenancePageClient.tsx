@@ -237,17 +237,21 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
   const filtered = sortList(tabFiltered, sortField, sortDir) as MaintenanceItemExtended[]
   const actionCount = list.filter(r => matchesTab(r, "action")).length
 
-  // Supplier-scoped view (from a supplier's "View work orders" link). Rendered BELOW each header —
-  // the page header is sticky with a negative top margin, so a banner above it gets clipped.
-  const filterBanner = contractorFilter ? (
-    <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-brand/30 bg-brand/5 px-3.5 py-2 text-sm">
-      <span className="flex min-w-0 items-center gap-2 text-foreground">
-        <Wrench className="h-3.5 w-3.5 shrink-0 text-brand" />
-        <span className="min-w-0">
-          Showing work orders for <span className="font-semibold">{contractorName || "this supplier"}</span>
-        </span>
-      </span>
+  // Supplier-scoped view (from a supplier's "View work orders" link). On desktop it rides on the right
+  // of the tab row (filterNotice); on mobile / the empty state it's a boxed banner below the header.
+  // It must NOT sit above the page header — that's sticky with a negative top margin (clips) and the
+  // search bar has a scroll-fade mask over its top edge.
+  const supplierLabel = <span className="font-semibold text-foreground">{contractorName || "this supplier"}</span>
+  const filterNotice = contractorFilter ? (
+    <span className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+      <Wrench className="h-3.5 w-3.5 shrink-0 text-brand" />
+      <span className="truncate">Showing work orders for {supplierLabel}</span>
       <button type="button" onClick={() => router.push("/maintenance")} className="shrink-0 text-brand hover:underline">Show all</button>
+    </span>
+  ) : null
+  const filterBanner = contractorFilter ? (
+    <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-brand/30 bg-brand/5 px-3.5 py-2">
+      {filterNotice}
     </div>
   ) : null
 
@@ -318,8 +322,6 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
           action={<AddButton label="Log request" onClick={() => router.push("/maintenance/new")} />}
         />
 
-        {filterBanner}
-
         {emergencies.length > 0 && (
           <div className="rounded-lg border border-danger/30 bg-danger/5 px-4 py-2.5 mb-4 flex items-start gap-3">
             <AlertTriangle className="h-4 w-4 text-danger shrink-0 mt-0.5" />
@@ -343,31 +345,37 @@ export function MaintenancePageClient({ orgId, contractorFilter, contractorName 
           </div>
         )}
 
-        {/* Tabs */}
+        {/* Tabs — supplier filter notice rides on the right when scoped via ?contractor=. */}
         {list.length > 0 && (
-          <div className="flex gap-1 mb-4 border-b border-border/60">
-            {TABS.map(tab => {
-              const count = tab.id === "action" ? actionCount : 0
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-1.5 whitespace-nowrap ${
-                    activeTab === tab.id ? "border-brand text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {tab.label}
-                  {count > 0 && (
-                    <span className="h-4.5 min-w-[18px] px-1 rounded-full bg-brand text-white text-[10px] font-semibold flex items-center justify-center">
-                      {count}
-                    </span>
-                  )}
-                </button>
-              )
-            })}
+          <div className="flex items-end justify-between gap-4 mb-4 border-b border-border/60">
+            <div className="flex gap-1">
+              {TABS.map(tab => {
+                const count = tab.id === "action" ? actionCount : 0
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+                      activeTab === tab.id ? "border-brand text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {tab.label}
+                    {count > 0 && (
+                      <span className="h-4.5 min-w-[18px] px-1 rounded-full bg-brand text-white text-[10px] font-semibold flex items-center justify-center">
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+            {filterNotice && <div className="pb-2">{filterNotice}</div>}
           </div>
         )}
+
+        {/* No tabs to ride on when the scoped supplier has zero work orders — fall back to the boxed banner. */}
+        {list.length === 0 && filterBanner}
 
         {list.length === 0 && (
           <EmptyResourceState
