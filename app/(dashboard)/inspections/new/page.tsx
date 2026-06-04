@@ -57,6 +57,8 @@ export default async function NewInspectionPage({ searchParams }: Readonly<Props
   const unitId = sp.unit ?? null
   const leaseId = sp.lease ?? null
   const typeParam = sp.type ?? null
+  const dateParam = sp.date ?? null   // prefilled from a calendar day-click (?date=YYYY-MM-DD)
+  const timeParam = sp.time ?? null   // prefilled from a week/day time-slot click (?time=HH:MM)
 
   // If only unit is given (e.g. from a unit quick-action), look up the property
   const propertyId = await resolvePropertyId(supabase, unitId, sp.property ?? null)
@@ -92,6 +94,8 @@ export default async function NewInspectionPage({ searchParams }: Readonly<Props
         initialTenantId={tenantId}
         initialTenantName={tenantName}
         initialType={typeParam}
+        initialScheduledDate={dateParam}
+        initialScheduledTime={timeParam}
       />
     </div>
   )

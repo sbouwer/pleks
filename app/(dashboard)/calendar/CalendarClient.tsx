@@ -19,9 +19,11 @@ import listPlugin from "@fullcalendar/list"
 import interactionPlugin from "@fullcalendar/interaction"
 import type { EventClickArg, EventContentArg } from "@fullcalendar/core"
 import { useRouter } from "next/navigation"
-import { AlertTriangle, Search, X } from "lucide-react"
+import { AlertTriangle, Search, X, Plus, ChevronDown, FileText, Wrench, ClipboardCheck } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ToolbarFilter } from "@/components/ui/resource-list"
+import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 import { Modal } from "@/components/ui/actions"
 import type { CalendarEvent, EventType, CalendarSearchEntity } from "@/lib/calendar/events"
 
@@ -161,6 +163,95 @@ function EntitySearch({
   )
 }
 
+const QUICK_ADD_ITEMS: { key: string; label: string; icon: LucideIcon; base: string }[] = [
+  { key: "lease", label: "lease", icon: FileText, base: "/leases/new" },
+  { key: "maintenance", label: "maintenance", icon: Wrench, base: "/maintenance/new" },
+  { key: "inspection", label: "inspection", icon: ClipboardCheck, base: "/inspections/new" },
+]
+
+/**
+ * Append the search selection (and an optional clicked-on date) to an add-page URL where the
+ * target accepts it:
+ *   property → ?property=<id> (leases, maintenance and inspections all prefill from it)
+ *   tenant   → ?tenant=<id> on /leases/new only (the other pages key off property/unit)
+ *   landlord → no target param exists, so the page opens without a preselection.
+ *   date     → ?date=<YYYY-MM-DD> (the inspection form prefills its scheduled date from it).
+ */
+function quickAddHref(
+  base: string,
+  selected: CalendarSearchEntity | null,
+  date?: string | null,
+  time?: string | null,
+): string {
+  const params = new URLSearchParams()
+  if (selected?.type === "property") params.set("property", selected.id)
+  else if (selected?.type === "tenant" && base === "/leases/new") params.set("tenant", selected.id)
+  if (date) params.set("date", date)
+  if (time) params.set("time", time)
+  const qs = params.toString()
+  return qs ? `${base}?${qs}` : base
+}
+
+/** Dashboard-style "Quick add" menu — navigation only, carrying the selection where applicable. */
+function CalendarQuickAdd({ selected }: { selected: CalendarSearchEntity | null }) {
+  const router = useRouter()
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function onDoc(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    function onEsc(e: KeyboardEvent) { if (e.key === "Escape") setOpen(false) }
+    document.addEventListener("mousedown", onDoc)
+    document.addEventListener("keydown", onEsc)
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onEsc) }
+  }, [open])
+
+  // The selection only carries to a target page for property (all) or tenant (lease) — be honest about it.
+  const carries = selected !== null && (selected.type === "property" || selected.type === "tenant")
+
+  return (
+    <div className="relative shrink-0" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="group inline-flex h-11 items-center gap-2 rounded-[var(--r-button)] bg-foreground py-2.5 pl-2.5 pr-3.5 text-sm font-semibold text-background transition-colors hover:bg-primary hover:text-primary-foreground"
+      >
+        <span aria-hidden className="h-3.5 w-[3px] shrink-0 bg-primary transition-colors group-hover:bg-primary-foreground" />
+        <Plus className="h-4 w-4" />
+        Quick add
+        <ChevronDown className="h-3.5 w-3.5 opacity-80" />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-[46px] z-50 min-w-[220px] overflow-hidden rounded-[var(--r-button)] border border-border bg-popover shadow-lg">
+          {carries && (
+            <p className="border-b border-border px-3 py-2 text-[11px] text-muted-foreground">
+              Prefilled for <span className="font-medium text-foreground">{selected.name}</span>
+            </p>
+          )}
+          {QUICK_ADD_ITEMS.map((it) => {
+            const Icon = it.icon
+            return (
+              <button
+                key={it.key}
+                type="button"
+                onClick={() => { setOpen(false); router.push(quickAddHref(it.base, selected)) }}
+                className="flex w-full cursor-pointer items-center gap-2.5 px-3 py-2.5 text-left text-[13px] text-foreground transition-colors hover:bg-muted"
+              >
+                <Icon className="h-4 w-4 text-muted-foreground" />
+                Add {it.label}
+              </button>
+            )
+          })}
+          <div aria-hidden className="h-1 w-full bg-primary" />
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function CalendarClient({ events, alerts, searchEntities, isFirm }: CalendarClientProps) {
   const router = useRouter()
   const calendarRef = useRef<FullCalendar>(null)
@@ -168,6 +259,9 @@ export function CalendarClient({ events, alerts, searchEntities, isFirm }: Calen
   const [selectedEntity, setSelectedEntity] = useState<CalendarSearchEntity | null>(null)
   const [view, setView] = useState<CalView>("dayGridMonth")
   const [showAlerts, setShowAlerts] = useState(false)
+  const [addForDate, setAddForDate] = useState<string | null>(null)
+  const [addTime, setAddTime] = useState("")        // HH:MM carried to the add form (when not all-day)
+  const [addAllDay, setAddAllDay] = useState(true)  // month-view clicks default to all-day; timed clicks don't
 
   const filteredEvents = useMemo(() => {
     return events
@@ -191,14 +285,30 @@ export function CalendarClient({ events, alerts, searchEntities, isFirm }: Calen
     if (link) router.push(link)
   }, [router])
 
+  // Events already on the clicked day — surfaced in the add-for-day modal for clash awareness.
+  // Inspections store a timestamptz date (so e.date may carry a time); compare on the date portion.
+  const dayEvents = useMemo(
+    () => (addForDate ? events.filter((e) => e.date.slice(0, 10) === addForDate) : []),
+    [events, addForDate],
+  )
+
   function switchView(newView: CalView) {
     setView(newView)
     calendarRef.current?.getApi().changeView(newView)
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4">
-      {/* Joint toolbar: view tabs · Type · Property · search · overdue */}
+    <div className="flex h-full min-h-0 flex-col">
+      <ResourcePageHeader
+        eyebrow="Operations"
+        title="Calendar"
+        headline="Your schedule"
+        sub="Inspections, lease deadlines, legal dates and move-ins across your portfolio."
+        action={<CalendarQuickAdd selected={selectedEntity} />}
+      />
+
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
+      {/* Joint toolbar: view tabs · Type · search · overdue */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="inline-flex h-11 shrink-0 items-center rounded-[var(--r-button)] border border-border bg-card p-1">
           {CAL_VIEWS.map((v) => (
@@ -257,6 +367,12 @@ export function CalendarClient({ events, alerts, searchEntities, isFirm }: Calen
           events={filteredEvents}
           eventContent={(info) => <EventContent info={info} />}
           eventClick={handleEventClick}
+          dateClick={(arg) => {
+            // Month / all-day-row clicks have no time (allDay). Time-grid clicks carry the slot time.
+            setAddForDate(arg.dateStr.slice(0, 10))
+            setAddAllDay(arg.allDay)
+            setAddTime(arg.allDay ? "" : arg.dateStr.slice(11, 16))
+          }}
           headerToolbar={{ left: "prev,next today", center: "title", right: "" }}
           height="100%"
           expandRows={true}
@@ -308,6 +424,78 @@ export function CalendarClient({ events, alerts, searchEntities, isFirm }: Calen
           ))}
         </div>
       </Modal>
+
+      <Modal
+        open={addForDate !== null}
+        onClose={() => setAddForDate(null)}
+        title={addForDate
+          ? `Add for ${new Date(addForDate).toLocaleDateString("en-ZA", { weekday: "long", day: "numeric", month: "long" })}`
+          : "Add"}
+      >
+        <div className="space-y-4">
+          {/* Clash awareness — what's already booked on this day */}
+          {dayEvents.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nothing scheduled — the day is free.</p>
+          ) : (
+            <div className="space-y-1.5">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Already on this day</p>
+              {dayEvents.map((e) => (
+                <div key={e.id} className="flex items-center gap-2 rounded-[var(--r-button)] border border-border bg-muted/30 px-3 py-2 text-sm">
+                  <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: e.colour }} />
+                  <span className="min-w-0 truncate">{e.title}</span>
+                  {e.time && <span className="ml-auto shrink-0 text-xs text-muted-foreground">{e.time.slice(0, 5)}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* When: all-day, or a specific time that carries to the form (e.g. the inspection planner) */}
+          <div className="space-y-2 border-t border-border pt-3">
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground">
+              <input
+                type="checkbox"
+                checked={addAllDay}
+                onChange={(e) => setAddAllDay(e.target.checked)}
+                className="size-4 accent-[var(--primary)]"
+              />
+              All-day (no specific time)
+            </label>
+            {!addAllDay && (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">At</span>
+                <input
+                  type="time"
+                  value={addTime}
+                  onChange={(e) => setAddTime(e.target.value)}
+                  className="h-9 rounded-[var(--r-button)] border border-border bg-card px-2.5 text-foreground outline-none transition-colors focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Add an event for this day — carries the date, time and search selection into the form */}
+          <div className="space-y-1 border-t border-border pt-3">
+            {QUICK_ADD_ITEMS.map((it) => {
+              const Icon = it.icon
+              return (
+                <button
+                  key={it.key}
+                  type="button"
+                  onClick={() => {
+                    router.push(quickAddHref(it.base, selectedEntity, addForDate, addAllDay ? null : addTime))
+                    setAddForDate(null)
+                  }}
+                  className="flex w-full cursor-pointer items-center gap-2.5 rounded-[var(--r-button)] px-3 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-muted/50"
+                >
+                  <Icon className="h-4 w-4 text-muted-foreground" />
+                  Add {it.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      </Modal>
+      </div>
     </div>
   )
 }

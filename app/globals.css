@@ -727,6 +727,26 @@ table.ledger tr.paid td:first-child::before {
 .calendar-wrapper .fc-scrollgrid-section > * > *,
 .calendar-wrapper .fc-list { border-radius: 0 !important; }
 .calendar-wrapper .fc-scrollgrid { border-left: 0; border-top: 0; }
-/* Events are clickable (navigate) — show the pointer so it reads as interactive. */
+/* Day/Week timegrid hour lines were near-invisible in dark mode — give the slot rows a legible,
+   theme-adaptive border (a touch of foreground over the surface reads in both light and dark). */
+.calendar-wrapper .fc-timegrid-slot,
+.calendar-wrapper .fc-timegrid-divider { border-color: color-mix(in oklab, var(--foreground) 15%, transparent) !important; }
+/* Thin, button-less scrollbars — kills the chunky native arrow buttons that showed in the all-day
+   and day-header scroll gutters (FC mirrors the body scrollbar there to keep columns aligned). */
+.calendar-wrapper .fc-scroller { scrollbar-width: thin; scrollbar-color: color-mix(in oklab, var(--foreground) 22%, transparent) transparent; }
+.calendar-wrapper .fc-scroller::-webkit-scrollbar { width: 8px; height: 8px; }
+.calendar-wrapper .fc-scroller::-webkit-scrollbar-thumb { background: color-mix(in oklab, var(--foreground) 20%, transparent); border-radius: 4px; }
+.calendar-wrapper .fc-scroller::-webkit-scrollbar-track { background: transparent; }
+.calendar-wrapper .fc-scroller::-webkit-scrollbar-button { display: none; height: 0; width: 0; }
+/* Both events (navigate) and day cells (add an event for that day) are clickable — show the pointer
+   so the whole grid reads as interactive. !important beats FullCalendar's runtime-injected stylesheet,
+   which lands after globals.css in the cascade and would otherwise win at equal specificity. */
 .calendar-wrapper .fc-event,
-.calendar-wrapper .fc-event * { cursor: pointer; }
+.calendar-wrapper .fc-event *,
+.calendar-wrapper .fc-daygrid-event,
+.calendar-wrapper .fc-list-event,
+.calendar-wrapper .fc-list-event *,
+.calendar-wrapper .fc-daygrid-day,
+.calendar-wrapper .fc-daygrid-day-frame,
+.calendar-wrapper .fc-timegrid-slot,
+.calendar-wrapper .fc-timegrid-col { cursor: pointer !important; }

@@ -56,6 +56,10 @@ interface Props {
   initialTenantId: string | null
   initialTenantName: string | null
   initialType: string | null
+  /** From a calendar day-click: YYYY-MM-DD. Combined with initialScheduledTime into the datetime-local. */
+  initialScheduledDate: string | null
+  /** From a calendar week/day time-slot click: HH:MM. Defaults to 09:00 when only a date is carried. */
+  initialScheduledTime: string | null
 }
 
 const PROFILE_REQUIRED_TYPES = ["move_in", "move_out", "periodic"]
@@ -85,6 +89,8 @@ export function NewInspectionForm({
   initialTenantId,
   initialTenantName,
   initialType,
+  initialScheduledDate,
+  initialScheduledTime,
 }: Readonly<Props>) {
   const [properties, setProperties] = useState<Property[]>([])
   const [units, setUnits] = useState<Unit[]>([])
@@ -101,7 +107,11 @@ export function NewInspectionForm({
   const [tenantName, setTenantName] = useState(initialTenantName ?? "")
   const [coTenantNames, setCoTenantNames] = useState<string[]>([])
   const [inspectionType, setInspectionType] = useState(initialType ?? "move_in")
-  const [scheduledDate, setScheduledDate] = useState("")
+  // scheduled_date is a timestamptz, so the input is datetime-local. A calendar click carries a date
+  // (+ optional time); default to 09:00 when only a date came through (all-day / month-view click).
+  const [scheduledDate, setScheduledDate] = useState(
+    initialScheduledDate ? `${initialScheduledDate}T${initialScheduledTime ?? "09:00"}` : "",
+  )
   const [isPreFilled, setIsPreFilled] = useState(!!initialPropertyId && !!initialUnitId)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")

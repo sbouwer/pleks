@@ -12,7 +12,6 @@ import { CalendarDays } from "lucide-react"
 import { fetchCalendarEvents, fetchOverdueAlerts, fetchCalendarSearchEntities } from "@/lib/calendar/events"
 import { CalendarClientLoader } from "./CalendarClientLoader"
 import { InlineLink } from "@/components/ui/actions"
-import { ResourcePageHeader } from "@/components/ui/resource-page-header"
 
 function getTier(membership: { tier?: string | null } | null): string {
   return membership?.tier ?? "owner"
@@ -59,21 +58,14 @@ export default async function CalendarPage() {
     fetchCalendarSearchEntities(service, orgId),
   ])
 
+  // The header (with its Quick-add action) lives inside CalendarClient so the add button can carry the
+  // toolbar's entity selection into the prefilled add pages — see CalendarQuickAdd.
   return (
-    <div className="flex h-full min-h-0 flex-col gap-6">
-      <ResourcePageHeader
-        eyebrow="Operations"
-        title="Calendar"
-        headline="Your schedule"
-        sub="Inspections, lease deadlines, legal dates and move-ins across your portfolio."
-      />
-
-      <CalendarClientLoader
-        events={events}
-        alerts={alerts}
-        searchEntities={searchEntities}
-        isFirm={tier === "firm"}
-      />
-    </div>
+    <CalendarClientLoader
+      events={events}
+      alerts={alerts}
+      searchEntities={searchEntities}
+      isFirm={tier === "firm"}
+    />
   )
 }

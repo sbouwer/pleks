@@ -149,27 +149,32 @@ async function buildLeaseEvents(
 }
 
 function buildInspectionEvents(
-  inspections: { id: string; type: string | null; scheduled_date: string; scheduled_time_from: string | null; scheduled_time_to: string | null; units: unknown }[],
+  inspections: { id: string; type: string | null; scheduled_date: string; units: unknown }[],
   today: string
 ): CalendarEvent[] {
   return inspections.map((insp) => {
     const unit = insp.units as UnitRef
-    const eventType: EventType = insp.scheduled_date < today ? "inspection_overdue" : "inspection"
+    // scheduled_date is a timestamptz (date + time in one column). Slice the wall-clock parts off the
+    // ISO string — no Date parsing, so the time shows exactly as it was entered (no tz drift). A 00:00
+    // time is treated as "no specific time" (legacy date-only entries), so it renders all-day.
+    const datePart = insp.scheduled_date.slice(0, 10)
+    const timePart = insp.scheduled_date.length > 10 ? insp.scheduled_date.slice(11, 16) : ""
+    const hasTime = timePart !== "" && timePart !== "00:00"
+    const eventType: EventType = datePart < today ? "inspection_overdue" : "inspection"
     const label = insp.type?.replaceAll("_", " ") ?? "Inspection"
     const unitNum = unit?.unit_number ?? ""
     return {
       id: `insp-${insp.id}`,
       title: unit ? `${label} — ${unitNum}` : label,
-      date: insp.scheduled_date,
-      time: insp.scheduled_time_from ?? undefined,
-      endTime: insp.scheduled_time_to ?? undefined,
+      date: datePart,
+      time: hasTime ? timePart : undefined,
       eventType,
       colour: EVENT_COLOURS[eventType],
       propertyName: unit?.properties.name ?? "",
       unitNumber: unit?.unit_number,
       link: `/inspections/${insp.id}`,
       priority: EVENT_PRIORITY[eventType],
-      allDay: !insp.scheduled_time_from,
+      allDay: !hasTime,
       sourceId: insp.id,
     }
   })
@@ -239,7 +244,7 @@ export async function fetchCalendarEvents(
   ] = await Promise.all([
     service
       .from("inspections")
-      .select("id, type:inspection_type, scheduled_date, scheduled_time_from, scheduled_time_to, status, units(unit_number, properties(name))")
+      .select("id, type:inspection_type, scheduled_date, status, units(unit_number, properties(name))")
       .eq("org_id", orgId)
       .in("status", ["scheduled"])
       .gte("scheduled_date", rangeStart)
@@ -332,7 +337,7 @@ export async function fetchOverdueAlerts(
     alerts.push({
       id: `insp-overdue-${insp.id}`,
       title: unit ? `Overdue inspection — ${unitNum}` : "Overdue inspection",
-      date: insp.scheduled_date,
+      date: insp.scheduled_date.slice(0, 10),
       eventType: "inspection_overdue",
       colour: EVENT_COLOURS.inspection_overdue,
       propertyName: unit?.properties.name ?? "",
