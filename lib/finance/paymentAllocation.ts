@@ -1,14 +1,14 @@
 /**
- * lib/finance/paymentAllocation.ts — FILL: one-line purpose
+ * lib/finance/paymentAllocation.ts — interest-first → oldest-invoice payment allocation (lease clause 6.6)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   service client (server-only); called from recordPayment, bulk import, deposit disburse
+ * Data:   arrears_interest_charges, rent_invoices, payments, leases, audit_log
+ * Notes:  Allocation is a money event → audited (payment_allocated) with the breakdown; actor passed by
+ *         the caller (null for system/bank-feed allocations). org_id resolved from the lease.
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 type SupabaseServiceClient = Awaited<ReturnType<typeof createServiceClient>>
 
@@ -108,7 +108,8 @@ async function applyRentInvoices(
 export async function allocatePayment(
   paymentId: string,
   leaseId: string,
-  amountCents: number
+  amountCents: number,
+  actorId: string | null = null,
 ): Promise<{
   interestAppliedCents: number
   rentAppliedCents: number
@@ -118,6 +119,22 @@ export async function allocatePayment(
 
   const step1 = await applyInterestCharges(supabase, paymentId, leaseId, amountCents)
   const step2 = await applyRentInvoices(supabase, leaseId, step1.remaining)
+
+  // Audit the money event with its breakdown (org resolved from the lease).
+  const { data: lease, error: leaseErr } = await supabase
+    .from("leases").select("org_id").eq("id", leaseId).maybeSingle()
+  logQueryError("allocatePayment lease org", leaseErr)
+  if (lease?.org_id) {
+    await recordAudit(supabase, {
+      orgId: lease.org_id as string, actorId, action: "UPDATE", table: "payments", recordId: paymentId,
+      after: {
+        action: "payment_allocated", lease_id: leaseId,
+        interest_applied_cents: step1.interestApplied,
+        rent_applied_cents: step2.rentApplied,
+        surplus_cents: step2.remaining,
+      },
+    })
+  }
 
   return {
     interestAppliedCents: step1.interestApplied,

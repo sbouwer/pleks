@@ -9,6 +9,7 @@ import { createClient } from "@supabase/supabase-js"
 import { randomBytes } from "crypto"
 import { rateLimit, getClientIp } from "@/lib/security/rateLimit"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { recordAudit } from "@/lib/audit/recordAudit"
 
 function getServiceClient() {
   return createClient(
@@ -75,6 +76,13 @@ export async function POST(req: NextRequest) {
     console.error("[applications/create]", appErr)
     return NextResponse.json({ error: "Failed to create application" }, { status: 500 })
   }
+
+  // Audit the application creation — public applicant (no auth user), so actor is null.
+  // Never log id_number (recordAudit drops it anyway); just the non-PII context.
+  await recordAudit(service, {
+    orgId: listing.org_id, actorId: null, action: "INSERT", table: "applications", recordId: application.id,
+    after: { action: "application_created", listing_id: listing.id, unit_id: listing.unit_id },
+  })
 
   // Create access token (30-day resumable)
   const token = randomBytes(32).toString("hex")

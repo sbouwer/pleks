@@ -1133,6 +1133,65 @@ async function runCiMode() {
   printReport()
 }
 
+// ═══════════════════════════════════════════════════════════════
+// CATEGORY 13: Audit-log integrity (ADDENDUM_AUDIT_HARDENING D-5)
+// Runtime complement to the static check-audit-columns.mjs guard: scans the live
+// audit_log for rows that should be impossible — an action outside the CHECK set,
+// a null in a NOT-NULL column, or raw PII in the values (a write that bypassed the
+// recordAudit sanitiser). These are canaries: if a constraint is dropped or a raw
+// insert sneaks PII in, this fails the pre-deploy gate.
+// ═══════════════════════════════════════════════════════════════
+const VALID_ACTIONS = ["INSERT", "UPDATE", "DELETE", "NOTE", "SYNC", "OWNERSHIP_TRANSFERRED", "CONFLICT_ACKNOWLEDGED"]
+// Raw PII keys that must NEVER appear in audit values (masked/_hash-free variants are fine).
+const FORBIDDEN_VALUE_KEYS = /"(account_number|id_number|password|password_hash|cvv|pin)"\s*:/
+
+async function cat13_auditIntegrity() {
+  console.log("\n📋 Category 13: Audit-log Integrity")
+  console.log("─".repeat(50))
+
+  // 1. Invalid action — should be 0 (the CHECK enforces it; this catches a dropped/widened CHECK).
+  test("No audit rows with an action outside the CHECK set")
+  const badAction = await supaRest(
+    `audit_log?action=not.in.(${VALID_ACTIONS.join(",")})&select=id,action&limit=5`,
+    { key: SERVICE_KEY },
+  )
+  if (Array.isArray(badAction.json) && badAction.json.length > 0) {
+    fail(`${badAction.json.length} row(s) with invalid action`)
+    finding(13, "HIGH", "audit_log rows with an action outside the CHECK set",
+      `e.g. ${JSON.stringify(badAction.json[0])}`, "Restore the action CHECK; route writes through recordAudit.")
+  } else {
+    ok("all actions valid"); pass(13, "action validity")
+  }
+
+  // 2. Null in a NOT-NULL column — should be 0 (catches a dropped NOT NULL).
+  test("No audit rows with null org_id / record_id / table_name")
+  const badShape = await supaRest(
+    `audit_log?or=(org_id.is.null,record_id.is.null,table_name.is.null)&select=id&limit=5`,
+    { key: SERVICE_KEY },
+  )
+  if (Array.isArray(badShape.json) && badShape.json.length > 0) {
+    fail(`${badShape.json.length} row(s) with a null required column`)
+    finding(13, "HIGH", "audit_log rows missing a required column", `${badShape.json.length} rows`, "Restore NOT NULL; route writes through recordAudit.")
+  } else {
+    ok("shape intact"); pass(13, "shape integrity")
+  }
+
+  // 3. Raw PII in values — should be 0 (catches a raw insert that bypassed the recordAudit sanitiser).
+  test("No raw PII (account_number / id_number / password) in audit values")
+  const recent = await supaRest(`audit_log?select=old_values,new_values&order=created_at.desc&limit=500`, { key: SERVICE_KEY })
+  const leaks = Array.isArray(recent.json)
+    ? recent.json.filter((r) => FORBIDDEN_VALUE_KEYS.test(JSON.stringify(r.old_values ?? {}) + JSON.stringify(r.new_values ?? {})))
+    : []
+  if (leaks.length > 0) {
+    fail(`${leaks.length} row(s) contain raw PII`)
+    finding(13, "CRITICAL", "Raw PII in audit_log values (RULE #7)",
+      `${leaks.length} of the last 500 rows have a raw account_number/id_number/password key`,
+      "Route the offending insert through recordAudit (lib/audit/recordAudit.ts) — it masks/drops PII by denylist.")
+  } else {
+    ok("no raw PII in recent audit values"); pass(13, "PII sanitisation")
+  }
+}
+
 async function main() {
   if (ciMode) { await runCiMode(); return }
 
@@ -1180,6 +1239,7 @@ async function main() {
     10: appUp ? cat10_webhookSignatures : null,
     11: appUp ? cat11_secretsExposure : null,
     12: appUp ? cat12_idor : null,
+    13: cat13_auditIntegrity,
   }
 
   for (const [num, fn] of Object.entries(categories)) {

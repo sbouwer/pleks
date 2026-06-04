@@ -110,7 +110,7 @@ export async function recordPayment(formData: FormData) {
 
   // Allocate payment: interest first, then rent (lease clause 6.6)
   if (invoice.lease_id) {
-    await allocatePayment(payment.id, invoice.lease_id, amountCents)
+    await allocatePayment(payment.id, invoice.lease_id, amountCents, userId)
   }
 
   // BUILD_63 Phase 7 (F2) — fire rent.payment_received comm if tenant has an email

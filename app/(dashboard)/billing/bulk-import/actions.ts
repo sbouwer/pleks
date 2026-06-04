@@ -208,7 +208,7 @@ async function processOnePayment(db: SupabaseClient, p: ConfirmedPayment, receip
     })
 
     if (p.leaseId) {
-      await allocatePayment(payment.id, p.leaseId, p.amountCents)
+      await allocatePayment(payment.id, p.leaseId, p.amountCents, userId)
     }
   }
 
