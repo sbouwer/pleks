@@ -39,7 +39,7 @@ async function resolveLeaseContext(
 ): Promise<LeaseContext> {
   const { data: lease, error: leaseError } = await service
     .from("leases")
-    .select("rent_cents, tenants(contacts(first_name, last_name, company_name)), units(unit_number, properties(name))")
+    .select("rent_cents:rent_amount_cents, tenants(contacts(first_name, last_name, company_name)), units(unit_number, properties(name))")
     .eq("id", leaseId)
     .single()
   if (leaseError) console.error("resolveLeaseContext leases read failed:", leaseError.message)

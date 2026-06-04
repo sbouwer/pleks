@@ -117,7 +117,7 @@ async function sendM3Comm(
       service.from("tenant_view").select("first_name, last_name, email, phone").eq("id", req.tenant_id).single(),
       service.from("units").select("unit_number, properties(name)").eq("id", req.unit_id).single(),
       req.contractor_id
-        ? service.from("contractors").select("first_name, last_name, company_name").eq("id", req.contractor_id).single()
+        ? service.from("contractor_view").select("first_name, last_name, company_name").eq("id", req.contractor_id).single()
         : Promise.resolve({ data: null }),
       fetchOrgSettings(orgId),
     ])

@@ -84,7 +84,7 @@ export async function POST(
     logQueryError("POST maintenance_requests", maintenanceReqError)
 
     const { data: contractor, error: contractorError } = await service
-      .from("contractors")
+      .from("contractor_view")
       .select("first_name, last_name, company_name")
       .eq("id", contractorId)
       .single()
