@@ -1,14 +1,13 @@
 "use client"
 
 /**
- * components/properties/PropertyFilters.tsx — properties list toolbar (search · status filter · list/cards toggle)
+ * components/properties/PropertyFilters.tsx — properties list toolbar (status · occupancy · search · list/cards)
  *
  * Route:  /properties (Portfolio / Firm tier filterable list)
  * Auth:   rendered inside PropertyListView under gatewaySSR (parent page)
- * Data:   none — purely drives the q/status/view URL searchParams the server page reads
- * Notes:  Uses the shared <ListToolbar> (components/ui/resource-list) so it matches the other lists.
- *         State is URL-backed (router.push) — refresh/back restores filters. "All statuses" = empty
- *         selected array; a chosen status maps to the `status` param.
+ * Data:   none — drives the q/status/archived/view URL searchParams the server page reads
+ * Notes:  Shared <ListToolbar>. Status = Active/Archived (archived = soft-deleted properties; "1" on the
+ *         `archived` param). Occupancy (vacancies/fully-occupied) only shows on the active view. URL-backed.
  */
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { useCallback } from "react"
@@ -19,9 +18,13 @@ interface PropertyFiltersProps {
 }
 
 const STATUS_OPTIONS = [
+  { value: "active", label: "Active" },
+  { value: "archived", label: "Archived" },
+]
+
+const OCCUPANCY_OPTIONS = [
   { value: "vacancies", label: "Has vacancies" },
   { value: "occupied", label: "Fully occupied" },
-  { value: "arrears", label: "Has arrears" },
 ]
 
 export function PropertyFilters({ view }: PropertyFiltersProps) {
@@ -38,6 +41,7 @@ export function PropertyFilters({ view }: PropertyFiltersProps) {
 
   const q = searchParams.get("q") ?? ""
   const status = searchParams.get("status") ?? ""
+  const archived = searchParams.get("archived") === "1"
 
   return (
     <div className="mb-5">
@@ -48,12 +52,22 @@ export function PropertyFilters({ view }: PropertyFiltersProps) {
         view={view}
         onView={(v) => set("view", v)}
         filters={
-          <ToolbarFilter
-            label="Status"
-            selected={status ? [status] : []}
-            onChange={(next) => set("status", next[0] ?? "")}
-            options={STATUS_OPTIONS}
-          />
+          <>
+            <ToolbarFilter
+              label="Status"
+              selected={[archived ? "archived" : "active"]}
+              onChange={(next) => set("archived", next.includes("archived") ? "1" : "")}
+              options={STATUS_OPTIONS}
+            />
+            {!archived && (
+              <ToolbarFilter
+                label="Occupancy"
+                selected={status ? [status] : []}
+                onChange={(next) => set("status", next[0] ?? "")}
+                options={OCCUPANCY_OPTIONS}
+              />
+            )}
+          </>
         }
       />
     </div>

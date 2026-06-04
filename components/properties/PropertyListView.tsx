@@ -17,15 +17,17 @@ import { Suspense } from "react"
 import { PortfolioMetrics } from "./PropertyMetrics"
 import { PropertyFilters } from "./PropertyFilters"
 import { PropertyList } from "./PropertyList"
+import { ArchivedPropertyList } from "./ArchivedPropertyList"
 import type { PropertyListItem } from "./PropertyList"
 
 interface Props {
   properties: PropertyListItem[]
   view: "list" | "cards"
   arrearsPct?: number
+  archived?: boolean
 }
 
-export function PropertyListView({ properties, view, arrearsPct }: Readonly<Props>) {
+export function PropertyListView({ properties, view, arrearsPct, archived }: Readonly<Props>) {
   const totalUnits = properties.reduce((sum, p) =>
     sum + p.units.filter(u => !u.is_archived).length, 0)
   const occupiedUnits = properties.reduce((sum, p) =>
@@ -37,7 +39,7 @@ export function PropertyListView({ properties, view, arrearsPct }: Readonly<Prop
     }, 0), 0)
   const occupancyPct = totalUnits > 0 ? Math.round((occupiedUnits / totalUnits) * 100) : 0
 
-  if (properties.length === 0) {
+  if (properties.length === 0 && !archived) {
     return (
       <EmptyResourceState
         eyebrow="Portfolio"
@@ -50,6 +52,24 @@ export function PropertyListView({ properties, view, arrearsPct }: Readonly<Prop
         headerAction={<AddPropertyButton />}
         heroAction={<AddPropertyButton variant="hero" label="Add your first property" showPlus={false} />}
       />
+    )
+  }
+
+  // Archived view: status filter + soft-deleted properties with a Reactivate action (no KPI strip).
+  if (archived) {
+    return (
+      <div>
+        <ResourcePageHeader
+          title="Properties"
+          headline="Archived properties"
+          sub="Properties you've archived — reactivate to bring them back to your portfolio."
+          action={<AddPropertyButton />}
+        />
+        <Suspense>
+          <PropertyFilters view={view} />
+        </Suspense>
+        <ArchivedPropertyList properties={properties} />
+      </div>
     )
   }
 

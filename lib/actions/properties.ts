@@ -183,6 +183,23 @@ export async function archiveProperty(propertyId: string): Promise<{ error?: str
   return {}
 }
 
+export async function reactivateProperty(propertyId: string): Promise<{ error?: string }> {
+  const gw = await requireAgentWriteAccess("edit_property")
+  const { db, orgId, isAdmin } = gw
+  if (!isAdmin) return { error: "Admin access required" }
+
+  const { error } = await db
+    .from("properties")
+    .update({ deleted_at: null })
+    .eq("id", propertyId)
+    .eq("org_id", orgId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath("/properties")
+  return {}
+}
+
 export async function deleteProperty(propertyId: string) {
   const gw = await requireAgentWriteAccess("edit_property")
   const { db, isAdmin } = gw

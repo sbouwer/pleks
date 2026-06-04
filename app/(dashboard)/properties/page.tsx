@@ -229,27 +229,29 @@ export default async function PropertiesPage({
   const q = sp.q?.toLowerCase() ?? ""
   const statusFilter = sp.status ?? ""
   const view = (sp.view ?? "list") as "list" | "cards"
+  const archived = sp.archived === "1"
 
-  const { data: rawProperties, error: listErr } = await db
+  let listQuery = db
     .from("properties")
     .select(`
       id, name, type, address_line1, city, province, landlord_id,
       units(id, status, is_archived, leases(id, status, rent_amount_cents))
     `)
     .eq("org_id", orgId)
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false })
+  listQuery = archived ? listQuery.not("deleted_at", "is", null) : listQuery.is("deleted_at", null)
+  const { data: rawProperties, error: listErr } = await listQuery.order("created_at", { ascending: false })
 
   if (listErr) console.error("[properties] list fetch failed:", listErr.message)
-  let properties = filterProperties((rawProperties ?? []) as unknown as PropertyListItem[], q, statusFilter)
+  let properties = filterProperties((rawProperties ?? []) as unknown as PropertyListItem[], q, archived ? "" : statusFilter)
   properties = await attachLandlordNames(db, orgId, properties)
-  properties = await attachCollection(db, orgId, properties)
+  if (!archived) properties = await attachCollection(db, orgId, properties)
 
   return (
     <PropertyListView
       properties={properties}
       view={view}
       arrearsPct={arrearsPct}
+      archived={archived}
     />
   )
 }
