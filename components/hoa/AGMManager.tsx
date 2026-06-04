@@ -11,7 +11,7 @@
  */
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { FormSelect } from "@/components/ui/FormSelect"
@@ -186,10 +186,10 @@ export function AGMManager({ hoaId, initialRecords }: Readonly<Props>) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="font-heading text-sm">Meetings</h3>
-        <Button size="sm" onClick={() => setShowForm((v) => !v)}>
+        <ActionButton tone="primary" size="sm" onClick={() => setShowForm((v) => !v)}>
           <Plus className="size-3.5 mr-1.5" />
           Schedule meeting
-        </Button>
+        </ActionButton>
       </div>
 
       {showForm && (
@@ -235,10 +235,10 @@ export function AGMManager({ hoaId, initialRecords }: Readonly<Props>) {
               </div>
             </div>
             <div className="flex gap-2">
-              <Button size="sm" onClick={handleCreate} disabled={saving}>
+              <ActionButton tone="primary" size="sm" onClick={handleCreate} disabled={saving}>
                 {saving ? <><Loader2 className="size-3.5 mr-1.5 animate-spin" />Saving…</> : "Schedule"}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setShowForm(false)}>Cancel</Button>
+              </ActionButton>
+              <ActionButton tone="secondary" size="sm" onClick={() => setShowForm(false)}>Cancel</ActionButton>
             </div>
           </CardContent>
         </Card>
@@ -280,14 +280,14 @@ export function AGMManager({ hoaId, initialRecords }: Readonly<Props>) {
                         {STATUS_LABELS[agm.status] ?? agm.status}
                       </Badge>
                       {nextStatus && (
-                        <Button size="sm" variant="outline" onClick={() => handleStatusChange(agm.id, nextStatus)}>
+                        <ActionButton tone="secondary" size="sm" onClick={() => handleStatusChange(agm.id, nextStatus)}>
                           → {STATUS_LABELS[nextStatus]}
-                        </Button>
+                        </ActionButton>
                       )}
-                      <Button size="sm" variant="ghost"
+                      <ActionButton tone="secondary" size="sm"
                         onClick={() => setExpanded((p) => ({ ...p, [agm.id]: !isExpanded }))}>
                         {isExpanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
-                      </Button>
+                      </ActionButton>
                     </div>
                   </div>
 
@@ -370,17 +370,17 @@ export function AGMManager({ hoaId, initialRecords }: Readonly<Props>) {
                             </div>
                           </div>
                           <div className="flex gap-2">
-                            <Button size="sm" onClick={() => handleAddResolution(agm.id)} disabled={savingResolution}>
+                            <ActionButton tone="primary" size="sm" onClick={() => handleAddResolution(agm.id)} disabled={savingResolution}>
                               {savingResolution ? <Loader2 className="size-3 animate-spin" /> : "Add"}
-                            </Button>
-                            <Button size="sm" variant="ghost" onClick={() => setAddingResolutionFor(null)}>Cancel</Button>
+                            </ActionButton>
+                            <ActionButton tone="secondary" size="sm" onClick={() => setAddingResolutionFor(null)}>Cancel</ActionButton>
                           </div>
                         </div>
                       ) : (
-                        <Button size="sm" variant="outline" onClick={() => setAddingResolutionFor(agm.id)}>
+                        <ActionButton tone="secondary" size="sm" onClick={() => setAddingResolutionFor(agm.id)}>
                           <Plus className="size-3.5 mr-1.5" />
                           Add resolution
-                        </Button>
+                        </ActionButton>
                       )}
                     </div>
                   )}

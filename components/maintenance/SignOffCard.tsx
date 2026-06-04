@@ -11,7 +11,7 @@
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -148,7 +148,7 @@ export function SignOffCard({ requestId, actualCostCents }: Readonly<SignOffCard
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger>
-        <Button size="sm" type="button">Sign Off</Button>
+        <ActionButton tone="primary" size="sm" type="button">Sign Off</ActionButton>
       </DialogTrigger>
       <DialogContent className="max-w-lg">
         <DialogHeader>
@@ -382,16 +382,17 @@ export function SignOffCard({ requestId, actualCostCents }: Readonly<SignOffCard
 
           {/* Actions */}
           <div className="flex gap-2 pt-2">
-            <Button
+            <ActionButton
+              tone="primary"
               size="sm"
               onClick={handleSignOff}
               disabled={isPending || (mode === "split" && !splitValid)}
             >
               {isPending ? "Signing off…" : "Sign off and allocate"}
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setOpen(false)} disabled={isPending}>
+            </ActionButton>
+            <ActionButton tone="secondary" size="sm" onClick={() => setOpen(false)} disabled={isPending}>
               Cancel
-            </Button>
+            </ActionButton>
           </div>
         </div>
       </DialogContent>

@@ -19,6 +19,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { ActionButton, IconButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -225,12 +226,12 @@ export function ListingCreateDialog({ open, onOpenChange, unit, property, orgId 
             </div>
 
             <DialogFooter className="flex gap-2">
-              <Button variant="outline" onClick={() => handleSave(false)} disabled={saving}>
+              <ActionButton tone="secondary" onClick={() => handleSave(false)} disabled={saving}>
                 Save as draft
-              </Button>
-              <Button onClick={() => handleSave(true)} disabled={saving}>
+              </ActionButton>
+              <ActionButton tone="primary" onClick={() => handleSave(true)} disabled={saving}>
                 {saving ? "Publishing…" : "Publish listing"}
-              </Button>
+              </ActionButton>
             </DialogFooter>
           </>
         ) : (
@@ -246,9 +247,11 @@ export function ListingCreateDialog({ open, onOpenChange, unit, property, orgId 
 
               <div className="flex items-center gap-2">
                 <Input value={listingUrl} readOnly className="text-sm font-mono" />
-                <Button variant="outline" size="icon" onClick={copyUrl}>
-                  {copied ? <Check className="size-4 text-green-500" /> : <Copy className="size-4" />}
-                </Button>
+                <IconButton
+                  label="Copy listing link"
+                  onClick={copyUrl}
+                  icon={copied ? <Check className="size-4 text-green-500" /> : <Copy className="size-4" />}
+                />
                 <Button variant="outline" size="icon" render={<a href={listingUrl} target="_blank" rel="noreferrer" />}>
                   <ExternalLink className="size-4" />
                 </Button>
@@ -272,7 +275,7 @@ export function ListingCreateDialog({ open, onOpenChange, unit, property, orgId 
             </div>
 
             <DialogFooter>
-              <Button onClick={handleClose}>Done</Button>
+              <ActionButton tone="primary" onClick={handleClose}>Done</ActionButton>
             </DialogFooter>
           </>
         )}

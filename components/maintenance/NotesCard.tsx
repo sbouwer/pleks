@@ -13,7 +13,7 @@ import { useState, useTransition } from "react"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { MessageSquarePlus } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { addMaintenanceNote } from "@/lib/actions/maintenance"
@@ -147,14 +147,15 @@ export function NotesCard({ requestId, hasLandlord, isReadOnly, notes = [] }: Re
                 <span>Notify landlord by email</span>
               </label>
             )}
-            <Button
+            <ActionButton
+              tone="primary"
               size="sm"
               onClick={handleSubmit}
               disabled={pending || !note.trim()}
               className="w-full"
             >
               {pending ? "Saving…" : "Add note"}
-            </Button>
+            </ActionButton>
           </div>
         )}
       </CardContent>

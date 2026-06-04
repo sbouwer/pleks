@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { ActionButton, IconButton } from "@/components/ui/actions"
 import { Copy, Check, ExternalLink, Pause, Play, CheckSquare } from "lucide-react"
 import { formatZAR } from "@/lib/constants"
 import { Badge } from "@/components/ui/badge"
@@ -100,9 +101,12 @@ export function ListingCard({ listing, unitLabel, propertyName }: Props) {
             <code className="flex-1 text-xs bg-muted px-2 py-1.5 rounded truncate">
               {listingUrl}
             </code>
-            <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={copyUrl}>
-              {copied ? <Check className="size-3.5 text-green-500" /> : <Copy className="size-3.5" />}
-            </Button>
+            <IconButton
+              label="Copy listing link"
+              className="h-7 w-7 shrink-0"
+              onClick={copyUrl}
+              icon={copied ? <Check className="size-3.5 text-green-500" /> : <Copy className="size-3.5" />}
+            />
             <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" render={<a href={listingUrl} target="_blank" rel="noreferrer" />}>
               <ExternalLink className="size-3.5" />
             </Button>
@@ -112,19 +116,19 @@ export function ListingCard({ listing, unitLabel, propertyName }: Props) {
         {/* Actions */}
         <div className="flex gap-2 pt-1">
           {listing.status === "active" && (
-            <Button variant="outline" size="sm" onClick={() => updateStatus("paused")} disabled={saving}>
+            <ActionButton tone="secondary" size="sm" onClick={() => updateStatus("paused")} disabled={saving}>
               <Pause className="size-3.5 mr-1.5" />Pause
-            </Button>
+            </ActionButton>
           )}
           {listing.status === "paused" && (
-            <Button variant="outline" size="sm" onClick={() => updateStatus("active")} disabled={saving}>
+            <ActionButton tone="secondary" size="sm" onClick={() => updateStatus("active")} disabled={saving}>
               <Play className="size-3.5 mr-1.5" />Resume
-            </Button>
+            </ActionButton>
           )}
           {(listing.status === "active" || listing.status === "paused") && (
-            <Button variant="outline" size="sm" onClick={() => updateStatus("filled")} disabled={saving}>
+            <ActionButton tone="secondary" size="sm" onClick={() => updateStatus("filled")} disabled={saving}>
               <CheckSquare className="size-3.5 mr-1.5" />Mark as filled
-            </Button>
+            </ActionButton>
           )}
         </div>
       </CardContent>

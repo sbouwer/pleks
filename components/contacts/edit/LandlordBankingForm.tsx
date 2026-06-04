@@ -11,7 +11,7 @@
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -66,7 +66,7 @@ export function LandlordBankingForm({
           </SelectContent>
         </Select>
       </div>
-      <div className="flex gap-2 pt-1"><Button size="sm" onClick={handleSave} disabled={isPending} className="h-7 text-xs">{isPending ? "Saving…" : "Save"}</Button><Button size="sm" variant="outline" onClick={onSaved} disabled={isPending} className="h-7 text-xs">Cancel</Button></div>
+      <div className="flex gap-2 pt-1"><ActionButton tone="primary" size="sm" onClick={handleSave} disabled={isPending} className="h-7 text-xs">{isPending ? "Saving…" : "Save"}</ActionButton><ActionButton tone="secondary" size="sm" onClick={onSaved} disabled={isPending} className="h-7 text-xs">Cancel</ActionButton></div>
     </div>
   )
 }

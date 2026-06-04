@@ -27,12 +27,25 @@ const toneClass: Record<Tone, string> = {
 };
 
 export const ActionButton = React.forwardRef<HTMLButtonElement, Props>(
-  function ActionButton({ tone = "secondary", size = "md", icon, className, children, ...rest }, ref) {
+  function ActionButton({ tone = "secondary", size = "md", icon, asChild, className, children, ...rest }, ref) {
     const hasIcon = !!icon;
+    const classes = cn(toneClass[tone], size === "sm" && "pa-sm", hasIcon && tone === "primary" && "has-icon", className);
+
+    // asChild: render the single child element (e.g. a next/link <Link>) with the action-language
+    // classes applied — for nav buttons that must be an <a>. The icon/<span> wrapper is skipped;
+    // the child supplies its own content.
+    if (asChild && React.isValidElement(children)) {
+      const child = children as React.ReactElement<Record<string, unknown>>;
+      return React.cloneElement(child, {
+        ...rest,
+        className: cn(classes, child.props.className as string | undefined),
+      });
+    }
+
     return (
       <button
         ref={ref}
-        className={cn(toneClass[tone], size === "sm" && "pa-sm", hasIcon && tone === "primary" && "has-icon", className)}
+        className={classes}
         {...rest}
       >
         {icon ?? null}

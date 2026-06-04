@@ -8,7 +8,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { sendShortlistInvitation } from "@/lib/screening/sendShortlistInvitation"
@@ -143,9 +143,9 @@ export function BulkDecidePanel({ applicants, agentId, onDone }: Props) {
             {declineCount > 0 && `${declineCount} decline${declineCount !== 1 ? "s" : ""}`}
             {" — emails will be sent"}
           </p>
-          <Button size="sm" onClick={applyDecisions} disabled={applying}>
+          <ActionButton tone="primary" size="sm" onClick={applyDecisions} disabled={applying}>
             {applying ? <><Loader2 className="size-3.5 mr-1.5 animate-spin" />Applying…</> : "Apply decisions"}
-          </Button>
+          </ActionButton>
         </div>
       )}
     </div>

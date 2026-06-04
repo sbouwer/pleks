@@ -12,7 +12,7 @@
 import { useState, useTransition } from "react"
 import { AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Dialog,
@@ -84,32 +84,33 @@ export function CriticalIncidentDialog({
           <p className="text-sm font-medium">Need to report this incident to insurance?</p>
 
           <div className="space-y-2">
-            <Button
+            <ActionButton
+              tone="primary"
               type="button"
               className="w-full"
               onClick={() => handleDecision("reported")}
               disabled={pending}
             >
               Yes, notify broker
-            </Button>
-            <Button
+            </ActionButton>
+            <ActionButton
+              tone="secondary"
               type="button"
-              variant="outline"
               className="w-full"
               onClick={() => handleDecision("declined")}
               disabled={pending}
             >
               No — won&apos;t claim
-            </Button>
-            <Button
+            </ActionButton>
+            <ActionButton
+              tone="secondary"
               type="button"
-              variant="ghost"
               className="w-full text-muted-foreground"
               onClick={() => handleDecision("unsure")}
               disabled={pending}
             >
               Not sure — remind me later
-            </Button>
+            </ActionButton>
           </div>
 
           <div className="space-y-1.5">

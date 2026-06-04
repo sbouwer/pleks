@@ -11,7 +11,7 @@
  */
 import { useState, useEffect, useRef, useCallback } from "react"
 import { Loader2, AlertTriangle, CheckCircle2, Pencil, RotateCcw } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -586,13 +586,13 @@ export function LogMaintenanceForm({
             <div className="flex gap-2 flex-wrap">
               {!overriding ? (
                 <>
-                  <Button type="button" size="sm" className="h-7 text-xs" onClick={handleConfirmTriage}><CheckCircle2 className="h-3.5 w-3.5 mr-1" />Confirm</Button>
-                  <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setOverriding(true); setOverrideCategory(triageResult.category); setOverrideUrgency(triageResult.urgency) }}><Pencil className="h-3 w-3 mr-1" />Override</Button>
+                  <ActionButton tone="primary" type="button" size="sm" className="h-7 text-xs" onClick={handleConfirmTriage}><CheckCircle2 className="h-3.5 w-3.5 mr-1" />Confirm</ActionButton>
+                  <ActionButton tone="secondary" type="button" size="sm" className="h-7 text-xs" onClick={() => { setOverriding(true); setOverrideCategory(triageResult.category); setOverrideUrgency(triageResult.urgency) }}><Pencil className="h-3 w-3 mr-1" />Override</ActionButton>
                 </>
               ) : (
                 <>
-                  <Button type="button" size="sm" className="h-7 text-xs" onClick={handleConfirmOverride}><CheckCircle2 className="h-3.5 w-3.5 mr-1" />Confirm override</Button>
-                  <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setOverriding(false)}>Cancel</Button>
+                  <ActionButton tone="primary" type="button" size="sm" className="h-7 text-xs" onClick={handleConfirmOverride}><CheckCircle2 className="h-3.5 w-3.5 mr-1" />Confirm override</ActionButton>
+                  <ActionButton tone="secondary" type="button" size="sm" className="h-7 text-xs" onClick={() => setOverriding(false)}>Cancel</ActionButton>
                 </>
               )}
             </div>
@@ -796,23 +796,25 @@ export function LogMaintenanceForm({
       <div className="flex items-center justify-between gap-3 pt-2">
         <div>
           {step > 1 && (
-            <Button type="button" variant="outline" onClick={() => setStep((s) => s - 1)}>
+            <ActionButton tone="secondary" type="button" onClick={() => setStep((s) => s - 1)}>
               Back
-            </Button>
+            </ActionButton>
           )}
         </div>
         <div className="flex gap-3">
           {step < 3 && (
-            <Button
+            <ActionButton
+              tone="primary"
               type="button"
               disabled={step === 1 ? !locationConfirmed : !step2CanAdvance}
               onClick={() => setStep((s) => s + 1)}
             >
               Next
-            </Button>
+            </ActionButton>
           )}
           {step === 3 && (
-            <Button
+            <ActionButton
+              tone="primary"
               type="submit"
               disabled={submitting || !unitId || !propertyId || !title.trim() || !description.trim()}
             >
@@ -820,7 +822,7 @@ export function LogMaintenanceForm({
                 ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Logging…</>
                 : "Create job"
               }
-            </Button>
+            </ActionButton>
           )}
         </div>
       </div>

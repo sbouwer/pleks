@@ -12,7 +12,7 @@
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -88,7 +88,7 @@ export function LandlordIdentityForm({
 
       <div><Label className="text-xs">Notes</Label><Textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} rows={2} className="text-sm mt-1" /></div>
 
-      <div className="flex gap-2"><Button size="sm" onClick={handleSave} disabled={isPending} className="h-7 text-xs">{isPending ? "Saving…" : "Save"}</Button><Button size="sm" variant="outline" onClick={onSaved} disabled={isPending} className="h-7 text-xs">Cancel</Button></div>
+      <div className="flex gap-2"><ActionButton tone="primary" size="sm" onClick={handleSave} disabled={isPending} className="h-7 text-xs">{isPending ? "Saving…" : "Save"}</ActionButton><ActionButton tone="secondary" size="sm" onClick={onSaved} disabled={isPending} className="h-7 text-xs">Cancel</ActionButton></div>
     </div>
   )
 }

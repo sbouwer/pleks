@@ -11,7 +11,7 @@
  */
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { FormSelect } from "@/components/ui/FormSelect"
@@ -162,10 +162,10 @@ export function LevyScheduleManager({ hoaId, initialSchedules, unitOwnerMap }: P
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="font-heading text-sm">Levy Schedules</h3>
-        <Button size="sm" onClick={() => setShowForm((v) => !v)}>
+        <ActionButton tone="primary" size="sm" onClick={() => setShowForm((v) => !v)}>
           <Plus className="size-3.5 mr-1.5" />
           New schedule
-        </Button>
+        </ActionButton>
       </div>
 
       {/* Create form */}
@@ -240,10 +240,10 @@ export function LevyScheduleManager({ hoaId, initialSchedules, unitOwnerMap }: P
             </div>
 
             <div className="flex gap-2 pt-1">
-              <Button size="sm" onClick={handleCreate} disabled={saving}>
+              <ActionButton tone="primary" size="sm" onClick={handleCreate} disabled={saving}>
                 {saving ? <><Loader2 className="size-3.5 mr-1.5 animate-spin" />Saving…</> : "Create schedule"}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setShowForm(false)}>Cancel</Button>
+              </ActionButton>
+              <ActionButton tone="secondary" size="sm" onClick={() => setShowForm(false)}>Cancel</ActionButton>
             </div>
           </CardContent>
         </Card>
@@ -286,24 +286,24 @@ export function LevyScheduleManager({ hoaId, initialSchedules, unitOwnerMap }: P
                       <Badge variant={s.is_active ? "default" : "secondary"}>
                         {s.is_active ? "Active" : "Inactive"}
                       </Badge>
-                      <Button
+                      <ActionButton
+                        tone="secondary"
                         size="sm"
-                        variant="outline"
                         onClick={() => handleCalculate(s.id)}
                         disabled={isCalcing}
                       >
                         {isCalcing
                           ? <><Loader2 className="size-3 mr-1.5 animate-spin" />Calculating…</>
                           : "Calculate"}
-                      </Button>
+                      </ActionButton>
                       {result && (
-                        <Button
+                        <ActionButton
+                          tone="secondary"
                           size="sm"
-                          variant="ghost"
                           onClick={() => setExpandedResults((prev) => ({ ...prev, [s.id]: !isExpanded }))}
                         >
                           {isExpanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
-                        </Button>
+                        </ActionButton>
                       )}
                     </div>
                   </div>

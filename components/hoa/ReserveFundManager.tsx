@@ -11,7 +11,7 @@
  */
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { ActionButton } from "@/components/ui/actions"
 import { Input } from "@/components/ui/input"
 import { FormSelect } from "@/components/ui/FormSelect"
 import { toast } from "sonner"
@@ -97,10 +97,10 @@ export function ReserveFundManager({ hoaId, initialEntries, initialBalance }: Re
         <Card>
           <CardHeader className="flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm">Reserve Fund</CardTitle>
-            <Button size="sm" onClick={() => setShowForm((v) => !v)}>
+            <ActionButton tone="primary" size="sm" onClick={() => setShowForm((v) => !v)}>
               <Plus className="size-3.5 mr-1.5" />
               Add entry
-            </Button>
+            </ActionButton>
           </CardHeader>
           <CardContent>
             <p className="font-heading text-2xl text-emerald-600">{formatZAR(balance)}</p>
@@ -162,10 +162,10 @@ export function ReserveFundManager({ hoaId, initialEntries, initialBalance }: Re
               </div>
             </div>
             <div className="flex gap-2">
-              <Button size="sm" onClick={handleAdd} disabled={saving}>
+              <ActionButton tone="primary" size="sm" onClick={handleAdd} disabled={saving}>
                 {saving ? <><Loader2 className="size-3.5 mr-1.5 animate-spin" />Saving…</> : "Record entry"}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setShowForm(false)}>Cancel</Button>
+              </ActionButton>
+              <ActionButton tone="secondary" size="sm" onClick={() => setShowForm(false)}>Cancel</ActionButton>
             </div>
           </CardContent>
         </Card>
