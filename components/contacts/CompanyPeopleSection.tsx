@@ -11,9 +11,9 @@
  */
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { Crown, Calculator, Wrench, FileText, User, Phone, Mail, Plus, Loader2 } from "lucide-react"
+import { Crown, Calculator, Wrench, FileText, User, Phone, Mail, Loader2 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
-import { DeleteButton } from "@/components/ui/actions"
+import { ActionButton, AddInline, DeleteButton } from "@/components/ui/actions"
 import { DetailCard } from "@/components/detail/DetailCard"
 import { COMPANY_FUNCTION_LABEL } from "@/lib/contacts/contactScope"
 import { COMPANY_FUNCTION_OPTIONS } from "@/lib/parties/partyConfig"
@@ -145,10 +145,10 @@ function AddPersonForm({
       {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
 
       <div className="mt-3 flex items-center gap-2">
-        <button type="button" onClick={onSubmit} disabled={pending} className="inline-flex items-center gap-1.5 rounded-[var(--r-button)] bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50">
-          {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Add person
-        </button>
-        <button type="button" onClick={onCancel} disabled={pending} className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground">Cancel</button>
+        <ActionButton tone="primary" onClick={onSubmit} disabled={pending} icon={pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : undefined}>
+          Add person
+        </ActionButton>
+        <ActionButton tone="secondary" onClick={onCancel} disabled={pending}>Cancel</ActionButton>
       </div>
     </div>
   )
@@ -196,9 +196,9 @@ export function CompanyPeopleSection({
       {adding ? (
         <AddPersonForm draft={draft} set={set} fica={fica} error={error} pending={pending} onSubmit={submit} onCancel={() => { setAdding(false); setError(null) }} />
       ) : (
-        <button type="button" onClick={() => setAdding(true)} className="mt-3 inline-flex items-center gap-1.5 rounded-[var(--r-button)] border border-dashed border-border px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground">
-          <Plus className="h-4 w-4" /> Add a person
-        </button>
+        <div className="mt-3">
+          <AddInline label="Add a person" onClick={() => setAdding(true)} />
+        </div>
       )}
     </>
   )

@@ -5,6 +5,7 @@
  *         if internals are reorganised.
  */
 export { ActionButton } from "./Button";
+export { AddInline } from "./AddInline";
 export { EditButton } from "./EditButton";
 export { DeleteButton } from "./DeleteButton";
 export { InlineLink } from "./InlineLink";
