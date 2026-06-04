@@ -8,7 +8,7 @@
  *         client wrapper owns the dynamic() call and page.tsx imports this instead.
  */
 import dynamic from "next/dynamic"
-import type { CalendarEvent } from "@/lib/calendar/events"
+import type { CalendarEvent, CalendarSearchEntity } from "@/lib/calendar/events"
 
 const CalendarClient = dynamic(
   () => import("./CalendarClient").then(m => ({ default: m.CalendarClient })),
@@ -17,10 +17,11 @@ const CalendarClient = dynamic(
 
 interface Props {
   events: CalendarEvent[]
-  properties: { id: string; name: string }[]
+  alerts: CalendarEvent[]
+  searchEntities: CalendarSearchEntity[]
   isFirm: boolean
 }
 
-export function CalendarClientLoader({ events, properties, isFirm }: Readonly<Props>) {
-  return <CalendarClient events={events} properties={properties} isFirm={isFirm} />
+export function CalendarClientLoader({ events, alerts, searchEntities, isFirm }: Readonly<Props>) {
+  return <CalendarClient events={events} alerts={alerts} searchEntities={searchEntities} isFirm={isFirm} />
 }

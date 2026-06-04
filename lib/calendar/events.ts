@@ -399,3 +399,72 @@ export async function fetchOverdueAlerts(
 
   return alerts
 }
+
+// ── Calendar search entities (property / tenant / landlord) ────────────────────
+export interface CalendarSearchEntity {
+  type: "property" | "tenant" | "landlord"
+  id: string
+  name: string
+  propertyNames: string[]   // events match by propertyName, so each entity resolves to its properties
+}
+
+type ContactName = { first_name: string | null; last_name: string | null; company_name: string | null } | null
+function first<T>(x: T | T[] | null | undefined): T | null {
+  if (Array.isArray(x)) return x[0] ?? null
+  return x ?? null
+}
+function personName(c: ContactName): string {
+  if (!c) return ""
+  return (c.company_name || `${c.first_name ?? ""} ${c.last_name ?? ""}`).trim()
+}
+
+/** Searchable entities for the calendar combobox — each resolves to the property name(s) used to filter
+ *  events: a property → itself; a landlord → all its properties; a tenant → their lease's property/ies. */
+export async function fetchCalendarSearchEntities(supabase: SupabaseClient, orgId: string): Promise<CalendarSearchEntity[]> {
+  const [propsRes, landlordsRes, leasesRes] = await Promise.all([
+    supabase.from("properties").select("id, name, landlord_id").eq("org_id", orgId).is("deleted_at", null),
+    supabase.from("landlords").select("id, contacts(first_name, last_name, company_name)").eq("org_id", orgId).is("deleted_at", null),
+    supabase.from("leases").select("tenant_id, tenants(id, contacts(first_name, last_name, company_name)), units(properties(name))").eq("org_id", orgId),
+  ])
+  if (propsRes.error) console.error("fetchCalendarSearchEntities properties:", propsRes.error.message)
+  if (landlordsRes.error) console.error("fetchCalendarSearchEntities landlords:", landlordsRes.error.message)
+  if (leasesRes.error) console.error("fetchCalendarSearchEntities leases:", leasesRes.error.message)
+
+  const props = propsRes.data ?? []
+  const entities: CalendarSearchEntity[] = []
+
+  // Properties
+  for (const p of props) entities.push({ type: "property", id: p.id, name: p.name, propertyNames: [p.name] })
+
+  // Landlords → their properties (properties.landlord_id)
+  const propsByLandlord = new Map<string, string[]>()
+  for (const p of props) {
+    const lid = (p as { landlord_id?: string | null }).landlord_id
+    if (!lid) continue
+    const arr = propsByLandlord.get(lid) ?? []
+    arr.push(p.name)
+    propsByLandlord.set(lid, arr)
+  }
+  for (const l of landlordsRes.data ?? []) {
+    const name = personName(first(l.contacts) as ContactName)
+    if (name) entities.push({ type: "landlord", id: l.id, name, propertyNames: propsByLandlord.get(l.id) ?? [] })
+  }
+
+  // Tenants → their lease's property/ies
+  const tenantMap = new Map<string, { name: string; props: Set<string> }>()
+  for (const lease of leasesRes.data ?? []) {
+    const t = first(lease.tenants) as { id: string; contacts: ContactName } | null
+    if (!t) continue
+    const name = personName(first(t.contacts) as ContactName)
+    const unit = first(lease.units) as { properties?: { name: string } | { name: string }[] } | null
+    const propName = (first(unit?.properties) as { name: string } | null)?.name
+    const entry = tenantMap.get(t.id) ?? { name, props: new Set<string>() }
+    if (propName) entry.props.add(propName)
+    tenantMap.set(t.id, entry)
+  }
+  for (const [id, { name, props: pset }] of tenantMap) {
+    if (name) entities.push({ type: "tenant", id, name, propertyNames: [...pset] })
+  }
+
+  return entities
+}

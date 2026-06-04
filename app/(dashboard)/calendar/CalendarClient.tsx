@@ -1,15 +1,17 @@
 "use client"
 
 /**
- * app/(dashboard)/calendar/CalendarClient.tsx — FILL: one-line purpose
+ * app/(dashboard)/calendar/CalendarClient.tsx — operations calendar (FullCalendar) with the shared toolbar
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /calendar
+ * Auth:   gateway (dashboard layout); Portfolio/Firm tier
+ * Data:   CalendarEvent[] + overdue alerts from the server page
+ * Notes:  Joint toolbar (view tabs · Type/Property filters · search) matching the list pages; search
+ *         matches property / tenant / unit (via the event title + property + unit). The overdue banner is
+ *         a compact chip that expands the DeadlineAlert. Fills the viewport (FullCalendar height=100% in a
+ *         flex-1 box) and themes via the --fc-* overrides in globals.css.
  */
-import { useCallback, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import FullCalendar from "@fullcalendar/react"
 import dayGridPlugin from "@fullcalendar/daygrid"
 import timeGridPlugin from "@fullcalendar/timegrid"
@@ -17,34 +19,34 @@ import listPlugin from "@fullcalendar/list"
 import interactionPlugin from "@fullcalendar/interaction"
 import type { EventClickArg, EventContentArg } from "@fullcalendar/core"
 import { useRouter } from "next/navigation"
-import type { CalendarEvent, EventType } from "@/lib/calendar/events"
-import { FormSelect } from "@/components/ui/FormSelect"
+import { AlertTriangle, Search, X } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { ToolbarFilter } from "@/components/ui/resource-list"
+import { DeadlineAlert } from "@/components/calendar/DeadlineAlert"
+import type { CalendarEvent, EventType, CalendarSearchEntity } from "@/lib/calendar/events"
 
 interface CalendarClientProps {
   events: CalendarEvent[]
-  properties: { id: string; name: string }[]
+  alerts: CalendarEvent[]
+  searchEntities: CalendarSearchEntity[]
   isFirm: boolean
 }
 
-const EVENT_TYPE_LABELS: Record<EventType, string> = {
-  inspection: "Inspections",
-  inspection_overdue: "Inspections",
-  maintenance: "Maintenance",
-  lease_expiry: "Lease deadlines",
-  cpa_deadline: "Legal deadlines",
-  deposit_deadline: "Legal deadlines",
-  move_in: "Move-in / out",
-  move_out: "Move-in / out",
-}
-
-const FILTER_GROUPS = [
-  { label: "All types", value: "all" },
-  { label: "Inspections", value: "inspections" },
-  { label: "Maintenance", value: "maintenance" },
-  { label: "Lease deadlines", value: "lease" },
-  { label: "Legal deadlines", value: "legal" },
-  { label: "Move-in / out", value: "moves" },
+const TYPE_OPTIONS = [
+  { value: "inspections", label: "Inspections" },
+  { value: "maintenance", label: "Maintenance" },
+  { value: "lease", label: "Lease deadlines" },
+  { value: "legal", label: "Legal deadlines" },
+  { value: "moves", label: "Move-in / out" },
 ]
+
+const CAL_VIEWS = [
+  { value: "dayGridMonth", label: "Month" },
+  { value: "timeGridWeek", label: "Week" },
+  { value: "timeGridDay", label: "Day" },
+  { value: "listWeek", label: "List" },
+] as const
+type CalView = (typeof CAL_VIEWS)[number]["value"]
 
 function eventMatchesFilter(eventType: EventType, filter: string): boolean {
   if (filter === "all") return true
@@ -61,8 +63,8 @@ function EventContent({ info }: { info: EventContentArg }) {
   const isOverdue = eventType === "inspection_overdue" || eventType === "cpa_deadline"
   return (
     <div
-      className="flex items-center gap-1 px-1 py-0.5 rounded text-[11px] font-medium truncate w-full"
-      style={{ backgroundColor: info.event.backgroundColor + "20", color: info.event.backgroundColor }}
+      className="flex w-full items-center gap-1 truncate rounded px-1 py-0.5 text-[11px] font-medium text-white"
+      style={{ backgroundColor: info.event.backgroundColor }}
     >
       {isOverdue && <span className="shrink-0">⚠</span>}
       <span className="truncate">{info.event.title}</span>
@@ -70,17 +72,90 @@ function EventContent({ info }: { info: EventContentArg }) {
   )
 }
 
-export function CalendarClient({ events, properties, isFirm }: CalendarClientProps) {
+const ENTITY_LABEL: Record<CalendarSearchEntity["type"], string> = {
+  property: "Property",
+  tenant: "Tenant",
+  landlord: "Landlord",
+}
+
+/** Search-and-select combobox over property / tenant / landlord — picking one filters the calendar to its
+ *  property/ies (and shows the selection as a chip, even when that entity has no events). */
+function EntitySearch({
+  entities, selected, onSelect, onClear,
+}: Readonly<{
+  entities: CalendarSearchEntity[]
+  selected: CalendarSearchEntity | null
+  onSelect: (e: CalendarSearchEntity) => void
+  onClear: () => void
+}>) {
+  const [open, setOpen] = useState(false)
+  const [text, setText] = useState("")
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function onDoc(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener("mousedown", onDoc)
+    return () => document.removeEventListener("mousedown", onDoc)
+  }, [open])
+
+  if (selected) {
+    return (
+      <div className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-[var(--r-button)] border border-primary/50 bg-card px-3.5 text-sm">
+        <span className="shrink-0 text-muted-foreground">{ENTITY_LABEL[selected.type]}:</span>
+        <span className="truncate font-medium">{selected.name}</span>
+        <button type="button" onClick={onClear} aria-label="Clear filter" className="ml-auto shrink-0 text-muted-foreground transition-colors hover:text-foreground">
+          <X className="size-4" />
+        </button>
+      </div>
+    )
+  }
+
+  const q = text.trim().toLowerCase()
+  const matches = q ? entities.filter((e) => e.name.toLowerCase().includes(q)).slice(0, 12) : []
+
+  return (
+    <div className="relative min-w-0 flex-1" ref={ref}>
+      <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+      <input
+        value={text}
+        onChange={(e) => { setText(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        placeholder="Search property, tenant or landlord…"
+        className="h-11 w-full rounded-[var(--r-button)] border border-border bg-card pl-10 pr-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground/70 hover:bg-muted/30 focus:border-primary/60 focus:ring-2 focus:ring-primary/15"
+      />
+      {open && q.length > 0 && (
+        <div className="absolute inset-x-0 top-[calc(100%+4px)] z-50 max-h-72 overflow-auto rounded-[var(--r-button)] border border-border bg-popover p-1 shadow-lg">
+          {matches.length === 0 && <p className="px-2.5 py-2 text-sm text-muted-foreground">No matches.</p>}
+          {matches.map((e) => (
+            <button
+              key={`${e.type}-${e.id}`}
+              type="button"
+              onClick={() => { onSelect(e); setText(""); setOpen(false) }}
+              className="flex w-full items-center justify-between gap-2 rounded-[calc(var(--r-button)-1px)] px-2.5 py-2 text-left text-sm text-foreground transition-colors hover:bg-muted/50"
+            >
+              <span className="truncate">{e.name}</span>
+              <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{ENTITY_LABEL[e.type]}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function CalendarClient({ events, alerts, searchEntities, isFirm }: CalendarClientProps) {
   const router = useRouter()
   const calendarRef = useRef<FullCalendar>(null)
   const [typeFilter, setTypeFilter] = useState("all")
-  const [propertyFilter, setPropertyFilter] = useState("all")
-  const [view, setView] = useState<"dayGridMonth" | "timeGridWeek" | "timeGridDay" | "listWeek">("dayGridMonth")
+  const [selectedEntity, setSelectedEntity] = useState<CalendarSearchEntity | null>(null)
+  const [view, setView] = useState<CalView>("dayGridMonth")
+  const [showAlerts, setShowAlerts] = useState(false)
 
   const filteredEvents = useMemo(() => {
     return events
       .filter((e) => eventMatchesFilter(e.eventType, typeFilter))
-      .filter((e) => propertyFilter === "all" || e.propertyName === properties.find((p) => p.id === propertyFilter)?.name)
+      .filter((e) => !selectedEntity || selectedEntity.propertyNames.includes(e.propertyName))
       .map((e) => ({
         id: e.id,
         title: e.title,
@@ -92,64 +167,75 @@ export function CalendarClient({ events, properties, isFirm }: CalendarClientPro
         textColor: "#ffffff",
         extendedProps: { link: e.link, eventType: e.eventType },
       }))
-  }, [events, typeFilter, propertyFilter, properties])
+  }, [events, typeFilter, selectedEntity])
 
   const handleEventClick = useCallback((info: EventClickArg) => {
     const link = info.event.extendedProps.link as string
     if (link) router.push(link)
   }, [router])
 
-  function switchView(newView: typeof view) {
+  function switchView(newView: CalView) {
     setView(newView)
     calendarRef.current?.getApi().changeView(newView)
   }
 
   return (
-    <div className="space-y-4">
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-3">
-        {/* View tabs */}
-        <div className="flex rounded-lg border border-border overflow-hidden text-sm">
-          {(["dayGridMonth", "timeGridWeek", "timeGridDay", "listWeek"] as const).map((v) => {
-            const labels: Record<string, string> = { dayGridMonth: "Month", timeGridWeek: "Week", timeGridDay: "Day", listWeek: "List" }
-            return (
-              <button
-                key={v}
-                onClick={() => switchView(v)}
-                className={`px-3 py-1.5 transition-colors ${view === v ? "bg-brand text-white" : "text-muted-foreground hover:bg-muted"}`}
-              >
-                {labels[v]}
-              </button>
-            )
-          })}
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      {/* Joint toolbar: view tabs · Type · Property · search · overdue */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex h-11 shrink-0 items-center rounded-[var(--r-button)] border border-border bg-card p-1">
+          {CAL_VIEWS.map((v) => (
+            <button
+              key={v.value}
+              type="button"
+              onClick={() => switchView(v.value)}
+              className={cn(
+                "flex h-full items-center rounded-[calc(var(--r-button)-2px)] px-3 text-xs font-medium transition-colors",
+                view === v.value ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {v.label}
+            </button>
+          ))}
         </div>
 
-        {/* Filters */}
-        <FormSelect
-          value={typeFilter}
-          onValueChange={setTypeFilter}
-          options={FILTER_GROUPS}
-          className="rounded-lg"
+        <ToolbarFilter
+          label="Type"
+          selected={typeFilter === "all" ? [] : [typeFilter]}
+          onChange={(next) => setTypeFilter(next[0] ?? "all")}
+          options={TYPE_OPTIONS}
         />
 
-        <FormSelect
-          value={propertyFilter}
-          onValueChange={setPropertyFilter}
-          placeholder="All properties"
-          options={[{ value: "all", label: "All properties" }, ...properties.map((p) => ({ value: p.id, label: p.name }))]}
-          className="rounded-lg"
+        <EntitySearch
+          entities={searchEntities}
+          selected={selectedEntity}
+          onSelect={setSelectedEntity}
+          onClear={() => setSelectedEntity(null)}
         />
+
+        {alerts.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowAlerts((s) => !s)}
+            aria-expanded={showAlerts}
+            className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-[var(--r-button)] border border-danger/40 bg-danger/5 px-3.5 text-sm font-medium text-danger transition-colors hover:bg-danger/10"
+          >
+            <AlertTriangle className="size-4" /> {alerts.length} overdue
+          </button>
+        )}
       </div>
 
-      {/* Mobile notice for non-list views */}
+      {/* Overdue detail — collapsed by default, opened from the chip */}
+      {showAlerts && alerts.length > 0 && <DeadlineAlert alerts={alerts} />}
+
       {view !== "listWeek" && (
-        <p className="text-xs text-muted-foreground md:hidden">
+        <p className="shrink-0 text-xs text-muted-foreground md:hidden">
           Tip: switch to List view for a better mobile experience.
         </p>
       )}
 
-      {/* FullCalendar */}
-      <div className="calendar-wrapper rounded-xl border border-border/60 bg-surface-elevated overflow-hidden">
+      {/* FullCalendar — fills the remaining height */}
+      <div className="calendar-wrapper min-h-0 flex-1 overflow-hidden rounded-[var(--r-button)] border border-border bg-card">
         <FullCalendar
           ref={calendarRef}
           plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
@@ -157,12 +243,8 @@ export function CalendarClient({ events, properties, isFirm }: CalendarClientPro
           events={filteredEvents}
           eventContent={(info) => <EventContent info={info} />}
           eventClick={handleEventClick}
-          headerToolbar={{
-            left: "prev,next today",
-            center: "title",
-            right: "",
-          }}
-          height="auto"
+          headerToolbar={{ left: "prev,next today", center: "title", right: "" }}
+          height="100%"
           dayMaxEvents={4}
           businessHours={{ daysOfWeek: [1, 2, 3, 4, 5], startTime: "08:00", endTime: "17:00" }}
           weekends={true}
@@ -174,23 +256,20 @@ export function CalendarClient({ events, properties, isFirm }: CalendarClientPro
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0" />Inspection</span>
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />Maintenance</span>
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-violet-500 shrink-0" />Lease expiry</span>
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" />Legal deadline</span>
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-green-500 shrink-0" />Move-in</span>
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-orange-500 shrink-0" />Move-out</span>
+      <div className="flex shrink-0 flex-wrap gap-4 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 shrink-0 rounded-full bg-blue-500" />Inspection</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 shrink-0 rounded-full bg-amber-500" />Maintenance</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 shrink-0 rounded-full bg-violet-500" />Lease expiry</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 shrink-0 rounded-full bg-red-500" />Legal deadline</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500" />Move-in</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 shrink-0 rounded-full bg-orange-500" />Move-out</span>
       </div>
 
       {isFirm && (
-        <p className="text-xs text-muted-foreground">
+        <p className="shrink-0 text-xs text-muted-foreground">
           Team view is available for Firm accounts — coming soon.
         </p>
       )}
     </div>
   )
 }
-
-// Satisfy TypeScript — EVENT_TYPE_LABELS used for future extensibility
-void EVENT_TYPE_LABELS

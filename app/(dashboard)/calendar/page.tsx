@@ -9,8 +9,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { getServerOrgMembership } from "@/lib/auth/server"
 import { redirect } from "next/navigation"
 import { CalendarDays } from "lucide-react"
-import { fetchCalendarEvents, fetchOverdueAlerts } from "@/lib/calendar/events"
-import { DeadlineAlert } from "@/components/calendar/DeadlineAlert"
+import { fetchCalendarEvents, fetchOverdueAlerts, fetchCalendarSearchEntities } from "@/lib/calendar/events"
 import { CalendarClientLoader } from "./CalendarClientLoader"
 import { InlineLink } from "@/components/ui/actions"
 import { ResourcePageHeader } from "@/components/ui/resource-page-header"
@@ -54,21 +53,14 @@ export default async function CalendarPage() {
   // eslint-disable-next-line react-hooks/purity
   const rangeEnd = new Date(Date.now() + 120 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
 
-  const [events, alerts, propertiesResult] = await Promise.all([
+  const [events, alerts, searchEntities] = await Promise.all([
     fetchCalendarEvents(service, orgId, rangeStart, rangeEnd),
     fetchOverdueAlerts(service, orgId),
-    service
-      .from("properties")
-      .select("id, name")
-      .eq("org_id", orgId)
-      .is("deleted_at", null)
-      .order("name"),
+    fetchCalendarSearchEntities(service, orgId),
   ])
 
-  const properties = propertiesResult.data ?? []
-
   return (
-    <div className="space-y-6">
+    <div className="flex h-full min-h-0 flex-col gap-6">
       <ResourcePageHeader
         eyebrow="Operations"
         title="Calendar"
@@ -76,11 +68,10 @@ export default async function CalendarPage() {
         sub="Inspections, lease deadlines, legal dates and move-ins across your portfolio."
       />
 
-      <DeadlineAlert alerts={alerts} />
-
       <CalendarClientLoader
         events={events}
-        properties={properties}
+        alerts={alerts}
+        searchEntities={searchEntities}
         isFirm={tier === "firm"}
       />
     </div>
