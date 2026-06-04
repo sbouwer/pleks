@@ -4,7 +4,8 @@
  * Auth:   Service-role only — never import in client components
  * Data:   retention_policies_snapshot
  * Notes:  isErasableNow() is the single gate for ALL purge operations.
- *         ESLint no-restricted-imports blocks raw table DELETEs that bypass this.
+ *         The custom `pleks/no-popia-raw-delete` ESLint rule blocks raw DELETEs that bypass this
+ *         on `landlords`/`tenants` only (today's coverage); broader table coverage is pending (D-8).
  *         D-POPIA-02 defaults are baked in; retention_policies_snapshot overrides them.
  */
 import { createServiceClient } from "@/lib/supabase/server"

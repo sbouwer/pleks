@@ -5,8 +5,11 @@
  * Data:   contacts, tenants, landlords, lease_parties, applications, inspections,
  *         maintenance_requests, communication_log, deposit_transactions, payments
  * Notes:  D-POPIA-06: ALL delete paths route through isErasableNow(). Never bypass.
- *         ESLint no-restricted-imports enforces that raw db.from().delete() calls
- *         outside this file are blocked on POPIA-sensitive tables.
+ *         The custom `pleks/no-popia-raw-delete` ESLint rule blocks raw db.from().delete()
+ *         on `landlords`/`tenants` outside this file (ADDENDUM_ARCHIVE_VS_ERASE). That is the
+ *         ONLY POPIA-sensitive coverage today — extending the restricted set to the rest of the
+ *         identity/document tables is the pending DeleteButton-triage sweep (D-8). (This header
+ *         previously claimed full no-restricted-imports enforcement that was never written.)
  *         executeErasure() runs inside a single Supabase RPC transaction.
  */
 import { createServiceClient } from "@/lib/supabase/server"
