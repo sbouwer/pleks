@@ -3,6 +3,7 @@ import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 import sonarjs from "eslint-plugin-sonarjs";
 import requireSupabaseErrorCheck from "./eslint-rules/require-supabase-error-check.mjs";
+import noPopiaRawDelete from "./eslint-rules/no-popia-raw-delete.mjs";
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -39,8 +40,8 @@ const eslintConfig = defineConfig([
     // Part 1 of ADDENDUM_SCHEMA_SELECT_GUARD: make a Supabase query that ignores `error`
     // a build failure, so column drift / RLS / timeout failures are loud, not silent.
     files: ["**/*.ts", "**/*.tsx"],
-    plugins: { pleks: { rules: { "require-supabase-error-check": requireSupabaseErrorCheck } } },
-    rules: { "pleks/require-supabase-error-check": "error" },
+    plugins: { pleks: { rules: { "require-supabase-error-check": requireSupabaseErrorCheck, "no-popia-raw-delete": noPopiaRawDelete } } },
+    rules: { "pleks/require-supabase-error-check": "error", "pleks/no-popia-raw-delete": "error" },
   },
   {
     rules: {

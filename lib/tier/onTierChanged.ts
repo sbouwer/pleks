@@ -37,10 +37,12 @@ export async function onTierChanged(
   const service = await createServiceClient()
 
   // Landlords in this org — a self-managed binding (user_profiles.self_landlord_id) points at one.
+  // Exclude archived (soft-deleted) landlords — the tier fork must not operate on removed records.
   const { data: landlords, error: llErr } = await service
     .from("landlords")
     .select("id")
     .eq("org_id", orgId)
+    .is("deleted_at", null)
   if (llErr) {
     console.error("[onTierChanged] landlords lookup failed:", llErr.message)
     return { forked: 0 }

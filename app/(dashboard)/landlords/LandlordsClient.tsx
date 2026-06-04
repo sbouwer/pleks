@@ -1,18 +1,20 @@
 "use client"
 
 /**
- * app/(dashboard)/landlords/LandlordsClient.tsx — searchable, sortable landlord list (List/Cards views) with inline delete
+ * app/(dashboard)/landlords/LandlordsClient.tsx — searchable, sortable landlord list with archive/restore
  *
  * Route:  /landlords
- * Auth:   dashboard layout (gateway)
- * Data:   landlords prop from server page; invalidates portfolio query cache on delete
- * Notes:  Fill-scroll — root is flex-1 min-h-0 flex-col; desktop table/cards-grid fill the viewport and
+ * Auth:   dashboard layout (gateway); archive/restore admin-only
+ * Data:   landlords prop (active) from server page; archived loaded lazily via fetchArchivedLandlords
+ * Notes:  "Delete" is ARCHIVE (soft-delete) — reversible via the Archived view's Restore; an in-force
+ *         lease blocks it (409 → toast). Fill-scroll — root is flex-1 min-h-0 flex-col; desktop table/cards-grid fill the viewport and
  *         scroll inside the card (sticky thead), page itself doesn't scroll. Mobile (lg:hidden) keeps its
  *         own scrolling card list regardless of the desktop List/Cards toggle.
  */
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
+import { Archive, RotateCcw } from "lucide-react"
 import { ActionButton, EditButton, DeleteButton } from "@/components/ui/actions"
 import { Badge } from "@/components/ui/badge"
 import { ListToolbar, ToolbarFilter, ListCard, SortHeader, useListSort } from "@/components/ui/resource-list"
@@ -22,6 +24,7 @@ import { usePermissions } from "@/hooks/usePermissions"
 import { PORTFOLIO_QUERY_KEYS } from "@/lib/queries/portfolio"
 import { EditPartyModal } from "@/components/parties/EditPartyModal"
 import { fetchLandlordParty, updateLandlordParty } from "@/lib/actions/parties"
+import { fetchArchivedLandlords, type ArchivedParty } from "@/lib/actions/partyArchive"
 
 interface Landlord {
   id: string
@@ -88,7 +91,16 @@ function LandlordCard({
       >
         <EditButton label="Edit landlord" onClick={onEdit} />
         {isAdmin && (
-          <DeleteButton label="Delete landlord" itemName="this landlord" loading={isDeleting} onConfirm={onDelete} />
+          <DeleteButton
+            icon={Archive}
+            label="Archive landlord"
+            title={`Archive ${displayName}?`}
+            itemName="this landlord"
+            description="They leave your active list, but all history is kept and you can restore them anytime. An in-force lease blocks archiving."
+            confirmLabel="Archive"
+            loading={isDeleting}
+            onConfirm={onDelete}
+          />
         )}
       </div>
     </div>
@@ -106,6 +118,43 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [editId, setEditId] = useState<string | null>(null)
   const [view, setView] = useState<"list" | "cards">("list")
+  const [status, setStatus] = useState<"active" | "archived">("active")
+  const [archived, setArchived] = useState<ArchivedParty[]>([])
+  const [archivedLoaded, setArchivedLoaded] = useState(false)
+  const [loadingArchived, setLoadingArchived] = useState(false)
+  const [restoringId, setRestoringId] = useState<string | null>(null)
+
+  async function handleStatusChange(next: "active" | "archived") {
+    setStatus(next)
+    if (next === "archived" && !archivedLoaded && !loadingArchived) {
+      setLoadingArchived(true)
+      setArchived(await fetchArchivedLandlords())
+      setArchivedLoaded(true)
+      setLoadingArchived(false)
+    }
+  }
+
+  async function handleRestore(a: ArchivedParty) {
+    setRestoringId(a.id)
+    const res = await fetch("/api/landlords", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ landlordId: a.id, restore: true }),
+    })
+    setRestoringId(null)
+    if (res.ok) {
+      toast.success("Landlord restored")
+      setArchived((prev) => prev.filter((x) => x.id !== a.id))
+      if (orgId) {
+        queryClient.invalidateQueries({ queryKey: PORTFOLIO_QUERY_KEYS.landlords(orgId) })
+        queryClient.invalidateQueries({ queryKey: PORTFOLIO_QUERY_KEYS.properties(orgId) })
+      }
+      router.refresh()
+    } else {
+      const d = await res.json().catch(() => ({}))
+      toast.error(d.error || "Could not restore")
+    }
+  }
 
   const filtered = initial
     .filter((l) => {
@@ -133,19 +182,29 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
     const res = await fetch("/api/landlords", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ landlordId: l.id, contactId: l.contact_id }),
+      body: JSON.stringify({ landlordId: l.id }),
     })
     setDeletingId(null)
     if (res.ok) {
-      toast.success("Landlord removed")
+      toast.success("Landlord archived")
+      setArchivedLoaded(false)   // archived list is now stale
       if (orgId) {
         queryClient.invalidateQueries({ queryKey: PORTFOLIO_QUERY_KEYS.landlords(orgId) })
         queryClient.invalidateQueries({ queryKey: PORTFOLIO_QUERY_KEYS.properties(orgId) })
       }
       router.refresh()
+      return
     }
-    else { const d = await res.json(); toast.error(d.error || "Failed to delete") }
+    const d = await res.json().catch(() => ({}))
+    toast.error(d.error === "in_force_lease"
+      ? "Can't archive — this landlord has an in-force lease. End the lease first."
+      : (d.error || "Failed to archive"))
   }
+
+  const plural = (n: number) => (n === 1 ? "" : "s")
+  const countLabel = status === "archived"
+    ? `${archived.length} archived landlord${plural(archived.length)}`
+    : `${filtered.length} of ${initial.length} landlord${plural(initial.length)}`
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
@@ -156,21 +215,66 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
         view={view}
         onView={setView}
         filters={
-          <ToolbarFilter
-            label="Type"
-            multiple
-            selected={types}
-            onChange={setTypes}
-            options={[{ value: "individual", label: "Individual" }, { value: "organisation", label: "Company" }]}
-          />
+          <>
+            <ToolbarFilter
+              label="Status"
+              selected={[status]}
+              onChange={(next) => handleStatusChange(next[0] === "archived" ? "archived" : "active")}
+              options={[{ value: "active", label: "Active" }, { value: "archived", label: "Archived" }]}
+            />
+            {status === "active" && (
+              <ToolbarFilter
+                label="Type"
+                multiple
+                selected={types}
+                onChange={setTypes}
+                options={[{ value: "individual", label: "Individual" }, { value: "organisation", label: "Company" }]}
+              />
+            )}
+          </>
         }
       />
 
-      <p className="text-xs text-muted-foreground">{filtered.length} of {initial.length} landlord{initial.length === 1 ? "" : "s"}</p>
+      <p className="text-xs text-muted-foreground">{countLabel}</p>
 
-      {filtered.length === 0 ? (
+      {status === "archived" && (
+        <>
+          {loadingArchived && <p className="text-sm text-muted-foreground py-8 text-center">Loading…</p>}
+          {!loadingArchived && archived.length === 0 && (
+            <p className="text-sm text-muted-foreground py-8 text-center">No archived landlords.</p>
+          )}
+          {!loadingArchived && archived.length > 0 && (
+            <ListCard fill>
+              <div className="divide-y divide-border/50">
+                {archived.map((a) => (
+                  <div key={a.id} className="flex items-center justify-between px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{a.name}</p>
+                      <p className="text-xs text-muted-foreground">Archived</p>
+                    </div>
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => handleRestore(a)}
+                        disabled={restoringId === a.id}
+                        className="inline-flex items-center gap-1.5 rounded-[var(--r-button)] border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
+                      >
+                        <RotateCcw className="size-3.5" /> {restoringId === a.id ? "Restoring…" : "Restore"}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </ListCard>
+          )}
+        </>
+      )}
+
+      {status === "active" && filtered.length === 0 && (
         <p className="text-sm text-muted-foreground py-8 text-center">No landlords match your search.</p>
-      ) : (
+      )}
+
+      {status === "active" && filtered.length > 0 && (
         <>
           {/* Mobile card list (mobile experience — independent of the desktop list/cards toggle) */}
           <div className="lg:hidden min-h-0 flex-1 overflow-auto space-y-2">
@@ -247,7 +351,16 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
                       <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <EditButton label="Edit landlord" onClick={() => setEditId(l.id)} />
                         {isAdmin && (
-                          <DeleteButton label="Delete landlord" itemName="this landlord" loading={isDeleting} onConfirm={() => handleDelete(l)} />
+                          <DeleteButton
+                            icon={Archive}
+                            label="Archive landlord"
+                            title={`Archive ${displayName}?`}
+                            itemName="this landlord"
+                            description="They leave your active list, but all history is kept and you can restore them anytime. An in-force lease blocks archiving."
+                            confirmLabel="Archive"
+                            loading={isDeleting}
+                            onConfirm={() => handleDelete(l)}
+                          />
                         )}
                       </div>
                     </td>

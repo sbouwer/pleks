@@ -216,6 +216,9 @@ async function rollbackCreated(ctx: RollbackContext): Promise<void> {
       await ctx.db.from("properties").delete().eq("id", ctx.propertyId).eq("org_id", ctx.orgId)
     }
     if (ctx.createdLandlordId) {
+      // Safe hard-delete (ADDENDUM_ARCHIVE_VS_ERASE §5(i)): rolling back a landlord created moments ago
+      // in THIS failed wizard flow — no leases/ledger/retention weight yet. Not a POPIA erasure.
+      // eslint-disable-next-line pleks/no-popia-raw-delete -- creation rollback of a just-created row
       await ctx.db.from("landlords").delete().eq("id", ctx.createdLandlordId).eq("org_id", ctx.orgId)
     }
     if (ctx.createdContactId) {

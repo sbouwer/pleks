@@ -1,18 +1,22 @@
 /**
- * app/api/tenants/route.ts — FILL: one-line purpose
+ * app/api/tenants/route.ts — tenant edit + archive/restore for the tenants list
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /api/tenants (PATCH edit|restore · DELETE archive)
+ * Auth:   authenticated org member; archive/restore are admin-only
+ * Data:   tenants (+ contacts), org-scoped service client
+ * Notes:  DELETE = ARCHIVE (soft-delete, set deleted_at), NOT erase — blocked while an in-force lease
+ *         exists (tenantHasInForceLease). Raw .delete() on tenants is forbidden outside
+ *         lib/popia/erasure.ts (pleks/no-popia-raw-delete). See ADDENDUM_ARCHIVE_VS_ERASE.
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { getMembership } from "@/lib/supabase/getMembership"
+import { tenantHasInForceLease } from "@/lib/parties/archive"
 
 interface TenantPatchBody {
   tenantId: string; contactId: string
+  /** Restore an archived tenant (clears deleted_at). Admin-only; mutually exclusive with field edits. */
+  restore?: boolean
   entityType?: string; firstName?: string; lastName?: string; companyName?: string
   registrationNumber?: string; vatNumber?: string
   email?: string; phone?: string; notes?: string
@@ -61,6 +65,23 @@ export async function PATCH(req: NextRequest) {
   if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
 
   const body = await req.json() as TenantPatchBody
+
+  // Restore an archived tenant (un-archive) — admin-only, separate from field edits.
+  if (body.restore) {
+    if (!membership.isAdmin) return NextResponse.json({ error: "Admin access required to restore tenants" }, { status: 403 })
+    if (!body.tenantId) return NextResponse.json({ error: "Missing tenantId" }, { status: 400 })
+    const { error: restoreError } = await service.from("tenants")
+      .update({ deleted_at: null })
+      .eq("id", body.tenantId)
+      .eq("org_id", membership.org_id)
+    if (restoreError) return NextResponse.json({ error: restoreError.message }, { status: 500 })
+    await service.from("audit_log").insert({
+      org_id: membership.org_id, table_name: "tenants", record_id: body.tenantId,
+      action: "RESTORE", changed_by: user.id, new_values: { deleted_at: null },
+    })
+    return NextResponse.json({ ok: true })
+  }
+
   if (!body.tenantId || !body.contactId) return NextResponse.json({ error: "Missing ids" }, { status: 400 })
 
   const contactUpdate = buildTenantContactUpdate(body)
@@ -84,6 +105,10 @@ export async function PATCH(req: NextRequest) {
   return NextResponse.json({ ok: true })
 }
 
+// DELETE = ARCHIVE (soft-delete), not erase. Sets tenants.deleted_at so the party drops out of active
+// lists but stays FK-intact and exportable ("Your Data, Always"). Blocked while an in-force lease exists.
+// True POPIA erasure is the request-backed anonymise cascade in lib/popia/erasure.ts (Phase 2) — never
+// a raw delete here (enforced by pleks/no-popia-raw-delete). See ADDENDUM_ARCHIVE_VS_ERASE.
 export async function DELETE(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -94,14 +119,27 @@ export async function DELETE(req: NextRequest) {
   if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
 
   if (!membership.isAdmin) {
-    return NextResponse.json({ error: "Admin access required to delete tenants" }, { status: 403 })
+    return NextResponse.json({ error: "Admin access required to archive tenants" }, { status: 403 })
   }
 
-  const { tenantId, contactId } = await req.json()
-  if (!tenantId || !contactId) return NextResponse.json({ error: "Missing ids" }, { status: 400 })
+  const { tenantId } = await req.json()
+  if (!tenantId) return NextResponse.json({ error: "Missing tenantId" }, { status: 400 })
 
-  await service.from("tenants").delete().eq("id", tenantId).eq("org_id", membership.org_id)
-  await service.from("contacts").update({ deleted_at: new Date().toISOString() }).eq("id", contactId).eq("org_id", membership.org_id)
+  // Guard: a tenant on an in-force lease (active / month_to_month / notice) cannot be archived.
+  if (await tenantHasInForceLease(service, membership.org_id, tenantId)) {
+    return NextResponse.json({ error: "in_force_lease" }, { status: 409 })
+  }
+
+  const { error } = await service.from("tenants")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", tenantId)
+    .eq("org_id", membership.org_id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  await service.from("audit_log").insert({
+    org_id: membership.org_id, table_name: "tenants", record_id: tenantId,
+    action: "ARCHIVE", changed_by: user.id, new_values: { deleted_at: new Date().toISOString() },
+  })
 
   return NextResponse.json({ ok: true })
 }

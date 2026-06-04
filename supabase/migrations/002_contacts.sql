@@ -1064,3 +1064,19 @@ $do$;
 -- province is now free text (a SA province OR an international state/region). country already exists
 -- (default 'South Africa'). Idempotent: the inline CHECK is auto-named contact_addresses_province_check.
 ALTER TABLE contact_addresses DROP CONSTRAINT IF EXISTS contact_addresses_province_check;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- §18  ADDENDUM_ARCHIVE_VS_ERASE: partial unique indexes so soft-delete allows re-add
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Archiving a tenant/landlord sets deleted_at (soft-delete, reversible). The plain
+-- UNIQUE(org_id, contact_id) would then permanently reserve the slot and block re-adding
+-- the same contact after archive. Replace it with a partial unique index scoped to LIVE
+-- rows only: a contact may be an ACTIVE tenant/landlord at most once per org, but archived
+-- rows release the slot. Pre-flight (2026-06-04): zero live-row collisions on prod.
+-- Idempotent: the inline UNIQUE constraints are auto-named <table>_org_id_contact_id_key.
+ALTER TABLE tenants   DROP CONSTRAINT IF EXISTS tenants_org_id_contact_id_key;
+ALTER TABLE landlords DROP CONSTRAINT IF EXISTS landlords_org_id_contact_id_key;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_tenants_org_contact_live
+  ON tenants(org_id, contact_id) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_landlords_org_contact_live
+  ON landlords(org_id, contact_id) WHERE deleted_at IS NULL;

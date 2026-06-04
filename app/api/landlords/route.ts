@@ -1,15 +1,17 @@
 /**
- * app/api/landlords/route.ts — FILL: one-line purpose
+ * app/api/landlords/route.ts — landlord CRUD + archive/restore for the landlords list
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /api/landlords (GET list · POST create · PATCH edit|restore · DELETE archive)
+ * Auth:   authenticated org member; archive/restore are admin-only
+ * Data:   landlords (+ contacts), org-scoped service client; GET filters deleted_at (active only)
+ * Notes:  DELETE = ARCHIVE (soft-delete, set deleted_at), NOT erase — blocked while an in-force lease
+ *         exists (landlordHasInForceLease). Raw .delete() on landlords is forbidden outside
+ *         lib/popia/erasure.ts (pleks/no-popia-raw-delete). See ADDENDUM_ARCHIVE_VS_ERASE.
  */
 import { NextRequest, NextResponse } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { getMembership } from "@/lib/supabase/getMembership"
+import { landlordHasInForceLease } from "@/lib/parties/archive"
 
 export async function GET() {
   const supabase = await createClient()
@@ -82,6 +84,8 @@ interface LandlordPatchBody {
   email?: string; phone?: string; notes?: string
   // Banking moved to contact_bank_accounts — edited via /api/landlords/[id]/contact-details (type: bank_account)
   taxNumber?: string; paymentMethod?: string
+  /** Restore an archived landlord (clears deleted_at). Admin-only; mutually exclusive with field edits. */
+  restore?: boolean
 }
 
 function buildLandlordContactUpdate(b: LandlordPatchBody): Record<string, unknown> {
@@ -116,6 +120,23 @@ export async function PATCH(req: NextRequest) {
   if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
 
   const body = await req.json() as LandlordPatchBody
+
+  // Restore an archived landlord (un-archive) — admin-only, separate from field edits.
+  if (body.restore) {
+    if (!membership.isAdmin) return NextResponse.json({ error: "Admin access required to restore landlords" }, { status: 403 })
+    if (!body.landlordId) return NextResponse.json({ error: "Missing landlordId" }, { status: 400 })
+    const { error: restoreError } = await service.from("landlords")
+      .update({ deleted_at: null })
+      .eq("id", body.landlordId)
+      .eq("org_id", membership.org_id)
+    if (restoreError) return NextResponse.json({ error: restoreError.message }, { status: 500 })
+    await service.from("audit_log").insert({
+      org_id: membership.org_id, table_name: "landlords", record_id: body.landlordId,
+      action: "RESTORE", changed_by: user.id, new_values: { deleted_at: null },
+    })
+    return NextResponse.json({ ok: true })
+  }
+
   if (!body.landlordId || !body.contactId) return NextResponse.json({ error: "Missing ids" }, { status: 400 })
 
   const contactUpdate = buildLandlordContactUpdate(body)
@@ -145,14 +166,27 @@ export async function DELETE(req: NextRequest) {
   if (!membership) return NextResponse.json({ error: "No org" }, { status: 403 })
 
   if (!membership.isAdmin) {
-    return NextResponse.json({ error: "Admin access required to delete landlords" }, { status: 403 })
+    return NextResponse.json({ error: "Admin access required to archive landlords" }, { status: 403 })
   }
 
-  const { landlordId, contactId } = await req.json()
-  if (!landlordId || !contactId) return NextResponse.json({ error: "Missing ids" }, { status: 400 })
+  const { landlordId } = await req.json()
+  if (!landlordId) return NextResponse.json({ error: "Missing landlordId" }, { status: 400 })
 
-  await service.from("landlords").delete().eq("id", landlordId).eq("org_id", membership.org_id)
-  await service.from("contacts").update({ deleted_at: new Date().toISOString() }).eq("id", contactId).eq("org_id", membership.org_id)
+  // Guard: a landlord with an in-force lease (own or attributed) cannot be archived.
+  if (await landlordHasInForceLease(service, membership.org_id, landlordId)) {
+    return NextResponse.json({ error: "in_force_lease" }, { status: 409 })
+  }
+
+  const { error } = await service.from("landlords")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", landlordId)
+    .eq("org_id", membership.org_id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  await service.from("audit_log").insert({
+    org_id: membership.org_id, table_name: "landlords", record_id: landlordId,
+    action: "ARCHIVE", changed_by: user.id, new_values: { deleted_at: new Date().toISOString() },
+  })
 
   return NextResponse.json({ ok: true })
 }
