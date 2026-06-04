@@ -12,10 +12,8 @@
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Plus } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Field, UnderlineInput, UnderlineSelect, DashedAddButton } from "@/components/ui/door-form"
-import { EditButton, DeleteButton } from "@/components/ui/actions"
+import { Field, UnderlineInput, UnderlineSelect } from "@/components/ui/door-form"
+import { ActionButton, AddInline, EditButton, DeleteButton } from "@/components/ui/actions"
 import { DetailCard } from "@/components/detail/DetailCard"
 
 export interface BankAccount {
@@ -87,8 +85,8 @@ function AccountForm({
         </label>
       </div>
       <div className="flex gap-2 pt-1">
-        <Button size="sm" onClick={save} disabled={isPending} className="h-7 text-xs">{isPending ? "Saving…" : "Save"}</Button>
-        <Button size="sm" variant="outline" onClick={onDone} disabled={isPending} className="h-7 text-xs">Cancel</Button>
+        <ActionButton tone="primary" size="sm" onClick={save} disabled={isPending}>{isPending ? "Saving…" : "Save"}</ActionButton>
+        <ActionButton tone="secondary" size="sm" onClick={onDone} disabled={isPending}>Cancel</ActionButton>
       </div>
     </div>
   )
@@ -163,7 +161,7 @@ export function BankAccountsSection({
   return (
     <DetailCard title="Banking">
       {accounts.length === 0 && !adding && (
-        <DashedAddButton onClick={() => setAdding(true)}><Plus className="h-3.5 w-3.5" /> Add bank account</DashedAddButton>
+        <AddInline label="Add bank account" onClick={() => setAdding(true)} />
       )}
 
       <div className="space-y-2">
@@ -180,10 +178,9 @@ export function BankAccountsSection({
       </div>
 
       {!adding && editingId === null && accounts.length > 0 && (
-        <button type="button" onClick={() => setAdding(true)}
-          className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">
-          <Plus className="h-3.5 w-3.5" /> Add another account
-        </button>
+        <div className="mt-2">
+          <AddInline label="Add another account" onClick={() => setAdding(true)} />
+        </div>
       )}
     </DetailCard>
   )

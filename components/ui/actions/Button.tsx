@@ -10,9 +10,12 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 type Tone = "primary" | "secondary" | "destructive";
+type Size = "sm" | "md";
 
 type Props = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   tone?: Tone;
+  /** "md" (default) is the standard action size; "sm" for compact inline contexts (form rows, dense toolbars). */
+  size?: Size;
   icon?: React.ReactNode;
   asChild?: boolean;
 };
@@ -24,12 +27,12 @@ const toneClass: Record<Tone, string> = {
 };
 
 export const ActionButton = React.forwardRef<HTMLButtonElement, Props>(
-  function ActionButton({ tone = "secondary", icon, className, children, ...rest }, ref) {
+  function ActionButton({ tone = "secondary", size = "md", icon, className, children, ...rest }, ref) {
     const hasIcon = !!icon;
     return (
       <button
         ref={ref}
-        className={cn(toneClass[tone], hasIcon && tone === "primary" && "has-icon", className)}
+        className={cn(toneClass[tone], size === "sm" && "pa-sm", hasIcon && tone === "primary" && "has-icon", className)}
         {...rest}
       >
         {icon ?? null}

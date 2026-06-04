@@ -100,6 +100,15 @@
 .pa-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
 .pa-secondary svg { width: 16px; height: 16px; opacity: 0.7; flex-shrink: 0; }
 
+/* ── Small size (compact inline contexts) ─────────────────────────────────
+   Two-class selectors beat the single-class tone padding without !important. */
+.pa-primary.pa-sm, .pa-secondary.pa-sm, .pa-destructive.pa-sm {
+  padding: 6px 10px; font-size: 13px; gap: 6px;
+}
+.pa-primary.pa-sm::before { height: 12px; }
+.pa-primary.pa-sm, .pa-destructive.pa-sm { padding-left: 10px; }
+.pa-primary.pa-sm svg, .pa-secondary.pa-sm svg, .pa-destructive.pa-sm svg { width: 14px; height: 14px; }
+
 /* ── Destructive ──────────────────────────────────────────────────────── */
 .pa-destructive {
   display: inline-flex; align-items: center; gap: 8px;
