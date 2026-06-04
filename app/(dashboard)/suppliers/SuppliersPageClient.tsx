@@ -86,7 +86,7 @@ export function SuppliersPageClient({ orgId }: Props) {
   }
 
   return (
-    <div>
+    <div className="flex h-full min-h-0 flex-col">
       <ResourcePageHeader
         title="Suppliers"
         headline={`Your ${tabInfo.plural}`}

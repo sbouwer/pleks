@@ -230,7 +230,7 @@ export function SuppliersClient({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       {/* Joint toolbar: list/grid · specialities dropdown · search */}
       <ListToolbar
         search={search}
@@ -415,7 +415,7 @@ export function SuppliersClient({
       )}
 
       {status === "active" && filtered.length > 0 && view === "cards" && (
-        <div className="grid max-h-[calc(100dvh-16rem)] gap-3 overflow-auto sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid min-h-0 flex-1 gap-3 overflow-auto sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((c) => (
             <SupplierCard
               key={c.id}

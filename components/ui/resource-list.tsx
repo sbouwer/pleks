@@ -49,9 +49,10 @@ export function ListCard({ children, className = "", fill = false }: Readonly<{ 
     <div
       className={cn(
         "rounded-[var(--r-button)] border border-border bg-card",
-        // fill: ALWAYS take the viewport height (minus the page chrome above) and scroll INSIDE the card,
-        // so the results frame is full-height even with one row — pair with a `sticky top-0` thead.
-        fill ? "h-[calc(100dvh-16rem)] overflow-auto" : "overflow-hidden",
+        // fill: flex-grow to fill the remaining height of a flex-col page (offset-agnostic — no magic
+        // calc) and scroll INSIDE the card; pair with a `sticky top-0` thead. The page chain must be
+        // `flex h-full flex-col` with the chrome shrink-0 so this has a bounded box to fill.
+        fill ? "min-h-0 flex-1 overflow-auto" : "overflow-hidden",
         className,
       )}
     >
