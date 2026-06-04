@@ -169,6 +169,13 @@
 }
 .pa-edit svg { width: 14px; height: 14px; flex-shrink: 0; }
 
+/* RemoveButton — borderless trash with a DANGER hover (no confirm; see DeleteButton for
+   confirmed/destructive deletes). Overrides .pa-edit's amber hover. */
+.pa-remove:hover:not(:disabled),
+.pa-remove:focus-visible { background: var(--danger-bg); color: var(--danger); }
+.pa-remove:hover:not(:disabled)::after,
+.pa-remove:focus-visible::after { border-color: var(--danger); }
+
 /* ── Bare icon button (toolbar / row actions) ────────────────────────── */
 .pa-iconbtn {
   position: relative;

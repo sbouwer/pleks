@@ -7,6 +7,7 @@
 export { ActionButton } from "./Button";
 export { AddInline } from "./AddInline";
 export { EditButton } from "./EditButton";
+export { RemoveButton } from "./RemoveButton";
 export { DeleteButton } from "./DeleteButton";
 export { InlineLink } from "./InlineLink";
 export { IconButton } from "./IconButton";

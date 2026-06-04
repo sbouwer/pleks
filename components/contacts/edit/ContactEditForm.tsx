@@ -12,11 +12,10 @@
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Trash2, Plus } from "lucide-react"
+import { ActionButton, AddInline, RemoveButton } from "@/components/ui/actions"
 
 interface ContactPhone {
   id: string
@@ -132,10 +131,10 @@ export function ContactEditForm({ entityType, entityId, phones: initialPhones, e
                   <SelectItem value="work">Work</SelectItem>
                 </SelectContent>
               </Select>
-              <button type="button" onClick={() => deletePhone(phone.id)} className="text-muted-foreground hover:text-danger shrink-0"><Trash2 className="h-3.5 w-3.5" /></button>
+              <RemoveButton label="Remove phone" onClick={() => deletePhone(phone.id)} className="shrink-0" />
             </div>
           ))}
-          <button type="button" onClick={addPhone} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"><Plus className="h-3 w-3" /> Add phone</button>
+          <AddInline label="Add phone" size="sm" onClick={addPhone} />
         </div>
       </div>
       <div>
@@ -152,13 +151,13 @@ export function ContactEditForm({ entityType, entityId, phones: initialPhones, e
                   <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
-              <button type="button" onClick={() => deleteEmail(email.id)} className="text-muted-foreground hover:text-danger shrink-0"><Trash2 className="h-3.5 w-3.5" /></button>
+              <RemoveButton label="Remove email" onClick={() => deleteEmail(email.id)} className="shrink-0" />
             </div>
           ))}
-          <button type="button" onClick={addEmail} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"><Plus className="h-3 w-3" /> Add email</button>
+          <AddInline label="Add email" size="sm" onClick={addEmail} />
         </div>
       </div>
-      <div className="flex gap-2 pt-1"><Button size="sm" onClick={handleSave} disabled={isPending} className="h-7 text-xs">{isPending ? "Saving…" : "Save"}</Button><Button size="sm" variant="outline" onClick={onSaved} disabled={isPending} className="h-7 text-xs">Cancel</Button></div>
+      <div className="flex gap-2 pt-1"><ActionButton tone="primary" size="sm" onClick={handleSave} disabled={isPending}>{isPending ? "Saving…" : "Save"}</ActionButton><ActionButton tone="secondary" size="sm" onClick={onSaved} disabled={isPending}>Cancel</ActionButton></div>
     </div>
   )
 }

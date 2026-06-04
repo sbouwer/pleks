@@ -15,12 +15,14 @@ import { ActionButton } from "./Button";
 type Props = Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "children"> & {
   /** the affordance text, e.g. "Add a person" */
   label: string;
+  /** "md" (default) or "sm" for compact rows — forwarded to ActionButton. */
+  size?: "sm" | "md";
 };
 
 export const AddInline = React.forwardRef<HTMLButtonElement, Props>(
-  function AddInline({ label, ...rest }, ref) {
+  function AddInline({ label, size, ...rest }, ref) {
     return (
-      <ActionButton ref={ref} type="button" tone="secondary" icon={<Plus />} {...rest}>
+      <ActionButton ref={ref} type="button" tone="secondary" size={size} icon={<Plus />} {...rest}>
         {label}
       </ActionButton>
     );
