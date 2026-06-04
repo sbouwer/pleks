@@ -53,3 +53,6 @@ lib/reports/screening/_pdf/__samples__/
 
 # Build specs, legal docs, and design references — local only
 brief/
+
+# Codemod dry-run/report output (regenerated each run)
+scripts/codemod-supabase-error.report.json

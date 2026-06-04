@@ -2,6 +2,7 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 import sonarjs from "eslint-plugin-sonarjs";
+import requireSupabaseErrorCheck from "./eslint-rules/require-supabase-error-check.mjs";
 
 const eslintConfig = defineConfig([
   ...nextVitals,
@@ -31,7 +32,16 @@ const eslintConfig = defineConfig([
     ".claude/**",
     // Design prototypes and build specs — not production code
     "brief/**",
+    // Local ESLint rule implementations — not app code
+    "eslint-rules/**",
   ]),
+  {
+    // Part 1 of ADDENDUM_SCHEMA_SELECT_GUARD: make a Supabase query that ignores `error`
+    // a build failure, so column drift / RLS / timeout failures are loud, not silent.
+    files: ["**/*.ts", "**/*.tsx"],
+    plugins: { pleks: { rules: { "require-supabase-error-check": requireSupabaseErrorCheck } } },
+    rules: { "pleks/require-supabase-error-check": "error" },
+  },
   {
     rules: {
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
