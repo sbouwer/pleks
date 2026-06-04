@@ -268,7 +268,7 @@ export function SuppliersClient({
             <p className="text-sm text-muted-foreground py-8 text-center">No archived {noun.plural}.</p>
           )}
           {!loadingArchived && archived.length > 0 && (
-            <ListCard>
+            <ListCard fill>
               <div className="divide-y divide-border/50">
                 {archived.map((s) => (
                   <div key={s.id} className="flex items-center justify-between px-4 py-3">
@@ -299,9 +299,9 @@ export function SuppliersClient({
       )}
 
       {status === "active" && filtered.length > 0 && view === "list" && (
-        <ListCard>
+        <ListCard fill>
           <table className="w-full text-sm">
-            <thead>
+            <thead className="sticky top-0 z-10 bg-card">
               <tr className="border-b border-border bg-muted/30">
                 <th className="px-4 py-2.5 text-left">
                   <SortHeader col="company" label="Name" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
@@ -415,7 +415,7 @@ export function SuppliersClient({
       )}
 
       {status === "active" && filtered.length > 0 && view === "cards" && (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid max-h-[calc(100dvh-16rem)] gap-3 overflow-auto sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((c) => (
             <SupplierCard
               key={c.id}

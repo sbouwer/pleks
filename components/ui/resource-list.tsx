@@ -44,9 +44,17 @@ export function ListSearchBar({
   )
 }
 
-export function ListCard({ children, className = "" }: Readonly<{ children: ReactNode; className?: string }>) {
+export function ListCard({ children, className = "", fill = false }: Readonly<{ children: ReactNode; className?: string; fill?: boolean }>) {
   return (
-    <div className={`overflow-hidden rounded-[var(--r-button)] border border-border bg-card ${className}`}>
+    <div
+      className={cn(
+        "rounded-[var(--r-button)] border border-border bg-card",
+        // fill: cap height to the viewport (minus the page chrome above) and scroll INSIDE the card —
+        // pair with a `sticky top-0` thead so the header stays put. Otherwise just clip the corners.
+        fill ? "max-h-[calc(100dvh-16rem)] overflow-auto" : "overflow-hidden",
+        className,
+      )}
+    >
       {children}
     </div>
   )
