@@ -1,13 +1,12 @@
 "use server"
 
 /**
- * app/(public)/property-info/[token]/actions.ts — FILL: one-line purpose
+ * app/(public)/property-info/[token]/actions.ts — server actions backing the public owner info-request form
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /property-info/[token] (public, tokenised — no auth session)
+ * Auth:   access gated by the opaque request token; uses the service client (RLS-bypassing) scoped by the token's org/property
+ * Data:   properties, contacts, landlords, managing_schemes, property_insurance_checklists (Supabase service client)
+ * Notes:  writes owner-submitted answers back to the linked property/landlord/scheme columns per topic
  */
 
 import { createServiceClient } from "@/lib/supabase/server"
@@ -56,17 +55,18 @@ async function writebackLandlord(
   propertyId: string,
   values: Record<string, string | null>,
 ) {
-  const { data: property } = await service
+  const { data: property, error: propertyError } = await service
     .from("properties")
     .select("org_id, landlord_id")
     .eq("id", propertyId)
     .single()
+  if (propertyError) console.error("writebackLandlord properties read failed:", propertyError.message)
   if (!property) return
 
   // Create contact + landlord if not already linked
   if (!property.landlord_id) {
     const isOrg = values.entity_type === "company" || values.entity_type === "trust"
-    const { data: contact } = await service.from("contacts").insert({
+    const { data: contact, error: contactError } = await service.from("contacts").insert({
       org_id:        property.org_id,
       entity_type:   isOrg ? "organisation" : "individual",
       primary_role:  "landlord",
@@ -76,12 +76,14 @@ async function writebackLandlord(
       primary_email: values.email || null,
       primary_phone: values.phone || null,
     }).select("id").single()
+    if (contactError) console.error("writebackLandlord contacts insert failed:", contactError.message)
     if (!contact) return
 
-    const { data: landlord } = await service.from("landlords").insert({
+    const { data: landlord, error: landlordError } = await service.from("landlords").insert({
       org_id:     property.org_id,
       contact_id: contact.id,
     }).select("id").single()
+    if (landlordError) console.error("writebackLandlord landlords insert failed:", landlordError.message)
     if (!landlord) return
 
     await service.from("properties")
@@ -95,11 +97,12 @@ async function writebackScheme(
   propertyId: string,
   values: Record<string, string | null>,
 ) {
-  const { data: property } = await service
+  const { data: property, error: schemePropertyError } = await service
     .from("properties")
     .select("managing_scheme_id")
     .eq("id", propertyId)
     .single()
+  if (schemePropertyError) console.error("writebackScheme properties read failed:", schemePropertyError.message)
   if (!property?.managing_scheme_id) return
 
   const update: Record<string, unknown> = {}
@@ -119,11 +122,12 @@ async function writebackBanking(
   propertyId: string,
   values: Record<string, string | null>,
 ) {
-  const { data: property } = await service
+  const { data: property, error: bankingPropertyError } = await service
     .from("properties")
     .select("landlord_id")
     .eq("id", propertyId)
     .single()
+  if (bankingPropertyError) console.error("writebackBanking properties read failed:", bankingPropertyError.message)
   if (!property?.landlord_id) return
 
   const update: Record<string, unknown> = {}
@@ -222,12 +226,13 @@ async function applyChecklistAnswer(
   itemCode:   string,
   answer:     "yes" | "no" | "not_sure",
 ): Promise<ChecklistItemResult> {
-  const { data: existing } = await service
+  const { data: existing, error: existingError } = await service
     .from("property_insurance_checklists")
     .select("id, state")
     .eq("property_id", propertyId)
     .eq("item_code", itemCode)
     .single()
+  if (existingError) console.error("applyChecklistAnswer property_insurance_checklists read failed:", existingError.message)
 
   if (!existing) return { confirmed: 0, uncertain: 0 }
 

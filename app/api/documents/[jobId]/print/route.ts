@@ -37,11 +37,12 @@ async function resolveLeaseContext(
   service: SupabaseClient,
   leaseId: string,
 ): Promise<LeaseContext> {
-  const { data: lease } = await service
+  const { data: lease, error: leaseError } = await service
     .from("leases")
     .select("rent_cents, tenants(contacts(first_name, last_name, company_name)), units(unit_number, properties(name))")
     .eq("id", leaseId)
     .single()
+  if (leaseError) console.error("resolveLeaseContext leases read failed:", leaseError.message)
 
   if (!lease) return { mergeValues: {}, leaseRef: null }
 
@@ -68,18 +69,20 @@ async function resolveLeaseContext(
 }
 
 async function getSignatureUrl(service: SupabaseClient, userId: string): Promise<string | null> {
-  const { data: sig } = await service
+  const { data: sig, error: sigError } = await service
     .from("user_signatures")
     .select("storage_path")
     .eq("user_id", userId)
     .eq("is_active", true)
     .single()
+  if (sigError) console.error("getSignatureUrl user_signatures read failed:", sigError.message)
 
   if (!sig?.storage_path) return null
 
-  const { data: urlData } = await service.storage
+  const { data: urlData, error: urlError } = await service.storage
     .from("signatures")
     .createSignedUrl(sig.storage_path, 3600)
+  if (urlError) console.error("getSignatureUrl createSignedUrl failed:", urlError.message)
 
   return urlData?.signedUrl ?? null
 }
@@ -100,12 +103,13 @@ export async function GET(
   const service = await createServiceClient()
 
   // Org membership
-  const { data: membership } = await service
+  const { data: membership, error: membershipError } = await service
     .from("user_orgs")
     .select("org_id, user_profiles(full_name)")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
+  if (membershipError) console.error("print route user_orgs read failed:", membershipError.message)
 
   if (!membership) return new Response("Unauthorized", { status: 401 })
 
@@ -114,12 +118,13 @@ export async function GET(
   const agentName = profile?.full_name ?? user.email ?? "Agent"
 
   // Fetch the job (must belong to this org)
-  const { data: job } = await service
+  const { data: job, error: jobError } = await service
     .from("document_generation_jobs")
     .select("id, lease_id, body_html")
     .eq("id", jobId)
     .eq("org_id", orgId)
     .single()
+  if (jobError) console.error("print route document_generation_jobs read failed:", jobError.message)
 
   if (!job) return new Response("Not found", { status: 404 })
 

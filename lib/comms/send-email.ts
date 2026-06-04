@@ -90,7 +90,7 @@ export async function fetchOrgSettings(orgId: string): Promise<OrgSettings | nul
   const service = await createServiceClient()
   const { data } = await service
     .from("organisations")
-    .select("name, email, phone, address_line1, city, brand_logo_path, brand_accent_color, custom_from_address, notification_settings, emergency_phone, emergency_contact_name")
+    .select("name, email, phone, address_line1:addr_line1, city:addr_city, brand_logo_path, brand_accent_color, custom_from_address, notification_settings, emergency_phone, emergency_contact_name")
     .eq("id", orgId)
     .single()
   if (!data) return null

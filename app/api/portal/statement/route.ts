@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
       .maybeSingle(),
     service
       .from("organisations")
-      .select("name, logo_url, address_line1, suburb, city")
+      .select("name, logo_url, address_line1:addr_line1, suburb:addr_suburb, city:addr_city")
       .eq("id", orgId)
       .single(),
   ])

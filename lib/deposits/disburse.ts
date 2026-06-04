@@ -40,19 +40,26 @@ interface DepositCharge {
   settling_deposit_txn_id: string | null
 }
 
+// Log-only guard for Supabase query errors (keeps call sites flat — no control-flow change)
+function logIfError(label: string, error: { message: string } | null) {
+  if (error) console.error(`${label}:`, error.message)
+}
+
 // ─── Pre-flight validation (split by pattern to stay within complexity budget) ─
 
 type Supabase = Awaited<ReturnType<typeof createServiceClient>>
 
 async function validatePatternA(supabase: Supabase, charge: DepositCharge): Promise<string | null> {
   if (charge.source_invoice_id) {
-    const { data: inv } = await supabase.from("rent_invoices").select("balance_cents, status").eq("id", charge.source_invoice_id).single()
+    const { data: inv, error: invError } = await supabase.from("rent_invoices").select("balance_cents, status").eq("id", charge.source_invoice_id).single()
+    if (invError) console.error("validatePatternA rent_invoices read failed:", invError.message)
     if (!inv) return `Deposit charge "${charge.description}": linked invoice not found`
     if (!["open", "partial", "overdue"].includes(inv.status as string)) return `Deposit charge "${charge.description}": linked invoice is already paid or cancelled`
     if ((inv.balance_cents as number) < charge.deduction_amount_cents) return `Deposit charge "${charge.description}": invoice balance R ${((inv.balance_cents as number) / 100).toFixed(2)} is less than charge amount R ${(charge.deduction_amount_cents / 100).toFixed(2)}`
   }
   if (charge.source_arrears_case_id) {
-    const { data: ac } = await supabase.from("arrears_cases").select("total_arrears_cents, status").eq("id", charge.source_arrears_case_id).single()
+    const { data: ac, error: acError } = await supabase.from("arrears_cases").select("total_arrears_cents, status").eq("id", charge.source_arrears_case_id).single()
+    if (acError) console.error("validatePatternA arrears_cases read failed:", acError.message)
     if (!ac) return `Deposit charge "${charge.description}": linked arrears case not found`
     if ((ac.status as string) === "resolved") return `Deposit charge "${charge.description}": arrears case is already resolved`
     if ((ac.total_arrears_cents as number) < charge.deduction_amount_cents) return `Deposit charge "${charge.description}": arrears balance R ${((ac.total_arrears_cents as number) / 100).toFixed(2)} is less than charge amount R ${(charge.deduction_amount_cents / 100).toFixed(2)} — recompute the charge`
@@ -62,12 +69,14 @@ async function validatePatternA(supabase: Supabase, charge: DepositCharge): Prom
 
 async function validatePatternB(supabase: Supabase, charge: DepositCharge): Promise<string | null> {
   if (charge.source_supplier_invoice_id) {
-    const { data: si } = await supabase.from("supplier_invoices").select("status").eq("id", charge.source_supplier_invoice_id).single()
+    const { data: si, error: siError } = await supabase.from("supplier_invoices").select("status").eq("id", charge.source_supplier_invoice_id).single()
+    if (siError) console.error("validatePatternB supplier_invoices read failed:", siError.message)
     if (!si) return `Deposit charge "${charge.description}": linked supplier invoice not found`
     if ((si.status as string) !== "paid") return `Deposit charge "${charge.description}": supplier invoice must be paid before recovering from deposit`
   }
   if (charge.source_municipal_bill_id) {
-    const { data: mb } = await supabase.from("municipal_bills").select("payment_status").eq("id", charge.source_municipal_bill_id).single()
+    const { data: mb, error: mbError } = await supabase.from("municipal_bills").select("payment_status").eq("id", charge.source_municipal_bill_id).single()
+    if (mbError) console.error("validatePatternB municipal_bills read failed:", mbError.message)
     if (!mb) return `Deposit charge "${charge.description}": linked municipal bill not found`
     if ((mb.payment_status as string) !== "paid") return `Deposit charge "${charge.description}": municipal bill must be paid before recovering from deposit`
   }
@@ -141,11 +150,12 @@ async function settlePatternA(
 
   // If an arrears case is linked, check if it's now resolved
   if (charge.source_arrears_case_id) {
-    const { data: openInvs } = await supabase
+    const { data: openInvs, error: openInvsError } = await supabase
       .from("rent_invoices")
       .select("balance_cents")
       .eq("lease_id", recon.lease_id)
       .in("status", ["open", "partial", "overdue"])
+    if (openInvsError) console.error("settlePatternA rent_invoices read failed:", openInvsError.message)
     const remainingArrears = (openInvs ?? []).reduce((s, i) => s + ((i.balance_cents as number) ?? 0), 0)
 
     if (remainingArrears <= 0) {
@@ -309,19 +319,21 @@ export async function disburseDeposit(leaseId: string, agentId: string) {
   }
 
   // Fetch tenant info for comms
-  const { data: tenant } = await supabase
+  const { data: tenant, error: tenantError } = await supabase
     .from("tenant_view")
     .select("first_name, last_name, email")
     .eq("id", recon.tenant_id)
     .single()
+  logIfError("disburse tenant_view read failed", tenantError)
 
   const tenantName = tenant ? `${tenant.first_name} ${tenant.last_name}` : "Tenant"
 
-  const { data: leaseUnit } = await supabase
+  const { data: leaseUnit, error: leaseUnitError } = await supabase
     .from("leases")
     .select("units(unit_number, properties(address_line1, suburb, city))")
     .eq("id", leaseId)
     .maybeSingle()
+  logIfError("disburse leases read failed", leaseUnitError)
 
   type PropRow = { address_line1: string; suburb: string | null; city: string }
   type UnitRow = { unit_number: string; properties: PropRow | PropRow[] | null }

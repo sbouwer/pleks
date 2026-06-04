@@ -63,11 +63,12 @@ export async function generateAuditExport(
   }
 
   // ── 3. Fetch bank account ─────────────────────────────────────────────────
-  const { data: bankAccount } = await db
+  const { data: bankAccount, error: bankAccountErr } = await db
     .from("bank_accounts")
     .select("bank_name, account_number")
     .eq("id", period.bank_account_id)
     .single()
+  if (bankAccountErr) console.error("[generateAuditExport] bank_accounts query failed:", bankAccountErr.message)
 
   const bankAccountMasked = maskAccount(bankAccount?.account_number)
   const bankName = bankAccount?.bank_name ?? "Trust Account"
@@ -93,7 +94,7 @@ export async function generateAuditExport(
   }
 
   // ── 6. Fetch prior period for opening balance ─────────────────────────────
-  const { data: priorPeriod } = await db
+  const { data: priorPeriod, error: priorPeriodErr } = await db
     .from("trust_reconciliation_periods")
     .select("ledger_closing_balance_cents")
     .eq("org_id", params.orgId)
@@ -103,6 +104,7 @@ export async function generateAuditExport(
     .order("period_end", { ascending: false })
     .limit(1)
     .maybeSingle()
+  if (priorPeriodErr) console.error("[generateAuditExport] prior period query failed:", priorPeriodErr.message)
 
   const openingBalanceCents = priorPeriod?.ledger_closing_balance_cents ?? 0
 
@@ -311,26 +313,29 @@ async function fetchDepositsHeld(
   const tenantIds = [...new Set((leases ?? []).map(l => l.tenant_id).filter(Boolean))]
 
   // Fetch properties
-  const { data: properties } = await db
+  const { data: properties, error: propertiesErr } = await db
     .from("properties")
     .select("id, address_line1, suburb")
     .in("id", propertyIds)
+  if (propertiesErr) console.error("[generateAuditExport] deposit properties query failed:", propertiesErr.message)
 
   const propMap = new Map((properties ?? []).map(p => [p.id, p]))
 
   // Fetch tenants → contacts for names
-  const { data: tenants } = await db
+  const { data: tenants, error: tenantsErr } = await db
     .from("tenants")
     .select("id, contact_id")
     .in("id", tenantIds)
+  if (tenantsErr) console.error("[generateAuditExport] tenants query failed:", tenantsErr.message)
 
   const contactIds = [...new Set((tenants ?? []).map(t => t.contact_id).filter(Boolean))]
   const tenantContactMap = new Map((tenants ?? []).map(t => [t.id, t.contact_id]))
 
-  const { data: contacts } = await db
+  const { data: contacts, error: contactsErr } = await db
     .from("contacts")
     .select("id, full_name")
     .in("id", contactIds)
+  if (contactsErr) console.error("[generateAuditExport] contacts query failed:", contactsErr.message)
 
   const contactNameMap = new Map((contacts ?? []).map(c => [c.id, c.full_name]))
 
@@ -381,10 +386,11 @@ async function fetchManagementFees(
   if (!fees || fees.length === 0) return []
 
   const propertyIds = [...new Set(fees.map(f => f.property_id).filter(Boolean))]
-  const { data: properties } = await db
+  const { data: properties, error: propertiesErr } = await db
     .from("properties")
     .select("id, address_line1, suburb")
     .in("id", propertyIds)
+  if (propertiesErr) console.error("[generateAuditExport] fee properties query failed:", propertiesErr.message)
 
   const propMap = new Map((properties ?? []).map(p => [p.id, p]))
 

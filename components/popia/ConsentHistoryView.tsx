@@ -7,6 +7,8 @@
  *         consent_withdrawal request type links back here for the subject to identify
  *         which consent_log.id they wish to withdraw.
  */
+"use client"
+
 import { CheckCircle2, XCircle, Clock } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"

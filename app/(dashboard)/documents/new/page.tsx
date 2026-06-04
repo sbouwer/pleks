@@ -1,11 +1,10 @@
 /**
- * app/(dashboard)/documents/new/page.tsx — FILL: one-line purpose
+ * app/(dashboard)/documents/new/page.tsx — new-document editor page (template picker + lease/letterhead context)
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /documents/new
+ * Auth:   gatewaySSR (agent workspace, org-scoped)
+ * Data:   document_templates, leases, user_signatures (+ signatures storage), organisations via gateway db
+ * Notes:  loads org + system templates, optional lease context, the agent's active signature, and org letterhead
  */
 import { redirect } from "next/navigation"
 import { gatewaySSR } from "@/lib/supabase/gateway"
@@ -43,7 +42,7 @@ export default async function NewDocumentPage({ searchParams }: PageProps) {
   const leaseId = params.lease ?? null
 
   // Load all org + system templates for the selector
-  const { data: rawTemplates } = await db
+  const { data: rawTemplates, error: rawTemplatesError } = await db
     .from("document_templates")
     .select(
       "id, scope, template_type, name, description, category, body_html, subject, whatsapp_body, body_variants, legal_flag, merge_fields, usage_count, last_used_at, is_deletable, created_at"
@@ -51,6 +50,7 @@ export default async function NewDocumentPage({ searchParams }: PageProps) {
     .or(`scope.eq.system,org_id.eq.${orgId}`)
     .in("template_type", ["letter", "email"])
     .order("name", { ascending: true })
+  if (rawTemplatesError) console.error("NewDocumentPage document_templates read failed:", rawTemplatesError.message)
 
   const allTemplates: DocumentTemplate[] = (rawTemplates ?? []) as DocumentTemplate[]
 
@@ -63,7 +63,7 @@ export default async function NewDocumentPage({ searchParams }: PageProps) {
   // Load lease context if provided
   let leaseContext: LeaseContext | null = null
   if (leaseId) {
-    const { data: lease } = await db
+    const { data: lease, error: leaseError } = await db
       .from("leases")
       .select(
         "id, rent_cents, tenants(full_name), units(unit_number, properties(name))"
@@ -71,6 +71,7 @@ export default async function NewDocumentPage({ searchParams }: PageProps) {
       .eq("id", leaseId)
       .eq("org_id", orgId)
       .single()
+    if (leaseError) console.error("NewDocumentPage leases read failed:", leaseError.message)
 
     if (lease) {
       const leaseData = lease as unknown as {
@@ -90,18 +91,20 @@ export default async function NewDocumentPage({ searchParams }: PageProps) {
   }
 
   // Load active signature
-  const { data: rawSig } = await db
+  const { data: rawSig, error: rawSigError } = await db
     .from("user_signatures")
     .select("storage_path")
     .eq("user_id", gw.userId)
     .eq("is_active", true)
     .maybeSingle()
+  if (rawSigError) console.error("NewDocumentPage user_signatures read failed:", rawSigError.message)
 
   let signatureContext: SignatureContext | null = null
   if (rawSig?.storage_path) {
-    const { data: signed } = await db.storage
+    const { data: signed, error: signedError } = await db.storage
       .from("signatures")
       .createSignedUrl(rawSig.storage_path, 3600)
+    if (signedError) console.error("NewDocumentPage createSignedUrl failed:", signedError.message)
     signatureContext = {
       storagePath: rawSig.storage_path,
       signedUrl: signed?.signedUrl ?? null,
@@ -109,11 +112,12 @@ export default async function NewDocumentPage({ searchParams }: PageProps) {
   }
 
   // Load org name for letterhead
-  const { data: org } = await db
+  const { data: org, error: orgError } = await db
     .from("organisations")
     .select("name, brand_logo_path, brand_accent_color")
     .eq("id", orgId)
     .single()
+  if (orgError) console.error("NewDocumentPage organisations read failed:", orgError.message)
 
   const orgName = (org as { name: string } | null)?.name ?? "Your Organisation"
   const agentName = gw.email

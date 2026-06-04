@@ -27,19 +27,21 @@ export interface ContactOption {
 
 async function resolvePropertyId(service: ServiceClient, unitId: string | undefined, propertyId: string | undefined) {
   if (propertyId ?? !unitId) return propertyId
-  const { data } = await service.from("units").select("property_id").eq("id", unitId).single()
+  const { data, error } = await service.from("units").select("property_id").eq("id", unitId).single()
+  if (error) console.error("resolvePropertyId units read failed:", error.message)
   return data?.property_id ?? propertyId
 }
 
 async function fetchUnits(service: ServiceClient, propertyId: string | undefined) {
   if (!propertyId) return []
-  const { data } = await service
+  const { data, error } = await service
     .from("units")
     .select("id, unit_number, access_instructions, prospective_tenant_id")
     .eq("property_id", propertyId)
     .eq("is_archived", false)
     .is("deleted_at", null)
     .order("unit_number")
+  if (error) console.error("fetchUnits units read failed:", error.message)
   return (data ?? []) as Array<{ id: string; unit_number: string; access_instructions: string | null; prospective_tenant_id: string | null }>
 }
 
@@ -49,7 +51,7 @@ async function fetchTenantPrefill(
   units: Array<{ id: string; unit_number: string; access_instructions: string | null; prospective_tenant_id: string | null }>
 ) {
   // Use separate query instead of embedded select to avoid array/single ambiguity
-  const { data: lease } = await service
+  const { data: lease, error: leaseError } = await service
     .from("leases")
     .select("id, tenant_id")
     .eq("unit_id", unitId)
@@ -57,17 +59,19 @@ async function fetchTenantPrefill(
     .order("start_date", { ascending: false })
     .limit(1)
     .maybeSingle()
+  if (leaseError) console.error("fetchTenantPrefill leases read failed:", leaseError.message)
 
   let prefillTenant: { id: string; name: string; phone: string | null } | null = null
   let prefillLeaseId: string | null = null
 
   if (lease?.tenant_id) {
     prefillLeaseId = lease.id
-    const { data: tv } = await service
+    const { data: tv, error: tvError } = await service
       .from("tenant_view")
       .select("first_name, last_name, phone")
       .eq("id", lease.tenant_id)
       .maybeSingle()
+    if (tvError) console.error("fetchTenantPrefill tenant_view (lease) read failed:", tvError.message)
     if (tv) {
       prefillTenant = {
         id: lease.tenant_id as string,
@@ -79,11 +83,12 @@ async function fetchTenantPrefill(
     // Fallback: prospective tenant linked to the unit
     const unit = units.find((u) => u.id === unitId)
     if (unit?.prospective_tenant_id) {
-      const { data: tv } = await service
+      const { data: tv, error: tvProspectiveError } = await service
         .from("tenant_view")
         .select("first_name, last_name, phone")
         .eq("id", unit.prospective_tenant_id)
         .maybeSingle()
+      if (tvProspectiveError) console.error("fetchTenantPrefill tenant_view (prospective) read failed:", tvProspectiveError.message)
       if (tv) {
         prefillTenant = {
           id: unit.prospective_tenant_id,
@@ -99,11 +104,12 @@ async function fetchTenantPrefill(
 }
 
 async function fetchPropertyContacts(service: ServiceClient, propertyId: string): Promise<ContactOption[]> {
-  const { data: prop } = await service
+  const { data: prop, error: propError } = await service
     .from("properties")
     .select("managing_agent_id, landlord_id")
     .eq("id", propertyId)
     .maybeSingle()
+  if (propError) console.error("fetchPropertyContacts properties read failed:", propError.message)
 
   if (!prop) return []
 
@@ -111,11 +117,12 @@ async function fetchPropertyContacts(service: ServiceClient, propertyId: string)
 
   // Managing agent — via user_profiles
   if (prop.managing_agent_id) {
-    const { data: profile } = await service
+    const { data: profile, error: profileError } = await service
       .from("user_profiles")
       .select("full_name, phone")
       .eq("id", prop.managing_agent_id)
       .maybeSingle()
+    if (profileError) console.error("fetchPropertyContacts user_profiles read failed:", profileError.message)
     if (profile?.full_name) {
       contacts.push({
         role: "agent",
@@ -128,17 +135,19 @@ async function fetchPropertyContacts(service: ServiceClient, propertyId: string)
 
   // Landlord — via landlords → contacts
   if (prop.landlord_id) {
-    const { data: landlordRow } = await service
+    const { data: landlordRow, error: landlordRowError } = await service
       .from("landlords")
       .select("contact_id")
       .eq("id", prop.landlord_id)
       .maybeSingle()
+    if (landlordRowError) console.error("fetchPropertyContacts landlords read failed:", landlordRowError.message)
     if (landlordRow?.contact_id) {
-      const { data: contact } = await service
+      const { data: contact, error: contactError } = await service
         .from("contacts")
         .select("first_name, last_name, primary_phone")
         .eq("id", landlordRow.contact_id)
         .maybeSingle()
+      if (contactError) console.error("fetchPropertyContacts contacts read failed:", contactError.message)
       if (contact) {
         const name = [contact.first_name, contact.last_name].filter(Boolean).join(" ")
         if (name) {
@@ -165,12 +174,13 @@ export default async function NewMaintenancePage({ searchParams }: Readonly<Prop
 
   const service = await createServiceClient()
 
-  const { data: membership } = await service
+  const { data: membership, error: membershipError } = await service
     .from("user_orgs")
     .select("org_id")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
+  if (membershipError) console.error("NewMaintenancePage user_orgs read failed:", membershipError.message)
 
   if (!membership) redirect("/onboarding")
   const orgId = membership.org_id

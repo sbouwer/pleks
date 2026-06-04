@@ -32,11 +32,12 @@ const DAY_MS = 24 * 60 * 60 * 1000
 // ── Health tracking ───────────────────────────────────────────────────────────
 
 async function startJob(db: Db): Promise<string | null> {
-  const { data } = await db.from("cron_runs").insert({
+  const { data, error } = await db.from("cron_runs").insert({
     job_name:   "insurance-renewals",
     started_at: new Date().toISOString(),
     status:     "running",
   }).select("id").single()
+  if (error) console.error("insurance-renewals cron_runs insert failed:", error.message)
   return (data?.id as string) ?? null
 }
 
@@ -61,11 +62,12 @@ async function finishJob(
 // ── Renewal reset ─────────────────────────────────────────────────────────────
 
 async function resetPropertyChecklist(db: Db, propertyId: string, renewalDate: string): Promise<number> {
-  const { data: items } = await db
+  const { data: items, error: itemsError } = await db
     .from("property_insurance_checklists")
     .select("id, item_code, state, insurance_checklist_items(is_auto_derived)")
     .eq("property_id", propertyId)
     .eq("state", "confirmed")
+  if (itemsError) console.error("resetPropertyChecklist property_insurance_checklists read failed:", itemsError.message)
 
   let resetCount = 0
   const now = new Date().toISOString()
@@ -75,11 +77,12 @@ async function resetPropertyChecklist(db: Db, propertyId: string, renewalDate: s
 
     if (isAutoDerived) {
       // Re-evaluate POLICY_HEADER: check if all 6 insurance fields are still populated
-      const { data: prop } = await db
+      const { data: prop, error: propError } = await db
         .from("properties")
         .select("insurance_provider, insurance_policy_number, insurance_policy_type, insurance_renewal_date, insurance_replacement_value_cents, insurance_excess_cents")
         .eq("id", propertyId)
         .single()
+      if (propError) console.error("resetPropertyChecklist properties read failed:", propError.message)
 
       const allPresent = prop &&
         !!((prop.insurance_provider as string | null)?.trim()) &&
@@ -122,11 +125,12 @@ async function resetPropertyChecklist(db: Db, propertyId: string, renewalDate: s
 
 async function sendRenewalReminder(db: Db, propertyId: string, orgId: string, renewalDate: string): Promise<void> {
   // Check if reminder already sent for this renewal cycle
-  const { data: existing } = await db
+  const { data: existing, error: existingError } = await db
     .from("property_insurance_renewal_reminders")
     .select("renewal_date")
     .eq("property_id", propertyId)
     .single()
+  if (existingError) console.error("sendRenewalReminder reminders read failed:", existingError.message)
 
   if (existing?.renewal_date === renewalDate) return  // already sent
 
@@ -140,18 +144,19 @@ async function sendRenewalReminder(db: Db, propertyId: string, orgId: string, re
   if (!count || count === 0) return  // all verified, no reminder needed
 
   // Property label
-  const { data: prop } = await db
+  const { data: prop, error: propLabelError } = await db
     .from("properties")
     .select("name, address_line1, suburb, city")
     .eq("id", propertyId)
     .single()
+  if (propLabelError) console.error("sendRenewalReminder properties read failed:", propLabelError.message)
 
   const propertyLabel = (prop?.name as string | null) ?? "your property"
   const address = [prop?.address_line1, prop?.suburb, prop?.city].filter(Boolean).join(", ")
   const propertyDisplay = address ? `${propertyLabel} — ${address}` : propertyLabel
 
   // Recipient: first admin user in org
-  const { data: agentRow } = await db
+  const { data: agentRow, error: agentRowError } = await db
     .from("user_orgs")
     .select("user_id")
     .eq("org_id", orgId)
@@ -159,6 +164,7 @@ async function sendRenewalReminder(db: Db, propertyId: string, orgId: string, re
     .eq("role", "admin")
     .limit(1)
     .single()
+  if (agentRowError) console.error("sendRenewalReminder user_orgs read failed:", agentRowError.message)
 
   if (!agentRow?.user_id) return
 
@@ -220,11 +226,12 @@ export async function GET(req: NextRequest) {
     const sevenDaysAgo = new Date(Date.now() - 7 * DAY_MS).toISOString().slice(0, 10)
 
     // 1. Find properties whose renewal date is today → reset checklist
-    const { data: dueToday } = await db
+    const { data: dueToday, error: dueTodayError } = await db
       .from("properties")
       .select("id, org_id, insurance_renewal_date")
       .eq("insurance_renewal_date", today)
       .is("deleted_at", null)
+    if (dueTodayError) console.error("insurance-renewals dueToday properties read failed:", dueTodayError.message)
 
     let resetTotal = 0
     for (const prop of dueToday ?? []) {
@@ -233,11 +240,12 @@ export async function GET(req: NextRequest) {
     }
 
     // 2. Find properties where renewal was 7 days ago and items still unknown
-    const { data: needReminder } = await db
+    const { data: needReminder, error: needReminderError } = await db
       .from("property_insurance_checklists")
       .select("property_id, property_insurance_checklists_properties:property_id(org_id, insurance_renewal_date)")
       .eq("renewal_reset_at::date", sevenDaysAgo)
       .eq("state", "unknown")
+    if (needReminderError) console.error("insurance-renewals needReminder read failed:", needReminderError.message)
 
     const reminderPropertyIds = new Set<string>()
     for (const row of needReminder ?? []) {

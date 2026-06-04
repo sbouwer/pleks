@@ -93,6 +93,11 @@ interface ImportContext {
   tenantIdCache: Map<string, string>
 }
 
+// Log-only guard for Supabase query errors (keeps call sites flat — no control-flow change)
+function logIfError(label: string, error: { message: string } | null) {
+  if (error) console.error(`${label}:`, error.message)
+}
+
 // ── Field helpers ──────────────────────────────────────────────────────
 
 function getField(
@@ -286,8 +291,9 @@ async function upsertProperty(
   const cached = cache.get(cacheKey)
   if (cached) return cached
 
-  const { data: existing } = await ctx.supabase
+  const { data: existing, error: existingError } = await ctx.supabase
     .from("properties").select("id").eq("org_id", ctx.orgId).ilike("name", propertyName).limit(1).single()
+  if (existingError) console.error("importRunner properties lookup failed:", existingError.message)
 
   if (existing) {
     const id = String(existing.id)
@@ -339,8 +345,9 @@ async function upsertUnit(
   const cached = ctx.unitIdCache.get(unitKey)
   if (cached) return cached
 
-  const { data: existing } = await ctx.supabase
+  const { data: existing, error: existingError } = await ctx.supabase
     .from("units").select("id").eq("property_id", propertyId).ilike("unit_number", group.unitNumber).limit(1).single()
+  if (existingError) console.error("importRunner units lookup failed:", existingError.message)
 
   if (existing) {
     const id = String(existing.id)
@@ -467,8 +474,9 @@ async function upsertTenant(entry: UnitGroupEntry, ctx: ImportContext): Promise<
   if (ctx.tenantIdCache.has(email)) return
 
   try {
-    const { data: existing } = await ctx.supabase
+    const { data: existing, error: existingError } = await ctx.supabase
       .from("contacts").select("id").eq("org_id", ctx.orgId).ilike("primary_email", email).limit(1).single()
+    if (existingError) console.error("importRunner contacts lookup failed:", existingError.message)
 
     if (existing) {
       ctx.tenantIdCache.set(email, String(existing.id))
@@ -593,8 +601,9 @@ async function insertSingleTenant(params: {
   if (!email) return
   if (ctx.tenantIdCache.has(email)) return
 
-  const { data: existing } = await ctx.supabase
+  const { data: existing, error: existingError } = await ctx.supabase
     .from("contacts").select("id").eq("org_id", ctx.orgId).ilike("primary_email", email).limit(1).single()
+  if (existingError) console.error("importRunner contacts lookup failed:", existingError.message)
 
   if (existing) {
     ctx.tenantIdCache.set(email, String(existing.id))
@@ -852,12 +861,14 @@ async function resolveTenantIdForHistory(
   if (cached) return cached
 
   // 2. Try existing contact → tenant
-  const { data: existingContact } = await ctx.supabase
+  const { data: existingContact, error: existingContactError } = await ctx.supabase
     .from("contacts").select("id").eq("org_id", ctx.orgId).ilike("primary_email", email).limit(1).single()
+  if (existingContactError) console.error("importRunner prev-tenant contacts lookup failed:", existingContactError.message)
 
   if (existingContact) {
-    const { data: existingTenant } = await ctx.supabase
+    const { data: existingTenant, error: existingTenantError } = await ctx.supabase
       .from("tenants").select("id").eq("contact_id", existingContact.id).limit(1).single()
+    if (existingTenantError) console.error("importRunner prev-tenant tenants lookup failed:", existingTenantError.message)
     if (existingTenant) {
       const tenantId = String(existingTenant.id)
       ctx.tenantIdCache.set(email, tenantId)
@@ -868,7 +879,7 @@ async function resolveTenantIdForHistory(
   // 3. Create contact + tenant for the previous tenant
   const { firstName, lastName, companyName: prevTenantCompany } = resolveName(entry.row, ctx.mapping)
   const prevDisplay = prevTenantCompany || `${firstName} ${lastName}`.trim()
-  const { data: contact } = await ctx.supabase
+  const { data: contact, error: contactError } = await ctx.supabase
     .from("contacts")
     .insert({
       org_id: ctx.orgId,
@@ -880,12 +891,14 @@ async function resolveTenantIdForHistory(
       primary_email: email,
     })
     .select("id").single()
+  if (contactError) console.error("importRunner prev-tenant contacts insert failed:", contactError.message)
 
   if (contact) {
-    const { data: tenant } = await ctx.supabase
+    const { data: tenant, error: tenantError } = await ctx.supabase
       .from("tenants")
       .insert({ org_id: ctx.orgId, contact_id: contact.id })
       .select("id").single()
+    if (tenantError) console.error("importRunner prev-tenant tenants insert failed:", tenantError.message)
 
     if (tenant) {
       const tenantId = String(tenant.id)
@@ -1145,24 +1158,26 @@ async function isExistingVendor(
   supabase: SupabaseClient,
 ): Promise<boolean> {
   if (email) {
-    const { data: byEmail } = await supabase
+    const { data: byEmail, error: byEmailError } = await supabase
       .from("contractor_view")
       .select("id")
       .eq("org_id", orgId)
       .ilike("email", email)
       .limit(1)
       .single()
+    if (byEmailError) console.error("importRunner contractor_view email lookup failed:", byEmailError.message)
     if (byEmail) return true
   }
 
   if (displayName) {
-    const { data: byName } = await supabase
+    const { data: byName, error: byNameError } = await supabase
       .from("contractor_view")
       .select("id")
       .eq("org_id", orgId)
       .ilike("company_name", displayName)
       .limit(1)
       .single()
+    if (byNameError) console.error("importRunner contractor_view name lookup failed:", byNameError.message)
     if (byName) return true
   }
 
@@ -1278,13 +1293,14 @@ async function importLandlords(
 
     try {
       // Dedup against properties.owner_email
-      const { data: existingProperty } = await ctx.supabase
+      const { data: existingProperty, error: existingPropertyError } = await ctx.supabase
         .from("properties")
         .select("id")
         .eq("org_id", ctx.orgId)
         .ilike("owner_email", email)
         .limit(1)
         .single()
+      logIfError("importRunner properties owner_email lookup failed", existingPropertyError)
 
       if (existingProperty) {
         ctx.result.skipped++
@@ -1292,13 +1308,14 @@ async function importLandlords(
       }
 
       // Dedup against pending_landlords.email
-      const { data: existingPending } = await ctx.supabase
+      const { data: existingPending, error: existingPendingError } = await ctx.supabase
         .from("landlord_view")
         .select("id")
         .eq("org_id", ctx.orgId)
         .ilike("email", email)
         .limit(1)
         .single()
+      logIfError("importRunner landlord_view email lookup failed", existingPendingError)
 
       if (existingPending) {
         ctx.result.skipped++
@@ -1405,8 +1422,9 @@ async function importAgents(
 
     try {
       // Dedup: check if already an org member
-      const { data: existingMember } = await ctx.supabase
+      const { data: existingMember, error: existingMemberError } = await ctx.supabase
         .rpc("get_org_member_by_email", { p_org_id: ctx.orgId, p_email: email })
+      if (existingMemberError) console.error("importRunner get_org_member_by_email rpc failed:", existingMemberError.message)
 
       if (existingMember && (Array.isArray(existingMember) ? existingMember.length > 0 : true)) {
         ctx.result.skipped++
@@ -1414,13 +1432,14 @@ async function importAgents(
       }
 
       // Dedup: check existing invites
-      const { data: existingInvite } = await ctx.supabase
+      const { data: existingInvite, error: existingInviteError } = await ctx.supabase
         .from("invites")
         .select("id")
         .eq("org_id", ctx.orgId)
         .ilike("email", email)
         .limit(1)
         .single()
+      if (existingInviteError) console.error("importRunner invites lookup failed:", existingInviteError.message)
 
       if (existingInvite) {
         ctx.result.skipped++

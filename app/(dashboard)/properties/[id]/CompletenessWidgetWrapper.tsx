@@ -60,12 +60,13 @@ async function fetchPendingRequests(
   service: ServiceClient,
   propertyId: string,
 ): Promise<Partial<Record<CompletenessTopic, string>>> {
-  const { data: rows } = await service
+  const { data: rows, error: rowsError } = await service
     .from("property_info_requests")
     .select("id, topic, status")
     .eq("property_id", propertyId)
     .in("status", ["pending", "sent"])
 
+  if (rowsError) console.error("fetchPendingRequests failed:", rowsError.message)
   const out: Partial<Record<CompletenessTopic, string>> = {}
   for (const row of rows ?? []) {
     const mapped = INFO_REQUEST_TOPIC_MAP[row.topic as string]
@@ -81,12 +82,13 @@ async function fetchLandlordInfo(
 ): Promise<{ hasOwnerBanking: boolean; ownerEmail: string | null }> {
   if (!landlordId) return { hasOwnerBanking: false, ownerEmail: fallbackEmail }
 
-  const { data: landlord } = await service
+  const { data: landlord, error: landlordError } = await service
     .from("landlords")
     .select("bank_name, bank_account, contact_id")
     .eq("id", landlordId)
     .single()
 
+  if (landlordError) console.error("fetchLandlordInfo landlords read failed:", landlordError.message)
   if (!landlord) return { hasOwnerBanking: false, ownerEmail: fallbackEmail }
 
   const hasOwnerBanking = !!(landlord.bank_name && landlord.bank_account)
@@ -94,12 +96,13 @@ async function fetchLandlordInfo(
     return { hasOwnerBanking, ownerEmail: fallbackEmail }
   }
 
-  const { data: contact } = await service
+  const { data: contact, error: contactError } = await service
     .from("contacts")
     .select("primary_email")
     .eq("id", landlord.contact_id)
     .single()
 
+  if (contactError) console.error("fetchLandlordInfo contacts read failed:", contactError.message)
   return { hasOwnerBanking, ownerEmail: (contact?.primary_email as string | null) ?? null }
 }
 
@@ -108,11 +111,12 @@ async function fetchSchemeContact(
   schemeId: string | null,
 ): Promise<boolean> {
   if (!schemeId) return false
-  const { data: scheme } = await service
+  const { data: scheme, error: schemeError } = await service
     .from("managing_schemes")
     .select("managing_agent_email, managing_agent_name")
     .eq("id", schemeId)
     .maybeSingle()
+  if (schemeError) console.error("fetchSchemeContact failed:", schemeError.message)
   return !!(scheme?.managing_agent_email || scheme?.managing_agent_name)
 }
 
@@ -120,12 +124,13 @@ async function fetchUnitsBreakdown(
   service: ServiceClient,
   propertyId: string,
 ): Promise<{ total: number; detailed: number }> {
-  const { data: units } = await service
+  const { data: units, error: unitsError } = await service
     .from("units")
     .select("id, bedrooms, bathrooms, size_m2, unit_type")
     .eq("property_id", propertyId)
     .is("deleted_at", null)
 
+  if (unitsError) console.error("fetchUnitsBreakdown failed:", unitsError.message)
   const total = units?.length ?? 0
   const detailed = (units ?? []).filter(unitHasFullDetails).length
   return { total, detailed }

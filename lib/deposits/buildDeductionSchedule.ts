@@ -1,13 +1,11 @@
 "use server"
 
 /**
- * lib/deposits/buildDeductionSchedule.ts — FILL: one-line purpose
+ * lib/deposits/buildDeductionSchedule.ts — build deposit deduction items + reconciliation from a move-out inspection
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   server-only ("use server"); called from deposit-disbursement flows
+ * Data:   leases, inspection_items, inspections, deposit_deduction_items, deposit_reconciliations (Supabase)
+ * Notes:  classifies each move-out item against the move-in baseline; sums tenant_damage deductions into a reconciliation row
  */
 import { createClient } from "@/lib/supabase/server"
 import { generateDeductionJustification } from "./generateJustification"
@@ -19,35 +17,39 @@ export async function buildDeductionSchedule(
 ) {
   const supabase = await createClient()
 
-  const { data: lease } = await supabase
+  const { data: lease, error: leaseError } = await supabase
     .from("leases")
     .select("id, org_id, tenant_id, deposit_amount_cents")
     .eq("id", leaseId)
     .single()
 
+  if (leaseError) console.error("buildDeductionSchedule leases read failed:", leaseError.message)
   if (!lease) return { error: "Lease not found" }
 
   // Get items from move-out inspection
-  const { data: inspectionItems } = await supabase
+  const { data: inspectionItems, error: inspectionItemsError } = await supabase
     .from("inspection_items")
     .select("id, room, item_name, condition, notes, estimated_cost_cents")
     .eq("inspection_id", inspectionId)
     .in("condition", ["tenant_damage", "poor", "damaged", "wear_and_tear"])
+  if (inspectionItemsError) console.error("buildDeductionSchedule inspection_items read failed:", inspectionItemsError.message)
 
   // Get move-in inspection for pre-existing condition check
-  const { data: moveInInspection } = await supabase
+  const { data: moveInInspection, error: moveInInspectionError } = await supabase
     .from("inspections")
     .select("id")
     .eq("lease_id", leaseId)
     .eq("type", "move_in")
     .single()
+  if (moveInInspectionError) console.error("buildDeductionSchedule move-in inspections read failed:", moveInInspectionError.message)
 
   let moveInItems: Record<string, unknown>[] = []
   if (moveInInspection) {
-    const { data } = await supabase
+    const { data, error: moveInItemsError } = await supabase
       .from("inspection_items")
       .select("room, item_name, condition")
       .eq("inspection_id", moveInInspection.id)
+    if (moveInItemsError) console.error("buildDeductionSchedule move-in inspection_items read failed:", moveInItemsError.message)
     moveInItems = data ?? []
   }
 
@@ -67,7 +69,7 @@ export async function buildDeductionSchedule(
       classification = "tenant_damage"
     }
 
-    const { data: deductionItem } = await supabase
+    const { data: deductionItem, error: deductionItemError } = await supabase
       .from("deposit_deduction_items")
       .insert({
         org_id: lease.org_id,
@@ -82,6 +84,7 @@ export async function buildDeductionSchedule(
       })
       .select("id")
       .single()
+    if (deductionItemError) console.error("buildDeductionSchedule deposit_deduction_items insert failed:", deductionItemError.message)
 
     // Generate AI justification for tenant damage items
     if (classification === "tenant_damage" && deductionItem) {
@@ -95,11 +98,12 @@ export async function buildDeductionSchedule(
   const totalAvailable = depositHeld + interestAccrued
 
   // Sum confirmed deductions
-  const { data: allDeductions } = await supabase
+  const { data: allDeductions, error: allDeductionsError } = await supabase
     .from("deposit_deduction_items")
     .select("deduction_amount_cents")
     .eq("lease_id", leaseId)
     .eq("classification", "tenant_damage")
+  if (allDeductionsError) console.error("buildDeductionSchedule deposit_deduction_items read failed:", allDeductionsError.message)
 
   const totalDeductions = (allDeductions ?? []).reduce(
     (s, d) => s + (d.deduction_amount_cents ?? 0), 0

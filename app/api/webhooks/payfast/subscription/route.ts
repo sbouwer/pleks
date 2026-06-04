@@ -13,7 +13,7 @@ import { NextResponse } from "next/server"
 import * as Sentry from "@sentry/nextjs"
 import { validatePayFastITN } from "@/lib/payfast/validate"
 import { createServiceClient } from "@/lib/supabase/server"
-import { buildBranding } from "@/lib/comms/send-email"
+import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import {
   sendSubscriptionActivated,
   sendPastDueFirst,
@@ -39,7 +39,7 @@ async function fetchContext(supabase: SupabaseClient, orgId: string) {
       .maybeSingle(),
     supabase
       .from("organisations")
-      .select("name, email, phone, address_line1, city, brand_logo_url, brand_accent_color")
+      .select("name, email, phone, brand_accent_color")
       .eq("id", orgId)
       .single(),
     supabase
@@ -94,7 +94,7 @@ async function handleFailed(supabase: SupabaseClient, orgId: string) {
       orgName: org.name,
       adminEmail: profile.email,
       adminName: profile.full_name ?? undefined,
-      branding: buildBranding(org),
+      branding: buildBranding(await fetchOrgSettings(orgId)),
     })
   }
 }
@@ -144,7 +144,7 @@ async function handleComplete(
       orgName: org.name,
       adminEmail: profile.email,
       adminName: profile.full_name ?? undefined,
-      branding: buildBranding(org),
+      branding: buildBranding(await fetchOrgSettings(orgId)),
     }
     if (wasRecovery) {
       void sendResumed(orgContact)

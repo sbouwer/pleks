@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { calculatePrescreen } from "@/lib/applications/prescreen"
 import { sendApplicationReceived, sendAgentApplicationNotification } from "@/lib/applications/emails"
-import { buildBranding } from "@/lib/comms/send-email"
+import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 
 function getServiceClient() {
   return createClient(
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest, { params }: Props) {
   // Fetch org for branding
   const { data: org } = await service
     .from("organisations")
-    .select("name, email, phone, address_line1, city, brand_logo_url, brand_accent_color, reply_to_email")
+    .select("name, email, phone, brand_accent_color")
     .eq("id", app.org_id as string)
     .single()
 
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest, { params }: Props) {
 
   const agentEmail = (agentRow?.user_profiles as unknown as { email: string } | null)?.email ?? null
 
-  const branding = buildBranding(org, undefined)
+  const branding = buildBranding(await fetchOrgSettings(app.org_id as string))
   const orgContext = {
     orgId: app.org_id as string,
     orgName: org?.name ?? "Pleks",

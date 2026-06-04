@@ -143,11 +143,12 @@ function buildSmsBody(
 }
 
 async function fetchPropertyLabel(supabase: SupabaseClient, unitId: string): Promise<string | undefined> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("units")
     .select("unit_number, properties(address_line1, suburb, city)")
     .eq("id", unitId)
     .maybeSingle()
+  if (error) console.error("fetchPropertyLabel units read failed:", error.message)
   if (!data) return undefined
   // Supabase infers the embedded relation as array; unit→property is many-to-one so cast through unknown
   type PropRow = { address_line1: string; suburb: string | null; city: string }
@@ -159,11 +160,12 @@ async function fetchPropertyLabel(supabase: SupabaseClient, unitId: string): Pro
 }
 
 async function fetchLeaseStartDate(supabase: SupabaseClient, leaseId: string): Promise<string | undefined> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("leases")
     .select("start_date")
     .eq("id", leaseId)
     .maybeSingle()
+  if (error) console.error("fetchLeaseStartDate leases read failed:", error.message)
   return data?.start_date ? formatDate(data.start_date as string) : undefined
 }
 
@@ -246,21 +248,23 @@ async function handleOverdueInvoice(
 ): Promise<boolean> {
   await supabase.from("rent_invoices").update({ status: "overdue" }).eq("id", inv.id).eq("status", "open")
 
-  const { data: existing } = await supabase
+  const { data: existing, error: existingError } = await supabase
     .from("arrears_cases")
     .select("id")
     .eq("lease_id", inv.lease_id)
     .in("status", ["open", "payment_arrangement"])
     .limit(1)
+  if (existingError) console.error("handleOverdueInvoice arrears_cases lookup failed:", existingError.message)
 
   if (existing && existing.length > 0) {
     const daysOverdue = differenceInDays(today, new Date(inv.due_date))
     const months = Math.ceil(daysOverdue / 30)
-    const { data: allOverdue } = await supabase
+    const { data: allOverdue, error: allOverdueError } = await supabase
       .from("rent_invoices")
       .select("balance_cents")
       .eq("lease_id", inv.lease_id)
       .eq("status", "overdue")
+    if (allOverdueError) console.error("handleOverdueInvoice rent_invoices read failed:", allOverdueError.message)
     const totalArrears = (allOverdue ?? []).reduce((s, i) => s + (i.balance_cents ?? 0), 0)
     await supabase.from("arrears_cases").update({
       total_arrears_cents: totalArrears,
@@ -270,7 +274,7 @@ async function handleOverdueInvoice(
   }
 
   const lease = inv.leases as { property_id: string; lease_type: string } | null
-  const { data: sequence } = await supabase
+  const { data: sequence, error: sequenceError } = await supabase
     .from("arrears_sequences")
     .select("id")
     .eq("org_id", inv.org_id)
@@ -278,6 +282,7 @@ async function handleOverdueInvoice(
     .eq("is_default", true)
     .limit(1)
     .maybeSingle()
+  if (sequenceError) console.error("handleOverdueInvoice arrears_sequences read failed:", sequenceError.message)
 
   await supabase.from("arrears_cases").insert({
     org_id:                  inv.org_id,
@@ -317,12 +322,13 @@ async function advanceSequenceStep(
   if (stepErr || !step || daysOverdue < step.trigger_days) return false
 
   // Idempotency — don't fire twice for the same step
-  const { data: existingAction } = await supabase
+  const { data: existingAction, error: existingActionError } = await supabase
     .from("arrears_actions")
     .select("id")
     .eq("case_id", arrearsCase.id)
     .eq("step_number", nextStep)
     .limit(1)
+  if (existingActionError) console.error("advanceSequenceStep arrears_actions lookup failed:", existingActionError.message)
   if (existingAction && existingAction.length > 0) return false
 
   const templateKey = resolveTemplateKey(step.action_type, nextStep)
@@ -333,11 +339,12 @@ async function advanceSequenceStep(
   }
 
   // Fetch tenant info
-  const { data: tenantRaw } = await supabase
+  const { data: tenantRaw, error: tenantRawError } = await supabase
     .from("tenant_view")
     .select("first_name, last_name, email, phone")
     .eq("id", arrearsCase.tenant_id)
     .maybeSingle()
+  if (tenantRawError) console.error("advanceSequenceStep tenant_view read failed:", tenantRawError.message)
   const tenant = tenantRaw as TenantInfo | null
 
   const tenantName    = tenantDisplayName(tenant ?? { first_name: null, last_name: null, email: null, phone: null })
@@ -427,13 +434,14 @@ async function autoResolveIfPaid(
   supabase: SupabaseClient,
   arrearsCase: { id: string; lease_id: string; org_id: string; tenant_id: string },
 ): Promise<boolean> {
-  const { data: stillOverdue } = await supabase
+  const { data: stillOverdue, error: stillOverdueError } = await supabase
     .from("rent_invoices")
     .select("id")
     .eq("lease_id", arrearsCase.lease_id)
     .eq("status", "overdue")
     .limit(1)
 
+  if (stillOverdueError) console.error("autoResolveIfPaid rent_invoices read failed:", stillOverdueError.message)
   if (stillOverdue && stillOverdue.length > 0) return false
 
   await supabase.from("arrears_cases").update({
@@ -444,11 +452,12 @@ async function autoResolveIfPaid(
   }).eq("id", arrearsCase.id)
 
   // Fire arrears.resolved comm (non-mandatory, transactional, email only)
-  const { data: tenantRaw } = await supabase
+  const { data: tenantRaw, error: tenantRawError } = await supabase
     .from("tenant_view")
     .select("first_name, last_name, email, phone")
     .eq("id", arrearsCase.tenant_id)
     .maybeSingle()
+  if (tenantRawError) console.error("autoResolveIfPaid tenant_view read failed:", tenantRawError.message)
   const tenant = tenantRaw as TenantInfo | null
   if (tenant?.email) {
     await routeAndSend({
@@ -507,7 +516,8 @@ async function phase2AdvanceSequences(supabase: SupabaseClient, today: Date): Pr
   const capabilitiesMap = new Map<string, OrgCapabilities>()
   const orgToneMap      = new Map<string, string>()
   if (uniqueOrgIds.length > 0) {
-    const { data: orgs } = await supabase.from("organisations").select("id, type, name, settings").in("id", uniqueOrgIds)
+    const { data: orgs, error: orgsError } = await supabase.from("organisations").select("id, type, name, settings").in("id", uniqueOrgIds)
+    if (orgsError) console.error("phase2AdvanceSequences organisations read failed:", orgsError.message)
     for (const org of orgs ?? []) {
       capabilitiesMap.set(org.id, getOrgCapabilities((org.type as OrgType) ?? "agency", (org.name as string) ?? ""))
       const settings = org.settings as { communication?: { tone_tenant?: string } } | null

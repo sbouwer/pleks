@@ -120,39 +120,43 @@ export default async function LandlordDetailPage({ params }: Props) {
   // agent's self-managed identity (forkedLandlordId === id), once, until dismissed.
   const forkState = await getIdentityForkState()
 
-  const { data: membership } = await service
+  const { data: membership, error: membershipError } = await service
     .from("user_orgs")
     .select("org_id, role")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
+  if (membershipError) console.error("LandlordDetailPage user_orgs read failed:", membershipError.message)
 
   if (!membership) redirect("/onboarding")
 
-  const { data: landlord } = await service
+  const { data: landlord, error: landlordError } = await service
     .from("landlord_view")
     .select("id, contact_id, entity_type, first_name, last_name, company_name, trading_as, registration_number, vat_number, email, phone, tax_number, payment_method, notes")
     .eq("id", id)
     .eq("org_id", membership.org_id)
     .single()
+  if (landlordError) console.error("LandlordDetailPage landlord_view read failed:", landlordError.message)
 
   if (!landlord) redirect("/landlords")
 
   // Bank accounts — global multi-account banking (contact-scoped)
-  const { data: landlordBankAccounts } = await service
+  const { data: landlordBankAccounts, error: landlordBankAccountsError } = await service
     .from("contact_bank_accounts")
     .select("id, account_name, bank_name, account_number, branch_code, account_type, label, is_primary")
     .eq("contact_id", landlord.contact_id)
     .eq("org_id", membership.org_id)
     .order("is_primary", { ascending: false })
+  if (landlordBankAccountsError) console.error("LandlordDetailPage contact_bank_accounts read failed:", landlordBankAccountsError.message)
 
   // Identity extras not on landlord_view (title/gender shown on the identity card)
-  const { data: identityExtra } = await service
+  const { data: identityExtra, error: identityExtraError } = await service
     .from("contacts")
     .select("title, gender")
     .eq("id", landlord.contact_id)
     .eq("org_id", membership.org_id)
     .single()
+  if (identityExtraError) console.error("LandlordDetailPage contacts read failed:", identityExtraError.message)
 
   const [phonesResult, emailsResult, addressesResult, propertiesResult] = await Promise.all([
     service
@@ -185,34 +189,37 @@ export default async function LandlordDetailPage({ params }: Props) {
   const properties = propertiesResult.data
 
   // Leases for rent aggregation
-  const { data: landlordLeases } = await service
+  const { data: landlordLeases, error: landlordLeasesError } = await service
     .from("leases")
     .select("rent_amount_cents, property_id")
     .in("property_id", (properties || []).map((p) => p.id))
     .in("status", ["active", "notice", "month_to_month"])
     .is("deleted_at", null)
+  if (landlordLeasesError) console.error("LandlordDetailPage leases read failed:", landlordLeasesError.message)
 
   // Owner statements (table may not exist)
   let recentStatements: Array<{ id: string; period_month: string; net_to_owner_cents: number; owner_payment_status: string; owner_payment_date: string | null }> = []
   try {
-    const { data } = await service
+    const { data, error: ownerStatementsError } = await service
       .from("owner_statements")
       .select("id, period_month, net_to_owner_cents, owner_payment_status, owner_payment_date")
       .eq("landlord_id", id)
       .eq("org_id", membership.org_id)
       .order("period_month", { ascending: false })
       .limit(3)
+    if (ownerStatementsError) console.error("LandlordDetailPage owner_statements read failed:", ownerStatementsError.message)
     recentStatements = data ?? []
   } catch { recentStatements = [] }
 
   // Arrears
   let totalArrears = 0
   try {
-    const { data: arrearsData } = await service
+    const { data: arrearsData, error: arrearsError } = await service
       .from("arrears_cases")
       .select("total_arrears_cents")
       .in("property_id", (properties || []).map((p) => p.id))
       .in("status", ["open", "payment_arrangement", "legal"])
+    if (arrearsError) console.error("LandlordDetailPage arrears_cases read failed:", arrearsError.message)
     totalArrears = (arrearsData || []).reduce((sum, a) => sum + (a.total_arrears_cents || 0), 0)
   } catch { totalArrears = 0 }
 
@@ -240,16 +247,18 @@ export default async function LandlordDetailPage({ params }: Props) {
     : []
 
   // Landlord portal status + org tier for portal gating
-  const { data: landlordPortal } = await service
+  const { data: landlordPortal, error: landlordPortalError } = await service
     .from("landlords")
     .select("portal_status, portal_invited_at")
     .eq("id", id)
     .single()
-  const { data: sub } = await service
+  if (landlordPortalError) console.error("LandlordDetailPage landlords portal read failed:", landlordPortalError.message)
+  const { data: sub, error: subError } = await service
     .from("subscriptions")
     .select("tier")
     .eq("org_id", membership.org_id)
     .single()
+  if (subError) console.error("LandlordDetailPage subscriptions read failed:", subError.message)
   const orgTier = sub?.tier ?? "steward"
   const canAccessIntelligence = hasFeature((orgTier ?? "owner") as Tier, "property_intelligence")
 

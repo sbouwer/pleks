@@ -218,8 +218,9 @@ function buildContactScalarUpdate(entity: PartyEntity, f: PartyFormState, primar
 /** Upsert company people: update by id, insert new, soft-delete removed. Clears primary first to dodge uq. */
 async function upsertCompanyPeople(db: Db, orgId: string, userId: string, companyContactId: string, people: PartyPerson[] | undefined) {
   const list = (people ?? []).filter((p) => p.firstName?.trim() || p.lastName?.trim())
-  const { data: existing } = await db.from("contacts")
+  const { data: existing, error: existingError } = await db.from("contacts")
     .select("id").eq("organisation_contact_id", companyContactId).eq("org_id", orgId).is("deleted_at", null)
+  if (existingError) console.error("upsertCompanyPeople contacts read failed:", existingError.message)
   const existingIds = new Set((existing ?? []).map((r) => r.id as string))
   const submittedIds = new Set(list.filter((p) => p.id).map((p) => p.id as string))
 
@@ -275,10 +276,11 @@ async function replaceBankAccounts(db: Db, orgId: string, contactId: string, acc
 
 /** Existing company people → PartyPerson[] (carries the DB id for the edit diff). */
 async function fetchCompanyPeopleAsParty(db: Db, orgId: string, companyContactId: string): Promise<PartyPerson[]> {
-  const { data } = await db.from("contacts")
+  const { data, error } = await db.from("contacts")
     .select("id, title, first_name, last_name, company_function, designation, is_primary_contact, is_signatory, id_type, id_number, primary_email, primary_phone")
     .eq("organisation_contact_id", companyContactId).eq("org_id", orgId).is("deleted_at", null)
     .order("is_primary_contact", { ascending: false })
+  if (error) console.error("fetchCompanyPeopleAsParty contacts read failed:", error.message)
   return (data ?? []).map((p) => ({
     _uid: p.id as string, id: p.id as string,
     title: (p.title as string | null) ?? undefined,
@@ -314,9 +316,10 @@ function mapAddressesToForm(rows: Array<Record<string, unknown>> | null): PartyA
 
 /** Full individual identity fields from contacts → form (so editing doesn't wipe title/gender/etc.). */
 async function individualIdentityForm(db: Db, contactId: string): Promise<Partial<PartyFormState>> {
-  const { data: c } = await db.from("contacts")
+  const { data: c, error: cError } = await db.from("contacts")
     .select("title, initials, middle_names, suffix, designation, gender, date_of_birth, preferred_channel, id_type, id_number, vat_number")
     .eq("id", contactId).single()
+  if (cError) console.error("individualIdentityForm contacts read failed:", cError.message)
   if (!c) return {}
   return {
     title: (c.title as string | null) ?? undefined,
@@ -400,9 +403,10 @@ export async function fetchContractorParty(contractorId: string): Promise<PartyE
   if (!gw) return { ok: false, error: "Not authorised" }
   const { db, orgId } = gw
 
-  const { data: c } = await db.from("contractor_view")
+  const { data: c, error: cError } = await db.from("contractor_view")
     .select("id, contact_id, entity_type, first_name, last_name, company_name, registration_number, vat_number, email, phone, specialities, is_active, notes, call_out_rate_cents, hourly_rate_cents")
     .eq("id", contractorId).eq("org_id", orgId).single()
+  if (cError) console.error("fetchContractorParty contractor_view read failed:", cError.message)
   if (!c) return { ok: false, error: "Supplier not found" }
 
   const [{ data: con }, { data: addrs }, { data: banks }] = await Promise.all([
@@ -445,7 +449,8 @@ export async function updateContractorParty(input: AddPartyInput, contractorId: 
     const { db, userId, orgId } = await requireAgentWriteAccess("update_contractor")
     const f = input.form
 
-    const { data: con } = await db.from("contractors").select("contact_id").eq("id", contractorId).eq("org_id", orgId).single()
+    const { data: con, error: conError } = await db.from("contractors").select("contact_id").eq("id", contractorId).eq("org_id", orgId).single()
+    if (conError) console.error("updateContractorParty contractors read failed:", conError.message)
     if (!con) return { ok: false, error: "Supplier not found" }
     const contactId = con.contact_id as string
 
@@ -523,9 +528,10 @@ export async function fetchLandlordParty(landlordId: string): Promise<PartyEditD
   if (!gw) return { ok: false, error: "Not authorised" }
   const { db, orgId } = gw
 
-  const { data: l } = await db.from("landlord_view")
+  const { data: l, error: lError } = await db.from("landlord_view")
     .select("id, contact_id, entity_type, first_name, last_name, company_name, registration_number, vat_number, email, phone, notes")
     .eq("id", landlordId).eq("org_id", orgId).single()
+  if (lError) console.error("fetchLandlordParty landlord_view read failed:", lError.message)
   if (!l) return { ok: false, error: "Landlord not found" }
   const entity: PartyEntity = l.entity_type === "organisation" ? "company" : "individual"
 
@@ -561,7 +567,8 @@ export async function updateLandlordParty(input: AddPartyInput, landlordId: stri
     const { db, userId, orgId } = await requireAgentWriteAccess("update_landlord")
     const f = input.form
 
-    const { data: ll } = await db.from("landlords").select("contact_id").eq("id", landlordId).eq("org_id", orgId).single()
+    const { data: ll, error: llError } = await db.from("landlords").select("contact_id").eq("id", landlordId).eq("org_id", orgId).single()
+    if (llError) console.error("updateLandlordParty landlords read failed:", llError.message)
     if (!ll) return { ok: false, error: "Landlord not found" }
     const contactId = ll.contact_id as string
 
@@ -652,9 +659,10 @@ export async function fetchTenantParty(tenantId: string): Promise<PartyEditData>
   if (!gw) return { ok: false, error: "Not authorised" }
   const { db, orgId } = gw
 
-  const { data: t } = await db.from("tenant_view")
+  const { data: t, error: tError } = await db.from("tenant_view")
     .select("contact_id, entity_type, first_name, last_name, company_name, email, phone, id_type, id_number, employer_name, occupation, notes")
     .eq("id", tenantId).eq("org_id", orgId).single()
+  if (tError) console.error("fetchTenantParty tenant_view read failed:", tError.message)
   if (!t) return { ok: false, error: "Tenant not found" }
   const entity: PartyEntity = t.entity_type === "organisation" ? "company" : "individual"
 
@@ -694,7 +702,8 @@ export async function updateTenantParty(input: AddPartyInput, tenantId: string):
     const { db, userId, orgId } = await requireAgentWriteAccess("update_tenant")
     const f = input.form
 
-    const { data: tn } = await db.from("tenants").select("contact_id").eq("id", tenantId).eq("org_id", orgId).single()
+    const { data: tn, error: tnError } = await db.from("tenants").select("contact_id").eq("id", tenantId).eq("org_id", orgId).single()
+    if (tnError) console.error("updateTenantParty tenants read failed:", tnError.message)
     if (!tn) return { ok: false, error: "Tenant not found" }
     const contactId = tn.contact_id as string
 

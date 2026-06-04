@@ -1,15 +1,15 @@
 /**
- * app/api/cron/trial-expiry/route.ts — FILL: one-line purpose
+ * app/api/cron/trial-expiry/route.ts — daily cron: revert expired trials to Owner + send trial/founding warnings
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /api/cron/trial-expiry
+ * Auth:   x-cron-secret header
+ * Data:   subscriptions, organisations, user_orgs, communication_log via service client
+ * Notes:  Expired trials revert to free Owner tier. Sends T-2 trial-ending and ~T-35 founding-expiry
+ *         warnings, deduped via communication_log. Branding routed through fetchOrgSettings (real logo+address).
  */
 import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
-import { buildBranding } from "@/lib/comms/send-email"
+import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import {
   sendTrialExpired,
   sendTrialEndingSoon,
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
     const [{ data: org }, { data: adminRow }] = await Promise.all([
       supabase
         .from("organisations")
-        .select("name, email, phone, address_line1, city, brand_logo_url, brand_accent_color")
+        .select("name, email, phone, brand_accent_color")
         .eq("id", orgId)
         .single(),
       supabase
@@ -53,17 +53,18 @@ export async function GET(req: NextRequest) {
       orgName: org?.name ?? "Pleks",
       adminEmail: profile.email,
       adminName: profile.full_name ?? undefined,
-      branding: buildBranding(org),
+      branding: buildBranding(await fetchOrgSettings(orgId)),
     }
   }
 
   // 1. Find expired trials
-  const { data: expiredTrials } = await supabase
+  const { data: expiredTrials, error: expiredTrialsError } = await supabase
     .from("subscriptions")
     .select("id, org_id, trial_tier, trial_ends_at")
     .eq("status", "trialing")
     .eq("trial_converted", false)
     .lt("trial_ends_at", now.toISOString())
+  if (expiredTrialsError) console.error("trial-expiry expired subscriptions read failed:", expiredTrialsError.message)
 
   for (const trial of expiredTrials ?? []) {
     // Revert to Owner tier
@@ -98,22 +99,24 @@ export async function GET(req: NextRequest) {
 
   // 2. Find trials expiring in 2 days — send warning
   const twoDaysFromNow = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000)
-  const { data: expiringTrials } = await supabase
+  const { data: expiringTrials, error: expiringTrialsError } = await supabase
     .from("subscriptions")
     .select("id, org_id, trial_ends_at")
     .eq("status", "trialing")
     .eq("trial_converted", false)
     .gte("trial_ends_at", now.toISOString())
     .lte("trial_ends_at", twoDaysFromNow.toISOString())
+  if (expiringTrialsError) console.error("trial-expiry expiring subscriptions read failed:", expiringTrialsError.message)
 
   for (const trial of expiringTrials ?? []) {
     // Check if warning already sent
-    const { data: priorSend } = await supabase
+    const { data: priorSend, error: priorSendError } = await supabase
       .from("communication_log")
       .select("id")
       .eq("org_id", trial.org_id)
       .eq("subject", "trial_ending_soon")
       .limit(1)
+    if (priorSendError) console.error("trial-expiry communication_log read failed:", priorSendError.message)
 
     if (priorSend && priorSend.length > 0) continue
 
@@ -128,21 +131,23 @@ export async function GET(req: NextRequest) {
   // 3. Founding agent expiry warning (month 23 — ~35 days before expiry)
   let foundingWarned = 0
   const thirtyFiveDaysFromNow = new Date(now.getTime() + 35 * 24 * 60 * 60 * 1000)
-  const { data: expiringFounders } = await supabase
+  const { data: expiringFounders, error: expiringFoundersError } = await supabase
     .from("organisations")
     .select("id, name, founding_agent_expires_at")
     .eq("founding_agent", true)
     .gte("founding_agent_expires_at", now.toISOString())
     .lte("founding_agent_expires_at", thirtyFiveDaysFromNow.toISOString())
+  if (expiringFoundersError) console.error("trial-expiry founding organisations read failed:", expiringFoundersError.message)
 
   for (const org of expiringFounders ?? []) {
     // Check if warning already sent
-    const { data: priorFoundingSend } = await supabase
+    const { data: priorFoundingSend, error: priorFoundingSendError } = await supabase
       .from("communication_log")
       .select("id")
       .eq("org_id", org.id)
       .eq("subject", "founding_expiry_warning")
       .limit(1)
+    if (priorFoundingSendError) console.error("trial-expiry founding communication_log read failed:", priorFoundingSendError.message)
 
     if (priorFoundingSend && priorFoundingSend.length > 0) continue
 

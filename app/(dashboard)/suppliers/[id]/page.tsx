@@ -31,6 +31,11 @@ interface Props {
 
 const GENDER_LABEL: Record<string, string> = { male: "Male", female: "Female", other: "Other", prefer_not_to_say: "Prefer not to say" }
 
+/** Log-only Supabase error guard (loud-not-fatal); a call keeps cognitive complexity flat vs inline `if`. */
+function logErr(label: string, error: { message: string } | null) {
+  if (error) console.error(`${label}:`, error.message)
+}
+
 /** Account-profile stats — real / derived only (honest-data rule; omit a cell rather than fake it). */
 function buildAccountStats(a: Readonly<{
   specialities: string[] | null
@@ -178,23 +183,25 @@ export default async function ContractorDetailPage({ params }: Props) {
 
   const service = await createServiceClient()
 
-  const { data: membership } = await service
+  const { data: membership, error: membershipError } = await service
     .from("user_orgs")
     .select("org_id, role")
     .eq("user_id", user.id)
     .is("deleted_at", null)
     .single()
 
+  logErr("ContractorDetailPage user_orgs read failed", membershipError)
   if (!membership) redirect("/onboarding")
 
   // Fetch contractor from view
-  const { data: contractor } = await service
+  const { data: contractor, error: contractorError } = await service
     .from("contractor_view")
     .select("id, contact_id, entity_type, first_name, last_name, company_name, trading_as, registration_number, vat_number, email, phone, specialities, is_active, notes, call_out_rate_cents, hourly_rate_cents, supplier_type, property_ids")
     .eq("id", id)
     .eq("org_id", membership.org_id)
     .single()
 
+  logErr("ContractorDetailPage contractor_view read failed", contractorError)
   if (!contractor) redirect("/suppliers")
 
   // 25A: people under a company supplier (operator, accounts…). Empty for sole-proprietor individuals.
@@ -203,72 +210,81 @@ export default async function ContractorDetailPage({ params }: Props) {
     : []
 
   // Fetch VAT flag + portal info from contractors (banking moved to contact_bank_accounts)
-  const { data: contractorBanking } = await service
+  const { data: contractorBanking, error: contractorBankingError } = await service
     .from("contractors")
     .select("vat_registered, portal_status, portal_invite_sent_at")
     .eq("id", id)
     .eq("org_id", membership.org_id)
     .single()
+  logErr("ContractorDetailPage contractors read failed", contractorBankingError)
 
   // Bank accounts — global multi-account banking (contact-scoped)
-  const { data: bankAccounts } = await service
+  const { data: bankAccounts, error: bankAccountsError } = await service
     .from("contact_bank_accounts")
     .select("id, account_name, bank_name, account_number, branch_code, account_type, label, is_primary")
     .eq("contact_id", contractor.contact_id)
     .eq("org_id", membership.org_id)
     .order("is_primary", { ascending: false })
+  logErr("ContractorDetailPage contact_bank_accounts read failed", bankAccountsError)
 
   // Identity extras (title/gender) not on contractor_view — title prefixes the name, gender shows as a fact
-  const { data: supplierIdentityExtra } = await service
+  const { data: supplierIdentityExtra, error: supplierIdentityExtraError } = await service
     .from("contacts")
     .select("title, gender")
     .eq("id", contractor.contact_id)
     .eq("org_id", membership.org_id)
     .single()
+  logErr("ContractorDetailPage contacts read failed", supplierIdentityExtraError)
 
   // Fetch org tier for portal gating
-  const { data: sub } = await service
+  const { data: sub, error: subError } = await service
     .from("subscriptions")
     .select("tier")
     .eq("org_id", membership.org_id)
     .single()
+  logErr("ContractorDetailPage subscriptions read failed", subError)
   const orgTier = sub?.tier ?? "steward"
 
   // Fetch contact phones
-  const { data: phones } = await service
+  const { data: phones, error: phonesError } = await service
     .from("contact_phones")
     .select("id, number, phone_type, label, is_primary, can_whatsapp")
     .eq("contact_id", contractor.contact_id)
     .order("is_primary", { ascending: false })
+  logErr("ContractorDetailPage contact_phones read failed", phonesError)
 
   // Fetch contact emails
-  const { data: emails } = await service
+  const { data: emails, error: emailsError } = await service
     .from("contact_emails")
     .select("id, email, email_type, label, is_primary")
     .eq("contact_id", contractor.contact_id)
     .order("is_primary", { ascending: false })
+  logErr("ContractorDetailPage contact_emails read failed", emailsError)
 
   // Fetch contact addresses
-  const { data: addresses } = await service
+  const { data: addresses, error: addressesError } = await service
     .from("contact_addresses")
     .select("id, street_line1, street_line2, suburb, city, province, postal_code, country, address_type, is_primary")
     .eq("contact_id", contractor.contact_id)
     .order("is_primary", { ascending: false })
+  logErr("ContractorDetailPage contact_addresses read failed", addressesError)
 
   // Active maintenance jobs assigned to this contractor
-  const { data: activeJobs } = await service
+  const { data: activeJobs, error: activeJobsError } = await service
     .from("maintenance_requests")
     .select("id, title, category, status, urgency, created_at, quoted_cost_cents, units(unit_number, properties(name))")
     .eq("contractor_id", id)
     .not("status", "in", "(completed,closed,cancelled)")
     .order("created_at", { ascending: false })
+  logErr("ContractorDetailPage active maintenance_requests read failed", activeJobsError)
 
   // Completed jobs for performance stats
-  const { data: completedJobs } = await service
+  const { data: completedJobs, error: completedJobsError } = await service
     .from("maintenance_requests")
     .select("id, created_at, completed_at, tenant_rating")
     .eq("contractor_id", id)
     .eq("status", "completed")
+  logErr("ContractorDetailPage completed maintenance_requests read failed", completedJobsError)
 
   // Recent invoices
   const { recentInvoices, totalInvoiced, openInvoiceCount } = await fetchInvoiceData(service, id)

@@ -1,14 +1,17 @@
 /**
- * app/api/cron/levy-generate/route.ts — FILL: one-line purpose
+ * app/api/cron/levy-generate/route.ts — monthly HOA levy invoice generation cron
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Route:  /api/cron/levy-generate
+ * Auth:   x-cron-secret header (CRON_SECRET); service client (bypasses RLS)
+ * Data:   hoa_entities → levy_schedules / hoa_unit_owners / levy_unit_amounts / levy_invoices
+ * Notes:  Idempotent per period — skips owners who already have an invoice for the month.
  */
 import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/server"
+
+function logErr(label: string, error: { message: string } | null) {
+  if (error) console.error(`${label}:`, error.message)
+}
 
 export async function GET(req: NextRequest) {
   if (req.headers.get("x-cron-secret") !== process.env.CRON_SECRET) {
@@ -20,16 +23,17 @@ export async function GET(req: NextRequest) {
   const periodMonth = new Date(today.getFullYear(), today.getMonth(), 1)
 
   // Get all active HOA entities
-  const { data: hoaEntities } = await supabase
+  const { data: hoaEntities, error: hoaEntitiesError } = await supabase
     .from("hoa_entities")
     .select("id, org_id, name")
     .eq("is_active", true)
+  logErr("levy-generate hoa_entities read failed", hoaEntitiesError)
 
   let generated = 0
 
   for (const hoa of hoaEntities ?? []) {
     // Get active levy schedule
-    const { data: schedule } = await supabase
+    const { data: schedule, error: scheduleError } = await supabase
       .from("levy_schedules")
       .select("id, total_budget_cents, admin_reserve_split_percent")
       .eq("hoa_id", hoa.id)
@@ -40,34 +44,38 @@ export async function GET(req: NextRequest) {
       .limit(1)
       .single()
 
+    logErr("levy-generate levy_schedules read failed", scheduleError)
     if (!schedule) continue
 
     // Get active owners
-    const { data: owners } = await supabase
+    const { data: owners, error: ownersError } = await supabase
       .from("hoa_unit_owners")
       .select("id, unit_id, owner_name, owner_email")
       .eq("hoa_id", hoa.id)
       .eq("is_active", true)
       .is("owned_until", null)
+    logErr("levy-generate hoa_unit_owners read failed", ownersError)
 
     for (const owner of owners ?? []) {
       // Skip if invoice already exists
-      const { data: existing } = await supabase
+      const { data: existing, error: existingError } = await supabase
         .from("levy_invoices")
         .select("id")
         .eq("owner_id", owner.id)
         .eq("period_month", periodMonth.toISOString())
         .maybeSingle()
 
+      logErr("levy-generate levy_invoices existing-check failed", existingError)
       if (existing) continue
 
       // Get pre-calculated amount
-      const { data: unitAmount } = await supabase
+      const { data: unitAmount, error: unitAmountError } = await supabase
         .from("levy_unit_amounts")
         .select("calculated_cents")
         .eq("schedule_id", schedule.id)
         .eq("owner_id", owner.id)
         .single()
+      logErr("levy-generate levy_unit_amounts read failed", unitAmountError)
 
       const totalCents = unitAmount?.calculated_cents ?? 0
       if (totalCents <= 0) continue
@@ -77,12 +85,13 @@ export async function GET(req: NextRequest) {
       const reserveLevy = totalCents - adminLevy
 
       // Get arrears from prior invoices
-      const { data: priorOverdue } = await supabase
+      const { data: priorOverdue, error: priorOverdueError } = await supabase
         .from("levy_invoices")
         .select("balance_cents")
         .eq("owner_id", owner.id)
         .in("status", ["open", "overdue", "partial"])
         .lt("period_month", periodMonth.toISOString())
+      logErr("levy-generate levy_invoices arrears read failed", priorOverdueError)
 
       const arrears = (priorOverdue ?? []).reduce((s, i) => s + (i.balance_cents ?? 0), 0)
       const invoiceTotal = totalCents + arrears

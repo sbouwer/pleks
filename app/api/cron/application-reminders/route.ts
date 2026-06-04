@@ -13,7 +13,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
 import { sendReviewReminder } from "@/lib/applications/emails"
-import { buildBranding } from "@/lib/comms/send-email"
+import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 
 function getServiceClient() {
   return createClient(
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
     // Fetch org + agent
     const { data: org } = await service
       .from("organisations")
-      .select("name, email, phone, brand_logo_url, brand_accent_color")
+      .select("name, email, phone, brand_accent_color")
       .eq("id", orgId)
       .single()
 
@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
     const agentProfile = agentRow?.user_profiles as unknown as { email: string; full_name: string } | null
     if (!agentProfile?.email) continue
 
-    const branding = buildBranding(org)
+    const branding = buildBranding(await fetchOrgSettings(orgId))
     const pending = (apps ?? []).map((a) => {
       const listing = a.listings as unknown as { units: { unit_number: string; properties: { name: string } } } | null
       const unit = listing?.units

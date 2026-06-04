@@ -135,13 +135,14 @@ export function NewInspectionForm({
     const supabase = createClient()
     async function fetchUnits() {
       setLoadingUnits(true)
-      const { data: rows } = await supabase
+      const { data: rows, error: rowsError } = await supabase
         .from("units")
         .select("id, unit_number, status, bedrooms, prospective_tenant_id")
         .eq("property_id", propertyId)
         .is("deleted_at", null)
         .eq("is_archived", false)
         .order("unit_number")
+      if (rowsError) console.error("NewInspectionForm units read failed:", rowsError.message)
       if (!cancelled) {
         const list = (rows as Unit[]) ?? []
         setUnits(list)
@@ -163,11 +164,12 @@ export function NewInspectionForm({
     const supabase = createClient()
 
     async function applyProspectiveTenant(prospectiveTenantId: string) {
-      const { data: tv } = await supabase
+      const { data: tv, error: tvError } = await supabase
         .from("tenant_view")
         .select("first_name, last_name, company_name, entity_type")
         .eq("id", prospectiveTenantId)
         .single()
+      if (tvError) console.error("applyProspectiveTenant tenant_view read failed:", tvError.message)
       if (!cancelled && tv) {
         setTenantId(prospectiveTenantId)
         setTenantName(contactDisplayName(tv, ""))
@@ -175,21 +177,23 @@ export function NewInspectionForm({
     }
 
     async function applyNoLeaseFallback() {
-      const { data: unitRow } = await supabase
+      const { data: unitRow, error: unitRowError } = await supabase
         .from("units")
         .select("prospective_tenant_id")
         .eq("id", unitId)
         .single()
+      if (unitRowError) console.error("applyNoLeaseFallback units read failed:", unitRowError.message)
       if (!cancelled && unitRow?.prospective_tenant_id) {
         await applyProspectiveTenant(unitRow.prospective_tenant_id)
       }
     }
 
     async function applyLeaseCoTenants(leaseId: string) {
-      const { data: coResult } = await supabase
+      const { data: coResult, error: coResultError } = await supabase
         .from("lease_co_tenants")
         .select("tenant_id, tenant_view(first_name, last_name, company_name, entity_type)")
         .eq("lease_id", leaseId)
+      if (coResultError) console.error("applyLeaseCoTenants lease_co_tenants read failed:", coResultError.message)
       if (!cancelled && coResult) {
         const coNames = coResult.flatMap((row) => {
           const tv = Array.isArray(row.tenant_view) ? row.tenant_view[0] : row.tenant_view
@@ -203,11 +207,12 @@ export function NewInspectionForm({
 
     async function applyLeaseTenant(lease: ActiveLease) {
       if (!lease.tenant_id) return
-      const { data: tv } = await supabase
+      const { data: tv, error: tvError } = await supabase
         .from("tenant_view")
         .select("first_name, last_name, company_name, entity_type")
         .eq("id", lease.tenant_id)
         .single()
+      if (tvError) console.error("applyLeaseTenant tenant_view read failed:", tvError.message)
       if (!cancelled && tv) {
         setTenantId(lease.tenant_id)
         setTenantName(contactDisplayName(tv, ""))
@@ -216,12 +221,13 @@ export function NewInspectionForm({
     }
 
     async function fetchActiveLease() {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("leases")
         .select("id, tenant_id, lease_type")
         .eq("unit_id", unitId)
         .in("status", ["draft", "pending_signing", "active", "notice", "month_to_month"])
         .maybeSingle()
+      if (error) console.error("fetchActiveLease leases read failed:", error.message)
       if (cancelled || !data) {
         if (!cancelled) await applyNoLeaseFallback()
         return

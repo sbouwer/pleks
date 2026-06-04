@@ -1,13 +1,18 @@
 /**
- * lib/queries/portfolio.ts — FILL: one-line purpose
+ * lib/queries/portfolio.ts — portfolio list + dashboard read queries, with shared React Query keys
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   takes a caller-supplied Supabase client (service-role via gateway()); always filter by orgId
+ * Data:   tenant_view / landlord_view / contractor_view / leases / inspections / maintenance_requests
+ * Notes:  Reads carry a fail-fast AbortSignal timeout (READ_TIMEOUT_MS) so a throttled/stalled DB
+ *         surfaces an error in seconds instead of hanging the request (and bouncing the page) for
+ *         minutes. Keys/stale-times are shared by the SSR prefetch, the client hooks, and
+ *         PortfolioPrefetcher (which warms these caches sequentially, off the critical path).
  */
 import type { SupabaseClient } from "@supabase/supabase-js"
+
+/** Fail-fast budget for a portfolio read — a throttled DB must error in seconds, not hang. */
+const READ_TIMEOUT_MS = 10_000
+const readTimeout = () => AbortSignal.timeout(READ_TIMEOUT_MS)
 
 export const PORTFOLIO_QUERY_KEYS = {
   tenants: (orgId: string) => ["tenants", orgId] as const,
@@ -42,11 +47,13 @@ export const STALE_TIME = {
 } as const
 
 export async function fetchTenants(supabase: SupabaseClient, orgId: string) {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("tenant_view")
     .select("id, contact_id, entity_type, first_name, last_name, company_name, email, phone, juristic_type, turnover_under_2m, asset_value_under_2m, size_bands_captured_at")
     .eq("org_id", orgId)
     .is("deleted_at", null)
+    .abortSignal(readTimeout())
+  if (error) { console.error("fetchTenants failed:", error.message); return [] }
   return data ?? []
 }
 
@@ -56,14 +63,17 @@ export async function fetchLandlords(supabase: SupabaseClient, orgId: string) {
       .from("landlord_view")
       .select("id, contact_id, entity_type, first_name, last_name, company_name, email, phone")
       .eq("org_id", orgId)
-      .is("deleted_at", null),
+      .is("deleted_at", null)
+      .abortSignal(readTimeout()),
     supabase
       .from("properties")
       .select("id, name, landlord_id")
       .eq("org_id", orgId)
       .not("landlord_id", "is", null)
-      .is("deleted_at", null),
+      .is("deleted_at", null)
+      .abortSignal(readTimeout()),
   ])
+  if (landlordsRes.error) { console.error("fetchLandlords failed:", landlordsRes.error.message); return [] }
   const propsByLandlord: Record<string, string[]> = {}
   for (const p of propertiesRes.data ?? []) {
     if (p.landlord_id) {
@@ -79,6 +89,7 @@ export async function fetchContractors(supabase: SupabaseClient, orgId: string) 
     .from("contractor_view")
     .select("id, contact_id, entity_type, first_name, last_name, company_name, email, phone, specialities, is_active, supplier_type")
     .eq("org_id", orgId)
+    .abortSignal(readTimeout())
   if (error) {
     console.error("fetchContractors failed:", error.message)
     return []
@@ -87,7 +98,7 @@ export async function fetchContractors(supabase: SupabaseClient, orgId: string) 
 }
 
 export async function fetchLeases(supabase: SupabaseClient, orgId: string) {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("leases")
     .select(`
       id, status, lease_type, start_date, end_date, rent_amount_cents,
@@ -101,6 +112,8 @@ export async function fetchLeases(supabase: SupabaseClient, orgId: string) {
     .eq("org_id", orgId)
     .is("deleted_at", null)
     .order("created_at", { ascending: false })
+    .abortSignal(readTimeout())
+  if (error) { console.error("fetchLeases failed:", error.message); return [] }
   return data ?? []
 }
 

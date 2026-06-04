@@ -10,7 +10,7 @@
  */
 import { gateway } from "@/lib/supabase/gateway"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
-import { buildBranding } from "@/lib/comms/send-email"
+import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import {
   sendPausedManual,
   sendResumed,
@@ -26,7 +26,7 @@ async function fetchOrgContact(service: Awaited<ReturnType<typeof createServiceC
   const [{ data: org }, { data: adminRow }] = await Promise.all([
     service
       .from("organisations")
-      .select("name, email, phone, address_line1, city, brand_logo_url, brand_accent_color")
+      .select("name, email, phone, brand_accent_color")
       .eq("id", orgId)
       .single(),
     service
@@ -46,7 +46,7 @@ async function fetchOrgContact(service: Awaited<ReturnType<typeof createServiceC
     orgName: org.name ?? "Pleks",
     adminEmail: profile.email,
     adminName: profile.full_name ?? undefined,
-    branding: buildBranding(org),
+    branding: buildBranding(await fetchOrgSettings(orgId)),
   }
 }
 

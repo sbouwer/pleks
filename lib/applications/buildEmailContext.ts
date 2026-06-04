@@ -6,7 +6,7 @@
  */
 
 import { createServiceClient } from "@/lib/supabase/server"
-import { buildBranding } from "@/lib/comms/send-email"
+import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import { getOrgDisplayName } from "@/lib/org/displayName"
 
 export interface AppEmailContext {
@@ -64,10 +64,12 @@ export async function buildEmailContext(applicationId: string): Promise<AppEmail
   const unit = listing?.units as Record<string, unknown> | null
   const property = unit?.properties as Record<string, unknown> | null
 
-  // Fetch org
+  // Org display fields (for getOrgDisplayName + email/phone). Branding (address + logo URL) comes
+  // from the canonical fetchOrgSettings below — buildBranding reads orgSettings.address/.brand_logo_url
+  // keys a raw org row doesn't have, so a raw row here would silently drop the logo + address.
   const { data: org } = await service
     .from("organisations")
-    .select("name, type, trading_as, first_name, last_name, title, initials, email, phone, address_line1, city, brand_logo_url, brand_accent_color, reply_to_email")
+    .select("name, type, trading_as, first_name, last_name, title, initials, email, phone")
     .eq("id", app.org_id as string)
     .single()
 
@@ -93,7 +95,7 @@ export async function buildEmailContext(applicationId: string): Promise<AppEmail
     .maybeSingle()
 
   const bankData = app.bank_statement_extracted as Record<string, unknown> | null
-  const branding = buildBranding(org, undefined)
+  const branding = buildBranding(await fetchOrgSettings(app.org_id as string))
 
   return {
     appSummary: {

@@ -40,6 +40,11 @@ function formatDateLocal(iso: string): string {
   return new Date(iso).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })
 }
 
+/** Log-only Supabase error guard (loud-not-fatal); a call keeps cognitive complexity flat vs inline `if`. */
+function logErr(label: string, error: { message: string } | null) {
+  if (error) console.error(`${label}:`, error.message)
+}
+
 type StatusCommArgs = {
   orgId: string
   tenantId: string
@@ -58,22 +63,24 @@ async function fireStatusComm(
 ): Promise<void> {
   const { orgId, tenantId, unitId, inspectionType, conductedDateFromRow } = args
 
-  const { data: tenant } = await db
+  const { data: tenant, error: tenantError } = await db
     .from("tenant_view")
     .select("first_name, last_name, email, phone")
     .eq("id", tenantId)
     .single()
 
+  if (tenantError) console.error("fireStatusComm tenant_view read failed:", tenantError.message)
   if (!(tenant?.email ?? tenant?.phone)) return
 
   let propertyLabel = "your property"
   if (unitId) {
-    const { data: unitRow } = await db
+    const { data: unitRow, error: unitRowError } = await db
       .from("units")
       .select("unit_number, properties(address_line1, suburb, city)")
       .eq("id", unitId)
       .maybeSingle()
 
+    if (unitRowError) console.error("fireStatusComm units read failed:", unitRowError.message)
     type PropRow = { address_line1: string; suburb: string | null; city: string }
     type UnitRow = { unit_number: string; properties: PropRow | PropRow[] | null }
     const unitData = unitRow as unknown as UnitRow | null
@@ -189,18 +196,21 @@ export async function createInspection(formData: FormData) {
   // I1: notify tenant of scheduled inspection
   if (tenantId && scheduledDate) {
     try {
-      const { data: tenant } = await db
+      const { data: tenant, error: tenantError } = await db
         .from("tenant_view")
         .select("first_name, last_name, email, phone")
         .eq("id", tenantId)
         .single()
 
+      if (tenantError) console.error("createInspection I1 tenant_view read failed:", tenantError.message)
       if (tenant?.email ?? tenant?.phone) {
-        const { data: unitRow } = await db
+        const { data: unitRow, error: unitRowError } = await db
           .from("units")
           .select("unit_number, properties(address_line1, suburb, city)")
           .eq("id", unitId)
           .maybeSingle()
+
+        if (unitRowError) console.error("createInspection I1 units read failed:", unitRowError.message)
 
         type PropRow = { address_line1: string; suburb: string | null; city: string }
         type UnitRow = { unit_number: string; properties: PropRow | PropRow[] | null }
@@ -256,12 +266,13 @@ export async function updateInspectionStatus(inspectionId: string, newStatus: st
   const gw = await requireAgentWriteAccess("sign_off_inspection")
   const { db, userId } = gw
 
-  const { data: inspection } = await db
+  const { data: inspection, error: inspectionError } = await db
     .from("inspections")
     .select("org_id, lease_type, status, inspection_type, unit_id, tenant_id, conducted_date")
     .eq("id", inspectionId)
     .single()
 
+  if (inspectionError) console.error("updateInspectionStatus inspections read failed:", inspectionError.message)
   if (!inspection) return { error: "Inspection not found" }
 
   const updates: Record<string, unknown> = { status: newStatus }
@@ -365,13 +376,14 @@ export async function rescheduleInspection(
   const gw = await requireAgentWriteAccess("sign_off_inspection")
   const { db, userId, orgId } = gw
 
-  const { data: inspection } = await db
+  const { data: inspection, error: inspectionError } = await db
     .from("inspections")
     .select("org_id, tenant_id, unit_id, inspection_type, lease_type, scheduled_date, status")
     .eq("id", inspectionId)
     .eq("org_id", orgId)
     .single()
 
+  if (inspectionError) console.error("rescheduleInspection inspections read failed:", inspectionError.message)
   if (!inspection) return { error: "Inspection not found" }
 
   const originalDate = inspection.scheduled_date
@@ -397,20 +409,23 @@ export async function rescheduleInspection(
   // I3: notify tenant of reschedule
   if (inspection.tenant_id) {
     try {
-      const { data: tenant } = await db
+      const { data: tenant, error: tenantError } = await db
         .from("tenant_view")
         .select("first_name, last_name, email, phone")
         .eq("id", inspection.tenant_id)
         .single()
 
+      logErr("rescheduleInspection tenant_view read failed", tenantError)
       if (tenant?.email ?? tenant?.phone) {
         let propertyLabel = "your property"
         if (inspection.unit_id) {
-          const { data: unitRow } = await db
+          const { data: unitRow, error: unitRowError } = await db
             .from("units")
             .select("unit_number, properties(address_line1, suburb, city)")
             .eq("id", inspection.unit_id)
             .maybeSingle()
+
+          logErr("rescheduleInspection units read failed", unitRowError)
 
           type PropRow = { address_line1: string; suburb: string | null; city: string }
           type UnitRow = { unit_number: string; properties: PropRow | PropRow[] | null }

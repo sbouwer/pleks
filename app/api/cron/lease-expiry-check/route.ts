@@ -59,9 +59,10 @@ async function handleCpaRenewal(supabase: Supabase, lease: CpaLease): Promise<vo
 
   if (!lease.tenant_id || !lease.end_date) return
 
-  const [{ data: tenant }, { data: org }] = await Promise.all([
+  const [{ data: tenant }, { data: org }, orgSettings] = await Promise.all([
     supabase.from("tenant_view").select("email, first_name, last_name").eq("id", lease.tenant_id).single(),
-    supabase.from("organisations").select("name, type, trading_as, first_name, last_name, title, initials, email, phone, brand_logo_url, brand_accent_color").eq("id", lease.org_id).single(),
+    supabase.from("organisations").select("name, type, trading_as, first_name, last_name, title, initials, email, phone, brand_accent_color").eq("id", lease.org_id).single(),
+    fetchOrgSettings(lease.org_id),
   ])
   const unit = lease.units as { unit_number: string; properties: { name: string } } | null
   if (!tenant?.email) return
@@ -74,7 +75,7 @@ async function handleCpaRenewal(supabase: Supabase, lease: CpaLease): Promise<vo
       propertyName: unit?.properties?.name ?? "",
       unitLabel: unit?.unit_number ? `Unit ${unit.unit_number}` : "Unit",
     },
-    { orgId: lease.org_id, orgName: org ? getOrgDisplayName(org) : "Pleks", orgPhone: org?.phone ?? undefined, orgEmail: org?.email ?? undefined, branding: buildBranding(org) }
+    { orgId: lease.org_id, orgName: org ? getOrgDisplayName(org) : "Pleks", orgPhone: org?.phone ?? undefined, orgEmail: org?.email ?? undefined, branding: buildBranding(orgSettings) }
   )
 }
 

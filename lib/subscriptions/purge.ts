@@ -10,7 +10,7 @@
  */
 import { createServiceClient } from "@/lib/supabase/server"
 import { SENTINEL_ORG_ID } from "@/lib/subscriptions/retention"
-import { buildBranding } from "@/lib/comms/send-email"
+import { buildBranding, fetchOrgSettings } from "@/lib/comms/send-email"
 import { sendPurgedConfirm } from "@/lib/subscriptions/emails"
 
 const DECOY_ORG_ID = "00000000-0000-0000-0000-000000000003" as const
@@ -53,7 +53,7 @@ export async function purgeOrg(orgId: string, reason: PurgeReason): Promise<void
   const [{ data: org }, { data: adminRow }, { data: sub }] = await Promise.all([
     supabase
       .from("organisations")
-      .select("name, email, phone, address_line1, city, brand_logo_url, brand_accent_color")
+      .select("name, email, phone, brand_accent_color")
       .eq("id", orgId)
       .single(),
     supabase
@@ -75,6 +75,9 @@ export async function purgeOrg(orgId: string, reason: PurgeReason): Promise<void
   ])
 
   const profile = adminRow?.user_profiles as unknown as { email: string; full_name?: string } | null
+
+  // Capture branding BEFORE cascade — the org row is anonymised by the cascade below.
+  const orgSettings = await fetchOrgSettings(orgId)
 
   // DB cascade: repoint retention rows → sentinel, delete everything else, anonymise org
   const { error: cascadeErr } = await supabase.rpc("purge_org_cascade", {
@@ -103,7 +106,7 @@ export async function purgeOrg(orgId: string, reason: PurgeReason): Promise<void
         adminEmail: profile.email,
         adminName: profile.full_name ?? undefined,
         recipientEmail: profile.email,
-        branding: buildBranding(org),
+        branding: buildBranding(orgSettings),
       },
       {
         cancelledDate,
