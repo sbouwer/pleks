@@ -11,6 +11,7 @@ import { createServiceClient } from "@/lib/supabase/server"
 import { generateBundle, signedDownloadUrl } from "@/lib/exports/bundle"
 import type { DataSubjectRequest } from "./requests"
 import { logQueryError } from "@/lib/supabase/logQueryError"
+import { resolveSubject } from "./anonymiseIdentity"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -260,11 +261,20 @@ async function gatherSubjectData(
     )
     logQueryError("gatherSubjectData leases", leasesError)
 
-  const { count: communications_count } = await db
-    .from("communication_log")
-    .select("id", { count: "exact", head: true })
-    .eq("org_id", request.org_id)
-    .eq("user_id", request.subject_user_id ?? "")
+  // communication_log has no user_id — it keys on contact_id. Resolve the subject's contact first.
+  const resolvedSubject = await resolveSubject(db, {
+    org_id: request.org_id, user_id: request.subject_user_id, email: request.subject_email,
+  })
+  let communications_count = 0
+  if (resolvedSubject.contactId) {
+    const { count, error: commErr } = await db
+      .from("communication_log")
+      .select("id", { count: "exact", head: true })
+      .eq("org_id", request.org_id)
+      .eq("contact_id", resolvedSubject.contactId)
+    if (commErr) console.error("gatherSubjectData communication_log:", commErr.message)
+    communications_count = count ?? 0
+  }
 
   const { data: inspections, error: inspectionsError } = await db
     .from("inspections")

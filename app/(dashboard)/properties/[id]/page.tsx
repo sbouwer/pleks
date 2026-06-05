@@ -189,9 +189,10 @@ async function fetchOverviewData(
     service.from("landlord_view").select("id, first_name, last_name, company_name, email, phone").eq("org_id", orgId).is("deleted_at", null).order("first_name"),
     service.from("buildings").select("id").eq("property_id", propertyId).is("deleted_at", null).eq("is_visible_in_ui", true),
     service
+      // rent_invoices has no property_id — scope via the invoice's unit → units.property_id.
       .from("rent_invoices")
-      .select("total_amount_cents, amount_paid_cents")
-      .eq("property_id", propertyId)
+      .select("total_amount_cents, amount_paid_cents, units!inner(property_id)")
+      .eq("units.property_id", propertyId)
       .eq("org_id", orgId)
       .in("status", ["pending", "partial", "overdue"]),
     service

@@ -1,9 +1,11 @@
 /**
- * scripts/scan-phantom-filters.mjs — one-off hunt: phantom columns in FILTER methods
+ * scripts/scan-phantom-filters.mjs — build gate: phantom columns in FILTER methods
  *
- * The column validator only checks .select(); a phantom column in .eq()/.is()/.order()/etc. errors the
- * WHOLE query at runtime → silent failure (the is_primary / type bugs). This scans filter-method column
- * literals against schema-columns.json the same way. Run: node scripts/scan-phantom-filters.mjs
+ * The column validator (check-supabase-columns.mjs) only checks .select(); a phantom column in
+ * .eq()/.is()/.order()/etc. errors the WHOLE query at runtime → silent failure (the is_primary / type /
+ * landlords.property_id bugs — a whole class the select validator can't see). This scans filter-method
+ * column literals against schema-columns.json and FAILS the build on any hit. Wired into `npm run check`.
+ * Run: node scripts/scan-phantom-filters.mjs
  */
 import { readFileSync } from "node:fs"
 import { resolve, dirname, relative } from "node:path"
@@ -60,5 +62,9 @@ for (const sf of project.getSourceFiles()) {
   }
 }
 
-console.log(hits.length ? hits.sort().join("\n") : "✓ no phantom filter columns")
-console.log(`\n${hits.length} phantom filter column(s)`)
+if (hits.length) {
+  console.error(hits.sort().join("\n"))
+  console.error(`\n🔴 ${hits.length} phantom filter column(s) — a filter on a non-existent column errors the whole query at runtime (silent failure). Fix the column name, or the read is dead. See scripts/scan-phantom-filters.mjs.`)
+  process.exit(1)
+}
+console.log("✓ no phantom filter columns")

@@ -224,6 +224,7 @@ export async function GET(req: NextRequest) {
   try {
     const today = new Date().toISOString().slice(0, 10)
     const sevenDaysAgo = new Date(Date.now() - 7 * DAY_MS).toISOString().slice(0, 10)
+    const sixDaysAgo = new Date(Date.now() - 6 * DAY_MS).toISOString().slice(0, 10)
 
     // 1. Find properties whose renewal date is today → reset checklist
     const { data: dueToday, error: dueTodayError } = await db
@@ -243,7 +244,8 @@ export async function GET(req: NextRequest) {
     const { data: needReminder, error: needReminderError } = await db
       .from("property_insurance_checklists")
       .select("property_id, property_insurance_checklists_properties:property_id(org_id, insurance_renewal_date)")
-      .eq("renewal_reset_at::date", sevenDaysAgo)
+      .gte("renewal_reset_at", sevenDaysAgo)
+      .lt("renewal_reset_at", sixDaysAgo)
       .eq("state", "unknown")
     if (needReminderError) console.error("insurance-renewals needReminder read failed:", needReminderError.message)
 
