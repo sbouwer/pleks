@@ -201,7 +201,9 @@ export function SuppliersClient({
     new Set(initial.flatMap((c) => c.specialities ?? []))
   ).sort((a, b) => a.localeCompare(b))
 
-  async function handleDelete(c: Contractor) {
+  // Returns { blocked } on a 409 (open work orders / unpaid invoices) so the DeleteButton dialog morphs
+  // into an acknowledge view (no toast for the obligation block). Other failures still toast.
+  async function handleDelete(c: Contractor): Promise<void | { blocked: string }> {
     setDeletingId(c.id)
     const res = await fetch("/api/suppliers", {
       method: "DELETE",
@@ -210,13 +212,14 @@ export function SuppliersClient({
     })
     setDeletingId(null)
     if (res.ok) {
-      toast.success("Contractor removed")
+      toast.success("Contractor archived")
       queryClient.invalidateQueries({ queryKey: PORTFOLIO_QUERY_KEYS.contractors(orgId) })
       router.refresh()
-    } else {
-      const d = await res.json()
-      toast.error(d.error || "Failed to delete")
+      return
     }
+    const d = await res.json().catch(() => ({}))
+    if (res.status === 409) return { blocked: d.error || "This supplier has open obligations — resolve them before archiving." }
+    toast.error(d.error || "Failed to archive")
   }
 
   const word = (n: number) => (n === 1 ? noun.singular : noun.plural)

@@ -177,7 +177,9 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
       return sortDir === "asc" ? cmp : -cmp
     })
 
-  async function handleDelete(l: Landlord) {
+  // Returns { blocked } so the DeleteButton's dialog morphs into an acknowledge view (no toast for the
+  // in-force block). Other failures still toast. Success closes the dialog + toasts.
+  async function handleDelete(l: Landlord): Promise<void | { blocked: string }> {
     setDeletingId(l.id)
     const res = await fetch("/api/landlords", {
       method: "DELETE",
@@ -196,9 +198,10 @@ export function LandlordsClient({ landlords: initial }: Readonly<Props>) {
       return
     }
     const d = await res.json().catch(() => ({}))
-    toast.error(d.error === "in_force_lease"
-      ? "Can't archive — this landlord has an in-force lease. End the lease first."
-      : (d.error || "Failed to archive"))
+    if (d.error === "in_force_lease") {
+      return { blocked: "This landlord has an in-force lease (active, on notice, or month-to-month). End the lease before archiving — archiving only hides them from active lists, it never ends a live tenancy." }
+    }
+    toast.error(d.error || "Failed to archive")
   }
 
   const plural = (n: number) => (n === 1 ? "" : "s")
