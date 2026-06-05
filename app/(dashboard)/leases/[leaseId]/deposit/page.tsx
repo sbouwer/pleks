@@ -44,9 +44,9 @@ export default async function DepositReconPage({
     supabase.from("deposit_charges").select("id, charge_type, description, deduction_amount_cents, agent_confirmed, source_arrears_case_id, source_invoice_id, source_supplier_invoice_id, source_municipal_bill_id, source_lease_charge_id, notes").eq("lease_id", leaseId).order("created_at"),
     supabase.from("deposit_timers").select("deadline, status, return_days").eq("lease_id", leaseId).order("created_at", { ascending: false }).limit(1).single(),
     supabase.from("leases").select("start_date, end_date, lease_type, units(unit_number, properties(name)), tenant_view(first_name, last_name)").eq("id", leaseId).single(),
-    supabase.from("deposit_transactions").select("id, transaction_date, amount_cents, effective_rate_percent, description, statement_month").eq("lease_id", leaseId).eq("transaction_type", "interest_accrued").order("transaction_date", { ascending: true }),
+    supabase.from("deposit_transactions").select("id, created_at, amount_cents, effective_rate_percent, description").eq("lease_id", leaseId).eq("transaction_type", "interest_accrued").order("created_at", { ascending: true }),
     // Suggestions: open arrears cases for this lease
-    supabase.from("arrears_cases").select("id, total_arrears_cents, case_reference").eq("lease_id", leaseId).neq("status", "resolved").gt("total_arrears_cents", 0),
+    supabase.from("arrears_cases").select("id, total_arrears_cents").eq("lease_id", leaseId).neq("status", "resolved").gt("total_arrears_cents", 0),
     // Suggestions: open/partial/overdue rent invoices not yet fully paid
     supabase.from("rent_invoices").select("id, invoice_number, balance_cents, due_date").eq("lease_id", leaseId).in("status", ["open", "partial", "overdue"]).gt("balance_cents", 0),
   ])
@@ -83,7 +83,7 @@ export default async function DepositReconPage({
     .filter((ac) => !linkedArrearsCaseIds.has(ac.id))
     .map((ac) => ({
       arrears_case_id: ac.id as string,
-      label:           (ac.case_reference as string | null) ?? ac.id.slice(0, 8).toUpperCase(),
+      label:           ac.id.slice(0, 8).toUpperCase(),
       amount_cents:    ac.total_arrears_cents as number,
     }))
 
@@ -297,9 +297,7 @@ export default async function DepositReconPage({
                 {(interestTxns ?? []).map((txn) => (
                   <tr key={txn.id} className="border-b border-border/50">
                     <td className="py-2 pr-2 text-xs">
-                      {txn.statement_month
-                        ? formatDateShort(new Date(txn.statement_month))
-                        : formatDateShort(new Date(txn.transaction_date))}
+                      {formatDateShort(new Date(txn.created_at))}
                     </td>
                     <td className="py-2 pr-2 text-xs text-muted-foreground">{txn.description ?? "Interest accrued"}</td>
                     <td className="text-right py-2 px-2 text-xs">
