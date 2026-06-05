@@ -73,7 +73,7 @@ export async function generateScreeningL2Response(
       fitscore, fitscore_band, fitscore_material_flags,
       fitscore_engine_version, fitscore_narrative_prompt_version,
       fitscore_interpretation_version, fitscore_computed_at,
-      stage2_status, status,
+      stage2_status,
       identityMatchStatus:id_type
     `)
     .eq('id', applicationId)
@@ -117,7 +117,7 @@ export async function generateScreeningL2Response(
     isBlocked,
     dominantFlags,
     identityVerificationResult: identityVerifyResult(materialFlags),
-    applicationStatus:        (app.status as string | null) ?? 'pending_review',
+    applicationStatus:        (app.stage2_status as string | null) ?? 'pending_review',
     stream1DeliveryNote:      'delivered via email at the time of screening payment',
     engineVersion:            (app.fitscore_engine_version as string | null) ?? 'unknown',
     narrativePromptVersion:   app.fitscore_narrative_prompt_version as string | null,

@@ -19,13 +19,17 @@ export async function inviteLandlord(landlordId: string, agentId: string) {
 
   const { data: landlord, error: landlordError } = await supabase
     .from("landlord_view")
-    .select("id, org_id, email, first_name, last_name, company_name, portal_status")
+    .select("id, org_id, email, first_name, last_name, company_name")
     .eq("id", landlordId)
     .single()
     logQueryError("inviteLandlord landlord_view", landlordError)
 
   if (!landlord) return { error: "Landlord not found" }
-  if (landlord.portal_status === "active") return { error: "Landlord already has portal access" }
+  // portal_status lives on the landlords table, not the view.
+  const { data: llRow, error: llErr } = await service
+    .from("landlords").select("portal_status").eq("id", landlordId).maybeSingle()
+  logQueryError("inviteLandlord landlords portal_status", llErr)
+  if (llRow?.portal_status === "active") return { error: "Landlord already has portal access" }
   if (!landlord.email) return { error: "Landlord has no email address on file" }
 
   const displayName = (landlord.company_name || `${landlord.first_name ?? ""} ${landlord.last_name ?? ""}`.trim()) || "Landlord"

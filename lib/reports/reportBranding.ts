@@ -86,7 +86,7 @@ export async function getReportBranding(orgId: string): Promise<ReportBranding> 
   let hours = getOperatingHours({ phone: org.lease_phone ?? null })
   const { data: orgHours, error: orgHoursError } = await db
     .from("organisations")
-    .select("office_hours_weekday, office_hours_saturday, office_hours_sunday, office_hours_public_holidays, emergency_phone, emergency_contact_name, emergency_email, emergency_instructions")
+    .select("office_hours_weekday:office_hours_monday, office_hours_saturday, office_hours_sunday, office_hours_public_holidays, emergency_phone, emergency_contact_name, emergency_email, emergency_instructions")
     .eq("id", orgId)
     .single()
     logQueryError("getReportBranding organisations", orgHoursError)
