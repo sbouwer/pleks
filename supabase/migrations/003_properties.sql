@@ -568,3 +568,12 @@ RETURNS integer AS $$
   AND is_archived = false
   AND deleted_at IS NULL;
 $$ LANGUAGE sql STABLE SECURITY DEFINER;
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- ADDENDUM_ARCHIVE_VS_ERASE D-8 F-2: soft-delete property_documents
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- Property documents carry statutory retention (lease scans / CoCs / inspection reports, 3–5yr), so a
+-- "delete" must soft-delete (Your Data, Always) — the file + row are purged later by the retention cron.
+-- Active reads filter deleted_at IS NULL.
+ALTER TABLE property_documents ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+CREATE INDEX IF NOT EXISTS idx_property_documents_active ON property_documents(property_id) WHERE deleted_at IS NULL;

@@ -70,31 +70,35 @@ export async function deletePropertyDocument(documentId: string, propertyId: str
   const { db, userId, orgId, isAdmin } = gw
   if (!isAdmin) return { error: "Admin access required" }
 
-  // F-1 (D-8): the service client bypasses RLS, so EVERY read/delete here must be org-scoped — a
-  // non-guessable uuid is not an isolation boundary. Without `.eq("org_id", orgId)` an admin of org A
-  // holding a document id from org B would delete B's file + row (and the audit would land under B).
+  // F-1 (D-8): the service client bypasses RLS, so EVERY read/write here must be org-scoped — a
+  // non-guessable uuid is not an isolation boundary (without org_id an admin of org A could touch B's doc).
   const { data: doc, error: docError } = await db
     .from("property_documents")
-    .select("storage_path, org_id")
+    .select("id, org_id")
     .eq("id", documentId)
     .eq("org_id", orgId)
+    .is("deleted_at", null)
     .single()
     logQueryError("deletePropertyDocument property_documents", docError)
 
   if (!doc) return { error: "Document not found" }
 
-  // Delete from storage
-  await db.storage.from("property-documents").remove([doc.storage_path])
+  // F-2 (D-8): SOFT-delete. Property docs carry statutory retention (lease scans / CoCs / inspection
+  // reports, 3–5yr) — keep the row AND the storage file; the retention cron purges both once the window
+  // lapses. Hard-deleting + removing the file here would destroy a record the law requires us to keep.
+  const { error: delErr } = await db.from("property_documents")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", documentId)
+    .eq("org_id", orgId)
+  if (delErr) return { error: delErr.message }
 
-  // Delete record (org-scoped)
-  await db.from("property_documents").delete().eq("id", documentId).eq("org_id", orgId)
-
-  // Audit
+  // Audit (DELETE enum; semantic = archive — it's a reversible-until-purged soft delete)
   await db.from("audit_log").insert({
     org_id: orgId,
     table_name: "property_documents",
     record_id: documentId,
     action: "DELETE",
+    new_values: { action: "property_document_archived" },
     changed_by: userId,
   })
 

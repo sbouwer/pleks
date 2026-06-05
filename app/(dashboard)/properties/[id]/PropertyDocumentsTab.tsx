@@ -10,8 +10,8 @@
  */
 import { useState, useTransition, useRef } from "react"
 import { uploadPropertyDocument, deletePropertyDocument, getDocumentSignedUrl } from "@/lib/actions/documents"
-import { ActionButton } from "@/components/ui/actions"
-import { FileText, FileWarning, ShieldCheck, Home, FolderOpen, Upload, Trash2, ExternalLink, Loader2 } from "lucide-react"
+import { ActionButton, DeleteButton } from "@/components/ui/actions"
+import { FileText, FileWarning, ShieldCheck, Home, FolderOpen, Upload, Archive, ExternalLink, Loader2 } from "lucide-react"
 import { DatePickerInput } from "@/components/shared/DatePickerInput"
 import { FormSelect } from "@/components/ui/FormSelect"
 import { toast } from "sonner"
@@ -177,14 +177,13 @@ export function PropertyDocumentsTab({ propertyId, initialDocuments }: PropertyD
   }
 
   function handleDelete(doc: PropertyDocument) {
-    if (!confirm(`Delete "${doc.name}"?`)) return
     startDelete(async () => {
       const result = await deletePropertyDocument(doc.id, propertyId)
       if (result.error) {
         toast.error(result.error)
       } else {
         setDocuments((prev) => prev.filter((d) => d.id !== doc.id))
-        toast.success("Document deleted")
+        toast.success("Document archived")
       }
     })
   }
@@ -321,15 +320,16 @@ export function PropertyDocumentsTab({ propertyId, initialDocuments }: PropertyD
                             ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                             : <ExternalLink className="h-3.5 w-3.5" />}
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(doc)}
-                          disabled={deleting}
-                          className="p-1.5 text-muted-foreground hover:text-danger transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        <DeleteButton
+                          icon={Archive}
+                          label="Archive document"
+                          title={`Archive "${doc.name}"?`}
+                          itemName={doc.name}
+                          description="It leaves the active list but is retained for the legal retention period (lease scans / CoCs / inspection reports) and purged later — not destroyed now."
+                          confirmLabel="Archive"
+                          loading={deleting}
+                          onConfirm={() => handleDelete(doc)}
+                        />
                       </div>
                     </div>
                   </div>

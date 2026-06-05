@@ -404,6 +404,7 @@ async function fetchOperationsData(
       .select("id, name, document_type, expiry_date")
       .eq("property_id", propertyId)
       .eq("org_id", orgId)
+      .is("deleted_at", null)
       .not("expiry_date", "is", null),
     service
       .from("audit_log")
@@ -686,7 +687,7 @@ export default async function PropertyDetailPage({
 
   // Documents only need property_documents
   const propertyDocs = activeTab === "documents"
-    ? (await service.from("property_documents").select("id, name, document_type, storage_path, expiry_date, notes, created_at").eq("property_id", id).eq("org_id", orgId).order("created_at", { ascending: false })).data ?? []
+    ? (await service.from("property_documents").select("id, name, document_type, storage_path, expiry_date, notes, created_at").eq("property_id", id).eq("org_id", orgId).is("deleted_at", null).order("created_at", { ascending: false })).data ?? []
     : []
 
   const typeLabel: Record<string, string> = { residential: "Residential", commercial: "Commercial", mixed: "Mixed use" }

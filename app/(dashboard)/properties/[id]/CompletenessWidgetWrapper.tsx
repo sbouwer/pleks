@@ -187,7 +187,7 @@ export async function CompletenessWidgetWrapper({ propertyId, orgId, isOwnerProB
     fetchSchemeContact(service, property.managing_scheme_id),
     fetchUnitsBreakdown(service, propertyId),
     service.from("property_brokers").select("id", { count: "exact", head: true }).eq("property_id", propertyId),
-    service.from("property_documents").select("id", { count: "exact", head: true }).eq("property_id", propertyId),
+    service.from("property_documents").select("id", { count: "exact", head: true }).eq("property_id", propertyId).is("deleted_at", null),
     service.from("property_insurance_checklists").select("state").eq("property_id", propertyId).neq("state", "not_applicable"),
   ])
 
