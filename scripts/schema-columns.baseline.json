@@ -7,7 +7,6 @@
   "app/(dashboard)/properties/[id]/CompletenessWidgetWrapper.tsx::managing_schemes::managing_agent_email": 1,
   "app/(dashboard)/properties/[id]/CompletenessWidgetWrapper.tsx::managing_schemes::managing_agent_name": 1,
   "app/(dashboard)/properties/[id]/CompletenessWidgetWrapper.tsx::property_brokers::id": 1,
-  "app/(dashboard)/properties/[id]/edit/page.tsx::contractors::company_name": 1,
   "app/(landlord)/landlord/dashboard/page.tsx::properties::unit_count": 1,
   "app/(landlord)/landlord/properties/[id]/page.tsx::properties::unit_count": 1,
   "app/(landlord)/landlord/properties/page.tsx::properties::unit_count": 1,
@@ -21,17 +20,12 @@
   "lib/deposits/buildDeductionSchedule.ts::inspection_items::notes": 1,
   "lib/deposits/buildDeductionSchedule.ts::inspection_items::room": 2,
   "lib/insurance-checklist/generateBrokerBriefHTML.ts::managing_schemes::managing_agent_name": 1,
-  "lib/insurance-checklist/sendBrokerBrief.ts::property_brokers::contact_id": 2,
   "lib/popia/handlers/screening.ts::applications::status": 1,
   "lib/portal/getTenantSession.ts::leases::payment_reference": 2,
   "lib/portal/inviteLandlord.ts::landlord_view::portal_status": 1,
-  "lib/reports/contractorPerformance.ts::contractors::name": 1,
-  "lib/reports/contractorPerformance.ts::contractors::trade": 1,
   "lib/reports/cpaNoticeSchedule.ts::leases::cpa_notice_sent_at": 1,
-  "lib/reports/expenseReport.ts::contractors::name": 2,
   "lib/reports/portfolioSummary.ts::arrears_cases::tenant_name": 1,
   "lib/reports/portfolioSummary.ts::units::vacant_since": 1,
   "lib/reports/reportBranding.ts::organisations::office_hours_weekday": 1,
-  "lib/rules/tenant/deposit-return-t7.ts::units::full_address": 1,
-  "lib/rules/trust/unallocated-receipt.ts::bank_statement_lines::description": 1
+  "lib/rules/tenant/deposit-return-t7.ts::units::full_address": 1
 }

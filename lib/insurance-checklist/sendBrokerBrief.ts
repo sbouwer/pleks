@@ -37,10 +37,9 @@ export async function sendBrokerBrief(propertyId: string): Promise<SendBrokerBri
   // Fetch broker contact
   const { data: brokerRow, error: brokerRowError } = await db
     .from("property_brokers")
-    .select("contact_id, contacts(primary_email, first_name, last_name, company_name)")
+    .select("broker_contact_id, contacts(primary_email, first_name, last_name, company_name)")
     .eq("property_id", propertyId)
-    .eq("is_primary", true)
-    .single()
+    .maybeSingle()
     logQueryError("sendBrokerBrief property_brokers", brokerRowError)
 
   const broker = brokerRow?.contacts as unknown as {
@@ -79,11 +78,11 @@ export async function sendBrokerBrief(propertyId: string): Promise<SendBrokerBri
     agentPhone:   data.agentPhone,
   })
 
-  const briefResolved = brokerRow?.contact_id ? await resolveCompanyContact(db, orgId, brokerRow.contact_id, "general", "email") : null
+  const briefResolved = brokerRow?.broker_contact_id ? await resolveCompanyContact(db, orgId, brokerRow.broker_contact_id, "general", "email") : null
   const result = await sendEmail({
     orgId,
     templateKey:  "insurance.checklist_brief",
-    to: { email: briefResolved?.email ?? broker.primary_email, name: briefResolved?.name ?? brokerName, contactId: briefResolved?.contactId ?? brokerRow?.contact_id ?? undefined },
+    to: { email: briefResolved?.email ?? broker.primary_email, name: briefResolved?.name ?? brokerName, contactId: briefResolved?.contactId ?? brokerRow?.broker_contact_id ?? undefined },
     subject:      `Insurance coverage verification request — ${data.propertyName}`,
     emailElement,
     bodyPreview:  `Insurance verification request for ${data.propertyName} from ${branding.orgName}`,
@@ -104,17 +103,16 @@ export async function sendBrokerBrief(propertyId: string): Promise<SendBrokerBri
   // Log to incident_notifications (re-using BUILD_59 audit infra)
   const { data: brokerContact, error: brokerContactError } = await db
     .from("property_brokers")
-    .select("contact_id")
+    .select("broker_contact_id")
     .eq("property_id", propertyId)
-    .eq("is_primary", true)
-    .single()
+    .maybeSingle()
     logQueryError("sendBrokerBrief property_brokers", brokerContactError)
 
   await db.from("incident_notifications").insert({
     org_id:               orgId,
     property_id:          propertyId,
     notified_party:       "broker",
-    party_contact_id:     brokerContact?.contact_id ?? null,
+    party_contact_id:     brokerContact?.broker_contact_id ?? null,
     channel:              "email",
     template_name:        "insurance.checklist_brief",
     communication_log_id: result.logId ?? null,

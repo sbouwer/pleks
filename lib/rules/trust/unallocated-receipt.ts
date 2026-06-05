@@ -38,7 +38,7 @@ export const unallocatedReceiptRule: OrgRule = {
     const staleFrom = new Date(now.getTime() - STALE_AFTER_MS).toISOString()
     const { data: lines, error } = await supabase
       .from("bank_statement_lines")
-      .select("id, transaction_date, amount_cents, description")
+      .select("id, transaction_date, amount_cents")
       .eq("org_id", org.id)
       .eq("match_status", "unmatched")
       .lt("created_at", staleFrom)

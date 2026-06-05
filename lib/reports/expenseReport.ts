@@ -1,16 +1,21 @@
 /**
- * lib/reports/expenseReport.ts — FILL: one-line purpose
+ * lib/reports/expenseReport.ts — expense report (maintenance work orders + supplier invoices) for a period
  *
- * FILL: fill in relevant fields and delete unused ones:
- * Route:  /the/url/this/renders
- * Auth:   what gate protects it (e.g. requireAdminAuth, gateway, AAL2)
- * Data:   where data comes from, any non-obvious access pattern
- * Notes:  gotchas, invariants, why-not-X decisions
+ * Auth:   service client; org-scoped by orgId
+ * Data:   maintenance_requests + supplier_invoices, joined to properties (name) and the contractor's
+ *         contact (contractors have no name column — it lives on contractors.contact_id → contacts).
  */
 import { toDateStr } from "./periods"
 import { createServiceClient } from "@/lib/supabase/server"
 import { SARS_EXPENSE_CATEGORIES, type SARSCategory } from "@/lib/finance/sarsCategories"
 import type { ExpenseReportData, ExpenseRow, ReportFilters } from "./types"
+
+/** A contractor's display name = its contact's company name (or person name). */
+type ContractorContact = { contact: { company_name: string | null; first_name: string | null; last_name: string | null } | null } | null
+function contractorName(c: ContractorContact): string | null {
+  const ct = c?.contact
+  return ct?.company_name?.trim() || [ct?.first_name, ct?.last_name].filter(Boolean).join(" ").trim() || null
+}
 
 function mapToSARSLabel(category: string | null | undefined): string {
   const cat = (category ?? "").toLowerCase()
@@ -36,7 +41,7 @@ export async function buildExpenseReport(filters: ReportFilters): Promise<Expens
 
   let maintQuery = db
     .from("maintenance_requests")
-    .select("work_order_number, property_id, category, contractor_id, actual_cost_cents, completed_at, properties(name), contractors(name)")
+    .select("work_order_number, property_id, category, contractor_id, actual_cost_cents, completed_at, properties(name), contractors(contact:contacts(company_name, first_name, last_name))")
     .eq("org_id", orgId)
     .eq("status", "completed")
     .gte("completed_at", fromStr)
@@ -48,7 +53,7 @@ export async function buildExpenseReport(filters: ReportFilters): Promise<Expens
 
   let siQuery = db
     .from("supplier_invoices")
-    .select("description, property_id, amount_incl_vat_cents, invoice_date, properties(name), contractors(name)")
+    .select("description, property_id, amount_incl_vat_cents, invoice_date, properties(name), contractors(contact:contacts(company_name, first_name, last_name))")
     .eq("org_id", orgId)
     .gte("invoice_date", fromStr)
     .lte("invoice_date", toStr)
@@ -61,28 +66,26 @@ export async function buildExpenseReport(filters: ReportFilters): Promise<Expens
 
   for (const m of maintData ?? []) {
     const propRaw = m.properties as unknown as { name: string } | null
-    const contractorRaw = m.contractors as unknown as { name: string } | null
     rows.push({
       date: (m.completed_at as string | null)?.slice(0, 10) ?? "",
       description: `${m.category ?? "Maintenance"} — ${m.work_order_number ?? ""}`.trim().replace(/— $/, ""),
       property_name: propRaw?.name ?? "Unknown",
       category: m.category ?? "General",
       sars_code: mapToSARSLabel(m.category as string | null),
-      supplier: contractorRaw?.name ?? "—",
+      supplier: contractorName(m.contractors as unknown as ContractorContact) ?? "—",
       amount_cents: (m.actual_cost_cents as number) ?? 0,
     })
   }
 
   for (const s of siData ?? []) {
     const propRaw = s.properties as unknown as { name: string } | null
-    const contractorRaw = s.contractors as unknown as { name: string } | null
     rows.push({
       date: (s.invoice_date as string | null)?.slice(0, 10) ?? "",
       description: (s.description as string | null) ?? "Expense",
       property_name: propRaw?.name ?? "Unknown",
       category: "supplier",
       sars_code: mapToSARSLabel(s.description as string | null),
-      supplier: contractorRaw?.name ?? "—",
+      supplier: contractorName(s.contractors as unknown as ContractorContact) ?? "—",
       amount_cents: (s.amount_incl_vat_cents as number) ?? 0,
     })
   }

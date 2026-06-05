@@ -42,8 +42,9 @@ function buildContractorMap(jobs: JobRow[]): Map<string, { name: string; trade: 
   const m = new Map<string, { name: string; trade: string | null; assigned: number; completed: number; spend: number }>()
   for (const job of jobs) {
     const cid = job.contractor_id as string
-    const cRaw = job.contractors as { id: string; name: string; trade: string | null } | null
-    const existing = m.get(cid) ?? { name: cRaw?.name ?? "Unknown", trade: cRaw?.trade ?? null, assigned: 0, completed: 0, spend: 0 }
+    const cRaw = job.contractors as { id: string; supplier_type: string | null; contact: { company_name: string | null; first_name: string | null; last_name: string | null } | null } | null
+    const cName = cRaw?.contact?.company_name?.trim() || [cRaw?.contact?.first_name, cRaw?.contact?.last_name].filter(Boolean).join(" ").trim() || "Unknown"
+    const existing = m.get(cid) ?? { name: cName, trade: cRaw?.supplier_type ?? null, assigned: 0, completed: 0, spend: 0 }
     m.set(cid, {
       ...existing,
       assigned: existing.assigned + 1,
@@ -63,7 +64,7 @@ export async function buildContractorPerformance(filters: ReportFilters): Promis
 
   const { data: jobs, error: jobErr } = await db
     .from("maintenance_requests")
-    .select("id, status, contractor_id, actual_cost_cents, contractors(id, name, trade)")
+    .select("id, status, contractor_id, actual_cost_cents, contractors(id, supplier_type, contact:contacts(company_name, first_name, last_name))")
     .eq("org_id", orgId)
     .not("contractor_id", "is", null)
     .gte("created_at", fromStr)

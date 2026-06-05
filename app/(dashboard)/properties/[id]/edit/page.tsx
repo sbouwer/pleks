@@ -63,7 +63,7 @@ export default async function EditPropertyPage({
 
     supabase
       .from("contractors")
-      .select("id, company_name")
+      .select("id, contact:contacts(company_name)")
       .eq("org_id", orgId)
       .eq("supplier_type", "managing_scheme")
       .is("deleted_at", null),
@@ -130,7 +130,7 @@ export default async function EditPropertyPage({
         sectional_title_number: property.sectional_title_number ?? null,
         notes: property.notes ?? null,
       }}
-      managingSchemes={managingSchemes ?? []}
+      managingSchemes={(managingSchemes ?? []).map((s) => ({ id: s.id as string, company_name: (s.contact as unknown as { company_name: string | null } | null)?.company_name ?? "" }))}
       currentLandlord={currentLandlord}
       allLandlords={allLandlords ?? []}
       units={unitsSummary}
